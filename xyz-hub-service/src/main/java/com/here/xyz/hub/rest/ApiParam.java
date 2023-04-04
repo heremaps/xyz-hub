@@ -22,7 +22,7 @@ package com.here.xyz.hub.rest;
 import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQuery.QueryOperation;
+import com.here.xyz.events.QueryOperator;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -94,10 +94,6 @@ public class ApiParam {
       return rawKey.substring(2);
 
     return replacement;
-  }
-
-  public static class Header {
-
   }
 
   public static class Path {
@@ -178,19 +174,19 @@ public class ApiParam {
     public static final String AUTHOR = "author";
     public static final String SUBSCRIPTION_SOURCE = "source";
 
-    private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
-      put("!=", QueryOperation.NOT_EQUALS);
-      put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
-      put("=gte=", QueryOperation.GREATER_THAN_OR_EQUALS);
-      put("<=", QueryOperation.LESS_THAN_OR_EQUALS);
-      put("=lte=", QueryOperation.LESS_THAN_OR_EQUALS);
-      put(">", QueryOperation.GREATER_THAN);
-      put("=gt=", QueryOperation.GREATER_THAN);
-      put("<", QueryOperation.LESS_THAN);
-      put("=lt=", QueryOperation.LESS_THAN);
-      put("=", QueryOperation.EQUALS);
-      put("@>", QueryOperation.CONTAINS);
-      put("=cs=", QueryOperation.CONTAINS);
+    private static Map<String, QueryOperator> operators = new HashMap<String, QueryOperator>() {{
+      put("!=", QueryOperator.NOT_EQUALS);
+      put(">=", QueryOperator.GREATER_THAN_OR_EQUALS);
+      put("=gte=", QueryOperator.GREATER_THAN_OR_EQUALS);
+      put("<=", QueryOperator.LESS_THAN_OR_EQUALS);
+      put("=lte=", QueryOperator.LESS_THAN_OR_EQUALS);
+      put(">", QueryOperator.GREATER_THAN);
+      put("=gt=", QueryOperator.GREATER_THAN);
+      put("<", QueryOperator.LESS_THAN);
+      put("=lt=", QueryOperator.LESS_THAN);
+      put("=", QueryOperator.EQUALS);
+      put("@>", QueryOperator.CONTAINS);
+      put("=cs=", QueryOperator.CONTAINS);
     }};
 
     private static List<String> shortOperators = new ArrayList<>(operators.keySet());

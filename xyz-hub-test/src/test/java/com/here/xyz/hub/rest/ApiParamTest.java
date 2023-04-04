@@ -23,7 +23,7 @@ import static org.junit.Assert.assertEquals;
 
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQuery.QueryOperation;
+import com.here.xyz.events.QueryOperator;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import org.junit.Test;
@@ -41,31 +41,31 @@ public class ApiParamTest {
     assertEquals("5 AND blocks are expected.", 5, pql.size());
 
     PropertyQuery query = pql.stream().filter(q -> q.getKey().equals("properties.a")).findFirst().get();
-    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(QueryOperator.EQUALS, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(3L, query.getValues().get(0));
 
     // properties.b
     query = pql.stream().filter(q -> q.getKey().equals("properties.b")).findFirst().get();
-    assertEquals(QueryOperation.GREATER_THAN, query.getOperation());
+    assertEquals(QueryOperator.GREATER_THAN, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(4.1d, query.getValues().get(0));
 
     // properties.boolean
     query = pql.stream().filter(q -> q.getKey().equals("properties.boolean")).findFirst().get();
-    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(QueryOperator.EQUALS, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(true, query.getValues().get(0));
 
     // createdAt
     query = pql.stream().filter(q -> q.getKey().equals("properties.@ns:com:here:xyz.createdAt")).findFirst().get();
-    assertEquals(QueryOperation.GREATER_THAN, query.getOperation());
+    assertEquals(QueryOperator.GREATER_THAN, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(0L, query.getValues().get(0));
 
     // testString
     query = pql.stream().filter(q -> q.getKey().equals("properties.testString")).findFirst().get();
-    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(QueryOperator.EQUALS, query.getOperation());
     assertEquals(2, query.getValues().size());
     assertEquals("string", query.getValues().get(0));
     assertEquals("5", query.getValues().get(1));
@@ -83,7 +83,7 @@ public class ApiParamTest {
     assertEquals("1 AND blocks are expected.", 1, pql.size());
 
     PropertyQuery query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
-    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(QueryOperator.EQUALS, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(3L, query.getValues().get(0));
 
@@ -93,7 +93,7 @@ public class ApiParamTest {
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
-    assertEquals(QueryOperation.EQUALS, query.getOperation());
+    assertEquals(QueryOperator.EQUALS, query.getOperation());
     assertEquals(2, query.getValues().size());
     assertEquals(3L, query.getValues().get(0));
     assertEquals(4L, query.getValues().get(1));
@@ -104,7 +104,7 @@ public class ApiParamTest {
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
-    assertEquals(QueryOperation.NOT_EQUALS, query.getOperation());
+    assertEquals(QueryOperator.NOT_EQUALS, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(3L, query.getValues().get(0));
 
@@ -114,7 +114,7 @@ public class ApiParamTest {
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
-    assertEquals(QueryOperation.GREATER_THAN, query.getOperation());
+    assertEquals(QueryOperator.GREATER_THAN, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(3L, query.getValues().get(0));
 
@@ -124,7 +124,7 @@ public class ApiParamTest {
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
-    assertEquals(QueryOperation.GREATER_THAN_OR_EQUALS, query.getOperation());
+    assertEquals(QueryOperator.GREATER_THAN_OR_EQUALS, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(3L, query.getValues().get(0));
 
@@ -134,7 +134,7 @@ public class ApiParamTest {
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
-    assertEquals(QueryOperation.LESS_THAN, query.getOperation());
+    assertEquals(QueryOperator.LESS_THAN, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(3L, query.getValues().get(0));
 
@@ -144,7 +144,7 @@ public class ApiParamTest {
     pql = pq.get(0);
 
     query = pql.stream().filter(q -> q.getKey().equals("contentUpatedAt")).findFirst().get();
-    assertEquals(QueryOperation.LESS_THAN_OR_EQUALS, query.getOperation());
+    assertEquals(QueryOperator.LESS_THAN_OR_EQUALS, query.getOperation());
     assertEquals(1, query.getValues().size());
     assertEquals(3L, query.getValues().get(0));
   }

@@ -25,6 +25,7 @@ import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.hub.auth.ActionMatrix;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
+import com.here.xyz.hub.params.XyzHubQueryParameters;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.util.logging.AccessLog;
 import com.here.xyz.models.hub.Connector;
@@ -241,7 +242,6 @@ public abstract class XyzHubTask extends EventTask {
   @Override
   public final @NotNull XyzResponse sendEvent(@NotNull Event event) {
     info("Send unauthorized event " + event.getClass().getSimpleName());
-    // TODO: Add author and app into the event, so that our PSQL storage can invoke: naksha_tx_init(app, author)
     return super.sendEvent(event);
   }
 

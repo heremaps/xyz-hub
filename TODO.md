@@ -1,9 +1,12 @@
 # TODO (internal discussion)
 
-xyz-psql -> Low Level code to access management and space database including transactions, features, history, ...
+xyz-psql -> Low Level code to access management and space database including transactions, features,
+history, ...
 CRUD
-xyz-psql-processor -> Implements Event processing, so translation of events into calls into the low level psql code
-xyz-hub-service    -> Implementation of the HUB REST API and some business logic like Auto-Merge on Conflict aso and generates
+xyz-psql-processor -> Implements Event processing, so translation of events into calls into the low
+level psql code
+xyz-hub-service -> Implementation of the HUB REST API and some business logic like Auto-Merge on
+Conflict aso and generates
 Events sent to the Processor
 Manages spaces, subscriptions and stuff using directly the low level xyz-psql package
 
@@ -55,31 +58,36 @@ Space change planed:
 
 This builds up a pipeline like:
 
-`EventContext <-> Utm <-> EventContext <-> ValidateSchema <-> EventContext <-> PsqlProcessor` 
+`EventContext <-> Utm <-> EventContext <-> ValidateSchema <-> EventContext <-> PsqlProcessor`
 
 ## Event Processing
 
 ### Rest API
 
-- Optionally accept external stream-id like `streamId = routingContext.request().headers().get("Stream-Id")`
+- Optionally accept external stream-id
+  like `streamId = routingContext.request().headers().get("Stream-Id")`
 - Create new **Task** via `task = new FooTask(streamId)`
 - Initialize the task from the **RoutingContext** via `task.setBar(value); ...`
 - Add response listener to send the response via `task.setCallback(this::sendResponse)`
 - Start the task via `task.start()`
 - When start throws an exception, send back an error response.
-- All this can be embedded into a helper method of the task, like `FooTask.startFromRoutingContext(routingContext)`
+- All this can be embedded into a helper method of the task,
+  like `FooTask.startFromRoutingContext(routingContext)`
 
 ### Task Design
 
-- The task itself will create a new event in the constructor, and the task methods shall initialize it.
-- When the **execute** method invoked, the task shall initialize the pipeline (add all event handlers).
-- Initialization of the pipeline is done in **execute**, because that time the task is bound to the thread, therefore logging works as expected.
+- The task itself will create a new event in the constructor, and the task methods shall initialize
+  it.
+- When the **execute** method invoked, the task shall initialize the pipeline (add all event
+  handlers).
+- Initialization of the pipeline is done in **execute**, because that time the task is bound to the
+  thread, therefore logging works as expected.
 - Finally, it will process the event via `return sendEvent(event)`
 - The real processing is done by the event handlers that where attached to the pipeline.
 
 ### Child Tasks
 
-For example for the view implementation or at other places it may be necessary to run child-tasks, 
+For example for the view implementation or at other places it may be necessary to run child-tasks,
 optionally parallel. This is now simple:
 
 - Create a child task `childTask = new FooTask()`
@@ -105,14 +113,14 @@ Within this method they have a couple of options:
 - Optionally, post-process the response receive from the handlers behind.
 - Abort the event and send back an error response (either before sending forward or later).
 - Consume the event, fulfill it and send back a valid response.
- 
-All event handlers need to be configured, before they can be used. This is done in the code in the 
+
+All event handlers need to be configured, before they can be used. This is done in the code in the
 constructor of the event handler implementation:
 
 `protected EventHandler(@NotNull Map<@NotNull String, @Nullable Object> params) throws XyzErrorException {...}`
 
 The params are provided from the user of the handler and there is a helper class available to parse
-them (`EventHandlerParams`). Basically, this is called connecting and therefore the corresponding 
+them (`EventHandlerParams`). Basically, this is called connecting and therefore the corresponding
 configured event handler called `connector`.
 
 ### Spaces
@@ -122,12 +130,45 @@ have at least one storage connector, referred via `connectorId`. Optionally, an 
 of processors can be added in-front of the storage connector using the `processors` array.
 
 Both, the storage connector and the processors, are just referred via their connector-id. Each
-connector is basically a new instance of the corresponding event handler combined with the 
+connector is basically a new instance of the corresponding event handler combined with the
 parameters configured. Technically the parameters are secrets, they can only be accessed by the
-connector admins (**manageConnectors**), while the user of a connector (**accessConnectors**) can 
+connector admins (**manageConnectors**), while the user of a connector (**accessConnectors**) can
 use the connector is has access to with any of his spaces.
 
 All event handlers have access to the space parameters (`params`) as defined by the space. The
 space parameters are mainly to modify certain aspects of how the handlers process the event. For
 example they can be used to map a space to a different table name, when using the `psql` storage
 connector.
+
+## Naming convention
+
+Handlers should be named like `{id}(Processor|Storage|Cache)`, dependent on their purpose (more
+postfixes maybe needed later).
+
+- `Storage`: Should be used as endpoint in the event handler pipeline.
+- `Processor`: Should be used in-front of the storage to perform certain pre- or post-processing.
+- `Cache`: Should be used in-front of the storage to cache request.
+
+Planned storages:
+
+- `psql` - **PsqlStorage**: Default PostgresQL storage implementation.
+- `http` - **HttpStorage**: Default HTTP remote procedure call.
+- `view` - **ViewStorage**: Virtual storage that merged multiple other spaces into one logical view.
+- `mapcreator` - **MapCreatorProcessor**: Default business logic of map creator.
+- `mapfeedback` - **MapFeedbackProcessor**: Default logic needed for Map Feedback.
+- `activitylog` - **ActivityLogProcessor**: Make history queries compatible with deprecated activity log.
+
+## Caching changes
+
+Caching can be implemented much more efficient. We simply need only two caches, a geometry cache,
+and a change cache. The change cache just remembers the time when the space content was modified,
+and when it changes, the cache is updated accordingly. So all requests get a shared cache e-tag (
+well, basically simply the last transaction identifier of a change applied to a specific space,
+added by some random string. When a request comes in and the space is not changed at all, we can
+always return 304 Not Modified, we do not need to keep the data in memory at all for this to work.
+This will be highly effective on spaces that only change seldom.
+
+The second cache is geometric, where we review transactions and remember which area was changed at
+which time. So the e-tag holds the geometric area and the time. It is slightly more complicated,
+but still does not require us to keep the data in memory, nor do we even need to query the database,
+when a cache hit is detected. We can basically detect this before the request is even executed!

@@ -7,7 +7,7 @@ import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.task.XyzHubQueryParameters;
+import com.here.xyz.hub.params.XyzHubQueryParameters;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.ext.web.RoutingContext;

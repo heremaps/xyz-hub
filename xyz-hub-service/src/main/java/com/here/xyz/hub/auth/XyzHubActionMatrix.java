@@ -247,6 +247,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
     return this;
   }
 
+  @Deprecated
   public XyzHubActionMatrix manageSpaces(final AttributeMap attributesMap) throws NullPointerException {
     addAction(MANAGE_SPACES, attributesMap);
     return this;
