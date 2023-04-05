@@ -135,22 +135,19 @@ public class ImportQueue extends JobQueue{
                         })
                 .onFailure(f -> {
                     logger.warn("JOB[{}] preparation has failed!", j.getId(), f);
-                    j.setErrorType(Import.ERROR_TYPE_PREPARATION_FAILED);
 
                     if (f instanceof PgException && ((PgException) f).getCode() != null) {
                         if (((PgException) f).getCode().equalsIgnoreCase("42P01")) {
                             logger.info("TargetTable '" + j.getTargetTable() + "' does not Exists!");
-                            j.setErrorDescription(Import.ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS);
-                            failJob(j);
+                            failJob(j, Import.ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS, Job.ERROR_TYPE_PREPARATION_FAILED);
                             return;
                         }
                     }
                     //@TODO: Collect more possible error-cases
                     if (f.getMessage() != null && f.getMessage().equalsIgnoreCase("SequenceNot0"))
-                        j.setErrorDescription(Import.ERROR_DESCRIPTION_SEQUENCE_NOT_0);
+                        failJob(j, Import.ERROR_DESCRIPTION_SEQUENCE_NOT_0, Job.ERROR_TYPE_PREPARATION_FAILED);
                     else
-                        j.setErrorDescription(Import.ERROR_DESCRIPTION_UNEXPECTED);
-                    failJob(j);
+                        failJob(j, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_PREPARATION_FAILED);
                 });
     }
 
@@ -245,8 +242,7 @@ public class ImportQueue extends JobQueue{
         CService.jdbcImporter.finalizeImport(j, getDefaultSchema)
                 .onFailure(f -> {
                     logger.warn("JOB[{}] finalization failed!", j.getId(), f);
-                    j.setErrorType(Import.ERROR_TYPE_FINALIZATION_FAILED);
-                    failJob(j);
+                    failJob(j, null , Import.ERROR_TYPE_FINALIZATION_FAILED);
                 }).compose(
                     f -> {
                         j.setFinalizedAt(Core.currentTimeMillis() / 1000L);
@@ -260,14 +256,6 @@ public class ImportQueue extends JobQueue{
                 });
     }
 
-    @Override
-    protected void failJob(Job j){
-        //TODO: set TTL
-        j.setStatus(Job.Status.failed);
-
-        CService.jobConfigClient.update(null , j)
-                .onFailure(t -> logger.warn("JOB[{}] update failed!", j.getId()));
-    }
     /**
      * Begins executing the JobQueue processing - periodically and asynchronously.
      *

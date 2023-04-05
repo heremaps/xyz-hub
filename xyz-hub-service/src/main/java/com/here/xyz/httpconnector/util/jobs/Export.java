@@ -29,6 +29,10 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class Export extends Job {
+    public static String ERROR_TYPE_HTTP_TRIGGER_FAILED = "http_trigger_failed";
+    public static String ERROR_TYPE_TARGET_ID_INVALID = "targetId_invalid";
+    public static String ERROR_TYPE_HTTP_TRIGGER_STATUS_FAILED = "http_get_trigger_status_failed";
+
     @JsonInclude
     private String type = "Export";
 
@@ -57,6 +61,9 @@ public class Export extends Job {
 
     @JsonView({Public.class})
     private Filters filters;
+
+    @JsonView({Public.class})
+    private String triggerId;
 
     public Export(){ }
 
@@ -135,6 +142,11 @@ public class Export extends Job {
     public void setFilters(Filters filters) {
         this.filters = filters;
     }
+
+    public void setType(String type) { this.type = type; }
+
+    public String getTriggerId() { return triggerId; }
+    public void setTriggerId(String triggerId) { this.triggerId = triggerId; }
 
     public Export withId(final String id) {
         setId(id);
@@ -261,6 +273,11 @@ public class Export extends Job {
         return this;
     }
 
+    public Export withTriggerId(String triggerId) {
+        setTriggerId(triggerId);
+        return this;
+    }
+
     public static class ExportStatistic{
         private long rowsUploaded;
         private long filesUploaded;
@@ -320,7 +337,7 @@ public class Export extends Job {
     public static class ExportTarget{
         @JsonView({Public.class})
         public enum Type {
-            VML,S3;
+            VML, DOWNLOAD, S3 /** same as download */;
             public static Type of(String value) {
                 if (value == null) {
                     return null;

@@ -41,6 +41,11 @@ import java.util.Objects;
 })
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public abstract class Job {
+    public static String ERROR_TYPE_VALIDATION_FAILED = "validation_failed";
+    public static String ERROR_TYPE_PREPARATION_FAILED = "preparation_failed";
+    public static String ERROR_TYPE_EXECUTION_FAILED = "execution_failed";
+    public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
+
     @JsonView({Public.class})
     public enum Type {
         Import, Export;
@@ -58,7 +63,9 @@ public abstract class Job {
 
     @JsonView({Public.class})
     public enum Status {
-        waiting, queued, validating, validated, preparing, prepared, executing, executed, finalizing, finalized, aborted, failed;
+        waiting, queued, validating, validated, preparing, prepared, executing, executed,
+            executing_trigger, trigger_executed, collectiong_trigger_status, trigger_status_collected,
+            finalizing, finalized, aborted, failed;
         public static Status of(String value) {
             if (value == null) {
                 return null;

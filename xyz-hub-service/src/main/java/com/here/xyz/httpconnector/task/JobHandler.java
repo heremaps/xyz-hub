@@ -220,6 +220,8 @@ public class JobHandler {
             case prepared:
             case executing:
             case executed:
+            case executing_trigger:
+            case collectiong_trigger_status:
             case finalizing:
                 throw new HttpException(PRECONDITION_FAILED, "Job is already running - current status: "+job.getStatus());
         }

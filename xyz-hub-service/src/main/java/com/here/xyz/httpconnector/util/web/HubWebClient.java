@@ -21,14 +21,83 @@ package com.here.xyz.httpconnector.util.web;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.StatisticsResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.charset.Charset;
 
 public class HubWebClient {
+    private static final Logger logger = LogManager.getLogger();
+
+    public static Future<String> executeHTTPTrigger(Export job){
+
+        return CService.webClient.postAbs(CService.configuration.HUB_ENDPOINT
+                        .substring(0,CService.configuration.HUB_ENDPOINT.lastIndexOf("/"))+"/_export-job")
+                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                .sendJson(job)
+                .compose(res -> {
+                    try {
+                        if (res.statusCode() == HttpResponseStatus.NOT_FOUND.code()) {
+                            throw new HttpException(HttpResponseStatus.NOT_FOUND, "TargetId does not exists!");
+                        }
+
+                        if (res.statusCode() != HttpResponseStatus.OK.code()) {
+                            throw new Exception("Unexpected response code "+res.statusCode());
+                        }
+
+                        JsonObject resp = res.bodyAsJsonObject();
+                        String id = resp.getString("id");
+
+                        if(id == null)
+                            throw new Exception("Id is missing!");
+
+                        return Future.succeededFuture(id);
+                    }catch (Exception e){
+                        logger.warn("JOB[{}] Unexpected HTTPTrigger response: {}", job.getId(), res.bodyAsString());
+                        return Future.failedFuture(e);
+                    }
+                });
+    }
+
+    public static Future<String> executeHTTPTriggerStatus(Export job){
+        String statusUrl = CService.configuration.HUB_ENDPOINT.substring(0,CService.configuration.HUB_ENDPOINT.lastIndexOf("/"))
+                + "/_export-job-status"
+                + "?targetId="+job.getExportTarget().getTargetId()
+                + "&vmlImportId="+job.getTriggerId();
+
+        return CService.webClient.getAbs(statusUrl)
+                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                .send()
+                .compose(res -> {
+                    try {
+                        if (res.statusCode() == HttpResponseStatus.NOT_FOUND.code()) {
+                            throw new HttpException(HttpResponseStatus.NOT_FOUND, "TargetId does not exists!");
+                        }
+
+                        if (res.statusCode() != HttpResponseStatus.OK.code()) {
+                            throw new Exception("Unexpected response code "+res.statusCode());
+                        }
+
+                        JsonObject resp = res.bodyAsJsonObject();
+                        String state = resp.getString("state");
+
+                        if(state == null) {
+                            throw new Exception("State is missing!");
+                        }
+
+                        return Future.succeededFuture(state);
+                    }catch (Exception e){
+                        logger.warn("JOB[{}] Unexpected HTTPTriggerStatus response: {}", job.getId(), e);
+                        return Future.failedFuture(e);
+                    }
+                });
+    }
 
     public static Future<Void> updateSpaceConfig(JsonObject config, String spaceId){
         /** Update space-config */

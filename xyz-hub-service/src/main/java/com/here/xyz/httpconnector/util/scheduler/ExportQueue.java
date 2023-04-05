@@ -24,7 +24,9 @@ import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.ExportObject;
+import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
+import com.here.xyz.hub.rest.HttpException;
 import com.mchange.v3.decode.CannotDecodeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -78,23 +80,16 @@ public class ExportQueue extends JobQueue{
                                     removeJob(exportJob);
                                     break;
                                 case waiting:
-                                    updateJobStatus(exportJob, Job.Status.validating)
-                                            .onSuccess(f -> validateJob(exportJob));
-                                    break;
-                                case validated:
-                                    updateJobStatus(exportJob, Job.Status.queued);
-                                    break;
-                                case queued:
-                                    updateJobStatus(exportJob, Job.Status.preparing)
-                                            .onSuccess(f -> prepareJob(exportJob));
-                                    break;
-                                case prepared:
                                     updateJobStatus(exportJob, Job.Status.executing)
                                             .onSuccess(f -> executeJob(exportJob));
                                     break;
                                 case executed:
-                                    updateJobStatus(exportJob, Job.Status.finalizing)
-                                            .onSuccess(f -> finalizeJob(exportJob));
+                                    updateJobStatus(exportJob, Job.Status.executing_trigger)
+                                            .onSuccess(f -> postTrigger(exportJob));
+                                    break;
+                                case trigger_executed:
+                                    updateJobStatus(exportJob, Job.Status.collectiong_trigger_status)
+                                            .onSuccess(f -> collectTriggerStatus(exportJob));
                                     break;
                                 default: {
                                     logger.info("JOB[{}] is currently '{}' - current Queue-size: {}", exportJob.getId(), exportJob.getStatus(), queueSize());
@@ -109,15 +104,11 @@ public class ExportQueue extends JobQueue{
     @Override
     protected void validateJob(Job j){
         //** Currently not needed */
-        j.setStatus(Job.Status.validated);
-        updateJobStatus(j, null);
     }
 
     @Override
     protected void prepareJob(Job j){
         //** Currently not needed */
-        j.setStatus(Job.Status.prepared);
-        updateJobStatus(j, null);
     }
 
     @Override
@@ -138,7 +129,7 @@ public class ExportQueue extends JobQueue{
                 )
                 .onFailure(f -> {
                             logger.warn("JOB[{}] Export of '{}' failed ", j.getId(), j.getTargetSpaceId(), f);
-                            updateJobStatus(j, Job.Status.failed);
+                            failJob(j, null , Job.ERROR_TYPE_EXECUTION_FAILED);
                         }
                 );
     }
@@ -146,29 +137,74 @@ public class ExportQueue extends JobQueue{
     @Override
     protected void finalizeJob(Job j){
         j.setFinalizedAt(Core.currentTimeMillis() / 1000L);
-
-        //Add file statistics and downloadLinks
-        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath(j, true);
-        ((Export)j).setExportObjects(exportObjects);
-
-        //Write MetaFile to S3
-        CService.jobS3Client.writeMetaFile((Export) j);
-
         updateJobStatus(j, Job.Status.finalized);
     }
 
-    protected void abortJob(Job j){
-        j.setErrorDescription("ABORTED");
-        failJob(j);
+    protected void addFileData(Job j){
+        /** Add file statistics and downloadLinks */
+        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath(j, true);
+        ((Export) j).setExportObjects(exportObjects);
+
+        /** Write MetaFile to S3 */
+        CService.jobS3Client.writeMetaFile((Export) j);
     }
 
-    @Override
-    protected void failJob(Job j){
-        //TODO: set TTL
-        j.setStatus(Job.Status.failed);
+    protected void postTrigger(Job j){
+        addFileData(j);
 
-        CService.jobConfigClient.update(null , j)
-                .onFailure(t -> logger.warn("JOB[{}] update failed!", j.getId()));
+        /** executeHttpTrigger - only on VML*/
+        if(((Export)j).getExportTarget().getType().equals(Export.ExportTarget.Type.VML)) {
+            HubWebClient.executeHTTPTrigger((Export) j)
+                    .onFailure(e -> {
+                                if(e instanceof HttpException){
+                                    failJob(j, Export.ERROR_TYPE_TARGET_ID_INVALID, Job.ERROR_TYPE_FINALIZATION_FAILED);
+                                }else
+                                    failJob(j, Export.ERROR_TYPE_HTTP_TRIGGER_FAILED, Job.ERROR_TYPE_FINALIZATION_FAILED);
+                            }
+                    )
+                    .onSuccess(triggerId -> {
+                        //** Add import ID */
+                        ((Export) j).setTriggerId(triggerId);
+                        updateJobStatus(j, Job.Status.trigger_executed);
+                    });
+        }else {
+            /** skip collecting Trigger */
+            finalizeJob(j);
+        }
+    }
+
+    protected void collectTriggerStatus(Job j){
+        /** executeHttpTrigger */
+        if(((Export)j).getExportTarget().getType().equals(Export.ExportTarget.Type.VML)) {
+            HubWebClient.executeHTTPTriggerStatus((Export) j)
+                    .onFailure(e -> {
+                            if(e instanceof HttpException){
+                                failJob(j, Export.ERROR_TYPE_TARGET_ID_INVALID, Job.ERROR_TYPE_FINALIZATION_FAILED);
+                            }else
+                                failJob(j, Export.ERROR_TYPE_HTTP_TRIGGER_STATUS_FAILED, Job.ERROR_TYPE_FINALIZATION_FAILED);
+                        }
+                    )
+                    .onSuccess(status -> {
+                        switch (status){
+                            case "initialized":
+                            case "submitted":
+                                /** In other cases reset status for next status query */
+                                updateJobStatus(j, Job.Status.trigger_executed);
+                                return;
+                            case "succeeded":
+                                logger.info("JOB[{}] execution of '{}' succeeded ", j.getId(), ((Export) j).getTriggerId());
+                                finalizeJob(j);
+                                return;
+                            case "cancelled":
+                            case "failed":
+                                logger.warn("JOB[{}] Trigger '{}' failed with state '{}'", j.getId(), ((Export) j).getTriggerId(), status);
+                                failJob(j, Export.ERROR_TYPE_HTTP_TRIGGER_FAILED, Job.ERROR_TYPE_FINALIZATION_FAILED);
+                        }
+                    });
+        }else {
+            /** skip collecting Trigger */
+            finalizeJob(j);
+        }
     }
 
     /**
