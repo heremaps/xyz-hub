@@ -68,7 +68,7 @@ public class JDBCExporter extends JDBCClients{
             Export.SpatialFilter spatialFilter= (filters == null ? null : filters.getSpatialFilter());
 
             switch (target.getType()){
-                case S3:
+                case DOWNLOAD:
                     q = buildS3ExportQuery(schema, spaceId, s3Bucket, s3Path, s3Region, csvFormat,
                             propertyFilter, spatialFilter, targetVersion, params);
                     logger.info("Execute S3-Export {}->{} {}", spaceId, s3Path, q.text());

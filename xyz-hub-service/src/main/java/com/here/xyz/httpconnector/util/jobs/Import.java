@@ -30,10 +30,6 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class Import extends Job {
-    public static String ERROR_TYPE_VALIDATION_FAILED = "validation_failed";
-    public static String ERROR_TYPE_PREPARATION_FAILED = "preparation_failed";
-    public static String ERROR_TYPE_EXECUTION_FAILED = "execution_failed";
-    public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
     public static String ERROR_TYPE_NO_DB_CONNECTION = "no_db_connection";
 
     public static String ERROR_DESCRIPTION_UPLOAD_MISSING = "UPLOAD_MISSING";

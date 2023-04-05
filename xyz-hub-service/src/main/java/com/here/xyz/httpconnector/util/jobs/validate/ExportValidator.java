@@ -26,7 +26,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 public class ExportValidator extends Validator{
     protected static int VML_EXPORT_MIN_TARGET_LEVEL = 4;
     protected static int VML_EXPORT_MAX_TARGET_LEVEL = 12;
-    protected static int VML_EXPORT_MAX_TILES_PER_FILE = 8196;
+    protected static int VML_EXPORT_MAX_TILES_PER_FILE = 32784;
 
     public static void setExportDefaults(Export job){
         setJobDefaults(job);
@@ -55,7 +55,7 @@ public class ExportValidator extends Validator{
                 throw new Exception("Please specify targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
             if(job.getTargetLevel() < ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL || job.getTargetLevel() > ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL)
                 throw new Exception("Invalid targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
-        }else if(job.getExportTarget().getType().equals(Export.ExportTarget.Type.S3)){
+        }else if(job.getExportTarget().getType().equals(Export.ExportTarget.Type.DOWNLOAD)){
             if(job.getCsvFormat().equals(Job.CSVFormat.TILEID_FC_B64))
                 throw new Exception("Invalid Format! Allowed ["+ Job.CSVFormat.JSON_WKB +","+ Job.CSVFormat.GEOJSON +"]");
         }

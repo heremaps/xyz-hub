@@ -43,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
@@ -145,7 +144,7 @@ public class JobApiIT extends TestSpaceWithFeature {
             job = new Export()
                     .withDescription("Job Description")
                     .withCsvFormat(Job.CSVFormat.JSON_WKB)
-                    .withExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.S3));
+                    .withExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD));
 
             if (id != null)
                 job.setId(id);
@@ -260,7 +259,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         Export job = new Export()
                 .withId(testJobId)
                 .withDescription("Job Description")
-                .withExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.S3))
+                .withExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD))
                 .withCsvFormat(Job.CSVFormat.GEOJSON);
 
         job.setFilters(new Export.Filters().withSpatialFilter(new Export.SpatialFilter().withGeometry(new Point().withCoordinates(new PointCoordinates(399,399)))));
@@ -436,7 +435,7 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .statusCode(BAD_REQUEST.code());
 
         /** Add missing target */
-        job.setExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.S3));
+        job.setExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD));
 
         postJob(job)
                 .statusCode(BAD_REQUEST.code());

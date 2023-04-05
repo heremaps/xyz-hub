@@ -143,7 +143,6 @@ public class JobApi extends Api {
                     logger.error(Api.Context.getMarker(context), "Unexpected Error during create CREATEUPLOADURL", e);
                     this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, "Unexpected Error!"));
                   }
-                  //context.response().setStatusCode(NO_CONTENT.code()).end();
               }
             });
   }

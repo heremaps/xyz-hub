@@ -58,7 +58,18 @@ public abstract class JobQueue implements Runnable {
 
     protected abstract void finalizeJob(Job j0);
 
-    protected abstract void failJob(Job j);
+    protected void failJob(Job j, String errorDescription, String errorType){
+        j.setStatus(Job.Status.failed);
+
+        /** Overrides potentially existing values */
+        if(errorDescription != null)
+            j.setErrorDescription(errorDescription);
+        if(errorType != null)
+            j.setErrorType(errorType);
+
+        CService.jobConfigClient.update(null , j)
+                .onFailure(t -> logger.warn("JOB[{}] update failed!", j.getId()));
+    };
 
     protected Future<Void> isProcessingOnRDSPossible(Integer i, Job job){
         Promise<Void> p = Promise.promise();
