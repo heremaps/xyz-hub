@@ -471,8 +471,14 @@ public class JobApiIT extends TestSpaceWithFeature {
         postJob(job)
                 .statusCode(BAD_REQUEST.code());
 
-        /** Add missing target-id */
+        /** Add missing target-id - invalid one*/
         job.setExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.VML).withTargetId("testId"));
+
+        postJob(job)
+                .statusCode(BAD_REQUEST.code());
+
+        /** Add correct target-id */
+        job.setExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.VML).withTargetId(testSpaceId1+":id"));
 
         postJob(job)
                 .statusCode(BAD_REQUEST.code());

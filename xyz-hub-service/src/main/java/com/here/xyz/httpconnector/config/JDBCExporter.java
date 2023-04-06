@@ -194,8 +194,6 @@ public class JDBCExporter extends JDBCClients{
         GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent();
         event.setSpace(spaceId);
         event.setParams(params);
-        /** maybe allow user to set custom limit */
-        event.setFreeLimit(1000000000);
 
         if(params != null && params.get("enableHashedSpaceId") != null)
             event.setConnectorParams(new HashMap<String, Object>(){{put("enableHashedSpaceId",params.get("enableHashedSpaceId"));}});
@@ -231,8 +229,10 @@ public class JDBCExporter extends JDBCClients{
             throw new SQLException(e);
         }
 
-        /** *Override geoFragment */
+        /** Override geoFragment */
         sqlQuery.setQueryFragment("geo", geoFragment);
+        /** Remove Limit */
+        sqlQuery.setQueryFragment("limit", "");
         sqlQuery.substitute();
 
         return queryToText(sqlQuery);
