@@ -6536,7 +6536,7 @@ else {
 	&quot;title&quot;: &quot;UTM E2E_QA - Backup3 space&quot;,&#xd;
 	&quot;description&quot;: &quot;Data Backup3 Space for UTM E2E_QA environment&quot;,&#xd;
 	&quot;storage&quot;: {&#xd;
-		&quot;id&quot;: &quot;dcu-connector&quot;&#xd;
+		&quot;id&quot;: &quot;psql-task-mgmt&quot;&#xd;
 	},&#xd;
 	&quot;enableUUID&quot;: true,&#xd;
 	&quot;packages&quot;: [&#xd;
