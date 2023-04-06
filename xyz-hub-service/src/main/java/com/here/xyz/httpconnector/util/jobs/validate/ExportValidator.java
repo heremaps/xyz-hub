@@ -53,6 +53,7 @@ public class ExportValidator extends Validator{
                 throw new Exception("Please specify the targetId!");
 
             int catalogMarkerTargetSpace = job.getTargetSpaceId().lastIndexOf(":");
+            catalogMarkerTargetSpace = catalogMarkerTargetSpace == -1 ? job.getTargetSpaceId().length() : catalogMarkerTargetSpace;
             int catalogMarkerExportTarget= job.getExportTarget().getTargetId().lastIndexOf(":");
 
             if(catalogMarkerExportTarget == -1 || (!job.getTargetSpaceId().substring(0,catalogMarkerTargetSpace).equalsIgnoreCase(
