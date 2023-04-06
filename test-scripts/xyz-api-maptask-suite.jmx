@@ -175,7 +175,7 @@
         </collectionProp>
       </Arguments>
       <hashTree/>
-      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - Local" enabled="true">
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - Local" enabled="false">
         <collectionProp name="Arguments.arguments">
           <elementProp name="XYZ_API_PROTOCOL" elementType="Argument">
             <stringProp name="Argument.name">XYZ_API_PROTOCOL</stringProp>
@@ -282,7 +282,7 @@
         </collectionProp>
       </Arguments>
       <hashTree/>
-      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - E2E Demo" enabled="false">
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Env variables - E2E Demo" enabled="true">
         <collectionProp name="Arguments.arguments">
           <elementProp name="XYZ_API_PROTOCOL" elementType="Argument">
             <stringProp name="Argument.name">XYZ_API_PROTOCOL</stringProp>
@@ -363,7 +363,7 @@
       </HeaderManager>
       <hashTree/>
       <SetupThreadGroup guiclass="SetupThreadGroupGui" testclass="SetupThreadGroup" testname="setUp" enabled="true">
-        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <stringProp name="ThreadGroup.on_sample_error">stoptest</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
           <stringProp name="LoopController.loops">1</stringProp>
@@ -2884,7 +2884,7 @@ else {
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos5 - Read Access Control (wikvaya)" enabled="false">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos5 - Read Access Control (wikvaya)" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
@@ -3174,7 +3174,7 @@ else {
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos6 - Write Access Control (wikvaya)" enabled="false">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos6 - Write Access Control (wikvaya)" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
@@ -3883,7 +3883,7 @@ else {
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos8 - Connector Operations (wikvaya)" enabled="false">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Pos8 - Connector Operations (wikvaya)" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
@@ -5075,7 +5075,7 @@ else {
           <hashTree/>
         </hashTree>
       </hashTree>
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Neg3 - Invalid API Key (wikvaya)" enabled="false">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Neg3 - Invalid API Key (wikvaya)" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">stopthread</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller" enabled="true">
           <boolProp name="LoopController.continue_forever">false</boolProp>
@@ -6463,7 +6463,11 @@ else {
   },&#xd;
   &quot;capabilities&quot;: {&#xd;
     &quot;propertySearch&quot;: true&#xd;
-  }&#xd;
+  },&#xd;
+  &quot;connectionSettings&quot;: {&#xd;
+    &quot;maxConnections&quot;: 512,&#xd;
+    &quot;minConnections&quot;: 0&#xd;
+  }  &#xd;
 }</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
@@ -6532,7 +6536,7 @@ else {
 	&quot;title&quot;: &quot;UTM E2E_QA - Backup3 space&quot;,&#xd;
 	&quot;description&quot;: &quot;Data Backup3 Space for UTM E2E_QA environment&quot;,&#xd;
 	&quot;storage&quot;: {&#xd;
-		&quot;id&quot;: &quot;psql-task-mgmt&quot;&#xd;
+		&quot;id&quot;: &quot;dcu-connector&quot;&#xd;
 	},&#xd;
 	&quot;enableUUID&quot;: true,&#xd;
 	&quot;packages&quot;: [&#xd;
