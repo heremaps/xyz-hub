@@ -6,6 +6,7 @@
   - Fixed Sequencer module to skip external connectors that don't have DB credentials to perform sequencing
   - Fixed Publisher module to skip SNS message attribute where it is found as empty string in message event
   - Fixed `handle` value in Iterate API response to support subsequent iterate operations using previous `handle` as offset
+  - Event Publisher `fetch-newer-transactions` query fixed to improve performance (from 10 mins per call to 1 sec) for significantly bigger history table (e.g. 80+ million records or 190+ GB)
 
 ## Naksha_1.1.0
 

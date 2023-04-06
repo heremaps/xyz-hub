@@ -44,7 +44,7 @@ public class PubDatabaseHandler {
             "SELECT t.id, h.i, h.jsondata, h.jsondata->'properties'->'@ns:com:here:xyz'->>'action' AS action, h.jsondata->>'id' AS featureId " +
             "FROM "+SCHEMA_STR+".\""+TABLE_STR+"\" h, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".transactions t " +
             "WHERE "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_json_txn(h.jsondata) = t.txn " +
-            "AND "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_json_txn_ts(h.jsondata) = "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_ts("+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_to_bytes(t.txn)) " +
+            //"AND "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_json_txn_ts(h.jsondata) = "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_ts("+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_to_bytes(t.txn)) " +
             "AND t.space = ? AND (t.id > ? OR (t.id = ? AND h.i > ?)) " +
             "ORDER BY t.id ASC, h.i ASC " +
             "LIMIT 50";

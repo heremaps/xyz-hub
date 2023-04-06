@@ -397,6 +397,9 @@ public abstract class RemoteFunctionClient {
   }
 
   public int getWeightedMaxConnections() {
+    // TODO : Remove this log once UTM performance testing is completed
+    logger.info("getWeightedMaxConnections ConnPct:{}, MaxConnAtConfig:{}, Priority:{}, MaxConnAtConnctr:{}",
+            getGlobalUsedConnectionsPercentage(), Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS, getPriority(), getMaxConnections());
     if (getGlobalUsedConnectionsPercentage() > Service.configuration.REMOTE_FUNCTION_CONNECTION_HIGH_UTILIZATION_THRESHOLD) {
       //Distribute available connections based on the client's priority
       return Math.min((int) (Service.configuration.REMOTE_FUNCTION_MAX_CONNECTIONS * getPriority()), getMaxConnections());
