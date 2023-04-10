@@ -27,7 +27,8 @@ public enum QueryDelimiter {
   PLUS('+', true),
   COMMA(',', true),
   SEMICOLON(';', true),
-  EQUAL('=', true);
+  EQUAL('=', true),
+  END((char) 0, false);
 
   QueryDelimiter(char c, boolean isSub) {
     this.delimiterChar = c;

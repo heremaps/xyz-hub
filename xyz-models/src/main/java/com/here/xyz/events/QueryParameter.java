@@ -1,293 +1,204 @@
 package com.here.xyz.events;
 
-import static com.here.xyz.events.QueryParameters.DEFAULT_CAPACITY;
+import static com.here.xyz.events.QueryParameterList.DEFAULT_CAPACITY;
 
+import com.here.xyz.util.ValueList;
 import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The query parameter as provided in the query string of a URI.
+ * The query parameter as provided in the query string of a URI. Every query parameter does have a name (which is given by the client), a
+ * key (the meaning, which may or may not be case-sensitive), values and arguments. The general syntax, which is modifiable, is
+ * {@code &{key|name}[[delimiter][argument]...][[delimiter][[value][delimiter]...]]}, for example {@code &Foo;bar=a,b,c,'3'}, which could
+ * result in the name "{@code Foo}", the key "{@code foo}", one argument "{@code bar}" and four string values being
+ * {@code "a", "b", "c" and "3"}.
  */
-public class QueryParameter extends ArrayList<@Nullable Object> {
+@SuppressWarnings("unused")
+public class QueryParameter {
 
-  QueryParameter(@NotNull QueryParameters parent, @NotNull String key, @NotNull QueryOperator op, int index) {
-    super(DEFAULT_CAPACITY);
+  public QueryParameter(@NotNull QueryParameterList parent, @NotNull String name, int index) {
     this.parent = parent;
-    this.key = key;
-    this.op = op;
+    this.name = name;
+    this.key = parent.nameToKey(name);
     this.index = index;
   }
 
+  /**
+   * The list to which this parameter belongs.
+   */
+  final @NotNull QueryParameterList parent;
+  /**
+   * The absolute index in the arguments list.
+   */
   final int index;
-  final @NotNull QueryParameters parent;
-  final @NotNull String key;
-  @NotNull QueryOperator op;
+  /**
+   * The parsed arguments.
+   */
+  private @Nullable ValueList arguments;
+  /**
+   * The delimiter before each argument.
+   */
+  private @Nullable List<@NotNull QueryDelimiter> argumentsDelimiter;
+  /**
+   * The values.
+   */
+  private @Nullable ValueList values;
+  /**
+   * The delimiter behind each value.
+   */
+  private @Nullable List<@NotNull QueryDelimiter> valuesDelimiter;
+  /**
+   * The name as given by the client.
+   */
+  private final @NotNull String name;
+  /**
+   * The key for hash-map access.
+   */
+  private final @NotNull String key;
+  /**
+   * The delimiter that splits the name, key and arguments from the values.
+   */
+  @Nullable QueryDelimiter delimiter;
+  /**
+   * The next query parameter with the same key.
+   */
   @Nullable QueryParameter next;
 
   /**
-   * Returns the query parameters to which this parameter belongs.
+   * Returns the query parameter list to which this parameter belongs.
    *
-   * @return The query parameters to which this parameter belongs.
+   * @return The query parameter list to which this parameter belongs.
    */
-  public @NotNull QueryParameters parent() {
+  public @NotNull QueryParameterList parent() {
     return parent;
   }
 
   /**
-   * Returns the index of this query parameter.
+   * Returns the index of this query parameter in the parameter list.
    *
-   * @return The index of this query parameter.
+   * @return The index of this query parameter in the parameter list.
    */
-  public int getIndex() {
+  public int index() {
     return index;
   }
 
   /**
-   * Returns the key of this query parameter.
+   * Returns the name of this query parameter, in the exact notation as it appeared in the query string.
+   *
+   * @return The name of this query parameter.
+   */
+  public @NotNull String name() {
+    return name;
+  }
+
+  /**
+   * Returns the key of this query parameter, can differ from the notation in which it appears in the query string. For example, when the
+   * parameters should be case-insensitive, then the key maybe in lower or upper case while the name will be the exact form as it appeared
+   * in the original query string.
    *
    * @return The key of this query parameter.
    */
-  public @NotNull String getKey() {
+  public @NotNull String key() {
     return key;
   }
 
   /**
-   * Returns the operation of this query parameter.
+   * Returns {@code true} if the query parameter has arguments; {@code false} otherwise.
    *
-   * @return The operation of this query parameter.
+   * @return {@code true} if the query parameter has arguments; {@code false} otherwise.
    */
-  public @NotNull QueryOperator getOp() {
-    return op;
+  public boolean hasArguments() {
+    return arguments != null && arguments.size() > 0;
   }
 
   /**
-   * Returns the first value.
+   * Returns the arguments.
    *
-   * @return The first value; {@code null} if the parameter does not have a value.
+   * @return The arguments.
    */
-  public @Nullable Object first() {
-    return get(0);
-  }
-
-  /**
-   * Return the n'th value.
-   *
-   * @param n n.
-   * @return The n'th value; {@code null} if no such value exists.
-   */
-  public @Nullable Object getOrNull(int n) {
-    return n >= 0 && n < size() ? get(n) : null;
-  }
-
-  /**
-   * Return the n'th value, if it is of the expected type.
-   *
-   * @param n          The index to query.
-   * @param valueClass The class of the return-type.
-   * @return Either the value or {@code null}, if the index is out of bounds, or the value is not of the expected type.
-   */
-  public <T> @Nullable T getAs(int n, @NotNull Class<T> valueClass) {
-    final Object value = getOrNull(n);
-    if (valueClass.isInstance(value)) {
-      return valueClass.cast(value);
+  public @NotNull ValueList arguments() {
+    ValueList arguments = this.arguments;
+    if (arguments == null) {
+      this.arguments = arguments = new ValueList(DEFAULT_CAPACITY);
     }
-    return null;
+    return arguments;
   }
 
   /**
-   * Return the n'th value if it is of the same type as the given alternative; otherwise the given alternative.
+   * Returns the delimiters in-front of each argument.
    *
-   * @param n           The index to query.
-   * @param alternative The alternative value.
-   * @return Either the n'th value, if of the same type as the given alternative or the given alternative.
+   * @return The delimiters in-front of each argument.
    */
-  public <T> @NotNull T getOr(int n, @NotNull T alternative) {
-    //noinspection unchecked
-    final Class<T> valueClass = (Class<T>) alternative.getClass();
-    final Object value = getOrNull(n);
-    if (valueClass.isInstance(value)) {
-      return valueClass.cast(value);
+  public @NotNull List<@NotNull QueryDelimiter> argumentsDelimiter() {
+    List<@NotNull QueryDelimiter> delimiter = this.argumentsDelimiter;
+    if (delimiter == null) {
+      this.argumentsDelimiter = delimiter = new ArrayList<>(DEFAULT_CAPACITY);
     }
-    return alternative;
-  }
-
-  private static boolean emptyAndString(@Nullable Object o) {
-    return o instanceof String && ((String) o).length() == 0;
+    return delimiter;
   }
 
   /**
-   * Removes empty strings, then return the compacted values list. This will make the values a list that does not have empty strings and
-   * therefore may be empty by itself.
+   * Returns {@code true} if the query parameter has values; {@code false} otherwise.
+   *
+   * @return {@code true} if the query parameter has values; {@code false} otherwise.
+   */
+  public boolean hasValues() {
+    return values != null && values.size() > 0;
+  }
+
+  /**
+   * Returns the values.
    *
    * @return The values.
    */
-  public @NotNull QueryParameter removeEmpty() {
-    removeIf(QueryParameter::emptyAndString);
-    return this;
+  public @NotNull ValueList values() {
+    ValueList values = this.values;
+    if (values == null) {
+      this.values = values = new ValueList(DEFAULT_CAPACITY);
+    }
+    return values;
   }
 
   /**
-   * Sets the parameter to a single value.
+   * Returns the delimiters behind each value.
    *
-   * @param value The value to set.
-   * @return this.
+   * @return The delimiters behind each value.
    */
-  public @NotNull QueryParameter set(@NotNull Object value) {
-    clear();
-    add(value);
-    return this;
+  public @NotNull List<@NotNull QueryDelimiter> valuesDelimiter() {
+    List<@NotNull QueryDelimiter> delimiter = this.valuesDelimiter;
+    if (delimiter == null) {
+      this.valuesDelimiter = delimiter = new ArrayList<>(DEFAULT_CAPACITY);
+    }
+    return delimiter;
   }
 
   /**
-   * Replace the values list.
+   * Returns the delimiter that separates the name, key and arguments from the values. Returns {@code null}, if no delimiter, which means no
+   * values either.
    *
-   * @param values The new values list.
-   * @return this.
+   * @return The delimiter that separates the name, key and arguments from the values.
    */
-  public @NotNull QueryParameter setAll(@NotNull List<@NotNull String> values) {
-    clear();
-    addAll(values);
-    return this;
+  public @Nullable QueryDelimiter delimiter() {
+    return delimiter;
   }
 
   /**
-   * Set the parameter operation.
+   * Tests whether another query parameter with the same {@link #key() key} exists.
    *
-   * @param op The parameter operation.
-   * @return this.
-   */
-  public @NotNull QueryParameter setOp(@NotNull QueryOperator op) {
-    this.op = op;
-    return this;
-  }
-
-  /**
-   * Tests whether another query parameter with the same {@link #getKey() key} exists.
-   *
-   * @return True if another query parameter with the same {@link #getKey() key} exists; false otherwise.
+   * @return True if another query parameter with the same {@link #key() key} exists; false otherwise.
    */
   public boolean hasNext() {
     return next != null;
   }
 
   /**
-   * Returns the next query parameter with the same {@link #getKey() key}. To iterate all parameters use {@link }
+   * Returns the next query parameter with the same {@link #key() key}. To iterate all parameters use {@link }
    *
-   * @return The next query parameter with the same {@link #getKey() key}; {@code null} if no parameter with the same key exists.
+   * @return The next query parameter with the same {@link #key() key}; {@code null} if no parameter with the same key exists.
    */
   public @Nullable QueryParameter next() {
     return next;
-  }
-
-  public boolean isString(int n) {
-    return getOrNull(n) instanceof String;
-  }
-
-  public @Nullable String getString(int n) {
-    final Object value = getOrNull(n);
-    return (String) (value instanceof String ? value : null);
-  }
-
-  public @NotNull String getString(int n, @NotNull String defaultValue) {
-    final String value = getString(n);
-    return value == null ? defaultValue : value;
-  }
-
-  public boolean isLong(int n) {
-    return getOrNull(n) instanceof Long;
-  }
-
-  public @Nullable Long getLong(int n) {
-    final Object value = getOrNull(n);
-    return (Long) (value instanceof Long ? value : null);
-  }
-
-  public long getLong(int n, long defaultValue) {
-    final Long value = getLong(n);
-    return value == null ? defaultValue : value;
-  }
-
-
-  public boolean isDouble(int n) {
-    return getOrNull(n) instanceof Double;
-  }
-
-  public @Nullable Double getDouble(int n) {
-    final Object value = getOrNull(n);
-    return (Double) (value instanceof Double ? value : null);
-  }
-
-  public double getDouble(int n, double defaultValue) {
-    final Double value = getDouble(n);
-    return value == null ? defaultValue : value;
-  }
-
-
-  public boolean isBoolean(int n) {
-    return getOrNull(n) instanceof Boolean;
-  }
-
-  public @Nullable Boolean getBoolean(int n) {
-    final Object value = getOrNull(n);
-    return (Boolean) (value instanceof Boolean ? value : null);
-  }
-
-  public boolean getBoolean(int n, boolean defaultValue) {
-    final Boolean value = getBoolean(n);
-    return value == null ? defaultValue : value;
-  }
-
-  /**
-   * Cast this parameter list into a string list.
-   *
-   * <p>The method will not ensure that the parameters really only contains the required type, therefore it can cause
-   * {@link ClassCastException}'s to be thrown!
-   *
-   * @return this.
-   */
-  @SuppressWarnings({"unchecked", "rawtypes"})
-  public @NotNull List<@Nullable String> asStringList() {
-    return (List<String>) (List) this;
-  }
-
-  /**
-   * Cast this parameter list into a long list.
-   *
-   * <p>The method will not ensure that the parameters really only contains the required type, therefore it can cause
-   * {@link ClassCastException}'s to be thrown!
-   *
-   * @return this.
-   */
-  @SuppressWarnings({"unchecked", "rawtypes"})
-  public @NotNull List<@Nullable Long> asLongList() {
-    return (List<Long>) (List) this;
-  }
-
-  /**
-   * Cast this parameter list into a long list.
-   *
-   * <p>The method will not ensure that the parameters really only contains the required type, therefore it can cause
-   * {@link ClassCastException}'s to be thrown!
-   *
-   * @return this.
-   */
-  @SuppressWarnings({"unchecked", "rawtypes"})
-  public @NotNull List<@Nullable Double> asDoubleList() {
-    return (List<Double>) (List) this;
-  }
-
-  /**
-   * Cast this parameter list into a long list.
-   *
-   * <p>The method will not ensure that the parameters really only contains the required type, therefore it can cause
-   * {@link ClassCastException}'s to be thrown!
-   *
-   * @return this.
-   */
-  @SuppressWarnings({"unchecked", "rawtypes"})
-  public @NotNull List<@Nullable Boolean> asBooleanList() {
-    return (List<Boolean>) (List) this;
   }
 }
