@@ -26,7 +26,9 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Payload;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The base class of all events that are sent by the XYZ Hub to a "procedure". All events extend this event. All "procedures" can be sure to
@@ -93,6 +95,8 @@ public abstract class Event<T extends Event> extends Payload {
   @JsonView(ExcludeFromHash.class)
   @JsonInclude(Include.ALWAYS)
   private String version = VERSION;
+  @JsonView(ExcludeFromHash.class)
+  private String sourceRegion;
 
   /**
    * The identifier of the space.
@@ -343,6 +347,30 @@ public abstract class Event<T extends Event> extends Payload {
     setVersion(version);
     //noinspection unchecked
     return (T) this;
+  }
+
+  public String getSourceRegion() {
+    return sourceRegion;
+  }
+
+  public void setSourceRegion(String sourceRegion) {
+    this.sourceRegion = sourceRegion;
+  }
+
+  public T withSourceRegion(String sourceRegion) {
+    setSourceRegion(sourceRegion);
+    return (T) this;
+  }
+
+  public static boolean isAllowedEventType(Map<String, Set<String>> allowedEventTypes, String eventType, String region) {
+    if (allowedEventTypes == null)
+      return true;
+    Set<String> allowed = new HashSet<>();
+    if (allowedEventTypes.containsKey("*"))
+      allowed.addAll(allowedEventTypes.get("*"));
+    if (region != null && allowedEventTypes.containsKey(region))
+      allowed.addAll(allowedEventTypes.get(region));
+    return allowed.contains("*") || allowed.contains(eventType);
   }
 
   public static class TrustedParams extends HashMap<String, Object> {

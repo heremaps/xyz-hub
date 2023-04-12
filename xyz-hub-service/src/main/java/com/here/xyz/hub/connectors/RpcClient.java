@@ -277,6 +277,7 @@ public class RpcClient {
           + region)));
       return context;
     }
+    event.setSourceRegion(region);
 
     logger.info(marker, "Invoking remote function \"{}\". Total uncompressed event size: {}, Event: {}", connector.id, eventBytes.length,
             preview(eventJson, 4092));

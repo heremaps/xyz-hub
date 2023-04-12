@@ -19,11 +19,15 @@
 
 package com.here.xyz.connectors;
 
+import static com.here.xyz.responses.XyzError.FORBIDDEN;
+
 import com.amazonaws.services.lambda.AWSLambda;
 import com.amazonaws.services.lambda.AWSLambdaClientBuilder;
 import com.amazonaws.services.lambda.model.InvokeRequest;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestStreamHandler;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.here.xyz.Payload;
 import com.here.xyz.Typed;
@@ -46,8 +50,11 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 
 /**
  * A default implementation of a request handler that can be reused. It supports out of the box caching via e-tag.
@@ -150,6 +157,20 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    */
   protected long maxUncompressedResponseSize = Long.MAX_VALUE;
 
+  private static final String DEFAULT_STORAGE_REGION_MAPPING = "DEFAULT_STORAGE_REGION_MAPPING";
+  private static final Map<String, Set<String>> allowedEventTypes;
+
+  static {
+    try {
+      allowedEventTypes = Strings.isNotEmpty(System.getenv(DEFAULT_STORAGE_REGION_MAPPING))
+          ? XyzSerializable.deserialize(System.getenv(DEFAULT_STORAGE_REGION_MAPPING), new TypeReference<Map<String, Set<String>>>() {})
+          : null;
+    }
+    catch (JsonProcessingException e) {
+      throw new RuntimeException("Error parsing DEFAULT_STORAGE_REGION_MAPPING.", e);
+    }
+  }
+
   /**
    * Default constructor that sets the correct decryptor based on the {@see ENV_DECRYPTOR} environment variable.
    */
@@ -221,6 +242,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
           handleRequest(Payload.prepareInputStream(relocationClient.processRelocatedEvent((RelocatedEvent) event)), output, context);
           return;
         }
+        checkEventTypeAllowed(event);
         initialize(event);
         dataOut = processEvent(event);
       }
@@ -339,6 +361,13 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
     catch (Exception e) {
       logger.error("{} Unexpected exception occurred:", traceItem, e);
     }
+  }
+
+  private static void checkEventTypeAllowed(Event event) throws ErrorResponseException {
+    if (event.getSourceRegion() != null && allowedEventTypes != null
+        && !Event.isAllowedEventType(allowedEventTypes, event.getClass().getSimpleName(), event.getSourceRegion()))
+      throw new ErrorResponseException(FORBIDDEN, "Calls from source-region \"" + event.getSourceRegion() + "\" are not allowed to this"
+          + " connector.");
   }
 
   /**

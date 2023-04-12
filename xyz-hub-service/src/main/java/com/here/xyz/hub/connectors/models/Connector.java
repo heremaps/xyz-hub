@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.Payload;
+import com.here.xyz.events.Event;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
@@ -36,7 +37,6 @@ import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.ARN;
 import java.net.URL;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -174,14 +174,7 @@ public class Connector {
   public Map<String, Set<String>> allowedEventTypes;
 
   public boolean isAllowedEventType(String eventType, String region) {
-    if (allowedEventTypes == null)
-      return true;
-    Set<String> allowed = new HashSet<>();
-    if (allowedEventTypes.containsKey("*"))
-      allowed.addAll(allowedEventTypes.get("*"));
-    if (region != null && allowedEventTypes.containsKey(region))
-      allowed.addAll(allowedEventTypes.get(region));
-    return allowed.contains("*") || allowed.contains(eventType);
+    return Event.isAllowedEventType(allowedEventTypes, eventType, region);
   }
 
   public <T extends Connector> boolean equalTo(T other) {
@@ -196,7 +189,8 @@ public class Connector {
         && Objects.equals(connectionSettings, other.connectionSettings)
         && Objects.equals(defaultEventTypes, other.defaultEventTypes)
         && Objects.equals(skipAutoDisable, other.skipAutoDisable)
-        && Objects.equals(forwardParamsConfig, other.forwardParamsConfig);
+        && Objects.equals(forwardParamsConfig, other.forwardParamsConfig)
+        && Objects.equals(allowedEventTypes, other.allowedEventTypes);
   }
 
   @JsonIgnore
