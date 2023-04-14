@@ -26,6 +26,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.nullValue;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
@@ -35,6 +36,7 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.LineString;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Properties;
 import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
@@ -385,5 +387,41 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         patch(getSpacesPath() + "/x-psql-test/features/Q2838923").
         then().
         statusCode(OK.code());
+  }
+
+  @Test
+  public void testPostSamePayloadTwice() {
+    Feature F1 = new Feature()
+        .withId("F1")
+        .withProperties(new Properties()
+          .with("name", "Anfield")
+          .with("capacity", 55000)
+        )
+        .withGeometry(new Point().withCoordinates(new PointCoordinates(-2.960847,53.430828)));
+
+    long createdAt = given().
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body(F1.serialize()).
+        when().
+        post(getSpacesPath() + "/x-psql-test/features").
+        then().
+        statusCode(OK.code())
+        .body("inserted[0]", equalTo("F1"))
+        .extract()
+        .path("features[0].properties.@ns:com:here:xyz.createdAt");
+
+    // execute second time
+    given().
+        contentType(APPLICATION_GEO_JSON).
+        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
+        body(F1.serialize()).
+        when().
+        post(getSpacesPath() + "/x-psql-test/features").
+        then().
+        statusCode(OK.code())
+        .body("features[0].properties.@ns:com:here:xyz.createdAt", equalTo(createdAt))
+        .body("inserted", nullValue())
+        .body("updated", nullValue());
   }
 }
