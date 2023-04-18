@@ -1084,6 +1084,25 @@ public abstract class DatabaseHandler extends StorageConnector {
                 + "ADD COLUMN operation CHAR NOT NULL DEFAULT 'I'")
                 .withVariable("schema", schema)
                 .withVariable("table", tableName);
+
+            List<SQLQuery> storageOptions  = Arrays.asList(
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET STORAGE MAIN;"),
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET STORAGE MAIN;"),
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET STORAGE MAIN;"),
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN operation SET STORAGE PLAIN;"),
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN next_version SET STORAGE PLAIN;"),
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN version SET STORAGE PLAIN;"),
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN i SET STORAGE PLAIN;"),
+
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET COMPRESSION lz4;"),
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET COMPRESSION lz4;"),
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET COMPRESSION lz4;")
+            );
+
+            for (SQLQuery query : storageOptions ){
+                stmt.addBatch(query.withVariable("schema", schema).withVariable("table", tableName).substitute().text());
+            }
+
             stmt.addBatch(alterQuery.substitute().text());
             //Add new indices for existing tables
             createVersioningIndices(stmt, schema, tableName);
@@ -1181,7 +1200,16 @@ public abstract class DatabaseHandler extends StorageConnector {
                 .withVariable("table", tableName)
                 .withVariable("oldConstraintName", tableName + "_primKey")
                 .withVariable("constraintName", headPartitionTable + "_primKey");
+
             stmt.addBatch(alterQuery.substitute().text());
+
+            List<SQLQuery> storageOptions  = Arrays.asList(
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET STORAGE MAIN;"),
+                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET COMPRESSION lz4;")
+            );
+            for (SQLQuery query : storageOptions ){
+                stmt.addBatch(query.withVariable("schema", schema).withVariable("table", tableName).substitute().text());
+            }
 
             //Get all index definitions for later creation of indices at the new root table
             List<String> allHeadIndexDefs = getAllIndexDefinitions(connection, schema, tableName)
@@ -1324,8 +1352,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep, boolean withIndices, String existingSerial) throws SQLException {
-        String tableFields =
-            "id TEXT NOT NULL, "
+        String tableFields = "id TEXT NOT NULL, "
                 + "version BIGINT NOT NULL, "
                 + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
                 + "operation CHAR NOT NULL, "
@@ -1345,6 +1372,26 @@ public abstract class DatabaseHandler extends StorageConnector {
             createTable.setVariable("existingSerial", existingSerial);
 
         stmt.addBatch(createTable.substitute().text());
+
+        List<SQLQuery> storageOptions  = Arrays.asList(
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET STORAGE MAIN;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET STORAGE MAIN;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET STORAGE MAIN;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET STORAGE MAIN;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN operation SET STORAGE PLAIN;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN next_version SET STORAGE PLAIN;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN version SET STORAGE PLAIN;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN i SET STORAGE PLAIN;"),
+
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET COMPRESSION lz4;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET COMPRESSION lz4;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET COMPRESSION lz4;"),
+                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET COMPRESSION lz4;")
+        );
+
+        for (SQLQuery query : storageOptions ){
+            stmt.addBatch(query.withVariable("schema", schema).withVariable("table", table).substitute().text());
+        }
 
         String query;
 
