@@ -158,7 +158,7 @@ public class JDBCExporter extends JDBCClients{
         q.setNamedParameter("s3Bucket",s3Bucket);
         q.setNamedParameter("s3Path",s3Path);
         q.setNamedParameter("s3Region",s3Region);
-        q.setNamedParameter("clipped",VML_USE_CLIPPING);
+        /* q.setNamedParameter("clipped",VML_USE_CLIPPING); */
         q.setNamedParameter("targetLevel", targetLevel);
         q.setNamedParameter("maxTilesPerFile", maxTilesPerFile);
 
