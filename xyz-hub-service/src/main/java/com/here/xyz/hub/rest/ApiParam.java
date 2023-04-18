@@ -22,7 +22,7 @@ package com.here.xyz.hub.rest;
 import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.QueryOperator;
+import com.here.xyz.events.PropertyQueryOp;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -174,19 +174,19 @@ public class ApiParam {
     public static final String AUTHOR = "author";
     public static final String SUBSCRIPTION_SOURCE = "source";
 
-    private static Map<String, QueryOperator> operators = new HashMap<String, QueryOperator>() {{
-      put("!=", QueryOperator.NOT_EQUALS);
-      put(">=", QueryOperator.GREATER_THAN_OR_EQUALS);
-      put("=gte=", QueryOperator.GREATER_THAN_OR_EQUALS);
-      put("<=", QueryOperator.LESS_THAN_OR_EQUALS);
-      put("=lte=", QueryOperator.LESS_THAN_OR_EQUALS);
-      put(">", QueryOperator.GREATER_THAN);
-      put("=gt=", QueryOperator.GREATER_THAN);
-      put("<", QueryOperator.LESS_THAN);
-      put("=lt=", QueryOperator.LESS_THAN);
-      put("=", QueryOperator.EQUALS);
-      put("@>", QueryOperator.CONTAINS);
-      put("=cs=", QueryOperator.CONTAINS);
+    private static Map<String, PropertyQueryOp> operators = new HashMap<String, PropertyQueryOp>() {{
+      put("!=", PropertyQueryOp.NOT_EQUALS);
+      put(">=", PropertyQueryOp.GREATER_THAN_OR_EQUALS);
+      put("=gte=", PropertyQueryOp.GREATER_THAN_OR_EQUALS);
+      put("<=", PropertyQueryOp.LESS_THAN_OR_EQUALS);
+      put("=lte=", PropertyQueryOp.LESS_THAN_OR_EQUALS);
+      put(">", PropertyQueryOp.GREATER_THAN);
+      put("=gt=", PropertyQueryOp.GREATER_THAN);
+      put("<", PropertyQueryOp.LESS_THAN);
+      put("=lt=", PropertyQueryOp.LESS_THAN);
+      put("=", PropertyQueryOp.EQUALS);
+      put("@>", PropertyQueryOp.CONTAINS);
+      put("=cs=", PropertyQueryOp.CONTAINS);
     }};
 
     private static List<String> shortOperators = new ArrayList<>(operators.keySet());

@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.connectors.statistics;
 
-import static com.here.xyz.events.QueryOperator.GREATER_THAN;
+import static com.here.xyz.events.PropertyQueryOp.GREATER_THAN;
 import static com.here.xyz.hub.config.SpaceConfigClient.CONTENT_UPDATED_AT;
 
 import com.google.common.collect.Lists;

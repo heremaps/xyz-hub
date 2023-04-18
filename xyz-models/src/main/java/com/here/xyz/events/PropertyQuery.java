@@ -28,7 +28,8 @@ import java.util.List;
 public class PropertyQuery {
 
   private String key;
-  private QueryOperator operation;
+  private PropertyQueryOp operation;
+  // OR condition (any of the values).
   private List<Object> values;
 
   @SuppressWarnings("unused")
@@ -48,17 +49,17 @@ public class PropertyQuery {
   }
 
   @SuppressWarnings("unused")
-  public QueryOperator getOperation() {
+  public PropertyQueryOp getOperation() {
     return this.operation;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setOperation(QueryOperator operation) {
+  public void setOperation(PropertyQueryOp operation) {
     this.operation = operation;
   }
 
   @SuppressWarnings("unused")
-  public PropertyQuery withOperation(QueryOperator operation) {
+  public PropertyQuery withOperation(PropertyQueryOp operation) {
     setOperation(operation);
     return this;
   }

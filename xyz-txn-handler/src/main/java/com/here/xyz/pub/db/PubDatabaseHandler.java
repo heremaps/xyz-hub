@@ -1,10 +1,13 @@
 package com.here.xyz.pub.db;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.models.hub.SubscriptionConfig;
+import com.here.xyz.models.hub.psql.PsqlPoolConfig;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.hub.Subscription;
-import com.here.xyz.psql.config.PSQLConfig;
+import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import com.here.xyz.pub.models.*;
 import io.vertx.core.json.Json;
-import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.security.GeneralSecurityException;
@@ -16,21 +19,21 @@ public class PubDatabaseHandler {
     private static final Logger logger = LogManager.getLogger();
 
     final private static String LOCK_SQL
-            = "SELECT pg_try_advisory_lock( ('x' || md5('%s') )::bit(60)::bigint ) AS success";
+        = "SELECT pg_try_advisory_lock( ('x' || md5('%s') )::bit(60)::bigint ) AS success";
 
     final private static String UNLOCK_SQL
-            = "SELECT pg_advisory_unlock( ('x' || md5('%s') )::bit(60)::bigint ) AS success";
+        = "SELECT pg_advisory_unlock( ('x' || md5('%s') )::bit(60)::bigint ) AS success";
 
     final private static String FETCH_ALL_SUBSCRIPTIONS =
-            "SELECT s.id, s.source, s.config " +
-                    "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_subscription s " +
-                    "WHERE s.status->>'state' = 'ACTIVE'";
+        "SELECT s.id, s.source, s.config " +
+            "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_subscription s " +
+            "WHERE s.status->>'state' = 'ACTIVE'";
 
     final private static String FETCH_TXN_ID_FOR_SUBSCRIPTION =
-            "SELECT t.last_txn_id, t.last_txn_rec_id FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub t WHERE t.subscription_id = ?";
+        "SELECT t.last_txn_id, t.last_txn_rec_id FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub t WHERE t.subscription_id = ?";
 
     final private static String FETCH_CONN_DETAILS_FOR_SPACE =
-            "SELECT " +
+        "SELECT " +
             "  st.id AS id, " + // 1
             "  COALESCE(sp.config->'storage'->'params'->>'tableName', sp.id) AS tableName " + // 2
             "  st.config->'params' AS params " + // 3
@@ -42,7 +45,7 @@ public class PubDatabaseHandler {
     final private static String SCHEMA_STR = "{{SCHEMA}}";
     final private static String TABLE_STR = "{{TABLE}}";
     final private static String FETCH_TXNS_FROM_SPACEDB =
-            "SELECT t.id, h.i, h.jsondata, h.jsondata->'properties'->'@ns:com:here:xyz'->>'action' AS action, h.jsondata->>'id' AS featureId " +
+        "SELECT t.id, h.i, h.jsondata, h.jsondata->'properties'->'@ns:com:here:xyz'->>'action' AS action, h.jsondata->>'id' AS featureId " +
             "FROM "+SCHEMA_STR+".\""+TABLE_STR+"\" h, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".transactions t " +
             "WHERE "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_json_txn(h.jsondata) = t.txn " +
             //"AND "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_json_txn_ts(h.jsondata) = "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_ts("+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".naksha_uuid_to_bytes(t.txn)) " +
@@ -51,16 +54,16 @@ public class PubDatabaseHandler {
             "LIMIT 50";
 
     final private static String UPDATE_PUB_TXN_ID =
-            "UPDATE "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub " +
+        "UPDATE "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub " +
             "SET last_txn_id = ? , last_txn_rec_id = ? , updated_at = now() " +
             "WHERE subscription_id = ? ";
 
     final private static String INSERT_PUB_TXN_ID =
-            "INSERT INTO "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub (subscription_id, last_txn_id, last_txn_rec_id, updated_at) " +
+        "INSERT INTO "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_txn_pub (subscription_id, last_txn_id, last_txn_rec_id, updated_at) " +
             "VALUES (? , ? , ? , now()) ";
 
     final private static String FETCH_CONNECTORS_AND_SPACES =
-            "SELECT " +
+        "SELECT " +
             "  st.id AS connectorId, " + // 1
             "  st.config->'params' AS params, " + // 2
             "  array_agg(sp.id) AS spaceIds, "+ // 3
@@ -68,22 +71,10 @@ public class PubDatabaseHandler {
             "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space sp, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st " +
             "WHERE sp.config->'storage'->>'id' = st.id AND st.id != ? " +
             "GROUP BY connectorId";
-/*
-    Note: We do not want connectors without DB credentials!
-
-     final private static String FETCH_CONNECTORS_AND_SPACES =
-            "SELECT st.id AS connectorId, st.config->'params'->>'ecps' AS ecps, st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' AS pswd," +
-            "       array_agg(sp.id) AS spaceIds, array_agg(COALESCE(sp.config->'storage'->'params'->>'tableName', sp.id)) AS tableNames " +
-            "FROM "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_space sp, "+PubConfig.XYZ_ADMIN_DB_CFG_SCHEMA+".xyz_storage st " +
-            "WHERE sp.config->'storage'->>'id' = st.id " +
-            "AND st.id != ? " +
-            "AND st.config->'params'->>'ecps' IS NOT NULL " +
-            "AND st.config->'remoteFunctions'->'local'->'env'->>'ECPS_PHRASE' IS NOT NULL " +
-            "GROUP BY connectorId, ecps, pswd";*/
 
     final private static String SPACE_UNION_CLAUSE_STR = "{{SPACE_UNION_CLAUSE}}";
     final private static String UPDATE_TXN_SEQUENCE =
-            "WITH sel AS ( " +
+        "WITH sel AS ( " +
             "       "+ SPACE_UNION_CLAUSE_STR +" " +
             "    ), " +
             "    ranked_seq AS ( " +
@@ -130,13 +121,13 @@ public class PubDatabaseHandler {
         List<Subscription> subList = null;
 
         try (final Connection conn = PubJdbcConnectionPool.getConnection(dbConnParams);
-             final Statement stmt = conn.createStatement();
-             final ResultSet rs = stmt.executeQuery(FETCH_ALL_SUBSCRIPTIONS);
-            ) {
+            final Statement stmt = conn.createStatement();
+            final ResultSet rs = stmt.executeQuery(FETCH_ALL_SUBSCRIPTIONS);
+        ) {
             while (rs.next()) {
                 final String cfgJsonStr = rs.getString("config");
                 final Subscription sub = new Subscription();
-                sub.setConfig(Json.decodeValue(cfgJsonStr, Subscription.SubscriptionConfig.class));
+                sub.setConfig(Json.decodeValue(cfgJsonStr, SubscriptionConfig.class));
                 sub.setId(rs.getString("id"));
                 sub.setSource(rs.getString("source"));
                 if (subList == null) {
@@ -153,7 +144,7 @@ public class PubDatabaseHandler {
         final PublishEntryDTO dto = new PublishEntryDTO(-1, -1);
 
         try (final Connection conn = PubJdbcConnectionPool.getConnection(dbConnParams);
-             final PreparedStatement stmt = conn.prepareStatement(FETCH_TXN_ID_FOR_SUBSCRIPTION);
+            final PreparedStatement stmt = conn.prepareStatement(FETCH_TXN_ID_FOR_SUBSCRIPTION);
         ) {
             stmt.setString(1, subId);
             final ResultSet rs = stmt.executeQuery();
@@ -168,10 +159,10 @@ public class PubDatabaseHandler {
 
     // Fetch DB Connection details for a given spaceId
     public static JdbcConnectionParams fetchDBConnParamsForSpaceId(final String spaceId,
-                           final JdbcConnectionParams dbConnParams) throws SQLException, GeneralSecurityException {
+        final JdbcConnectionParams dbConnParams) throws SQLException, GeneralSecurityException {
         JdbcConnectionParams spaceDBConnParams = null;
         try (final Connection conn = PubJdbcConnectionPool.getConnection(dbConnParams);
-             final PreparedStatement stmt = conn.prepareStatement(FETCH_CONN_DETAILS_FOR_SPACE);
+            final PreparedStatement stmt = conn.prepareStatement(FETCH_CONN_DETAILS_FOR_SPACE);
         ) {
             stmt.setString(1, spaceId);
             try (final ResultSet rs = stmt.executeQuery()) {
@@ -201,12 +192,12 @@ public class PubDatabaseHandler {
     }
 
     public static List<PubTransactionData> fetchPublishableTransactions(
-            final JdbcConnectionParams spaceDBConnParams, final String spaceId, final PublishEntryDTO lastTxn) throws SQLException {
+        final JdbcConnectionParams spaceDBConnParams, final String spaceId, final PublishEntryDTO lastTxn) throws SQLException {
         List<PubTransactionData> txnList = null;
 
         try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams);) {
             final String SEL_STMT_STR = FETCH_TXNS_FROM_SPACEDB.replace(SCHEMA_STR, spaceDBConnParams.getSchema())
-                                            .replace(TABLE_STR, spaceDBConnParams.getTableName()+"_hst");
+                .replace(TABLE_STR, spaceDBConnParams.getTableName()+"_hst");
             logger.debug("Fetch Transactions statement for spaceId [{}] is [{}]", spaceId, SEL_STMT_STR);
 
             final long startTS = System.currentTimeMillis();
@@ -236,7 +227,7 @@ public class PubDatabaseHandler {
             final long duration = System.currentTimeMillis() - startTS;
             if (duration > TimeUnit.SECONDS.toMillis(5) || logger.isDebugEnabled()) {
                 logger.info("Publisher took {}ms to fetch {} publishable transactions for space {}.",
-                        duration, rowCnt, spaceId);
+                    duration, rowCnt, spaceId);
             }
         }
         return txnList;
@@ -244,7 +235,7 @@ public class PubDatabaseHandler {
 
 
     public static void saveLastTxnId(
-            final JdbcConnectionParams spaceDBConnParams, final String subId, final PublishEntryDTO lastTxn) throws SQLException {
+        final JdbcConnectionParams spaceDBConnParams, final String subId, final PublishEntryDTO lastTxn) throws SQLException {
         int rowCnt = 0;
 
         // UPDATE or INSERT into xyz_txn_pub table
@@ -275,11 +266,11 @@ public class PubDatabaseHandler {
 
 
     public static List<ConnectorDTO> fetchConnectorsAndSpaces(final JdbcConnectionParams spaceDBConnParams,
-            final String exclConnectorId) throws SQLException, GeneralSecurityException {
+        final String exclConnectorId) throws SQLException, GeneralSecurityException {
 
         List<ConnectorDTO> connectorList = null;
         try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams);
-             final PreparedStatement stmt = conn.prepareStatement(FETCH_CONNECTORS_AND_SPACES);
+            final PreparedStatement stmt = conn.prepareStatement(FETCH_CONNECTORS_AND_SPACES);
         ) {
             stmt.setString(1, exclConnectorId);
             final ResultSet rs = stmt.executeQuery();
@@ -318,12 +309,12 @@ public class PubDatabaseHandler {
 
 
     /*
-    ** Function updates space, id and ts in xyz_config.transactions table for newer entries (where id is null).
-    **      - Space is updated by matching respective "schema" and "table"
-    **      - Id is updated in a sequence number in order of txn
-    */
+     ** Function updates space, id and ts in xyz_config.transactions table for newer entries (where id is null).
+     **      - Space is updated by matching respective "schema" and "table"
+     **      - Id is updated in a sequence number in order of txn
+     */
     public static void updateTransactionSequence(final JdbcConnectionParams spaceDBConnParams,
-                                                 final SeqJobRequest seqJobRequest) throws SQLException {
+        final SeqJobRequest seqJobRequest) throws SQLException {
         int rowCnt = 0;
 
         try (final Connection conn = PubJdbcConnectionPool.getConnection(spaceDBConnParams)) {
@@ -360,7 +351,7 @@ public class PubDatabaseHandler {
             final long duration = System.currentTimeMillis() - startTS;
             if (duration > TimeUnit.SECONDS.toMillis(1) || logger.isDebugEnabled()) {
                 logger.info("Transaction Sequencer DB update for [{}] took {}ms and updated {} records",
-                        spaceDBConnParams.getDbUrl(), duration, rowCnt);
+                    spaceDBConnParams.getDbUrl(), duration, rowCnt);
             }
             return;
         }

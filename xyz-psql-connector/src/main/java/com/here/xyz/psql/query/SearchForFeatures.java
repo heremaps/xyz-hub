@@ -22,7 +22,7 @@ package com.here.xyz.psql.query;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.QueryOperator;
+import com.here.xyz.events.PropertyQueryOp;
 import com.here.xyz.events.feature.QueryEvent;
 import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
@@ -114,7 +114,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
           Object v = propertyQuery.getValues().get(i);
 
           final String psqlOperation;
-          QueryOperator op = propertyQuery.getOperation();
+          PropertyQueryOp op = propertyQuery.getOperation();
 
           String  key = propertyQuery.getKey(),
               paramName = getParamNameForValue(countingMap, key),
@@ -125,7 +125,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
           if(v == null){
             //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
             //>> [not] (jsondata->?->? is not null and jsondata->?->? != 'null'::jsonb )
-            SQLQuery q1 = new SQLQuery( op.equals(QueryOperator.NOT_EQUALS) ? "((" : "not ((" );
+            SQLQuery q1 = new SQLQuery( op.equals(PropertyQueryOp.NOT_EQUALS) ? "((" : "not ((" );
             q1.append(q);
             q1.append("is not null");
 
@@ -217,7 +217,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     return new SQLQuery(keyPath).withNamedParameters(segmentNames);
   }
 
-  private static String getValue(Object value, QueryOperator op, String key, String paramName) {
+  private static String getValue(Object value, PropertyQueryOp op, String key, String paramName) {
     String param = "#{" + paramName + "}";
 
     if (key.equalsIgnoreCase("geometry.type"))
@@ -231,7 +231,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
       return param + "::text";
 
     if (value instanceof String) {
-      if (op.equals(QueryOperator.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
+      if (op.equals(PropertyQueryOp.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
         return "(" + param + "::jsonb || '[]'::jsonb)";
       return "to_jsonb(" + param + "::text)";
     }

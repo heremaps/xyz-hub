@@ -21,6 +21,9 @@ package com.here.xyz.events;
 
 import java.util.ArrayList;
 
+/**
+ * Property queries used as AND condition.
+ */
 public class PropertyQueryList extends ArrayList<PropertyQuery> {
 
 }

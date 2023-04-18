@@ -38,7 +38,6 @@ public class TagsQuery extends ArrayList<TagList> {
       return new TagsQuery();
     }
     return fromQueryParameter(Arrays.asList(tagsQueryParam));
-
   }
 
   @SuppressWarnings("WeakerAccess")

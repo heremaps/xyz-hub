@@ -19,7 +19,7 @@
 
 package com.here.mapcreator.ext.naksha.sql;
 
-import com.here.xyz.events.QueryOperator;
+import com.here.xyz.events.PropertyQueryOp;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -355,7 +355,7 @@ public class SQLQuery {
     }
   }
 
-  public static @NotNull String getOperation(@NotNull QueryOperator op) {
+  public static @NotNull String getOperation(@NotNull PropertyQueryOp op) {
     switch (op) {
       case NOT_EQUALS:
         return "<>";
@@ -363,9 +363,9 @@ public class SQLQuery {
         return "<";
       case GREATER_THAN:
         return ">";
-      case LESS_THAN_OR_EQUALS:
+      case LESS_THAN_EQUALS:
         return "<=";
-      case GREATER_THAN_OR_EQUALS:
+      case GREATER_THAN_EQUALS:
         return ">=";
       case CONTAINS:
         return "@>";

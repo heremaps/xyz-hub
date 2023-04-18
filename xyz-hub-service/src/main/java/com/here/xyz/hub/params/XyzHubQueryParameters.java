@@ -1,6 +1,5 @@
 package com.here.xyz.hub.params;
 
-import static com.here.xyz.events.QueryDelimiter.COMMA;
 import static com.here.xyz.events.QueryParameterType.BOOLEAN;
 import static com.here.xyz.events.QueryParameterType.DOUBLE;
 import static com.here.xyz.events.QueryParameterType.LONG;
@@ -11,16 +10,17 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.QueryDelimiter;
-import com.here.xyz.events.QueryOperator;
 import com.here.xyz.events.QueryParameter;
 import com.here.xyz.events.QueryParameterType;
-import com.here.xyz.events.QueryParameters;
+import com.here.xyz.events.QueryParameterList;
+import com.here.xyz.events.TagList;
 import com.here.xyz.events.TagsQuery;
-import com.here.xyz.exceptions.ParameterFormatError;
+import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.ValueList;
 import io.vertx.ext.web.RoutingContext;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
@@ -38,13 +38,14 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Special implementation for query parameters.
  */
-public class XyzHubQueryParameters extends QueryParameters {
+public class XyzHubQueryParameters extends QueryParameterList {
 
   static final String ACCESS_TOKEN = "access_token";
   static final String ID = "id";
   static final String ADD_TAGS = "addTags";
   static final String REMOVE_TAGS = "removeTags";
   static final String TAGS = "tags";
+  static final String QUERY = "query";
   static final String SELECTION = "selection";
   static final String SORT = "sort";
   static final String PART = "part";
@@ -131,66 +132,13 @@ public class XyzHubQueryParameters extends QueryParameters {
     fixedParameterTypes.put(MARGIN, LONG);
   }
 
-  @Override
-  protected @NotNull QueryParameterType typeOfValue(@NotNull String key, int index) {
-    final QueryParameterType parameterType = fixedParameterTypes.get(key);
-    return parameterType != null ? parameterType : QueryParameterType.ANY;
-  }
-
-  @Override
-  protected boolean stopOnDelimiter(final @Nullable String key, @Nullable QueryOperator op,
-      final int index, final int number,
-      final boolean quoted, final @NotNull QueryDelimiter delimiter, final @NotNull StringBuilder sb) {
-    if (key != null && op != null) {
-      // If value.
-      if (TAGS.equals(key)) {
-        // TODO: Add separators
-      }
-    }
-    // Expand all keys, and the values of some keys.
-    if (key == null || (op != null && (SELECTION.equals(key) || SORT.equals(key)))) {
-      // For example "&:id=foo" or "&selection=:id"
-      if (sb.length() == 0) {
-        sb.append(':');
-        return false;
-      }
-      // For example "&p:name=foo" or "&selection=p:name".
-      if (equals("p", sb)) {
-        sb.setLength(0);
-        sb.append(":properties.");
-        return false;
-      }
-      // The fist allows basically to use "p:xyz:{param}", which will be expanded above to "properties.xyz".
-      // The second allows an extreme short form of "xyz:createdAt".
-      if (equals(":properties.xyz", sb) || equals("xyz", sb)) {
-        sb.setLength(0);
-        sb.append(":properties.@ns:com.here.xyz.");
-        return false;
-      }
-    }
-    // Default implementation handles comma as value separator, the default split of keys, operations and alike.
-    return super.stopOnDelimiter(key, op, index, number, quoted, delimiter, sb);
-  }
-
-  @Override
-  protected boolean addDelimiter(@NotNull QueryParameter parameter, @NotNull QueryDelimiter delimiter) {
-    if (TAGS.equals(parameter.getKey())) {
-      // TODO: Add separators
-    }
-    return false;
-  }
-
-  @Override
-  protected void validateAndSetDefault(@NotNull QueryParameter parameter) {
-  }
-
   /**
    * Creates a new query parameters map.
    *
    * @param queryString the query string without the question mark, for example {@code "foo=x&bar=y"}.
-   * @throws XyzErrorException If parsing the query string failed.
+   * @throws ParameterError If parsing the query string failed.
    */
-  public XyzHubQueryParameters(@Nullable String queryString) throws XyzErrorException {
+  public XyzHubQueryParameters(@Nullable String queryString) throws ParameterError {
     super(queryString);
   }
 
@@ -228,9 +176,12 @@ public class XyzHubQueryParameters extends QueryParameters {
    *
    * @return The list or IDs; {@code null} if no IDs given.
    */
-  public @Nullable List<@NotNull String> getIds() {
-    //noinspection unchecked,rawtypes
-    return (List<@NotNull String>) (List) join(ID);
+  public @Nullable ValueList getIds() {
+    final QueryParameter ids = join(ID);
+    if (ids == null) {
+      return null;
+    }
+    return ids.values();
   }
 
   /**
@@ -239,11 +190,11 @@ public class XyzHubQueryParameters extends QueryParameters {
    * @return The list or IDs; {@code null} if no IDs given.
    */
   public @Nullable String getId() {
-    final List<@NotNull String> ids = getIds();
+    final ValueList ids = getIds();
     if (ids == null || ids.size() == 0) {
       return null;
     }
-    return ids.get(0);
+    return ids.getString(0);
   }
 
   private TagsQuery __tagsQuery;
@@ -257,8 +208,36 @@ public class XyzHubQueryParameters extends QueryParameters {
     if (__tagsQuery != null) {
       return __tagsQuery;
     }
-    final QueryParameter tags = join(TAGS);
-    return __tagsQuery = (tags != null ? TagsQuery.fromQueryParameter(tags.asStringList()) : new TagsQuery());
+    // We need to collect all "&tags" and merge them into tags-query.
+    // Each &tags itself is combined via AND, within tags values are normally OR combined, except for the not URL encoded plus.
+    // In that case we need to split the values into two separate AND, which effectively is the same as two "&tags" query parameters.
+    QueryParameter tagParam = get(TAGS);
+    TagsQuery and = new TagsQuery();
+    while (tagParam != null) {
+      final ValueList values = tagParam.values();
+      final List<@NotNull QueryDelimiter> valueDelimiters = tagParam.valuesDelimiter();
+      TagList query = null;
+      for (int i = 0; i < values.size(); i++) {
+        final String tag = values.getString(i);
+        if (tag == null) {
+          continue;
+        }
+        if (query == null) {
+          query = new TagList();
+        }
+        query.addOr(tag);
+        final QueryDelimiter delimiter = valueDelimiters.get(i);
+        if (delimiter == QueryDelimiter.PLUS) {
+          and.add(query);
+          query = null;
+        }
+      }
+      if (query != null) {
+        and.add(query);
+      }
+      tagParam = tagParam.next();
+    }
+    return __tagsQuery = and;
   }
 
   /**
@@ -342,13 +321,13 @@ public class XyzHubQueryParameters extends QueryParameters {
     final Double lat;
     try {
       lat = getDouble(LAT);
-    } catch (ParameterFormatError e) {
+    } catch (ParameterError e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Failed to parse 'lon': " + e.getMessage());
     }
     final Double lon;
     try {
       lon = getDouble(LON);
-    } catch (ParameterFormatError e) {
+    } catch (ParameterError e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Failed to parse 'lat': " + e.getMessage());
     }
     if (lat == null && lon == null) {
@@ -658,6 +637,5 @@ public class XyzHubQueryParameters extends QueryParameters {
 
     }
   }
-
 
 }

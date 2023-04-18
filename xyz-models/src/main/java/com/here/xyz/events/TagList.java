@@ -21,6 +21,7 @@ package com.here.xyz.events;
 
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import java.util.ArrayList;
+import org.jetbrains.annotations.NotNull;
 
 public class TagList extends ArrayList<String> {
 
@@ -35,5 +36,14 @@ public class TagList extends ArrayList<String> {
     for (String tag : tags) {
       add(XyzNamespace.normalizeTag(tag));
     }
+  }
+
+  /**
+   * Same as {@link #add(Object)}, just for better code readability.
+   *
+   * @param value The value to add.
+   */
+  public void addOr(@NotNull String value) {
+    add(value);
   }
 }
