@@ -151,6 +151,9 @@ public class DatabaseMaintainer {
                 final boolean tag_table = rs.getBoolean("tag_table");
 
                 try {
+                    // Set the default compression algorithm
+                    stmt.execute("SET default_toast_compression=lz4;");
+
                     /** Create Missing Schemas */
                     if (!mainSchema) {
                         logger.debug("{} Create missing Schema {} on database: {} / {}@{}", traceItem, config.getDatabaseSettings().getSchema(), config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
@@ -181,6 +184,7 @@ public class DatabaseMaintainer {
                         /** Create Missing Tag Table */
                         stmt.execute(MaintenanceSQL.createTagTable);
                     }
+
                 } catch (Exception e) {
                     logger.warn("{} Failed to create missing Schema(s) on database: {} / {}@{} '{}'", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);
                 }
