@@ -390,7 +390,7 @@ public class Export extends Job {
         private Geometry geometry;
 
         @JsonView({Public.class})
-        private Integer radius;
+        private int radius;
 
         @JsonView({Public.class})
         private boolean clipped;
@@ -403,11 +403,11 @@ public class Export extends Job {
             this.geometry = geometry;
         }
 
-        public Integer getRadius() {
+        public int getRadius() {
             return radius;
         }
 
-        public void setRadius(Integer radius) {
+        public void setRadius(int radius) {
             this.radius = radius;
         }
 
