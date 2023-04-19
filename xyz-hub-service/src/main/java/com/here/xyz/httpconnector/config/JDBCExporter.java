@@ -169,27 +169,12 @@ public class JDBCExporter extends JDBCClients{
                                                         String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
         SQLQuery geoFragment;
 
-        switch (csvFormat){
-            case GEOJSON:
-                if(spatialFilter != null && spatialFilter.isClipped()) {
-                    geoFragment = new SQLQuery("ST_AsGeojson(ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry), 8) as geo");
-                    geoFragment.setNamedParameter("radius", spatialFilter.getRadius());
-                    geoFragment.setNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
-                }
-                else
-                    geoFragment = new SQLQuery("ST_AsGeojson(geo,8)::jsonb");
-                break;
-            case JSON_WKB:
-            case TILEID_FC_B64:
-            default:
-                if(spatialFilter != null && spatialFilter.isClipped()) {
-                    geoFragment = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo");
-                    geoFragment.setNamedParameter("wktGeometry",WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
-                    geoFragment.setNamedParameter("radius", spatialFilter.getRadius());
-                }
-                else
-                    geoFragment = new SQLQuery("geo");
-        }
+        if (spatialFilter != null && spatialFilter.isClipped()) {
+            geoFragment = new SQLQuery("ST_Intersection(ST_MakeValid(geo), ST_Buffer(ST_GeomFromText(#{wktGeometry})::geography, #{radius})::geometry) as geo");
+            geoFragment.setNamedParameter("wktGeometry", WKTHelper.geometryToWKB(spatialFilter.getGeometry()));
+            geoFragment.setNamedParameter("radius", spatialFilter.getRadius());
+        } else
+            geoFragment = new SQLQuery("geo");
 
         GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent();
         event.setSpace(spaceId);
@@ -220,9 +205,8 @@ public class JDBCExporter extends JDBCClients{
         SQLQuery sqlQuery;
 
         try {
-            if(spatialFilter == null) {
+            if(spatialFilter == null)
                 sqlQuery = new SearchForFeatures(event, dbHandler)._buildQuery(event);
-            }
             else
                 sqlQuery = new GetFeaturesByGeometry(event, dbHandler)._buildQuery(event);
         } catch (Exception e) {
@@ -233,9 +217,24 @@ public class JDBCExporter extends JDBCClients{
         sqlQuery.setQueryFragment("geo", geoFragment);
         /** Remove Limit */
         sqlQuery.setQueryFragment("limit", "");
-        sqlQuery.substitute();
 
-        return queryToText(sqlQuery);
+        if (csvFormat.equals(CSVFormat.GEOJSON)) {
+            SQLQuery geoJson = new SQLQuery(
+                    "select jsonb_build_object(" +
+                    " 'type',       'Feature'," +
+                    " 'id',         jsondata->>'id'," +
+                    " 'geometry',   ST_AsGeoJSON(geo)::jsonb," +
+                    " 'properties', jsondata - 'id'" +
+                    ") " +
+                    "from ( ${{contentQuery}}) X"
+            );
+            geoJson.setQueryFragment("contentQuery",sqlQuery);
+            geoJson.substitute();
+            return queryToText(geoJson);
+        }else {
+            sqlQuery.substitute();
+            return queryToText(sqlQuery);
+        }
     }
 
     private static SQLQuery queryToText(SQLQuery q){
