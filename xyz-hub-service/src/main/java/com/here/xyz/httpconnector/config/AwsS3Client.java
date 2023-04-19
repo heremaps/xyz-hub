@@ -44,7 +44,7 @@ public class AwsS3Client {
 
     public AwsS3Client() {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
-        final String region = CService.configuration != null ? CService.configuration.JOBS_S3_BUCKET_REGION : "eu-west-1";
+        final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
         builder.setRegion(region);
 
         if (CService.configuration != null && CService.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {

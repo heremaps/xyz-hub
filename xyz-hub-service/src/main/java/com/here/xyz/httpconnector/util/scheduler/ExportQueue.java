@@ -119,7 +119,7 @@ public class ExportQueue extends JobQueue{
         String s3Path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER+"/"+j.getId();
 
         JDBCExporter.executeExport(((Export) j), defaultSchema, CService.configuration.JOBS_S3_BUCKET, s3Path,
-                        CService.configuration.JOBS_S3_BUCKET_REGION)
+                        CService.configuration.JOBS_REGION)
                 .onSuccess(statistic -> {
 //                            NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
                             logger.info("JOB[{}] Export of '{}' succeeded!", j.getId(), j.getTargetSpaceId());
