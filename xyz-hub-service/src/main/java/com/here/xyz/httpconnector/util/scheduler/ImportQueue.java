@@ -181,7 +181,7 @@ public class ImportQueue extends JobQueue{
 
                 importFutures.add(
                         CService.jdbcImporter.executeImport(j.getTargetConnector(), defaultSchema, j.getTargetTable(),
-                                        CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(), CService.configuration.JOBS_S3_BUCKET_REGION, curFileSize, j.getCsvFormat() )
+                                        CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(), CService.configuration.JOBS_REGION, curFileSize, j.getCsvFormat() )
                                 .onSuccess(result -> {
                                             NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
 

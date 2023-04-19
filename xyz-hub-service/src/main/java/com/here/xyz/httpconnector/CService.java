@@ -200,9 +200,9 @@ public class CService extends Core {
      */
     public String JOBS_S3_BUCKET;
     /**
-     * S3 Bucket for imports/exports
+     * Region in which components are running/hosted
      */
-    public String JOBS_S3_BUCKET_REGION;
+    public String JOBS_REGION;
     /**
      * Set interval for JobQueue processing
      */

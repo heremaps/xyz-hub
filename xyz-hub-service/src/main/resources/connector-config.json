@@ -21,7 +21,7 @@
 
   "JOBS_DYNAMODB_TABLE_ARN" : "arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-jobs",
   "JOBS_S3_BUCKET": "TBD",
-  "JOBS_S3_BUCKET_REGION": "eu-west-1",
+  "JOBS_REGION": "eu-west-1",
   "JOB_CHECK_QUEUE_INTERVAL_SECONDS" : 10,
   "JOB_MAX_RUNNING_JOBS" : 2,
 
