@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ package com.here.xyz.hub.connectors;
 
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.settings.EnvironmentVariableOverrides;
+import com.here.xyz.hub.config.settings.EnvironmentVariableOverrides.VariableOverrideException;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthCheck;
@@ -32,27 +34,31 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 /**
  * The background thread that keeps track of the configurations and keeps the executor services in sync.
  */
-public class BurstAndUpdateThread extends Thread {
+public class ConfigUpdateThread extends Thread {
 
-  private static final String name = BurstAndUpdateThread.class.getSimpleName();
+  private static final String name = ConfigUpdateThread.class.getSimpleName();
   private static final Logger logger = LogManager.getLogger();
-  private static final long CONNECTOR_UPDATE_INTERVAL = TimeUnit.MINUTES.toMillis(2);
+  private static final long CONFIG_UPDATE_INTERVAL = TimeUnit.MINUTES.toMillis(2);
   private static final long CONNECTOR_UNHEALTHY_THRESHOLD = 3;
 
-  private static BurstAndUpdateThread instance;
+  private static final Marker MARKER = new Log4jMarker(name);
+
+  private static ConfigUpdateThread instance;
   private volatile Handler<AsyncResult<Void>> initializeHandler;
 
-  private BurstAndUpdateThread(Handler<AsyncResult<Void>> handler) throws NullPointerException {
+  private ConfigUpdateThread(Handler<AsyncResult<Void>> handler) throws NullPointerException {
     super(name);
     if (instance != null) {
-      throw new IllegalStateException("Singleton burst and update thread has already been instantiated.");
+      throw new IllegalStateException("Singleton ConfigUpdateThread has already been instantiated.");
     }
     initializeHandler = handler;
-    BurstAndUpdateThread.instance = this;
+    ConfigUpdateThread.instance = this;
     this.setDaemon(true);
     this.start();
     logger.info("Started thread {}", name);
@@ -60,8 +66,33 @@ public class BurstAndUpdateThread extends Thread {
 
   public static void initialize(Handler<AsyncResult<Void>> handler) {
     if (instance == null) {
-      instance = new BurstAndUpdateThread(handler);
+      instance = new ConfigUpdateThread(handler);
     }
+  }
+
+  private void performConnectorUpdates() {
+    try {
+      Service.connectorConfigClient.getAll(MARKER, this::onConnectorList);
+    }
+    catch (Exception e) {
+      logger.error(MARKER, "Unexpected error during connector update", e);
+    }
+  }
+
+  private void performSettingsUpdates() {
+    Service.settingsConfigClient.get(MARKER, EnvironmentVariableOverrides.class.getSimpleName()).onSuccess(vars -> {
+      if (vars == null)
+        logger.info("No environment variable overrides existing. Skipping settings update.");
+      else try {
+        ((EnvironmentVariableOverrides) vars).applyOverrides();
+      }
+      catch (VariableOverrideException e) {
+        logger.error(MARKER, "Error during override of environment settings.", e);
+      }
+      catch (Exception e) {
+        logger.error(MARKER, "Unexpected error during settings update.", e);
+      }
+    });
   }
 
   private synchronized void onConnectorList(AsyncResult<List<Connector>> ar) {
@@ -102,7 +133,7 @@ public class BurstAndUpdateThread extends Thread {
           && !Service.configuration.defaultStorageIds.contains(oldConnector.id)) {
         RemoteFunctionHealthCheck rfcHc = HealthApi.rfcHcAggregator.getRfcHealthCheck(oldConnector.id);
         if (rfcHc != null) {
-          //When the connector is responding with unhealthy status, disable it momentarily, until next BurstAndUpdateThread round.
+          //When the connector is responding with unhealthy status, disable it momentarily, until next ConfigUpdateThread round.
           int consecutiveFailures = rfcHc.getConsecutiveFailures();
           if (consecutiveFailures >= CONNECTOR_UNHEALTHY_THRESHOLD) {
             logger.warn("For connector {} there are {} unhealthy health-checks. Max threshold is {}.", oldConnector.id,
@@ -143,6 +174,11 @@ public class BurstAndUpdateThread extends Thread {
     }
   }
 
+  private void performUpdates() {
+    performConnectorUpdates();
+    performSettingsUpdates();
+  }
+
   @Override
   public void run() {
     //Stay alive as long as the executor (our parent) is alive.
@@ -150,16 +186,16 @@ public class BurstAndUpdateThread extends Thread {
     while (true) {
       try {
         final long start = Core.currentTimeMillis();
-        Service.connectorConfigClient.getAll(null, this::onConnectorList);
+        performUpdates();
         final long end = Core.currentTimeMillis();
         final long runtime = end - start;
-        if (runtime < CONNECTOR_UPDATE_INTERVAL) {
-          Thread.sleep(CONNECTOR_UPDATE_INTERVAL - runtime);
+        if (runtime < CONFIG_UPDATE_INTERVAL) {
+          Thread.sleep(CONFIG_UPDATE_INTERVAL - runtime);
         }
       } catch (InterruptedException e) {
         //We expect that this may happen and ignore it.
       } catch (Exception e) {
-        logger.error("Unexpected error in BurstAndUpdateThread", e);
+        logger.error(MARKER, "Unexpected error in ConfigUpdateThread", e);
       }
     }
   }
