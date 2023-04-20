@@ -143,14 +143,14 @@ public class JDBCExporter extends JDBCClients{
 
         SQLQuery q = new SQLQuery(
                 "select("+
-                        " aws_s3.query_export_to_s3( o.s3sql , " +
+                        " aws_s3.query_export_to_s3( replace( o.s3sql, 'select *', 'select htiles_convert_qk_to_longk(tile_id)::text as tile_id, tile_content' ) , " +
                         "   #{s3Bucket}, " +
                         "   format('%s/%s/%s-%s.csv',#{s3Path}, o.qk, o.bucket, o.nrbuckets) ," +
                         "   #{s3Region}," +
                         "   'format csv')).* ," +
                         "  '{iml_vml_export_hint}' as iml_vml_export_hint " +
                         " from" +
-                        "    exp_build_sql_inhabited_txt(#{clipped}, '', #{targetLevel}, ${{exportSelectString}}, #{maxTilesPerFile}::int )o"
+                        "    exp_build_sql_inhabited_txt(true, '', #{targetLevel}, ${{exportSelectString}}, #{maxTilesPerFile}::int )o"
         );
 
         q.setQueryFragment("exportSelectString", exportSelectString);
@@ -158,7 +158,7 @@ public class JDBCExporter extends JDBCClients{
         q.setNamedParameter("s3Bucket",s3Bucket);
         q.setNamedParameter("s3Path",s3Path);
         q.setNamedParameter("s3Region",s3Region);
-        q.setNamedParameter("clipped",VML_USE_CLIPPING);
+        /* q.setNamedParameter("clipped",VML_USE_CLIPPING); */
         q.setNamedParameter("targetLevel", targetLevel);
         q.setNamedParameter("maxTilesPerFile", maxTilesPerFile);
 
