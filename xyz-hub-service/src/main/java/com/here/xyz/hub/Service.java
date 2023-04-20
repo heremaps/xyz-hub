@@ -24,10 +24,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
+import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.hub.config.TagConfigClient;
-import com.here.xyz.hub.connectors.BurstAndUpdateThread;
+import com.here.xyz.hub.connectors.ConfigUpdateThread;
 import com.here.xyz.hub.connectors.WarmupRemoteFunctionThread;
 import com.here.xyz.hub.rest.admin.MessageBroker;
 import com.here.xyz.hub.rest.admin.Node;
@@ -125,6 +126,11 @@ public class Service extends Core {
   public static TagConfigClient tagConfigClient;
 
   /**
+   * The client to access runtime settings.
+   */
+  public static SettingsConfigClient settingsConfigClient;
+
+  /**
    * A web client to access XYZ Hub nodes and other web resources.
    */
   public static WebClient webClient;
@@ -181,6 +187,7 @@ public class Service extends Core {
     connectorConfigClient = ConnectorConfigClient.getInstance();
     subscriptionConfigClient = SubscriptionConfigClient.getInstance();
     tagConfigClient = TagConfigClient.getInstance();
+    settingsConfigClient = SettingsConfigClient.getInstance();
 
     webClient = WebClient.create(vertx, new WebClientOptions()
         .setUserAgent(XYZ_HUB_USER_AGENT)
@@ -193,20 +200,22 @@ public class Service extends Core {
 
     globalRouter = Router.router(vertx);
 
-    spaceConfigClient.init(spaceConfigReady -> {
-      if (spaceConfigReady.succeeded()) {
-        connectorConfigClient.init(connectorConfigReady -> {
-          if (connectorConfigReady.succeeded()) {
-            if (Service.configuration.INSERT_LOCAL_CONNECTORS) {
-              connectorConfigClient.insertLocalConnectors(result -> onLocalConnectorsInserted(result, jsonConfig));
-            } else {
-              onLocalConnectorsInserted(Future.succeededFuture(), jsonConfig);
+    settingsConfigClient.init(settingsReady -> {
+      spaceConfigClient.init(spaceConfigReady -> {
+        if (spaceConfigReady.succeeded()) {
+          connectorConfigClient.init(connectorConfigReady -> {
+            if (connectorConfigReady.succeeded()) {
+              if (Service.configuration.INSERT_LOCAL_CONNECTORS) {
+                connectorConfigClient.insertLocalConnectors(result -> onLocalConnectorsInserted(result, jsonConfig));
+              } else {
+                onLocalConnectorsInserted(Future.succeededFuture(), jsonConfig);
+              }
             }
-          }
-        });
-        subscriptionConfigClient.init(subscriptionConfigReady -> {});
-        tagConfigClient.init(readerConfigReady -> {});
-      }
+          });
+          subscriptionConfigClient.init(subscriptionConfigReady -> {});
+          tagConfigClient.init(readerConfigReady -> {});
+        }
+      });
     });
   }
 
@@ -214,15 +223,15 @@ public class Service extends Core {
     if (result.failed()) {
       logger.error("Failed to insert local connectors.", result.cause());
     } else {
-      BurstAndUpdateThread.initialize(initializeAr -> onBustAndUpdateThreadStarted(initializeAr, config));
+      ConfigUpdateThread.initialize(initializeAr -> onConfigUpdateThreadStarted(initializeAr, config));
     }
   }
 
-  private static void onBustAndUpdateThreadStarted(AsyncResult<Void> result, JsonObject config) {
+  private static void onConfigUpdateThreadStarted(AsyncResult<Void> result, JsonObject config) {
     if (result.failed()) {
-      logger.error("Failed to start BurstAndUpdateThread.", result.cause());
+      logger.error("Failed to start ConfigUpdateThread.", result.cause());
     } else {
-      // start warmup thread after connectors have been checked by BurstAndUpdateThread
+      // start warmup thread after connectors have been checked by ConfigUpdateThread
       WarmupRemoteFunctionThread.initialize(initializeAr -> onServiceInitialized(initializeAr, config));
     }
   }
@@ -571,6 +580,11 @@ public class Service extends Core {
      * The ARN of the tags table in DynamoDB.
      */
     public String TAGS_DYNAMODB_TABLE_ARN;
+
+    /**
+     * The ARN of the settings table in DynamoDB.
+     */
+    public String SETTINGS_DYNAMODB_TABLE_ARN;
 
     /**
      * The ARN of the admin message topic.
