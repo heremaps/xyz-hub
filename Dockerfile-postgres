@@ -1,4 +1,4 @@
-FROM postgres:14
+FROM postgres:14.7
 
 ENV POSTGRES_PASSWORD password
 
