@@ -116,6 +116,13 @@ paths:
           required: false
           schema:
             type: string
+        - name: region
+          in: query
+          description: >
+            Filter for spaces with the given region.
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           $ref: '#/components/responses/SpacesResponse'

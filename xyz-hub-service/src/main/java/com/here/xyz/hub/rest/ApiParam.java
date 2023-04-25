@@ -181,6 +181,8 @@ public class ApiParam {
 
     static final String F_PREFIX = "f.";
 
+    static final String REGION = "region";
+
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
