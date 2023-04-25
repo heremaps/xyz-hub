@@ -138,6 +138,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     if (!selectionWhereClauses.isEmpty()) {
       whereConjunctions.add("(" + StringUtils.join(selectionWhereClauses, " OR ") + ")");
     }
+
     if (propsQuery != null) {
       propsQuery.forEach(conjunctions -> {
         List<String> contentUpdatedAtConjunctions = new ArrayList<>();
@@ -148,6 +149,10 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
         });
         whereConjunctions.add(StringUtils.join(contentUpdatedAtConjunctions, " OR "));
       });
+    }
+
+    if (selectedCondition.region != null) {
+      whereConjunctions.add("region = " + selectedCondition.region);
     }
 
     String query = baseQuery + (whereConjunctions.isEmpty() ? "" :
