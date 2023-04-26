@@ -20,6 +20,8 @@
 package com.here.xyz.hub.config;
 
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.dynamo.DynamoTagConfigClient;
+import com.here.xyz.hub.config.jdbc.JDBCTagConfigClient;
 import com.here.xyz.models.hub.Tag;
 import io.vertx.core.Future;
 import java.util.List;

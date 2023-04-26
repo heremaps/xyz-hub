@@ -17,8 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.config;
+package com.here.xyz.hub.config.jdbc;
 
+import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
@@ -38,7 +39,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.here.xyz.hub.config.JDBCConfig.SUBSCRIPTION_TABLE;
+import static com.here.xyz.hub.config.jdbc.JDBCConfig.SUBSCRIPTION_TABLE;
 
 /**
  * A client for reading and editing subscription definitions.
