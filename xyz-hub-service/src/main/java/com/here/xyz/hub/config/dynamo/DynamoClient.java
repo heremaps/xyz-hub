@@ -56,7 +56,7 @@ public class DynamoClient {
   public static final WorkerExecutor dynamoWorkers = Service.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
   static AWSCredentialsProvider customCredentialsProvider;
 
-  final AmazonDynamoDBAsync client;
+  public final AmazonDynamoDBAsync client;
   public final String tableName;
   public final DynamoDB db;
   final ARN arn;
