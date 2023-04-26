@@ -95,7 +95,7 @@ public class JDBCConfig {
         List<String> batchQueries = Arrays.asList(
             "CREATE SCHEMA " + SCHEMA,
             "CREATE table  " + CONNECTOR_TABLE + " (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)",
-            "CREATE table  " + SPACE_TABLE + " (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB)",
+            "CREATE table  " + SPACE_TABLE + " (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB, region VARCHAR (50))",
             "CREATE table  " + SUBSCRIPTION_TABLE + " (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB)",
             "CREATE table  " + TAG_TABLE + " (id VARCHAR(255), space VARCHAR (255), version BIGINT, PRIMARY KEY(id, space))"
         );
