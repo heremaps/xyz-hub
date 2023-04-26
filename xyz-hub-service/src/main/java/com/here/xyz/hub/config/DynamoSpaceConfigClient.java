@@ -90,7 +90,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       logger.info("DynamoDB running locally, initializing tables.");
 
       try {
-        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N", "id", "owner,shared", "exp");
+        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S", "id", "owner,shared,region", "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
       }
       catch (AmazonDynamoDBException e) {
@@ -320,15 +320,14 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     if (authorizedCondition == null || selectedCondition == null)
       throw new NullPointerException("authorizedCondition and selectedCondition are required");
 
-    //TODO: selection per packages is not yet supported: selectedCondition.packages
     if (selectedCondition.packages != null && !selectedCondition.packages.isEmpty())
       throw new NotImplementedException("Space selection by package(s) is not implemented.");
 
     logger.debug(marker, "authorizedCondition: spaceIds: {}, ownerIds {}, packages: {}", authorizedCondition.spaceIds,
         authorizedCondition.ownerIds, authorizedCondition.packages);
-    logger.debug(marker, "selectedCondition: spaceIds: {}, ownerIds {}, packages: {}, shared: {}, negateOwnerIds: {}",
+    logger.debug(marker, "selectedCondition: spaceIds: {}, ownerIds {}, packages: {}, shared: {}, negateOwnerIds: {}, region: {}",
         selectedCondition.spaceIds, selectedCondition.ownerIds, selectedCondition.packages, selectedCondition.shared,
-        selectedCondition.negateOwnerIds);
+        selectedCondition.negateOwnerIds, selectedCondition.region);
 
     return DynamoClient.dynamoWorkers.<List<Space>>executeBlocking(p -> getSelectedSpacesSync(marker, authorizedCondition,
         selectedCondition, propsQuery, p))
@@ -390,7 +389,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         logger.debug(marker, "Number of space IDs after removal of the ones not selected by ID: {}", authorizedSpaces.size());
       }
 
-      //Now filter all spaceIds with the ones being selected in the selectedCondition (by checking the space's ownership) (
+      // Filter all spaceIds with the ones being selected in the selectedCondition (by checking the space's ownership)
       if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds)) {
         final Set<String> ownersSpaces = new HashSet<>();
         selectedCondition.ownerIds.forEach(o ->
@@ -405,7 +404,18 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
         logger.debug(marker, "Number of space IDs after removal of the ones not selected by owner: {}", authorizedSpaces.size());
       }
 
-      //TODO: Implement selection by packages here: selectedCondition.packages
+      // Filter per region
+      if (selectedCondition.region != null) {
+        final Set<String> regionSpaces = new HashSet<>();
+        spaces
+            .getIndex("region-index")
+            .query(new QuerySpec().withHashKey("region", selectedCondition.region).withProjectionExpression("id"))
+            .pages()
+            .forEach(page -> page.forEach(i -> regionSpaces.add(i.getString("id"))));
+
+        authorizedSpaces.removeIf(i -> !regionSpaces.contains(i));
+        logger.debug(marker, "Number of space IDs after removal of the ones not selected by owner: {}", authorizedSpaces.size());
+      }
 
       logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());
       if (!authorizedSpaces.isEmpty()) {
