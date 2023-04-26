@@ -189,7 +189,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
                 //Create the main service TLS listener
                 if (Service.configuration.XYZ_HUB_HTTPS_PORT > 0
                     && Service.configuration.XYZ_HUB_SERVER_TLS_KEY != null && Service.configuration.XYZ_HUB_SERVER_TLS_CERT != null)
-                  createHttpServerWithMutualTls(Service.configuration.HTTP_PORT, globalRouter, Service.configuration.XYZ_HUB_SERVER_TLS_KEY,
+                  createHttpServerWithMutualTls(Service.configuration.XYZ_HUB_HTTPS_PORT, globalRouter, Service.configuration.XYZ_HUB_SERVER_TLS_KEY,
                       Service.configuration.XYZ_HUB_SERVER_TLS_CERT, Service.configuration.XYZ_HUB_CLIENT_TLS_TRUSTSTORE);
 
                 //Create the admin messaging listener

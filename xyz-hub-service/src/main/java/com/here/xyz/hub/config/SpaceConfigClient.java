@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@ package com.here.xyz.hub.config;
 import com.google.common.util.concurrent.Monitor;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.dynamo.DynamoSpaceConfigClient;
+import com.here.xyz.hub.config.jdbc.JDBCSpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import io.vertx.core.Future;

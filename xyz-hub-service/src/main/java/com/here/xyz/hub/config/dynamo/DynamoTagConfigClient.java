@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.config;
+package com.here.xyz.hub.config.dynamo;
 
 import com.amazonaws.services.dynamodbv2.document.DeleteItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Item;
@@ -28,6 +28,7 @@ import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
 import com.amazonaws.services.dynamodbv2.model.ExecuteTransactionRequest;
 import com.amazonaws.services.dynamodbv2.model.ParameterizedStatement;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;

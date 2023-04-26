@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.config;
+package com.here.xyz.hub.config.dynamo;
 
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.dynamodbv2.document.BatchGetItemOutcome;
@@ -39,6 +39,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.psql.SQLQuery;

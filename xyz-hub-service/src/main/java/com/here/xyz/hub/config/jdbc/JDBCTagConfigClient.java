@@ -17,10 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.config;
+package com.here.xyz.hub.config.jdbc;
 
-import static com.here.xyz.hub.config.JDBCConfig.TAG_TABLE;
+import static com.here.xyz.hub.config.jdbc.JDBCConfig.TAG_TABLE;
 
+import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.Future;

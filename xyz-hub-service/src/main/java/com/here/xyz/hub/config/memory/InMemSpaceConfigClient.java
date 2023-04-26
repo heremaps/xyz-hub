@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,10 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.config;
+package com.here.xyz.hub.config.memory;
 
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
@@ -76,7 +77,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
         || selectedCondition.spaceIds != null && selectedCondition.spaceIds.contains(s.getId())
         || selectedCondition.ownerIds != null && selectedCondition.ownerIds.contains(s.getOwner())
         || selectedCondition.shared && s.isShared();
-    
+
 
     List<String> contentUpdatedAtList = new ArrayList<>();
     if (propsQuery != null) {
@@ -91,7 +92,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
       });
     }
 
-    Predicate<Space> contentUpdatedAtFilter = s -> propsQuery != null? contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList, 1) : true; 
+    Predicate<Space> contentUpdatedAtFilter = s -> propsQuery != null? contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList, 1) : true;
 
     List<Space> spaces = spaceMap.values().stream()
         .filter(authorizationFilter)

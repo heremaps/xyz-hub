@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.config;
+package com.here.xyz.hub.config.jdbc;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.psql.SQLQuery;

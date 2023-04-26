@@ -17,14 +17,15 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.config;
+package com.here.xyz.hub.config.jdbc;
 
-import static com.here.xyz.hub.config.JDBCConfig.SPACE_TABLE;
+import static com.here.xyz.hub.config.jdbc.JDBCConfig.SPACE_TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;
