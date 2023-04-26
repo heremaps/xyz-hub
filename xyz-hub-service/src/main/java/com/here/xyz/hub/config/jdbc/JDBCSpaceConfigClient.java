@@ -102,8 +102,8 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
       if (itemData.get("versionsToKeep") != null && itemData.get("versionsToKeep") instanceof Integer && ((int) itemData.get("versionsToKeep")) == 0)
         itemData.remove("versionsToKeep");
       query = new SQLQuery(
-          "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config) VALUES (?, ?, ?, cast(? as JSONB)) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config",
-          space.getId(), space.getOwner(), space.getCid(), XyzSerializable.STATIC_MAPPER.get().writeValueAsString(itemData));
+          "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config, region) VALUES (?, ?, ?, cast(? as JSONB), ?) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config, region = excluded.region",
+          space.getId(), space.getOwner(), space.getCid(), XyzSerializable.STATIC_MAPPER.get().writeValueAsString(itemData), space.getRegion());
       return JDBCConfig.updateWithParams(query).mapEmpty();
     }
     catch (JsonProcessingException e) {
@@ -153,7 +153,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     }
 
     if (selectedCondition.region != null) {
-      whereConjunctions.add("region = " + selectedCondition.region);
+      whereConjunctions.add("region = '" + selectedCondition.region + "'");
     }
 
     String query = baseQuery + (whereConjunctions.isEmpty() ? "" :
