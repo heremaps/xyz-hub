@@ -22,7 +22,6 @@ package com.here.xyz.hub.config.dynamo;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
-import com.here.xyz.hub.config.DynamoClient;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.settings.Setting;
 import io.vertx.core.AsyncResult;

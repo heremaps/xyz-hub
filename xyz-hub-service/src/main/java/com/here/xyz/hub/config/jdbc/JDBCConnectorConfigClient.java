@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.config;
+package com.here.xyz.hub.config.jdbc;
 
-import static com.here.xyz.hub.config.JDBCConfig.CONNECTOR_TABLE;
+import static com.here.xyz.hub.config.jdbc.JDBCConfig.CONNECTOR_TABLE;
 
+import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.AsyncResult;

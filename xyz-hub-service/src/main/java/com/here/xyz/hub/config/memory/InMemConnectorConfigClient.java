@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.config;
+package com.here.xyz.hub.config.memory;
 
+import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
