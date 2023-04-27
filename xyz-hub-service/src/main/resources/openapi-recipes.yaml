@@ -68,7 +68,9 @@ recipes:
       - components.parameters.PageToken
       - components.parameters.Version
       - components.parameters.StartVersion
+      - components.parameters.StartVersionNotRequired
       - components.parameters.EndVersion
+      - components.parameters.EndVersionNotRequired
       - components.parameters.Tweaks
       - components.parameters.TweaksParams
       - components.parameters.PrefixId

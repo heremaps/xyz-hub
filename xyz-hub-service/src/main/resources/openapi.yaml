@@ -997,8 +997,8 @@ paths:
       operationId: iterateHistory
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/StartVersion'
-        - $ref: '#/components/parameters/EndVersion'
+        - $ref: '#/components/parameters/StartVersionNotRequired'
+        - $ref: '#/components/parameters/EndVersionNotRequired'
         - $ref: '#/components/parameters/PageToken'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/SkipCache'
@@ -1551,6 +1551,13 @@ components:
       name: endVersion
       in: query
       description: Define end of version-range [version <= endVersion].
+      required: true
+      schema:
+        type: integer
+    EndVersionNotRequired:
+      name: endVersion
+      in: query
+      description: Define end of version-range [version <= endVersion].
       required: false
       schema:
         type: integer
@@ -1842,7 +1849,7 @@ components:
         The value must be an integer, bigger than 1, and the comparator should be one of the below list:
           - <
           - =lt=
-      required: false
+      required: true
       schema:
         type: string
     SkipCache:
@@ -1884,6 +1891,13 @@ components:
       schema:
         type: string
     StartVersion:
+      name: startVersion
+      in: query
+      description: Define start of version-range [version >= startVersion].
+      required: true
+      schema:
+        type: integer
+    StartVersionNotRequired:
       name: startVersion
       in: query
       description: Define start of version-range [version >= startVersion].
