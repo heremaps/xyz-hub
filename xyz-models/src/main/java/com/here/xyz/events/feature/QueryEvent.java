@@ -20,13 +20,13 @@
 package com.here.xyz.events.feature;
 
 import com.here.xyz.events.FeatureEvent;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.TagsQuery;
 
 public abstract class QueryEvent extends FeatureEvent {
 
   private TagsQuery tags;
-  private PropertiesQuery propertiesQuery;
+  private PropertyQueryOr propertiesQuery;
 
   public TagsQuery getTags() {
     return this.tags;
@@ -37,12 +37,12 @@ public abstract class QueryEvent extends FeatureEvent {
   }
 
   @SuppressWarnings("unused")
-  public PropertiesQuery getPropertiesQuery() {
+  public PropertyQueryOr getPropertiesQuery() {
     return this.propertiesQuery;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setPropertiesQuery(PropertiesQuery propertiesQuery) {
+  public void setPropertiesQuery(PropertyQueryOr propertiesQuery) {
     this.propertiesQuery = propertiesQuery;
   }
 }

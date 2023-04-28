@@ -66,7 +66,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     }};
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setSpace(spaceId);
+    mfevent.setSpaceId(spaceId);
     mfevent.setConnectorParams(connectorParams);
     mfevent.setTransaction(true);
     mfevent.setInsertFeatures(features);
@@ -90,7 +90,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
     final List<Feature> features = FeatureGenerator.get11kFeatureCollection().getFeatures();
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setSpace(spaceId);
+    mfevent.setSpaceId(spaceId);
     mfevent.setConnectorParams(connectorParams);
     mfevent.setTransaction(true);
     mfevent.setInsertFeatures(features);

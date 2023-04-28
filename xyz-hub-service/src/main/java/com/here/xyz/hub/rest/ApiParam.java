@@ -20,10 +20,10 @@
 package com.here.xyz.hub.rest;
 
 import com.amazonaws.util.StringUtils;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQueryOp;
-import com.here.xyz.events.PropertyQueryList;
+import com.here.xyz.events.QueryOperation;
+import com.here.xyz.events.PropertyQueryAnd;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
@@ -174,19 +174,19 @@ public class ApiParam {
     public static final String AUTHOR = "author";
     public static final String SUBSCRIPTION_SOURCE = "source";
 
-    private static Map<String, PropertyQueryOp> operators = new HashMap<String, PropertyQueryOp>() {{
-      put("!=", PropertyQueryOp.NOT_EQUALS);
-      put(">=", PropertyQueryOp.GREATER_THAN_OR_EQUALS);
-      put("=gte=", PropertyQueryOp.GREATER_THAN_OR_EQUALS);
-      put("<=", PropertyQueryOp.LESS_THAN_OR_EQUALS);
-      put("=lte=", PropertyQueryOp.LESS_THAN_OR_EQUALS);
-      put(">", PropertyQueryOp.GREATER_THAN);
-      put("=gt=", PropertyQueryOp.GREATER_THAN);
-      put("<", PropertyQueryOp.LESS_THAN);
-      put("=lt=", PropertyQueryOp.LESS_THAN);
-      put("=", PropertyQueryOp.EQUALS);
-      put("@>", PropertyQueryOp.CONTAINS);
-      put("=cs=", PropertyQueryOp.CONTAINS);
+    private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
+      put("!=", QueryOperation.NOT_EQUALS);
+      put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);
+      put("=gte=", QueryOperation.GREATER_THAN_OR_EQUALS);
+      put("<=", QueryOperation.LESS_THAN_OR_EQUALS);
+      put("=lte=", QueryOperation.LESS_THAN_OR_EQUALS);
+      put(">", QueryOperation.GREATER_THAN);
+      put("=gt=", QueryOperation.GREATER_THAN);
+      put("<", QueryOperation.LESS_THAN);
+      put("=lt=", QueryOperation.LESS_THAN);
+      put("=", QueryOperation.EQUALS);
+      put("@>", QueryOperation.CONTAINS);
+      put("=cs=", QueryOperation.CONTAINS);
     }};
 
     private static List<String> shortOperators = new ArrayList<>(operators.keySet());
@@ -342,8 +342,8 @@ public class ApiParam {
     /**
      * Retures the parsed query parameter for space
      */
-    static PropertiesQuery getSpacePropertiesQuery(RoutingContext context, String param) {
-      PropertiesQuery propertyQuery = context.get("propertyQuery");
+    static PropertyQueryOr getSpacePropertiesQuery(RoutingContext context, String param) {
+      PropertyQueryOr propertyQuery = context.get("propertyQuery");
       if (propertyQuery == null) {
         propertyQuery = parsePropertiesQuery(context.request().query(), param, true);
         context.put("propertyQuery", propertyQuery);
@@ -354,8 +354,8 @@ public class ApiParam {
     /**
      * Returns the parsed tags parameter
      */
-    static PropertiesQuery getPropertiesQuery(RoutingContext context) {
-      PropertiesQuery propertyQuery = context.get("propertyQuery");
+    static PropertyQueryOr getPropertiesQuery(RoutingContext context) {
+      PropertyQueryOr propertyQuery = context.get("propertyQuery");
       if (propertyQuery == null) {
         propertyQuery = parsePropertiesQuery(context.request().query(), "", false);
         context.put("propertyQuery", propertyQuery);
@@ -395,18 +395,18 @@ public class ApiParam {
         return new PropertyQuery()
             .withKey(key)
             .withOperation(operators.get(operation))
-            .withValues(values);
+            .getValues(values);
       }
 
       return null;
     }
 
-    protected static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
+    protected static PropertyQueryOr parsePropertiesQuery(String query, String property, boolean spaceProperties) {
       if (query == null || query.length() == 0) {
         return null;
       }
 
-      PropertyQueryList pql = new PropertyQueryList();
+      PropertyQueryAnd pql = new PropertyQueryAnd();
       Stream.of(query.split("&"))
           .filter(k -> k.startsWith("p.") || k.startsWith("f.") || spaceProperties)
           .forEach(keyValuePair -> {
@@ -456,12 +456,12 @@ public class ApiParam {
                 for (String rawValue : rawValues) {
                     values.add(getConvertedValue(rawValue));
                 }
-                propertyQuery.setValues(values);
+                propertyQuery.withValues(values);
                 pql.add(propertyQuery);
               }
           });
 
-      PropertiesQuery pq = new PropertiesQuery();
+      PropertyQueryOr pq = new PropertyQueryOr();
       pq.add(pql);
 
       if (pq.stream().flatMap(List::stream).mapToLong(l -> l.getValues().size()).sum() == 0) {

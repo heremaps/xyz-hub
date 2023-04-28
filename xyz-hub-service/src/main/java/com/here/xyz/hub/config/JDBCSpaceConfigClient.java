@@ -23,7 +23,7 @@ import static com.here.xyz.hub.config.JDBCConfig.SPACE_TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.psql.SQLQueryExt;
 import io.vertx.core.AsyncResult;
@@ -119,7 +119,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+      SpaceSelectionCondition selectedCondition, PropertyQueryOr propsQuery) {
     //BUILD THE QUERY
     List<String> whereConjunctions = new ArrayList<>();
     String baseQuery = "SELECT config FROM " + SPACE_TABLE;

@@ -30,7 +30,6 @@ import static org.junit.Assert.assertNull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.feature.GetFeaturesByTileEvent;
 import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.LazyParsedFeatureCollectionTest;
@@ -59,7 +58,7 @@ public class EventTest {
     assertNotSame(event, clone);
     assertTrue(event instanceof IterateFeaturesEvent);
     assertTrue(clone instanceof IterateFeaturesEvent);
-    assertEquals(event.getSpace(), clone.getSpace());
+    assertEquals(event.getSpaceId(), clone.getSpaceId());
     assertEquals(event.getParams(), clone.getParams());
     assertEquals(((IterateFeaturesEvent) event).getLimit(), ((IterateFeaturesEvent) clone).getLimit());
   }

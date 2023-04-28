@@ -1,16 +1,22 @@
 package com.here.xyz;
 
+import com.here.xyz.events.feature.LoadFeaturesEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.lang.Thread.UncaughtExceptionHandler;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -18,20 +24,22 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A configurable event pipeline, that executes events in an own dedicated thread. Basically a task (and so the event pipeline) are
- * {@link #bind() bound} to a thread. All handlers added to the pipeline of the task can query the current task simply via
- * {@link #currentTask()}.
+ * A configurable event task, that executes one or more events in an own dedicated thread. Basically a task is {@link #bind() bound} to a
+ * dedicated thread and sends events through a private pipeline with added handlers. All handlers added to the pipeline of the task can
+ * query the current task simply via {@link #currentTask()}.
  * <p>
- * A task may send multiple events through the attached pipeline and modify the pipeline between the events.
+ * A task may send multiple events through the attached pipeline and modify the pipeline between the events. For example to modify features
+ * at least a {@link LoadFeaturesEvent} is needed to fetch the current state of the features and then to (optionally) perform a merge and
+ * execute the {@link ModifyFeaturesEvent}. Other combinations are possible.
  */
-public abstract class EventTask extends EventPipelineWithLogger implements UncaughtExceptionHandler {
+public abstract class AbstractTask extends AbstractLoggedObject implements UncaughtExceptionHandler {
 
   /**
    * Internal default No Operation Task, just useful for testing or other edge cases. The NOP task binding is weak, that means all other
    * tasks are forcefully unbinding the NOP task. Its purpose is to ensure that {@link #currentTask()} is always able to return a task for
    * logging purpose.
    */
-  static final class NopTask extends EventTask {
+  static final class NopTask extends AbstractTask {
 
     NopTask() {
       // We know that NOP Tasks only created internally and only when currentTask() is invoked, therefore we set the stream-id to
@@ -43,16 +51,12 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
     protected @NotNull XyzResponse execute() {
       return errorResponse(XyzError.NOT_IMPLEMENTED, "Not Implemented");
     }
-
-    @Override
-    protected void sendResponse(@NotNull XyzResponse response) {
-    }
   }
 
   /**
    * The constructor to use, when creating new task instances on demand.
    */
-  public static final AtomicReference<@Nullable Supplier<@NotNull EventTask>> FACTORY = new AtomicReference<>();
+  public static final AtomicReference<@Nullable Supplier<@NotNull AbstractTask>> FACTORY = new AtomicReference<>();
 
   /**
    * The soft-limit of tasks to run concurrently.
@@ -71,9 +75,9 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
    *
    * @param streamId The stream-id to use; if any.
    */
-  public EventTask(@Nullable String streamId) {
+  public AbstractTask(@Nullable String streamId) {
     if (streamId == null) {
-      final EventTask currentTask = EventTask.currentTaskOrNull();
+      final AbstractTask currentTask = AbstractTask.currentTaskOrNull();
       if (currentTask != null) {
         streamId = currentTask.streamId;
       } else {
@@ -110,7 +114,7 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
    * @param <T>        the value type.
    * @return the value or {@code null}.
    */
-  public <T> @Nullable T get(@NotNull Class<T> valueClass) {
+  public <T> @Nullable T getAttachment(@NotNull Class<T> valueClass) {
     final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments = attachments();
     final Object value = attachments.get(valueClass);
     return valueClass.isInstance(value) ? valueClass.cast(value) : null;
@@ -126,7 +130,7 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
    * @return the value.
    * @throws NullPointerException if creating a new value instance failed.
    */
-  public <T> @NotNull T getOrCreate(@NotNull Class<T> valueClass) {
+  public <T> @NotNull T getOrCreateAttachment(@NotNull Class<T> valueClass) {
     final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments = attachments();
     while (true) {
       final Object o = attachments.get(valueClass);
@@ -162,7 +166,7 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
    * @throws NullPointerException if the given value is null.
    */
   @SuppressWarnings("unchecked")
-  public <T> @NotNull Class<T> set(@NotNull T value) {
+  public <T> @NotNull Class<T> setAttachment(@NotNull T value) {
     //noinspection ConstantConditions
     if (value == null) {
       throw new NullPointerException();
@@ -174,7 +178,7 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
   /**
    * The attachments of this context.
    */
-  protected final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments;
+  private final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments;
 
   /**
    * The steam-id of this context.
@@ -209,15 +213,15 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
    * @throws ClassCastException if the current task is not of the expected type.
    */
   @SuppressWarnings("unchecked")
-  public static <T extends EventTask> @NotNull T currentTask() {
+  public static <T extends AbstractTask> @NotNull T currentTask() {
     final Thread thread = Thread.currentThread();
     final UncaughtExceptionHandler uncaughtExceptionHandler = thread.getUncaughtExceptionHandler();
-    if (uncaughtExceptionHandler instanceof EventTask) {
+    if (uncaughtExceptionHandler instanceof AbstractTask) {
       return (T) uncaughtExceptionHandler;
     }
 
-    final Supplier<@NotNull EventTask> eventTaskSupplier = FACTORY.get();
-    final @NotNull EventTask newTask = eventTaskSupplier != null ? eventTaskSupplier.get() : new NopTask();
+    final Supplier<@NotNull AbstractTask> eventTaskSupplier = FACTORY.get();
+    final @NotNull AbstractTask newTask = eventTaskSupplier != null ? eventTaskSupplier.get() : new NopTask();
     newTask.thread = thread;
     newTask.oldName = thread.getName();
     newTask.oldUncaughtExceptionHandler = uncaughtExceptionHandler;
@@ -233,10 +237,10 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
    * @throws ClassCastException if the task is not of the expected type.
    */
   @SuppressWarnings("unchecked")
-  public static <T extends EventTask> @Nullable T currentTaskOrNull() {
+  public static <T extends AbstractTask> @Nullable T currentTaskOrNull() {
     final Thread thread = Thread.currentThread();
     final UncaughtExceptionHandler uncaughtExceptionHandler = thread.getUncaughtExceptionHandler();
-    if (uncaughtExceptionHandler instanceof EventTask) {
+    if (uncaughtExceptionHandler instanceof AbstractTask) {
       return (T) uncaughtExceptionHandler;
     }
     return null;
@@ -256,14 +260,14 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
    *
    * @throws IllegalStateException if this task bound to another thread, or the current thread bound to another task.
    */
-  public void bind() {
+  protected void bind() {
     if (thread != null) {
       throw new IllegalStateException("Already bound to a thread");
     }
     final Thread thread = Thread.currentThread();
     final String threadName = thread.getName();
     final UncaughtExceptionHandler threadUncaughtExceptionHandler = thread.getUncaughtExceptionHandler();
-    if (threadUncaughtExceptionHandler instanceof EventTask) {
+    if (threadUncaughtExceptionHandler instanceof AbstractTask) {
       if (threadUncaughtExceptionHandler.getClass() == NopTask.class) {
         // Force unbind of NOP task.
         final NopTask nopTask = (NopTask) threadUncaughtExceptionHandler;
@@ -284,7 +288,7 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
    *
    * @throws IllegalStateException If called from a thread to which this task is not bound.
    */
-  public void unbind() {
+  protected void unbind() {
     if (this.thread == null) {
       return;
     }
@@ -301,29 +305,69 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
   }
 
   /**
-   * Creates a new thread and binds this task to the new thread, executing the given main method.
+   * The event pipeline of this task.
+   */
+  protected final EventPipeline pipeline = new EventPipeline();
+
+  /**
+   * A lock to be used to modify the task thread safe.
+   */
+  private final ReentrantLock mutex = new ReentrantLock();
+
+  /**
+   * Acquire a lock, but only if the {@link #state()} is {@link State#NEW}.
    *
-   * @throws XyzErrorException Too many concurrent threads.
+   * @throws IllegalStateException If the current state is not the one expected.
+   */
+  protected final void lock() {
+    mutex.lock();
+    final State currentState = state.get();
+    if (currentState != State.NEW) {
+      mutex.unlock();
+      throw new IllegalStateException("Found illegal state " + currentState.name() + ", expected NEW");
+    }
+  }
+
+  /**
+   * Unlocks.
+   */
+  protected final void unlock() {
+    mutex.unlock();
+  }
+
+  /**
+   * Creates a new thread, bind this task to the new thread, calling the {@link #execute()} method.
+   *
+   * @return The future to the result.
+   * @throws IllegalStateException If the {@link #state()} is not {@link State#NEW}.
+   * @throws XyzErrorException     Too many concurrent threads.
    */
   public @NotNull Future<@NotNull XyzResponse> start() throws XyzErrorException {
-    final long LIMIT = EventTask.SOFT_LIMIT.get();
-    do {
-      final long threadCount = EventTask.threadCount.get();
-      assert threadCount >= 0L;
-      if (threadCount >= LIMIT) {
-        throw new XyzErrorException(XyzError.TOO_MANY_REQUESTS, "Maximum number of concurrent requests (" + LIMIT + ") reached");
-      }
-      if (EventTask.threadCount.compareAndSet(threadCount, threadCount + 1)) {
-        try {
-          return threadPool.submit(this::run);
-        } catch (Throwable t) {
-          EventTask.threadCount.decrementAndGet();
-          error("Unexpected exception while trying to fork a new thread", t);
-          throw new XyzErrorException(XyzError.EXCEPTION, "Internal error while forking new worker thread");
+    final long LIMIT = AbstractTask.SOFT_LIMIT.get();
+    lock();
+    try {
+      do {
+        final long threadCount = AbstractTask.threadCount.get();
+        assert threadCount >= 0L;
+        if (threadCount >= LIMIT) {
+          throw new XyzErrorException(XyzError.TOO_MANY_REQUESTS, "Maximum number of concurrent requests (" + LIMIT + ") reached");
         }
-      }
-      // Conflict, two threads concurrently try to fork.
-    } while (true);
+        if (AbstractTask.threadCount.compareAndSet(threadCount, threadCount + 1)) {
+          try {
+            final Future<XyzResponse> future = threadPool.submit(this::run);
+            state.set(State.START);
+            return future;
+          } catch (Throwable t) {
+            AbstractTask.threadCount.decrementAndGet();
+            error("Unexpected exception while trying to fork a new thread", t);
+            throw new XyzErrorException(XyzError.EXCEPTION, "Internal error while forking new worker thread");
+          }
+        }
+        // Conflict, two threads concurrently try to fork.
+      } while (true);
+    } finally {
+      unlock();
+    }
   }
 
   /**
@@ -331,65 +375,54 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
    * internally (we do not want a running request to be aborted just because of some arbitrary thread limit, rather reject new requests).
    */
   public @NotNull Future<@NotNull XyzResponse> startWithoutLimit() {
+    lock();
     try {
-      EventTask.threadCount.incrementAndGet();
-      return threadPool.submit(this::run);
+      AbstractTask.threadCount.incrementAndGet();
+      final Future<XyzResponse> future = threadPool.submit(this::run);
+      state.set(State.START);
+      return future;
     } catch (Throwable t) {
-      EventTask.threadCount.decrementAndGet();
+      AbstractTask.threadCount.decrementAndGet();
       error("Unexpected exception while trying to fork a new thread, ignoring the soft-limit", t);
       throw t;
+    } finally {
+      unlock();
     }
   }
 
   private static final AtomicLong threadCount = new AtomicLong();
 
   private @NotNull XyzResponse run() {
+    assert state.get() == State.START;
+    state.set(State.EXECUTE);
     bind();
     try {
-      final @NotNull XyzResponse response = execute();
-      if (callback != null) {
+      XyzResponse response;
+      try {
+        response = execute();
+      } catch (XyzErrorException e) {
+        response = e.toErrorResponse(streamId);
+      } catch (ParameterError e) {
+        response = errorResponse(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
+      } catch (Throwable t) {
+        error("Uncaught exception in task execute", t);
+        response = errorResponse(XyzError.EXCEPTION, "Uncaught exception in task " + getClass().getSimpleName());
+      }
+      state.set(State.CALLING_LISTENER);
+      for (final @NotNull Consumer<@NotNull XyzResponse> listener : listeners) {
         try {
-          callback.accept(response);
+          listener.accept(response);
         } catch (Throwable t) {
-          error("Uncaught exception in event pipeline callback", t);
+          error("Uncaught exception in listener", t);
         }
       }
-      try {
-        sendResponse(response);
-      } catch (Throwable t) {
-        error("Uncaught exception while post processing event", t);
-      }
       return response;
-    } catch (Throwable t) {
-      error("Uncaught exception in task execute", t);
-      return errorResponse(XyzError.EXCEPTION, "Uncaught exception in task " + getClass().getSimpleName());
     } finally {
-      final long newValue = EventTask.threadCount.decrementAndGet();
+      state.set(State.DONE);
+      final long newValue = AbstractTask.threadCount.decrementAndGet();
       assert newValue >= 0L;
       unbind();
     }
-  }
-
-  // We need to capture the callback handling.
-
-  private @Nullable Consumer<XyzResponse> callback;
-
-  /**
-   * It should not be necessary to use this.
-   *
-   * @param callback The callback to invoke, when the response is available.
-   * @return this.
-   */
-  @Deprecated
-  @Override
-  public @NotNull EventTask setCallback(@Nullable Consumer<XyzResponse> callback) {
-    this.callback = callback;
-    return this;
-  }
-
-  @Override
-  public @Nullable Consumer<XyzResponse> getCallback() {
-    return callback;
   }
 
   /**
@@ -402,13 +435,87 @@ public abstract class EventTask extends EventPipelineWithLogger implements Uncau
   abstract protected @NotNull XyzResponse execute() throws Throwable;
 
   /**
-   * Called before returning the response and after calling the callback. Can be used to serialize the response and send it to a socket.
-   *
-   * <p><b>Note</b>: This method should not modify the response.
-   *
-   * @param response the response.
+   * The state of the task.
    */
-  abstract protected void sendResponse(@NotNull XyzResponse response);
+  public enum State {
+    /**
+     * The task is new.
+     */
+    NEW,
+
+    /**
+     * The task is starting.
+     */
+    START,
+
+    /**
+     * The task is executing.
+     */
+    EXECUTE,
+
+    /**
+     * Done executing and notifying listener.
+     */
+    CALLING_LISTENER,
+
+    /**
+     * Fully done.
+     */
+    DONE
+  }
+
+  private final AtomicReference<@NotNull State> state = new AtomicReference<>(State.NEW);
+
+  /**
+   * Returns the current state of the task.
+   *
+   * @return The current state of the task.
+   */
+  public final @NotNull State state() {
+    return state.get();
+  }
+
+  private final @NotNull List<@NotNull Consumer<@NotNull XyzResponse>> listeners = new ArrayList<>();
+
+  /**
+   * Adds the given response listener.
+   *
+   * @param listener The listener to add.
+   * @return {@code true} if added the listener; {@code false} if the listener already added.
+   * @throws IllegalStateException After {@link #start()} called.
+   */
+  public final boolean addListener(@NotNull Consumer<@NotNull XyzResponse> listener) {
+    lock();
+    try {
+      if (!listeners.contains(listener)) {
+        listeners.add(listener);
+        return true;
+      }
+      return false;
+    } finally {
+      state.set(State.NEW);
+    }
+  }
+
+  /**
+   * Remove the given response listener.
+   *
+   * @param listener The listener to remove.
+   * @return {@code true} if removed the listener; {@code false} otherwise.
+   * @throws IllegalStateException After {@link #start()} called.
+   */
+  public final boolean removeListener(@NotNull Consumer<@NotNull XyzResponse> listener) {
+    lock();
+    try {
+      if (!listeners.contains(listener)) {
+        listeners.remove(listener);
+        return true;
+      }
+      return false;
+    } finally {
+      state.set(State.NEW);
+    }
+  }
 
   /**
    * Helper method to create a new error response.

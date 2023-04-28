@@ -1,132 +1,137 @@
 package com.here.xyz.hub.task.feature;
 
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-
-import com.here.mapcreator.ext.naksha.Naksha;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.here.xyz.Typed;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.feature.LoadFeaturesEvent;
-import com.here.xyz.hub.auth.FeatureAuthorization;
-import com.here.xyz.hub.rest.Api;
+import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.ICallback;
-import com.here.xyz.hub.task.TaskPipeline;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
+import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.responses.XyzResponse;
-import io.vertx.core.AsyncResult;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.RoutingContext;
-import java.util.HashMap;
-import java.util.List;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Search using the geometry of a reference feature from a reference space. So basically, search all features in the current space, in range
  * of the given reference feature in the given reference space.
  */
-public final class GetFeaturesByGeometryTask extends ReadQuery<GetFeaturesByGeometryEvent, GetFeaturesByGeometryTask> {
+public final class GetFeaturesByGeometryTask extends AbstractSpatialQueryTask<GetFeaturesByGeometryEvent> {
 
-  public final @NotNull String refSpaceId;
-  final @NotNull String refFeatureId;
-  public final @NotNull Space refSpace;
-  final @NotNull Connector refConnector;
+  public GetFeaturesByGeometryTask(@Nullable String streamId) {
+    super(streamId);
+  }
 
-  public GetFeaturesByGeometryTask(
-      @NotNull GetFeaturesByGeometryEvent event,
-      @NotNull RoutingContext context,
-      ApiResponseType apiResponseTypeType,
-      @NotNull String refSpaceId,
-      @NotNull String refFeatureId
-  ) {
-    super(event, context, apiResponseTypeType);
-    this.refFeatureId = refFeatureId;
+  private Space refSpace;
+  private String refFeatureId;
 
-    final Space space = Naksha.spaces.get(refSpaceId);
-    if (space == null) {
-      throw new IllegalStateException("Unknown reference space " + refSpaceId);
+  private static final String ARG_ERROR_MSG = "Invalid arguments. "
+      + "Define either 'lat' and 'lon', refer a feature in another space via 'refFeatureId' and 'refSpaceId' or address a hex via 'h3Index'.";
+
+  @Override
+  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
+    super.initFromRoutingContext(routingContext, responseType);
+    assert queryParameters != null;
+
+    // Loading of the features delayed to execute to not block the IO thread!
+    final String refFeatureId = queryParameters.getRefFeatureId();
+    final String refSpaceId = queryParameters.getRefSpaceId();
+    final String h3Index = queryParameters.getH3Index();
+    final Geometry geometry = getBodyAsGeometry();
+
+    if (geometry == null && refFeatureId == null && refSpaceId == null && h3Index == null) {
+      throw new ParameterError(ARG_ERROR_MSG);
     }
-    this.refSpaceId = refSpaceId;
-    refSpace = space;
 
-    final ConnectorRef connectorRef = refSpace.getConnectorId();
-    final String connectorId = connectorRef.getId();
-    final Connector connector = Naksha.connectors.get(connectorId);
-    if (connector == null) {
-      throw new IllegalStateException("Unknown reference storage " + connectorId + " configured for reference space " + refSpaceId);
+    if (geometry != null) {
+      if (refFeatureId != null || refSpaceId != null || h3Index != null) {
+        throw new ParameterError(ARG_ERROR_MSG);
+      }
+      event.setGeometry(geometry);
+    } else if (h3Index != null) {
+      if (refFeatureId != null || refSpaceId != null) {
+        throw new ParameterError(ARG_ERROR_MSG);
+      }
+      event.setH3Index(h3Index);
+    } else {
+      if (refFeatureId == null || refSpaceId == null) {
+        throw new ParameterError(ARG_ERROR_MSG);
+      }
+      this.refSpace = Space.getById(refSpaceId);
+      this.refFeatureId = refFeatureId;
+      if (refSpace == null) {
+        throw new ParameterError("The referred space '" + refSpaceId + "' does not exist");
+      }
     }
-    this.refConnector = connector;
   }
 
   @Override
-  protected void initPipeline(@NotNull TaskPipeline<GetFeaturesByGeometryEvent, GetFeaturesByGeometryTask> pipeline) {
-    pipeline
-        .then(FeatureAuthorization::authorize)
-        .then(this::loadObject)
-        .then(this::verifyResourceExists)
-        .then(FeatureTaskHandler::validate)
-        .then(FeatureTaskHandler::readCache)
-        .then(FeatureTaskHandler::invoke)
-        .then(FeatureTaskHandler::writeCache);
+  public @NotNull GetFeaturesByGeometryEvent createEvent() {
+    return new GetFeaturesByGeometryEvent();
   }
 
-  private void verifyResourceExists(@NotNull GetFeaturesByGeometryTask task, @NotNull ICallback callback) {
-    if (this.getEvent().getGeometry() == null && this.getEvent().getH3Index() == null) {
-      callback.throwException(new HttpException(NOT_FOUND, "The 'refFeatureId' : '" + refFeatureId + "' does not exist."));
-    } else {
-      callback.success();
-    }
-  }
-
-  private void loadObject(@NotNull GetFeaturesByGeometryTask task, @NotNull ICallback callback) {
-    if (task.getEvent().getGeometry() != null || task.getEvent().getH3Index() != null) {
-      callback.success();
-      return;
-    }
-    final LoadFeaturesEvent event = new LoadFeaturesEvent();
-    event.setStreamId(task.logStream());
-    event.setSpace(refSpaceId);
-    event.setParams(this.refSpace.getConnectorId().getParams());
-    final HashMap<String, String> idsMaps = new HashMap<>();
-    idsMaps.put(refFeatureId, null);
-    event.setIdsMap(idsMaps);
+  /**
+   * Parses the body of the request as FeatureCollection, or Feature object and returns the features as a list.
+   *
+   * @throws ParameterError If the method is POST and any occurred while decoding the body.
+   */
+  private Geometry getBodyAsGeometry() throws ParameterError {
     try {
-      getRpcClient(refConnector).execute(getMarker(), event, r -> processLoadEvent(callback, event, r));
-    } catch (Exception e) {
-      logger.warn(task.getMarker(), "Error trying to process LoadFeaturesEvent.", e);
-      callback.throwException(e);
-    }
-  }
+      assert routingContext != null;
+      if (routingContext.request().method() != HttpMethod.POST) {
+        return null;
+      }
 
-  void processLoadEvent(ICallback<GetFeaturesByGeometryTask> callback, LoadFeaturesEvent event,
-      AsyncResult<XyzResponse> r) {
-    if (r.failed()) {
-      if (r.cause() instanceof Exception) {
-        callback.throwException((Exception) r.cause());
+      final String text = routingContext.body().asString(StandardCharsets.UTF_8.name());
+      if (text == null) {
+        throw new ParameterError("Missing content");
+      }
+
+      final Typed input = XyzSerializable.deserialize(text);
+      Geometry geometry;
+      if (input instanceof Geometry) {
+        geometry = (Geometry) input;
+        geometry.validate();
+      } else if (input == null) {
+        throw new ParameterError("The content is null");
       } else {
-        callback.throwException(new Exception(r.cause()));
+        throw new ParameterError("The provided content is of type '"
+            + input.getClass().getSimpleName()
+            + "'. Expected is a GeoJson-Geometry [Point,MultiPoint,LineString,MultiLineString,Polygon,MultiPolygon].");
       }
-      return;
+      return geometry;
+    } catch (JsonMappingException e) {
+      throw new ParameterError(
+          "Invalid JSON type. Expected is a GeoJson-Geometry [Point,MultiPoint,LineString,MultiLineString,Polygon,MultiPolygon].");
+    } catch (JsonParseException e) {
+      throw new ParameterError(
+          "Invalid JSON string. Error at line " + e.getLocation().getLineNr() + ", column " + e.getLocation().getColumnNr() + ".");
+    } catch (IOException e) {
+      throw new ParameterError("Cannot read input JSON string.");
+    } catch (InvalidGeometryException e) {
+      info("Invalid geometry found", e);
+      throw new ParameterError("Invalid geometry.");
     }
+  }
 
-    try {
-      final XyzResponse response = r.result();
-      if (!(response instanceof FeatureCollection)) {
-        callback.throwException(Api.responseToHttpException(response));
-        return;
+  @Override
+  protected @NotNull XyzResponse execute() throws Exception {
+    if (refSpace != null) {
+      if (!refSpace.getId().equals(getSpace().getId())) {
+        // TODO: Implement this by creating a new task that loads the referred feature (refFeatureId) and then uses the geometry of
+        //       this feature in event.setGeometry().
+        throw new UnsupportedOperationException("Referring a feature in another space is not yet supported");
+      } else {
+        // The referred feature located in the same space, leave this to the connector.
+        event.setRef(refFeatureId);
       }
-      final FeatureCollection collection = (FeatureCollection) response;
-      final List<Feature> features = collection.getFeatures();
-
-      if (features.size() == 1) {
-        this.getEvent().setGeometry(features.get(0).getGeometry());
-      }
-
-      callback.success(this);
-    } catch (Exception e) {
-      callback.throwException(e);
     }
+    return super.execute();
   }
 }

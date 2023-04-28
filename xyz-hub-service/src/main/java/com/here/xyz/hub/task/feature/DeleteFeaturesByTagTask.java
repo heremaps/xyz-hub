@@ -7,7 +7,7 @@ import com.here.xyz.hub.task.TaskPipeline;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 
-public class DeleteFeaturesByTagTask extends FeatureTask<DeleteFeaturesByTagEvent, DeleteFeaturesByTagTask> {
+public class DeleteFeaturesByTagTask extends AbstractFeatureTask<DeleteFeaturesByTagEvent, DeleteFeaturesByTagTask> {
 
   public DeleteFeaturesByTagTask(
       @NotNull DeleteFeaturesByTagEvent event,

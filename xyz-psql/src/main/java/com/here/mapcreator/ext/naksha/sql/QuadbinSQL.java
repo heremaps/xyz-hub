@@ -19,6 +19,8 @@
 
 package com.here.mapcreator.ext.naksha.sql;
 
+import com.here.xyz.events.clustering.ClusteringQuadBin;
+import com.here.xyz.events.clustering.ClusteringQuadBin.CountMode;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import org.jetbrains.annotations.NotNull;
@@ -52,7 +54,7 @@ public class QuadbinSQL {
   /** Creates the SQLQuery for Quadbin requests. */
   public static SQLQuery generateQuadbinClusteringSQL(
       int resolution,
-      @Nullable String quadMode,
+      @Nullable CountMode countMode,
       @Nullable String propQuery,
       @NotNull WebMercatorTile tile,
       @NotNull BBox bbox,
@@ -96,19 +98,18 @@ public class QuadbinSQL {
     if (clippedOnBbox)
       resultQkGeo = DhString.format("ST_Intersection(%s,%s)", resultQkGeo, bboxSql);
 
-    if (quadMode == null) quadMode = COUNTMODE_MIXED;
+    if (countMode == null) countMode = CountMode.MIXED;
 
-    switch (quadMode) {
-      case COUNTMODE_REAL:
+    switch (countMode) {
+      case REAL:
         realCountCondition = "TRUE";
         pureEstimation = _pureEstimation;
         break;
-      case COUNTMODE_ESTIMATED:
-      case COUNTMODE_MIXED:
-        realCountCondition =
-            (quadMode.equalsIgnoreCase(COUNTMODE_MIXED)
+      case ESTIMATED:
+      case MIXED:
+        realCountCondition = countMode == CountMode.MIXED
                 ? "cond_est_cnt < 100 AND est_cnt < " + LIMIT_COUNTMODE_MIXED
-                : "FALSE");
+                : "FALSE";
 
         if (propQuery != null) {
           pureEstimation =

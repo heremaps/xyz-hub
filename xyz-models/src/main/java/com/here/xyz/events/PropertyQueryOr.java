@@ -22,6 +22,9 @@ package com.here.xyz.events;
 
 import java.util.ArrayList;
 
-public class PropertiesQuery extends ArrayList<PropertyQueryList> {
+/**
+ * A list of sub-queries OR combined. Due to the way the query string parsed and defined, this list will only (always) contain one element.
+ */
+public class PropertyQueryOr extends ArrayList<PropertyQueryAnd> {
 
 }

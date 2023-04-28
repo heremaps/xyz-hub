@@ -21,7 +21,7 @@ package com.here.xyz.psql;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.PropertyQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -46,7 +46,7 @@ public class Capabilities {
     return skeys;
   }
 
-  public static boolean canSearchFor(@Nullable PropertiesQuery query, @NotNull PsqlStorage connector) {
+  public static boolean canSearchFor(@Nullable PropertyQueryOr query, @NotNull PsqlEventHandler connector) {
     if (query == null) {
       return true;
     }
@@ -112,7 +112,7 @@ public class Capabilities {
     static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
 
     /** Get list of indexed Values from a XYZ-Space */
-    public static @Nullable List<@NotNull String> getIndexList(@NotNull PsqlStorage psqlConnector)
+    public static @Nullable List<@NotNull String> getIndexList(@NotNull PsqlEventHandler psqlConnector)
         throws SQLException {
       IndexList indexList = cachedIndices.get(psqlConnector.spaceId());
       if (indexList != null && indexList.expiry >= System.currentTimeMillis()) {

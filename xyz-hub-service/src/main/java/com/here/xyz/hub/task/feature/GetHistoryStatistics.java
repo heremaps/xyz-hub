@@ -8,7 +8,7 @@ import io.vertx.ext.web.RoutingContext;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
-public class GetHistoryStatistics extends FeatureTask<GetHistoryStatisticsEvent> {
+public class GetHistoryStatistics extends AbstractFeatureTask<GetHistoryStatisticsEvent> {
 
   public GetHistoryStatistics(
       @NotNull GetHistoryStatisticsEvent event,

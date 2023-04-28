@@ -91,7 +91,7 @@
         <configuration>
           <transformers>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-              <mainClass>com.here.xyz.psql.PsqlStorage</mainClass>
+              <mainClass>com.here.xyz.psql.PsqlEventHandler</mainClass>
             </transformer>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
           </transformers>

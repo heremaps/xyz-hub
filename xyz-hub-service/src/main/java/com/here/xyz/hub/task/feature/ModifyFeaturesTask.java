@@ -13,7 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * pipeline. If you want to use the full conditional operation pipeline, you should request through Features API. Known limitations: -
  * Cannot perform validation of existing resources per operation type
  */
-public class ModifyFeaturesTask extends FeatureTask<ModifyFeaturesEvent> {
+public class ModifyFeaturesTask extends AbstractFeatureTask<ModifyFeaturesEvent> {
 
   public ModifyFeaturesTask(
       @NotNull ModifyFeaturesEvent event,

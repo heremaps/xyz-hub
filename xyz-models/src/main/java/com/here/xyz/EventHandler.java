@@ -5,7 +5,6 @@ import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.XyzError;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;

@@ -5,7 +5,7 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 
-abstract class ReadQuery<EVENT extends QueryEvent, TASK extends FeatureTask<EVENT, TASK>> extends FeatureTask<EVENT, TASK> {
+abstract class ReadQuery<EVENT extends QueryEvent, TASK extends AbstractFeatureTask<EVENT, TASK>> extends AbstractFeatureTask<EVENT, TASK> {
 
   ReadQuery(@NotNull EVENT event, @NotNull RoutingContext context, ApiResponseType apiResponseTypeType) {
     super(event, context, apiResponseTypeType);

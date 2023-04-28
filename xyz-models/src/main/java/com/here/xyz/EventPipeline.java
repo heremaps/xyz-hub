@@ -1,6 +1,6 @@
 package com.here.xyz;
 
-import static com.here.xyz.EventTask.currentTask;
+import static com.here.xyz.AbstractTask.currentTask;
 
 import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -167,7 +167,7 @@ public class EventPipeline implements IEventContext {
     }
     this.event = event;
     addEventHandler(this::pipelineEnd);
-    final EventTask context = currentTask();
+    final AbstractTask context = currentTask();
     this.next = 0;
     XyzResponse response;
     try {

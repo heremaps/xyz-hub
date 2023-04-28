@@ -1,5 +1,9 @@
 package com.here.xyz.events;
 
+import static com.here.xyz.events.QueryDelimiterType.GENERAL;
+import static com.here.xyz.events.QueryDelimiterType.SUB;
+import static com.here.xyz.events.QueryDelimiterType.UNSAFE;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -7,39 +11,52 @@ import org.jetbrains.annotations.Nullable;
  * All delimiters following <a href="https://tools.ietf.org/html/rfc3986#section-2.2"></a>.
  */
 public enum QueryDelimiter {
+  // See: https://www.asciitable.com/
+
   // Delimiters.
-  COLON(':', false),
-  SLASH('/', false),
-  QUESTION_MARK('?', false),
-  SHARP('#', false),
-  SQUARE_BRACKET_OPEN('[', false),
-  SQUARE_BRACKET_CLOSE(']', false),
-  AT('@', false),
+  COLON(':', GENERAL),
+  SLASH('/', GENERAL),
+  QUESTION_MARK('?', GENERAL),
+  SHARP('#', GENERAL),
+  SQUARE_BRACKET_OPEN('[', GENERAL),
+  SQUARE_BRACKET_CLOSE(']', GENERAL),
+  AT('@', GENERAL),
 
   // Sub-Delimiter.
-  EXCLAMATION_MARK('!', true),
-  DOLLAR('$', true),
-  AMPERSAND('&', true),
-  SINGLE_QUOTE('\'', true),
-  ROUND_BRACKET_OPEN('(', true),
-  ROUND_BRACKET_CLOSE(')', true),
-  STAR('*', true),
-  PLUS('+', true),
-  COMMA(',', true),
-  SEMICOLON(';', true),
-  EQUAL('=', true),
-  END((char) 0, false);
+  EXCLAMATION_MARK('!', SUB),
+  DOLLAR('$', SUB),
+  AMPERSAND('&', SUB),
+  SINGLE_QUOTE('\'', SUB),
+  ROUND_BRACKET_OPEN('(', SUB),
+  ROUND_BRACKET_CLOSE(')', SUB),
+  STAR('*', SUB),
+  PLUS('+', SUB),
+  COMMA(',', SUB),
+  SEMICOLON(';', SUB),
+  EQUAL('=', SUB),
 
-  QueryDelimiter(char c, boolean isSub) {
+  // Unsafe
+  DOUBLE_QUOTE('"', UNSAFE),
+  SMALLER('<', UNSAFE),
+  GREATER('>', UNSAFE),
+  EXPONENT('^', UNSAFE),
+  BACK_QUOTE('`', UNSAFE),
+  CURLY_BRACKET_OPEN('{', UNSAFE),
+  PIPE('|', UNSAFE),
+  CURLY_BRACKET_CLOSE('}', UNSAFE),
+
+  END((char) 0, UNSAFE);
+
+  QueryDelimiter(char c, @NotNull QueryDelimiterType type) {
     this.delimiterChar = c;
     this.delimiterString = String.valueOf(c);
-    this.isSubDelimiter = isSub;
+    this.type = type;
   }
 
   /**
-   * True if this is a sub-delimiter following <a href="https://tools.ietf.org/html/rfc3986#section-2.2"></a>.
+   * The delimiter type following <a href="https://tools.ietf.org/html/rfc3986#section-2.2"></a>.
    */
-  public final boolean isSubDelimiter;
+  public final @NotNull QueryDelimiterType type;
 
   /**
    * The character that represents this delimiter.
@@ -55,18 +72,6 @@ public enum QueryDelimiter {
   public @NotNull String toString() {
     return delimiterString;
   }
-
-  private static final @Nullable QueryDelimiter @NotNull [] byChar = new QueryDelimiter[]{
-      //0   1    2    3    4    5    6    7
-      null, EXCLAMATION_MARK, null, SHARP, DOLLAR, null, AMPERSAND, SINGLE_QUOTE,      // [32 - ]40
-      ROUND_BRACKET_OPEN, ROUND_BRACKET_CLOSE, STAR, PLUS, COMMA, null, null, SLASH,   // [40 - ]48
-      null, null, null, null, null, null, null, null,                                  // [48 - ]56
-      null, null, COLON, SEMICOLON, null, EQUAL, null, QUESTION_MARK,                  // [56 - ]64
-      AT, null, null, null, null, null, null, null,                                    // [64 - ]72
-      null, null, null, null, null, null, null, null,                                  // [72 - ]80
-      null, null, null, null, null, null, null, null,                                  // [80 - ]88
-      null, null, null, SQUARE_BRACKET_OPEN, null, SQUARE_BRACKET_CLOSE, null, null    // [88 - ]96
-  };
 
   /**
    * Returns the delimiter for the given character.
@@ -90,5 +95,16 @@ public enum QueryDelimiter {
   public static @NotNull QueryDelimiter get(char c, @NotNull QueryDelimiter alternative) {
     final QueryDelimiter d = get(c);
     return d != null ? d : alternative;
+  }
+
+  // The first 32 characters are only control characters that we do not support.
+  private static final @Nullable QueryDelimiter @NotNull [] byChar = new QueryDelimiter[128 - 32];
+
+  static {
+    for (final @NotNull QueryDelimiter delimiter : QueryDelimiter.values()) {
+      if (delimiter != END) {
+        byChar[delimiter.delimiterChar - 32] = delimiter;
+      }
+    }
   }
 }

@@ -59,7 +59,7 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
   @Test
   public void testMaxConnectorResponseSize() throws Exception {
     final IterateFeaturesEvent iter = new IterateFeaturesEvent();
-    iter.setSpace("foo");
+    iter.setSpaceId("foo");
     iter.setConnectorParams(connectorParams);
 
     connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1024);

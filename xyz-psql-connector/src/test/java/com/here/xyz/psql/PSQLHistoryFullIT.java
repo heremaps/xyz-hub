@@ -68,7 +68,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     space.setId("foo");
     space.setEnableHistory(true);
     final ModifySpaceEvent event = new ModifySpaceEvent();
-    event.setSpace("foo");
+    event.setSpaceId("foo");
     event.setOperation(ModifySpaceEvent.Operation.CREATE);
     event.setConnectorParams(connectorParams);
     event.setSpaceDefinition(space);
@@ -89,7 +89,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(connectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
 
@@ -149,7 +149,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     space.setEnableHistory(true);
 
     final ModifySpaceEvent mse = new ModifySpaceEvent();
-    mse.setSpace("foo");
+    mse.setSpaceId("foo");
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
     mse.setConnectorParams(connectorParams);
     mse.setSpaceDefinition(space);

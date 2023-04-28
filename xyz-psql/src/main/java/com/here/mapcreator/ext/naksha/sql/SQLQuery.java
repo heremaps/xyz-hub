@@ -19,7 +19,17 @@
 
 package com.here.mapcreator.ext.naksha.sql;
 
-import com.here.xyz.events.PropertyQueryOp;
+import static com.here.xyz.events.QueryOperation.CONTAINS;
+import static com.here.xyz.events.QueryOperation.EQUALS;
+import static com.here.xyz.events.QueryOperation.GREATER_THAN;
+import static com.here.xyz.events.QueryOperation.GREATER_THAN_OR_EQUALS;
+import static com.here.xyz.events.QueryOperation.IN;
+import static com.here.xyz.events.QueryOperation.LESS_THAN;
+import static com.here.xyz.events.QueryOperation.LESS_THAN_OR_EQUALS;
+import static com.here.xyz.events.QueryOperation.NONE;
+import static com.here.xyz.events.QueryOperation.NOT_EQUALS;
+
+import com.here.xyz.events.QueryOperation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -355,26 +365,31 @@ public class SQLQuery {
     }
   }
 
-  public static @NotNull String getOperation(@NotNull PropertyQueryOp op) {
-    switch (op) {
-      case NOT_EQUALS:
-        return "<>";
-      case LESS_THAN:
-        return "<";
-      case GREATER_THAN:
-        return ">";
-      case LESS_THAN_EQUALS:
-        return "<=";
-      case GREATER_THAN_EQUALS:
-        return ">=";
-      case CONTAINS:
-        return "@>";
-      case IN:
-        return "<@";
-      case EQUALS:
-      default: // NONE, ASSIGN
-        return "=";
+  public static @NotNull String getOperation(@NotNull QueryOperation op) {
+    if (op == NOT_EQUALS) {
+      return "<>";
     }
+    if (op == LESS_THAN) {
+      return "<";
+    }
+    if (op == GREATER_THAN) {
+      return ">";
+    }
+    if (op == LESS_THAN_OR_EQUALS) {
+      return "<=";
+    }
+    if (op == GREATER_THAN_OR_EQUALS) {
+      return ">=";
+    }
+    if (op == CONTAINS) {
+      return "@>";
+    }
+    if (op == IN) {
+      return "<@";
+    }
+    // We do not yet really support none, but we should, it is simply a boolean check!
+    assert op == EQUALS;
+    return "=";
   }
 
   public Map<String, Object> getNamedParameters() {

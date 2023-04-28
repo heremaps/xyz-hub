@@ -19,8 +19,8 @@
 
 package com.here.xyz.hub.connectors;
 
-import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT;
-import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT;
+import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;

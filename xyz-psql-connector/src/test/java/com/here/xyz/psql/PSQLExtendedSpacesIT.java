@@ -87,7 +87,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
 
     /** Update Searchable and SortableProperties in Base */
     ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpace(BASE1);
+    modifySpaceEvent.setSpaceId(BASE1);
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
     modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space(BASE1));
@@ -101,7 +101,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     Map<String, Object> params = new HashMap<>();
 
     modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpace(DELTA1);
+    modifySpaceEvent.setSpaceId(DELTA1);
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
     modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setParams(params);
@@ -144,7 +144,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
       }
 
       ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
-      modifySpaceEvent.setSpace(space);
+      modifySpaceEvent.setSpaceId(space);
       modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.CREATE);
       modifySpaceEvent.setConnectorParams(connectorParams);
       modifySpaceEvent.setParams(params);
@@ -157,7 +157,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
       }};
 
       ModifyFeaturesEvent modifyFeaturesEvent = new ModifyFeaturesEvent();
-      modifyFeaturesEvent.setSpace(space);
+      modifyFeaturesEvent.setSpaceId(space);
       modifyFeaturesEvent.setConnectorParams(connectorParams);
       modifyFeaturesEvent.setTransaction(true);
       modifyFeaturesEvent.setInsertFeatures(features);

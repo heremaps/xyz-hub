@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
  * @param <TASK> the task type.
  */
 @FunctionalInterface
-public interface ITaskStep<EVENT extends Event, TASK extends XyzHubTask<EVENT, TASK>> {
+public interface ITaskStep<EVENT extends Event, TASK extends AbstractEventTask<EVENT, TASK>> {
 
   /**
    * The method invoked by the pipeline to process the task.

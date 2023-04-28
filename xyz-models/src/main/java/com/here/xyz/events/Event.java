@@ -19,8 +19,8 @@
 
 package com.here.xyz.events;
 
-import static com.here.xyz.EventTask.currentTask;
-import static com.here.xyz.EventTask.currentTaskOrNull;
+import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.AbstractTask.currentTaskOrNull;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -50,7 +50,7 @@ import com.here.xyz.events.info.HealthCheckEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.EventTask;
+import com.here.xyz.AbstractTask;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -96,7 +96,7 @@ import org.jetbrains.annotations.Nullable;
 public abstract class Event extends Payload {
 
   protected Event() {
-    final EventTask context = currentTaskOrNull();
+    final AbstractTask context = currentTaskOrNull();
     if (context != null) {
       startNanos = context.startNanos;
       streamId = context.streamId();
@@ -176,8 +176,8 @@ public abstract class Event extends Payload {
   /**
    * The unique space identifier.
    */
-  @JsonProperty
-  private String space;
+  @JsonProperty("space")
+  private @Nullable String spaceId;
 
   private Map<String, Object> metadata;
 
@@ -206,13 +206,33 @@ public abstract class Event extends Payload {
    * @return the identifier of the space.
    */
   @JsonIgnore
-  public @Nullable String getSpace() {
-    return this.space;
+  public @Nullable String getSpaceId() {
+    return this.spaceId;
   }
 
   @JsonIgnore
-  public void setSpace(@NotNull String space) {
-    this.space = space;
+  public void setSpaceId(@NotNull String spaceId) {
+    this.spaceId = spaceId;
+  }
+
+  /**
+   * Sets the space.
+   *
+   * @param space The space to set.
+   */
+  @JsonIgnore
+  public void setSpace(@NotNull Space space) {
+    setSpaceId(space.getId());
+  }
+
+  /**
+   * Returns the {@link Space space} referred by the set {@link #spaceId}.
+   *
+   * @return The space; {@code null} if no {@link #spaceId} is set or no such space exists.
+   */
+  public @Nullable Space getSpace() {
+    final String spaceId = getSpaceId();
+    return spaceId != null ? Space.getById(spaceId) : null;
   }
 
   /**
@@ -251,7 +271,7 @@ public abstract class Event extends Payload {
   @JsonIgnore
   public @NotNull String getStreamId() {
     if (streamId == null) {
-      final EventTask context = currentTaskOrNull();
+      final AbstractTask context = currentTaskOrNull();
       if (context != null) {
         streamId = context.streamId();
       } else {
@@ -450,88 +470,4 @@ public abstract class Event extends Payload {
     this.version = version;
   }
 
-  public static class TrustedParams extends HashMap<String, Object> {
-
-    public static final String COOKIES = "cookies";
-    public static final String HEADERS = "headers";
-    public static final String QUERY_PARAMS = "queryParams";
-
-    public Map<String, String> getCookies() {
-      //noinspection unchecked
-      return (Map<String, String>) get(COOKIES);
-    }
-
-    public void setCookies(Map<String, String> cookies) {
-      if (cookies == null) {
-        return;
-      }
-      put(COOKIES, cookies);
-    }
-
-    public void putCookie(String name, String value) {
-      if (!containsKey(COOKIES)) {
-        put(COOKIES, new HashMap<String, String>());
-      }
-      getCookies().put(name, value);
-    }
-
-    public String getCookie(String name) {
-      if (containsKey(COOKIES)) {
-        return getCookies().get(name);
-      }
-      return null;
-    }
-
-    public Map<String, String> getHeaders() {
-      //noinspection unchecked
-      return (Map<String, String>) get(HEADERS);
-    }
-
-    public void setHeaders(Map<String, String> headers) {
-      if (headers == null) {
-        return;
-      }
-      put(HEADERS, headers);
-    }
-
-    public void putHeader(String name, String value) {
-      if (!containsKey(HEADERS)) {
-        put(HEADERS, new HashMap<String, String>());
-      }
-      getHeaders().put(name, value);
-    }
-
-    public String getHeader(String name) {
-      if (containsKey(HEADERS)) {
-        return getHeaders().get(name);
-      }
-      return null;
-    }
-
-    public Map<String, String> getQueryParams() {
-      //noinspection unchecked
-      return (Map<String, String>) get(QUERY_PARAMS);
-    }
-
-    public void setQueryParams(Map<String, String> queryParams) {
-      if (queryParams == null) {
-        return;
-      }
-      put(QUERY_PARAMS, queryParams);
-    }
-
-    public void putQueryParam(String name, String value) {
-      if (!containsKey(QUERY_PARAMS)) {
-        put(QUERY_PARAMS, new HashMap<String, String>());
-      }
-      getQueryParams().put(name, value);
-    }
-
-    public String getQueryParam(String name) {
-      if (containsKey(QUERY_PARAMS)) {
-        return getQueryParams().get(name);
-      }
-      return null;
-    }
-  }
 }

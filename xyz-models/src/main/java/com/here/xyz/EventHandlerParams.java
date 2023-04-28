@@ -1,6 +1,6 @@
 package com.here.xyz;
 
-import static com.here.xyz.EventTask.currentTask;
+import static com.here.xyz.AbstractTask.currentTask;
 
 import com.here.xyz.models.hub.psql.PsqlStorageParams;
 import java.util.Map;

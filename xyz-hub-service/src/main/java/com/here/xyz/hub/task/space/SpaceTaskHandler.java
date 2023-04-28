@@ -512,7 +512,7 @@ public class SpaceTaskHandler {
 
     ModifySpaceQuery query = new ModifySpaceQuery(event, task.routingContext, ApiResponseType.EMPTY);
     query.space = space;
-    event.setSpace(space.getId());
+    event.setSpaceId(space.getId());
 
     ISuccessHandler<ModifySpaceQuery> onEventProcessed = (t) -> {
       //Currently it's not supported that the connector changes the space modification operation

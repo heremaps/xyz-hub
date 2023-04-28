@@ -19,14 +19,14 @@
 
 package com.here.xyz.hub.connectors.statistics;
 
-import static com.here.xyz.events.PropertyQueryOp.GREATER_THAN;
+import static com.here.xyz.events.QueryOperation.GREATER_THAN;
 import static com.here.xyz.hub.config.SpaceConfigClient.CONTENT_UPDATED_AT;
 
 import com.google.common.collect.Lists;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQueryList;
+import com.here.xyz.events.PropertyQueryAnd;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceAuthorizationCondition;
@@ -55,12 +55,12 @@ public class StorageStatisticsProvider {
 
   public static Future<StorageStatistics> provideStorageStatistics(Marker marker, long includeChangesSince) {
     SpaceSelectionCondition ssc = new SpaceSelectionCondition();
-    PropertyQueryList pql = new PropertyQueryList();
+    PropertyQueryAnd pql = new PropertyQueryAnd();
     pql.add(new PropertyQuery()
         .withKey(CONTENT_UPDATED_AT)
         .withOperation(GREATER_THAN)
-        .withValues(Collections.singletonList(includeChangesSince)));
-    PropertiesQuery pq = new PropertiesQuery();
+        .getValues(Collections.singletonList(includeChangesSince)));
+    PropertyQueryOr pq = new PropertyQueryOr();
     pq.add(pql);
     return Service.spaceConfigClient.getSelected(marker, new SpaceAuthorizationCondition(), ssc, pq)
         .compose(spaces -> sortByStorage(spaces))

@@ -21,16 +21,14 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.hub.rest.ApiParam.Query.FORCE_2D;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
-import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.AbstractEventTask;
 import com.here.xyz.hub.task.feature.ConditionalModifyFeaturesTask;
 import com.here.xyz.hub.task.feature.DeleteFeaturesByTagTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByIdTask;
@@ -39,7 +37,6 @@ import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.EventTask;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.web.RoutingContext;
@@ -84,14 +81,14 @@ public class FeatureApi extends SpaceBasedApi {
    * Retrieves a feature.
    */
   private void getFeature(final RoutingContext context) {
-    XyzHubTask.startTask(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE);
+    AbstractEventTask.start(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE);
   }
 
   /**
    * Retrieves multiple features by ID.
    */
   private void getFeatures(final RoutingContext context) {
-    XyzHubTask.startTask(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    AbstractEventTask.start(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**

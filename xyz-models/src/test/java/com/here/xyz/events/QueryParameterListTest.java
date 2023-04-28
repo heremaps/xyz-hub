@@ -61,21 +61,23 @@ public class QueryParameterListTest {
   private static class CustomStringsOnlyDecoder extends QueryParameterDecoder {
 
     @Override
-    protected boolean stopOnDelimiter(@NotNull QueryDelimiter delimiter) {
-      if (isKey() || isValue()) {
-        if (delimiter == COLON) {
-          if (equals("p", sb)) { // "p:" -> "properties."
-            sb.append("roperties.");
-            return false;
-          }
-          if (equals("properties.xyz", sb)) { // "properties.xyz:" -> "properties.@ns:com.here.xyz."
-            sb.setLength("properties.".length());
-            sb.append("@ns:com.here.xyz.");
-            return false;
+    protected boolean stopOnDelimiter(@NotNull QueryDelimiter delimiter, boolean wasUrlEncoded) throws ParameterError {
+      if (!wasUrlEncoded) {
+        if (parsingKey() || parsingValue()) {
+          if (delimiter == COLON) {
+            if (equals("p", sb)) { // "p:" -> "properties."
+              sb.append("roperties.");
+              return false;
+            }
+            if (equals("properties.xyz", sb)) { // "properties.xyz:" -> "properties.@ns:com.here.xyz."
+              sb.setLength("properties.".length());
+              sb.append("@ns:com.here.xyz.");
+              return false;
+            }
           }
         }
       }
-      return super.stopOnDelimiter(delimiter);
+      return super.stopOnDelimiter(delimiter, wasUrlEncoded);
     }
 
     @Override
@@ -147,11 +149,11 @@ public class QueryParameterListTest {
   private static class CustomOpDecoder extends QueryParameterDecoder {
 
     @Override
-    protected boolean stopOnDelimiter(@NotNull QueryDelimiter delimiter) {
-      if (delimiter == PLUS || delimiter == EXCLAMATION_MARK) {
+    protected boolean stopOnDelimiter(@NotNull QueryDelimiter delimiter, boolean wasUrlEncoded) throws ParameterError {
+      if (!wasUrlEncoded && (delimiter == PLUS || delimiter == EXCLAMATION_MARK)) {
         return true;
       }
-      return super.stopOnDelimiter(delimiter);
+      return super.stopOnDelimiter(delimiter, wasUrlEncoded);
     }
   }
 
@@ -168,13 +170,12 @@ public class QueryParameterListTest {
       assertNotNull(foo);
       assertFalse(foo.hasArguments());
       assertTrue(foo.hasValues());
-      assertEquals(3, foo.values().size());
-      assertEquals("gt", foo.values().get(0));
-      assertSame(EQUAL, foo.valuesDelimiter().get(0));
-      assertEquals((Long) 5L, foo.values().getLong(1));
-      assertSame(PLUS, foo.valuesDelimiter().get(1));
-      assertEquals((Long) 4L, foo.values().getLong(2));
-      assertSame(AMPERSAND, foo.valuesDelimiter().get(2));
+      assertEquals(2, foo.values().size());
+      assertSame(QueryOperation.GREATER_THAN, foo.op());
+      assertEquals((Long) 5L, foo.values().getLong(0));
+      assertSame(PLUS, foo.valuesDelimiter().get(0));
+      assertEquals((Long) 4L, foo.values().getLong(1));
+      assertSame(AMPERSAND, foo.valuesDelimiter().get(1));
     }
     {
       QueryParameter bar = params.get("bar");
@@ -188,11 +189,9 @@ public class QueryParameterListTest {
     {
       QueryParameter x = params.get("x");
       assertNotNull(x);
+      assertFalse(x.hasArguments());
       assertTrue(x.hasValues());
-      assertEquals(1, x.arguments().size());
-      assertEquals("", x.arguments().get(0));
-      assertTrue("", x.arguments().isEmpty(0));
-      assertEquals(EXCLAMATION_MARK, x.argumentsDelimiter().get(0));
+      assertSame(QueryOperation.NOT_EQUALS, x.op());
 
       assertEquals(1, x.values().size());
       assertEquals((Long) 5L, x.values().getLong(0));

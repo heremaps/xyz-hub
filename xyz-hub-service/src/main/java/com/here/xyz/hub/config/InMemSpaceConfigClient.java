@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.config;
 
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.psql.SQLQueryExt;
 import io.vertx.core.AsyncResult;
@@ -65,7 +65,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+      SpaceSelectionCondition selectedCondition, PropertyQueryOr propsQuery) {
     //Sets are not even defined that means all access
     Predicate<Space> authorizationFilter = s -> authorizedCondition.spaceIds == null && authorizedCondition.ownerIds == null
         || authorizedCondition.spaceIds != null && authorizedCondition.spaceIds.contains(s.getId())

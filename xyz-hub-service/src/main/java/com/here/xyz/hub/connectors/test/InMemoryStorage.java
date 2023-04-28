@@ -57,9 +57,9 @@ public class InMemoryStorage extends StorageConnector {
 
   @Override
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
-    if (event.getSpace() != null)
+    if (event.getSpaceId() != null)
       return new SuccessResponse();
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override

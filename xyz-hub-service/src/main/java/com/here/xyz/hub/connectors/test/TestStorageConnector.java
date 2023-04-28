@@ -67,52 +67,52 @@ public class TestStorageConnector extends StorageConnector {
 
   @Override
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
-    if (RANDOM_FEATURE_SPACE.equals(event.getSpace())) {
+    if (RANDOM_FEATURE_SPACE.equals(event.getSpaceId())) {
       return new SuccessResponse();
     }
-    if (event.getSpace().contains(HUGE_RESPONSE_SPACE)) {
+    if (event.getSpaceId().contains(HUGE_RESPONSE_SPACE)) {
       return new SuccessResponse();
     }
-    if (XyzError.forValue(event.getSpace()) != null) {
+    if (XyzError.forValue(event.getSpaceId()) != null) {
       return new SuccessResponse();
     }
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
     // Needs further implementation
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processGetFeaturesByTileEvent(GetFeaturesByTileEvent event) throws Exception {
-    final String space = event.getSpace();
+    final String space = event.getSpaceId();
     if (space.equals(RANDOM_FEATURE_SPACE)) {
       FeatureCollection fc = new FeatureCollection()
           .withFeatures(Arrays.asList(new Feature()
@@ -137,37 +137,37 @@ public class TestStorageConnector extends StorageConnector {
 
   @Override
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processDeleteFeaturesByTagEvent(DeleteFeaturesByTagEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processLoadFeaturesEvent(LoadFeaturesEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override
   protected XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
+    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpaceId()), event.getSpaceId() + " message.");
   }
 
   @Override

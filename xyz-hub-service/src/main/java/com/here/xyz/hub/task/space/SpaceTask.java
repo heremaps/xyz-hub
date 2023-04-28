@@ -24,7 +24,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 import com.google.common.base.Strings;
 import com.here.xyz.events.space.ModifySpaceEvent;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.SpaceEvent;
 import com.here.xyz.hub.auth.SpaceAuthorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceAuthorizationCondition;
@@ -34,7 +34,7 @@ import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ICallback;
 import com.here.xyz.hub.task.ModifySpaceOp;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.AbstractEventTask;
 import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.models.hub.Space;
 import io.vertx.ext.web.RoutingContext;
@@ -44,7 +44,8 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
-public abstract class SpaceTask<EVENT extends SpaceEvent, TASK extends XyzHubTask<EVENT, TASK>> extends XyzHubTask<EVENT, TASK> {
+public abstract class SpaceTask<EVENT extends SpaceEvent, TASK extends AbstractEventTask<EVENT, TASK>> extends
+    AbstractEventTask<EVENT, TASK> {
 
   public View view = View.BASIC;
 
@@ -82,7 +83,7 @@ public abstract class SpaceTask<EVENT extends SpaceEvent, TASK extends XyzHubTas
 
     public SpaceAuthorizationCondition authorizedCondition;
     public SpaceSelectionCondition selectedCondition;
-    public PropertiesQuery propertiesQuery;
+    public PropertyQueryOr propertiesQuery;
 
     public ReadQuery(@NotNull RoutingContext context, ApiResponseType returnType, List<String> spaceIds, List<String> ownerIds) {
       super(context, returnType);
@@ -107,7 +108,7 @@ public abstract class SpaceTask<EVENT extends SpaceEvent, TASK extends XyzHubTas
     public static final String OTHERS = "others";
     public static final String ALL = "*";
 
-    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, PropertiesQuery propsQuery) {
+    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, PropertyQueryOr propsQuery) {
       super(context, returnType, null, null);
       if (!Strings.isNullOrEmpty(owner)) {
         selectedCondition = new SpaceSelectionCondition();

@@ -7,11 +7,11 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 
 /**
- * Event pipeline extended with a logger.
+ * A class that implements the logger interface.
  */
-abstract class EventPipelineWithLogger extends EventPipeline implements Logger {
+public abstract class AbstractLoggedObject implements Logger {
 
-  EventPipelineWithLogger() {
+  protected AbstractLoggedObject() {
     sb = new StringBuilder();
   }
 
@@ -37,7 +37,7 @@ abstract class EventPipelineWithLogger extends EventPipeline implements Logger {
    */
   abstract public @NotNull String streamId();
 
-  private static final Logger logger = LoggerFactory.getLogger(EventTask.class);
+  protected static final Logger logger = LoggerFactory.getLogger(AbstractTask.class);
 
   @Override
   public String getName() {

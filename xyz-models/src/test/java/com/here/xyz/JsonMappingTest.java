@@ -90,11 +90,4 @@ public class JsonMappingTest {
         obj.getErrorMessage());
   }
 
-  @Test
-  public void testConvert() throws IOException {
-    ObjectMapper mapper = new ObjectMapper().configure(SerializationFeature.INDENT_OUTPUT, true);
-    JsonNode node = mapper.readValue(JsonMappingTest.class.getResourceAsStream("test/SpaceWithListenersAsMap.json"), JsonNode.class);
-    Space space = mapper.convertValue(node, Space.class);
-  }
-
 }

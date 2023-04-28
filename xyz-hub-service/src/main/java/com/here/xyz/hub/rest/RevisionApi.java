@@ -20,7 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQueryOp;
+import com.here.xyz.events.QueryOperation;
 import com.here.xyz.events.RevisionEvent;
 import com.here.xyz.events.RevisionEvent.Operation;
 import com.here.xyz.hub.rest.ApiParam.Path;
@@ -43,7 +43,7 @@ public class RevisionApi extends SpaceBasedApi {
   private void deleteRevisions(final RoutingContext context) {
     final String space = context.pathParam(Path.SPACE_ID);
     final PropertyQuery revision = Query.getPropertyQuery(context.request().query(), Query.REVISION, false);
-    final PropertyQueryOp supportedOp = PropertyQueryOp.LESS_THAN;
+    final QueryOperation supportedOp = QueryOperation.LESS_THAN;
 
     Future<PropertyQuery> future = revision != null
         ? Future.succeededFuture(revision)

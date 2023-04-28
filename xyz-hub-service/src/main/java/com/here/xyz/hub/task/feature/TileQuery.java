@@ -3,7 +3,7 @@ package com.here.xyz.hub.task.feature;
 import com.here.xyz.events.feature.GetFeaturesByTileEvent;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.AbstractEventTask;
 import com.here.xyz.hub.task.TaskPipeline;
 import io.vertx.ext.web.RoutingContext;
 import javax.annotation.Nonnull;
@@ -15,7 +15,7 @@ public class TileQuery extends ReadQuery<GetFeaturesByTileEvent> {
    * A local copy of some transformation-relevant properties from the event object. NOTE: The event object is not in memory in the
    * response-phase anymore.
    *
-   * @see XyzHubTask#consumeEvent()
+   * @see AbstractEventTask#consumeEvent()
    */
   final @NotNull TransformationContext transformationContext;
 

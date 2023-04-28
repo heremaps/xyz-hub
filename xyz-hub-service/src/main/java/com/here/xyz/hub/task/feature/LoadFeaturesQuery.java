@@ -9,7 +9,7 @@ import io.vertx.ext.web.RoutingContext;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
-public class LoadFeaturesQuery extends FeatureTask<LoadFeaturesEvent> {
+public class LoadFeaturesQuery extends AbstractFeatureTask<LoadFeaturesEvent> {
 
   public LoadFeaturesQuery(
       @NotNull LoadFeaturesEvent event,

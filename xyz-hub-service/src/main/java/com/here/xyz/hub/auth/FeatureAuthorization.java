@@ -29,18 +29,17 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
 import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.feature.FeatureTask;
+import com.here.xyz.hub.task.feature.AbstractFeatureTask;
 import com.here.xyz.hub.task.feature.ConditionalModifyFeaturesTask;
 import com.here.xyz.hub.task.feature.DeleteFeaturesByTagTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByGeometryTask;
 import com.here.xyz.hub.task.ICallback;
 import io.vertx.core.json.Json;
-import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 
 public class FeatureAuthorization extends Authorization {
 
-  public static <E extends Event, T extends FeatureTask<E, T>> void authorize(@NotNull T task, @NotNull ICallback callback) {
+  public static <E extends Event, T extends AbstractFeatureTask<E, T>> void authorize(@NotNull T task, @NotNull ICallback callback) {
     if (task instanceof ConditionalModifyFeaturesTask) {
       authorizeConditionalOp((ConditionalModifyFeaturesTask) task, callback);
     } else if (task instanceof DeleteFeaturesByTagTask) {
@@ -53,7 +52,7 @@ public class FeatureAuthorization extends Authorization {
   /**
    * Authorizes a query operation.
    */
-  private static <E extends Event, T extends FeatureTask<E, T>> void authorizeReadQuery(@NotNull T task, @NotNull ICallback callback) {
+  private static <E extends Event, T extends AbstractFeatureTask<E, T>> void authorizeReadQuery(@NotNull T task, @NotNull ICallback callback) {
     final JWTPayload jwt = task.getJwt();
     if (jwt == null) {
       callback.throwException(new HttpException(UNAUTHORIZED, "Accessing features isn't possible without a JWT token."));

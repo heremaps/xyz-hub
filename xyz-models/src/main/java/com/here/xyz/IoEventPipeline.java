@@ -1,6 +1,6 @@
 package com.here.xyz;
 
-import static com.here.xyz.EventTask.currentTask;
+import static com.here.xyz.AbstractTask.currentTask;
 
 import com.here.xyz.events.Event;
 import com.here.xyz.responses.BinaryResponse;

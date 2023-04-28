@@ -32,7 +32,6 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.tools.Helper;
 import com.here.xyz.responses.SuccessResponse;
 import com.jayway.jsonpath.JsonPath;
-import java.util.Collections;
 import javax.sql.DataSource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -89,7 +88,7 @@ public abstract class PSQLAbstractIT extends Helper {
     final Space space = new Space();
     space.setId(spaceId);
     final ModifySpaceEvent event = new ModifySpaceEvent();
-    event.setSpace(spaceId);
+    event.setSpaceId(spaceId);
     event.setOperation(ModifySpaceEvent.Operation.CREATE);
     event.setConnectorParams(connectorParameters);
     event.setSpaceDefinition(space);
@@ -102,7 +101,7 @@ public abstract class PSQLAbstractIT extends Helper {
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
     final ModifySpaceEvent event = new ModifySpaceEvent();
-    event.setSpace(TEST_SPACE_ID);
+    event.setSpaceId(TEST_SPACE_ID);
     event.setOperation(ModifySpaceEvent.Operation.DELETE);
     event.setConnectorParams(connectorParameters);
     String response = invokeLambda(event.serialize());
@@ -118,7 +117,7 @@ public abstract class PSQLAbstractIT extends Helper {
 
     for (String space : spaces) {
       final ModifySpaceEvent event = new ModifySpaceEvent();
-      event.setSpace(space);
+      event.setSpaceId(space);
       event.setOperation(ModifySpaceEvent.Operation.DELETE);
       event.setConnectorParams(connectorParameters);
 
@@ -134,7 +133,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlStorage(new Connector()));
+    pipeline.addEventHandler(new PsqlEventHandler(new Connector()));
     assert jsonStream != null;
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
@@ -148,7 +147,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlStorage(new Connector()));
+    pipeline.addEventHandler(new PsqlEventHandler(new Connector()));
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);

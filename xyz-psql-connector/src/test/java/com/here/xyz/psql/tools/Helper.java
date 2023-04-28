@@ -59,10 +59,10 @@ public class Helper{
         List<Feature> modifiedFeatures;
 
         modifiedFeatures = gsModifyFeaturesEvent.getInsertFeatures();
-        assertReadFeatures(gsModifyFeaturesEvent.getSpace(), checkGuid, modifiedFeatures, responseFeatures);
+        assertReadFeatures(gsModifyFeaturesEvent.getSpaceId(), checkGuid, modifiedFeatures, responseFeatures);
 
         modifiedFeatures = gsModifyFeaturesEvent.getUpsertFeatures();
-        assertReadFeatures(gsModifyFeaturesEvent.getSpace(), checkGuid, modifiedFeatures, responseFeatures);
+        assertReadFeatures(gsModifyFeaturesEvent.getSpaceId(), checkGuid, modifiedFeatures, responseFeatures);
     }
 
     protected void assertReadFeatures(String space, boolean checkGuid, List<Feature> requestFeatures, List<Feature> responseFeatures) {

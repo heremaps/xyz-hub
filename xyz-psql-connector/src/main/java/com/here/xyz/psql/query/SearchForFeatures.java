@@ -21,12 +21,12 @@ package com.here.xyz.psql.query;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.PropertyQueryOp;
+import com.here.xyz.events.PropertyQueryOr;
+import com.here.xyz.events.QueryOperation;
 import com.here.xyz.events.feature.QueryEvent;
 import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
-import com.here.xyz.psql.PsqlStorage;
+import com.here.xyz.psql.PsqlEventHandler;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,7 +44,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
 
   protected boolean hasSearch;
 
-  public SearchForFeatures(@NotNull E event, @NotNull PsqlStorage psqlConnector) throws SQLException, ErrorResponseException {
+  public SearchForFeatures(@NotNull E event, @NotNull PsqlEventHandler psqlConnector) throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
   }
 
@@ -75,7 +75,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
 
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  public static SQLQuery generatePropertiesQueryBWC(PropertiesQuery properties) {
+  public static SQLQuery generatePropertiesQueryBWC(PropertyQueryOr properties) {
     SQLQuery query = generatePropertiesQuery(properties);
     if (query != null)
       query.replaceNamedParameters();
@@ -88,7 +88,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     return "userValue_" + key + (counter == null ? "" : "" + counter);
   }
 
-  private static SQLQuery generatePropertiesQuery(PropertiesQuery properties) {
+  private static SQLQuery generatePropertiesQuery(PropertyQueryOr properties) {
     if (properties == null || properties.size() == 0) {
       return null;
     }
@@ -114,7 +114,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
           Object v = propertyQuery.getValues().get(i);
 
           final String psqlOperation;
-          PropertyQueryOp op = propertyQuery.getOperation();
+          QueryOperation op = propertyQuery.getOperation();
 
           String  key = propertyQuery.getKey(),
               paramName = getParamNameForValue(countingMap, key),
@@ -125,7 +125,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
           if(v == null){
             //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
             //>> [not] (jsondata->?->? is not null and jsondata->?->? != 'null'::jsonb )
-            SQLQuery q1 = new SQLQuery( op.equals(PropertyQueryOp.NOT_EQUALS) ? "((" : "not ((" );
+            SQLQuery q1 = new SQLQuery( op.equals(QueryOperation.NOT_EQUALS) ? "((" : "not ((" );
             q1.append(q);
             q1.append("is not null");
 
@@ -217,7 +217,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     return new SQLQuery(keyPath).withNamedParameters(segmentNames);
   }
 
-  private static String getValue(Object value, PropertyQueryOp op, String key, String paramName) {
+  private static String getValue(Object value, QueryOperation op, String key, String paramName) {
     String param = "#{" + paramName + "}";
 
     if (key.equalsIgnoreCase("geometry.type"))
@@ -231,7 +231,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
       return param + "::text";
 
     if (value instanceof String) {
-      if (op.equals(PropertyQueryOp.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
+      if (op.equals(QueryOperation.CONTAINS) && ((String) value).startsWith("{") && ((String) value).endsWith("}"))
         return "(" + param + "::jsonb || '[]'::jsonb)";
       return "to_jsonb(" + param + "::text)";
     }

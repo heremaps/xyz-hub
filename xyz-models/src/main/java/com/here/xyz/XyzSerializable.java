@@ -31,7 +31,9 @@ import com.here.xyz.LazyParsable.ProxyStringReader;
 import com.here.xyz.responses.ErrorResponse;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Formatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Scanner;
 import org.apache.commons.lang3.StringUtils;
@@ -39,6 +41,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public interface XyzSerializable {
+
+  /**
+   * Format a string using the {@link Formatter}.
+   * @param format The format string.
+   * @param args The arguments.
+   * @return The formatted string.
+   */
+  static @NotNull String format(@NotNull String format, Object... args) {
+    return String.format(Locale.US, format, args);
+  }
 
   // https://www.baeldung.com/jackson-json-view-annotation
   // mapper.disable(MapperFeature.DEFAULT_VIEW_INCLUSION);

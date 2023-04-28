@@ -1,12 +1,16 @@
 package com.here.xyz.hub.params;
 
 import static com.here.xyz.events.QueryDelimiter.COLON;
-import static com.here.xyz.events.QueryDelimiter.EXCLAMATION_MARK;
-import static com.here.xyz.events.QueryDelimiter.PLUS;
+import static com.here.xyz.events.QueryDelimiter.DOLLAR;
+import static com.here.xyz.events.QueryDelimiter.STAR;
 import static com.here.xyz.events.QueryParameterType.ANY;
 import static com.here.xyz.events.QueryParameterType.STRING;
+import static com.here.xyz.hub.params.XyzHubQueryParameters.CLUSTERING;
+import static com.here.xyz.hub.params.XyzHubQueryParameters.CLUSTERING_DOT;
 import static com.here.xyz.hub.params.XyzHubQueryParameters.QUERY;
-import static com.here.xyz.hub.params.XyzHubQueryParameters.TAGS;
+import static com.here.xyz.hub.params.XyzHubQueryParameters.SELECTION;
+import static com.here.xyz.hub.params.XyzHubQueryParameters.TWEAKS;
+import static com.here.xyz.hub.params.XyzHubQueryParameters.TWEAKS_DOT;
 
 import com.here.xyz.events.QueryDelimiter;
 import com.here.xyz.events.QueryParameter;
@@ -19,71 +23,71 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The special XYZ-Hub query decoder.
+ * The special XYZ-Hub query decoder with plenty of hacks to stay downward compatible.
  */
 class XyzHubQueryDecoder extends QueryParameterDecoder {
 
-  private static final Map<String, String> EXPAND = new HashMap<String, String>() {
+  /**
+   * All supported expansion macros.
+   */
+  private static final Map<String, String> EXPANSION_MARCO = new HashMap<String, String>() {
     {
-      put("f", "");
-      put("createdAt", "properties.@ns:com:here:xyz.createdAt");
-      put("updatedAt", "properties.@ns:com:here:xyz.updatedAt");
       put("p", "properties.");
       put("xyz", "properties.@ns:com:here:xyz.");
     }
   };
 
   @Deprecated
-  private static final Map<String, String> OLD_EXPAND = new HashMap<String, String>() {
+  private static final Map<String, String> OLD_QUERY = new HashMap<String, String>() {
     {
       put("f.", "");
       put("f.createdAt", "properties.@ns:com:here:xyz.createdAt");
       put("f.updatedAt", "properties.@ns:com:here:xyz.updatedAt");
       put("p.", "properties.");
       put("xyz.", "properties.@ns:com:here:xyz.");
+      put("author", "properties.@ns:com:here:xyz.author");
     }
   };
 
   @Override
-  protected boolean stopOnDelimiter(@NotNull QueryDelimiter delimiter) {
-    // We need the colon for our "query:properties.name" search, but we only split at the first colon of the “query” key.
-    if (isKey() && delimiter == COLON && equals(QUERY, sb)) {
-      return true;
+  protected boolean stopOnDelimiter(@NotNull QueryDelimiter delimiter, boolean wasUrlEncoded) throws ParameterError {
+    // If the client URL encoded a delimiter, the semantic meaning is gone, we use it as normal character.
+    if (wasUrlEncoded) {
+      sb.append(delimiter.delimiterChar);
+      return false;
     }
-    if (isKeyOrArgument() && delimiter == EXCLAMATION_MARK) {
-      // This is the right way to implement the query (in a performant and RFC compliant way).
+    if (delimiter == STAR && parsingKeyOrArgument() && parameter.arguments().size() == 0) {
+      // This is a better way to implement the query parameter name expansion (in an RFC compliant way).
       //
-      // We use the exclamation mark in the first argument of all “query” parameters as expander!
-      // We will support: "query:xyz!version=gt=5" and expand it to "&query:properties.@ns:com:here:xyz.version=gt=5".
-      // This can be archived the same way then previously "&p.@ns:com:here:xyz.version=gt=5".
-      if (QUERY.equals(parameter.key()) && parameter.arguments().size() == 0) {
-        final String key = sb.toString();
-        final String replacement = EXPAND.get(key);
-        if (replacement != null) {
-          sb.setLength(0);
-          sb.append(replacement);
-          return false;
-        }
+      // We use the star in the first argument of all parameters as macro expansion.
+      // Examples:
+      // "query:p*name=foo" expands to "&query:properties.name=foo".
+      // "query:xyz*createdAt=gt=12345678" expands to "&query:properties.@ns:com:here:xyz.createdAt=gt=12345678".
+      //
+      // You can take away the macro expansion by simply URL encoding the star.
+      final String key = sb.toString();
+      final String replacement = EXPANSION_MARCO.get(key);
+      if (replacement != null) {
+        sb.setLength(0);
+        sb.append(replacement);
+        return false;
       }
-      // Otherwise, we need the exclamation mark for the not equals (!=) downward compatibility hack.
-      return true;
+      throw new ParameterError(errorMsg("Invalid macro expansion found: ", key));
     }
-    // We need the plus for downward compatibility with tags query.
-    if (delimiter == PLUS && isValue() && TAGS.equals(parameter.key())) {
-      return true;
-    }
-    // Super supports equals, ampersand, semicolon and comma.
-    return super.stopOnDelimiter(delimiter);
+    // Use all other delimiters to split arguments or values.
+    return true;
   }
 
-  // Add downward compatibility: Merge all search query parameter into "query:{json-path}".
-  // Basically, for example "&p.value=gt=5,6" will result is a search for "properties.value" greater-than 5 or 6.
-  @Deprecated
-  private @Nullable String expand(@NotNull String name) {
-    for (final Map.Entry<String, String> entry : OLD_EXPAND.entrySet()) {
+  private @Nullable String old_query(@NotNull String name) {
+    for (final Map.Entry<String, String> entry : OLD_QUERY.entrySet()) {
       final String key = entry.getKey();
+      assert key.length() > 0;
       final String replacement = entry.getValue();
-      if (name.startsWith(key)) {
+      if (key.charAt(key.length()-1) == '.' && name.startsWith(key)) {
+        // For example "f.id" becomes "id", "p.name" becomes "properties.name".
+        return name.substring(key.length()) + replacement;
+      } else if (name.equals(key)) {
+        // For example "&author" becomes "properties.@ns:com:here:xyz.author".
         return replacement;
       }
     }
@@ -96,16 +100,31 @@ class XyzHubQueryDecoder extends QueryParameterDecoder {
   protected @NotNull QueryParameter newParameter() throws ParameterError {
     final String name = (String) sbToValue(QueryParameterType.STRING);
     assert name != null;
-
     final QueryParameter p;
-    final String property = expand(name);
-    if (property != null) {
+
+    // Previously DataHub supported search parameters things like "&p.name!=foo", "&p.age<=5" or "&p.age>=3".
+    // We changed this into a more RFC compliant standard way like: "&query:p*name!=foo", "&query:p*age<=5" or "&query:p*age>=3".
+    // This fixes all the ugly hacks like "&p.name=foo" and translate them into "&query:p*name=foo" and alike.
+    final String query = old_query(name);
+    if (query != null) {
       p = new QueryParameter(parameterList, QUERY, parameterList.size());
       p.argumentsDelimiter().add(COLON);
-      p.arguments().add(property);
-    } else {
-      p = new QueryParameter(parameterList, name, parameterList.size());
+      p.arguments().add(query);
+      return p;
     }
+    if (name.startsWith(TWEAKS_DOT)) { // tweaks.param
+      p = new QueryParameter(parameterList, TWEAKS, parameterList.size());
+      p.argumentsDelimiter().add(COLON);
+      p.arguments().add(name.substring(TWEAKS_DOT.length()));
+      return p;
+    }
+    if (name.startsWith(CLUSTERING_DOT)) { // clustering.param
+      p = new QueryParameter(parameterList, CLUSTERING, parameterList.size());
+      p.argumentsDelimiter().add(COLON);
+      p.arguments().add(name.substring(CLUSTERING_DOT.length()));
+      return p;
+    }
+    p = new QueryParameter(parameterList, name, parameterList.size());
     return p;
   }
 
@@ -119,7 +138,7 @@ class XyzHubQueryDecoder extends QueryParameterDecoder {
     if (QUERY.equals(parameter.key()) && parameter.arguments().size() == 0) {
       value = sbToValue(STRING);
       assert value instanceof String;
-      final String property = expand((String) value);
+      final String property = old_query((String) value);
       if (property != null) {
         // The value as expanded, for example "p.name" to "properties.name".
         // This allows us to do "&query:p.value=gt=10".
@@ -132,4 +151,22 @@ class XyzHubQueryDecoder extends QueryParameterDecoder {
     parameter.argumentsDelimiter().add(prefix);
   }
 
+  @Override
+  protected void addValueAndDelimiter(@NotNull QueryDelimiter postfix) throws ParameterError {
+    assert parameter != null;
+    if (SELECTION.equals(parameter.key())) {
+      Object value = sbToValue(STRING);
+      if (!(value instanceof String) || ((String) value).isEmpty()) {
+        return;
+      }
+      String name = old_query((String) value);
+      if (name == null) {
+        name = (String) value;
+      }
+      parameter.values().add(name);
+      parameter.valuesDelimiter().add(postfix);
+    } else {
+      super.addValueAndDelimiter(postfix);
+    }
+  }
 }

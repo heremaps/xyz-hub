@@ -21,15 +21,35 @@ package com.here.xyz.events;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+/**
+ * Query to a single property, the values are OR combined: <pre>{@code key {op} values[0] OR key {op} values[1] OR ...}</pre>
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "PropertyQuery")
 public class PropertyQuery {
 
+  public PropertyQuery() {}
+
+  public PropertyQuery(@NotNull String key, @NotNull QueryOperation op) {
+
+  }
+
+  /**
+   * The property key as JSON path.
+   */
   private String key;
-  private PropertyQueryOp operation;
-  // OR condition (any of the values).
+  /**
+   * The operation.
+   */
+  private QueryOperation operation;
+  /**
+   * The values to apply the operation for, OR condition (so any of the values should match).
+   */
   private List<Object> values;
 
   @SuppressWarnings("unused")
@@ -49,34 +69,35 @@ public class PropertyQuery {
   }
 
   @SuppressWarnings("unused")
-  public PropertyQueryOp getOperation() {
+  public @NotNull QueryOperation getOperation() {
     return this.operation;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setOperation(PropertyQueryOp operation) {
+  public void setOperation(QueryOperation operation) {
     this.operation = operation;
   }
 
   @SuppressWarnings("unused")
-  public PropertyQuery withOperation(PropertyQueryOp operation) {
+  public @NotNull PropertyQuery withOperation(QueryOperation operation) {
     setOperation(operation);
     return this;
   }
 
   @SuppressWarnings("unused")
-  public List<Object> getValues() {
-    return this.values;
+  public @NotNull List<@Nullable Object> getValues() {
+    if (values == null) {
+      values = new ArrayList<>();
+    }
+    return values;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setValues(List<Object> values) {
+  public void setValues(@NotNull List<@Nullable Object> values) {
     this.values = values;
   }
 
-  @SuppressWarnings("unused")
-  public PropertyQuery withValues(List<Object> values) {
-    setValues(values);
+  public @NotNull PropertyQuery withValues(@NotNull List<@Nullable Object> values) {
+    this.values = values;
     return this;
   }
 

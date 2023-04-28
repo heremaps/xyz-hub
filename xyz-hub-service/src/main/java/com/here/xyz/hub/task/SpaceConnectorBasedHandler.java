@@ -42,9 +42,9 @@ public class SpaceConnectorBasedHandler {
   public static <T extends Event<T>> Future<Void> execute(RoutingContext context, Event<T> e) {
     final Marker marker = Context.getMarker(context);
 
-    return SpaceConfigClient.getInstance().get(marker, e.getSpace())
+    return SpaceConfigClient.getInstance().get(marker, e.getSpaceId())
       .flatMap(space -> space == null
-          ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpace() + "' does not exist!"))
+          ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpaceId() + "' does not exist!"))
           : Future.succeededFuture(space))
       .flatMap(space -> RevisionAuthorization.authorize(context, space).map(space))
       .flatMap(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))

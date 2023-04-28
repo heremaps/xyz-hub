@@ -83,7 +83,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
@@ -115,7 +115,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
@@ -138,7 +138,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
     mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setDeleteFeatures(new HashMap<String, String>() {{
@@ -184,7 +184,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
 
     String updateRequest = mfevent.serialize();
@@ -237,7 +237,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
       assertTrue("Check tags", jsonCompare(expectedFeature.getProperties().getXyzNamespace().getTags(),
           actualFeature.getProperties().getXyzNamespace().getTags()));
-      assertEquals("Check space", gsModifyFeaturesEvent.getSpace(), actualFeature.getProperties().getXyzNamespace().getSpace());
+      assertEquals("Check space", gsModifyFeaturesEvent.getSpaceId(), actualFeature.getProperties().getXyzNamespace().getSpace());
       assertNotEquals("Check createdAt", 0L, actualFeature.getProperties().getXyzNamespace().getCreatedAt());
       assertNotEquals("Check updatedAt", 0L, actualFeature.getProperties().getXyzNamespace().getUpdatedAt());
       if (checkGuid) {

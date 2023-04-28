@@ -5,33 +5,27 @@ import static com.here.xyz.events.QueryParameterType.DOUBLE;
 import static com.here.xyz.events.QueryParameterType.LONG;
 import static com.here.xyz.events.QueryParameterType.STRING;
 
-import com.amazonaws.util.StringUtils;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.QueryOperation;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQueryList;
+import com.here.xyz.events.PropertyQueryAnd;
 import com.here.xyz.events.QueryDelimiter;
 import com.here.xyz.events.QueryParameter;
 import com.here.xyz.events.QueryParameterType;
 import com.here.xyz.events.QueryParameterList;
 import com.here.xyz.events.TagList;
 import com.here.xyz.events.TagsQuery;
+import com.here.xyz.events.clustering.Clustering;
+import com.here.xyz.events.tweaks.Tweaks;
 import com.here.xyz.exceptions.ParameterError;
-import com.here.xyz.exceptions.XyzErrorException;
+import com.here.xyz.hub.util.geo.GeoTools;
+import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.ValueList;
-import io.vertx.ext.web.RoutingContext;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -57,7 +51,9 @@ public class XyzHubQueryParameters extends QueryParameterList {
   static final String CLIP = "clip";
   static final String SKIP_CACHE = "skipCache";
   static final String CLUSTERING = "clustering";
+  static final String CLUSTERING_DOT = "clustering.";
   static final String TWEAKS = "tweaks";
+  static final String TWEAKS_DOT = "tweaks.";
   static final String LIMIT = "limit";
   static final String WEST = "west";
   static final String NORTH = "north";
@@ -77,16 +73,6 @@ public class XyzHubQueryParameters extends QueryParameterList {
   static final String H3_INDEX = "h3Index";
   static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
   static final String CONTEXT = "context";
-
-  static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
-  static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
-  static final String CLUSTERING_PARAM_RESOLUTION_ABSOLUTE = "absoluteResolution";
-  static final String CLUSTERING_PARAM_NOBUFFER = "noBuffer";
-  static final String CLUSTERING_PARAM_PROPERTY = "property";
-  static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
-  static final String CLUSTERING_PARAM_SINGLECOORD = "singlecoord";
-  static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
-  static final String CLUSTERING_PARAM_SAMPLING = "sampling";
 
   static final String TWEAKS_PARAM_STRENGTH = "strength";
   static final String TWEAKS_PARAM_ALGORITHM = "algorithm";
@@ -139,7 +125,130 @@ public class XyzHubQueryParameters extends QueryParameterList {
    * @throws ParameterError If parsing the query string failed.
    */
   public XyzHubQueryParameters(@Nullable String queryString) throws ParameterError {
-    super(queryString);
+    super(queryString, new XyzHubQueryDecoder());
+  }
+
+  /**
+   * Returns the first value of the first parameter with the given key.
+   *
+   * @param key         The key to search for.
+   * @param alternative The alternative to return, when no such parameter given.
+   * @return The first value of the first parameter, if being a string; the alternative otherwise.
+   * @throws ParameterError If any error occurred.
+   */
+  public @Nullable String getString(@NotNull String key, @Nullable String alternative) throws ParameterError {
+    final QueryParameter queryParameter = get(key);
+    if (queryParameter == null) {
+      return alternative;
+    }
+    final ValueList values = queryParameter.values();
+    if (values.size() > 1) {
+      throw new ParameterError("Too many values for &" + key);
+    }
+    final String value = values.getString(0);
+    if (value == null) {
+      throw new ParameterError("&" + key + " expected to be a single string, but was: " + values.getOrNull(0));
+    }
+    return values.size() == 0 ? alternative : values.getString(0);
+  }
+
+  /**
+   * Returns the first value of the first parameter with the given key.
+   *
+   * @param key         The key to search for.
+   * @param alternative The alternative to return, when no such parameter given.
+   * @return The first value of the first parameter, if being a boolean; the alternative otherwise.
+   * @throws ParameterError If any error occurred.
+   */
+  public @Nullable Boolean getBoolean(@NotNull String key, @Nullable Boolean alternative) throws ParameterError {
+    final QueryParameter queryParameter = get(key);
+    if (queryParameter == null) {
+      return alternative;
+    }
+    final ValueList values = queryParameter.values();
+    if (values.size() > 1) {
+      throw new ParameterError("Too many values for &" + key);
+    }
+    final Boolean value = values.getBoolean(0);
+    return value == null ? alternative : value;
+  }
+
+  /**
+   * Returns the first value of the first parameter with the given key.
+   *
+   * @param key      The key to search for.
+   * @param minValue The minimum value allowed; if less, than an {@link ParameterError} is thrown.
+   * @param maxValue The maximum value allowed; if less, than an {@link ParameterError} is thrown.
+   * @return The first value of the first parameter, if being a double and within the given range; {@code null} otherwise.
+   * @throws ParameterError If any error occurred.
+   */
+  public @Nullable Double getDouble(@NotNull String key, double minValue, double maxValue) throws ParameterError {
+    final QueryParameter queryParameter = get(key);
+    if (queryParameter == null) {
+      return null;
+    }
+    final ValueList values = queryParameter.values();
+    if (values.size() > 1) {
+      throw new ParameterError("Too many values for &" + key);
+    }
+    final Double value = values.getDouble(0);
+    if (value == null) {
+      throw new ParameterError("&" + key + " expected to be a single double, but was: " + values.getOrNull(0));
+    }
+    if (value < minValue || value > maxValue) {
+      throw new ParameterError("&" + key + " expected to be between [" + minValue + "," + maxValue + "], but was: " + value);
+    }
+    return value;
+  }
+
+  /**
+   * Returns the first value of the first parameter with the given key as WGS'84 latitude.
+   *
+   * @param key The key to search for.
+   * @return The first value of the first parameter, if being a double and within the latitude range; {@code null} otherwise.
+   * @throws ParameterError If any error occurred.
+   */
+  public @Nullable Double getWgs84Latitude(@NotNull String key) throws ParameterError {
+    return getDouble(key, -90d, +90d);
+  }
+
+  /**
+   * Returns the first value of the first parameter with the given key as WGS'84 longitude.
+   *
+   * @param key The key to search for.
+   * @return The first value of the first parameter, if being a double and within the longitude range; {@code null} otherwise.
+   * @throws ParameterError If any error occurred.
+   */
+  public @Nullable Double getWgs84Longitude(@NotNull String key) throws ParameterError {
+    return getDouble(key, -180d, +180d);
+  }
+
+  /**
+   * Returns the first value of the first parameter with the given key.
+   *
+   * @param key      The key to search for.
+   * @param minValue The minimum value allowed; if less, than an {@link ParameterError} is thrown.
+   * @param maxValue The maximum value allowed; if less, than an {@link ParameterError} is thrown.
+   * @return The first value of the first parameter, if being a long and within the given range; {@code null} otherwise.
+   * @throws ParameterError If any error occurred.
+   */
+  public @Nullable Long getLong(@NotNull String key, long minValue, long maxValue) throws ParameterError {
+    final QueryParameter queryParameter = get(key);
+    if (queryParameter == null) {
+      return null;
+    }
+    final ValueList values = queryParameter.values();
+    if (values.size() > 1) {
+      throw new ParameterError("Too many values for &" + key);
+    }
+    final Long value = values.getLong(0);
+    if (value == null) {
+      throw new ParameterError("&" + key + " expected to be a single double, but was: " + values.getOrNull(0));
+    }
+    if (value < minValue || value > maxValue) {
+      throw new ParameterError("&" + key + " expected to be between [" + minValue + "," + maxValue + "], but was: " + value);
+    }
+    return value;
   }
 
   enum AdditionalParamsType {
@@ -176,13 +285,18 @@ public class XyzHubQueryParameters extends QueryParameterList {
    *
    * @return The list or IDs; {@code null} if no IDs given.
    */
-  public @Nullable ValueList getIds() {
-    final QueryParameter ids = join(ID);
-    if (ids == null) {
+  public @Nullable List<@NotNull String> getIds() {
+    if (__ids != null) {
+      return __ids;
+    }
+    final QueryParameter id_param = join(ID);
+    if (id_param == null) {
       return null;
     }
-    return ids.values();
+    return __ids = id_param.values().removeEmpty();
   }
+
+  private List<@NotNull String> __ids;
 
   /**
    * Returns the first ID from the list of IDs.
@@ -190,11 +304,11 @@ public class XyzHubQueryParameters extends QueryParameterList {
    * @return The list or IDs; {@code null} if no IDs given.
    */
   public @Nullable String getId() {
-    final ValueList ids = getIds();
+    final List<@NotNull String> ids = getIds();
     if (ids == null || ids.size() == 0) {
       return null;
     }
-    return ids.getString(0);
+    return ids.get(0);
   }
 
   private TagsQuery __tagsQuery;
@@ -209,7 +323,7 @@ public class XyzHubQueryParameters extends QueryParameterList {
       return __tagsQuery;
     }
     // We need to collect all "&tags" and merge them into tags-query.
-    // Each &tags itself is combined via AND, within tags values are normally OR combined, except for the not URL encoded plus.
+    // Each &tags is combined via AND, within tags values are normally OR combined, except for the not URL encoded plus.
     // In that case we need to split the values into two separate AND, which effectively is the same as two "&tags" query parameters.
     QueryParameter tagParam = get(TAGS);
     TagsQuery and = new TagsQuery();
@@ -240,402 +354,427 @@ public class XyzHubQueryParameters extends QueryParameterList {
     return __tagsQuery = and;
   }
 
+  private @Nullable List<@NotNull String> __selection;
+
   /**
    * Returns the property selection.
    *
-   * @param key the key.
    * @return The property selection; {@code null} if all properties selected.
    */
-  private @Nullable List<@NotNull String> getSelection(@NotNull String key) {
-    final List<@NotNull String> rawSelection = getAll(key);
-    if (rawSelection == null || rawSelection.size() == 0 ||
-        (rawSelection.size() == 1 && "*".equals(rawSelection.get(0)))) {
+  public @Nullable List<@NotNull String> getSelection() {
+    if (__selection != null) {
+      return __selection;
+    }
+    final QueryParameter selectionParam = join(SELECTION);
+    if (selectionParam == null) {
       return null;
     }
-    final List<@NotNull String> selection = new ArrayList<>(rawSelection.size());
-    for (final String raw : rawSelection) {
-      final String value = keyToPath(raw);
-      if (value != null) {
-        selection.add(value);
-      }
-    }
-    return selection;
+    return __selection = selectionParam.values().removeEmpty();
   }
 
-  /**
-   * Returns the property selection, so the properties that should be part of the response.
-   *
-   * @return The property selection; {@code null} if all properties should be returned.
-   */
-  public @Nullable List<@NotNull String> getSelection() {
-    return getSelection(SELECTION);
-  }
+  private @Nullable List<@NotNull String> __sort;
 
   /**
    * Returns the properties above which to order.
    *
    * @return The properties above which to order; {@code null} if no order selected.
    */
-  public @Nullable List<@NotNull String> getOrder() {
-    return getSelection(SORT);
-  }
-
-  // ?
-  public @NotNull Integer @Nullable [] getPart() {
-    final List<@NotNull String> all = getAll(PART);
-    int part, total;
-    if (all != null && all.size() >= 1 && all.size() <= 2) {
-      try {
-        part = Integer.parseUnsignedInt(all.get(0));
-        total = (all.size() > 1 ? Integer.parseUnsignedInt(all.get(1)) : /* -1 */ 1); // -1 to use n-handle modus
-        return (part == 0 || total == 0) ? null : new Integer[]{Math.min(part, total), Math.max(part, total)};
-      } catch (NumberFormatException ignore) {
-      }
+  public @Nullable List<@NotNull String> getSort() {
+    if (__sort != null) {
+      return __sort;
     }
-    return null;
+    final QueryParameter selectionParam = join(SORT);
+    if (selectionParam == null) {
+      return null;
+    }
+    return __sort = selectionParam.values().removeEmpty();
   }
 
-  public int getRadius() {
-    return getInteger(RADIUS, 0);
+  private @Nullable XyzPart __part;
+
+  public @Nullable XyzPart getPart() throws ParameterError {
+    if (__part != null) {
+      return __part;
+    }
+    final QueryParameter queryParameter = get(PART);
+    if (queryParameter == null) {
+      return null;
+    }
+    final ValueList values = queryParameter.values();
+    if (values.size() != 2) {
+      throw new ParameterError("Expected two two values: &part=(part,total)");
+    }
+    final Long part = values.getLong(0);
+    final Long total = values.getLong(1);
+    if (part == null || total == null || part < 1L || part > total || total > 1_000_000) {
+      throw new ParameterError("Invalid argument &part=(" + values.get(0) + "," + values.get(1) + ")");
+    }
+    return __part = new XyzPart(part.intValue(), total.intValue());
   }
 
-  public @Nullable String getRefFeatureId() {
-    return getString(REF_FEATURE_ID);
+  /**
+   * Returns the search radius in meter.
+   *
+   * @return The search radius in meter; {@code 0} if the parameter is not provided.
+   * @throws ParameterError If the parameter is illegal.
+   */
+  public int getRadius() throws ParameterError {
+    final QueryParameter queryParameter = get(RADIUS);
+    if (queryParameter == null) {
+      return 0;
+    }
+    final ValueList values = queryParameter.values();
+    if (values.size() == 1) {
+      final Long radius = values.getLong(0);
+      if (radius == null || radius < 0L || radius > Integer.MAX_VALUE) {
+        throw new ParameterError("Invalid parameter " + RADIUS + "=" + values.get(0) + ", expected positive int32");
+      }
+      return radius.intValue();
+    }
+    if (values.size() > 1) {
+      throw new ParameterError("Invalid parameter " + RADIUS + ", expected positive int32");
+    }
+    return 0;
   }
 
-  public @Nullable String getRefSpaceId() {
-    return getString(REF_SPACE_ID);
+  /**
+   * The margin in pixel on the respective projected level around the tile; default is 0.
+   *
+   * @return the margin in pixel for a tile.
+   */
+  public int getMargin() throws ParameterError {
+    final Long value = getLong(MARGIN, 0, 100);
+    return (int) (value != null ? value : 0);
   }
 
-  public @Nullable String getH3Index() {
-    return getString(H3_INDEX);
+  public @Nullable String getRefFeatureId() throws ParameterError {
+    return getString(REF_FEATURE_ID, null);
   }
+
+  public @Nullable String getRefSpaceId() throws ParameterError {
+    return getString(REF_SPACE_ID, null);
+  }
+
+  public @Nullable String getH3Index() throws ParameterError {
+    return getString(H3_INDEX, null);
+  }
+
+  public @Nullable String getOptimizationMode() throws ParameterError {
+    return getString(OPTIM_MODE, null);
+  }
+
+  public @Nullable String getOptimizationVizSampling() throws ParameterError {
+    return getString(OPTIM_VIZSAMPLING, null);
+  }
+
+  public boolean getForce2D() throws ParameterError {
+    final Boolean value = getBoolean(FORCE_2D, null);
+    return value != null ? value : false;
+  }
+
+  public boolean getClip() throws ParameterError {
+    final Boolean value = getBoolean(CLIP, null);
+    return value != null ? value : false;
+  }
+
+  public long getLimit() throws ParameterError {
+    final Long limit = getLong(LIMIT, 0, 1_000_000);
+    return limit != null ? limit : 10_000L;
+  }
+
+  private @Nullable BBox __bbox;
+
+  public @Nullable BBox getBBox() throws ParameterError {
+    if (__bbox != null) {
+      return __bbox;
+    }
+    final Double west = getWgs84Longitude(WEST);
+    if (west == null) {
+      throw new ParameterError("Missing parameter " + WEST);
+    }
+    final Double east = getWgs84Longitude(EAST);
+    if (east == null) {
+      throw new ParameterError("Missing parameter " + EAST);
+    }
+    final Double north = getWgs84Longitude(NORTH);
+    if (north == null) {
+      throw new ParameterError("Missing parameter " + NORTH);
+    }
+    final Double south = getWgs84Longitude(SOUTH);
+    if (south == null) {
+      throw new ParameterError("Missing parameter " + SOUTH);
+    }
+    return __bbox = new BBox(west, south, east, north);
+  }
+
+  private @Nullable Point __point;
 
   /**
    * Returns the point encoded in the query parameters "&lat" and "&lon".
    *
    * @return the point parsed from query parameters; {@code null} if no point given.
-   * @throws XyzErrorException If the parameters are illegal, for example only "&lat" provided.
+   * @throws ParameterError If the parameters are illegal, for example only "&lat" provided.
    */
-  public @Nullable Point getPoint() throws XyzErrorException {
-    final Double lat;
-    try {
-      lat = getDouble(LAT);
-    } catch (ParameterError e) {
-      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Failed to parse 'lon': " + e.getMessage());
+  public @Nullable Point getPoint() throws ParameterError {
+    if (__point != null) {
+      return __point;
     }
-    final Double lon;
-    try {
-      lon = getDouble(LON);
-    } catch (ParameterError e) {
-      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Failed to parse 'lat': " + e.getMessage());
-    }
+    final Double lat = getWgs84Latitude(LAT);
+    final Double lon = getWgs84Longitude(LON);
     if (lat == null && lon == null) {
       return null;
     }
     if (lat == null) {
-      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "'lon' given, but 'lat' missing");
+      throw new ParameterError("Missing &" + LAT + " parameter");
     }
     if (lon == null) {
-      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "'lat' given, but 'lon' missing");
+      throw new ParameterError("Missing &" + LON + " parameter");
     }
-
-    if (lat < -90d || lat > 90d) {
-      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT,
-          "Invalid 'lat' query parameter, must be a WGS'84 longitude in decimal degree (so a value between -90 and +90).");
-    }
-    if (lon < -180d || lon > 180d) {
-      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT,
-          "Invalid 'lon' query parameter, must be a WGS'84 longitude in decimal degree (so a value between -180 and +180).");
-    }
-    return new Point().withCoordinates(new PointCoordinates(lon, lat));
+    return __point = new Point().withCoordinates(new PointCoordinates(lon, lat));
   }
 
-  /**
-   * Retures the parsed query parameter for space
-   */
-  static PropertiesQuery getSpacePropertiesQuery(RoutingContext context, String param) {
-    PropertiesQuery propertyQuery = context.get("propertyQuery");
-    if (propertyQuery == null) {
-      propertyQuery = parsePropertiesQuery(context.request().query(), param, true);
-      context.put("propertyQuery", propertyQuery);
-    }
-    return propertyQuery;
-  }
+  private @Nullable PropertyQueryOr __query;
 
   /**
-   * Returns the parsed tags parameter
-   */
-  static PropertiesQuery getPropertiesQuery(RoutingContext context) {
-    PropertiesQuery propertyQuery = context.get("propertyQuery");
-    if (propertyQuery == null) {
-      propertyQuery = parsePropertiesQuery(context.request().query(), "", false);
-      context.put("propertyQuery", propertyQuery);
-    }
-    return propertyQuery;
-  }
-
-  /**
-   * Returns the first property found in the query string in the format of key-operator-value(s)
+   * Returns the parsed properties query parameter.
    *
-   * @param query      the query part in the url without the '?' symbol
-   * @param key        the property to be searched
-   * @param multiValue when true, checks for comma separated values, otherwise return the first value found
-   * @return null in case none is found
+   * <p>Note: We fixed this so that we rewrite the old {@code &p.name=gt=5} into {@code &query:p*name=gt=5}. Still this design does not
+   * allow the full potential of the query, so the outermost OR query is always useless.
+   *
+   * @return the parsed query parameter for space; {@code null} if no query parameter given.
    */
-  static PropertyQuery getPropertyQuery(String query, String key, boolean multiValue) {
-    if (StringUtils.isNullOrEmpty(query) || StringUtils.isNullOrEmpty(key)) {
+  public @Nullable PropertyQueryOr getPropertiesQuery() throws ParameterError {
+    if (__query != null) {
+      return __query;
+    }
+    QueryParameter queryParam = get(QUERY);
+    if (queryParam == null) {
       return null;
     }
+    final PropertyQueryOr outerQuery = new PropertyQueryOr();
+    final PropertyQueryAnd and = new PropertyQueryAnd();
+    outerQuery.add(and);
 
-    int startIndex;
-    if ((startIndex = query.indexOf(key)) != -1) {
-      String opValue = query.substring(startIndex + key.length()); // e.g. =eq=head
-      String operation = shortOperators
-          .stream()
-          .sorted(Comparator.comparingInt(k -> k.length() * -1)) // reverse a sorted list because u want to get the longer ops first.
-          .filter(opValue::startsWith) // e.g. in case of key=eq=val, 2 ops will be filtered in: '=eq=' and '='.
-          .findFirst() // The reversed sort plus the findFirst makes sure the =eq= is the one you are looking for.
-          .orElse(null); // e.g. anything different from the allowed operators
+    while (queryParam != null) {
+      final ValueList values = queryParam.values();
+      final List<@NotNull QueryDelimiter> valuesDelimiter = queryParam.valuesDelimiter();
+      final ValueList arguments = queryParam.arguments();
+      final List<@NotNull QueryDelimiter> argumentsDelimiter = queryParam.argumentsDelimiter();
 
-      if (operation == null) {
-        return null;
+      final int LAST = values.size() - 1;
+      if (LAST < 0) {
+        throw new ParameterError("No value for query parameter: " + queryParam);
       }
 
-      String value = opValue.substring(operation.length()).split("&")[0];
-      List<Object> values = multiValue
-          ? Arrays.asList(value.split(","))
-          : Collections.singletonList(value.split(",")[0]);
+      final QueryOperation op;
+      if (arguments.size() >= 1) {
+        final String opName = arguments.getString(0);
+        if (opName != null) {
+          op = QueryOperation.getByName(opName);
+          if (op == null) {
+            throw new ParameterError("Unknown operation '" + opName + "' for query parameter: " + queryParam);
+          }
+        } else {
+          op = QueryOperation.EQUALS;
+        }
+      } else {
+        op = QueryOperation.EQUALS;
+      }
+      PropertyQuery query = null;
+      for (int i = 0; i <= LAST; i++) {
+        final Object value = values.get(i);
+        final QueryDelimiter delimiter = valuesDelimiter.get(i);
+        if (query == null) {
+          query = new PropertyQuery(queryParam.key(), op);
+          and.add(query);
+        }
+        query.getValues().add(value);
+        if (delimiter == QueryDelimiter.PLUS) {
+          // A plus ends the current query, because the property query OR combines the values.
+          query = null;
+        }
+      }
+      queryParam = queryParam.next();
+    }
+    return outerQuery;
+  }
 
-      return new PropertyQuery()
-          .withKey(key)
-          .withOperation(operators.get(operation))
-          .withValues(values);
+  /**
+   * Checks the query string for an EPSG code, when found, it passes and returns it. If not found, it will return the provided default
+   * value.
+   *
+   * @return The EPSG selected.
+   */
+  public int getVerifiedEpsg() throws ParameterError {
+    // See: https://en.wikipedia.org/wiki/EPSG_Geodetic_Parameter_Dataset
+    final Long epsg = getLong(EPSG, 1024, 32767);
+    if (epsg == null) {
+      // WGS'84
+      return 3785;
     }
 
+    try {
+      if (GeoTools.mathTransform(GeoTools.WGS84_EPSG, "EPSG:" + epsg) != null) {
+        return epsg.intValue();
+      }
+    } catch (Exception ignore) {
+    }
+    throw new ParameterError(
+        "Failed to transform coordinates from " + GeoTools.WGS84_EPSG + " to EPSG:" + epsg + ", unsupported Geodetic Parameter Dataset");
+  }
+
+
+  static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
+  static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
+  static final String CLUSTERING_PARAM_RESOLUTION_ABSOLUTE = "absoluteResolution";
+  static final String CLUSTERING_PARAM_NOBUFFER = "noBuffer";
+  static final String CLUSTERING_PARAM_PROPERTY = "property";
+  static final String CLUSTERING_PARAM_POINTMODE = "pointmode";
+  static final String CLUSTERING_PARAM_SINGLECOORD = "singlecoord";
+  static final String CLUSTERING_PARAM_COUNTMODE = "countmode";
+  static final String CLUSTERING_PARAM_SAMPLING = "sampling";
+
+  /**
+   * Create the clustering parameters from the given query parameters.
+   *
+   * @return The parsed clustering parameters.
+   * @throws ParameterError if obligate parameters are missing or have illegal values.
+   */
+  public @NotNull Clustering getClustering() throws ParameterError {
+    // TODO: We already should rewrite "&clustering.resolution=" into "&clustering:resolution=", which allows to grab all values from one
+    //       key via normal parameters handling.
+    QueryParameter clustering = get(CLUSTERING);
+    while (clustering != null) {
+      if (!clustering.hasArguments()) {
+        // clustering = hexbin|quadbin
+      } else {
+        // clustering:parametername=value
+        // Note: The operation theoretically can be as well greater-than or alike, e.g. "&clustering:age>100"!
+      }
+      clustering = clustering.next();
+    }
     return null;
+//    if (type.equals(CLUSTERING)) {
+//      String invalidKeyMessage = "Invalid clustering. " + key + " value. ";
+//      switch (key) {
+//        case CLUSTERING_PARAM_RESOLUTION_ABSOLUTE:
+//        case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
+//        case CLUSTERING_PARAM_RESOLUTION:
+//          if (!(value instanceof Long)) {
+//            throw new Exception(invalidKeyMessage + "Expect Integer.");
+//          }
+//
+//          if (CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long) value < -2 || (long) value > 4)) {
+//            throw new Exception(invalidKeyMessage + "Expect Integer hexbin:[-2,2], quadbin:[0-4].");
+//          }
+//
+//          if (!CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long) value < 0 || (long) value > 18)) {
+//            throw new Exception(invalidKeyMessage + "Expect Integer hexbin:[0,13], quadbin:[0,18].");
+//          }
+//          break;
+//
+//        case CLUSTERING_PARAM_PROPERTY:
+//          if (!(value instanceof String)) {
+//            throw new Exception(invalidKeyMessage + "Expect String.");
+//          }
+//          break;
+//
+//        case CLUSTERING_PARAM_POINTMODE:
+//        case CLUSTERING_PARAM_SINGLECOORD:
+//        case CLUSTERING_PARAM_NOBUFFER:
+//          if (!(value instanceof Boolean)) {
+//            throw new Exception(invalidKeyMessage + "Expect true or false.");
+//          }
+//          break;
+//
+//        case CLUSTERING_PARAM_COUNTMODE:
+//          if (!(value instanceof String)) {
+//            throw new Exception(invalidKeyMessage + "Expect one of [real,estimated,mixed].");
+//          }
+//          break;
+//
+//        case CLUSTERING_PARAM_SAMPLING:
+//          if (!(value instanceof String)) {
+//            throw new Exception(invalidKeyMessage + "Expect one of [low,lowmed,med,medhigh,high].");
+//          }
+//          break;
+//
+//        default:
+//          throw new Exception("Invalid Clustering Parameter! Expect one of ["
+//              + CLUSTERING_PARAM_RESOLUTION + "," + CLUSTERING_PARAM_RESOLUTION_RELATIVE + "," + CLUSTERING_PARAM_RESOLUTION_ABSOLUTE + ","
+//              + CLUSTERING_PARAM_PROPERTY + "," + CLUSTERING_PARAM_POINTMODE + "," + CLUSTERING_PARAM_COUNTMODE + ","
+//              + CLUSTERING_PARAM_SINGLECOORD + ","
+//              + CLUSTERING_PARAM_NOBUFFER + "," + CLUSTERING_PARAM_SAMPLING + "].");
+//      }
   }
 
-  protected static PropertiesQuery parsePropertiesQuery(String query, String property, boolean spaceProperties) {
-    if (query == null || query.length() == 0) {
-      return null;
-    }
-
-    PropertyQueryList pql = new PropertyQueryList();
-    Stream.of(query.split("&"))
-        .filter(k -> k.startsWith("p.") || k.startsWith("f.") || spaceProperties)
-        .forEach(keyValuePair -> {
-          PropertyQuery propertyQuery = new PropertyQuery();
-
-          String operatorComma = "-#:comma:#-";
-          try {
-            keyValuePair = keyValuePair.replaceAll(",", operatorComma);
-            keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
-          } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-          }
-
-          int position = 0;
-          String op = null;
-
-          /** store "main" operator. Needed for such cases foo=bar-->test*/
-          for (String shortOperator : shortOperators) {
-            int currentPositionOfOp = keyValuePair.indexOf(shortOperator);
-            if (currentPositionOfOp != -1) {
-              if (
-                // feature properties query
-                  (!spaceProperties && (op == null || currentPositionOfOp < position || (currentPositionOfOp == position
-                      && op.length() < shortOperator.length()))) ||
-                      // space properties query
-                      (keyValuePair.substring(0, currentPositionOfOp).equals(property) && spaceProperties && (op == null
-                          || currentPositionOfOp < position || (currentPositionOfOp == position && op.length() < shortOperator.length())))
-              ) {
-                op = shortOperator;
-                position = currentPositionOfOp;
-              }
-            }
-          }
-
-          if (op != null) {
-            String[] keyVal = new String[]{keyValuePair.substring(0, position).replaceAll(operatorComma, ","),
-                keyValuePair.substring(position + op.length())
-            };
-            /** Cut from API-Gateway appended "=" */
-            if ((">".equals(op) || "<".equals(op)) && keyVal[1].endsWith("=")) {
-              keyVal[1] = keyVal[1].substring(0, keyVal[1].length() - 1);
-            }
-
-            propertyQuery.setKey(spaceProperties ? keyVal[0] : keyToPath(keyVal[0]));
-            propertyQuery.setOperation(operators.get(op));
-            String[] rawValues = keyVal[1].split(operatorComma);
-
-            ArrayList<Object> values = new ArrayList<>();
-            for (String rawValue : rawValues) {
-              values.add(parseValue(rawValue));
-            }
-            propertyQuery.setValues(values);
-            pql.add(propertyQuery);
-          }
-        });
-
-    PropertiesQuery pq = new PropertiesQuery();
-    pq.add(pql);
-
-    if (pq.stream().flatMap(List::stream).mapToLong(l -> l.getValues().size()).sum() == 0) {
-      return null;
-    }
-    return pq;
-  }
-
-  public @NotNull Map<@NotNull String, @Nullable Object> getAdditionalParams(@NotNull AdditionalParamsType additionalParamsType)
-      throws XyzErrorException {
-    Map<String, Object> clusteringParams = context.get(type);
-
-    if (clusteringParams == null) {
-      clusteringParams = parseAdditionalParams(context.request().query(), type);
-      context.put(type, clusteringParams);
-    }
-    return clusteringParams;
-  }
-
-  static Map<String, Object> parseAdditionalParams(String query, String type) throws Exception {
-    if (query == null || query.length() == 0) {
-      return null;
-    }
-
-    final String paramPrefix = type + ".";
-
-    Map<String, Object> cp = new HashMap<>();
-    Stream.of(query.split("&"))
-        .filter(k -> k.startsWith(paramPrefix))
-        .forEach(keyValuePair -> {
-          try {
-            keyValuePair = URLDecoder.decode(keyValuePair, "utf-8");
-          } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-          }
-
-          if (keyValuePair.contains("=")) {
-            // If the original parameter expression doesn't contain the equal sign API GW appends it at the end
-            String[] keyVal = keyValuePair.split("=");
-            if (keyVal.length < 2) {
-              return;
-            }
-            String key = keyVal[0].substring(paramPrefix.length());
-            Object value = parseValue(keyVal[1]);
-            try {
-              validateAdditionalParams(type, key, value);
-            } catch (Exception e) {
-              throw new RuntimeException(e.getMessage());
-            }
-            cp.put(keyVal[0].substring(paramPrefix.length()), parseValue(keyVal[1]));
-          }
-        });
-
-    return cp;
-  }
-
-  private static void validateAdditionalParams(String type, String key, Object value) throws Exception {
-    if (type.equals(CLUSTERING)) {
-      String invalidKeyMessage = "Invalid clustering. " + key + " value. ";
-      switch (key) {
-        case CLUSTERING_PARAM_RESOLUTION_ABSOLUTE:
-        case CLUSTERING_PARAM_RESOLUTION_RELATIVE:
-        case CLUSTERING_PARAM_RESOLUTION:
-          if (!(value instanceof Long)) {
-            throw new Exception(invalidKeyMessage + "Expect Integer.");
-          }
-
-          if (CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long) value < -2 || (long) value > 4)) {
-            throw new Exception(invalidKeyMessage + "Expect Integer hexbin:[-2,2], quadbin:[0-4].");
-          }
-
-          if (!CLUSTERING_PARAM_RESOLUTION_RELATIVE.equals(key) && ((long) value < 0 || (long) value > 18)) {
-            throw new Exception(invalidKeyMessage + "Expect Integer hexbin:[0,13], quadbin:[0,18].");
-          }
-          break;
-
-        case CLUSTERING_PARAM_PROPERTY:
-          if (!(value instanceof String)) {
-            throw new Exception(invalidKeyMessage + "Expect String.");
-          }
-          break;
-
-        case CLUSTERING_PARAM_POINTMODE:
-        case CLUSTERING_PARAM_SINGLECOORD:
-        case CLUSTERING_PARAM_NOBUFFER:
-          if (!(value instanceof Boolean)) {
-            throw new Exception(invalidKeyMessage + "Expect true or false.");
-          }
-          break;
-
-        case CLUSTERING_PARAM_COUNTMODE:
-          if (!(value instanceof String)) {
-            throw new Exception(invalidKeyMessage + "Expect one of [real,estimated,mixed].");
-          }
-          break;
-
-        case CLUSTERING_PARAM_SAMPLING:
-          if (!(value instanceof String)) {
-            throw new Exception(invalidKeyMessage + "Expect one of [low,lowmed,med,medhigh,high].");
-          }
-          break;
-
-        default:
-          throw new Exception("Invalid Clustering Parameter! Expect one of ["
-              + CLUSTERING_PARAM_RESOLUTION + "," + CLUSTERING_PARAM_RESOLUTION_RELATIVE + "," + CLUSTERING_PARAM_RESOLUTION_ABSOLUTE + ","
-              + CLUSTERING_PARAM_PROPERTY + "," + CLUSTERING_PARAM_POINTMODE + "," + CLUSTERING_PARAM_COUNTMODE + ","
-              + CLUSTERING_PARAM_SINGLECOORD + ","
-              + CLUSTERING_PARAM_NOBUFFER + "," + CLUSTERING_PARAM_SAMPLING + "].");
+  /**
+   * Create the tweaks parameters from the given query parameters.
+   *
+   * @return The parsed tweaks parameters.
+   * @throws ParameterError if obligate parameters are missing or have illegal values.
+   */
+  public @NotNull Tweaks getTweaks() throws ParameterError {
+    // TODO: We already should rewrite "&tweak.resolution=" into "&tweak:resolution=", which allows to grab all values from one
+    //       key via normal parameters handling.
+    QueryParameter tweaks = get(TWEAKS);
+    while (tweaks != null) {
+      if (!tweaks.hasArguments()) {
+        // tweaks = sampling|simplification|ensure
+      } else {
+        // tweaks:parametername=value
+        // Note: The operation theoretically can be as well greater-than or alike, e.g. "&tweak:age>100"!
       }
-    } else if (type.equals(TWEAKS)) {
-      switch (key) {
-        case TWEAKS_PARAM_STRENGTH:
-          if (value instanceof String) {
-            String keyS = ((String) value).toLowerCase();
-            switch (keyS) {
-              case "low":
-              case "lowmed":
-              case "med":
-              case "medhigh":
-              case "high":
-                break;
-              default:
-                throw new Exception("Invalid tweaks.strength value. Expect [low,lowmed,med,medhigh,high]");
-            }
-          } else if (value instanceof Long) {
-            if ((long) value < 1 || (long) value > 100) {
-              throw new Exception("Invalid tweaks.strength value. Expect Integer [1,100].");
-            }
-          } else {
-            throw new Exception("Invalid tweaks.strength value. Expect String or Integer.");
-          }
-
-          break;
-
-        case TWEAKS_PARAM_DEFAULT_SELECTION:
-          if (!(value instanceof Boolean)) {
-            throw new Exception("Invalid tweaks.defaultselection value. Expect true or false.");
-          }
-          break;
-
-        case TWEAKS_PARAM_ALGORITHM:
-          break;
-
-        case TWEAKS_PARAM_SAMPLINGTHRESHOLD: // testing, parameter evaluation
-          if (!(value instanceof Long) || ((long) value < 10) || ((long) value > 100)) {
-            throw new Exception("Invalid tweaks. " + key + ". Expect Integer [10,100].");
-          }
-          break;
-
-        default:
-          throw new Exception("Invalid Tweaks Parameter! Expect one of [" + TWEAKS_PARAM_STRENGTH + ","
-              + TWEAKS_PARAM_ALGORITHM + ","
-              + TWEAKS_PARAM_DEFAULT_SELECTION + ","
-              + TWEAKS_PARAM_SAMPLINGTHRESHOLD + "]");
-      }
-
+      tweaks = tweaks.next();
     }
+    return null;
+//    if (type.equals(TWEAKS)) {
+//      switch (key) {
+//        case TWEAKS_PARAM_STRENGTH:
+//          if (value instanceof String) {
+//            String keyS = ((String) value).toLowerCase();
+//            switch (keyS) {
+//              case "low":
+//              case "lowmed":
+//              case "med":
+//              case "medhigh":
+//              case "high":
+//                break;
+//              default:
+//                throw new Exception("Invalid tweaks.strength value. Expect [low,lowmed,med,medhigh,high]");
+//            }
+//          } else if (value instanceof Long) {
+//            if ((long) value < 1 || (long) value > 100) {
+//              throw new Exception("Invalid tweaks.strength value. Expect Integer [1,100].");
+//            }
+//          } else {
+//            throw new Exception("Invalid tweaks.strength value. Expect String or Integer.");
+//          }
+//
+//          break;
+//
+//        case TWEAKS_PARAM_DEFAULT_SELECTION:
+//          if (!(value instanceof Boolean)) {
+//            throw new Exception("Invalid tweaks.defaultselection value. Expect true or false.");
+//          }
+//          break;
+//
+//        case TWEAKS_PARAM_ALGORITHM:
+//          break;
+//
+//        case TWEAKS_PARAM_SAMPLINGTHRESHOLD: // testing, parameter evaluation
+//          if (!(value instanceof Long) || ((long) value < 10) || ((long) value > 100)) {
+//            throw new Exception("Invalid tweaks. " + key + ". Expect Integer [10,100].");
+//          }
+//          break;
+//
+//        default:
+//          throw new Exception("Invalid Tweaks Parameter! Expect one of [" + TWEAKS_PARAM_STRENGTH + ","
+//              + TWEAKS_PARAM_ALGORITHM + ","
+//              + TWEAKS_PARAM_DEFAULT_SELECTION + ","
+//              + TWEAKS_PARAM_SAMPLINGTHRESHOLD + "]");
+//      }
+//
+//    }  }
   }
-
 }

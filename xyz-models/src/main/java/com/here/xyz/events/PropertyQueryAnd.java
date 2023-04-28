@@ -22,8 +22,8 @@ package com.here.xyz.events;
 import java.util.ArrayList;
 
 /**
- * Property queries used as AND condition.
+ * Property queries AND combined: <pre>{@code &query:p!pc=gte=5 AND &query:p!name=Bar}</pre>
  */
-public class PropertyQueryList extends ArrayList<PropertyQuery> {
+public class PropertyQueryAnd extends ArrayList<PropertyQuery> {
 
 }

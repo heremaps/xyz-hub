@@ -65,7 +65,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
   public void testHistoryTableCreation() throws Exception {
     // =========== CREATE SPACE with UUID support ==========
     ModifySpaceEvent mse = new ModifySpaceEvent();
-    mse.setSpace("foo");
+    mse.setSpaceId("foo");
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
     mse.setConnectorParams(connectorParams);
     mse.setSpaceDefinition(new Space("foo"));
@@ -94,7 +94,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     int maxVersionCount = 5;
     // =========== CREATE SPACE with UUID support ==========
     ModifySpaceEvent mse = new ModifySpaceEvent();
-    mse.setSpace("foo");
+    mse.setSpaceId("foo");
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
     mse.setConnectorParams(connectorParams);
     mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
@@ -116,7 +116,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(connectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
 
@@ -153,7 +153,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
     // set history to infinite
     mse = new ModifySpaceEvent();
-    mse.setSpace("foo");
+    mse.setSpaceId("foo");
     mse.setConnectorParams(connectorParams);
     mse.setOperation(ModifySpaceEvent.Operation.UPDATE);
     mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
@@ -188,7 +188,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
     // set withMaxVersionCount to 2
     mse = new ModifySpaceEvent();
-    mse.setSpace("foo");
+    mse.setSpaceId("foo");
     mse.setConnectorParams(connectorParams);
     mse.setOperation(ModifySpaceEvent.Operation.UPDATE);
     mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
@@ -225,7 +225,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     int maxVersionCount = 5;
     // =========== CREATE SPACE with UUID support ==========
     ModifySpaceEvent mse = new ModifySpaceEvent();
-        mse.setSpace("foo");
+        mse.setSpaceId("foo");
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
     mse.setParams(Collections.singletonMap("maxVersionCount", maxVersionCount));
     mse.setConnectorParams(connectorParams);
@@ -248,7 +248,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(connectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
 
@@ -279,7 +279,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     int maxVersionCount = 8;
     // =========== CREATE SPACE with UUID support ==========
     ModifySpaceEvent mse = new ModifySpaceEvent();
-    mse.setSpace("foo");
+    mse.setSpaceId("foo");
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
     mse.setConnectorParams(connectorParams);
     mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)

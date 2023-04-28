@@ -1,6 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
-import static com.here.xyz.EventTask.currentTask;
+import static com.here.xyz.AbstractTask.currentTask;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.models.hub.psql.PsqlPoolConfig;

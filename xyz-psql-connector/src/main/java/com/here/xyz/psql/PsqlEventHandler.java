@@ -22,9 +22,9 @@ package com.here.xyz.psql;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_MIXED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_REAL;
-import static com.here.xyz.EventTask.currentTask;
-import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT;
-import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
+import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT;
+import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
 import static com.here.xyz.events.space.ModifySpaceEvent.Operation.CREATE;
 import static com.here.xyz.events.space.ModifySpaceEvent.Operation.UPDATE;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
@@ -38,11 +38,17 @@ import com.here.mapcreator.ext.naksha.Naksha;
 import com.here.mapcreator.ext.naksha.PsqlSpaceMasterDataSource;
 import com.here.xyz.ExtendedEventHandler;
 import com.here.xyz.IEventContext;
+import com.here.xyz.events.clustering.Clustering;
+import com.here.xyz.events.clustering.ClusteringHexBin;
+import com.here.xyz.events.clustering.ClusteringQuadBin;
+import com.here.xyz.events.clustering.ClusteringQuadBin.CountMode;
+import com.here.xyz.events.tweaks.Tweaks;
+import com.here.xyz.events.tweaks.TweaksEnsure;
+import com.here.xyz.events.tweaks.TweaksSampling;
+import com.here.xyz.events.tweaks.TweaksSimplification;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.psql.PsqlStorageParams;
-import com.here.mapcreator.ext.naksha.sql.H3SQL;
-import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
 import com.here.xyz.NanoTime;
@@ -55,7 +61,7 @@ import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.events.feature.GetFeaturesByTileEvent;
-import com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType;
+import com.here.xyz.events.feature.GetFeaturesByTileResponseType;
 import com.here.xyz.events.info.GetHistoryStatisticsEvent;
 import com.here.xyz.events.info.GetStatisticsEvent;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;
@@ -130,9 +136,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlStorage extends ExtendedEventHandler {
+public class PsqlEventHandler extends ExtendedEventHandler {
 
-  public PsqlStorage(@NotNull Connector connector) throws XyzErrorException {
+  public PsqlEventHandler(@NotNull Connector connector) throws XyzErrorException {
     super(connector);
     if (connector.params == null) {
       throw new XyzErrorException(EXCEPTION, "Missing 'params' in connector configuration");
@@ -140,7 +146,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     connectorParams = new PsqlStorageParams(connector.params);
   }
 
-  private static final Logger logger = LoggerFactory.getLogger(PsqlStorage.class);
+  private static final Logger logger = LoggerFactory.getLogger(PsqlEventHandler.class);
 
   private final @NotNull PsqlStorageParams connectorParams;
   private @NotNull Event event;
@@ -161,7 +167,7 @@ public class PsqlStorage extends ExtendedEventHandler {
       throw new NullPointerException("connectorParams");
     }
     applicationName = event.getConnectorId() + ":" + event.getStreamId();
-    spaceId = event.getSpace();
+    spaceId = event.getSpaceId();
     table = spaceId;
     raw = event.getParams();
     if (raw != null) {
@@ -220,7 +226,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   }
 
   public final @NotNull String spaceId() {
-    return event.getSpace();
+    return event.getSpaceId();
   }
 
   public final @NotNull String spaceSchema() {
@@ -369,28 +375,23 @@ public class PsqlStorage extends ExtendedEventHandler {
 
       final BBox bbox = event.getBbox();
 
-      boolean bTweaks = (event.getTweakType() != null),
-          bOptViz = "viz".equals(event.getOptimizationMode()),
-          bSelectionStar = false,
-          bClustering = (event.getClusteringType() != null);
+      final Tweaks tweaks = event.getTweaks();
+      final Clustering clustering = event.getClustering();
 
-      ResponseType responseType = SQLQueryBuilder.getResponseType(event);
+      GetFeaturesByTileResponseType responseType = SQLQueryBuilder.getResponseType(event);
       int mvtMargin = 0;
       boolean bMvtRequested = responseType == MVT || responseType == MVT_FLATTENED,
           bMvtFlattend = responseType == MVT_FLATTENED;
 
       WebMercatorTile mercatorTile = null;
       HQuad hereTile = null;
-      GetFeaturesByTileEvent tileEv =
-          (event instanceof GetFeaturesByTileEvent ? (GetFeaturesByTileEvent) event : null);
-
+      GetFeaturesByTileEvent tileEv = (event instanceof GetFeaturesByTileEvent ? (GetFeaturesByTileEvent) event : null);
       if (tileEv != null && tileEv.getHereTileFlag()) {
-        if (bClustering) {
+        if (clustering != null) {
           throw new ErrorResponseException(
               streamId(),
               XyzError.ILLEGAL_ARGUMENT,
-              "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator"
-                  + " projection (quadkey, web, tms).");
+              "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
         }
       }
 
@@ -415,206 +416,133 @@ public class PsqlStorage extends ExtendedEventHandler {
         mvtMargin = tileEv.getMargin();
       }
 
-      if (event.getSelection() != null && "*".equals(event.getSelection().get(0))) {
+      final boolean explicitlySelectAll;
+      if (event.getSelection() != null && event.getSelection().size() > 0 && "*".equals(event.getSelection().get(0))) {
         event.setSelection(null);
-        bSelectionStar =
-            true; // differentiation needed, due to different semantic of "event.getSelection() ==
-        // null" tweaks vs. nonTweaks
+        // Differentiation needed, due to different semantic of "event.getSelection() == null" tweaks vs. nonTweaks.
+        explicitlySelectAll = true;
+      } else {
+        explicitlySelectAll = false;
       }
 
-      if (!bClustering && (bTweaks || bOptViz)) {
-        Map<String, Object> tweakParams;
-        boolean bVizSamplingOff = false;
-
-        if (bTweaks) {
-          tweakParams = event.getTweakParams();
-        } else if (!bOptViz) {
-          event.setTweakType(TweaksSQL.SIMPLIFICATION);
-          tweakParams = new HashMap<String, Object>();
-          tweakParams.put("algorithm", new String("gridbytilelevel"));
-        } else {
-          event.setTweakType(TweaksSQL.ENSURE);
-          tweakParams = new HashMap<String, Object>();
-          switch (event.getVizSampling().toLowerCase()) {
-            case "high":
-              tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 15);
-              break;
-            case "low":
-              tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 70);
-              break;
-            case "off":
-              tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 100);
-              bVizSamplingOff = true;
-              break;
-            case "med":
-            default:
-              tweakParams.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 30);
-              break;
-          }
-        }
-
-        int distStrength = 1;
+      final String spaceId = event.getSpaceId();
+      assert spaceId != null;
+      if (tweaks != null) {
         boolean bSortByHashedValue = false;
-
-        switch (event.getTweakType().toLowerCase()) {
-          case TweaksSQL.ENSURE: {
-            if (ttime.expired()) {
-              ttime = new TupleTime();
-            }
-
-            String rTuples = TupleTime.rTuplesMap.get(event.getSpace());
-            Feature estimateFtr =
-                executeQueryWithRetry(
-                    SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples))
-                    .getFeatures()
-                    .get(0);
-            int rCount = estimateFtr.get("rcount");
-
-            if (rTuples == null) {
-              rTuples = estimateFtr.get("rtuples");
-              TupleTime.rTuplesMap.put(event.getSpace(), rTuples);
-            }
-
-            bSortByHashedValue = isVeryLargeSpace(rTuples);
-
-            boolean bDefaultSelectionHandling =
-                (tweakParams.get(TweaksSQL.ENSURE_DEFAULT_SELECTION) == Boolean.TRUE);
-
-            if (event.getSelection() == null && !bDefaultSelectionHandling && !bSelectionStar) {
-              event.setSelection(Arrays.asList("id", "type"));
-            }
-
-            distStrength =
-                TweaksSQL.calculateDistributionStrength(
-                    rCount,
-                    Math.max(
-                        Math.min(
-                            (int)
-                                tweakParams.getOrDefault(
-                                    TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 10),
-                            100),
-                        10)
-                        * 1000);
-
-            HashMap<String, Object> hmap = new HashMap<>();
-            hmap.put("algorithm", new String("distribution"));
-            hmap.put("strength", distStrength);
-            tweakParams = hmap;
-            // fall thru tweaks=sampling
+        if (tweaks instanceof TweaksEnsure) {
+          final TweaksEnsure ensure = (TweaksEnsure) tweaks;
+          if (ttime.expired()) {
+            ttime = new TupleTime();
           }
 
-          case TweaksSQL.SAMPLING: {
-            if (bTweaks || !bVizSamplingOff) {
-              if (!bMvtRequested) {
-                FeatureCollection collection =
-                    executeQueryWithRetrySkipIfGeomIsNull(
-                        SQLQueryBuilder.buildSamplingTweaksQuery(
-                            event, bbox, tweakParams, bSortByHashedValue));
-                if (distStrength > 0) {
-                  collection.setPartial(
-                      true); // either ensure mode or explicit tweaks:sampling request where
-                }
-                // strenght in [1..100]
-                return collection;
-              } else {
-                return executeBinQueryWithRetry(
-                    SQLQueryBuilder.buildMvtEncapsuledQuery(
-                        event.getSpace(),
-                        SQLQueryBuilder.buildSamplingTweaksQuery(
-                            event, bbox, tweakParams, bSortByHashedValue),
-                        mercatorTile,
-                        hereTile,
-                        bbox,
-                        mvtMargin,
-                        bMvtFlattend));
-              }
-            } else { // fall thru tweaks=simplification e.g. mode=viz and vizSampling=off
-              tweakParams.put("algorithm", "gridbytilelevel");
-            }
+          String rTuples = TupleTime.rTuplesMap.get(event.getSpaceId());
+          final Feature estimateFtr = executeQueryWithRetry(
+              SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples))
+              .getFeatures()
+              .get(0);
+          final int rCount = estimateFtr.get("rcount");
+          if (rTuples == null) {
+            rTuples = estimateFtr.get("rtuples");
+            TupleTime.rTuplesMap.put(event.getSpaceId(), rTuples);
+          }
+          bSortByHashedValue = isVeryLargeSpace(rTuples);
+
+          if (event.getSelection() == null && !ensure.defaultSelection && !explicitlySelectAll) {
+            event.setSelection(Arrays.asList("id", "type"));
           }
 
-          case TweaksSQL.SIMPLIFICATION: {
-            if (!bMvtRequested) {
-              FeatureCollection collection =
-                  executeQueryWithRetrySkipIfGeomIsNull(
-                      SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams));
-              return collection;
-            } else {
-              return executeBinQueryWithRetry(
-                  SQLQueryBuilder.buildMvtEncapsuledQuery(
-                      event.getSpace(),
-                      SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, tweakParams),
-                      mercatorTile,
-                      hereTile,
-                      bbox,
-                      mvtMargin,
-                      bMvtFlattend));
-            }
-          }
-
-          default:
-            break; // fall back to non-tweaks usage.
+          final int distStrength = TweaksSQL.calculateDistributionStrength(rCount, ensure.sampling.threshold);
+          ensure.algorithm = TweaksSampling.Algorithm.DISTRIBUTION;
+          // fall thru tweaks=sampling
         }
+        if (tweaks instanceof TweaksSampling) {
+          final TweaksSampling sampling = (TweaksSampling) tweaks;
+          if (!bMvtRequested) {
+            final FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(
+                SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, sampling, bSortByHashedValue));
+            if (sampling.sampling.strength == 0) {
+              collection.setPartial(true);
+            }
+            return collection;
+          }
+          return executeBinQueryWithRetry(
+              SQLQueryBuilder.buildMvtEncapsuledQuery(
+                  spaceId,
+                  SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, sampling, bSortByHashedValue),
+                  mercatorTile,
+                  hereTile,
+                  bbox,
+                  mvtMargin,
+                  bMvtFlattend
+              )
+          );
+        }
+        assert tweaks instanceof TweaksSimplification;
+        final TweaksSimplification simplification = (TweaksSimplification) tweaks;
+        if (!bMvtRequested) {
+          return executeQueryWithRetrySkipIfGeomIsNull(SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, simplification));
+        }
+        return executeBinQueryWithRetry(
+            SQLQueryBuilder.buildMvtEncapsuledQuery(
+                event.getSpaceId(),
+                SQLQueryBuilder.buildSimplificationTweaksQuery(event, bbox, simplification),
+                mercatorTile,
+                hereTile,
+                bbox,
+                mvtMargin,
+                bMvtFlattend));
       }
 
-      if (bClustering) {
-        final Map<String, Object> clusteringParams = event.getClusteringParams();
+      if (clustering != null) {
+        if (clustering instanceof ClusteringHexBin) {
+          final ClusteringHexBin hexBinClustering = (ClusteringHexBin) clustering;
+          if (!bMvtRequested) {
+            return executeQueryWithRetry(SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, hexBinClustering), false);
+          }
+          return executeBinQueryWithRetry(
+              SQLQueryBuilder.buildMvtEncapsuledQuery(
+                  event.getSpaceId(),
+                  SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, hexBinClustering),
+                  mercatorTile,
+                  hereTile,
+                  bbox,
+                  mvtMargin,
+                  bMvtFlattend),
+              false);
+        }
+        if (clustering instanceof ClusteringQuadBin) {
+          final ClusteringQuadBin quadBinClustering = (ClusteringQuadBin) clustering;
+          final int relResolution;
+          if (quadBinClustering.getRelativeResolution() != null) {
+            relResolution = quadBinClustering.getRelativeResolution();
+          } else {
+            relResolution = 0;
+          }
+          final int absResolution;
+          if (quadBinClustering.getAbsoluteResolution() != null) {
+            absResolution = quadBinClustering.getAbsoluteResolution();
+          } else {
+            absResolution = 0;
+          }
 
-        switch (event.getClusteringType().toLowerCase()) {
-          case H3SQL.HEXBIN:
-            if (!bMvtRequested) {
-              return executeQueryWithRetry(
-                  SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams), false);
-            } else {
-              return executeBinQueryWithRetry(
-                  SQLQueryBuilder.buildMvtEncapsuledQuery(
-                      event.getSpace(),
-                      SQLQueryBuilder.buildHexbinClusteringQuery(event, bbox, clusteringParams),
-                      mercatorTile,
-                      hereTile,
-                      bbox,
-                      mvtMargin,
-                      bMvtFlattend),
-                  false);
-            }
+          checkQuadbinInput(quadBinClustering.countMode, relResolution, event, streamId());
 
-          case QuadbinSQL.QUAD:
-            final int
-                relResolution =
-                (clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION) != null
-                    ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION)
-                    : (clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE) != null
-                        ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_RELATIVE)
-                        : 0)),
-                absResolution =
-                    clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE) != null
-                        ? (int) clusteringParams.get(QuadbinSQL.QUADBIN_RESOLUTION_ABSOLUTE)
-                        : 0;
-            final String countMode = (String) clusteringParams.get(QuadbinSQL.QUADBIN_COUNTMODE);
-            final boolean noBuffer =
-                (boolean) clusteringParams.getOrDefault(QuadbinSQL.QUADBIN_NOBOFFER, false);
-
-            checkQuadbinInput(countMode, relResolution, event, streamId());
-
-            if (!bMvtRequested) {
-              return executeQueryWithRetry(
-                  SQLQueryBuilder.buildQuadbinClusteringQuery(
-                      event, bbox, relResolution, absResolution, countMode, noBuffer));
-            } else {
-              return executeBinQueryWithRetry(
-                  SQLQueryBuilder.buildMvtEncapsuledQuery(
-                      spaceTable(),
-                      SQLQueryBuilder.buildQuadbinClusteringQuery(
-                          event, bbox, relResolution, absResolution, countMode, noBuffer),
-                      mercatorTile,
-                      hereTile,
-                      bbox,
-                      mvtMargin,
-                      bMvtFlattend));
-            }
-
-          default:
-            break; // fall back to non-tweaks usage.
+          if (!bMvtRequested) {
+            return executeQueryWithRetry(
+                SQLQueryBuilder.buildQuadbinClusteringQuery(
+                    event, bbox, relResolution, absResolution, quadBinClustering.countMode, quadBinClustering.noBuffer));
+          } else {
+            return executeBinQueryWithRetry(
+                SQLQueryBuilder.buildMvtEncapsuledQuery(
+                    spaceTable(),
+                    SQLQueryBuilder.buildQuadbinClusteringQuery(
+                        event, bbox, relResolution, absResolution, quadBinClustering.countMode, quadBinClustering.noBuffer),
+                    mercatorTile,
+                    hereTile,
+                    bbox,
+                    mvtMargin,
+                    bMvtFlattend));
+          }
         }
       }
 
@@ -632,7 +560,7 @@ public class PsqlStorage extends ExtendedEventHandler {
       } else {
         return executeBinQueryWithRetry(
             SQLQueryBuilder.buildMvtEncapsuledQuery(
-                event.getSpace(),
+                event.getSpaceId(),
                 SQLQueryBuilder.buildGetFeaturesByBBoxQuery(event),
                 mercatorTile,
                 hereTile,
@@ -641,7 +569,8 @@ public class PsqlStorage extends ExtendedEventHandler {
                 bMvtFlattend));
       }
 
-    } catch (SQLException e) {
+    } catch (
+        SQLException e) {
       return checkSQLException(e);
     } finally {
       currentTask().info("Finished : {}", event.getClass().getSimpleName());
@@ -652,12 +581,12 @@ public class PsqlStorage extends ExtendedEventHandler {
    * Check if request parameters are valid. In case of invalidity throw an Exception
    */
   private void checkQuadbinInput(
-      String countMode, int relResolution, GetFeaturesByBBoxEvent event, String streamId)
-      throws ErrorResponseException {
-    if (countMode != null
-        && (!countMode.equalsIgnoreCase(COUNTMODE_REAL)
-        && !countMode.equalsIgnoreCase(COUNTMODE_ESTIMATED)
-        && !countMode.equalsIgnoreCase(COUNTMODE_MIXED))) {
+      @Nullable CountMode countMode,
+      int relResolution,
+      @NotNull GetFeaturesByBBoxEvent event,
+      String streamId
+  ) throws ErrorResponseException {
+    if (countMode == null) {
       throw new ErrorResponseException(
           streamId,
           XyzError.ILLEGAL_ARGUMENT,
@@ -739,7 +668,7 @@ public class PsqlStorage extends ExtendedEventHandler {
 
       // For testing purposes.
       if (event
-          .getSpace()
+          .getSpaceId()
           .contains("illegal_argument")) // TODO: Remove testing code from the actual connector
       // implementation
       {
@@ -835,7 +764,7 @@ public class PsqlStorage extends ExtendedEventHandler {
       // Call finalize feature
       Stream.of(inserts, updates, upserts)
           .flatMap(Collection::stream)
-          .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace(), addUUID));
+          .forEach(feature -> Feature.finalizeFeature(feature, event.getSpaceId(), addUUID));
       return executeModifyFeatures(event);
     } catch (SQLException e) {
       return checkSQLException(e);

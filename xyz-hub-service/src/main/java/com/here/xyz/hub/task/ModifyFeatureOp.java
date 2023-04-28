@@ -19,14 +19,14 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.CREATED_AT;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.MUUID;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.PROPERTIES;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.PUUID;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.REVISION;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.SPACE;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.UPDATED_AT;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.UUID;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.CREATED_AT;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.MUUID;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.PROPERTIES;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.PUUID;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.REVISION;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.SPACE;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.UPDATED_AT;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.UUID;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;

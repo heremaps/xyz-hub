@@ -20,21 +20,25 @@
 package com.here.xyz.events.feature;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.xyz.events.clustering.Clustering;
+import com.here.xyz.events.tweaks.Tweaks;
 import com.here.xyz.models.geojson.coordinates.BBox;
-import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetFeaturesByBBoxEvent")
 public class GetFeaturesByBBoxEvent extends SpatialQueryEvent {
 
-  private BBox bbox;
-  private String clusteringType;
-  private Map<String, Object> clusteringParams;
-  private String tweakType;
-  private Map<String, Object> tweakParams;
-  private String optimizationMode;
-  private String vizSampling;
+  @JsonProperty
+  public BBox bbox;
+
+  @JsonProperty
+  public Clustering clustering;
+
+  @JsonProperty
+  public Tweaks tweaks;
 
   public BBox getBbox() {
     return this.bbox;
@@ -44,61 +48,19 @@ public class GetFeaturesByBBoxEvent extends SpatialQueryEvent {
     this.bbox = bbox;
   }
 
-  @SuppressWarnings("unused")
-  public String getClusteringType() {
-    return this.clusteringType;
+  public @Nullable Clustering getClustering() {
+    return this.clustering;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setClusteringType(String clusteringType) {
-    this.clusteringType = clusteringType;
+  public void setClustering(@Nullable Clustering clustering) {
+    this.clustering = clustering;
   }
 
-  @SuppressWarnings("unused")
-  public Map<String, Object> getClusteringParams() {
-    return this.clusteringParams;
+  public @Nullable Tweaks getTweaks() {
+    return this.tweaks;
   }
 
-  public void setClusteringParams(Map<String, Object> clusteringParams) {
-    this.clusteringParams = clusteringParams;
-  }
-
-  @SuppressWarnings("unused")
-  public String getTweakType() {
-    return this.tweakType;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setTweakType(String tweakType) {
-    this.tweakType = tweakType;
-  }
-
-  @SuppressWarnings("unused")
-  public Map<String, Object> getTweakParams() {
-    return this.tweakParams;
-  }
-
-  public void setTweakParams(Map<String, Object> tweakParams) {
-    this.tweakParams = tweakParams;
-  }
-
-  @SuppressWarnings("unused")
-  public String getOptimizationMode() {
-    return this.optimizationMode;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setOptimizationMode(String optimizationMode) {
-    this.optimizationMode = optimizationMode;
-  }
-
-  @SuppressWarnings("unused")
-  public String getVizSampling() {
-    return this.vizSampling;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setVizSampling(String vizSampling) {
-    this.vizSampling = vizSampling;
+  public void setTweaks(@Nullable Tweaks tweaks) {
+    this.tweaks = tweaks;
   }
 }

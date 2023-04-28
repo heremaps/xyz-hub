@@ -47,7 +47,7 @@ import static io.vertx.core.http.HttpMethod.PUT;
 import com.google.common.base.Strings;
 import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.feature.FeatureTask;
+import com.here.xyz.hub.task.feature.AbstractFeatureTask;
 import com.here.xyz.hub.task.TaskPipelineCancelled;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -359,7 +359,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
     return cors;
   }
 
-  public static <T extends FeatureTask> void addStreamInfo(RoutingContext context, String streamInfoKey, Object streamInfoValue) {
+  public static <T extends AbstractFeatureTask> void addStreamInfo(RoutingContext context, String streamInfoKey, Object streamInfoValue) {
     if (context.get(STREAM_INFO_CTX_KEY) == null)
       context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>());
 

@@ -37,7 +37,7 @@ import com.amazonaws.services.dynamodbv2.model.PutItemResult;
 import com.amazonaws.util.CollectionUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.util.ARN;
@@ -312,7 +312,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+      SpaceSelectionCondition selectedCondition, PropertyQueryOr propsQuery) {
     logger.info(marker, "Getting selected spaces");
 
     if (authorizedCondition == null || selectedCondition == null)
@@ -335,7 +335,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   }
 
   private void getSelectedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, Promise<List<Space>> p) {
+      SpaceSelectionCondition selectedCondition, PropertyQueryOr propsQuery, Promise<List<Space>> p) {
     final List<Space> result = new ArrayList<>();
     try {
       final Set<String> authorizedSpaces = getAuthorizedSpacesSync(marker, authorizedCondition);

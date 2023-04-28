@@ -7,7 +7,7 @@ import io.vertx.ext.web.RoutingContext;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
-public class ModifySubscriptionQuery extends FeatureTask<ModifySubscriptionEvent> {
+public class ModifySubscriptionQuery extends AbstractFeatureTask<ModifySubscriptionEvent> {
 
   public ModifySubscriptionQuery(
       @NotNull ModifySubscriptionEvent event,

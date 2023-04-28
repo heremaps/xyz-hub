@@ -15,7 +15,7 @@ import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public final class ConditionalModifyFeaturesTask extends FeatureTask<ModifyFeaturesEvent, ConditionalModifyFeaturesTask> {
+public final class ConditionalModifyFeaturesTask extends AbstractFeatureTask {
 
   public @Nullable ModifyFeatureOp modifyOp;
   public @Nullable ModifyOp.IfNotExists ifNotExists;

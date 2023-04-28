@@ -18,20 +18,29 @@
  */
 package com.here.xyz.psql;
 
-import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
+import static com.here.xyz.XyzSerializable.format;
+import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.GEO_JSON;
 
 import com.here.mapcreator.ext.naksha.sql.H3SQL;
 import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
+import com.here.xyz.events.Sampling;
+import com.here.xyz.events.clustering.ClusteringHexBin;
+import com.here.xyz.events.clustering.ClusteringQuadBin.CountMode;
 import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.feature.GetFeaturesByTileEvent;
-import com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType;
+import com.here.xyz.events.feature.GetFeaturesByTileResponseType;
 import com.here.xyz.events.info.GetHistoryStatisticsEvent;
 import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.events.feature.history.IterateHistoryEvent;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.feature.QueryEvent;
+import com.here.xyz.events.tweaks.Tweaks;
+import com.here.xyz.events.tweaks.TweaksEnsure;
+import com.here.xyz.events.tweaks.TweaksSampling;
+import com.here.xyz.events.tweaks.TweaksSampling.Algorithm;
+import com.here.xyz.events.tweaks.TweaksSimplification;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -42,18 +51,21 @@ import com.here.mapcreator.ext.naksha.sql.DhString;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class SQLQueryBuilder {
+
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   private static final Integer BIG_SPACE_THRESHOLD = 10000;
 
-  public static @NotNull SQLQuery buildGetStatisticsQuery(@NotNull PsqlStorage processor, boolean historyMode) {
+  public static @NotNull SQLQuery buildGetStatisticsQuery(@NotNull PsqlEventHandler processor, boolean historyMode) {
     String function;
-    if (processor.event() instanceof GetHistoryStatisticsEvent) function = "xyz_statistic_history";
-    else function = "xyz_statistic_space";
+    if (processor.event() instanceof GetHistoryStatisticsEvent) {
+      function = "xyz_statistic_history";
+    } else {
+      function = "xyz_statistic_space";
+    }
     final String schema = processor.spaceSchema();
     final String table = historyMode ? processor.spaceHistoryTable() : processor.spaceTable();
     return new SQLQuery("SELECT * from " + schema + "." + function + "('" + schema + "','" + table + "')");
@@ -81,81 +93,59 @@ public class SQLQueryBuilder {
 
   /***************************************** CLUSTERING ******************************************************/
 
-  private static int evalH3Resolution(
-      Map<String, Object> clusteringParams, int defaultResForLevel) {
-    int h3res = defaultResForLevel,
-        overzoomingRes = 2; // restrict to "defaultResForLevel + 2" as maximum resolution per level
+  private static int evalH3Resolution(final @NotNull ClusteringHexBin clustering, final int defaultAbsoluteResForLevel) {
+    // Restrict to "defaultResForLevel + 2" as maximum resolution per level.
+    final int OVER_ZOOMING_RES = ClusteringHexBin.MIN_RESOLUTION;
+    int h3res = defaultAbsoluteResForLevel;
 
-    if (clusteringParams == null) return h3res;
     /** deprecated */
-    if (clusteringParams.get(H3SQL.HEXBIN_RESOLUTION) != null)
-      h3res =
-          Math.min(
-              (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION),
-              defaultResForLevel + overzoomingRes);
-    /***/
-    if (clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE) != null)
-      h3res =
-          Math.min(
-              (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_ABSOLUTE),
-              defaultResForLevel + overzoomingRes);
-
-    if (clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE) != null)
-      h3res +=
-          Math.max(
-              -2, Math.min(2, (Integer) clusteringParams.get(H3SQL.HEXBIN_RESOLUTION_RELATIVE)));
-
-    return Math.min(Math.min(h3res, defaultResForLevel + overzoomingRes), 13); // cut to maximum res
+    if (clustering.getAbsoluteResolution() != null) {
+      h3res = Math.min(clustering.getAbsoluteResolution(), defaultAbsoluteResForLevel + OVER_ZOOMING_RES);
+    }
+    if (clustering.getRelativeResolution() != null) {
+      h3res += clustering.getRelativeResolution();
+    }
+    h3res = Math.min(Math.min(h3res, defaultAbsoluteResForLevel + OVER_ZOOMING_RES), ClusteringHexBin.MAX_RESOLUTION);
+    return h3res;
   }
 
   public static SQLQuery buildHexbinClusteringQuery(
-      GetFeaturesByBBoxEvent event, BBox bbox, Map<String, Object> clusteringParams) {
+      @NotNull GetFeaturesByBBoxEvent event,
+      @NotNull BBox bbox,
+      @NotNull ClusteringHexBin clustering
+  ) {
+    final Sampling sampling = clustering.sampling;
+    final int zLevel = event instanceof GetFeaturesByTileEvent
+        ? ((GetFeaturesByTileEvent) event).getLevel()
+        : H3SQL.bbox2zoom(bbox);
+    final int defaultResForLevel = H3SQL.zoom2resolution(zLevel);
+    final int h3res = evalH3Resolution(clustering, defaultResForLevel);
+    // prevent ERROR:  Antipodal (180 degrees long) edge detected!
+    if (zLevel == 1) {
+      if (bbox.minLon() == 0.0) {
+        bbox.setEast(bbox.maxLon() - 0.0001);
+      } else {
+        bbox.setWest(bbox.minLon() + 0.0001);
+      }
+    }
 
-    int
-        zLevel =
-        (event instanceof GetFeaturesByTileEvent
-            ? ((GetFeaturesByTileEvent) event).getLevel()
-            : H3SQL.bbox2zoom(bbox)),
-        defaultResForLevel = H3SQL.zoom2resolution(zLevel),
-        h3res = evalH3Resolution(clusteringParams, defaultResForLevel);
+    final boolean statisticalPropertyProvided = clustering.property != null && clustering.property.length() > 0;
+    final boolean h3cflip = clustering.pointMode == Boolean.TRUE;
+    // TODO: replace format %.14f with parameterized version.
+    final String expBboxSql = String.format(
+        "st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, (2.5 * edgeLengthM( %d )) )::geometry )",
+        bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res
+    );
 
-    if (zLevel == 1) // prevent ERROR:  Antipodal (180 degrees long) edge detected!
-      if (bbox.minLon() == 0.0) bbox.setEast(bbox.maxLon() - 0.0001);
-      else bbox.setWest(bbox.minLon() + 0.0001);
-
-    String statisticalProperty = (String) clusteringParams.get(H3SQL.HEXBIN_PROPERTY);
-    boolean
-        statisticalPropertyProvided =
-        (statisticalProperty != null && statisticalProperty.length() > 0),
-        h3cflip = (clusteringParams.get(H3SQL.HEXBIN_POINTMODE) == Boolean.TRUE);
-    /** todo: replace format %.14f with parameterized version */
-    final String expBboxSql =
-        String.format(
-            "st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, ("
-                + " 2.5 * edgeLengthM( %d )) )::geometry )",
-            bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res);
-
-    /*clippedGeo - passed bbox is extended by "margin" on service level */
-    String
-        clippedGeo =
-        (!event.getClip()
-            ? "geo"
-            : String.format(
-                "ST_Intersection(st_makevalid(geo),ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f,4326)"
-                    + " )",
-                bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
-        fid =
-            (!event.getClip()
-                ? "h3"
-                : DhString.format("h3 || %f || %f", bbox.minLon(), bbox.minLat())),
-        filterEmptyGeo =
-            (!event.getClip() ? "" : DhString.format(" and not st_isempty( %s ) ", clippedGeo));
+    // clippedGeo - passed bbox is extended by "margin" on service level
+    final String clippedGeo = (!event.getClip() ? "geo" : String.format(
+        "ST_Intersection(st_makevalid(geo),ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f,4326))",
+        bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat()));
+    final String fid = (!event.getClip() ? "h3" : DhString.format("h3 || %f || %f", bbox.minLon(), bbox.minLat()));
+    final String filterEmptyGeo = !event.getClip() ? "" : DhString.format(" and not st_isempty( %s ) ", clippedGeo);
 
     final SQLQuery searchQuery = generateSearchQuery(event);
-
-    String aggField =
-        (statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg");
-
+    final String aggField = (statisticalPropertyProvided ? "jsonb_set('{}'::jsonb, ? , agg::jsonb)::json" : "agg");
     final SQLQuery query =
         new SQLQuery(
             DhString.format(
@@ -176,20 +166,13 @@ public class SQLQueryBuilder {
 
     if (statisticalPropertyProvided) {
       ArrayList<String> jpath = new ArrayList<>();
-      jpath.add(statisticalProperty);
-      query.addParameter(jpath.toArray(new String[] {}));
+      jpath.add(clustering.property);
+      query.addParameter(jpath.toArray(new String[]{}));
     }
 
-    int pxSize = H3SQL.adjPixelSize(h3res, defaultResForLevel);
-
-    String h3sqlMid =
-        H3SQL.h3sqlMid(clusteringParams.get(H3SQL.HEXBIN_SINGLECOORD) == Boolean.TRUE);
-
-    int samplingStrength =
-        samplingStrengthFromText(
-            (String) clusteringParams.getOrDefault(H3SQL.HEXBIN_SAMPLING, "off"), false);
-    String samplingCondition =
-        (samplingStrength <= 0 ? "1 = 1" : TweaksSQL.strengthSql(samplingStrength, true));
+    final int pxSize = H3SQL.adjPixelSize(h3res, defaultResForLevel);
+    final String h3sqlMid = H3SQL.h3sqlMid(clustering.singleCoord == Boolean.TRUE);
+    final String samplingCondition = sampling == Sampling.OFF ? "1 = 1" : TweaksSQL.strengthSql(sampling.strength, true);
 
     if (!statisticalPropertyProvided) {
       query.append(
@@ -205,7 +188,8 @@ public class SQLQueryBuilder {
     } else {
       ArrayList<String> jpath = new ArrayList<>();
       jpath.add("properties");
-      jpath.addAll(Arrays.asList(statisticalProperty.split("\\.")));
+      // TODO: This is bad, because it does not contain the "properties" prefix!
+      jpath.addAll(Arrays.asList(clustering.property.split("\\.")));
 
       query.append(
           new SQLQuery(
@@ -217,7 +201,7 @@ public class SQLQueryBuilder {
                   pxSize,
                   expBboxSql,
                   samplingCondition)));
-      query.addParameter(jpath.toArray(new String[] {}));
+      query.addParameter(jpath.toArray(new String[]{}));
     }
 
     if (searchQuery != null) {
@@ -242,10 +226,10 @@ public class SQLQueryBuilder {
 
   public static SQLQuery buildQuadbinClusteringQuery(
       @NotNull GetFeaturesByBBoxEvent event,
-      BBox bbox,
+      @NotNull BBox bbox,
       int relResolution,
       int absResolution,
-      String countMode,
+      @NotNull CountMode countMode,
       boolean noBuffer) {
     boolean
         isTileRequest =
@@ -254,15 +238,14 @@ public class SQLQueryBuilder {
         clippedOnBbox = (!isTileRequest && event.getClip());
 
     final WebMercatorTile tile = getTileFromBbox(bbox);
-
-    if ((absResolution - tile.level)
-        >= 0) // case of valid absResolution convert it to a relative resolution and add both
-      // resolutions
+    // In case of valid absResolution convert it to a relative resolution and add both resolutions.
+    if ((absResolution - tile.level) >= 0) {
       relResolution = Math.min(relResolution + (absResolution - tile.level), 5);
+    }
 
     SQLQuery propQuery;
     String propQuerySQL = null;
-    final PropertiesQuery propertiesQuery = event.getPropertiesQuery();
+    final PropertyQueryOr propertiesQuery = event.getPropertiesQuery();
 
     if (propertiesQuery != null) {
       propQuery = generatePropertiesQuery(propertiesQuery);
@@ -290,18 +273,19 @@ public class SQLQueryBuilder {
 
   /***************************************** TWEAKS **************************************************/
 
-  public static ResponseType getResponseType(GetFeaturesByBBoxEvent event) {
-    if (event instanceof GetFeaturesByTileEvent)
+  public static GetFeaturesByTileResponseType getResponseType(GetFeaturesByBBoxEvent event) {
+    if (event instanceof GetFeaturesByTileEvent) {
       return ((GetFeaturesByTileEvent) event).getResponseType();
+    }
     return GEO_JSON;
   }
 
-  private static String map2MvtGeom(GetFeaturesByBBoxEvent event, BBox bbox, String tweaksGeoSql) {
-    boolean bExtendTweaks = // -> 2048 only if tweaks or viz been specified explicit
-        ("viz".equals(event.getOptimizationMode())
-            || (event.getTweakParams() != null && event.getTweakParams().size() > 0));
-
-    int extend = (bExtendTweaks ? 2048 : 4096),
+  private static String map2MvtGeom(
+      @NotNull GetFeaturesByBBoxEvent event,
+      @NotNull BBox bbox,
+      @NotNull String tweaksGeoSql,
+      @NotNull Tweaks tweaks) {
+    int extend = tweaks.sampling == Sampling.OFF ? 2048 : 4096,
         extendPerMargin = extend / WebMercatorTile.TileSizeInPixel,
         extendWithMargin = extend,
         level = -1,
@@ -422,284 +406,160 @@ public class SQLQueryBuilder {
         fmt, tweaksGeoSql, bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
   }
 
-  private static int samplingStrengthFromText(String sampling, boolean fiftyOnUnset) {
-    int strength = 0;
-    switch (sampling.toLowerCase()) {
-      case "low":
-        strength = 10;
-        break;
-      case "lowmed":
-        strength = 30;
-        break;
-      case "med":
-        strength = 50;
-        break;
-      case "medhigh":
-        strength = 75;
-        break;
-      case "high":
-        strength = 100;
-        break;
-      default:
-        if (fiftyOnUnset) strength = 50;
-        break;
-    }
-
-    return strength;
-  }
-
   public static SQLQuery buildSamplingTweaksQuery(
-      GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams, boolean bSortByHashedValue)
-      throws SQLException {
-    int strength = 0;
-    boolean bDistribution = true,
-        bDistribution2 = false,
-        bConvertGeo2Geojson = getResponseType(event) == GEO_JSON;
-
-    if (tweakParams != null) {
-      if (tweakParams.get(TweaksSQL.SAMPLING_STRENGTH) instanceof Integer)
-        strength = (int) tweakParams.get(TweaksSQL.SAMPLING_STRENGTH);
-      else
-        strength =
-            samplingStrengthFromText(
-                (String) tweakParams.getOrDefault(TweaksSQL.SAMPLING_STRENGTH, "default"), true);
-
-      switch (((String)
-          tweakParams.getOrDefault(
-              TweaksSQL.SAMPLING_ALGORITHM, TweaksSQL.SAMPLING_ALGORITHM_DST))
-          .toLowerCase()) {
-        case TweaksSQL.SAMPLING_ALGORITHM_SZE:
-          bDistribution = false;
-          break;
-        case TweaksSQL.SAMPLING_ALGORITHM_DST2:
-          bDistribution2 = true;
-        case TweaksSQL.SAMPLING_ALGORITHM_DST:
-        default:
-          bDistribution = true;
-          break;
-      }
-    }
-
-    boolean bEnsureMode = TweaksSQL.ENSURE.equalsIgnoreCase(event.getTweakType());
-
-    float tblSampleRatio =
-        ((strength > 0 && bDistribution2) ? TweaksSQL.tableSampleRatio(strength) : -1f);
-
-    final String
-        sCondition =
-        (((bEnsureMode && strength == 0) || (tblSampleRatio >= 0.0))
-            ? "1 = 1"
-            : TweaksSQL.strengthSql(strength, bDistribution)),
-        twqry =
-            DhString.format(
-                DhString.format(
-                    "ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)"
-                        + " ) and %%s",
-                    14 /*GEOMETRY_DECIMAL_DIGITS*/),
-                bbox.minLon(),
-                bbox.minLat(),
-                bbox.maxLon(),
-                bbox.maxLat(),
-                sCondition);
+      @NotNull GetFeaturesByBBoxEvent event,
+      @NotNull BBox bbox,
+      @NotNull TweaksSampling tweaks,
+      final boolean bSortByHashedValue
+  ) throws SQLException {
+    final boolean bConvertGeo2GeoJson = getResponseType(event) == GEO_JSON;
+    final @Nullable TweaksEnsure ensure = tweaks instanceof TweaksEnsure ? (TweaksEnsure) tweaks : null;
+    final Algorithm algorithm = tweaks.algorithm();
+    final float tblSampleRatio = tweaks.sampling.strength > 0 && algorithm.distribution2
+        ? TweaksSQL.tableSampleRatio(tweaks.sampling.strength) : -1f;
+    final String sCondition = tblSampleRatio >= 0.0f || ensure != null || tweaks.sampling.strength == 0
+        ? "1 = 1" : TweaksSQL.strengthSql(tweaks.sampling.strength, algorithm.distribution);
+    final String twqry = DhString.format(DhString.format(
+            "ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326)) and %%s",
+            14 /*GEOMETRY_DECIMAL_DIGITS*/),
+        bbox.minLon(),
+        bbox.minLat(),
+        bbox.maxLon(),
+        bbox.maxLat(),
+        sCondition);
 
     final SQLQuery tweakQuery = new SQLQuery(twqry);
 
-    if (!bEnsureMode || !bConvertGeo2Geojson) {
+    if (ensure == null || !bConvertGeo2GeoJson) {
       SQLQuery combinedQuery = generateCombinedQuery(event, tweakQuery);
-      if (tblSampleRatio > 0.0)
+      if (tblSampleRatio > 0.0) {
         combinedQuery.setQueryFragment(
             "tableSample",
             DhString.format("tablesample system(%.6f) repeatable(499)", 100.0 * tblSampleRatio));
-      if (bSortByHashedValue)
+      }
+      if (bSortByHashedValue) {
         combinedQuery.setQueryFragment(
             "orderBy", "ORDER BY " + TweaksSQL.distributionFunctionIndexExpression());
+      }
       return combinedQuery;
     }
 
     /* TweaksSQL.ENSURE and geojson requested (no mvt) */
-    boolean bTestTweaksGeoIfNull = false;
     String tweaksGeoSql = clipProjGeom(bbox, "geo");
-    tweaksGeoSql = map2MvtGeom(event, bbox, tweaksGeoSql);
+    tweaksGeoSql = map2MvtGeom(event, bbox, tweaksGeoSql, tweaks);
     // convert to geojson
-    tweaksGeoSql =
-        (bConvertGeo2Geojson
-            ? DhString.format(
-            "replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",
-            tweaksGeoSql,
-            GEOMETRY_DECIMAL_DIGITS)
-            : DhString.format(getForceMode(event.isForce2D()) + "( %s )", tweaksGeoSql));
+    tweaksGeoSql = DhString.format("replace(ST_AsGeojson(" + getForceMode(event.isForce2D()) + "( %s ),%d),'nan','0')",
+        tweaksGeoSql, GEOMETRY_DECIMAL_DIGITS);
+    // This code was unreachable, what was the intention?
+    // DhString.format(getForceMode(event.isForce2D()) + "( %s )", tweaksGeoSql));
 
-    return generateCombinedQueryTweaks(
-        event, tweakQuery, tweaksGeoSql, bTestTweaksGeoIfNull, tblSampleRatio, bSortByHashedValue);
+    return generateCombinedQueryTweaks(event, tweakQuery, tweaksGeoSql, false, tblSampleRatio, bSortByHashedValue);
   }
 
   private static double cToleranceFromStrength(int strength) {
     double tolerance = 0.0001;
-    if (strength > 0 && strength <= 25)
+    if (strength > 0 && strength <= 25) {
       tolerance = 0.0001 + ((0.001 - 0.0001) / 25.0) * (strength - 1);
-    else if (strength > 25 && strength <= 50)
+    } else if (strength > 25 && strength <= 50) {
       tolerance = 0.001 + ((0.01 - 0.001) / 25.0) * (strength - 26);
-    else if (strength > 50 && strength <= 75)
+    } else if (strength > 50 && strength <= 75) {
       tolerance = 0.01 + ((0.1 - 0.01) / 25.0) * (strength - 51);
-    else /* [76 - 100 ] */ tolerance = 0.1 + ((1.0 - 0.1) / 25.0) * (strength - 76);
+    } else /* [76 - 100 ] */ {
+      tolerance = 0.1 + ((1.0 - 0.1) / 25.0) * (strength - 76);
+    }
 
     return tolerance;
   }
 
+  @SuppressWarnings("ConstantConditions")
   public static SQLQuery buildSimplificationTweaksQuery(
-      GetFeaturesByBBoxEvent event, BBox bbox, Map tweakParams) throws SQLException {
-    int strength = 0, iMerge = 0;
+      @NotNull GetFeaturesByBBoxEvent event,
+      @NotNull BBox bbox,
+      @NotNull TweaksSimplification simplification
+  ) throws SQLException {
+    final TweaksSimplification.Algorithm algorithm = simplification.algorithm;
+    final boolean bConvertGeo2GeoJson = getResponseType(event) == GEO_JSON;
+    final boolean bMvtRequested = !bConvertGeo2GeoJson;
     String tweaksGeoSql = "geo";
-    boolean bStrength = true,
-        bTestTweaksGeoIfNull = true,
-        bConvertGeo2Geojson = getResponseType(event) == GEO_JSON,
-        bMvtRequested = !bConvertGeo2Geojson;
 
-    if (tweakParams != null) {
-      if (tweakParams.get(TweaksSQL.SIMPLIFICATION_STRENGTH) instanceof Integer)
-        strength = (int) tweakParams.get(TweaksSQL.SIMPLIFICATION_STRENGTH);
-      else
-        switch (((String) tweakParams.getOrDefault(TweaksSQL.SIMPLIFICATION_STRENGTH, "default"))
-            .toLowerCase()) {
-          case "low":
-            strength = 20;
-            break;
-          case "lowmed":
-            strength = 40;
-            break;
-          case "med":
-            strength = 60;
-            break;
-          case "medhigh":
-            strength = 80;
-            break;
-          case "high":
-            strength = 100;
-            break;
-          case "default":
-            bStrength = false;
-          default:
-            strength = 50;
-            break;
-        }
-
-      String tweaksAlgorithm =
-          ((String) tweakParams.getOrDefault(TweaksSQL.SIMPLIFICATION_ALGORITHM, "default"))
-              .toLowerCase();
-
-      // do clip before simplification -- preventing extrem large polygon for further working steps
-      // (except for mvt with gridbytilelevel, redundancy)
-      if (event.getClip()
-          && !(TweaksSQL.SIMPLIFICATION_ALGORITHM_A05.equals(tweaksAlgorithm) && bMvtRequested))
-        tweaksGeoSql = clipProjGeom(bbox, tweaksGeoSql);
-
-      // SIMPLIFICATION_ALGORITHM
-      int hint = 0;
-      String[] pgisAlgorithm = {"ST_SnapToGrid", "ftm_SimplifyPreserveTopology", "ftm_Simplify"};
-
-      switch (tweaksAlgorithm) {
-        case TweaksSQL.SIMPLIFICATION_ALGORITHM_A03:
-          hint++;
-        case TweaksSQL.SIMPLIFICATION_ALGORITHM_A02:
-          hint++;
-        case TweaksSQL.SIMPLIFICATION_ALGORITHM_A01:
-        {
-          double tolerance =
-              (bStrength
-                  ? cToleranceFromStrength(strength)
-                  : Math.abs(bbox.maxLon() - bbox.minLon()) / 4096);
-          tweaksGeoSql =
-              DhString.format("%s(%s, %f)", pgisAlgorithm[hint], tweaksGeoSql, tolerance);
-        }
-        break;
-
-        case TweaksSQL.SIMPLIFICATION_ALGORITHM_A05: // gridbytilelevel - convert to/from mvt
-        {
-          if (!bMvtRequested) tweaksGeoSql = map2MvtGeom(event, bbox, tweaksGeoSql);
-          bTestTweaksGeoIfNull = false;
-        }
-        break;
-
-        case TweaksSQL.SIMPLIFICATION_ALGORITHM_A06:
-          iMerge++;
-        case TweaksSQL.SIMPLIFICATION_ALGORITHM_A04:
-          iMerge++;
-          break;
-
-        default:
-          break;
-      }
-
-      // convert to geojson
-      tweaksGeoSql =
-          (bConvertGeo2Geojson
-              ? DhString.format(
-              "replace(ST_AsGeojson("
-                  + getForceMode(event.isForce2D())
-                  + "( %s ),%d),'nan','0')",
-              tweaksGeoSql,
-              GEOMETRY_DECIMAL_DIGITS)
-              : DhString.format(getForceMode(event.isForce2D()) + "( %s )", tweaksGeoSql));
+    // Do clip before simplification -- preventing extrem large polygon for further working steps.
+    // Except for mvt with "gridbytilelevel", where this is redundant.
+    if (event.getClip() && algorithm != TweaksSimplification.Algorithm.GRID_BY_TILE_LEVEL && bMvtRequested) {
+      tweaksGeoSql = clipProjGeom(bbox, tweaksGeoSql);
     }
 
-    final String bboxqry =
-        DhString.format(
-            DhString.format(
-                "ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )",
-                14 /*GEOMETRY_DECIMAL_DIGITS*/),
-            bbox.minLon(),
-            bbox.minLat(),
-            bbox.maxLon(),
-            bbox.maxLat());
+    // SIMPLIFICATION_ALGORITHM
+    final boolean bTestTweaksGeoIfNull;
+    if (algorithm.pgisAlgorithm != null) {
+      final double tolerance = simplification.sampling.strength > 0 ?
+          cToleranceFromStrength(simplification.sampling.strength)
+          : Math.abs(bbox.maxLon() - bbox.minLon()) / 4096;
+      tweaksGeoSql = format("%s(%s, %f)", algorithm.pgisAlgorithm, tweaksGeoSql, tolerance);
+      bTestTweaksGeoIfNull = true;
+    } else if (algorithm == TweaksSimplification.Algorithm.GRID_BY_TILE_LEVEL) {
+      if (!bMvtRequested) {
+        tweaksGeoSql = map2MvtGeom(event, bbox, tweaksGeoSql, simplification);
+      }
+      bTestTweaksGeoIfNull = false;
+    } else {
+      bTestTweaksGeoIfNull = true;
+    }
 
-    if (iMerge == 0)
-      return generateCombinedQueryTweaks(
-          event, new SQLQuery(bboxqry), tweaksGeoSql, bTestTweaksGeoIfNull);
+    // Convert to GeoJson.
+    tweaksGeoSql = bConvertGeo2GeoJson ?
+        format("replace(ST_AsGeojson(%s( %s ),%d),'nan','0')", getForceMode(event.isForce2D()), tweaksGeoSql, GEOMETRY_DECIMAL_DIGITS)
+        : format("%s( %s )", getForceMode(event.isForce2D()), tweaksGeoSql);
 
-    // Merge Algorithm - only using low, med, high
+    // TODO: Simplify this, the code is too hard to read!
+    final String bboxqry = format(
+        format("ST_Intersects(geo, ST_MakeEnvelope(%%.%1$df,%%.%1$df,%%.%1$df,%%.%1$df, 4326) )", 14 /*GEOMETRY_DECIMAL_DIGITS*/),
+        bbox.minLon(),
+        bbox.minLat(),
+        bbox.maxLon(),
+        bbox.maxLat()
+    );
 
-    int minGeoHashLenToMerge = 0, minGeoHashLenForLineMerge = 3;
+    if (algorithm != TweaksSimplification.Algorithm.MERGE && algorithm != TweaksSimplification.Algorithm.LINE_MERGE) {
+      return generateCombinedQueryTweaks(event, new SQLQuery(bboxqry), tweaksGeoSql, bTestTweaksGeoIfNull);
+    }
+    assert algorithm == TweaksSimplification.Algorithm.MERGE || algorithm == TweaksSimplification.Algorithm.LINE_MERGE;
 
-    if (strength <= 20) {
+    int minGeoHashLenToMerge = 0;
+    int minGeoHashLenForLineMerge = 3;
+    if (simplification.sampling.strength <= 20) {
       minGeoHashLenToMerge = 7;
       minGeoHashLenForLineMerge = 7;
-    } // low
-    else if (strength <= 40) {
+    } else if (simplification.sampling.strength <= 40) {
       minGeoHashLenToMerge = 6;
       minGeoHashLenForLineMerge = 6;
-    } // lowmed
-    else if (strength <= 60) {
+    } else if (simplification.sampling.strength <= 60) {
       minGeoHashLenToMerge = 6;
       minGeoHashLenForLineMerge = 5;
-    } // med
-    else if (strength <= 80) {
+    } else if (simplification.sampling.strength <= 80) {
       minGeoHashLenForLineMerge = 4;
-    } // medhigh
+    }
 
-    if ("geo".equals(tweaksGeoSql)) // formal, just in case
-      tweaksGeoSql =
-          (bConvertGeo2Geojson
-              ? DhString.format(
-              "replace(ST_AsGeojson("
-                  + getForceMode(event.isForce2D())
-                  + "( %s ),%d),'nan','0')",
-              tweaksGeoSql,
-              GEOMETRY_DECIMAL_DIGITS)
-              : DhString.format(getForceMode(event.isForce2D()) + "( %s )", tweaksGeoSql));
+    if ("geo".equals(tweaksGeoSql)) {
+      final String forceMode = getForceMode(event.isForce2D());
+      if (bConvertGeo2GeoJson) {
+        tweaksGeoSql = format("replace(ST_AsGeojson(%s( %s ),%d),'nan','0')", forceMode, tweaksGeoSql, GEOMETRY_DECIMAL_DIGITS);
+      } else {
+        tweaksGeoSql = format("%s( %s )", forceMode, tweaksGeoSql);
+      }
+    }
 
-    if (bConvertGeo2Geojson) tweaksGeoSql = DhString.format("(%s)::jsonb", tweaksGeoSql);
+    if (bConvertGeo2GeoJson) {
+      tweaksGeoSql = format("(%s)::jsonb", tweaksGeoSql);
+    }
 
-    SQLQuery query =
-        (iMerge == 1
-            ? new SQLQuery(
-            DhString.format(
-                TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry))
-            : new SQLQuery(
-                DhString.format(
-                    TweaksSQL
-                        .linemergeBeginSql, /*(event.getClip() ? clipProjGeom(bbox,"geo") : "geo")*/
-                    "geo",
-                    bboxqry))); // use clipped geom as input (?)
+    final SQLQuery query;
+    if (algorithm == TweaksSimplification.Algorithm.MERGE) {
+      query = new SQLQuery(format(TweaksSQL.mergeBeginSql, tweaksGeoSql, minGeoHashLenToMerge, bboxqry));
+    } else {
+      assert algorithm == TweaksSimplification.Algorithm.LINE_MERGE;
+      // TODO: Use clipped geom as input?
+      query = new SQLQuery(format(TweaksSQL.linemergeBeginSql, "geo", bboxqry));
+    }
 
     final SQLQuery searchQuery = generateSearchQuery(event);
     if (searchQuery != null) {
@@ -707,15 +567,15 @@ public class SQLQueryBuilder {
       query.append(searchQuery);
     }
 
-    if (iMerge == 1) query.append(TweaksSQL.mergeEndSql(bConvertGeo2Geojson));
-    else {
+    if (algorithm == TweaksSimplification.Algorithm.MERGE) {
+      query.append(TweaksSQL.mergeEndSql(bConvertGeo2GeoJson));
+    } else {
+      assert algorithm == TweaksSimplification.Algorithm.LINE_MERGE;
       query.append(DhString.format(TweaksSQL.linemergeEndSql1, minGeoHashLenForLineMerge));
       query.append(SQLQueryExt.selectJson(event));
       query.append(DhString.format(TweaksSQL.linemergeEndSql2, tweaksGeoSql));
     }
-
     query.append("LIMIT ?", event.getLimit());
-
     return query;
   }
 
@@ -739,18 +599,21 @@ public class SQLQueryBuilder {
     ArrayList<BBox> listOfBBoxes = new ArrayList<BBox>();
     int nrTilesXY = 1 << level;
 
-    for (int dy = -1; dy < 2; dy++)
-      for (int dx = -1; dx < 2; dx++)
-        if ((dy == 0) && (dx == 0))
+    for (int dy = -1; dy < 2; dy++) {
+      for (int dx = -1; dx < 2; dx++) {
+        if ((dy == 0) && (dx == 0)) {
           listOfBBoxes.add(bbox); // centerbox, this is already extended by margin
-        else if (((tileY + dy) > 0) && ((tileY + dy) < nrTilesXY))
+        } else if (((tileY + dy) > 0) && ((tileY + dy) < nrTilesXY)) {
           listOfBBoxes.add(
               WebMercatorTile.forWeb(level, ((nrTilesXY + (tileX + dx)) % nrTilesXY), (tileY + dy))
                   .getExtendedBBox(margin));
+        }
+      }
+    }
 
     int flag = 0;
     StringBuilder sb = new StringBuilder();
-    for (BBox b : listOfBBoxes)
+    for (BBox b : listOfBBoxes) {
       sb.append(
           DhString.format(
               "%s%s",
@@ -761,6 +624,7 @@ public class SQLQueryBuilder {
                   b.minLat(),
                   b.maxLon(),
                   b.maxLat())));
+    }
 
     String estimateSubSql =
         (relTuples == null
@@ -826,11 +690,12 @@ public class SQLQueryBuilder {
       query = new SQLQuery("TRUNCATE ${schema}.${table}");
     }
 
-    if (searchQuery != null && includeOldStates)
+    if (searchQuery != null && includeOldStates) {
       query.append(
           " RETURNING jsondata->'id' as id, replace(ST_AsGeojson(ST_Force3D(geo),"
               + GEOMETRY_DECIMAL_DIGITS
               + "),'nan','0') as geometry");
+    }
 
     return query;
   }
@@ -859,15 +724,18 @@ public class SQLQueryBuilder {
           event.getStartVersion());
     }
 
-    if (event.getEndVersion() != 0)
+    if (event.getEndVersion() != 0) {
       query.append(
           "  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= to_jsonb(?::numeric)",
           event.getEndVersion());
+    }
 
     query.append(
         " ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'version' , " + "jsondata->>'id'");
 
-    if (event.getLimit() != 0) query.append("LIMIT ?", event.getLimit());
+    if (event.getLimit() != 0) {
+      query.append("LIMIT ?", event.getLimit());
+    }
 
     return query;
   }
@@ -897,16 +765,19 @@ public class SQLQueryBuilder {
           event.getStartVersion());
     }
 
-    if (event.getEndVersion() != 0)
+    if (event.getEndVersion() != 0) {
       query.append(
           "  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= to_jsonb(?::numeric)",
           event.getEndVersion());
+    }
 
     query.append(
         "   order by jsondata->>'id',"
             + "jsondata->'properties'->'@ns:com:here:xyz'->'version' DESC");
 
-    if (event.getLimit() != 0) query.append("LIMIT ?", event.getLimit());
+    if (event.getLimit() != 0) {
+      query.append("LIMIT ?", event.getLimit());
+    }
 
     return query;
   }
@@ -946,13 +817,17 @@ public class SQLQueryBuilder {
         "   order by jsondata->>'id',"
             + "jsondata->'properties'->'@ns:com:here:xyz'->'version' DESC ");
     query.append(")A WHERE deleted IS NULL  ");
-    if (event.getLimit() != 0) query.append("LIMIT ?", event.getLimit());
+    if (event.getLimit() != 0) {
+      query.append("LIMIT ?", event.getLimit());
+    }
 
     return query;
   }
 
-  /** ###################################################################################### */
-  private static SQLQuery generatePropertiesQuery(PropertiesQuery properties) {
+  /**
+   * ######################################################################################
+   */
+  private static SQLQuery generatePropertiesQuery(PropertyQueryOr properties) {
     return SearchForFeatures.generatePropertiesQueryBWC(properties);
   }
 
@@ -983,9 +858,10 @@ public class SQLQueryBuilder {
       query.append(searchQuery);
     }
 
-    if (bSortByHashedValue)
+    if (bSortByHashedValue) {
       query.append(
           DhString.format(" order by %s ", TweaksSQL.distributionFunctionIndexExpression()));
+    }
 
     query.append(
         DhString.format(" ) tw where %s ", bTestTweaksGeoIfNull ? "geo is not null" : "1 = 1"));
@@ -1073,7 +949,9 @@ public class SQLQueryBuilder {
         "UPDATE ${schema}.${table} SET jsondata = ?::jsonb, geo=ST_Force3D(ST_GeomFromWKB(?,4326))"
             + (withDeletedColumn ? ", deleted=?" : "")
             + " WHERE jsondata->>'id' = ?";
-    if (handleUUID) updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
+    if (handleUUID) {
+      updateStmtSQL += " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
+    }
     return SQLQuery.replaceVars(updateStmtSQL, schema, table);
   }
 
@@ -1086,9 +964,10 @@ public class SQLQueryBuilder {
         "UPDATE ${schema}.${table} SET  jsondata = ?::jsonb, geo=NULL"
             + (withDeletedColumn ? ", deleted=?" : "")
             + " WHERE jsondata->>'id' = ?";
-    if (handleUUID)
+    if (handleUUID) {
       updateWithoutGeometryStmtSQL +=
           " AND jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = ?";
+    }
     return SQLQuery.replaceVars(updateWithoutGeometryStmtSQL, schema, table);
   }
 

@@ -81,7 +81,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setTransaction(false);
     mfevent.setEnableUUID(true);
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
@@ -103,7 +103,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     //Check if updates got written (correct UUID)
     SearchForFeaturesEvent searchEvent = (SearchForFeaturesEvent) new SearchForFeaturesEvent();
     searchEvent.setConnectorParams(defaultTestConnectorParams);
-    searchEvent.setSpace("foo");
+    searchEvent.setSpaceId("foo");
 
     String eventJson = searchEvent.serialize();
     String searchResponse = invokeLambda(eventJson);
@@ -224,7 +224,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
@@ -245,7 +245,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     //Check if nothing got written
     SearchForFeaturesEvent searchEvent = new SearchForFeaturesEvent();
     searchEvent.setConnectorParams(defaultTestConnectorParams);
-    searchEvent.setSpace("foo");
+    searchEvent.setSpaceId("foo");
 
     String eventJson = searchEvent.serialize();
     String searchResponse = invokeLambda(eventJson);
@@ -341,7 +341,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     //Stream
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpace("foo");
+    mfevent.setSpaceId("foo");
     mfevent.setTransaction(false);
     mfevent.setDeleteFeatures(Collections.singletonMap("doesnotexist", null));
     if (withUUID) {

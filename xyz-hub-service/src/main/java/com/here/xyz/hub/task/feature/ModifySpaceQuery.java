@@ -7,7 +7,7 @@ import io.vertx.ext.web.RoutingContext;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
-public class ModifySpaceQuery extends FeatureTask<ModifySpaceEvent> {
+public class ModifySpaceQuery extends AbstractFeatureTask<ModifySpaceEvent> {
 
   public ModifySpaceQuery(
       @NotNull ModifySpaceEvent event,

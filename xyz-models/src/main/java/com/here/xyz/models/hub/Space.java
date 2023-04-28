@@ -72,7 +72,7 @@ public class Space {
    * @param id the space-id.
    * @return The space with the given ID; if any.
    */
-  public static @Nullable Space getSpaceById(@NotNull String id) {
+  public static @Nullable Space getById(@NotNull String id) {
     return spaces.get(id);
   }
 

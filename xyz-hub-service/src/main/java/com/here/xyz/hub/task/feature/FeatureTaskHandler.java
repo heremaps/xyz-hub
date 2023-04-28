@@ -23,10 +23,10 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATUR
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT_FLATTENED;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.BBOX;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.ID;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.PROPERTIES;
-import static com.here.xyz.hub.task.feature.FeatureTask.FeatureKey.TYPE;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.BBOX;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.ID;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.PROPERTIES;
+import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.TYPE;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
@@ -41,7 +41,7 @@ import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.Event.TrustedParams;
+import com.here.xyz.events.TrustedParams;
 import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.info.GetHistoryStatisticsEvent;
 import com.here.xyz.events.info.GetStatisticsEvent;
@@ -63,7 +63,7 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ICallback;
 import com.here.xyz.hub.task.ModifyFeatureOp;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.AbstractEventTask;
 import com.here.xyz.hub.task.feature.TileQuery.TransformationContext;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.Entry;
@@ -159,7 +159,7 @@ public class FeatureTaskHandler {
    * @param callback the callback handler
    * @param <T> the type of the FeatureTask
    */
-  public static <T extends FeatureTask> void invoke(T task, ICallback<T> callback) {
+  public static <T extends AbstractFeatureTask> void invoke(T task, ICallback<T> callback) {
     /*
     In case there is already, nothing has to be done here (happens if the response was set by an earlier process in the task pipeline
     e.g. when having a cache hit)
@@ -172,7 +172,7 @@ public class FeatureTaskHandler {
      * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
      *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
      *
-     * @see XyzHubTask#consumeEvent()
+     * @see AbstractEventTask#consumeEvent()
      */
     Event event = task.consumeEvent();
 
@@ -311,13 +311,13 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void addConnectorPerformanceInfo(T task, long storageTime, RpcContext rpcContext, String eventPrefix) {
+  private static <T extends AbstractFeatureTask> void addConnectorPerformanceInfo(T task, long storageTime, RpcContext rpcContext, String eventPrefix) {
     AbstractHttpServerVerticle.addStreamInfo(task.routingContext, eventPrefix + "Time", storageTime);
     if (rpcContext != null)
       AbstractHttpServerVerticle.addStreamInfo(task.routingContext, eventPrefix + "ResSize", rpcContext.getResponseSize());
   }
 
-  private static <T extends FeatureTask> void addProcessorPerformanceInfo(T task, long processorTime, RpcContext rpcContext, int processorNo) {
+  private static <T extends AbstractFeatureTask> void addProcessorPerformanceInfo(T task, long processorTime, RpcContext rpcContext, int processorNo) {
     addConnectorPerformanceInfo(task, processorTime, rpcContext, "P" + processorNo);
   }
 
@@ -341,7 +341,7 @@ public class FeatureTaskHandler {
     return b.getBytes();
   }
 
-  public static <T extends FeatureTask> void readCache(T task, ICallback<T> callback) {
+  public static <T extends AbstractFeatureTask> void readCache(T task, ICallback<T> callback) {
     if (task.getCacheProfile().serviceTTL > 0) {
       String cacheKey = task.getCacheKey();
 
@@ -377,7 +377,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  public static <T extends FeatureTask> void writeCache(T task, ICallback<T> callback) {
+  public static <T extends AbstractFeatureTask> void writeCache(T task, ICallback<T> callback) {
     callback.success(task);
     //From here everything is done asynchronous
     final CacheProfile cacheProfile = task.getCacheProfile();
@@ -403,7 +403,7 @@ public class FeatureTaskHandler {
    * @param <T> the type of the FeatureTask
    * @return Whether to stop the execution as of an exception occurred
    */
-  private static <T extends FeatureTask> boolean callProcessedHook(T task, Event event, ICallback<T> callback) {
+  private static <T extends AbstractFeatureTask> boolean callProcessedHook(T task, Event event, ICallback<T> callback) {
     try {
       task.onPreProcessed(event);
       return false;
@@ -430,7 +430,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void handleProcessorFailure(Marker marker, AsyncResult<XyzResponse> processingResult,
+  private static <T extends AbstractFeatureTask> void handleProcessorFailure(Marker marker, AsyncResult<XyzResponse> processingResult,
       ICallback<T> callback) {
     if (processingResult.failed())
       callback.throwException(processingResult.cause());
@@ -440,7 +440,7 @@ public class FeatureTaskHandler {
       callback.throwException(new Exception("Unexpected exception during processor error handling."));
   }
 
-  static <T extends FeatureTask> void setAdditionalEventProps(T task, Connector connector, Event event) {
+  static <T extends AbstractFeatureTask> void setAdditionalEventProps(T task, Connector connector, Event event) {
     setAdditionalEventProps(new NotificationContext(task, false), connector, event);
   }
 
@@ -504,10 +504,10 @@ public class FeatureTaskHandler {
    * Schedules the sending of a {@link ContentModifiedNotification} to the modification SNS topic and all listeners registered for it.
    * If some notification was already scheduled in the last time interval (specified by {@link #CONTENT_MODIFICATION_INTERVAL}), no further
    * notification will be scheduled for the current task.
-   * @param task The {@link FeatureTask} which triggers the notification
+   * @param task The {@link AbstractFeatureTask} which triggers the notification
    * @param <T>
    */
-  private static <T extends FeatureTask> void scheduleContentModifiedNotification(T task) {
+  private static <T extends AbstractFeatureTask> void scheduleContentModifiedNotification(T task) {
     NotificationContext nc = new NotificationContext(task, false);
     scheduleContentModificationNotificationIfAbsent(nc, contentModificationTimers, CONTENT_MODIFICATION_INTERVAL, false);
     scheduleContentModificationNotificationIfAbsent(nc, contentModificationAdminTimers, CONTENT_MODIFICATION_ADMIN_INTERVAL, true);
@@ -538,11 +538,11 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void notifyListeners(T task, String eventType, Payload payload) {
+  private static <T extends AbstractFeatureTask> void notifyListeners(T task, String eventType, Payload payload) {
     notifyConnectors(new NotificationContext(task, false), ConnectorType.LISTENER, eventType, payload, null);
   }
 
-  private static <T extends FeatureTask> void notifyProcessors(T task, String eventType, Payload payload,
+  private static <T extends AbstractFeatureTask> void notifyProcessors(T task, String eventType, Payload payload,
       Handler<AsyncResult<XyzResponse>> callback) {
     if (payload instanceof BinaryResponse) {
       //No post-processor support for binary responses, skipping post-processor notification
@@ -552,7 +552,7 @@ public class FeatureTaskHandler {
     notifyConnectors(new NotificationContext(task, true), ConnectorType.PROCESSOR, eventType, payload, callback);
   }
 
-  private static <T extends FeatureTask> void notifyConnectors(NotificationContext nc, ConnectorType connectorType, String eventType,
+  private static <T extends AbstractFeatureTask> void notifyConnectors(NotificationContext nc, ConnectorType connectorType, String eventType,
       Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
     //Send the event to all registered & matching listeners / processors
     Map<String, List<ResolvableListenerConnectorRef>> connectorMap = nc.space.getEventTypeConnectorRefsMap(connectorType);
@@ -584,7 +584,7 @@ public class FeatureTaskHandler {
     RpcContext rpcContext;
   }
 
-  private static Future<Space> resolveSpace(final FeatureTask<?, ?> task) {
+  private static Future<Space> resolveSpace(final AbstractFeatureTask<?, ?> task) {
     try {
       //FIXME: Can be removed once the Space events are handled by the SpaceTaskHandler (refactoring pending ...)
       if (task.space != null) //If the space is already given we don't need to retrieve it
@@ -623,7 +623,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <X extends FeatureTask> Future<Space> switchToSuperSpace(X task, Space space) {
+  private static <X extends AbstractFeatureTask> Future<Space> switchToSuperSpace(X task, Space space) {
     //Overwrite the event's space ID to be the ID of the extended (super) space ...
     task.getEvent().setSpace(space.getExtension().getSpaceId());
     //also overwrite the space context to be DEFAULT now ...
@@ -632,13 +632,13 @@ public class FeatureTaskHandler {
     return resolveSpace(task);
   }
 
-  private static <X extends FeatureTask> Future<Space> resolveExtendedSpaces(X task, Space extendingSpace) {
+  private static <X extends AbstractFeatureTask> Future<Space> resolveExtendedSpaces(X task, Space extendingSpace) {
     if (extendingSpace == null)
       return Future.succeededFuture();
     return resolveExtendedSpace(task, extendingSpace.getExtension());
   }
 
-  private static <X extends FeatureTask> Future<Space> resolveExtendedSpace(X task, Extension spaceExtension) {
+  private static <X extends AbstractFeatureTask> Future<Space> resolveExtendedSpace(X task, Extension spaceExtension) {
     if (spaceExtension == null)
       return Future.succeededFuture();
     return Space.resolveSpace(task.getMarker(), spaceExtension.getSpaceId())
@@ -653,7 +653,7 @@ public class FeatureTaskHandler {
         );
   }
 
-  private static <X extends FeatureTask> Future<Connector> resolveStorageConnector(final X task) {
+  private static <X extends AbstractFeatureTask> Future<Connector> resolveStorageConnector(final X task) {
     if (task.space == null)
       return Future.failedFuture(new HttpException(NOT_FOUND, "The resource with this ID does not exist."));
 
@@ -671,7 +671,7 @@ public class FeatureTaskHandler {
         );
   }
 
-  private static <X extends FeatureTask> Future<Void> resolveListenersAndProcessors(final X task) {
+  private static <X extends AbstractFeatureTask> Future<Void> resolveListenersAndProcessors(final X task) {
     Promise<Void> p = Promise.promise();
     try {
       //Also resolve all listeners & processors
@@ -739,7 +739,7 @@ public class FeatureTaskHandler {
     return future;
   }
 
-  static <X extends FeatureTask> void registerRequestMemory(final X task, final ICallback<X> callback) {
+  static <X extends AbstractFeatureTask> void registerRequestMemory(final X task, final ICallback<X> callback) {
     try {
       registerRequestMemory(task.storageConnector.id, task.requestBodySize);
     }
@@ -765,7 +765,7 @@ public class FeatureTaskHandler {
     globalInflightRequestMemory.add(-byteSize);
   }
 
-  static <X extends FeatureTask> void throttle(final X task, final ICallback<X> callback) {
+  static <X extends AbstractFeatureTask> void throttle(final X task, final ICallback<X> callback) {
     /*
     Connector storage = task.storage;
     final long GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE = (long) Service.configuration.GLOBAL_INFLIGHT_REQUEST_MEMORY_SIZE_MB * 1024 * 1024;
@@ -1131,7 +1131,7 @@ public class FeatureTaskHandler {
     callback.success(task);
   }
 
-  static <X extends FeatureTask<?, X>> void enforceUsageQuotas(X task, ICallback<X> callback) {
+  static <X extends AbstractFeatureTask<?, X>> void enforceUsageQuotas(X task, ICallback<X> callback) {
     final long maxFeaturesPerSpace = task.getJwt().limits != null ? task.getJwt().limits.maxFeaturesPerSpace : -1;
     if (maxFeaturesPerSpace <= 0) {
       callback.success(task);
@@ -1157,7 +1157,7 @@ public class FeatureTaskHandler {
     });
   }
 
-  static <X extends FeatureTask> void injectSpaceParams(final X task, final ICallback<X> callback) {
+  static <X extends AbstractFeatureTask> void injectSpaceParams(final X task, final ICallback<X> callback) {
     try {
       if(task.getEvent() instanceof ModifyFeaturesEvent) {
          ((ModifyFeaturesEvent) task.getEvent()).setMaxVersionCount(task.space.getMaxVersionCount());
@@ -1170,7 +1170,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <X extends FeatureTask<?, X>> void checkFeaturesPerSpaceQuota(X task, ICallback<X> callback,
+  private static <X extends AbstractFeatureTask<?, X>> void checkFeaturesPerSpaceQuota(X task, ICallback<X> callback,
       long maxFeaturesPerSpace, Long count) {
     try {
       ModifyFeaturesEvent modifyEvent = (ModifyFeaturesEvent) task.getEvent();
@@ -1180,7 +1180,7 @@ public class FeatureTaskHandler {
         final Map<String, String> deleteFeaturesMap = modifyEvent.getDeleteFeatures();
         final int deleteFeaturesSize = deleteFeaturesMap == null ? 0 : deleteFeaturesMap.size();
         final int featuresDelta = insertFeaturesSize - deleteFeaturesSize;
-        final String spaceId = modifyEvent.getSpace();
+        final String spaceId = modifyEvent.getSpaceId();
         if (featuresDelta > 0 && count + featuresDelta > maxFeaturesPerSpace) {
           callback.throwException(new HttpException(FORBIDDEN,
               "The maximum number of " + maxFeaturesPerSpace + " features for the resource \"" + spaceId + "\" was reached. " +
@@ -1194,9 +1194,9 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <X extends FeatureTask<?, X>>void getCountForSpace(X task, Handler<AsyncResult<Long>> handler) {
+  private static <X extends AbstractFeatureTask<?, X>>void getCountForSpace(X task, Handler<AsyncResult<Long>> handler) {
     final GetStatisticsEvent countEvent = new GetStatisticsEvent();
-    countEvent.setSpace(task.getEvent().getSpace());
+    countEvent.setSpaceId(task.getEvent().getSpace());
     countEvent.setParams(task.getEvent().getParams());
 
     try {
@@ -1258,7 +1258,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  public static <X extends FeatureTask<?, X>> void validate(X task, ICallback<X> callback) {
+  public static <X extends AbstractFeatureTask<?, X>> void validate(X task, ICallback<X> callback) {
     if (task instanceof ReadQuery && ((ReadQuery) task).hasPropertyQuery()
         && !task.storageConnector.capabilities.propertySearch) {
       callback.throwException(new HttpException(BAD_REQUEST, "Property search queries are not supported by storage connector "
@@ -1303,8 +1303,8 @@ public class FeatureTaskHandler {
     callback.success(task);
   }
 
-  static <X extends FeatureTask<?, X>> void convertResponse(X task, ICallback<X> callback) throws JsonProcessingException {
-    if (task instanceof GetStatistics) {
+  static <X extends AbstractFeatureTask<?, X>> void convertResponse(X task, ICallback<X> callback) throws JsonProcessingException {
+    if (task instanceof GetStatisticsTask) {
       if (task.getResponse() instanceof StatisticsResponse) {
         //Ensure the StatisticsResponse is correctly set-up
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
@@ -1320,7 +1320,7 @@ public class FeatureTaskHandler {
     callback.success(task);
   }
 
-  private static void defineGlobalSearchableField(StatisticsResponse response, FeatureTask task) {
+  private static void defineGlobalSearchableField(StatisticsResponse response, AbstractFeatureTask task) {
     if (!task.storageConnector.capabilities.propertySearch) {
       response.getProperties().setSearchable(Searchable.NONE);
     }
@@ -1334,7 +1334,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  static <X extends FeatureTask<?, X>> void checkPreconditions(X task, ICallback<X> callback) throws HttpException {
+  static <X extends AbstractFeatureTask<?, X>> void checkPreconditions(X task, ICallback<X> callback) throws HttpException {
     if (task.space.isReadOnly() && (task instanceof ConditionalModifyFeaturesTask || task instanceof DeleteFeaturesByTagTask)) {
       throw new HttpException(METHOD_NOT_ALLOWED,
           "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
@@ -1349,14 +1349,14 @@ public class FeatureTaskHandler {
   private static void sendSpaceModificationNotification(Marker marker, Event event) {
     if (!(event instanceof ModifySpaceEvent || event instanceof ContentModifiedNotification))
       throw new IllegalArgumentException("Invalid event type was given to send as space modification notification.");
-    String spaceId = event.getSpace();
+    String spaceId = event.getSpaceId();
     String eventType = event.getClass().getSimpleName();
     try {
       if (Service.configuration.MSE_NOTIFICATION_TOPIC != null) {
         PublishRequest req = PublishRequest.builder()
             .topicArn(Service.configuration.MSE_NOTIFICATION_TOPIC)
             .message(event.serialize())
-            .messageGroupId(event.getSpace())
+            .messageGroupId(event.getSpaceId())
             .build();
         getSnsClient()
             .publish(req)
@@ -1548,7 +1548,7 @@ public class FeatureTaskHandler {
       }
     }
 
-    <T extends FeatureTask, R extends XyzResponse> void enrichResponse(T task, R response) {
+    <T extends AbstractFeatureTask, R extends XyzResponse> void enrichResponse(T task, R response) {
       if (task instanceof ConditionalModifyFeaturesTask && response instanceof FeatureCollection && ((ConditionalModifyFeaturesTask) task).hasNonModified
           && ((ConditionalModifyFeaturesTask) task).unmodifiedFeatures != null) {
         try {
@@ -1572,12 +1572,12 @@ public class FeatureTaskHandler {
     private Marker marker;
     private Space space;
     private JWTPayload jwt;
-    private FeatureTask task;
+    private AbstractFeatureTask task;
     private Map<String, Cookie> cookies;
     private MultiMap headers;
     private MultiMap queryParams;
 
-    public NotificationContext(FeatureTask task, boolean keepTask) {
+    public NotificationContext(AbstractFeatureTask task, boolean keepTask) {
       marker = task.getMarker();
       space = task.space;
       jwt = task.getJwt();

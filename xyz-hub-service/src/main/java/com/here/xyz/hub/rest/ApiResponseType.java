@@ -19,33 +19,73 @@
 
 package com.here.xyz.hub.rest;
 
+import com.here.xyz.events.feature.GetFeaturesByTileResponseType;
+import com.here.xyz.hub.rest.Api.HeaderValues;
+
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
+
+import com.here.xyz.responses.ErrorResponse;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 /**
- * An enumeration with all responses that should be returned to the client. If the required response type is not available an {@link
- * com.here.xyz.responses.ErrorResponse} should be returned.
+ * An enumeration with all responses that should be returned to the client. If the required response type is not available an
+ * {@link ErrorResponse} with content-type {@link HeaderValues#APPLICATION_JSON} should be returned.
  */
 public enum ApiResponseType {
   EMPTY,
-  FEATURE,
-  FEATURE_COLLECTION,
-  COMPACT_CHANGESET,
-  CHANGESET_COLLECTION,
-  MVT(true),
-  MVT_FLATTENED(true),
-  SPACE,
-  SPACE_LIST,
+  FEATURE(APPLICATION_GEO_JSON, GetFeaturesByTileResponseType.GEO_JSON),
+  FEATURE_COLLECTION(APPLICATION_GEO_JSON, GetFeaturesByTileResponseType.GEO_JSON),
+  COMPACT_CHANGESET(APPLICATION_JSON),
+  CHANGESET_COLLECTION(APPLICATION_JSON),
+  MVT(APPLICATION_VND_MAPBOX_VECTOR_TILE, GetFeaturesByTileResponseType.MVT, true),
+  MVT_FLATTENED(APPLICATION_VND_MAPBOX_VECTOR_TILE, GetFeaturesByTileResponseType.MVT_FLATTENED, true),
+  SPACE(APPLICATION_JSON),
+  SPACE_LIST(APPLICATION_JSON),
   @Deprecated
-  COUNT_RESPONSE,
-  HEALTHY_RESPONSE,
-  STATISTICS_RESPONSE,
-  HISTORY_STATISTICS_RESPONSE;
+  COUNT_RESPONSE(APPLICATION_JSON),
+  HEALTHY_RESPONSE(APPLICATION_JSON),
+  STATISTICS_RESPONSE(APPLICATION_JSON),
+  HISTORY_STATISTICS_RESPONSE(APPLICATION_JSON);
 
+  /**
+   * If the response type is a binary; otherwise it is a text.
+   */
   public final boolean binary;
+
+  /**
+   * The content-type.
+   */
+  public final @Nullable String contentType;
+
+  /**
+   * The content-type as added into the event.
+   */
+  public final @Nullable GetFeaturesByTileResponseType tileResponseType;
 
   ApiResponseType() {
     this.binary = false;
+    this.tileResponseType = null;
+    this.contentType = null;
   }
 
-  ApiResponseType(boolean binary) {
+  ApiResponseType(@NotNull CharSequence contentType) {
+    this.binary = false;
+    this.tileResponseType = null;
+    this.contentType = contentType.toString();
+  }
+
+  ApiResponseType(@NotNull CharSequence contentType, @NotNull GetFeaturesByTileResponseType tileResponseType) {
+    this.binary = false;
+    this.tileResponseType = tileResponseType;
+    this.contentType = contentType.toString();
+  }
+
+  ApiResponseType(@NotNull CharSequence contentType, @NotNull GetFeaturesByTileResponseType tileResponseType, boolean binary) {
     this.binary = binary;
+    this.tileResponseType = tileResponseType;
+    this.contentType = contentType.toString();
   }
 }

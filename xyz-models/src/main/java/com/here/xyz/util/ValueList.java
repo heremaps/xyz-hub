@@ -82,8 +82,10 @@ public class ValueList extends ArrayList<@Nullable Object> {
    * Removes empty strings, then return the compacted values list. This will make the values a list that does not have empty strings and
    * therefore may be empty by itself.
    */
-  public void removeEmpty() {
+  public @NotNull List<@NotNull String> removeEmpty() {
     removeIf(ValueList::isEmptyAndString);
+    //noinspection NullableProblems
+    return asStringList();
   }
 
   /**

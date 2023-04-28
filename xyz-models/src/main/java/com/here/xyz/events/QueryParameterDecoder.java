@@ -1,14 +1,15 @@
 package com.here.xyz.events;
 
 import static com.here.xyz.events.QueryDelimiter.AMPERSAND;
-import static com.here.xyz.events.QueryDelimiter.COMMA;
+import static com.here.xyz.events.QueryDelimiter.DOUBLE_QUOTE;
 import static com.here.xyz.events.QueryDelimiter.END;
 import static com.here.xyz.events.QueryDelimiter.EQUAL;
-import static com.here.xyz.events.QueryDelimiter.SEMICOLON;
+import static com.here.xyz.events.QueryDelimiter.SINGLE_QUOTE;
+import static com.here.xyz.events.QueryOperation.NONE;
 import static com.here.xyz.events.QueryParameterType.ANY;
-import static com.here.xyz.util.Hex.decode;
 
 import com.here.xyz.exceptions.ParameterError;
+import com.here.xyz.util.Hex;
 import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -116,13 +117,13 @@ public class QueryParameterDecoder {
   public <L extends QueryParameterList> @NotNull L parse(@NotNull L list, @NotNull CharSequence in, int start, int end)
       throws ParameterError {
     if (start < 0 || start >= in.length() || start >= end) {
-      this.originalStart = this.start = this.end = in.length();
+      this.start = this.pos = this.end = in.length();
       this.sb = null;
     } else {
       if (end > in.length()) {
         end = in.length();
       }
-      this.start = this.originalStart = start;
+      this.pos = this.start = start;
       this.end = end;
       this.sb = new StringBuilder(Math.min(4000, end - start));
     }
@@ -144,16 +145,16 @@ public class QueryParameterDecoder {
         }
         parameter = p;
 
-        while (hasNextArgument()) {
+        QueryOperation op;
+        while ((op = parseQueryOperation()) == null) {
           assert delimiter != null;
           final QueryDelimiter delimiter = this.delimiter;
           parseNext();
           addArgumentAndDelimiter(delimiter);
         }
-        // Normally this should be "=", but it can be modified, therefore we do not assert this!
         assert delimiter != null;
-        parameter.delimiter = delimiter;
-        while (hasNextValue()) {
+        parameter.op = op;
+        while (hasMoreValues()) {
           parseNext();
           addValueAndDelimiter(delimiter);
         }
@@ -173,18 +174,22 @@ public class QueryParameterDecoder {
    * The parameter list currently being parsed.
    */
   protected QueryParameterList parameterList;
+
   /**
    * The character sequence to read from.
    */
   protected CharSequence in;
+
   /**
    * The start index.
    */
-  protected int originalStart;
-  /**
-   * The first character to read.
-   */
   protected int start;
+
+  /**
+   * The current position to read.
+   */
+  protected int pos;
+
   /**
    * The first character NOT to read.
    */
@@ -201,39 +206,30 @@ public class QueryParameterDecoder {
   protected QueryParameter parameter;
 
   /**
-   * Tests whether currently a key is parsed.
+   * Tests whether currently the key parsed.
    *
-   * @return {@code true} if currently a key is parsed; {@code false} otherwise.
+   * @return {@code true} if currently the key parsed; {@code false} otherwise.
    */
-  protected boolean isKey() {
+  protected boolean parsingKey() {
     return parameter == null;
   }
 
   /**
-   * Tests whether currently a key argument is parsed.
+   * Tests whether currently the key or one of its argument parsed.
    *
-   * @return {@code true} if currently a key argument is parsed; {@code false} otherwise.
+   * @return {@code true} if currently the key or one of its arguments parsed; {@code false} otherwise.
    */
-  protected boolean isArgument() {
-    return parameter != null && parameter.delimiter == null;
+  protected boolean parsingKeyOrArgument() {
+    return parameter == null || parameter.op == null;
   }
 
   /**
-   * Tests whether currently a key or one of its argument is parsed.
+   * Tests whether currently a value parsed.
    *
-   * @return {@code true} if currently a key or one of its arguments is parsed; {@code false} otherwise.
+   * @return {@code true} if currently a value parsed; {@code false} otherwise.
    */
-  protected boolean isKeyOrArgument() {
-    return parameter == null || parameter.delimiter == null;
-  }
-
-  /**
-   * Tests whether currently a value is parsed.
-   *
-   * @return {@code true} if currently a value is parsed; {@code false} otherwise.
-   */
-  protected boolean isValue() {
-    return parameter != null && parameter.delimiter != null;
+  protected boolean parsingValue() {
+    return parameter != null && parameter.op != null;
   }
 
   /**
@@ -272,26 +268,202 @@ public class QueryParameterDecoder {
    */
   protected @Nullable QueryDelimiter delimiter;
 
+  /**
+   * The “extended” unicode code point that was read as delimiter. Will be zero, if the end of the {@link #in input-stream} is reached.
+   */
+  protected int delimiter_ext_unicode;
+
   protected boolean hasMore() {
     assert in != null;
     assert sb != null;
-    return start < end;
+    return pos < end;
   }
 
-  protected boolean hasNextArgument() {
+  protected @Nullable QueryOperation parseQueryOperation() throws ParameterError {
+    assert parameter != null;
     assert delimiter != null;
-    return delimiter != END && delimiter != EQUAL && delimiter != AMPERSAND;
+    if (delimiter == END || delimiter == AMPERSAND) {
+      // Like "&key".
+      return NONE;
+    }
+
+    // Read ahead.
+    final CharSequence in = this.in;
+    int pos = this.pos;
+    final int end = this.end;
+    final StringBuilder sb = this.sb;
+    sb.setLength(0);
+    sb.append(delimiter.delimiterChar);
+    final int max_length = QueryOperation.maxLength() + 2; // ={op}=
+    int equal_index = -1; // The index of the next equal sign (not taking the first delimiter into account).
+    int delimiters = 1; // Amount of continues head delimiters (at least one, the current one).
+    while (pos < end && sb.length() < max_length && delimiters > equal_index) {
+      // The last condition (delimiters > equal_index) is reached, when we encounter a named operation and is a performance optimization.
+      // The reason is that for example for "=gt=", we find the equal sign at index 3, but have only one continues head delimiter (=).
+      // Effectively we stop as soon as we have parsed the maximal length of operation names, or we found a valid operation name.
+      // Apart from this, we collect all leading delimiters for the delimiter based operation detection, for example ">=".
+      final char c = in.charAt(pos);
+      if (c < 32 || c > 128 || c == '%') {
+        break;
+      }
+      // Stop when we hit a quote, for example &foo!='bar', we need to limit the capturing to "!=".
+      if (isQuote(c)) {
+        break;
+      }
+      if (sb.length() == delimiters) {
+        // Test for a continues delimiter.
+        final QueryDelimiter delimiter = QueryDelimiter.get(c);
+        if (delimiter != null) {
+          delimiters++;
+        }
+      }
+      if (c == '=' && equal_index < 0) {
+        equal_index = sb.length();
+      }
+      sb.append(c);
+      pos++;
+    }
+
+    if (delimiter == EQUAL && equal_index > 0) {
+      // Named operation like "&key={op}={value}"
+      // =ne=?
+      // 01234
+      // In this case "equal_index" should be three (so we need to extract "ne").
+      final String opName = sb.substring(1, equal_index);
+      final QueryOperation op = QueryOperation.getByName(opName);
+      if (op == null) {
+        throw new ParameterError(errorMsg("Unknown operation name: ", opName));
+      }
+      // Seek forward to the end of the operation name, so that pos refers to the first character after the second equal sign.
+      this.pos += equal_index;
+      return op;
+    }
+
+    // Fetch the operation by delimiter string, for example for "&key>=5" by ">=" or for "&key>5" by ">".
+    final String delimitersString = sb.substring(0, delimiters);
+    final QueryOperation op = QueryOperation.getByDelimiterString(delimitersString);
+    if (op != null) {
+      // Note: The first delimiter skipped already.
+      this.pos += op.delimiters.length - 1;
+      return op;
+    }
+    return null;
   }
 
-  protected boolean hasNextValue() {
+  protected boolean hasMoreValues() {
     assert delimiter != null;
     return delimiter != END && delimiter != AMPERSAND;
+  }
+
+  /**
+   * Create an “extended” unicode code point.
+   *
+   * @param unicode       The unicode code point to be encoded.
+   * @param size          The amount of origin characters (from the input-stream) used to decode this code point.
+   * @param wasUrlEncoded If the code point was URL encoded.
+   * @return The “extended” unicode code point.
+   */
+  protected static int ext_make(int unicode, int size, boolean wasUrlEncoded) {
+    return (unicode & 0x00ff_ffff) | ((size & 0x7f) << 24) | (wasUrlEncoded ? 0x8000_0000 : 0);
+  }
+
+  /**
+   * Extracts the unicode code point from an “extended” unicode code point.
+   *
+   * @param ext_unicode The “extended” unicode code point.
+   * @return The unicode code point.
+   */
+  protected static int ext_get_unicode(int ext_unicode) {
+    return (int) (ext_unicode & 0x00ff_ffffL);
+  }
+
+  /**
+   * Extracts if the code point was URL encoded in the origin from an “extended” unicode code point.
+   *
+   * @param ext_unicode The “extended” unicode code point.
+   * @return {@code true} if the code point was originally URL encoded; {@code false} otherwise.
+   */
+  protected static boolean ext_was_url_encoded(int ext_unicode) {
+    return (ext_unicode & 0x8000_0000) == 0x8000_0000;
+  }
+
+  /**
+   * Extracts the amount of characters processed to decode the code point from an “extended” unicode code point. A value between 1 and 12 is
+   * to be expected (12 for the worst case UTF-8 URL encoded variant).
+   *
+   * @param ext_unicode The “extended” unicode code point.
+   * @return the amount of characters processed to decode the code point.
+   */
+  protected static int ext_get_size(int ext_unicode) {
+    return (ext_unicode >>> 24) & 0x7f;
+  }
+
+  /**
+   * Decode the character that {@link #pos} currently refers to and increment {@link #pos} so that it points to the next character after the
+   * one just read. Performs URL and UTF-8 decoding and adds a flag to signal if a character was URL encoded.
+   *
+   * @return an “extended” unicode code point.
+   * @throws ParameterError if decoding failed.
+   */
+  protected final int read() throws ParameterError {
+    assert in != null;
+    assert pos < end;
+    final int mark = pos;
+    final char c = in.charAt(pos);
+    int unicode = c;
+    boolean wasUrlEncoded = false;
+    if (c == '%') {
+      try {
+        int i = pos + 1;
+        // assertPercent(in.charAt(i++));
+        unicode = Hex.decode(in.charAt(i++), in.charAt(i++));
+        // 4 byte (11110xxx 10xxxxxx 10xxxxxx 10xxxxxx)
+        if ((unicode & 248) == 240) {
+          unicode &= 7;
+          unicode <<= 18;
+          assertPercent(in.charAt(i++));
+          unicode += (Hex.decode(in.charAt(i++), in.charAt(i++)) & 63) << 12;
+          assertPercent(in.charAt(i++));
+          unicode += (Hex.decode(in.charAt(i++), in.charAt(i++)) & 63) << 6;
+          assertPercent(in.charAt(i++));
+          unicode += (Hex.decode(in.charAt(i++), in.charAt(i++)) & 63);
+        } else if ((unicode & 240) == 224) {
+          // 3 byte (1110xxxx 10xxxxxx 10xxxxxx)
+          unicode &= 15;
+          unicode <<= 12;
+          assertPercent(in.charAt(i++));
+          unicode += (Hex.decode(in.charAt(i++), in.charAt(i++)) & 63) << 6;
+          assertPercent(in.charAt(i++));
+          unicode += (Hex.decode(in.charAt(i++), in.charAt(i++)) & 63);
+        } else if ((unicode & 224) == 192) {
+          // 2 byte (110xxxxx 10xxxxxx)
+          unicode &= 31;
+          unicode <<= 6;
+          assertPercent(in.charAt(i++));
+          unicode += (Hex.decode(in.charAt(i++), in.charAt(i++)) & 63);
+        } else
+        // Single character
+        {
+          if ((unicode & 128) == 128) {
+            throw new ParameterError(errorMsg("Invalid UTF-8 encoding found at position : ", (i - start)));
+          }
+        }
+        wasUrlEncoded = true;
+        pos = i;
+      } catch (IndexOutOfBoundsException | IllegalArgumentException ignore) {
+        unicode = c;
+        pos++;
+      }
+    } else {
+      pos++;
+    }
+    return ext_make(unicode, pos - mark, wasUrlEncoded);
   }
 
   protected void parseNext() throws NoSuchElementException, ParameterError {
     assert in != null;
     assert sb != null;
-    assert start < end;
+    assert pos < end;
     // Copy references to the stack to allow compiler optimization!
     final CharSequence in = this.in;
     final StringBuilder sb = this.sb;
@@ -303,98 +475,76 @@ public class QueryParameterDecoder {
     dot = 0;
     numbers = 0;
     others = parameter == null; // Key are always strings, do not count characters.
-    char c = in.charAt(start);
-    if (isQuote(c)) {
-      quote = c;
-      start++;
+    if (isQuote(in.charAt(pos))) {
+      // When explicitly quoted, it must always be a string, for example "&key='5'", so do not detect numbers.
+      others = true;
+      quote = in.charAt(pos++);
     }
     delimiter = null;
+    delimiter_ext_unicode = 0;
     sb.setLength(0);
-    while (start < end) {
-      c = in.charAt(start);
+    while (pos < end) {
+      // UnicodeUrlReader
+      // UnicodeBuilder
+      int ext_unicode = read();
+      int unicode = ext_get_unicode(ext_unicode);
 
-      if (c == quote) {
-        // Consume the quote.
-        if (++start < end) {
-          // Consume the next character, if there is any, which must be a delimiter.
-          c = in.charAt(start++);
-          delimiter = QueryDelimiter.get(c);
-          if (delimiter == null) {
-            throw new ParameterError(errorMsg("Found illegal character after closing quote: ", c));
-          }
-        }
-        break;
-      }
-
-      final QueryDelimiter delimiter = QueryDelimiter.get(c);
-      if (delimiter != null) {
-        // Consume the delimiter.
-        start++;
-        if (stopOnDelimiter(delimiter)) {
-          this.delimiter = delimiter;
+      if (!ext_was_url_encoded(ext_unicode) && unicode == quote) {
+        if (!hasMore()) {
           break;
         }
-        continue;
+
+        // If another character exists, it must be a delimiter.
+        final int mark = pos;
+        ext_unicode = read();
+        unicode = ext_get_unicode(ext_unicode);
+        if (Character.isBmpCodePoint(unicode)) {
+          delimiter = QueryDelimiter.get((char) unicode);
+          if (delimiter != null && stopOnDelimiter(delimiter, ext_was_url_encoded(ext_unicode))) {
+            delimiter_ext_unicode = ext_unicode;
+            break;
+          }
+        }
+        if (ext_was_url_encoded(ext_unicode)) {
+          // We know that at mark there must be a percent character.
+          final char c1 = in.charAt(mark + 1);
+          final char c2 = in.charAt(mark + 2);
+          throw new ParameterError(errorMsg("Found illegal character after closing quote: %", c1, c2));
+        } else {
+          throw new ParameterError(errorMsg("Found illegal character after closing quote: ", (char) unicode));
+        }
+      }
+
+      if (quote == 0 && Character.isBmpCodePoint(unicode)) {
+        final QueryDelimiter delimiter = QueryDelimiter.get((char) unicode);
+        if (delimiter != null) {
+          if (stopOnDelimiter(delimiter, ext_was_url_encoded(ext_unicode))) {
+            // Should the stopOnDelimiter set the delimiter, we keep it; otherwise we store the accepted one.
+            if (this.delimiter == null) {
+              this.delimiter = delimiter;
+            }
+            if (delimiter_ext_unicode == 0) {
+              delimiter_ext_unicode = ext_unicode;
+            }
+            break;
+          }
+          assert this.delimiter == null;
+          continue;
+        }
       }
 
       if (!others) {
-        if (c >= '0' && c <= '9') {
+        if (unicode >= '0' && unicode <= '9') {
           numbers++;
-        } else if (c == '-') {
+        } else if (unicode == '-') {
           minus++;
-        } else if (c == '.') {
+        } else if (unicode == '.') {
           dot++;
-        } else if (c == 'e' || c == 'E') {
+        } else if (unicode == 'e' || unicode == 'E') {
           e++;
         } else {
           others = true;
         }
-      }
-
-      int unicode = c;
-      if (c == '%') {
-        try {
-          int i = start + 1;
-          // assertPercent(in.charAt(i++));
-          unicode = decode(in.charAt(i++), in.charAt(i++));
-          // 4 byte (11110xxx 10xxxxxx 10xxxxxx 10xxxxxx)
-          if ((unicode & 248) == 240) {
-            unicode &= 7;
-            unicode <<= 18;
-            assertPercent(in.charAt(i++));
-            unicode += (decode(in.charAt(i++), in.charAt(i++)) & 63) << 12;
-            assertPercent(in.charAt(i++));
-            unicode += (decode(in.charAt(i++), in.charAt(i++)) & 63) << 6;
-            assertPercent(in.charAt(i++));
-            unicode += (decode(in.charAt(i++), in.charAt(i++)) & 63);
-          } else if ((unicode & 240) == 224) {
-            // 3 byte (1110xxxx 10xxxxxx 10xxxxxx)
-            unicode &= 15;
-            unicode <<= 12;
-            assertPercent(in.charAt(i++));
-            unicode += (decode(in.charAt(i++), in.charAt(i++)) & 63) << 6;
-            assertPercent(in.charAt(i++));
-            unicode += (decode(in.charAt(i++), in.charAt(i++)) & 63);
-          } else if ((unicode & 224) == 192) {
-            // 2 byte (110xxxxx 10xxxxxx)
-            unicode &= 31;
-            unicode <<= 6;
-            assertPercent(in.charAt(i++));
-            unicode += (decode(in.charAt(i++), in.charAt(i++)) & 63);
-          } else
-          // Single character
-          {
-            if ((unicode & 128) == 128) {
-              throw new ParameterError(errorMsg("Invalid UTF-8 encoding found at position : ", (i - originalStart)));
-            }
-          }
-          start = i;
-        } catch (IndexOutOfBoundsException | IllegalArgumentException ignore) {
-          unicode = c;
-          start++;
-        }
-      } else {
-        start++;
       }
 
       if (Character.isBmpCodePoint(unicode)) {
@@ -406,23 +556,20 @@ public class QueryParameterDecoder {
     }
     if (delimiter == null) {
       delimiter = END;
+      delimiter_ext_unicode = 0;
     }
   }
 
   private StringBuilder err_sb;
 
-  protected @NotNull String errorMsg(@NotNull String reason) {
-    return errorMsg(reason, null);
-  }
-
-  protected @NotNull String errorMsg(@NotNull String reason, @Nullable Object arg) {
+  protected @NotNull String errorMsg(@NotNull String reason, @Nullable Object... args) {
     final StringBuilder sb = err_sb != null ? err_sb : (err_sb = new StringBuilder(256));
     sb.setLength(0);
     if (parameter != null) {
       sb.append("Failed to parse parameter '");
       sb.append(parameter.name());
       sb.append("', ");
-      if (parameter.delimiter != null) {
+      if (parameter.op != null) {
         sb.append("value[");
         if (parameter.hasValues()) {
           sb.append(parameter.values().size());
@@ -440,8 +587,10 @@ public class QueryParameterDecoder {
       sb.append("]: ");
     }
     sb.append(reason);
-    if (arg != null) {
-      if (arg instanceof CharSequence) {
+    for (final Object arg : args) {
+      if (arg instanceof Character) {
+        sb.append((char) (Character) arg);
+      } else if (arg instanceof CharSequence) {
         sb.append((CharSequence) arg);
       } else {
         sb.append(arg);
@@ -568,38 +717,43 @@ public class QueryParameterDecoder {
    * @return {@code true} if the character is a quote; {@code false} if not.
    */
   protected boolean isQuote(char c) {
-    return c == QueryDelimiter.SINGLE_QUOTE.delimiterChar;
+    return c == SINGLE_QUOTE.delimiterChar || c == DOUBLE_QUOTE.delimiterChar;
   }
 
   /**
    * Invoked after a query parameter has been parsed and before parsing the next one. Can reject a parameter value, for example if only
-   * specific values are allows or can set a default value.
+   * specific values are allows or can adjust the parameter.
    *
-   * @param parameter The parameter to validate.
+   * @param parameter The parameter to finish.
    * @throws ParameterError if any error detected.
    */
   protected void finishParameter(@NotNull QueryParameter parameter) throws ParameterError {
   }
 
   /**
-   * Can be overridden to expand keys and values or implement special handling for delimiters. The method is invoked whenever a not URL
-   * encoded delimiter is found in a query string. The {@link #sb string-builder} will hold the string parsed so far, without the delimiter,
-   * for example for the query string "&p:foo=hello" the method is invoked when the {@link #sb string-builder} holds "p". The found
-   * delimiter is given as argument.
+   * Can be overridden to expand keys and values or implement special handling for delimiters. The method is invoked whenever a delimiter
+   * character is found in a query string. The {@link #sb string-builder} will hold the string parsed so far, without the delimiter, for
+   * example for the query string "&p:foo=hello" the method is invoked when the {@link #sb string-builder} holds "p". The found delimiter is
+   * given as argument.
    * <p>
    * If the method returns {@code true} it will abort the query parsing and the content of the {@link #sb string-builder}, after returning,
    * will be used to create the key/name, argument or value. If the method returns {@code false}, then the parser continues the parsing.
    * <p>
    * <b>NOTE</b>: The parser will <b>NOT</b> add the delimiter to the {@link #sb string-builder}, no matter what the method returns.
-   * Therefore, this method must do this, if wanted; the method may modify the content of the {@link #sb string-builder} in any way wanted.
+   * Therefore, this method must do this. The default behavior is to only add the delimiter to the {@link #sb string-builder}, if the
+   * delimiter does not stop the parsing, so when returning {@code false}.
    *
-   * @param delimiter The delimiter found.
+   * @param delimiter     The delimiter found.
+   * @param wasUrlEncoded If the delimiter was URL encoded.
    * @return {@code true} to abort the parsing; {@code false} to continue parsing.
+   * @throws ParameterError If any error occurred.
    */
-  protected boolean stopOnDelimiter(@NotNull QueryDelimiter delimiter) {
-    if (delimiter == AMPERSAND || delimiter == EQUAL || delimiter == SEMICOLON || delimiter == COMMA) {
+  protected boolean stopOnDelimiter(@NotNull QueryDelimiter delimiter, boolean wasUrlEncoded) throws ParameterError {
+    // We stop on all not URL encoded delimiters.
+    if (!wasUrlEncoded) {
       return true;
     }
+
     // When we do not abort the parsing, add the delimiter as normal character.
     sb.append(delimiter.delimiterChar);
     return false;
@@ -624,8 +778,7 @@ public class QueryParameterDecoder {
    * {@link #parameter parameter} is not {@code null}.
    *
    * <p><b>Note</b>: The current {@link #delimiter} is the next delimiter, the previous one (that belongs to the argument), is the one
-   * given
-   * as parameter.
+   * given as parameter.
    *
    * @param prefix The delimiter that was parsed before the argument.
    * @throws ParameterError If any error occurred.

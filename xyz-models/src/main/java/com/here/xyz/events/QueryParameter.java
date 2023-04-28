@@ -29,38 +29,47 @@ public class QueryParameter {
    * The list to which this parameter belongs.
    */
   final @NotNull QueryParameterList parent;
+
   /**
    * The absolute index in the arguments list.
    */
   final int index;
+
   /**
    * The parsed arguments.
    */
   private @Nullable ValueList arguments;
+
   /**
    * The delimiter before each argument.
    */
   private @Nullable List<@NotNull QueryDelimiter> argumentsDelimiter;
+
   /**
    * The values.
    */
   private @Nullable ValueList values;
+
   /**
    * The delimiter behind each value.
    */
   private @Nullable List<@NotNull QueryDelimiter> valuesDelimiter;
+
   /**
    * The name as given by the client.
    */
   private final @NotNull String name;
+
   /**
    * The key for hash-map access.
    */
   private final @NotNull String key;
+
   /**
    * The delimiter that splits the name, key and arguments from the values.
    */
-  @Nullable QueryDelimiter delimiter;
+  @Nullable QueryOperation op;
+
   /**
    * The next query parameter with the same key.
    */
@@ -175,13 +184,13 @@ public class QueryParameter {
   }
 
   /**
-   * Returns the delimiter that separates the name, key and arguments from the values. Returns {@code null}, if no delimiter, which means no
-   * values either.
+   * Returns the operation that separates the key from the values.
    *
-   * @return The delimiter that separates the name, key and arguments from the values.
+   * @return The operation that separates the name, key and arguments from the values.
    */
-  public @Nullable QueryDelimiter delimiter() {
-    return delimiter;
+  public @NotNull QueryOperation op() {
+    assert op != null;
+    return op;
   }
 
   /**
@@ -201,4 +210,6 @@ public class QueryParameter {
   public @Nullable QueryParameter next() {
     return next;
   }
+
+  // TODO: Override toString to serialize the parameter.
 }

@@ -105,14 +105,14 @@ public enum XyzError {
    * The error code.
    */
   @JsonValue
-  public final String value;
+  public final @NotNull String value;
 
   /**
    * Create a new error code.
    *
    * @param error the error code value.
    */
-  XyzError(String error) {
+  XyzError(@NotNull String error) {
     value = error;
   }
 

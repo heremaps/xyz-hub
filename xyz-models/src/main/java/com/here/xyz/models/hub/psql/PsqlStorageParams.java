@@ -19,7 +19,7 @@
 
 package com.here.xyz.models.hub.psql;
 
-import static com.here.xyz.EventTask.currentTask;
+import static com.here.xyz.AbstractTask.currentTask;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.EventHandlerParams;

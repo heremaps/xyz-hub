@@ -19,13 +19,15 @@
 
 package com.here.xyz.events.feature;
 
-import static com.here.xyz.events.feature.GetFeaturesByTileEvent.ResponseType.GEO_JSON;
+import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.GEO_JSON;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import org.jetbrains.annotations.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetFeaturesByTileEvent")
+@SuppressWarnings("unused")
 public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent {
 
   private int level;
@@ -33,26 +35,22 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent {
   private int y;
   private String quadkey;
   private int margin;
-  private ResponseType responseType = GEO_JSON;
+  private @NotNull GetFeaturesByTileResponseType responseType = GEO_JSON;
   private boolean hereTileFlag;
 
-  @SuppressWarnings("unused")
   public int getLevel() {
     return level;
   }
 
-  @SuppressWarnings("WeakerAccess")
   public void setLevel(int level) {
     this.level = level;
   }
 
-  @SuppressWarnings("unused")
   public GetFeaturesByTileEvent withLevel(int level) {
     setLevel(level);
     return this;
   }
 
-  @SuppressWarnings("unused")
   public int getX() {
     return x;
   }
@@ -61,13 +59,11 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent {
     this.x = x;
   }
 
-  @SuppressWarnings("unused")
   public GetFeaturesByTileEvent withX(int x) {
     setX(x);
     return this;
   }
 
-  @SuppressWarnings("unused")
   public int getY() {
     return y;
   }
@@ -76,80 +72,61 @@ public final class GetFeaturesByTileEvent extends GetFeaturesByBBoxEvent {
     this.y = y;
   }
 
-  @SuppressWarnings("unused")
   public GetFeaturesByTileEvent withY(int y) {
     setY(y);
     return this;
   }
 
-  @SuppressWarnings("unused")
   public String getQuadkey() {
     return quadkey;
   }
 
-  @SuppressWarnings("WeakerAccess")
   public void setQuadkey(String quadkey) {
     this.quadkey = quadkey;
   }
 
-  @SuppressWarnings("unused")
   public GetFeaturesByTileEvent withQuadkey(String quadkey) {
     setQuadkey(quadkey);
     return this;
   }
 
-  @SuppressWarnings("unused")
   public boolean getHereTileFlag() {
     return hereTileFlag;
   }
 
-  @SuppressWarnings("WeakerAccess")
   public void setHereTileFlag(boolean hereTileFlag) {
     this.hereTileFlag = hereTileFlag;
   }
 
-  @SuppressWarnings("unused")
   public GetFeaturesByTileEvent withHereTileFlag(boolean hereTileFlag) {
     setHereTileFlag(hereTileFlag);
     return this;
   }
 
-  @SuppressWarnings("unused")
   public int getMargin() {
     return margin;
   }
 
-  @SuppressWarnings("WeakerAccess")
   public void setMargin(int margin) {
     this.margin = margin;
   }
 
-  @SuppressWarnings("unused")
   public GetFeaturesByTileEvent withMargin(int margin) {
     setMargin(margin);
     return this;
   }
 
-  @SuppressWarnings("unused")
-  public ResponseType getResponseType() {
+  public @NotNull GetFeaturesByTileResponseType getResponseType() {
     return responseType;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setResponseType(ResponseType responseType) {
-    if (responseType == null)
-      throw new NullPointerException("responseType may not be null");
+  public void setResponseType(@NotNull GetFeaturesByTileResponseType responseType) {
     this.responseType = responseType;
   }
 
-  @SuppressWarnings("unused")
-  public GetFeaturesByTileEvent withResponseType(ResponseType responseType) {
+  public GetFeaturesByTileEvent withResponseType(GetFeaturesByTileResponseType responseType) {
     setResponseType(responseType);
     return this;
   }
 
-  @SuppressWarnings("unused")
-  public enum ResponseType {
-    GEO_JSON, MVT, MVT_FLATTENED
-  }
 }

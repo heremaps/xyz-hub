@@ -20,7 +20,7 @@
 package com.here.xyz.hub.config;
 
 import com.google.common.util.concurrent.Monitor;
-import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
@@ -140,7 +140,7 @@ public abstract class SpaceConfigClient implements Initializable {
   }
 
   public Future<List<Space>> getSelected(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+      SpaceSelectionCondition selectedCondition, PropertyQueryOr propsQuery) {
     return getSelectedSpaces(marker, authorizedCondition, selectedCondition, propsQuery)
         .onSuccess(spaces -> {
           spaces.forEach(s -> cache.put(s.getId(), s));
@@ -163,7 +163,7 @@ public abstract class SpaceConfigClient implements Initializable {
   protected abstract Future<Space> deleteSpace(Marker marker, String spaceId);
 
   protected abstract Future<List<Space>> getSelectedSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-      SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery);
+      SpaceSelectionCondition selectedCondition, PropertyQueryOr propsQuery);
 
   public void invalidateCache(String spaceId) {
     cache.remove(spaceId);
