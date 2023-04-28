@@ -224,6 +224,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
                   try {
                     if (tags.size() == 0) {
                       future.complete();
+                      return;
                     }
                     List<ParameterizedStatement> statements = new ArrayList<>();
                     tags.forEach(r -> {
