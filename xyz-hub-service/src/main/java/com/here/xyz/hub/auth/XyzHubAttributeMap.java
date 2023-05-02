@@ -48,7 +48,7 @@ public class XyzHubAttributeMap extends AttributeMap {
   public static @NotNull AttributeMap forSpace(@NotNull Space space) {
     final AttributeMap attributeMap = new AttributeMap();
     attributeMap.withValue(XyzHubAttributeMap.SPACE, space.getId());
-    attributeMap.withValue(XyzHubAttributeMap.OWNER, space.properties().xyzNamespace().getOwner());
+    attributeMap.withValue(XyzHubAttributeMap.OWNER, space.properties().useXyzNamespace().getOwner());
     if (space.getPackages() != null) {
       attributeMap.withValue(XyzHubAttributeMap.PACKAGES, space.getPackages()); // oneOf
     }
@@ -64,7 +64,7 @@ public class XyzHubAttributeMap extends AttributeMap {
   public static @NotNull AttributeMap forConnector(@NotNull Connector connector) {
     final AttributeMap attributeMap = new AttributeMap();
     attributeMap.withValue(XyzHubAttributeMap.CONNECTOR, connector.id);
-    attributeMap.withValue(XyzHubAttributeMap.OWNER, connector.properties().xyzNamespace().getOwner());
+    attributeMap.withValue(XyzHubAttributeMap.OWNER, connector.properties().useXyzNamespace().getOwner());
     if (connector.packages != null) {
       attributeMap.withValue(XyzHubAttributeMap.PACKAGES, connector.packages); // oneOf
     }

@@ -32,6 +32,7 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+
 @SuppressWarnings("unused")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class XyzNamespace implements XyzSerializable {
@@ -44,6 +45,13 @@ public class XyzNamespace implements XyzSerializable {
   @JsonProperty
   @JsonView(View.All.class)
   private String space;
+
+  /**
+   * The collection the feature belongs to.
+   */
+  @JsonProperty
+  @JsonView(View.All.class)
+  private String collection;
 
   /**
    * The timestamp, when a feature was created.
@@ -140,13 +148,8 @@ public class XyzNamespace implements XyzSerializable {
    *
    * @param tag the tag.
    * @return the normalized and lower cased version of it.
-   * @throws NullPointerException if the given tag is null.
    */
-  public static String normalizeTag(final String tag) throws NullPointerException {
-    if (tag == null) {
-      throw new NullPointerException("tag");
-    }
-
+  public static @NotNull String normalizeTag(final @NotNull String tag) {
     if (tag.length() == 0) {
       return tag;
     }
@@ -171,8 +174,8 @@ public class XyzNamespace implements XyzSerializable {
    * @param tags a list of tags.
    * @return the same list, just that the content is normalized.
    */
-  @SuppressWarnings("unused")
-  public static List<String> normalizeTags(final List<String> tags) {
+
+  public static @Nullable List<@NotNull String> normalizeTags(final @Nullable List<@NotNull String> tags) {
     if (tags != null) {
       for (int SIZE = tags.size(), i = 0; i < SIZE; i++) {
         tags.set(i, normalizeTag(tags.get(i)));
@@ -194,8 +197,8 @@ public class XyzNamespace implements XyzSerializable {
    * @param tags The list of tags, will be modified if any tag contains a comma (so may extend).
    * @see [https://tools.ietf.org/html/rfc3986#section-2.2]
    */
-  @SuppressWarnings("WeakerAccess")
-  public static void fixNormalizedTags(final List<String> tags) {
+
+  public static void fixNormalizedTags(final @NotNull List<@NotNull String> tags) {
     int j = 0;
     StringBuilder sb = null;
     while (j < tags.size()) {
@@ -239,17 +242,29 @@ public class XyzNamespace implements XyzSerializable {
     }
   }
 
-  public String getSpace() {
+  public @Nullable String getSpace() {
     return space;
   }
 
-  public void setSpace(String space) {
+  public void setSpace(@Nullable String space) {
     this.space = space;
   }
 
-  @SuppressWarnings("unused")
-  public XyzNamespace withSpace(String space) {
+  public @NotNull XyzNamespace withSpace(@Nullable String space) {
     setSpace(space);
+    return this;
+  }
+
+  public @Nullable String getCollection() {
+    return collection;
+  }
+
+  public void setCollection(@Nullable String collection) {
+    this.collection = collection;
+  }
+
+  public @NotNull XyzNamespace withCollection(@Nullable String collection) {
+    setCollection(collection);
     return this;
   }
 
@@ -257,7 +272,7 @@ public class XyzNamespace implements XyzSerializable {
     return action;
   }
 
-  public void setAction(String action) {
+  public void setAction(@Nullable String action) {
     this.action = action;
   }
 
@@ -265,111 +280,107 @@ public class XyzNamespace implements XyzSerializable {
     this.action = action.toString();
   }
 
-  @SuppressWarnings("unused")
-  public XyzNamespace withAction(String action) {
+
+  public @NotNull XyzNamespace withAction(@Nullable String action) {
     setAction(action);
     return this;
   }
 
-  @SuppressWarnings("unused")
-  public XyzNamespace withAction(@NotNull Action action) {
+  public @NotNull XyzNamespace withAction(@NotNull Action action) {
     setAction(action);
     return this;
   }
 
-  @SuppressWarnings("WeakerAccess")
+
   public long getCreatedAt() {
     return createdAt;
   }
 
-  @SuppressWarnings("WeakerAccess")
+
   public void setCreatedAt(long createdAt) {
     this.createdAt = createdAt;
   }
 
-  public XyzNamespace withCreatedAt(long createdAt) {
+  public @NotNull XyzNamespace withCreatedAt(long createdAt) {
     setCreatedAt(createdAt);
     return this;
   }
 
-  @SuppressWarnings("unused")
+
   public long getUpdatedAt() {
     return updatedAt;
   }
 
-  @SuppressWarnings("WeakerAccess")
   public void setUpdatedAt(long updatedAt) {
     this.updatedAt = updatedAt;
   }
 
-  public XyzNamespace withUpdatedAt(long updatedAt) {
+  public @NotNull XyzNamespace withUpdatedAt(long updatedAt) {
     setUpdatedAt(updatedAt);
     return this;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public String getTxn() {
+
+  public @Nullable String getTxn() {
     return txn;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setTxn(String txn) {
+
+  public void setTxn(@Nullable String txn) {
     this.txn = txn;
   }
 
-  public @NotNull XyzNamespace withTxn(String txn) {
+  public @NotNull XyzNamespace withTxn(@Nullable String txn) {
     setTxn(txn);
     return this;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public String getUuid() {
+  public @Nullable String getUuid() {
     return uuid;
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setUuid(String uuid) {
+  public void setUuid(@Nullable String uuid) {
     this.uuid = uuid;
   }
 
-  public XyzNamespace withUuid(String uuid) {
+  public @NotNull XyzNamespace withUuid(@Nullable String uuid) {
     setUuid(uuid);
     return this;
   }
 
-  public String getPuuid() {
+  public @Nullable String getPuuid() {
     return puuid;
   }
 
-  public void setPuuid(String puuid) {
+  public void setPuuid(@Nullable String puuid) {
     this.puuid = puuid;
   }
 
-  public XyzNamespace withPuuid(String puuid) {
+  public @NotNull XyzNamespace withPuuid(@Nullable String puuid) {
     setPuuid(puuid);
     return this;
   }
 
-  @SuppressWarnings("unused")
-  public String getMuuid() {
+
+  public @Nullable String getMuuid() {
     return muuid;
   }
 
-  @SuppressWarnings("unused")
-  public void setMuuid(String muuid) {
+
+  public void setMuuid(@Nullable String muuid) {
     this.muuid = muuid;
   }
 
-  public XyzNamespace withMuuid(String muuid) {
+  public @NotNull XyzNamespace withMuuid(@Nullable String muuid) {
     setMuuid(muuid);
     return this;
   }
 
-  public List<String> getTags() {
+  public @Nullable List<@NotNull String> getTags() {
     return tags;
   }
 
-  public void setTags(List<String> tags) {
+  public void setTags(@Nullable List<@NotNull String> tags) {
     if (tags != null) {
       for (int SIZE = tags.size(), i = 0; i < SIZE; i++) {
         tags.set(i, normalizeTag(tags.get(i)));
@@ -378,8 +389,7 @@ public class XyzNamespace implements XyzSerializable {
     this.tags = tags;
   }
 
-  @SuppressWarnings("unused")
-  public XyzNamespace withTags(List<String> tags) {
+  public @NotNull XyzNamespace withTags(@Nullable List<@NotNull String> tags) {
     setTags(tags);
     return this;
   }
@@ -389,16 +399,13 @@ public class XyzNamespace implements XyzSerializable {
    *
    * @return true if the tag was added; false otherwise.
    */
-  @SuppressWarnings("unused")
   public boolean addTag(String tag) {
     if (getTags() == null) {
       setTags(new ArrayList<>());
     }
-
     if (getTags().contains(tag)) {
       return false;
     }
-
     return getTags().add(tag);
   }
 
@@ -407,20 +414,16 @@ public class XyzNamespace implements XyzSerializable {
    *
    * @return true if the tag was removed; false otherwise.
    */
-  @SuppressWarnings("unused")
   public boolean removeTag(String tag) {
     if (getTags() == null) {
       return false;
     }
-
     if (!getTags().contains(tag)) {
       return false;
     }
-
     return getTags().remove(tag);
   }
 
-  @SuppressWarnings("unused")
   public boolean isDeleted() {
     return Action.DELETE.equals(getAction());
   }
@@ -431,8 +434,7 @@ public class XyzNamespace implements XyzSerializable {
     }
   }
 
-  @SuppressWarnings("unused")
-  public XyzNamespace withDeleted(boolean deleted) {
+  public @NotNull XyzNamespace withDeleted(boolean deleted) {
     setDeleted(deleted);
     return this;
   }
@@ -445,50 +447,47 @@ public class XyzNamespace implements XyzSerializable {
     this.version = version;
   }
 
-  @SuppressWarnings("unused")
-  public XyzNamespace withVersion(long version) {
+  public @NotNull XyzNamespace withVersion(long version) {
     setVersion(version);
     return this;
   }
 
-  public String getAuthor() {
+  public @Nullable String getAuthor() {
     return author;
   }
 
-  public void setAuthor(String author) {
+  public void setAuthor(@Nullable String author) {
     this.author = author;
   }
 
-  @SuppressWarnings("unused")
-  public XyzNamespace withAuthor(String author) {
+  public @NotNull XyzNamespace withAuthor(@Nullable String author) {
     setAuthor(author);
     return this;
   }
 
-  public String getAppId() {
+  public @Nullable String getAppId() {
     return app_id;
   }
 
-  public void setAppId(String app_id) {
+  public void setAppId(@Nullable String app_id) {
     this.app_id = app_id;
   }
 
-  @SuppressWarnings("unused")
-  public XyzNamespace withAppId(String app_id) {
+  public @NotNull XyzNamespace withAppId(@Nullable String app_id) {
     setAppId(app_id);
     return this;
   }
 
-  public String getOwner() {
+  public @Nullable String getOwner() {
     return owner;
   }
 
-  public void setOwner(String owner) {
+  public void setOwner(@Nullable String owner) {
     this.owner = owner;
   }
 
-  @SuppressWarnings("unused")
-  public XyzNamespace withOwner(String owner) {
+
+  public @NotNull XyzNamespace withOwner(@Nullable String owner) {
     setOwner(owner);
     return this;
   }

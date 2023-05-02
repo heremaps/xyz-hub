@@ -121,7 +121,7 @@ public class EventPipeline implements IEventContext {
       if (connectorId == null) {
         throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
       }
-      final Connector connector = Connector.getConnectorById(connectorId);
+      final Connector connector = INaksha.instance.get().getConnectorById(connectorId);
       if (connector == null) {
         throw new XyzErrorException(XyzError.EXCEPTION,
             "The connector[" + i + "] with id " + connectorId + " does not exists");

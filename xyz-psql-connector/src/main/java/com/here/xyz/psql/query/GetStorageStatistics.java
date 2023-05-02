@@ -21,7 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.AbstractTask.currentTask;
 
-import com.here.mapcreator.ext.naksha.PsqlSpace;
+import com.here.mapcreator.ext.naksha.PsqlCollection;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;
 import com.here.xyz.psql.PsqlEventHandler;
@@ -66,7 +66,7 @@ public class GetStorageStatistics
         .getSpaceIds()
         .forEach(
             spaceId -> {
-              final PsqlSpace space = processor.getSpaceById(spaceId);
+              final PsqlCollection space = processor.getSpaceById(spaceId);
               if (space == null) {
                 currentTask().info("Unknown space: {}", spaceId);
               } else if (!schema.equals(space.schema)) {
@@ -74,7 +74,7 @@ public class GetStorageStatistics
                     "The given space '{}' is located in schema '{}', but this connector is bound to schema '{}', ignore space",
                     spaceId, space.schema, schema);
               } else {
-                tableNames.add(space.table);
+                tableNames.add(space.headTable);
                 tableNames.add(space.historyTable);
               }
             });

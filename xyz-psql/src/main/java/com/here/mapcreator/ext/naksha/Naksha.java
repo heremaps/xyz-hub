@@ -3,10 +3,10 @@ package com.here.mapcreator.ext.naksha;
 import static com.here.mapcreator.ext.naksha.sql.MaintenanceSQL.XYZ_CONFIG;
 
 import com.here.mapcreator.ext.naksha.sql.MaintenanceSQL;
+import com.here.xyz.INaksha;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.psql.PsqlStorageParams;
-import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -17,20 +17,21 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The Naksha PostgresQL management class.
+ * The Naksha PostgresQL class.
  */
-public final class Naksha {
+public final class Naksha implements INaksha {
 
-  Naksha() {
-  }
+  Naksha() {}
 
   private static final Logger logger = LoggerFactory.getLogger(Naksha.class);
 
@@ -69,7 +70,7 @@ public final class Naksha {
   static final long NAKSHA_EXT_VERSION = 1L << 32 | 0L << 16 | 0L;
 
   /**
-   * Set the management configuration and application name. Normally called by the Naksha host and read from the Naksha configuration file.
+   * Initialize Naksha. Normally called by the Naksha host and read from the Naksha configuration file.
    *
    * @param config          The configuration of the Naksha management database.
    * @param applicationName The name of the Naksha instance.
@@ -89,6 +90,7 @@ public final class Naksha {
     Naksha.managementPsqlPool = PsqlPool.get(config);
     Naksha.managementDataSource = new PsqlManagementDataSource(Naksha.managementPsqlPool, applicationName).withSchema(ADMIN_SCHEMA);
     Naksha.runMaintenanceThread();
+    INaksha.instance.set(new Naksha());
   }
 
   static volatile boolean initialized;
@@ -439,7 +441,7 @@ public final class Naksha {
                 final Space space = XyzSerializable.deserialize(config, Space.class);
                 assert space != null;
                 space.setId(id);
-                space.setOwner(owner);
+                space.useProperties().useXyzNamespace().setOwner(owner);
               } catch (Exception e) {
                 logger.error("{} - Failed to deserialize space {}:{}, json: {}", applicationName, id, i, config, e);
               } finally {
@@ -523,4 +525,37 @@ public final class Naksha {
       }
     }
   }
+
+  private static final ConcurrentHashMap<@NotNull String, @NotNull Space> allSpaces = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<@NotNull String, @NotNull Connector> allConnectors = new ConcurrentHashMap<>();
+  private static final ThreadLocal<Throwable> error = new ThreadLocal<>();
+
+  @Override
+  public @Nullable Throwable getLastError() {
+    return Naksha.error.get();
+  }
+
+  @Override
+  public <V> @Nullable V Return(@Nullable Throwable error) {
+    Naksha.error.set(error);
+    return null;
+  }
+
+  @Override
+  public <V> @Nullable V Return(@Nullable V value) {
+    Naksha.error.set(null);
+    return value;
+  }
+
+  @Override
+  public @Nullable Space getSpaceById(@NotNull String id) {
+    return allSpaces.get(id);
+  }
+
+  @Override
+  public @Nullable Connector getConnectorById(@NotNull String id) {
+    return allConnectors.get(id);
+  }
+
+  // TODO: Fill spaces and connectors
 }

@@ -17,10 +17,11 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.models.hub.psql;
+package com.here.mapcreator.ext.naksha;
 
 import static com.here.xyz.AbstractTask.currentTask;
 
+import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.EventHandlerParams;
 import java.util.ArrayList;

@@ -22,7 +22,7 @@ package com.here.xyz.psql;
 import com.amazonaws.util.IOUtils;
 import com.here.mapcreator.ext.naksha.PsqlPool;
 import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.psql.PsqlStorageParams;
+import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;

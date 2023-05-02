@@ -4,7 +4,6 @@ import static com.here.mapcreator.ext.naksha.Naksha.NAKSHA_SEARCH_PATH;
 import static com.here.mapcreator.ext.naksha.Naksha.SPACE_SCHEMA;
 import static com.here.mapcreator.ext.naksha.Naksha.escapeId;
 
-import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;

@@ -5,22 +5,33 @@
 
 [Naksha](https://en.wikipedia.org/wiki/Naksha) [(नक्शा)](https://www.shabdkosh.com/search-dictionary?lc=hi&sl=en&tl=hi&e=%E0%A4%A8%E0%A4%95%E0%A5%8D%E0%A4%B6%E0%A4%BE) is the name of this fork of the [XYZ-Hub](https://github.com/heremaps/xyz-hub) (pronounced **nakshaa** or **nakśā**). It stays a web service for the access and management of geospatial data. This spin-off was done to independently realize needed new features, not planned to be supported in the original [XYZ-Hub](https://github.com/heremaps/xyz-hub) project.
 
-The meaning of [Naksha](https://en.wikipedia.org/wiki/Naksha) is “Map”.
+The meaning of [Naksha](https://en.wikipedia.org/wiki/Naksha)-Hub is “Map-Hub”.
 
 # Overview
 Naksha features are:
-* Organize geo datasets in _spaces_
-* Store and manipulate individual geo features (points, linestrings, polygons)
-* Retrieve geo features as vector tiles, with or without clipped geometries
-* Search for geo features spatially using a bounding box, radius, or any custom geometry
-* Explore geo features by filtering property values
-* Retrieve statistics for your _spaces_
-* Analytical representation of geo data as hexbins with statistical information
-* Connect with different data sources
-* Build a real-time geodata pipeline with processors
-* Attach listeners to react on events
+* Organize geo datasets in _spaces_.
+* Store and manipulate individual geo features (points, line-strings, polygons).
+* Retrieve geo features as vector tiles, with or without clipped geometries.
+* Search for geo features spatially using a bounding box, radius, or any custom geometry.
+* Explore geo features by filtering property values.
+* Retrieve statistics for your _spaces_.
+* Analytical representation of geo data as hex-bins with statistical information.
+* Connect with different data sources.
+* Build a real-time geo-data pipeline with processors.
+* Attach listeners to react on events.
 
 Naksha uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospatial data exchange format. Tiled data can also be provided as [MVT](https://github.com/mapbox/vector-tile-spec/blob/master/2.1/README.md).
+
+# Terminology
+Naksha uses the following terms:
+- **Feature**: An object that is compatible to the [GeoJSON](https://tools.ietf.org/html/rfc79460) format.
+- **Collection**: A physical storage for features.
+- **Connector**: A configuration that binds a named event handler (some server side code) with an arbitrary secret configuration. The event handlers implements event processing logic, for example they send requests to foreign hosts, store or read features from a storage or perform validation and verification.
+- **Space**: The public name to access a set of features. A space can be bound to a collection, but does not need to be. There are for example virtual spaces, which combine features of other spaces. A space on its own is a feature that can be modified. All spaces need at least one connector, but can chain multiple.
+- **Subscription**: A subscription is a configuration, defining, which connector should be invoked when the content of a space changes. The listener can have multiple connectors the same way a space has. They will be executed for all events and guaranteed to be called at least ones. That means if an error occurs, they are called again. All subscriptions are independent of each other. Naksha calls individual subscriptions parallel, but each subscription receive all events in order. A subscription is guaranteed to be called at least ones at one Naksha instance at a time, but it can be moved between instances.
+- **AppId**: The identifier of the application that has modified a feature, read from the JWT token.
+- **Author**: A user or application identifier that has modified a feature, read from the JWT token.
+- **Owner**: An named entity that owns a feature and always has full access to the feature, being either a user or application. Can be set to the author or application from the JWT token. If not explicitly set, the owner of the parent. If no parent is available, the user from the JWT token or the application or eventually “anonymous”. A space can enforce a specific owner for all features in it.
 
 # Prerequisites
 

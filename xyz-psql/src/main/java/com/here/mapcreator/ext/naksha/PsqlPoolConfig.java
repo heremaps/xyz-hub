@@ -1,4 +1,4 @@
-package com.here.xyz.models.hub.psql;
+package com.here.mapcreator.ext.naksha;
 
 import static java.lang.Math.max;
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -186,8 +186,10 @@ public final class PsqlPoolConfig {
         + ",url='" + url + "'"
         + ",user='" + user + "'"
         + ",connTimeout=" + connTimeout
-        + ",maxPoolSize=" + maxPoolSize
+        + ",stmtTimeout=" + stmtTimeout
+        + ",lockTimeout=" + lockTimeout
         + ",minPoolSize=" + minPoolSize
+        + ",maxPoolSize=" + maxPoolSize
         + ",idleTimeout=" + idleTimeout
         + '}';
   }

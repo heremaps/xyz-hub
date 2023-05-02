@@ -1,4 +1,4 @@
-package com.here.xyz.models.hub.psql;
+package com.here.mapcreator.ext.naksha;
 
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;

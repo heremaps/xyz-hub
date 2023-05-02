@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.models.hub.psql.PsqlStorageParams;
+import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;

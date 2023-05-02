@@ -27,11 +27,11 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.EventHandler;
 import com.here.xyz.View;
 import com.here.xyz.View.All;
+import com.here.xyz.models.geojson.implementation.AbstractFeature;
 import com.here.xyz.models.geojson.implementation.Properties;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,31 +41,7 @@ import org.jetbrains.annotations.Nullable;
  * used by multiple spaces.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Connector {
-
-  /**
-   * All connectors, beware to modify this map or any of its values. This is a read-only map!
-   *
-   * <p>This map need to be updated by a background process of the host.
-   */
-  private static final ConcurrentHashMap<@NotNull String, @NotNull Connector> connectors = new ConcurrentHashMap<>();
-
-  /**
-   * Returns the connector with the given ID.
-   *
-   * @param id the connector-id.
-   * @return The connector with the given ID; if any.
-   */
-  public static @Nullable Connector getConnectorById(@Nullable String id) {
-    return id != null ? connectors.get(id) : null;
-  }
-
-  /**
-   * The connector ID.
-   */
-  @JsonProperty
-  @JsonView(All.class)
-  public String id;
+public class Connector extends AbstractFeature<Properties, Connector> {
 
   /**
    * The connector number.
@@ -91,7 +67,7 @@ public class Connector {
    */
   @JsonProperty
   @JsonView(All.class)
-  public String eventHandlerId;
+  public String eventHandler;
 
   /**
    * Connector (event handler) parameters to be provided to the event handler constructor.
@@ -142,5 +118,10 @@ public class Connector {
       this.packages = packages = new ArrayList<>();
     }
     return packages;
+  }
+
+  @Override
+  protected @NotNull Properties newProperties() {
+    return new Properties();
   }
 }

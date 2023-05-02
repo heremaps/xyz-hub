@@ -23,7 +23,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-import com.here.xyz.models.hub.psql.PsqlStorageParams;
+import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;

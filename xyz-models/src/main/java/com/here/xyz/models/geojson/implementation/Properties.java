@@ -20,45 +20,11 @@
 package com.here.xyz.models.geojson.implementation;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.xyz.Extensible;
-import java.util.LinkedHashSet;
-import java.util.Set;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
+/**
+ * The standard properties of the standard feature store in the Naksha-Hub.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Properties extends Extensible<Properties> {
+public class Properties extends XyzProperties<Properties> {
 
-  @JsonProperty(XyzNamespace.XYZ_NAMESPACE)
-  @JsonInclude(Include.NON_NULL)
-  private XyzNamespace xyzNamespace;
-
-  public @Nullable XyzNamespace getXyzNamespace() {
-    return xyzNamespace;
-  }
-
-  public void setXyzNamespace(@Nullable XyzNamespace xyzNamespace) {
-    this.xyzNamespace = xyzNamespace;
-  }
-
-  public @NotNull XyzNamespace xyzNamespace() {
-    if (xyzNamespace == null) {
-      xyzNamespace = new XyzNamespace();
-    }
-    return xyzNamespace;
-  }
-
-  public @NotNull Properties withXyzNamespace(@Nullable XyzNamespace xyzNamespace) {
-    this.xyzNamespace = xyzNamespace;
-    return this;
-  }
-
-  public @NotNull Set<@NotNull String> keySet() {
-    LinkedHashSet<String> keySet = new LinkedHashSet<>(additionalProperties().keySet());
-    keySet.add(XyzNamespace.XYZ_NAMESPACE);
-    return keySet;
-  }
 }

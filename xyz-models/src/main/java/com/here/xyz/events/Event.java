@@ -30,6 +30,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.INaksha;
 import com.here.xyz.NanoTime;
 import com.here.xyz.Payload;
 import com.here.xyz.events.admin.ModifySubscriptionEvent;
@@ -222,6 +223,7 @@ public abstract class Event extends Payload {
    */
   @JsonIgnore
   public void setSpace(@NotNull Space space) {
+    //noinspection ConstantConditions
     setSpaceId(space.getId());
   }
 
@@ -232,7 +234,7 @@ public abstract class Event extends Payload {
    */
   public @Nullable Space getSpace() {
     final String spaceId = getSpaceId();
-    return spaceId != null ? Space.getById(spaceId) : null;
+    return spaceId != null ? INaksha.instance.get().getSpaceById(spaceId) : null;
   }
 
   /**

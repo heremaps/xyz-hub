@@ -26,6 +26,9 @@ import com.here.xyz.events.clustering.Clustering;
 import com.here.xyz.events.tweaks.Tweaks;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Subscription;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({
@@ -33,7 +36,11 @@ import com.here.xyz.models.geojson.implementation.Geometry;
     @JsonSubTypes.Type(value = Feature.class, name = "Feature"),
     @JsonSubTypes.Type(value = Geometry.class),
     @JsonSubTypes.Type(value = Clustering.class),
-    @JsonSubTypes.Type(value = Tweaks.class)
+    @JsonSubTypes.Type(value = Tweaks.class),
+    @JsonSubTypes.Type(value = Space.class, name = "Space"),
+    @JsonSubTypes.Type(value = Connector.class, name = "Connector"),
+    @JsonSubTypes.Type(value = Subscription.class, name = "Subscription")
 })
 public interface Typed extends XyzSerializable {
+
 }

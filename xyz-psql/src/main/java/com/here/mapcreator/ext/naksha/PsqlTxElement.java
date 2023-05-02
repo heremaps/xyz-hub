@@ -1,14 +1,14 @@
-package com.here.xyz.models.hub.psql;
+package com.here.mapcreator.ext.naksha;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View;
-import com.here.xyz.models.hub.TransactionCommitMessage;
+import com.here.xyz.models.hub.TransactionElement;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
-public class PsqlTxCommitMessage extends TransactionCommitMessage {
+public class PsqlTxElement extends TransactionElement {
 
   /**
    * The unique row identifier.
@@ -37,5 +37,4 @@ public class PsqlTxCommitMessage extends TransactionCommitMessage {
   @JsonProperty
   @JsonView(View.Private.class)
   public String table;
-
 }

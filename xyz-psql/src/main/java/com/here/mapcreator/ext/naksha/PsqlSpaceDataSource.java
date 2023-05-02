@@ -1,7 +1,5 @@
 package com.here.mapcreator.ext.naksha;
 
-import com.here.xyz.models.hub.psql.PsqlStorageParams;
-import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.jetbrains.annotations.NotNull;

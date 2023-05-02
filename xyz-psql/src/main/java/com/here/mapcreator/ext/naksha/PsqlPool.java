@@ -3,7 +3,6 @@ package com.here.mapcreator.ext.naksha;
 import static com.here.xyz.AbstractTask.currentTask;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.here.xyz.models.hub.psql.PsqlPoolConfig;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import java.lang.ref.SoftReference;
@@ -23,8 +22,7 @@ public final class PsqlPool implements AutoCloseable {
 
   @Override
   public void close() {
-    // This is just for the user to be able to use the pool in a try to keep our soft-reference
-    // alive.
+    // This is just for the user to be able to use the pool in a try to keep our soft-reference alive.
   }
 
   private static class PsqlConnPoolRef extends SoftReference<PsqlPool> {

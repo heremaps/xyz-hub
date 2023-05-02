@@ -85,7 +85,10 @@ public abstract class EventHandler implements IEventHandler {
    */
   @SuppressWarnings("unchecked")
   public static <H extends EventHandler> @NotNull H newInstance(@NotNull Connector connector) throws XyzErrorException {
-    final @NotNull String id = connector.id;
+    final String id = connector.getId();
+    if (id == null) {
+      throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "The given connector does not have an 'id'");
+    }
     final Class<H> handlerClass = allClasses.get(id);
     final Constructor<H> constructor = allConstructors.get(id);
     if (handlerClass == null || constructor == null) {

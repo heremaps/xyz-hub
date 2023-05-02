@@ -2,10 +2,10 @@ package com.here.xyz.pub.db;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.hub.SubscriptionConfig;
-import com.here.xyz.models.hub.psql.PsqlPoolConfig;
+import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.hub.Subscription;
-import com.here.xyz.models.hub.psql.PsqlStorageParams;
+import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import com.here.xyz.pub.models.*;
 import io.vertx.core.json.Json;
 import org.apache.logging.log4j.LogManager;

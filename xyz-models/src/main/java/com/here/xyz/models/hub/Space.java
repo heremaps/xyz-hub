@@ -25,15 +25,16 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.Typed;
 import com.here.xyz.View;
 import com.here.xyz.View.All;
+import com.here.xyz.models.geojson.implementation.AbstractFeature;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -42,7 +43,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Space")
-public class Space {
+public class Space extends AbstractFeature<Properties, Space> implements Typed {
 
   /**
    * Create new blank space object.
@@ -56,37 +57,19 @@ public class Space {
    * @param id the identifier.
    */
   public Space(@NotNull String id) {
-    this.id = id;
+    setId(id);
   }
 
-  /**
-   * All spaces, beware to modify this map or any of its values. This is a read-only map!
-   *
-   * <p>This map need to be updated by a background process of the host.
-   */
-  private static final ConcurrentHashMap<@NotNull String, @NotNull Space> spaces = new ConcurrentHashMap<>();
-
-  /**
-   * Returns the space with the given ID.
-   *
-   * @param id the space-id.
-   * @return The space with the given ID; if any.
-   */
-  public static @Nullable Space getById(@NotNull String id) {
-    return spaces.get(id);
+  @Override
+  protected @NotNull Properties newProperties() {
+    return new Properties();
   }
+
 
   /**
    * Beta release date: 2018-10-01T00:00Z[UTC]
    */
   private final long DEFAULT_TIMESTAMP = 1538352000000L;
-
-  /**
-   * The unique identifier of the space.
-   */
-  @JsonProperty
-  @JsonView(All.class)
-  private String id;
 
   /**
    * A human-readable title of the space.
@@ -95,6 +78,16 @@ public class Space {
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private String title;
+
+  /**
+   * The collection into which to place the features. The {@link #getId() id} reflects the unique identifier under which the space is
+   * referred externally, the collection refers to the storage internally and is only understood by the storage connector. If the client
+   * does not explicitly set the collection name, then it will be set to the same as the space identifier.
+   */
+  @JsonProperty
+  @JsonView(All.class)
+  @JsonInclude(Include.NON_NULL)
+  private String collection;
 
   /**
    * A human-readable description of the space, and its content.
@@ -144,18 +137,11 @@ public class Space {
   public @Nullable List<@NotNull String> connectors;
 
   /**
-   * The identifier of the owner of this space, most likely the HERE account ID.
-   */
-  @JsonProperty
-  @JsonView(All.class)
-  private String owner;
-
-  /**
    * Allows to temporary or permanently disable history.
    */
   @JsonProperty
   @JsonView(All.class)
-  private boolean enableHistory = true;
+  private boolean history = true;
 
   /**
    * The maximum days of history to keep; {@code null} means forever.
@@ -163,7 +149,7 @@ public class Space {
   @JsonProperty
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
-  private Integer maxHistoryDays;
+  private Integer maxHistoryAge;
 
   /**
    * List of packages that this space belongs to.
@@ -207,16 +193,24 @@ public class Space {
   @JsonInclude(Include.NON_EMPTY)
   private Map<@NotNull String, @NotNull Constraint> constraints;
 
-  public String getId() {
-    return id;
+  /**
+   * If set, then the owner of all features in this space forcefully set to this value.
+   */
+  @JsonProperty
+  @JsonView(All.class)
+  @JsonInclude(Include.NON_EMPTY)
+  private String forceOwner;
+
+  public String getCollection() {
+    return collection != null ? collection : getId();
   }
 
-  public void setId(final String id) {
-    this.id = id;
+  public void setCollection(final String collection) {
+    this.collection = collection;
   }
 
-  public @NotNull Space withId(final String id) {
-    setId(id);
+  public @NotNull Space withCollection(final String collection) {
+    setCollection(collection);
     return this;
   }
 
@@ -289,7 +283,7 @@ public class Space {
     return connectors;
   }
 
-  public @NotNull List<@NotNull String> connectorIds() {
+  public @NotNull List<@NotNull String> useConnectorIds() {
     List<@NotNull String> connectors = this.connectors;
     if (connectors == null) {
       this.connectors = connectors = new ArrayList<>();
@@ -310,35 +304,27 @@ public class Space {
     }
   }
 
-  public String getOwner() {
-    return owner;
+  public boolean hasHistory() {
+    return history;
   }
 
-  public void setOwner(final String owner) {
-    this.owner = owner;
+  public void setHistory(final boolean enableHistory) {
+    this.history = enableHistory;
   }
 
-  public boolean isEnableHistory() {
-    return enableHistory;
+  public @Nullable Integer getMaxHistoryAge() {
+    return maxHistoryAge;
   }
 
-  public void setEnableHistory(final boolean enableHistory) {
-    this.enableHistory = enableHistory;
-  }
-
-  public @Nullable Integer getMaxHistoryDays() {
-    return maxHistoryDays;
-  }
-
-  public void setMaxHistoryDays(@Nullable Integer days) {
-    this.maxHistoryDays = days;
+  public void setMaxHistoryAge(@Nullable Integer days) {
+    this.maxHistoryAge = days;
   }
 
   public List<@NotNull String> getPackages() {
     return packages;
   }
 
-  public @NotNull List<@NotNull String> packages() {
+  public @NotNull List<@NotNull String> usePackages() {
     List<@NotNull String> packages = this.packages;
     if (packages == null) {
       this.packages = packages = new ArrayList<>();
@@ -348,22 +334,6 @@ public class Space {
 
   public void setPackages(final List<@NotNull String> packages) {
     this.packages = packages;
-  }
-
-  public @Nullable Properties getProperties() {
-    return properties;
-  }
-
-  public @NotNull Properties properties() {
-    Properties properties = this.properties;
-    if (properties == null) {
-      this.properties = properties = new Properties();
-    }
-    return properties;
-  }
-
-  public void setProperties(@Nullable Properties properties) {
-    this.properties = properties;
   }
 
   public boolean isReadOnly() {
@@ -388,5 +358,18 @@ public class Space {
 
   public void setConstraints(@Nullable Map<@NotNull String, @NotNull Constraint> constraints) {
     this.constraints = constraints;
+  }
+
+  public @Nullable String getForceOwner() {
+    return forceOwner;
+  }
+
+  public void setForceOwner(final String forceOwner) {
+    this.forceOwner = forceOwner;
+  }
+
+  public @NotNull Space withForceOwner(final String forceOwner) {
+    setForceOwner(forceOwner);
+    return this;
   }
 }

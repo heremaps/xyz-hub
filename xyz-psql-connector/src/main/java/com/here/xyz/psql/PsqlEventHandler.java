@@ -48,11 +48,11 @@ import com.here.xyz.events.tweaks.TweaksSampling;
 import com.here.xyz.events.tweaks.TweaksSimplification;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.psql.PsqlStorageParams;
+import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
 import com.here.xyz.NanoTime;
-import com.here.mapcreator.ext.naksha.PsqlSpace;
+import com.here.mapcreator.ext.naksha.PsqlCollection;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
@@ -221,7 +221,7 @@ public class PsqlEventHandler extends ExtendedEventHandler {
     return replicaDataSource;
   }
 
-  public final @Nullable PsqlSpace getSpaceById(@Nullable CharSequence spaceId) {
+  public final @Nullable PsqlCollection getSpaceById(@Nullable CharSequence spaceId) {
     throw new UnsupportedOperationException("getSpaceById");
   }
 
