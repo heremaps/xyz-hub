@@ -40,7 +40,6 @@ public class HubWebClient {
         return CService.webClient.postAbs(CService.configuration.HUB_ENDPOINT
                         .substring(0,CService.configuration.HUB_ENDPOINT.lastIndexOf("/"))+"/_export-job")
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-                .putHeader("x-idempotency-key", job.getId() + "-0000000000")
                 .sendJson(job)
                 .compose(res -> {
                     try {
