@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <EVENT> the event type.
  */
-public final class TaskPipeline<EVENT extends Event, TASK extends AbstractEventTask<EVENT, TASK>> {
+public final class TaskPipeline<EVENT extends Event, TASK extends XyzHubTask<EVENT, TASK>> {
 
   private static final Logger logger = LoggerFactory.getLogger(TaskPipeline.class);
   private static final String logId = TaskPipeline.class.getSimpleName();

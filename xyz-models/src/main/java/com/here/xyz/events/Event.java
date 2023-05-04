@@ -52,7 +52,9 @@ import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.AbstractTask;
+import com.here.xyz.util.JsonUtils;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -180,6 +182,12 @@ public abstract class Event extends Payload {
   @JsonProperty("space")
   private @Nullable String spaceId;
 
+  /**
+   * The collection; if any.
+   */
+  @JsonProperty
+  private @Nullable String collection;
+
   private Map<String, Object> metadata;
 
   @JsonView(ExcludeFromHash.class)
@@ -202,6 +210,27 @@ public abstract class Event extends Payload {
   private @Nullable String author;
 
   /**
+   * The identifier of the collection; if any.
+   *
+   * @return the identifier of the collection; if any.
+   */
+  @JsonIgnore
+  public @Nullable String getCollection() {
+    return this.collection;
+  }
+
+  /**
+   * The identifier of the collection or the alternative.
+   *
+   * @param alternative The alternative to return, if no collection is available.
+   * @return The identifier of the collection or the alternative, if no collection is available.
+   */
+  @JsonIgnore
+  public @NotNull String getCollection(@NotNull String alternative) {
+    return collection != null ? collection : alternative;
+  }
+
+  /**
    * The identifier of the space.
    *
    * @return the identifier of the space.
@@ -211,30 +240,16 @@ public abstract class Event extends Payload {
     return this.spaceId;
   }
 
-  @JsonIgnore
-  public void setSpaceId(@NotNull String spaceId) {
-    this.spaceId = spaceId;
-  }
-
   /**
-   * Sets the space.
+   * Sets the {@link #spaceId} and {@link #collection}.
    *
    * @param space The space to set.
    */
   @JsonIgnore
   public void setSpace(@NotNull Space space) {
-    //noinspection ConstantConditions
-    setSpaceId(space.getId());
-  }
-
-  /**
-   * Returns the {@link Space space} referred by the set {@link #spaceId}.
-   *
-   * @return The space; {@code null} if no {@link #spaceId} is set or no such space exists.
-   */
-  public @Nullable Space getSpace() {
-    final String spaceId = getSpaceId();
-    return spaceId != null ? INaksha.instance.get().getSpaceById(spaceId) : null;
+    this.spaceId = space.getId();
+    this.collection = space.getCollection();
+    this.params = JsonUtils.deepCopy(space.params);
   }
 
   /**
@@ -242,10 +257,6 @@ public abstract class Event extends Payload {
    */
   public @Nullable Map<@NotNull String, Object> getParams() {
     return this.params;
-  }
-
-  public void setParams(@Nullable Map<@NotNull String, Object> params) {
-    this.params = params;
   }
 
   /**
@@ -311,25 +322,6 @@ public abstract class Event extends Payload {
   }
 
   /**
-   * The parameters as {@link Connector#params configured in the connector}.
-   */
-  public @NotNull Map<@NotNull String, @Nullable Object> withConnectorParams() {
-    if (connectorParams == null) {
-      connectorParams = new HashMap<>();
-    }
-    return connectorParams;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setConnectorParams(@Nullable Map<@NotNull String, @Nullable Object> connectorParams) {
-    this.connectorParams = connectorParams;
-  }
-
-  // TODO: Move connectorId and connectorNumber to root!
-  // Note: connectorParams are optional and only necessary when sending the event to a remove location.
-  //       This means, they are basically Virtual
-
-  /**
    * Returns the "connectorId" property from the {@link #getConnectorParams() connector parameters}.
    *
    * @return the "connectorId" property; if set.
@@ -344,16 +336,6 @@ public abstract class Event extends Payload {
     }
     currentTask().debug("Missing 'connectorParams.connectorId' in event");
     return getClass().getName();
-  }
-
-  /**
-   * Sets the "connectorId" property in the {@link #getConnectorParams() connector parameters}. If no params exists yet, new params are
-   * created, and the connector-id is set in it.
-   *
-   * @param id the connector ID to be set.
-   */
-  public void setConnectorId(@NotNull String id) {
-    withConnectorParams().put("connectorId", id);
   }
 
   /**
@@ -374,9 +356,20 @@ public abstract class Event extends Payload {
     return 0L;
   }
 
-  @JsonIgnore
-  public void setConnectorNumber(long connectorNumber) {
-    withConnectorParams().put("connectorNumber", connectorNumber);
+  /**
+   * Sets the given connector to the event. Calling this method is only necessary, when sending the event over the network to a remote
+   * host, because for embedded implementation the connector configuration will be passed to the constructor of the event handler.
+   *
+   * @param connector The connector to set.
+   */
+  public void setConnector(@NotNull Connector connector) {
+    // Note: The last configured connector is essentially
+    connectorParams = JsonUtils.deepCopy(connector.params);
+    if (connectorParams == null) {
+      connectorParams = new HashMap<>();
+    }
+    connectorParams.put("connectorId", connector.getId());
+    connectorParams.put("connectorNumber", connector.number);
   }
 
   /**

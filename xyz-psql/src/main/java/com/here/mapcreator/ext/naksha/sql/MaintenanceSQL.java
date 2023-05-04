@@ -19,7 +19,6 @@
 
 package com.here.mapcreator.ext.naksha.sql;
 
-import com.here.mapcreator.ext.naksha.Naksha;
 import org.jetbrains.annotations.NotNull;
 
 public class MaintenanceSQL {
@@ -32,7 +31,8 @@ public class MaintenanceSQL {
   /**
    * Main schema for xyz-relevant configurations.
    */
-  public static final String XYZ_CONFIG_SCHEMA = Naksha.ADMIN_SCHEMA;
+  public static final String XYZ_CONFIG_SCHEMA = "postgres";
+  // TODO: We need to change this whole class!
 
   /**
    * Tables for database wide configurations, which belong to XYZ_CONFIG_SCHEMA

@@ -120,7 +120,7 @@ public class XyzNamespace implements XyzSerializable {
   private long version = 0L;
 
   /**
-   * The author that changed the feature in the current revision.
+   * The author (user or application) that created the current revision of the feature.
    */
   @JsonProperty
   @JsonView(View.All.class)
@@ -128,7 +128,7 @@ public class XyzNamespace implements XyzSerializable {
   private String author;
 
   /**
-   * The application that changed the feature in the current revision.
+   * The application that create the current revision of the feature.
    */
   @JsonProperty
   @JsonView(View.All.class)
@@ -280,7 +280,6 @@ public class XyzNamespace implements XyzSerializable {
     this.action = action.toString();
   }
 
-
   public @NotNull XyzNamespace withAction(@Nullable String action) {
     setAction(action);
     return this;
@@ -290,7 +289,6 @@ public class XyzNamespace implements XyzSerializable {
     setAction(action);
     return this;
   }
-
 
   public long getCreatedAt() {
     return createdAt;

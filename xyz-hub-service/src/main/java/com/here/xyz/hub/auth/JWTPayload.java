@@ -25,14 +25,30 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_DEFAULT)
 public class JWTPayload {
 
+  /**
+   * The token identifier; if any.
+   */
   public String tid;
+  /**
+   * The authenticated application identifier; if any.
+   */
   public String aid;
-  public String author;
+  /**
+   * The authenticated user; if any.
+   */
+  public String user;
+  /**
+   * The ownership identifier; if any. When creating new objects, then owner receives the ownership. Without an owner, no new objects can be
+   * created, except for features, where the owner of the space is then used as owner.
+   */
+  public String owner;
+  // TODO: ???
   public String cid;
 
   public Map<String, Object> metadata;
@@ -43,25 +59,34 @@ public class JWTPayload {
   public boolean anonymous;
 
   public String jwt;
+  @JsonIgnore
+  private XyzHubActionMatrix __xyzHubMatrix;
 
   /**
    * Returns the XYZ Hub action matrix, if there is any for this JWT token.
+   *
    * @return the XYZ Hub action matrix or null.
    */
   @JsonIgnore
-  public XyzHubActionMatrix getXyzHubMatrix(){
-    if (urm == null)
+  public @Nullable XyzHubActionMatrix getXyzHubMatrix() {
+    if (__xyzHubMatrix != null) {
+      return __xyzHubMatrix;
+    }
+    if (urm == null) {
       return null;
+    }
     final ActionMatrix hereActionMatrix = urm.get(URMServiceId.XYZ_HUB);
-    if (hereActionMatrix == null)
+    if (hereActionMatrix == null) {
       return null;
-    return DatabindCodec.mapper().convertValue(hereActionMatrix, XyzHubActionMatrix.class);
+    }
+    return __xyzHubMatrix = DatabindCodec.mapper().convertValue(hereActionMatrix, XyzHubActionMatrix.class);
   }
 
   /**
    * Constants for all services that may be part of the JWT token.
    */
   public static final class URMServiceId {
+
     static final String XYZ_HUB = "xyz-hub";
   }
 }

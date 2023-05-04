@@ -37,8 +37,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.task.feature.AbstractFeatureTask;
-import com.here.xyz.hub.task.space.SpaceTask;
-import com.here.xyz.hub.task.AbstractEventTask;
+import com.here.xyz.hub.task.XyzHubTask;
 import com.here.xyz.hub.task.TaskPipelineCancelled;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
@@ -99,7 +98,7 @@ public abstract class Api {
    *
    * @return true if a response was sent; false otherwise.
    */
-  private boolean sendEmptyResponse(final AbstractEventTask task) {
+  private boolean sendEmptyResponse(final XyzHubTask task) {
     if (ApiResponseType.EMPTY == task.responseType) {
       if (task instanceof AbstractFeatureTask) {
         final AbstractFeatureTask featureTask = (AbstractFeatureTask) task;
@@ -130,7 +129,7 @@ public abstract class Api {
    * @param task the task for which to generate the "Not Modified" response.
    * @return true if a response has been send; false if not.
    */
-  private boolean sendNotModifiedResponseIfNoneMatch(final AbstractEventTask task) {
+  private boolean sendNotModifiedResponseIfNoneMatch(final XyzHubTask task) {
     //If the task has an ETag, set it in the HTTP header.
     if (task.getEtag() != null) {
       final RoutingContext context = task.routingContext;
@@ -334,7 +333,7 @@ public abstract class Api {
    * @param task the task for which to return an error response.
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
-  void sendErrorResponse(final AbstractEventTask task, final Throwable e) {
+  void sendErrorResponse(final XyzHubTask task, final Throwable e) {
     sendErrorResponse(task.routingContext, e);
   }
 
@@ -418,7 +417,7 @@ public abstract class Api {
    *
    * @param task the task for which to return a Not Found response.
    */
-  private void sendNotFoundResponse(final AbstractEventTask task) {
+  private void sendNotFoundResponse(final XyzHubTask task) {
     task.routingContext.response()
         .setStatusCode(NOT_FOUND.code())
         .putHeader(HttpHeaders.CONTENT_TYPE, TEXT_PLAIN)
@@ -430,7 +429,7 @@ public abstract class Api {
    *
    * @param task the task for which to return a Not Found response.
    */
-  private void sendNotFoundJsonResponse(final AbstractEventTask task) {
+  private void sendNotFoundJsonResponse(final XyzHubTask task) {
     sendErrorResponse(task, new HttpException(NOT_FOUND, "The requested resource does not exist."));
   }
 
@@ -439,7 +438,7 @@ public abstract class Api {
    *
    * @param task the task for which to return the JSON response.
    */
-  private void sendJsonResponse(final AbstractEventTask<?, ?> task, final String json) {
+  private void sendJsonResponse(final XyzHubTask<?, ?> task, final String json) {
     sendResponse(task, OK, APPLICATION_JSON, json.getBytes());
   }
 
@@ -448,7 +447,7 @@ public abstract class Api {
    *
    * @param task the task for which to return the GeoJSON response.
    */
-  private void sendGeoJsonResponse(final AbstractEventTask task, final String geoJson) {
+  private void sendGeoJsonResponse(final XyzHubTask task, final String geoJson) {
     sendResponse(task, OK, APPLICATION_GEO_JSON, geoJson.getBytes());
   }
 
@@ -459,7 +458,7 @@ public abstract class Api {
    * @param mimeType
    * @param bytes
    */
-  private void sendBinaryResponse(AbstractEventTask task, String mimeType, byte[] bytes) {
+  private void sendBinaryResponse(XyzHubTask task, String mimeType, byte[] bytes) {
     sendResponse(task, OK, mimeType, bytes);
   }
 
@@ -469,7 +468,7 @@ public abstract class Api {
     return XYZHttpContentCompressor.isCompressionEnabled(context.request().getHeader(ACCEPT_ENCODING)) ? serviceSize : httpSize;
   }
 
-  private void sendResponse(final AbstractEventTask task, HttpResponseStatus status, String contentType, final byte[] response) {
+  private void sendResponse(final XyzHubTask task, HttpResponseStatus status, String contentType, final byte[] response) {
     HttpServerResponse httpResponse = task.routingContext.response().setStatusCode(status.code());
 
     CacheProfile cacheProfile = task.getCacheProfile();

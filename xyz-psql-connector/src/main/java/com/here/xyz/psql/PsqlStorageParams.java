@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.mapcreator.ext.naksha;
+package com.here.xyz.psql;
 
 import static com.here.xyz.AbstractTask.currentTask;
 
@@ -63,10 +63,8 @@ public class PsqlStorageParams extends EventHandlerParams {
 
   private final @NotNull PsqlPoolConfig dbConfig;
   private final @NotNull List<@NotNull PsqlPoolConfig> dbReplicas;
-  private final @NotNull String spaceRole;
-  private final @NotNull String spaceSchema;
-  private final @NotNull String adminRole;
-  private final @NotNull String adminSchema;
+  private final @NotNull String role;
+  private final @NotNull String schema;
 
   /**
    * Parse the given connector params into this type-safe class.
@@ -97,10 +95,8 @@ public class PsqlStorageParams extends EventHandlerParams {
       replicas = new ArrayList<>();
     }
     dbReplicas = replicas;
-    spaceRole = parseValue(connectorParams, "spaceRole", dbConfig.user);
-    adminRole = parseValue(connectorParams, "adminRole", spaceRole);
-    spaceSchema = parseValue(connectorParams, "spaceSchema", "naksha_spaces");
-    adminSchema = parseValue(connectorParams, "adminSchema", "naksha_admin");
+    role = parseValue(connectorParams, "spaceRole", dbConfig.user);
+    schema = parseValue(connectorParams, "spaceSchema", "naksha");
     id = parseValue(connectorParams, ID, String.class);
     connectorId = parseValue(connectorParams, CONNECTOR_ID, Long.class);
     if (connectorId <= 0L) {
@@ -161,8 +157,8 @@ public class PsqlStorageParams extends EventHandlerParams {
    *
    * @return the schema in which to store the spaces.
    */
-  public @NotNull String getSpaceSchema() {
-    return spaceSchema;
+  public @NotNull String getSchema() {
+    return schema;
   }
 
   /**
@@ -170,26 +166,8 @@ public class PsqlStorageParams extends EventHandlerParams {
    *
    * @return the role to use when modifying space content.
    */
-  public @NotNull String getSpaceRole() {
-    return spaceSchema;
-  }
-
-  /**
-   * Returns the schema in which to store the admin tables (transactions, ...).
-   *
-   * @return the schema in which to store the admin tables (transactions, ...).
-   */
-  public @NotNull String getAdminSchema() {
-    return spaceSchema;
-  }
-
-  /**
-   * Returns the role to use when managing spaces.
-   *
-   * @return the role to use when managing spaces.
-   */
-  public @NotNull String getAdminRole() {
-    return spaceSchema;
+  public @NotNull String getRole() {
+    return schema;
   }
 
   /**
@@ -213,18 +191,18 @@ public class PsqlStorageParams extends EventHandlerParams {
   @Override
   public String toString() {
     // TODO: Add replicas?
+    // TODO: Do we need all these parameters?
     return "ConnectorParameters{" +
         "propertySearch=" + propertySearch +
-        ", mvtSuppoert=" + mvtSupport +
+        ", mvtSupport=" + mvtSupport +
         ", autoIndexing=" + autoIndexing +
         ", enableHashedSpaceId=" + enableHashedSpaceId +
         ", compactHistory=" + compactHistory +
         ", onDemandIdxLimit=" + onDemandIdxLimit +
         ", dbConfig=" + dbConfig +
-        ", spaceRole=" + spaceRole +
-        ", spaceSchema=" + spaceSchema +
-        ", adminRole=" + adminRole +
-        ", adminSchema=" + adminSchema +
+        //", dbReplicas=" + dbReplicas +
+        ", spaceRole=" + role +
+        ", spaceSchema=" + schema +
         '}';
   }
 }

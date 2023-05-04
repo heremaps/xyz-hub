@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.Extensible;
+import com.vividsolutions.jts.awt.PointShapeFactory.X;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,16 +34,20 @@ import org.jetbrains.annotations.Nullable;
  */
 public abstract class XyzProperties<SELF extends XyzProperties<SELF>> extends Extensible<SELF> {
 
+  protected XyzProperties() {
+    xyzNamespace = new XyzNamespace();
+  }
+
   @JsonProperty(XyzNamespace.XYZ_NAMESPACE)
   @JsonInclude(Include.NON_NULL)
-  private @Nullable XyzNamespace xyzNamespace;
+  private @NotNull XyzNamespace xyzNamespace;
 
   /**
    * Returns the XYZ namespace.
    *
    * @return The XYZ namespace.
    */
-  public @Nullable XyzNamespace getXyzNamespace() {
+  public @NotNull XyzNamespace getXyzNamespace() {
     return xyzNamespace;
   }
 
@@ -51,20 +56,8 @@ public abstract class XyzProperties<SELF extends XyzProperties<SELF>> extends Ex
    *
    * @param xyzNamespace The XYZ namespace.
    */
-  public void setXyzNamespace(@Nullable XyzNamespace xyzNamespace) {
+  public void setXyzNamespace(@NotNull XyzNamespace xyzNamespace) {
     this.xyzNamespace = xyzNamespace;
-  }
-
-  /**
-   * Returns the XYZ namespace, if not yet created, create a new one.
-   *
-   * @return The XYZ namespace.
-   */
-  public @NotNull XyzNamespace useXyzNamespace() {
-    if (xyzNamespace == null) {
-      xyzNamespace = new XyzNamespace();
-    }
-    return xyzNamespace;
   }
 
   /**
@@ -73,7 +66,7 @@ public abstract class XyzProperties<SELF extends XyzProperties<SELF>> extends Ex
    * @param xyzNamespace The namespace to set.
    * @return this.
    */
-  public @NotNull SELF withXyzNamespace(@Nullable XyzNamespace xyzNamespace) {
+  public @NotNull SELF withXyzNamespace(@NotNull XyzNamespace xyzNamespace) {
     this.xyzNamespace = xyzNamespace;
     return self();
   }

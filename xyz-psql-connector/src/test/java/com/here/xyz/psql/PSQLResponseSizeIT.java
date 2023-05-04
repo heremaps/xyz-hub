@@ -22,7 +22,6 @@ package com.here.xyz.psql;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.AbstractConnectorHandler;

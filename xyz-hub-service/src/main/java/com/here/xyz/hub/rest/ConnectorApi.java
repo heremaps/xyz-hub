@@ -25,9 +25,11 @@ import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
-import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.task.ConnectorHandler;
+import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.connector.GetConnectorsByIdTask;
 import com.here.xyz.hub.util.diff.Difference;
+import com.here.xyz.hub.util.health.GroupedHealthCheck;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -62,70 +64,12 @@ public class ConnectorApi extends Api {
     }
   }
 
-  private void getConnector(final RoutingContext context) {
-    try {
-      String connectorId = context.pathParam(ApiParam.Path.CONNECTOR_ID);
-      ConnectorAuthorization.authorizeManageConnectorsRights(context, connectorId, arAuth -> {
-        if (arAuth.failed()) {
-          sendErrorResponse(context, arAuth.cause());
-          return;
-        }
-        ConnectorHandler.getConnector(context, connectorId, ar -> {
-          if (ar.failed()) {
-            this.sendErrorResponse(context, ar.cause());
-          }
-          else {
-            this.sendResponse(context, OK, ar.result());
-          }
-        });
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
+  private void getConnector(final RoutingContext routingContext) {
+    XyzHubTask.start(GetConnectorsByIdTask.class, routingContext, ApiResponseType.FEATURE);
   }
 
-  private void getConnectors(final RoutingContext context) {
-    List<String> queryIds = context.queryParam("id");
-    Handler<AsyncResult<Void>> handler = arAuth -> {
-      if (arAuth.failed()) {
-        sendErrorResponse(context, arAuth.cause());
-        return;
-      }
-
-      if (queryIds.isEmpty()) {
-        if (ConnectorAuthorization.isAdmin(context)) {
-          ConnectorHandler.getAllConnectors(context, ar -> {
-                if (ar.failed()) {
-                  sendErrorResponse(context, ar.cause());
-                } else {
-                  sendResponse(context, OK, ar.result());
-                }
-              }
-          );
-        } else {
-          ConnectorHandler.getConnectors(context, Context.jwt(context).aid, ar -> {
-                if (ar.failed()) {
-                  sendErrorResponse(context, ar.cause());
-                } else {
-                  sendResponse(context, OK, ar.result());
-                }
-              }
-          );
-        }
-      } else {
-        ConnectorHandler.getConnectors(context, queryIds, ar -> {
-              if (ar.failed()) {
-                sendErrorResponse(context, ar.cause());
-              } else {
-                sendResponse(context, OK, ar.result());
-              }
-            }
-        );
-      }
-    };
-
-    ConnectorAuthorization.authorizeManageConnectorsRights(context, queryIds, handler);
+  private void getConnectors(final RoutingContext routingContext) {
+    XyzHubTask.start(GetConnectorsByIdTask.class, routingContext, ApiResponseType.FEATURE_COLLECTION);
   }
 
   private void createConnector(final RoutingContext context) {

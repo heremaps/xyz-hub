@@ -28,27 +28,28 @@ public abstract class AbstractFeature<
 
   @JsonProperty
   @JsonView(All.class)
-  private String id;
+  protected String id;
 
   @JsonProperty
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
-  private BBox bbox;
+  protected BBox bbox;
 
   @JsonProperty
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
-  private Geometry geometry;
+  protected Geometry geometry;
 
   @JsonProperty
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
-  private PROPERTIES properties;
+  protected @NotNull PROPERTIES properties;
 
   /**
    * Create a new empty feature.
    */
   public AbstractFeature() {
+    this.properties = newProperties();
   }
 
   /**
@@ -97,24 +98,17 @@ public abstract class AbstractFeature<
     return self();
   }
 
-  public @Nullable PROPERTIES getProperties() {
+  public @NotNull PROPERTIES getProperties() {
     return properties;
   }
 
-  public void setProperties(@Nullable PROPERTIES properties) {
+  public void setProperties(@NotNull PROPERTIES properties) {
     this.properties = properties;
   }
 
-  public @NotNull SELF withProperties(@Nullable PROPERTIES properties) {
+  public @NotNull SELF withProperties(@NotNull PROPERTIES properties) {
     setProperties(properties);
     return self();
-  }
-
-  public @NotNull PROPERTIES useProperties() {
-    if (properties == null) {
-      properties = newProperties();
-    }
-    return properties;
   }
 
   public void calculateAndSetBbox(boolean recalculateBBox) {

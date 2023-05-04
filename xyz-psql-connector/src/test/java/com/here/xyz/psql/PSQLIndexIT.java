@@ -18,7 +18,6 @@
  */
 package com.here.xyz.psql;
 
-import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.info.GetStatisticsEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;

@@ -21,6 +21,7 @@ package com.here.xyz.hub.task;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
@@ -36,7 +37,11 @@ import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.params.XyzHubQueryParameters;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.util.logging.AccessLog;
+import com.here.xyz.models.geojson.implementation.AbstractFeature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.JsonUtils;
@@ -46,8 +51,10 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.auth.User;
+import io.vertx.ext.web.MIMEHeader;
 import io.vertx.ext.web.RoutingContext;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,12 +63,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * An XYZ-Hub event task is an event that is executed in an own worker thread.
+ * The XYZ-Hub task is the base of all tasks.
  *
  * @param <EVENT> The event type to execute.
  */
 @SuppressWarnings({"SameParameterValue", "unused"})
-public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTask {
+public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
 
   private static final String STREAM_ID_PATTERN_TEXT = "^[a-zA-Z0-9_-]{10,32}$";
   private static final Pattern STREAM_ID_PATTERN = Pattern.compile(STREAM_ID_PATTERN_TEXT);
@@ -104,7 +111,7 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    */
   abstract public @NotNull EVENT createEvent();
 
-  protected AbstractEventTask(@Nullable String streamId) {
+  protected XyzHubTask(@Nullable String streamId) {
     super(streamId);
     this.event = createEvent();
     this.requestMatrix = new XyzHubActionMatrix();
@@ -117,22 +124,22 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    *
    * @param taskClass      The class of the task to execute.
    * @param routingContext The routing context.
-   * @param responseType   The response type.
+   * @param responseTypes   The response types.
    */
   public static void start(
-      @NotNull Class<? extends AbstractEventTask<?>> taskClass,
+      @NotNull Class<? extends XyzHubTask<?>> taskClass,
       @NotNull RoutingContext routingContext,
-      @NotNull ApiResponseType responseType) {
-    final String streamId = streamIdFromRoutingContext(routingContext);
+      @NotNull ApiResponseType... responseTypes) {
+    final String streamId = extractStreamId(routingContext);
     try {
-      final AbstractEventTask<?> task = taskClass.getConstructor(String.class).newInstance(streamId);
+      final XyzHubTask<?> task = taskClass.getConstructor(String.class).newInstance(streamId);
       try {
-        task.initFromRoutingContext(routingContext, responseType);
-        task.addListener(task::sendResponse);
+        task.initFromRoutingContext(routingContext, extractResponseType(routingContext, responseTypes));
+        task.addListener(task::__sendResponse);
         task.start();
       } catch (Throwable t) {
         task.routingContext = routingContext;
-        task.sendErrorResponse(t);
+        task.__sendErrorResponse(t);
       }
     } catch (Throwable t) {
       logger.error("Failed to create task: {}", taskClass.getName(), t);
@@ -140,7 +147,13 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
     }
   }
 
-  private static @NotNull String streamIdFromRoutingContext(@NotNull RoutingContext routingContext) {
+  /**
+   * Extracts the stream-id from the given routing context or creates a new one.
+   *
+   * @param routingContext The routing context.
+   * @return The stream-id.
+   */
+  public static @NotNull String extractStreamId(@NotNull RoutingContext routingContext) {
     final String externalStreamId = routingContext.request().headers().get("Stream-Id");
     if (externalStreamId != null) {
       final Matcher matcher = STREAM_ID_PATTERN.matcher(externalStreamId);
@@ -151,6 +164,36 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
       }
     }
     return RandomStringUtils.randomAlphanumeric(12);
+  }
+
+  /**
+   * Returns the best response-type, dependent on the client selection.
+   *
+   * @param routingContext The routing context.
+   * @param allowedTypes   All response types to be allowed with the first one being the one used as default.
+   * @return The response type.
+   */
+  public static @NotNull ApiResponseType extractResponseType(
+      @NotNull RoutingContext routingContext,
+      @NotNull ApiResponseType... allowedTypes
+  ) {
+    if (allowedTypes == null || allowedTypes.length == 0) {
+      // If no type allowed, the response must be empty.
+      return ApiResponseType.EMPTY;
+    }
+    // If we have multiple allowed types, then review all types the client accepts and pick the best matching one.
+    if (allowedTypes.length > 1) {
+      final List<MIMEHeader> accept = routingContext.parsedHeaders().accept();
+      for (final @NotNull MIMEHeader mimeType : accept) {
+        for (final ApiResponseType allowedType : allowedTypes) {
+          if (mimeType.isMatchedBy(allowedType.mimeType)) {
+            return allowedType;
+          }
+        }
+      }
+    }
+    // If we can't fulfill the wishlist of the client, use the first allowed (major) type.
+    return allowedTypes[0];
   }
 
   /**
@@ -236,7 +279,7 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
     } else {
       setAttachment(jwt);
       event.setAid(jwt.aid);
-      event.setAuthor(jwt.author);
+      event.setAuthor(jwt.user);
       event.setMetadata(JsonUtils.deepCopy(jwt.metadata));
     }
   }
@@ -327,30 +370,94 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
     return pipeline.sendEvent(event);
   }
 
-  private void sendErrorResponse(@NotNull Throwable error) {
+  private void __sendErrorResponse(@NotNull Throwable error) {
+    assert routingContext != null;
+    assert responseType != null;
+    XyzHubTask.sendErrorResponse(routingContext, responseType, streamId, error);
+  }
+
+  private void __sendResponse(@NotNull XyzResponse response) {
+    assert routingContext != null;
+    assert responseType != null;
+    XyzHubTask.sendResponse(routingContext, responseType, streamId, response);
+  }
+
+  /**
+   * Send an error response for the given exception.
+   *
+   * @param routingContext The routing context for which to send the response.
+   * @param responseType The response type to return.
+   * @param streamId  The stream-id.
+   * @param throwable The exception for which to send an error response.
+   */
+  public static void sendErrorResponse(
+      @NotNull RoutingContext routingContext,
+      @NotNull ApiResponseType responseType,
+      @NotNull String streamId,
+      @NotNull Throwable throwable
+  ) {
     final ErrorResponse errorResponse;
-    if (error instanceof XyzErrorException) {
-      errorResponse = ((XyzErrorException) error).toErrorResponse(streamId);
+    if (throwable instanceof XyzErrorException) {
+      errorResponse = ((XyzErrorException) throwable).toErrorResponse(streamId);
     } else {
       errorResponse = new ErrorResponse();
       errorResponse.setStreamId(streamId);
-      if (error instanceof ParameterError) {
+      if (throwable instanceof ParameterError) {
         errorResponse.setError(XyzError.ILLEGAL_ARGUMENT);
       } else {
         errorResponse.setError(XyzError.EXCEPTION);
       }
       assert errorResponse.getError() != null;
-      errorResponse.setErrorMessage(error.getMessage());
+      errorResponse.setErrorMessage(throwable.getMessage());
     }
-    sendResponse(errorResponse);
+    XyzHubTask.sendResponse(routingContext, responseType, streamId, errorResponse);
   }
 
-  private void sendResponse(@NotNull XyzResponse response) {
-    assert routingContext != null;
+  /**
+   * Send a response.
+   *
+   * @param routingContext The routing context for which to send the response.
+   * @param responseType The response type to return.
+   * @param streamId  The stream-id.
+   * @param response The response to send.
+   */
+  public static void sendResponse(
+      @NotNull RoutingContext routingContext,
+      @NotNull ApiResponseType responseType,
+      @NotNull String streamId,
+      @NotNull XyzResponse response
+  ) {
     try {
-      // TODO: Dependent on the responseType, we should as well support binary files like images.
-      final String responseText = response.serialize();
-      routingContext_sendRawResponse(routingContext, streamId, OK, null, APPLICATION_JSON, Buffer.buffer(responseText));
+      final Map<@NotNull String, @NotNull String> headers;
+      final String etag = response.getEtag();
+      if (etag != null) {
+        headers = stringMap("ETag", etag);
+      } else {
+        headers = null;
+      }
+      if (responseType == ApiResponseType.EMPTY) {
+        routingContext_sendRawResponse(routingContext, streamId, OK, headers);
+        return;
+      }
+      if (response instanceof BinaryResponse br) {
+        routingContext_sendRawResponse(routingContext, streamId, OK, headers, br.getMimeType(), Buffer.buffer(br.getBytes()));
+        return;
+      }
+      if (response instanceof NotModifiedResponse) {
+        routingContext_sendRawResponse(routingContext, streamId, NOT_MODIFIED, headers);
+        return;
+      }
+      if (response instanceof FeatureCollection fc && responseType == ApiResponseType.FEATURE) {
+        // If we should only send back a single feature.
+        final List<@NotNull AbstractFeature<?, ?>> features = fc.getFeatures();
+        if (features.size() == 0) {
+          routingContext_sendRawResponse(routingContext, streamId, OK, headers);
+        } else {
+          final String content = features.get(0).serialize();
+          routingContext_sendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(content));
+        }
+      }
+      routingContext_sendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(response.serialize()));
     } catch (Throwable t) {
       logger.error("Unexpected failure while serializing response", t);
       routingContext_sendFatalError(routingContext, streamId, t.getMessage());
@@ -388,6 +495,23 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    * @param streamId       The stream-id to return.
    * @param status         The HTTP status code to set.
    * @param headers        The additional HTTP headers to set; if any.
+   */
+  private static void routingContext_sendRawResponse(
+      @NotNull RoutingContext routingContext,
+      @NotNull String streamId,
+      @NotNull HttpResponseStatus status,
+      @Nullable Map<@NotNull String, @NotNull String> headers
+  ) {
+    routingContext_sendRawResponse(routingContext, streamId, status, headers);
+  }
+
+  /**
+   * Internal method to send back a response. The default content type will be {@code application/json}, except overridden via headers.
+   *
+   * @param routingContext The routing context to send the response to.
+   * @param streamId       The stream-id to return.
+   * @param status         The HTTP status code to set.
+   * @param headers        The additional HTTP headers to set; if any.
    * @param contentType    The content-type; if any.
    * @param content        The content; if any.
    */
@@ -396,7 +520,7 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
       @NotNull String streamId,
       @NotNull HttpResponseStatus status,
       @Nullable Map<@NotNull String, @NotNull String> headers,
-      @Nullable String contentType,
+      @Nullable CharSequence contentType,
       @Nullable Buffer content
   ) {
     final HttpServerResponse httpResponse = routingContext.response();

@@ -4,11 +4,16 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View;
-import com.here.xyz.models.hub.TransactionElement;
+import com.here.xyz.models.hub.TxItem;
+import org.jetbrains.annotations.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
-public class PsqlTxElement extends TransactionElement {
+public class NakshaPsqlTxElement extends TxItem {
+
+  public NakshaPsqlTxElement(@NotNull String id) {
+    super(id);
+  }
 
   /**
    * The unique row identifier.
@@ -30,11 +35,4 @@ public class PsqlTxElement extends TransactionElement {
   @JsonProperty
   @JsonView(View.Private.class)
   public String schema;
-
-  /**
-   * The database table that was affected.
-   */
-  @JsonProperty
-  @JsonView(View.Private.class)
-  public String table;
 }

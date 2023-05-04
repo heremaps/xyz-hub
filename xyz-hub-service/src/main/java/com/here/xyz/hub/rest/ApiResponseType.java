@@ -27,6 +27,9 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 
 import com.here.xyz.responses.ErrorResponse;
+import io.vertx.ext.web.MIMEHeader;
+import io.vertx.ext.web.impl.ParsableMIMEValue;
+import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,7 +37,7 @@ import org.jetbrains.annotations.Nullable;
  * An enumeration with all responses that should be returned to the client. If the required response type is not available an
  * {@link ErrorResponse} with content-type {@link HeaderValues#APPLICATION_JSON} should be returned.
  */
-public enum ApiResponseType {
+public enum ApiResponseType implements CharSequence {
   EMPTY,
   FEATURE(APPLICATION_GEO_JSON, GetFeaturesByTileResponseType.GEO_JSON),
   FEATURE_COLLECTION(APPLICATION_GEO_JSON, GetFeaturesByTileResponseType.GEO_JSON),
@@ -61,6 +64,11 @@ public enum ApiResponseType {
   public final @Nullable String contentType;
 
   /**
+   * The MIME header.
+   */
+  public final @Nullable MIMEHeader mimeType;
+
+  /**
    * The content-type as added into the event.
    */
   public final @Nullable GetFeaturesByTileResponseType tileResponseType;
@@ -69,23 +77,55 @@ public enum ApiResponseType {
     this.binary = false;
     this.tileResponseType = null;
     this.contentType = null;
+    this.mimeType = null;
   }
 
   ApiResponseType(@NotNull CharSequence contentType) {
     this.binary = false;
     this.tileResponseType = null;
     this.contentType = contentType.toString();
+    this.mimeType = new ParsableMIMEValue(this.contentType).forceParse();
   }
 
   ApiResponseType(@NotNull CharSequence contentType, @NotNull GetFeaturesByTileResponseType tileResponseType) {
     this.binary = false;
     this.tileResponseType = tileResponseType;
     this.contentType = contentType.toString();
+    this.mimeType = new ParsableMIMEValue(this.contentType).forceParse();
+    ;
   }
 
   ApiResponseType(@NotNull CharSequence contentType, @NotNull GetFeaturesByTileResponseType tileResponseType, boolean binary) {
     this.binary = binary;
     this.tileResponseType = tileResponseType;
     this.contentType = contentType.toString();
+    this.mimeType = new ParsableMIMEValue(this.contentType).forceParse();
+    ;
   }
+
+  @Override
+  public int length() {
+    return contentType != null ? contentType.length() : 0;
+  }
+
+  @Override
+  public char charAt(int index) {
+    if (index < 0 || contentType == null || index >= contentType.length()) {
+      throw new IndexOutOfBoundsException(index);
+    }
+    return contentType.charAt(index);
+  }
+
+  @Nonnull
+  @Override
+  public @NotNull CharSequence subSequence(int start, int end) {
+    return contentType != null ? contentType.subSequence(start, end) : EMPTY_STRING;
+  }
+
+  @Override
+  public @NotNull String toString() {
+    return contentType != null ? contentType : EMPTY_STRING;
+  }
+
+  private static final String EMPTY_STRING = "";
 }

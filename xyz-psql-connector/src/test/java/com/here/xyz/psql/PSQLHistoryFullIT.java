@@ -18,7 +18,6 @@
  */
 package com.here.xyz.psql;
 
-import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
@@ -66,7 +65,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     // =========== CREATE SPACE with UUID support ==========
     final Space space = new Space();
     space.setId("foo");
-    space.setEnableHistory(true);
+    //space.setEnableHistory(true);
     final ModifySpaceEvent event = new ModifySpaceEvent();
     event.setSpaceId("foo");
     event.setOperation(ModifySpaceEvent.Operation.CREATE);
@@ -146,7 +145,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     // =========== CREATE SPACE with UUID support ==========
     final Space space = new Space();
     space.setId("foo");
-    space.setEnableHistory(true);
+    //space.setEnableHistory(true);
 
     final ModifySpaceEvent mse = new ModifySpaceEvent();
     mse.setSpaceId("foo");

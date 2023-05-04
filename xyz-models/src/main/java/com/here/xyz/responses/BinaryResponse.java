@@ -19,13 +19,16 @@
 
 package com.here.xyz.responses;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.here.xyz.Payload;
 import com.here.xyz.bin.ConnectorPayload;
 import java.nio.ByteBuffer;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A wrapper class which is based on {@link XyzResponse} for binary responses from connectors. Internally it uses an actual binary
@@ -38,63 +41,52 @@ import org.jetbrains.annotations.NotNull;
  */
 public class BinaryResponse extends XyzResponse {
 
+  @JsonCreator
+  public BinaryResponse(@JsonProperty byte @NotNull [] bytes, @JsonProperty @NotNull String mimeType) {
+    this.bytes = bytes;
+    this.mimeType = mimeType;
+  }
+
   public static final String BINARY_SUPPORT_VERSION = "0.6.0";
 
-  private String mimeType;
-  private byte[] bytes;
+  @JsonProperty
+  private final @NotNull String mimeType;
+  @JsonProperty
+  private final byte @NotNull [] bytes;
 
   @JsonIgnore
   private boolean etagNeedsRecalculation;
   @JsonIgnore
-  private String calculatedEtag;
+  private @Nullable String calculatedEtag;
 
-  public String getMimeType() {
+  public @NotNull String getMimeType() {
     return mimeType;
   }
 
-  public void setMimeType(String mimeType) {
-    this.mimeType = mimeType;
-  }
-
-  public BinaryResponse withMimeType(String mimeType) {
-    setMimeType(mimeType);
-    return this;
-  }
-
-  public byte[] getBytes() {
+  public byte @NotNull [] getBytes() {
     return bytes;
   }
 
-  public void setBytes(byte[] bytes) {
-    etagNeedsRecalculation = true;
-    this.bytes = bytes;
-  }
-
-  public BinaryResponse withBytes(byte[] bytes) {
-    setBytes(bytes);
-    return this;
-  }
-
   @Override
-  public String getEtag() {
+  public @Nullable String getEtag() {
     if (super.getEtag() != null) {
       return super.getEtag();
     }
     if (etagNeedsRecalculation) {
-      setCalculatedEtag(getBytes() == null ? null : XyzResponse.calculateEtagFor(getBytes()));
+      setCalculatedEtag(XyzResponse.calculateEtagFor(getBytes()));
     }
     return calculatedEtag;
   }
 
   @JsonIgnore
-  private void setCalculatedEtag(String etag) {
+  private void setCalculatedEtag(@Nullable String etag) {
     calculatedEtag = etag;
     etagNeedsRecalculation = false;
   }
 
   @Nonnull
   @Override
-  public byte[] toByteArray() {
+  public byte @NotNull [] toByteArray() {
     FlatBufferBuilder builder = new FlatBufferBuilder();
     int payload = ConnectorPayload.createConnectorPayload(builder, builder.createString(getMimeType()), builder.createString(getEtag()),
         builder.createByteVector(getBytes()));
@@ -106,13 +98,15 @@ public class BinaryResponse extends XyzResponse {
    * Deserializes a binary response from the connector.
    *
    * @param byteArray The bytes coming in from a connector
-   * @return
+   * @return The binary response.
    */
-  public static BinaryResponse fromByteArray(byte[] byteArray) {
-    ConnectorPayload payload = ConnectorPayload.getRootAsConnectorPayload(ByteBuffer.wrap(byteArray));
-    final BinaryResponse binaryResponse = new BinaryResponse();
-    binaryResponse.setMimeType(payload.mimeType());
-    binaryResponse.setBytes(buffer2ByteArray(payload.bytesAsByteBuffer()));
+  public static @NotNull BinaryResponse fromByteArray(byte @NotNull [] byteArray) {
+    final ConnectorPayload payload = ConnectorPayload.getRootAsConnectorPayload(ByteBuffer.wrap(byteArray));
+    final ByteBuffer byteBuffer = payload.bytesAsByteBuffer();
+    final byte[] bytes = buffer2ByteArray(byteBuffer);
+    final String mimeType = payload.mimeType();
+    assert mimeType != null;
+    final BinaryResponse binaryResponse = new BinaryResponse(bytes, mimeType);
     binaryResponse.setEtag(payload.etag());
     return binaryResponse;
   }

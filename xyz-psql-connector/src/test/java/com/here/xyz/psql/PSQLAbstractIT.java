@@ -22,7 +22,6 @@ package com.here.xyz.psql;
 import com.amazonaws.util.IOUtils;
 import com.here.mapcreator.ext.naksha.PsqlPool;
 import com.here.xyz.models.hub.Connector;
-import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
@@ -133,7 +132,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlEventHandler(new Connector()));
+    pipeline.addEventHandler(new PsqlStorage(new Connector()));
     assert jsonStream != null;
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
@@ -147,7 +146,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlEventHandler(new Connector()));
+    pipeline.addEventHandler(new PsqlStorage(new Connector()));
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);

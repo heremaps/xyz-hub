@@ -31,8 +31,6 @@ import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.ModifySpaceOp;
-import com.here.xyz.hub.task.space.SpaceTask.ConditionalOperation;
-import com.here.xyz.hub.task.space.SpaceTask.MatrixReadQuery;
 import com.here.xyz.models.hub.Copyright;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;

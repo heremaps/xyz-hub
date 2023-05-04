@@ -26,7 +26,5 @@ public abstract class AbstractGetFeaturesByBBoxTask<EVENT extends GetFeaturesByB
     event.setBbox(bBox);
     event.setClustering(queryParameters.getClustering());
     event.setTweaks(queryParameters.getTweaks());
-    event.setOptimizationMode(queryParameters.getOptimizationMode());
-    event.setVizSampling(queryParameters.getOptimizationVizSampling());
   }
 }

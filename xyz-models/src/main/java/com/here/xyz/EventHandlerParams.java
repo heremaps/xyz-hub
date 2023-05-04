@@ -25,7 +25,7 @@ public abstract class EventHandlerParams {
    * @param connectorParams The connector params.
    * @param name            The name of the parameter.
    * @param expectedType    The type that is expected.
-   * @param <T>             The type of the value.
+   * @param <T>             The value-type.
    * @return the value.
    * @throws NullPointerException     If the parameter is not given.
    * @throws IllegalArgumentException If the parameter is not of the expected type.

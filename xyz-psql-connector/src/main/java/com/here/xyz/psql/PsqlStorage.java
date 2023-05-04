@@ -32,10 +32,9 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.mapcreator.ext.naksha.PsqlSpaceAdminDataSource;
-import com.here.mapcreator.ext.naksha.PsqlSpaceReplicaDataSource;
-import com.here.mapcreator.ext.naksha.Naksha;
-import com.here.mapcreator.ext.naksha.PsqlSpaceMasterDataSource;
+import com.here.mapcreator.ext.naksha.NakshaDataSource;
+import com.here.mapcreator.ext.naksha.NakshaPsqlClient;
+import com.here.xyz.EventHandler;
 import com.here.xyz.ExtendedEventHandler;
 import com.here.xyz.IEventContext;
 import com.here.xyz.events.clustering.Clustering;
@@ -48,11 +47,10 @@ import com.here.xyz.events.tweaks.TweaksSampling;
 import com.here.xyz.events.tweaks.TweaksSimplification;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.Connector;
-import com.here.mapcreator.ext.naksha.PsqlStorageParams;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
 import com.here.xyz.NanoTime;
-import com.here.mapcreator.ext.naksha.PsqlCollection;
+import com.here.mapcreator.ext.naksha.NakshaCollection;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
@@ -136,9 +134,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlEventHandler extends ExtendedEventHandler {
+public class PsqlStorage extends ExtendedEventHandler {
 
-  public PsqlEventHandler(@NotNull Connector connector) throws XyzErrorException {
+  /**
+   * The
+   */
+  public static final String ID = "naksha:psql";
+
+  public static void register() {
+    EventHandler.register(ID, PsqlStorage.class);
+  }
+
+
+  public PsqlStorage(@NotNull Connector connector) throws XyzErrorException {
     super(connector);
     if (connector.params == null) {
       throw new XyzErrorException(EXCEPTION, "Missing 'params' in connector configuration");
@@ -146,17 +154,16 @@ public class PsqlEventHandler extends ExtendedEventHandler {
     connectorParams = new PsqlStorageParams(connector.params);
   }
 
-  private static final Logger logger = LoggerFactory.getLogger(PsqlEventHandler.class);
+  private static final Logger logger = LoggerFactory.getLogger(PsqlStorage.class);
 
   private final @NotNull PsqlStorageParams connectorParams;
   private @NotNull Event event;
   private @NotNull String applicationName;
-  private @NotNull PsqlSpaceAdminDataSource adminDataSource;
+  private @NotNull NakshaDataSource adminDataSource;
   private @NotNull PsqlSpaceMasterDataSource masterDataSource;
   private @NotNull PsqlSpaceReplicaDataSource replicaDataSource;
   private @NotNull String spaceId;
   private @NotNull String table;
-  private @NotNull String historyTable;
 
   @Override
   public void initialize(@NotNull IEventContext ctx) {
@@ -167,19 +174,11 @@ public class PsqlEventHandler extends ExtendedEventHandler {
       throw new NullPointerException("connectorParams");
     }
     applicationName = event.getConnectorId() + ":" + event.getStreamId();
+    assert event.getSpaceId() != null;
     spaceId = event.getSpaceId();
-    table = spaceId;
-    raw = event.getParams();
-    if (raw != null) {
-      final Object tableName = raw.get("tableName");
-      if (tableName instanceof String) {
-        table = (String) tableName;
-      }
-    }
-    historyTable = table + "_hst";
-    masterDataSource = new PsqlSpaceMasterDataSource(connectorParams, applicationName, spaceId, table, historyTable);
-    replicaDataSource = new PsqlSpaceReplicaDataSource(connectorParams, applicationName, spaceId, table, historyTable);
-    adminDataSource = new PsqlSpaceAdminDataSource(connectorParams, applicationName);
+    table = event.getCollection(spaceId);
+    masterDataSource = new PsqlSpaceMasterDataSource(connectorParams, spaceId, table);
+    replicaDataSource = new PsqlSpaceReplicaDataSource(connectorParams, spaceId, table);
 
     replacements.put("idx_deleted", "idx_" + table + "_deleted");
     replacements.put("idx_serial", "idx_" + table + "_serial");
@@ -190,6 +189,8 @@ public class PsqlEventHandler extends ExtendedEventHandler {
     replacements.put("idx_updatedAt", "idx_" + table + "_updatedAt");
     replacements.put("idx_viz", "idx_" + table + "_viz");
 
+    // TODO: Do we need this, I would say no!
+    final String historyTable = table + "_hst";
     replacements.put("idx_hst_id", "idx_" + historyTable + "_id");
     replacements.put("idx_hst_uuid", "idx_" + historyTable + "_uuid");
     replacements.put("idx_hst_updatedAt", "idx_" + historyTable + "_updatedAt");
@@ -221,7 +222,7 @@ public class PsqlEventHandler extends ExtendedEventHandler {
     return replicaDataSource;
   }
 
-  public final @Nullable PsqlCollection getSpaceById(@Nullable CharSequence spaceId) {
+  public final @Nullable NakshaCollection getSpaceById(@Nullable CharSequence spaceId) {
     throw new UnsupportedOperationException("getSpaceById");
   }
 
@@ -237,8 +238,9 @@ public class PsqlEventHandler extends ExtendedEventHandler {
     return table;
   }
 
+  @Deprecated
   public final @NotNull String spaceHistoryTable() {
-    return historyTable;
+    return table + "_hst";
   }
 
   public final @NotNull PsqlStorageParams connectorParams() {
@@ -254,17 +256,22 @@ public class PsqlEventHandler extends ExtendedEventHandler {
     try {
       currentTask().info("Received HealthCheckEvent, perform database maintenance");
       //Naksha.setupH3(this.event.masterPool(), this.event.logId());
-      Naksha.ensureSpaceDb(adminDataSource);
+      // NakshaPsqlClient.maintain();
       return new HealthStatus();
-    } catch (SQLException e) {
-      return checkSQLException(e);
-    } catch (IOException e) {
-      currentTask().error("Failed to load resources", e);
+//    } catch (SQLException e) {
+//      return checkSQLException(e);
+//    } catch (IOException e) {
+//      currentTask().error("Failed to load resources", e);
+//      return new ErrorResponse()
+//          .withStreamId(streamId())
+//          .withError(EXCEPTION)
+//          .withErrorMessage("Failed to install SQL extension in connector storage.");
+    } catch (Exception e) {
       return new ErrorResponse()
           .withStreamId(streamId())
           .withError(EXCEPTION)
-          .withErrorMessage("Failed to install SQL extension in connector storage.");
-    } finally {
+          .withErrorMessage("Unknown internal error.");
+    }finally {
       currentTask().info("Finished HealthCheckEvent");
     }
   }
@@ -1158,7 +1165,8 @@ public class PsqlEventHandler extends ExtendedEventHandler {
 
   protected @NotNull XyzResponse executeModifySpace(@NotNull ModifySpaceEvent event)
       throws SQLException, ErrorResponseException {
-    if (event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()) {
+    // TODO: We need to fix this, we do not use this to compact history!
+    if (event.getSpaceDefinition() != null && false) {
       boolean compactHistory = connectorParams().isCompactHistory();
 
       if (event.getOperation() == CREATE)

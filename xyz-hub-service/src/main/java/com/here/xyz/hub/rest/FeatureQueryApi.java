@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
-import com.here.xyz.hub.task.AbstractEventTask;
+import com.here.xyz.hub.task.XyzHubTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByBBoxTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByGeometryTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByTileTask;
@@ -47,48 +47,48 @@ public class FeatureQueryApi extends SpaceBasedApi {
    */
   @Deprecated
   private void getFeaturesCount(final RoutingContext context) {
-    AbstractEventTask.start(GetStatisticsTask.class, context, ApiResponseType.COUNT_RESPONSE);
+    XyzHubTask.start(GetStatisticsTask.class, context, ApiResponseType.COUNT_RESPONSE);
   }
 
   /**
    * Retrieves the statistics about a space.
    */
   private void getStatistics(final RoutingContext context) {
-    AbstractEventTask.start(GetStatisticsTask.class, context, ApiResponseType.STATISTICS_RESPONSE);
+    XyzHubTask.start(GetStatisticsTask.class, context, ApiResponseType.STATISTICS_RESPONSE);
   }
 
   /**
    * Searches for features by tags.
    */
   private void searchForFeatures(final RoutingContext context) {
-    AbstractEventTask.start(SearchForFeaturesTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    XyzHubTask.start(SearchForFeaturesTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**
    * Iterate the content of the space.
    */
   private void iterateFeatures(final RoutingContext context) {
-    AbstractEventTask.start(IterateFeaturesTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    XyzHubTask.start(IterateFeaturesTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**
    * Retrieves the features by intersecting with the provided geometry.
    */
   private void getFeaturesBySpatial(final RoutingContext context) {
-    AbstractEventTask.start(GetFeaturesByGeometryTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    XyzHubTask.start(GetFeaturesByGeometryTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**
    * Retrieves the features in the bounding box.
    */
   private void getFeaturesByBBox(final RoutingContext context) {
-    AbstractEventTask.start(GetFeaturesByBBoxTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    XyzHubTask.start(GetFeaturesByBBoxTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**
    * Retrieves the features in a tile.
    */
   private void getFeaturesByTile(final RoutingContext context) {
-    AbstractEventTask.start(GetFeaturesByTileTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    XyzHubTask.start(GetFeaturesByTileTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 }

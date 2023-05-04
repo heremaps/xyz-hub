@@ -22,7 +22,6 @@ package com.here.xyz.hub.auth;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.responses.XyzError;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
@@ -49,7 +48,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param space the space being the target of the action.
    */
   public void readFeatures(@NotNull Space space) {
-    addAction(READ_FEATURES, XyzHubAttributeMap.forSpace(space));
+    addAction(READ_FEATURES, XyzHubAttributeMap.ofSpace(space));
   }
 
   /**
@@ -58,7 +57,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param space the space being the target of the action.
    */
   public void createFeatures(@NotNull Space space) {
-    addAction(CREATE_FEATURES, XyzHubAttributeMap.forSpace(space));
+    addAction(CREATE_FEATURES, XyzHubAttributeMap.ofSpace(space));
   }
 
   /**
@@ -67,7 +66,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param space the space being the target of the action.
    */
   public void updateFeatures(@NotNull Space space) {
-    addAction(UPDATE_FEATURES, XyzHubAttributeMap.forSpace(space));
+    addAction(UPDATE_FEATURES, XyzHubAttributeMap.ofSpace(space));
   }
 
   /**
@@ -76,7 +75,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param space the space being the target of the action.
    */
   public void deleteFeatures(@NotNull Space space) {
-    addAction(DELETE_FEATURES, XyzHubAttributeMap.forSpace(space));
+    addAction(DELETE_FEATURES, XyzHubAttributeMap.ofSpace(space));
   }
 
   /**
@@ -96,7 +95,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param space the space being the target of the action.
    */
   public void readSpace(@NotNull Space space) {
-    addAction(MANAGE_SPACES, XyzHubAttributeMap.forSpace(space));
+    addAction(MANAGE_SPACES, XyzHubAttributeMap.ofSpace(space));
   }
 
   /**
@@ -106,13 +105,13 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @throws XyzErrorException if the space uses connectors that are unknown (do not exist).
    */
   public void createSpace(@NotNull Space space) throws XyzErrorException {
-    addAction(MANAGE_SPACES, XyzHubAttributeMap.forSpace(space));
+    addAction(MANAGE_SPACES, XyzHubAttributeMap.ofSpace(space));
 
     // ACCESS_CONNECTORS right is needed to add a connector to the space.
     final List<@NotNull String> connectorIds = space.getConnectorIds();
     if (connectorIds != null) {
       for (final @NotNull String connectorId : connectorIds) {
-        addAction(ACCESS_CONNECTORS, XyzHubAttributeMap.forConnectorId(connectorId));
+        addAction(ACCESS_CONNECTORS, XyzHubAttributeMap.ofConnectorById(connectorId));
       }
     }
 
@@ -120,7 +119,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
     final List<@NotNull String> packages = space.getPackages();
     if (packages != null) {
       for (final @NotNull String packageId : packages) {
-        addAction(MANAGE_PACKAGES, XyzHubAttributeMap.forPackage(packageId));
+        addAction(MANAGE_PACKAGES, XyzHubAttributeMap.ofPackage(packageId));
       }
     }
   }
@@ -133,26 +132,28 @@ public class XyzHubActionMatrix extends ActionMatrix {
    **/
   public void updateSpace(@NotNull Space _old, @NotNull Space _new) throws XyzErrorException {
     // Client need the right to modify the old and the new space state.
-    addAction(MANAGE_SPACES, XyzHubAttributeMap.forSpace(_old));
-    addAction(MANAGE_SPACES, XyzHubAttributeMap.forSpace(_new));
+    addAction(MANAGE_SPACES, XyzHubAttributeMap.ofSpace(_old));
+    addAction(MANAGE_SPACES, XyzHubAttributeMap.ofSpace(_new));
 
     // ACCESS_CONNECTORS right is needed to add a connector to the space.
     // MANAGE_SPACES includes the right to remove a connector.
-    final List<@NotNull String> newConnectorIds = _new.connectorIds();
-    final List<@NotNull String> oldConnectorIds = _old.connectorIds();
-    for (final @NotNull String new_connectorId : newConnectorIds) {
-      if (!oldConnectorIds.contains(new_connectorId)) {
-        addAction(ACCESS_CONNECTORS, XyzHubAttributeMap.forConnectorId(new_connectorId));
+    final List<@NotNull String> newConnectorIds = _new.getConnectorIds();
+    final List<@NotNull String> oldConnectorIds = _old.getConnectorIds();
+    if (newConnectorIds != null) {
+      for (final @NotNull String new_connectorId : newConnectorIds) {
+        if (oldConnectorIds==null || !oldConnectorIds.contains(new_connectorId)) {
+          addAction(ACCESS_CONNECTORS, XyzHubAttributeMap.ofConnectorById(new_connectorId));
+        }
       }
     }
 
     // MANAGE_PACKAGES right is needed to add the space to a packages.
     // MANAGE_SPACES includes the right to remove the space from a package.
-    final List<@NotNull String> newPackages = _new.packages();
-    final List<@NotNull String> oldPackages = _old.packages();
+    final List<@NotNull String> newPackages = _new.getPackages();
+    final List<@NotNull String> oldPackages = _old.getPackages();
     for (final @NotNull String newPackageId : newPackages) {
       if (!oldPackages.contains(newPackageId)) {
-        addAction(MANAGE_PACKAGES, XyzHubAttributeMap.forPackage(newPackageId));
+        addAction(MANAGE_PACKAGES, XyzHubAttributeMap.ofPackage(newPackageId));
       }
     }
   }
@@ -163,7 +164,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param space the space being the target of the action.
    */
   public void deleteSpace(@NotNull Space space) {
-    addAction(MANAGE_SPACES, XyzHubAttributeMap.forSpace(space));
+    addAction(MANAGE_SPACES, XyzHubAttributeMap.ofSpace(space));
   }
 
   /**
@@ -172,7 +173,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param connector the connector being the target of the action.
    */
   public void readConnector(@NotNull Connector connector) {
-    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.forConnector(connector));
+    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(connector));
   }
 
   /**
@@ -181,12 +182,12 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param connector the connector being the target of the action.
    */
   public void createConnector(@NotNull Connector connector) {
-    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.forConnector(connector));
+    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(connector));
 
     // MANAGE_PACKAGES right is needed to add the connector to a packages.
     if (connector.packages != null) {
       for (final @NotNull String packageId : connector.packages) {
-        addAction(MANAGE_PACKAGES, XyzHubAttributeMap.forPackage(packageId));
+        addAction(MANAGE_PACKAGES, XyzHubAttributeMap.ofPackage(packageId));
       }
     }
   }
@@ -198,15 +199,15 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param _new the connector being the target of the action.
    */
   public void updateConnector(@NotNull Connector _old, @NotNull Connector _new) {
-    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.forConnector(_old));
-    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.forConnector(_new));
+    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(_old));
+    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(_new));
 
     // MANAGE_PACKAGES right is needed to add the connector to a packages.
     // MANAGE_CONNECTORS includes the right to remove the connector from a package.
     if (_new.packages != null) {
       for (final @NotNull String newPackageId : _new.packages) {
         if (_old.packages == null || !_old.packages.contains(newPackageId)) {
-          addAction(MANAGE_PACKAGES, XyzHubAttributeMap.forPackage(newPackageId));
+          addAction(MANAGE_PACKAGES, XyzHubAttributeMap.ofPackage(newPackageId));
         }
       }
     }
@@ -218,7 +219,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param connector the connector being the target of the action.
    */
   public void deleteConnector(@NotNull Connector connector) {
-    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.forConnector(connector));
+    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(connector));
   }
 
   // --------------------------------------------------------------------------------------------------------------------------------

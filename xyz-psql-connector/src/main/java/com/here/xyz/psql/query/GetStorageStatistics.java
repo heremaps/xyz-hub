@@ -21,10 +21,10 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.AbstractTask.currentTask;
 
-import com.here.mapcreator.ext.naksha.PsqlCollection;
+import com.here.mapcreator.ext.naksha.NakshaCollection;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;
-import com.here.xyz.psql.PsqlEventHandler;
+import com.here.xyz.psql.PsqlStorage;
 import com.here.xyz.psql.SQLQueryExt;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
@@ -51,7 +51,7 @@ public class GetStorageStatistics
   private Map<String, String> tableName2SpaceId;
 
   public GetStorageStatistics(
-      @NotNull GetStorageStatisticsEvent event, @NotNull PsqlEventHandler psqlConnector)
+      @NotNull GetStorageStatisticsEvent event, @NotNull PsqlStorage psqlConnector)
       throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
     setUseReadReplica(true);
@@ -66,7 +66,7 @@ public class GetStorageStatistics
         .getSpaceIds()
         .forEach(
             spaceId -> {
-              final PsqlCollection space = processor.getSpaceById(spaceId);
+              final NakshaCollection space = processor.getSpaceById(spaceId);
               if (space == null) {
                 currentTask().info("Unknown space: {}", spaceId);
               } else if (!schema.equals(space.schema)) {
@@ -74,8 +74,8 @@ public class GetStorageStatistics
                     "The given space '{}' is located in schema '{}', but this connector is bound to schema '{}', ignore space",
                     spaceId, space.schema, schema);
               } else {
-                tableNames.add(space.headTable);
-                tableNames.add(space.historyTable);
+                tableNames.add(space.table);
+                tableNames.add(space.table+"_hst");
               }
             });
     return new SQLQueryExt(
@@ -109,10 +109,10 @@ public class GetStorageStatistics
     // Read the space / history info from the returned ResultSet
     while (rs.next()) {
       String tableName = rs.getString(TABLE_NAME);
-      boolean isHistoryTable = tableName.endsWith(PsqlEventHandler.HISTORY_TABLE_SUFFIX);
+      boolean isHistoryTable = tableName.endsWith(PsqlStorage.HISTORY_TABLE_SUFFIX);
       tableName =
           isHistoryTable
-              ? tableName.substring(0, tableName.length() - PsqlEventHandler.HISTORY_TABLE_SUFFIX.length())
+              ? tableName.substring(0, tableName.length() - PsqlStorage.HISTORY_TABLE_SUFFIX.length())
               : tableName;
       String spaceId =
           tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;

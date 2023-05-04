@@ -21,7 +21,7 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
-import com.here.xyz.psql.PsqlEventHandler;
+import com.here.xyz.psql.PsqlStorage;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 import java.util.Map;
@@ -33,7 +33,7 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
   private static final String EXTENDS = "extends";
   private static final String SPACE_ID = "spaceId";
 
-  public ExtendedSpace(E event, final @NotNull PsqlEventHandler psqlConnector) throws SQLException, ErrorResponseException {
+  public ExtendedSpace(E event, final @NotNull PsqlStorage psqlConnector) throws SQLException, ErrorResponseException {
     super(event, psqlConnector);
   }
 
@@ -52,15 +52,15 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     return false;
   }
 
-  private static <E extends Event> String getFirstLevelExtendedTable(@NotNull E event, @NotNull PsqlEventHandler processor) {
+  private static <E extends Event> String getFirstLevelExtendedTable(@NotNull E event, @NotNull PsqlStorage processor) {
     return null;
   }
 
-  private static <E extends Event> String getSecondLevelExtendedTable(@NotNull E event, @NotNull PsqlEventHandler processor) {
+  private static <E extends Event> String getSecondLevelExtendedTable(@NotNull E event, @NotNull PsqlStorage processor) {
     return null;
   }
 
-  public static <E extends Event> String getExtendedTable(@NotNull E event, @NotNull PsqlEventHandler processor) {
+  public static <E extends Event> String getExtendedTable(@NotNull E event, @NotNull PsqlStorage processor) {
     return null;
   }
 
@@ -68,7 +68,7 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     return getExtendedTable(event, processor);
   }
 
-  protected static <E extends Event> String getIntermediateTable(@NotNull E event, @NotNull PsqlEventHandler psqlConnector) {
+  protected static <E extends Event> String getIntermediateTable(@NotNull E event, @NotNull PsqlStorage psqlConnector) {
     return null;
   }
 

@@ -45,7 +45,7 @@ public abstract class EventHandler implements IEventHandler {
    *                                  constructor (the one with only a {@link Map} as parameter).
    */
   @SuppressWarnings("unchecked")
-  public static <H extends EventHandler> void register(@NotNull String id, @NotNull Class<H> handlerClass) {
+  public static synchronized <H extends EventHandler> void register(@NotNull String id, @NotNull Class<H> handlerClass) {
     final Constructor<H> constructor;
     try {
       constructor = handlerClass.getConstructor(Connector.class);
@@ -53,11 +53,15 @@ public abstract class EventHandler implements IEventHandler {
       throw new IllegalArgumentException("Missing constructor(@NotNull Connector connector)");
     }
     final Class<EventHandler> existing = allClasses.putIfAbsent(id, handlerClass);
-    if (existing != null && existing != handlerClass) {
-      throw new IllegalArgumentException(
-          "The event handler with the id " + id + " exists already, class is: " + existing.getSimpleName());
+    if (existing != null) {
+      if (existing != handlerClass) {
+        throw new IllegalArgumentException(
+            "The event handler with the id " + id + " exists already, class is: " + existing.getSimpleName());
+      }
+      // Registering multiple times is ignored!
+    } else {
+      allConstructors.put(id, constructor);
     }
-    allConstructors.put(id, constructor);
   }
 
   /**

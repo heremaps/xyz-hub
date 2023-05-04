@@ -23,7 +23,7 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
 
 import com.google.common.io.ByteStreams;
 import com.here.xyz.hub.rest.HttpConnectorApi;
-import com.here.xyz.psql.PsqlEventHandler;
+import com.here.xyz.psql.PsqlStorage;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpServerResponse;
@@ -71,7 +71,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
-    connector = new PsqlEventHandler();
+    connector = new PsqlStorage();
 
     RouterBuilder.create(vertx, LOCATION).onComplete(ar -> {
       if (ar.succeeded()) {

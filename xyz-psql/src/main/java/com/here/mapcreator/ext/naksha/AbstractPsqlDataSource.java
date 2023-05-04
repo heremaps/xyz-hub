@@ -1,8 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
-import static com.here.mapcreator.ext.naksha.Naksha.NAKSHA_SEARCH_PATH;
-import static com.here.mapcreator.ext.naksha.Naksha.SPACE_SCHEMA;
-import static com.here.mapcreator.ext.naksha.Naksha.escapeId;
+import static com.here.mapcreator.ext.naksha.NakshaPsqlClient.escapeId;
 
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -26,9 +24,23 @@ import org.slf4j.LoggerFactory;
  * @param <SELF> The type of the extending class.
  */
 @SuppressWarnings("unused")
-public class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource<SELF>> implements DataSource {
+public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource<SELF>> implements DataSource {
 
   protected static final Logger logger = LoggerFactory.getLogger(AbstractPsqlDataSource.class);
+
+  /**
+   * Returns the default search path, the constructor calls this method ones to initialize the search-path.
+   * @return The default search path.
+   */
+  protected @NotNull String defaultSearchPath() {
+    return "h3,topology,public;";
+  }
+
+  /**
+   * Returns the default schema, the constructor calls this method ones to initialize the search-path.
+   * @return the default schema.
+   */
+  protected abstract @NotNull String defaultSchema();
 
   /**
    * Create a new data source for the given connection pool and application.
@@ -36,11 +48,14 @@ public class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource<SELF>> i
    * @param pool            the connection pool to wrap.
    * @param applicationName the application name.
    */
-  protected AbstractPsqlDataSource(@NotNull PsqlPool pool, @NotNull String applicationName) {
+  protected AbstractPsqlDataSource(
+      @NotNull PsqlPool pool,
+      @NotNull String applicationName
+  ) {
     this.applicationName = applicationName;
     this.pool = pool;
-    this.schema = SPACE_SCHEMA;
-    this.searchPath = NAKSHA_SEARCH_PATH;
+    this.schema = defaultSchema();
+    this.searchPath = defaultSearchPath();
   }
 
   @SuppressWarnings("unchecked")
@@ -91,7 +106,7 @@ public class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource<SELF>> i
   }
 
   public void setSearchPath(@Nullable String searchPath) {
-    this.searchPath = searchPath != null ? searchPath : NAKSHA_SEARCH_PATH;
+    this.searchPath = searchPath != null ? searchPath : defaultSearchPath();
   }
 
   public @NotNull SELF withSearchPath(@Nullable String searchPath) {
@@ -117,7 +132,7 @@ public class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource<SELF>> i
   }
 
   public void setSchema(@Nullable String schema) {
-    this.schema = schema != null ? schema : SPACE_SCHEMA;
+    this.schema = schema != null ? schema : defaultSchema();
   }
 
   public @NotNull SELF withSchema(@NotNull String schema) {
@@ -199,7 +214,7 @@ public class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource<SELF>> i
   public final @NotNull Connection initConnection(@NotNull Connection conn) throws SQLException {
     conn.setAutoCommit(false);
     try (final Statement stmt = conn.createStatement()) {
-      final StringBuilder sb = NakshaThreadLocal.get().sb();
+      final StringBuilder sb = new StringBuilder();
       initSession(sb);
       final String sql = sb.toString();
       logger.debug("{} - Init connection: {}", applicationName, sql);
@@ -237,7 +252,7 @@ public class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource<SELF>> i
     sb.append(searchPath).append(";\n");
     if (role != null && !role.equals(pool.config.user)) {
       sb.append("SET SESSION ROLE ");
-      escapeId(role, sb);
+      escapeId(sb, role);
     } else {
       sb.append("RESET ROLE");
     }

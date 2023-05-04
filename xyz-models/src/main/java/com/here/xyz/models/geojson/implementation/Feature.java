@@ -22,7 +22,6 @@ package com.here.xyz.models.geojson.implementation;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.Typed;
-import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -43,35 +42,5 @@ public class Feature extends AbstractFeature<Properties, Feature> implements Typ
   @Override
   protected @NotNull Properties newProperties() {
     return new Properties();
-  }
-
-  /**
-   * Creates a new Feature object, for which the properties and the xyz namespace are initialized.
-   *
-   * @return the feature with initialized properties and xyz namespace.
-   */
-  public static Feature createEmptyFeature() {
-    return new Feature().withProperties(new Properties().withXyzNamespace(new XyzNamespace()));
-  }
-
-  /**
-   * Updates the {@link XyzNamespace} properties in a feature so that all values are valid.
-   *
-   * @param feature the feature for which to update the {@link XyzNamespace} map.
-   * @param space the full qualified space identifier in which this feature is stored (so prefix and base part combined, e.g. "x-foo").
-   * @param addUUID If the uuid to be added or not.
-   * @throws NullPointerException if feature, space or the 'id' of the feature are null.
-   */
-  @SuppressWarnings("WeakerAccess")
-  public static void finalizeFeature(final Feature feature, final String space, boolean addUUID) throws NullPointerException {
-    final XyzNamespace xyzNamespace = feature.getProperties().getXyzNamespace();
-
-    if (addUUID) {
-      String puuid = xyzNamespace.getUuid();
-      if (puuid != null) {
-        xyzNamespace.setPuuid(puuid);
-      }
-      xyzNamespace.setUuid(UUID.randomUUID().toString());
-    }
   }
 }

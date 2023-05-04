@@ -25,7 +25,7 @@ import static com.here.xyz.hub.rest.Context.logTime;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.AbstractEventTask;
+import com.here.xyz.hub.task.XyzHubTask;
 import com.here.xyz.hub.task.ICallback;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
@@ -64,7 +64,7 @@ public abstract class Authorization {
   static void evaluateRights(
       @NotNull ActionMatrix requestRights,
       @NotNull ActionMatrix tokenRights,
-      @NotNull AbstractEventTask task,
+      @NotNull XyzHubTask task,
       @NotNull ICallback callback) {
     try {
       evaluateRights(task.routingContext, requestRights, tokenRights);

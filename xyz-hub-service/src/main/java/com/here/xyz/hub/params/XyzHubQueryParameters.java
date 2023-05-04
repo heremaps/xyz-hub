@@ -459,10 +459,12 @@ public class XyzHubQueryParameters extends QueryParameterList {
     return getString(H3_INDEX, null);
   }
 
+  @Deprecated
   public @Nullable String getOptimizationMode() throws ParameterError {
     return getString(OPTIM_MODE, null);
   }
 
+  @Deprecated
   public @Nullable String getOptimizationVizSampling() throws ParameterError {
     return getString(OPTIM_VIZSAMPLING, null);
   }

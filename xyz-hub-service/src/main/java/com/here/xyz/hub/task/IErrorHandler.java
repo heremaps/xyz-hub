@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
  * @param <TASK> the task type.
  */
 @FunctionalInterface
-public interface IErrorHandler<EVENT extends Event, TASK extends AbstractEventTask<EVENT, TASK>> {
+public interface IErrorHandler<EVENT extends Event, TASK extends XyzHubTask<EVENT, TASK>> {
 
   /**
    * The handler invoked last, when the pipeline failed with an error (exception).

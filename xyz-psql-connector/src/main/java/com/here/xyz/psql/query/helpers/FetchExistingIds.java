@@ -20,7 +20,7 @@
 package com.here.xyz.psql.query.helpers;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.psql.PsqlEventHandler;
+import com.here.xyz.psql.PsqlStorage;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQueryExt;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
@@ -34,7 +34,7 @@ import org.jetbrains.annotations.NotNull;
 
 public class FetchExistingIds extends QueryRunner<FetchIdsInput, List<String>> {
 
-  public FetchExistingIds(@Nonnull FetchIdsInput input, @NotNull PsqlEventHandler processor) throws SQLException, ErrorResponseException {
+  public FetchExistingIds(@Nonnull FetchIdsInput input, @NotNull PsqlStorage processor) throws SQLException, ErrorResponseException {
     super(input, processor);
   }
 

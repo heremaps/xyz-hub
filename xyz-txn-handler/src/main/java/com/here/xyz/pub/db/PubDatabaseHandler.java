@@ -5,7 +5,7 @@ import com.here.xyz.models.hub.SubscriptionConfig;
 import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.hub.Subscription;
-import com.here.mapcreator.ext.naksha.PsqlStorageParams;
+import com.here.xyz.psql.PsqlStorageParams;
 import com.here.xyz.pub.models.*;
 import io.vertx.core.json.Json;
 import org.apache.logging.log4j.LogManager;
@@ -180,7 +180,7 @@ public class PubDatabaseHandler {
                         spaceDBConnParams.setDbUrl(dbConfig.url);
                         spaceDBConnParams.setUser(dbConfig.user);
                         spaceDBConnParams.setPswd(dbConfig.password);
-                        spaceDBConnParams.setSchema(params.getSpaceSchema());
+                        spaceDBConnParams.setSchema(params.getSchema());
                         spaceDBConnParams.setTableName(tableName);
                     } catch (JsonProcessingException | NullPointerException e) {
                         logger.error("Failed to parse the configuration of connector {}", id);
@@ -286,7 +286,7 @@ public class PubDatabaseHandler {
                     dto.setDbUrl(dbConfig.url);
                     dto.setUser(dbConfig.user);
                     dto.setPswd(dbConfig.password);
-                    dto.setSchema(params.getSpaceSchema());
+                    dto.setSchema(params.getSchema());
                 } catch (JsonProcessingException|NullPointerException e) {
                     logger.error("Failed to parse the configuration of connector {}", connectorId);
                     continue;

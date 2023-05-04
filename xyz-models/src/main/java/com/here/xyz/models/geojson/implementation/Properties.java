@@ -25,6 +25,4 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * The standard properties of the standard feature store in the Naksha-Hub.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Properties extends XyzProperties<Properties> {
-
-}
+public class Properties extends XyzProperties<Properties> {}

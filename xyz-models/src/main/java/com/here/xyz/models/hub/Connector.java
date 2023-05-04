@@ -43,6 +43,10 @@ import org.jetbrains.annotations.Nullable;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Connector extends AbstractFeature<Properties, Connector> {
 
+  public Connector() {
+    this.properties = new Properties();
+  }
+
   /**
    * The connector number.
    */
@@ -92,27 +96,15 @@ public class Connector extends AbstractFeature<Properties, Connector> {
   @JsonView(All.class)
   public @Nullable ConnectorForward forward;
 
-  @JsonProperty
-  @JsonView(All.class)
-  public @Nullable Properties properties;
-
   /**
-   * List of packages that this space belongs to.
+   * List of packages that this connector belongs to.
    */
   @JsonProperty
   @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   public List<@NotNull String> packages;
 
-  public @NotNull Properties properties() {
-    Properties properties = this.properties;
-    if (properties == null) {
-      this.properties = properties = new Properties();
-    }
-    return properties;
-  }
-
-  public @NotNull List<@NotNull String> packages() {
+  public @NotNull List<@NotNull String> getPackages() {
     List<@NotNull String> packages = this.packages;
     if (packages == null) {
       this.packages = packages = new ArrayList<>();

@@ -47,6 +47,8 @@ SELECT * FROM xyz_config.xyz_space xs ;
 // }
 
 
+COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
+SELECT pg_catalog.obj_description('xyz_config.transactions'::regclass, 'pg_class');
 
 
 CREATE SCHEMA IF NOT EXISTS "${schema}";

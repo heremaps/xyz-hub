@@ -2,6 +2,7 @@ package com.here.xyz.hub.task.feature;
 
 import com.here.xyz.events.feature.LoadFeaturesEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.ModifyFeatureOp;
@@ -9,13 +10,14 @@ import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.responses.XyzResponse;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public final class ConditionalModifyFeaturesTask extends AbstractFeatureTask {
+public final class ConditionalModifyFeaturesTask extends AbstractFeatureTask<ModifyFeaturesEvent> {
 
   public @Nullable ModifyFeatureOp modifyOp;
   public @Nullable ModifyOp.IfNotExists ifNotExists;
@@ -31,17 +33,31 @@ public final class ConditionalModifyFeaturesTask extends AbstractFeatureTask {
   public LoadFeaturesEvent loadFeaturesEvent;
   public boolean hasNonModified;
 
-  public ConditionalModifyFeaturesTask(
-      @NotNull ModifyFeaturesEvent event,
-      @NotNull RoutingContext context,
-      ApiResponseType apiResponseTypeType,
-      @Nullable ModifyFeatureOp modifyOp,
-      boolean requireResourceExists
-  ) {
-    super(event, context, apiResponseTypeType);
-    this.modifyOp = modifyOp;
-    this.requireResourceExists = requireResourceExists;
+  public ConditionalModifyFeaturesTask(@Nullable String streamId) {
+    super(streamId);
   }
+
+  @Override
+  public @NotNull ModifyFeaturesEvent createEvent() {
+    return new ModifyFeaturesEvent();
+  }
+
+  @Override
+  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
+    super.initFromRoutingContext(routingContext, responseType);
+
+  }
+
+  @Override
+  protected @NotNull XyzResponse execute() throws Exception {
+    // TODO: Send LoadFeaturesEvent
+    //
+    pipeline.addSpaceHandler(getSpace());
+    return sendAuthorizedEvent(event, requestMatrix());
+  }
+
+  /*
+
 
   public ConditionalModifyFeaturesTask(
       @NotNull ModifyFeaturesEvent event,
@@ -59,6 +75,7 @@ public final class ConditionalModifyFeaturesTask extends AbstractFeatureTask {
     this.transactional = transactional;
     this.conflictResolution = conflictResolution;
   }
+
 
   @Override
   public void initPipeline(@NotNull TaskPipeline<ModifyFeaturesEvent, ConditionalModifyFeaturesTask> pipeline) {
@@ -80,4 +97,24 @@ public final class ConditionalModifyFeaturesTask extends AbstractFeatureTask {
         .then(FeatureTaskHandler::extractUnmodifiedFeatures)
         .then(FeatureTaskHandler::invoke);
   }
+
+  private ConditionalModifyFeaturesTask buildConditionalOperation(
+      ModifyFeaturesEvent event,
+      RoutingContext context,
+      ApiResponseType apiResponseTypeType,
+      List<Map<String, Object>> featureModifications,
+      IfNotExists ifNotExists,
+      IfExists ifExists,
+      boolean transactional,
+      ConflictResolution cr,
+      boolean requireResourceExists,
+      int bodySize) {
+    if (featureModifications == null)
+      return new ConditionalModifyFeaturesTask(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
+
+    final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureModifications, ifNotExists, ifExists, transactional, cr);
+    return new ConditionalModifyFeaturesTask(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists, bodySize);
+  }
+
+   */
 }

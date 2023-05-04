@@ -26,16 +26,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.here.xyz.LazyParsable;
-import com.here.xyz.LazyParsable.RawDeserializer;
-import com.here.xyz.LazyParsable.RawSerializer;
 import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.responses.XyzResponse;
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "FeatureCollection")
@@ -45,7 +42,7 @@ public class FeatureCollection extends XyzResponse {
   @JsonProperty
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
-  private LazyParsable<List<Feature>> features;
+  private @NotNull List<AbstractFeature<?, ?>> features;
 
   @JsonProperty
   @JsonView(All.class)
@@ -104,12 +101,12 @@ public class FeatureCollection extends XyzResponse {
   private Integer version;
 
   public FeatureCollection() {
-    setFeatures(new ArrayList<>());
+    features = new ArrayList<>();
   }
 
   @SuppressWarnings("WeakerAccess")
   public void calculateAndSetBBox(boolean recalculateChildrenBoxes) throws JsonProcessingException {
-    if (this.getFeatures() == null || this.getFeatures().size() == 0) {
+    if (getFeatures().size() == 0) {
       return;
     }
 
@@ -118,7 +115,7 @@ public class FeatureCollection extends XyzResponse {
     double maxLon = Double.NEGATIVE_INFINITY;
     double maxLat = Double.NEGATIVE_INFINITY;
 
-    for (Feature feature : getFeatures()) {
+    for (AbstractFeature<?, ?> feature : getFeatures()) {
       if (recalculateChildrenBoxes || feature.getBbox() == null) {
         feature.calculateAndSetBbox(recalculateChildrenBoxes);
       }
@@ -163,61 +160,58 @@ public class FeatureCollection extends XyzResponse {
     return this;
   }
 
-  public List<Feature> getFeatures() throws JsonProcessingException {
-    return features != null ? this.features.get() : null;
-  }
-
-  public void setFeatures(List<Feature> features) {
-    if (this.features == null) {
-      this.features = new LazyParsable<>();
-    }
-    this.features.set(features);
-  }
-
-  @SuppressWarnings("unused")
-  @JsonDeserialize(using = RawDeserializer.class)
-  @JsonProperty("features")
-  public void _setFeatures(Object features) {
-    if (features instanceof String) {
-      this.features = new LazyParsable<>((String) features);
-    } else if (features instanceof List) {
-      this.features = new LazyParsable<>();
-      //noinspection unchecked
-      this.features.set((List<Feature>) features);
-    }
-  }
-
-  @JsonSerialize(using = RawSerializer.class)
-  @JsonProperty("features")
-  private LazyParsable<List<Feature>> _getFeatures() {
-    if (features == null) {
-      features = new LazyParsable<>("[]");
-    }
-
+  public @NotNull List<@NotNull AbstractFeature<?, ?>> getFeatures() throws JsonProcessingException {
     return features;
   }
 
+  public void setFeatures(@NotNull List<@NotNull AbstractFeature<?, ?>> features) {
+    this.features = features;
+  }
+//
+//  @SuppressWarnings("unused")
+//  @JsonDeserialize(using = RawDeserializer.class)
+//  @JsonProperty("features")
+//  public void _setFeatures(Object features) {
+//    if (features instanceof String) {
+//      this.features = new LazyParsable<>((String) features);
+//    } else if (features instanceof List) {
+//      this.features = new LazyParsable<>();
+//      //noinspection unchecked
+//      this.features.set((List<Feature>) features);
+//    }
+//  }
+//
+//  @JsonSerialize(using = RawSerializer.class)
+//  @JsonProperty("features")
+//  private LazyParsable<List<Feature>> _getFeatures() {
+//    if (features == null) {
+//      features = new LazyParsable<>("[]");
+//    }
+//
+//    return features;
+//  }
+
   @SuppressWarnings("unused")
-  public FeatureCollection withFeatures(final List<Feature> features) {
+  public @NotNull FeatureCollection withFeatures(final @NotNull List<@NotNull AbstractFeature<?, ?>> features) {
     setFeatures(features);
     return this;
   }
 
   /**
    * Returns the Space handle which is used to iterate above data.
-   * @deprecated use {@link #getNextPageToken()} instead.
    *
    * @return the handle.
+   * @deprecated use {@link #getNextPageToken()} instead.
    */
-  public String getHandle() {
+  public @Nullable String getHandle() {
     return this.handle;
   }
 
   /**
    * Sets the Space handle that can be used to continue an iterate.
-   * @deprecated use {@link #setNextPageToken(String)} instead.
    *
    * @param handle the handle, if null the handle property is removed.
+   * @deprecated use {@link #setNextPageToken(String)} instead.
    */
   @SuppressWarnings("WeakerAccess")
   public void setHandle(String handle) {
@@ -398,6 +392,7 @@ public class FeatureCollection extends XyzResponse {
   /**
    * For FeatureCollection write-responses: If the history of a space is activated and this FeatureCollection is a response to a
    * modification of the space - contains the (new) space-version which has just been written.
+   *
    * @return The new space-version after some modification
    */
   public Integer getVersion() {
