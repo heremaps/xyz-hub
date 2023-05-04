@@ -28,7 +28,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
 import com.here.xyz.View;
 import com.here.xyz.View.All;
-import com.here.xyz.models.geojson.implementation.AbstractFeature;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Space")
-public class Space extends AbstractFeature<Properties, Space> implements Typed {
+public final class Space extends Feature implements Typed {
 
   /**
    * Create new blank space object.
@@ -59,12 +59,6 @@ public class Space extends AbstractFeature<Properties, Space> implements Typed {
   public Space(@NotNull String id) {
     setId(id);
   }
-
-  @Override
-  protected @NotNull Properties newProperties() {
-    return new Properties();
-  }
-
 
   /**
    * Beta release date: 2018-10-01T00:00Z[UTC]

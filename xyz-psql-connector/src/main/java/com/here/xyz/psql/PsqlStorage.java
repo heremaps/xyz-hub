@@ -33,7 +33,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.mapcreator.ext.naksha.NakshaDataSource;
-import com.here.mapcreator.ext.naksha.NakshaPsqlClient;
 import com.here.xyz.EventHandler;
 import com.here.xyz.ExtendedEventHandler;
 import com.here.xyz.IEventContext;
@@ -76,8 +75,6 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
@@ -102,7 +99,6 @@ import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
 import com.here.xyz.responses.changesets.CompactChangeset;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
-import java.io.IOException;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -271,7 +267,7 @@ public class PsqlStorage extends ExtendedEventHandler {
           .withStreamId(streamId())
           .withError(EXCEPTION)
           .withErrorMessage("Unknown internal error.");
-    }finally {
+    } finally {
       currentTask().info("Finished HealthCheckEvent");
     }
   }
@@ -1291,11 +1287,10 @@ public class PsqlStorage extends ExtendedEventHandler {
 
         for (String featureId : originalDeletes) {
           if (existingIdsInBase.contains(featureId)) {
-            upserts.add(
-                new Feature()
-                    .withId(featureId)
-                    .withProperties(
-                        new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true))));
+            final Feature feature = new Feature();
+            feature.setId(featureId);
+            feature.getProperties().getXyzNamespace().setDeleted(true);
+            upserts.add(feature);
             deletes.remove(featureId);
           }
         }
@@ -2004,7 +1999,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     sb.append("]");
 
     final FeatureCollection featureCollection = new FeatureCollection();
-    featureCollection._setFeatures(sb.toString());
+    featureCollection.setLazyParsableFeatureList(sb.toString());
 
     if (sb.length() > MAX_RESULT_CHARS) {
       throw new SQLException(DhString.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
@@ -2030,18 +2025,12 @@ public class PsqlStorage extends ExtendedEventHandler {
     return _defaultFeatureResultSetHandler(rs, true);
   }
 
-  protected BinaryResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException {
-    BinaryResponse br = new BinaryResponse().withMimeType(APPLICATION_VND_MAPBOX_VECTOR_TILE);
-
+  protected @NotNull BinaryResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException {
     if (rs.next()) {
-      br.setBytes(rs.getBytes(1));
+      final byte[] bytes = rs.getBytes(1);
+      return new BinaryResponse(bytes, APPLICATION_VND_MAPBOX_VECTOR_TILE);
     }
-
-    if (br.getBytes() != null && br.getBytes().length > MAX_RESULT_CHARS) {
-      throw new SQLException(DhString.format("Maximum bytes limit (%d) reached", MAX_RESULT_CHARS));
-    }
-
-    return br;
+    throw new SQLException("No result");
   }
 
   /**
@@ -2220,7 +2209,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     sb.append("]");
 
     final FeatureCollection featureCollection = new FeatureCollection();
-    featureCollection._setFeatures(sb.toString());
+    featureCollection.setLazyParsableFeatureList(sb.toString());
 
     if (MAX_RESULT_CHARS <= sb.length()) {
       throw new SQLException(DhString.format("Maxchar limit(%d) reached", MAX_RESULT_CHARS));
@@ -2262,7 +2251,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     sb.append("]");
 
     final FeatureCollection featureCollection = new FeatureCollection();
-    featureCollection._setFeatures(sb.toString());
+    featureCollection.setLazyParsableFeatureList(sb.toString());
     return featureCollection;
   }
 

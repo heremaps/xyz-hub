@@ -228,7 +228,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         .withProperties(new Properties().with("foo", 999.1).withXyzNamespace(xyzNamespace));
     featureList.add(f);
 
-    collection.setFeatures(featureList);
+    collection.setLazyParsableFeatureList(featureList);
     // =========== INSERT Polygon  inside hole ==========
     singlePoly = new PolygonCoordinates();
     rC = new LinearRingCoordinates();
@@ -244,7 +244,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
             new Polygon().withCoordinates(singlePoly))
         .withProperties(new Properties().with("foo", 999.2).withXyzNamespace(xyzNamespace));
     featureList.add(f);
-    collection.setFeatures(featureList);
+    collection.setLazyParsableFeatureList(featureList);
 
     // =========== INSERT Line ==========
     LineStringCoordinates lcCoords = new LineStringCoordinates();
@@ -268,7 +268,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         .withProperties(new Properties().with("foo", 999.4).withXyzNamespace(xyzNamespace));
     featureList.add(f);
 
-    collection.setFeatures(featureList);
+    collection.setLazyParsableFeatureList(featureList);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(defaultTestConnectorParams);

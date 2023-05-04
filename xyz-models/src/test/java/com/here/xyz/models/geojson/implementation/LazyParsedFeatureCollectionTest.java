@@ -27,7 +27,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.LazyParsable;
+import com.here.xyz.LazyParsableFeatureList;
 import com.here.xyz.XyzSerializable;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class LazyParsedFeatureCollectionTest {
     Field features = response.getClass().getDeclaredField("features");
     features.setAccessible(true);
     //noinspection unchecked
-    LazyParsable<List<String>> lp = (LazyParsable<List<String>>) features.get(response);
+    LazyParsableFeatureList<List<String>> lp = (LazyParsableFeatureList<List<String>>) features.get(response);
     Field value = lp.getClass().getDeclaredField("value");
     value.setAccessible(true);
     assertNull(value.get(lp));
@@ -61,7 +61,7 @@ public class LazyParsedFeatureCollectionTest {
     features = response.getClass().getDeclaredField("features");
     features.setAccessible(true);
     //noinspection unchecked
-    lp = (LazyParsable<List<String>>) features.get(response);
+    lp = (LazyParsableFeatureList<List<String>>) features.get(response);
     value = lp.getClass().getDeclaredField("value");
     value.setAccessible(true);
     assertNull(value.get(lp));
@@ -148,7 +148,7 @@ public class LazyParsedFeatureCollectionTest {
       }
 
       FeatureCollection fc = new FeatureCollection();
-      fc.setFeatures(features);
+      fc.setLazyParsableFeatureList(features);
       fc.calculateAndSetBBox(true);
 
       String severalFeaturesIntoFeatureCollection = new ObjectMapper().writeValueAsString(fc);

@@ -37,17 +37,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @JsonInclude(Include.NON_NULL)
-public abstract class Extensible<SELF extends Extensible<SELF>> implements XyzSerializable {
-
-  /**
-   * Returns this.
-   *
-   * @return this.
-   */
-  @SuppressWarnings("unchecked")
-  protected final @NotNull SELF self() {
-    return (SELF) this;
-  }
+public abstract class Extensible implements XyzSerializable {
 
   @JsonIgnore
   private @Nullable Map<@NotNull String, @Nullable Object> additionalProperties;
@@ -126,18 +116,10 @@ public abstract class Extensible<SELF extends Extensible<SELF>> implements XyzSe
     return additionalProperties;
   }
 
-  @SuppressWarnings("unchecked")
-  public @NotNull SELF with(@NotNull String key, @Nullable Object value) {
-    put(key, value);
-    return (SELF) this;
-  }
-
-  @SuppressWarnings("unchecked")
-  public @NotNull SELF remove(@NotNull String key) {
+  public void remove(@NotNull String key) {
     if (additionalProperties != null) {
       additionalProperties.remove(key);
     }
-    return (SELF) this;
   }
 
   /**
@@ -155,15 +137,6 @@ public abstract class Extensible<SELF extends Extensible<SELF>> implements XyzSe
    * The key-set of an Extensible. This key-set covers the fixed JAVA properties and the dynamic extensions properties.
    */
   public class ExtensibleKeySet implements Set<@NotNull String> {
-
-    /**
-     * Returns the extensible from which this key-set was gathered.
-     *
-     * @return The extensible from which this key-set was gathered.
-     */
-    public @NotNull SELF parent() {
-      return Extensible.this.self();
-    }
 
     ExtensibleKeySet() {
       jsonClass = JsonClass.of(Extensible.this.getClass());

@@ -27,8 +27,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.EventHandler;
 import com.here.xyz.View;
 import com.here.xyz.View.All;
-import com.here.xyz.models.geojson.implementation.AbstractFeature;
-import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.Feature;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,11 +40,9 @@ import org.jetbrains.annotations.Nullable;
  * used by multiple spaces.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Connector extends AbstractFeature<Properties, Connector> {
+public final class Connector extends Feature {
 
-  public Connector() {
-    this.properties = new Properties();
-  }
+  public Connector() {}
 
   /**
    * The connector number.
@@ -110,10 +107,5 @@ public class Connector extends AbstractFeature<Properties, Connector> {
       this.packages = packages = new ArrayList<>();
     }
     return packages;
-  }
-
-  @Override
-  protected @NotNull Properties newProperties() {
-    return new Properties();
   }
 }

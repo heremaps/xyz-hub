@@ -19,6 +19,7 @@
 
 package com.here.xyz.models.geojson.implementation;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -26,10 +27,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.here.xyz.LazyParsableFeatureList;
+import com.here.xyz.LazyParsableFeatureList.RawDeserializer;
+import com.here.xyz.LazyParsableFeatureList.RawSerializer;
 import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.responses.XyzResponse;
-import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -37,12 +42,11 @@ import org.jetbrains.annotations.Nullable;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "FeatureCollection")
 @JsonInclude(Include.NON_EMPTY)
+@SuppressWarnings({"unused", "unchecked"})
 public class FeatureCollection extends XyzResponse {
 
-  @JsonProperty
-  @JsonView(All.class)
-  @JsonInclude(Include.NON_NULL)
-  private @NotNull List<AbstractFeature<?, ?>> features;
+  @JsonIgnore
+  private final @NotNull LazyParsableFeatureList features;
 
   @JsonProperty
   @JsonView(All.class)
@@ -101,7 +105,7 @@ public class FeatureCollection extends XyzResponse {
   private Integer version;
 
   public FeatureCollection() {
-    features = new ArrayList<>();
+    features = new LazyParsableFeatureList();
   }
 
   @SuppressWarnings("WeakerAccess")
@@ -115,7 +119,7 @@ public class FeatureCollection extends XyzResponse {
     double maxLon = Double.NEGATIVE_INFINITY;
     double maxLat = Double.NEGATIVE_INFINITY;
 
-    for (AbstractFeature<?, ?> feature : getFeatures()) {
+    for (final Feature feature : getFeatures()) {
       if (recalculateChildrenBoxes || feature.getBbox() == null) {
         feature.calculateAndSetBbox(recalculateChildrenBoxes);
       }
@@ -160,41 +164,34 @@ public class FeatureCollection extends XyzResponse {
     return this;
   }
 
-  public @NotNull List<@NotNull AbstractFeature<?, ?>> getFeatures() throws JsonProcessingException {
+  public @NotNull List<@NotNull Feature> getFeatures() {
+    return features.get();
+  }
+
+  public void setFeatures(@NotNull List<@NotNull Feature> features) {
+    this.features.set(features);
+  }
+
+  @SuppressWarnings("unused")
+  public @NotNull FeatureCollection withFeatures(final @NotNull List<@NotNull Feature> features) {
+    setFeatures(features);
+    return this;
+  }
+
+  @JsonSerialize(using = RawSerializer.class)
+  @JsonProperty("features")
+  public @NotNull LazyParsableFeatureList getLazyParsableFeatureList() {
     return features;
   }
 
-  public void setFeatures(@NotNull List<@NotNull AbstractFeature<?, ?>> features) {
-    this.features = features;
-  }
-//
-//  @SuppressWarnings("unused")
-//  @JsonDeserialize(using = RawDeserializer.class)
-//  @JsonProperty("features")
-//  public void _setFeatures(Object features) {
-//    if (features instanceof String) {
-//      this.features = new LazyParsable<>((String) features);
-//    } else if (features instanceof List) {
-//      this.features = new LazyParsable<>();
-//      //noinspection unchecked
-//      this.features.set((List<Feature>) features);
-//    }
-//  }
-//
-//  @JsonSerialize(using = RawSerializer.class)
-//  @JsonProperty("features")
-//  private LazyParsable<List<Feature>> _getFeatures() {
-//    if (features == null) {
-//      features = new LazyParsable<>("[]");
-//    }
-//
-//    return features;
-//  }
-
-  @SuppressWarnings("unused")
-  public @NotNull FeatureCollection withFeatures(final @NotNull List<@NotNull AbstractFeature<?, ?>> features) {
-    setFeatures(features);
-    return this;
+  @JsonDeserialize(using = RawDeserializer.class)
+  @JsonProperty("features")
+  public void setLazyParsableFeatureList(Object features) {
+    if (features instanceof String string) {
+      this.features.set(string);
+    } else if (features instanceof List<?> list) {
+      this.features.set((List<Feature>) list);
+    }
   }
 
   /**

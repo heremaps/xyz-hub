@@ -25,12 +25,10 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View.All;
-import com.here.xyz.models.geojson.implementation.AbstractFeature;
-import com.here.xyz.models.geojson.implementation.Properties;
-import org.jetbrains.annotations.NotNull;
+import com.here.xyz.models.geojson.implementation.Feature;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Subscription extends AbstractFeature<Properties, Subscription> {
+public final class Subscription extends Feature {
 
   /**
    * The source of the subscribed notification (usually the space).
@@ -57,11 +55,6 @@ public class Subscription extends AbstractFeature<Properties, Subscription> {
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private SubscriptionStatus status;
-
-  @Override
-  protected @NotNull Properties newProperties() {
-    return new Properties();
-  }
 
   public String getSource() {
     return source;
@@ -116,5 +109,3 @@ public class Subscription extends AbstractFeature<Properties, Subscription> {
   }
 
 }
-
-

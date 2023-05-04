@@ -255,7 +255,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
       fList.add(f);
     }
 
-    collection.setFeatures(fList);
+    collection.setLazyParsableFeatureList(fList);
     return collection;
   }
 

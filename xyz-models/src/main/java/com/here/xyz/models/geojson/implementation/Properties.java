@@ -20,9 +20,41 @@
 package com.here.xyz.models.geojson.implementation;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.xyz.Extensible;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * The standard properties of the standard feature store in the Naksha-Hub.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Properties extends XyzProperties<Properties> {}
+public class Properties extends Extensible {
+
+  public Properties() {
+    xyzNamespace = new XyzNamespace();
+  }
+
+  @JsonProperty(XyzNamespace.XYZ_NAMESPACE)
+  @JsonInclude(Include.NON_NULL)
+  private @NotNull XyzNamespace xyzNamespace;
+
+  /**
+   * Returns the XYZ namespace.
+   *
+   * @return The XYZ namespace.
+   */
+  public @NotNull XyzNamespace getXyzNamespace() {
+    return xyzNamespace;
+  }
+
+  /**
+   * Sets the XYZ namespace.
+   *
+   * @param xyzNamespace The XYZ namespace.
+   */
+  public void setXyzNamespace(@NotNull XyzNamespace xyzNamespace) {
+    this.xyzNamespace = xyzNamespace;
+  }
+}

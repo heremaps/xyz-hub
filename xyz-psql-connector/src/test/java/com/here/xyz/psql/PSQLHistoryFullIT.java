@@ -84,7 +84,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
         .withGeometry(point)
         .withProperties(new Properties().with("foo", 0).withXyzNamespace(xyzNamespace));
     featureList.add(f);
-    collection.setFeatures(featureList);
+    collection.setLazyParsableFeatureList(featureList);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     mfevent.setConnectorParams(connectorParams);

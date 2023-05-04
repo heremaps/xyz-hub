@@ -37,42 +37,63 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.models.geojson.implementation.Feature;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-public class LazyParsable<T> {
+public class LazyParsableFeatureList {
 
-  private static final TypeReference FEATURE_LIST = new TypeReference<List<Feature>>() {
+  /**
+   * Type for a feature list.
+   */
+  public static final TypeReference<List<@NotNull Feature>> FEATURE_LIST = new TypeReference<>() {
   };
   private static final String FEATURE_TYPE = "Feature";
   private String valueString;
-  private T value;
+  private List<@NotNull Feature> value;
 
-  public LazyParsable() {
+  public LazyParsableFeatureList() {
   }
+
   @JsonCreator(mode = Mode.DELEGATING)
-  public LazyParsable(String valueString) {
+  public LazyParsableFeatureList(@Nullable String valueString) {
     this.valueString = valueString;
   }
 
-  @SuppressWarnings("unchecked")
+  @JsonCreator(mode = Mode.DELEGATING)
+  public LazyParsableFeatureList(@Nullable List<@NotNull Feature> value) {
+    this.value = value;
+  }
+
   @JsonValue
-  public T get() throws JsonProcessingException {
+  public @NotNull List<@NotNull Feature> get() {
     if (valueString != null) {
-      //TODO: Make generic
-      value = (T) XyzSerializable.DEFAULT_MAPPER.get().readValue(valueString, FEATURE_LIST);
+      // TODO: Make generic
+      try {
+        value = XyzSerializable.DEFAULT_MAPPER.get().readValue(valueString, FEATURE_LIST);
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
       valueString = null;
+    }
+    if (value == null) {
+      value = new ArrayList<>();
     }
     return value;
   }
 
-  public void set(T value) {
+  public void set(@NotNull List<@NotNull Feature> value) {
     this.value = value;
-    if (valueString != null) {
-      valueString = null;
-    }
+    this.valueString = null;
   }
 
-  private String getValueString() {
+  public void set(@NotNull String valueString) {
+    this.value = null;
+    this.valueString = valueString;
+  }
+
+  private @Nullable String getValueString() {
     return valueString;
   }
 
@@ -120,14 +141,14 @@ public class LazyParsable<T> {
 
     @Override
     public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
-      if (value instanceof LazyParsable) {
-        final String valueString = ((LazyParsable) value).valueString;
+      if (value instanceof LazyParsableFeatureList) {
+        final String valueString = ((LazyParsableFeatureList) value).valueString;
         if (valueString != null) {
           gen.writeRawValue(valueString);
         } else {
           //TODO: Make generic
           serializers.findTypedValueSerializer(serializers.getTypeFactory().constructType(FEATURE_LIST), true, null)
-              .serialize(((LazyParsable) value).value, gen, serializers);
+              .serialize(((LazyParsableFeatureList) value).value, gen, serializers);
         }
       } else {
         //TODO: Make generic
