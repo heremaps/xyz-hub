@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View.All;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.NotNull;
 
 /**

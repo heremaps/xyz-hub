@@ -11,6 +11,7 @@ import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.ext.web.RoutingContext;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,7 +30,10 @@ public class GetConnectorsByIdTask extends AbstractConnectorTask<GetConnectorsBy
   public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
     super.initFromRoutingContext(routingContext, responseType);
     assert queryParameters != null;
-    event.ids = queryParameters.getIds();
+    final List<@NotNull String> ids = queryParameters.getIds();
+    if (ids != null) {
+      event.ids.addAll(ids);
+    }
   }
 
   private static boolean returnConnector(@NotNull Connector connector, @NotNull XyzHubActionMatrix rightsMatrix) {
@@ -50,7 +54,8 @@ public class GetConnectorsByIdTask extends AbstractConnectorTask<GetConnectorsBy
     }
     final FeatureCollection collection = new FeatureCollection();
     final INaksha naksha = INaksha.instance.get();
-    if (event.ids == null || event.ids.size() == 0) {
+    if (event.ids.size() == 0) {
+      // The client wants to read all connectors it has access to.
       for (final @NotNull Connector connector : naksha.getConnectors()) {
         if (returnConnector(connector, rightsMatrix)) {
           collection.getFeatures().add(connector);

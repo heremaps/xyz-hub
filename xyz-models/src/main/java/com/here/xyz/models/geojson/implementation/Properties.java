@@ -24,7 +24,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.Extensible;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzActivityLog;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The standard properties of the standard feature store in the Naksha-Hub.
@@ -32,18 +35,20 @@ import org.jetbrains.annotations.NotNull;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Properties extends Extensible {
 
+  public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
+  public static final String XYZ_ACTIVITY_LOG_NS = "@ns:com:here:xyz:log";
+
   public Properties() {
     xyzNamespace = new XyzNamespace();
   }
 
-  @JsonProperty(XyzNamespace.XYZ_NAMESPACE)
-  @JsonInclude(Include.NON_NULL)
+  @JsonProperty(XYZ_NAMESPACE)
   private @NotNull XyzNamespace xyzNamespace;
 
   /**
    * Returns the XYZ namespace.
    *
-   * @return The XYZ namespace.
+   * @return The namespace.
    */
   public @NotNull XyzNamespace getXyzNamespace() {
     return xyzNamespace;
@@ -52,9 +57,41 @@ public class Properties extends Extensible {
   /**
    * Sets the XYZ namespace.
    *
-   * @param xyzNamespace The XYZ namespace.
+   * @param xyzNamespace The namespace.
    */
   public void setXyzNamespace(@NotNull XyzNamespace xyzNamespace) {
     this.xyzNamespace = xyzNamespace;
+  }
+
+  @JsonProperty(XYZ_ACTIVITY_LOG_NS)
+  @JsonInclude(Include.NON_NULL)
+  private @Nullable XyzActivityLog xyzActivityLog;
+
+  /**
+   * Returns the activity log namespace.
+   *
+   * @return The activity log namespace; if any.
+   */
+  public @Nullable XyzActivityLog getXyzActivityLog() {
+    return xyzActivityLog;
+  }
+
+  /**
+   * Sets the activity log namespace.
+   *
+   * @param ns The namespace.
+   */
+  public void setXyzActivityLog(@Nullable XyzActivityLog ns) {
+    this.xyzActivityLog = ns;
+  }
+
+  /**
+   * Removes the activity log namespace.
+   * @return The activity log namespace; if there was any.
+   */
+  public @Nullable XyzActivityLog removeActivityLog() {
+    final XyzActivityLog xyzActivityLog = this.xyzActivityLog;
+    this.xyzActivityLog = null;
+    return xyzActivityLog;
   }
 }

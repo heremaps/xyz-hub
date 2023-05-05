@@ -43,6 +43,10 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "Feature")
 @SuppressWarnings({"unused", "WeakerAccess"})
 public class Feature extends Extensible implements Typed {
+  public static final String ID = "id";
+  public static final String BBOX = "bbox";
+  public static final String GEOMETRY = "geometry";
+  public static final String PROPERTIES = "properties";
 
   /**
    * Create a new empty feature.

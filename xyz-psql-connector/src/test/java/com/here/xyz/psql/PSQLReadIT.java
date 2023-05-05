@@ -30,6 +30,7 @@ import com.here.xyz.events.info.GetStatisticsEvent;
 import com.here.xyz.models.geojson.coordinates.*;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
@@ -74,8 +75,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     String queryEvent;
     // =========== QUERY BBOX ==========
     GetFeaturesByTileEvent getFeaturesByBBoxEvent = new GetFeaturesByTileEvent();
-    getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
-    getFeaturesByBBoxEvent.setSpaceId("foo");
+    //getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
+    //getFeaturesByBBoxEvent.setSpaceId("foo");
     getFeaturesByBBoxEvent.setBbox(new BBox(-170, -170, 170, 170));
     getFeaturesByBBoxEvent.setLimit(30000);
 
@@ -89,8 +90,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     // =========== QUERY BBOX - +TAGS ==========
     getFeaturesByBBoxEvent = new GetFeaturesByTileEvent();
-    getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
-    getFeaturesByBBoxEvent.setSpaceId("foo");
+    //getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
+    //getFeaturesByBBoxEvent.setSpaceId("foo");
     getFeaturesByBBoxEvent.setTags(TagsQuery.fromQueryParameter(new ArrayList<String>() {{
       add("yellow");
     }}));
@@ -106,8 +107,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     // =========== QUERY WITH SELECTION BBOX - +TAGS ==========
     getFeaturesByBBoxEvent = new GetFeaturesByTileEvent();
-    getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
-    getFeaturesByBBoxEvent.setSpaceId("foo");
+    //getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
+    //getFeaturesByBBoxEvent.setSpaceId("foo");
     getFeaturesByBBoxEvent.setTags(TagsQuery.fromQueryParameter(new ArrayList<String>() {{
       add("yellow");
     }}));
@@ -138,8 +139,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     // =========== QUERY WITH SELECTION BBOX - +TAGS ==========
     getFeaturesByBBoxEvent = new GetFeaturesByTileEvent();
-    getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
-    getFeaturesByBBoxEvent.setSpaceId("foo");
+    //getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
+    //getFeaturesByBBoxEvent.setSpaceId("foo");
     getFeaturesByBBoxEvent.setTags(TagsQuery.fromQueryParameter(new ArrayList<String>() {{
       add("yellow");
     }}));
@@ -160,8 +161,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     // =========== QUERY WITH SELECTION BBOX - +TAGS ==========
     getFeaturesByBBoxEvent = new GetFeaturesByTileEvent();
-    getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
-    getFeaturesByBBoxEvent.setSpaceId("foo");
+    //getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
+    //getFeaturesByBBoxEvent.setSpaceId("foo");
     getFeaturesByBBoxEvent.setTags(TagsQuery.fromQueryParameter(new ArrayList<String>() {{
       add("yellow");
     }}));
@@ -181,8 +182,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     // =========== QUERY BBOX - +SMALL; +TAGS ==========
     getFeaturesByBBoxEvent = new GetFeaturesByTileEvent();
-    getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
-    getFeaturesByBBoxEvent.setSpaceId("foo");
+    //getFeaturesByBBoxEvent.setConnectorParams(defaultTestConnectorParams);
+    //getFeaturesByBBoxEvent.setSpaceId("foo");
     getFeaturesByBBoxEvent.setTags(TagsQuery.fromQueryParameter(new ArrayList<String>() {{
       add("yellow");
     }}));
@@ -205,10 +206,10 @@ public class PSQLReadIT extends PSQLAbstractIT {
     // =========== INSERT Point Grid 20x20 ==========
     for (double x = 7.; x < 7.19d; x += 0.01d) {
       for (double y = 50.; y < 50.19d; y += 0.01d) {
-        Feature f = new Feature()
-            .withGeometry(
-                new Point().withCoordinates(new PointCoordinates((Math.round(x * 10000.0) / 10000.0), Math.round(y * 10000.0) / 10000.0)))
-            .withProperties(new Properties().with("foo", Math.round(x * 10000.0) / 10000.0).with("foo2", 1).withXyzNamespace(xyzNamespace));
+        Feature f = new Feature();
+        f.setGeometry(new Point().withCoordinates(new PointCoordinates((Math.round(x * 10000.0) / 10000.0), Math.round(y * 10000.0) / 10000.0)));
+        f.getProperties().put("foo", Math.round(x * 10000.0) / 10000.0);
+        f.getProperties().put("foo2", 1);
         featureList.add(f);
       }
     }
@@ -222,10 +223,10 @@ public class PSQLReadIT extends PSQLAbstractIT {
     rC.add(new Position(7.01, 50.01));
     singlePoly.add(rC);
 
-    Feature f = new Feature()
-        .withGeometry(
-            new Polygon().withCoordinates(singlePoly))
-        .withProperties(new Properties().with("foo", 999.1).withXyzNamespace(xyzNamespace));
+    Feature f = new Feature();
+    f.setGeometry(new Polygon().withCoordinates(singlePoly));
+    f.getProperties().put("foo", 999.1);
+    f.getProperties().setXyzNamespace(xyzNamespace);
     featureList.add(f);
 
     collection.setLazyParsableFeatureList(featureList);
@@ -239,10 +240,10 @@ public class PSQLReadIT extends PSQLAbstractIT {
     rC.add(new Position(7.06, 50.07));
     singlePoly.add(rC);
 
-    f = new Feature()
-        .withGeometry(
-            new Polygon().withCoordinates(singlePoly))
-        .withProperties(new Properties().with("foo", 999.2).withXyzNamespace(xyzNamespace));
+    f = new Feature();
+    f.setGeometry(new Polygon().withCoordinates(singlePoly));
+    f.getProperties().put("foo", 999.2);
+    f.getProperties().setXyzNamespace(xyzNamespace);
     featureList.add(f);
     collection.setLazyParsableFeatureList(featureList);
 
@@ -251,10 +252,10 @@ public class PSQLReadIT extends PSQLAbstractIT {
     lcCoords.add(new Position(7.02, 50.02));
     lcCoords.add(new Position(7.18, 50.18));
 
-    f = new Feature()
-        .withGeometry(
-            new LineString().withCoordinates(lcCoords))
-        .withProperties(new Properties().with("foo", 999.3).withXyzNamespace(xyzNamespace));
+    f = new Feature();
+    f.setGeometry(new LineString().withCoordinates(lcCoords));
+    f.getProperties().put("foo", 999.3);
+    f.getProperties().setXyzNamespace(xyzNamespace);
     featureList.add(f);
 
     // =========== INSERT Line ==========
@@ -262,17 +263,17 @@ public class PSQLReadIT extends PSQLAbstractIT {
     lcCoords.add(new Position(7.16, 50.01));
     lcCoords.add(new Position(7.19, 50.01));
 
-    f = new Feature()
-        .withGeometry(
-            new LineString().withCoordinates(lcCoords))
-        .withProperties(new Properties().with("foo", 999.4).withXyzNamespace(xyzNamespace));
+    f = new Feature();
+    f.setGeometry(new LineString().withCoordinates(lcCoords));
+    f.getProperties().put("foo", 999.4);
+    f.getProperties().setXyzNamespace(xyzNamespace);
     featureList.add(f);
 
     collection.setLazyParsableFeatureList(featureList);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(defaultTestConnectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setInsertFeatures(collection.getFeatures());
@@ -292,8 +293,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     Geometry geo = new Polygon().withCoordinates(polyCoords);
 
     GetFeaturesByGeometryEvent geometryEvent = new GetFeaturesByGeometryEvent();
-    geometryEvent.setConnectorParams(defaultTestConnectorParams);
-    geometryEvent.setSpaceId("foo");
+    //geometryEvent.setConnectorParams(defaultTestConnectorParams);
+    //geometryEvent.setSpaceId("foo");
     geometryEvent.setGeometry(geo);
 
     String queryResponse = invokeLambda(geometryEvent.serialize());
@@ -312,8 +313,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     geo = new Polygon().withCoordinates(polyCoords);
     geometryEvent = new GetFeaturesByGeometryEvent();
-    geometryEvent.setConnectorParams(defaultTestConnectorParams);
-    geometryEvent.setSpaceId("foo");
+    //geometryEvent.setConnectorParams(defaultTestConnectorParams);
+    //geometryEvent.setSpaceId("foo");
     geometryEvent.setGeometry(geo);
 
     queryResponse = invokeLambda(geometryEvent.serialize());
@@ -343,8 +344,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     geo = new MultiPolygon().withCoordinates(multiCords);
     geometryEvent = new GetFeaturesByGeometryEvent();
-    geometryEvent.setConnectorParams(defaultTestConnectorParams);
-    geometryEvent.setSpaceId("foo");
+    //geometryEvent.setConnectorParams(defaultTestConnectorParams);
+    //geometryEvent.setSpaceId("foo");
     geometryEvent.setGeometry(geo);
 
     queryResponse = invokeLambda(geometryEvent.serialize());
@@ -371,8 +372,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     geo = new MultiPolygon().withCoordinates(multiCords);
     geometryEvent = new GetFeaturesByGeometryEvent();
-    geometryEvent.setConnectorParams(defaultTestConnectorParams);
-    geometryEvent.setSpaceId("foo");
+    //geometryEvent.setConnectorParams(defaultTestConnectorParams);
+    //geometryEvent.setSpaceId("foo");
     geometryEvent.setGeometry(geo);
     geometryEvent.setPropertiesQuery(pq);
 
@@ -384,8 +385,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     // =========== QUERY WITH MULTIPOLYGON + SELECTION ==========
     geo = new MultiPolygon().withCoordinates(multiCords);
     geometryEvent = new GetFeaturesByGeometryEvent();
-    geometryEvent.setConnectorParams(defaultTestConnectorParams);
-    geometryEvent.setSpaceId("foo");
+    //geometryEvent.setConnectorParams(defaultTestConnectorParams);
+    //geometryEvent.setSpaceId("foo");
     geometryEvent.setGeometry(geo);
     geometryEvent.setSelection(new ArrayList<>(Collections.singletonList("properties.foo2")));
 
@@ -399,14 +400,14 @@ public class PSQLReadIT extends PSQLAbstractIT {
     assertEquals(213, featureCollection.getFeatures().size());
 
     Properties properties = featureCollection.getFeatures().get(0).getProperties();
-    assertEquals(new Integer(1), properties.get("foo2"));
+    assertEquals(Integer.valueOf(1), properties.get("foo2"));
     assertNull(properties.get("foo"));
     LOGGER.info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
 
     // =========== QUERY WITH H3Index ==========
     geometryEvent = new GetFeaturesByGeometryEvent();
-    geometryEvent.setConnectorParams(defaultTestConnectorParams);
-    geometryEvent.setSpaceId("foo");
+    //geometryEvent.setConnectorParams(defaultTestConnectorParams);
+    //geometryEvent.setSpaceId("foo");
     //Large one
     geometryEvent.setH3Index("821fa7fffffffff");
 
@@ -417,8 +418,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     LOGGER.info("Hexbin Query (large) tested successfully");
 
     geometryEvent = new GetFeaturesByGeometryEvent();
-    geometryEvent.setConnectorParams(defaultTestConnectorParams);
-    geometryEvent.setSpaceId("foo");
+    //geometryEvent.setConnectorParams(defaultTestConnectorParams);
+    //geometryEvent.setSpaceId("foo");
     //Small one
     geometryEvent.setH3Index("861fa3a07ffffff");
 
@@ -437,8 +438,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     pq.add(pql);
 
     geometryEvent = new GetFeaturesByGeometryEvent();
-    geometryEvent.setConnectorParams(defaultTestConnectorParams);
-    geometryEvent.setSpaceId("foo");
+    //geometryEvent.setConnectorParams(defaultTestConnectorParams);
+    //geometryEvent.setSpaceId("foo");
     geometryEvent.setPropertiesQuery(pq);
     //Small one
     geometryEvent.setH3Index("861fa3a07ffffff");
@@ -463,8 +464,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     // =========== GetStatistics ==========
     GetStatisticsEvent event = new GetStatisticsEvent();
-    event.setConnectorParams(defaultTestConnectorParams);
-    event.setSpaceId("foo");
+    //event.setConnectorParams(defaultTestConnectorParams);
+    //event.setSpaceId("foo");
 
     String eventJson = event.serialize();
     String statisticsJson = invokeLambda(eventJson);
@@ -472,7 +473,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     assertNotNull(response);
 
-    assertEquals(new Long(3), response.getCount().getValue());
+    assertEquals(Long.valueOf(3L), response.getCount().getValue());
     assertEquals(false, response.getCount().getEstimated());
 
     assertTrue(response.getByteSize().getValue() > 0);
@@ -502,17 +503,16 @@ public class PSQLReadIT extends PSQLAbstractIT {
     collection.setFeatures(new ArrayList<>());
     collection.getFeatures().addAll(
         Stream.generate(() -> {
-          Feature f = new Feature()
-              .withGeometry(
-                  new Point().withCoordinates(new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)))
-              .withProperties(new Properties().withXyzNamespace(xyzNamespace));
+          Feature f = new Feature();
+          f.setGeometry(new Point().withCoordinates(new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)));
+          f.getProperties().setXyzNamespace(xyzNamespace);
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
           return f;
         }).limit(11000).collect(Collectors.toList()));
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(defaultTestConnectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setInsertFeatures(collection.getFeatures()); // TODO use get11kFeatureCollection() and extract pKeys
@@ -529,7 +529,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     // =========== GetStatistics ==========
     response = XyzSerializable.deserialize(statisticsJson);
 
-    assertEquals(new Long(11003), response.getCount().getValue());
+    assertEquals(Long.valueOf(11003L), response.getCount().getValue());
 
     assertEquals(true, response.getCount().getEstimated());
     assertEquals(true, response.getByteSize().getEstimated());

@@ -23,6 +23,7 @@ import static org.junit.Assert.assertNotEquals;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

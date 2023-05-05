@@ -36,7 +36,7 @@ import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.web.RoutingContext;

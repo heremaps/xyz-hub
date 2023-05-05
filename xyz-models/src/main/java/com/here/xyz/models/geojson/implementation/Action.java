@@ -1,5 +1,6 @@
 package com.here.xyz.models.geojson.implementation;
 
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

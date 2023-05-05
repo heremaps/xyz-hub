@@ -37,7 +37,7 @@ import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.params.XyzHubQueryParameters;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.util.logging.AccessLog;
-import com.here.xyz.models.geojson.implementation.AbstractFeature;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
@@ -357,7 +357,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
     //      return errorResponse(XyzError.FORBIDDEN, "Accessing features isn't possible with an anonymous token.");
     //    }
     final ActionMatrix rightsMatrix = jwt.getXyzHubMatrix();
-    if (!rightsMatrix.matches(eventMatrix)) {
+    if (rightsMatrix == null || !rightsMatrix.matches(eventMatrix)) {
       final String errorMessage = "Insufficient rights. " +
           "\nToken access: " + Json.encode(rightsMatrix) +
           "\nRequest access: " + Json.encode(eventMatrix);
@@ -436,7 +436,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
         headers = null;
       }
       if (responseType == ApiResponseType.EMPTY) {
-        routingContext_sendRawResponse(routingContext, streamId, OK, headers);
+        routingContext_sendEmptyResponse(routingContext, streamId, OK, headers);
         return;
       }
       if (response instanceof BinaryResponse br) {
@@ -444,14 +444,14 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
         return;
       }
       if (response instanceof NotModifiedResponse) {
-        routingContext_sendRawResponse(routingContext, streamId, NOT_MODIFIED, headers);
+        routingContext_sendEmptyResponse(routingContext, streamId, NOT_MODIFIED, headers);
         return;
       }
       if (response instanceof FeatureCollection fc && responseType == ApiResponseType.FEATURE) {
         // If we should only send back a single feature.
-        final List<@NotNull AbstractFeature<?, ?>> features = fc.getFeatures();
+        final List<@NotNull Feature> features = fc.getFeatures();
         if (features.size() == 0) {
-          routingContext_sendRawResponse(routingContext, streamId, OK, headers);
+          routingContext_sendEmptyResponse(routingContext, streamId, OK, headers);
         } else {
           final String content = features.get(0).serialize();
           routingContext_sendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(content));
@@ -496,13 +496,13 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    * @param status         The HTTP status code to set.
    * @param headers        The additional HTTP headers to set; if any.
    */
-  private static void routingContext_sendRawResponse(
+  private static void routingContext_sendEmptyResponse(
       @NotNull RoutingContext routingContext,
       @NotNull String streamId,
       @NotNull HttpResponseStatus status,
       @Nullable Map<@NotNull String, @NotNull String> headers
   ) {
-    routingContext_sendRawResponse(routingContext, streamId, status, headers);
+    routingContext_sendRawResponse(routingContext, streamId, status, headers, null, null);
   }
 
   /**

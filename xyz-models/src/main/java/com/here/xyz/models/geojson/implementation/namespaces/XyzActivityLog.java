@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.models.geojson.implementation;
+package com.here.xyz.models.geojson.implementation.namespaces;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -26,6 +26,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.models.geojson.implementation.Action;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,9 +36,16 @@ import org.jetbrains.annotations.Nullable;
 
 @SuppressWarnings("unused")
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class XyzNamespace implements XyzSerializable {
+public class XyzActivityLog implements XyzSerializable {
 
   public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
+  public static final String CREATED_AT = "createdAt";
+  public static final String UUID = "uuid";
+  public static final String PUUID = "puuid";
+  public static final String MUUID = "muuid";
+  public static final String REVISION = "revision";
+  public static final String SPACE = "space";
+  public static final String UPDATED_AT = "updatedAt";
 
   /**
    * The space ID the feature belongs to.
@@ -250,7 +258,7 @@ public class XyzNamespace implements XyzSerializable {
     this.space = space;
   }
 
-  public @NotNull XyzNamespace withSpace(@Nullable String space) {
+  public @NotNull XyzActivityLog withSpace(@Nullable String space) {
     setSpace(space);
     return this;
   }
@@ -263,7 +271,7 @@ public class XyzNamespace implements XyzSerializable {
     this.collection = collection;
   }
 
-  public @NotNull XyzNamespace withCollection(@Nullable String collection) {
+  public @NotNull XyzActivityLog withCollection(@Nullable String collection) {
     setCollection(collection);
     return this;
   }
@@ -280,12 +288,12 @@ public class XyzNamespace implements XyzSerializable {
     this.action = action.toString();
   }
 
-  public @NotNull XyzNamespace withAction(@Nullable String action) {
+  public @NotNull XyzActivityLog withAction(@Nullable String action) {
     setAction(action);
     return this;
   }
 
-  public @NotNull XyzNamespace withAction(@NotNull Action action) {
+  public @NotNull XyzActivityLog withAction(@NotNull Action action) {
     setAction(action);
     return this;
   }
@@ -299,7 +307,7 @@ public class XyzNamespace implements XyzSerializable {
     this.createdAt = createdAt;
   }
 
-  public @NotNull XyzNamespace withCreatedAt(long createdAt) {
+  public @NotNull XyzActivityLog withCreatedAt(long createdAt) {
     setCreatedAt(createdAt);
     return this;
   }
@@ -313,7 +321,7 @@ public class XyzNamespace implements XyzSerializable {
     this.updatedAt = updatedAt;
   }
 
-  public @NotNull XyzNamespace withUpdatedAt(long updatedAt) {
+  public @NotNull XyzActivityLog withUpdatedAt(long updatedAt) {
     setUpdatedAt(updatedAt);
     return this;
   }
@@ -328,7 +336,7 @@ public class XyzNamespace implements XyzSerializable {
     this.txn = txn;
   }
 
-  public @NotNull XyzNamespace withTxn(@Nullable String txn) {
+  public @NotNull XyzActivityLog withTxn(@Nullable String txn) {
     setTxn(txn);
     return this;
   }
@@ -341,7 +349,7 @@ public class XyzNamespace implements XyzSerializable {
     this.uuid = uuid;
   }
 
-  public @NotNull XyzNamespace withUuid(@Nullable String uuid) {
+  public @NotNull XyzActivityLog withUuid(@Nullable String uuid) {
     setUuid(uuid);
     return this;
   }
@@ -354,7 +362,7 @@ public class XyzNamespace implements XyzSerializable {
     this.puuid = puuid;
   }
 
-  public @NotNull XyzNamespace withPuuid(@Nullable String puuid) {
+  public @NotNull XyzActivityLog withPuuid(@Nullable String puuid) {
     setPuuid(puuid);
     return this;
   }
@@ -369,7 +377,7 @@ public class XyzNamespace implements XyzSerializable {
     this.muuid = muuid;
   }
 
-  public @NotNull XyzNamespace withMuuid(@Nullable String muuid) {
+  public @NotNull XyzActivityLog withMuuid(@Nullable String muuid) {
     setMuuid(muuid);
     return this;
   }
@@ -387,7 +395,7 @@ public class XyzNamespace implements XyzSerializable {
     this.tags = tags;
   }
 
-  public @NotNull XyzNamespace withTags(@Nullable List<@NotNull String> tags) {
+  public @NotNull XyzActivityLog withTags(@Nullable List<@NotNull String> tags) {
     setTags(tags);
     return this;
   }
@@ -432,7 +440,7 @@ public class XyzNamespace implements XyzSerializable {
     }
   }
 
-  public @NotNull XyzNamespace withDeleted(boolean deleted) {
+  public @NotNull XyzActivityLog withDeleted(boolean deleted) {
     setDeleted(deleted);
     return this;
   }
@@ -445,7 +453,7 @@ public class XyzNamespace implements XyzSerializable {
     this.version = version;
   }
 
-  public @NotNull XyzNamespace withVersion(long version) {
+  public @NotNull XyzActivityLog withVersion(long version) {
     setVersion(version);
     return this;
   }
@@ -458,7 +466,7 @@ public class XyzNamespace implements XyzSerializable {
     this.author = author;
   }
 
-  public @NotNull XyzNamespace withAuthor(@Nullable String author) {
+  public @NotNull XyzActivityLog withAuthor(@Nullable String author) {
     setAuthor(author);
     return this;
   }
@@ -471,7 +479,7 @@ public class XyzNamespace implements XyzSerializable {
     this.app_id = app_id;
   }
 
-  public @NotNull XyzNamespace withAppId(@Nullable String app_id) {
+  public @NotNull XyzActivityLog withAppId(@Nullable String app_id) {
     setAppId(app_id);
     return this;
   }
@@ -485,7 +493,7 @@ public class XyzNamespace implements XyzSerializable {
   }
 
 
-  public @NotNull XyzNamespace withOwner(@Nullable String owner) {
+  public @NotNull XyzActivityLog withOwner(@Nullable String owner) {
     setOwner(owner);
     return this;
   }

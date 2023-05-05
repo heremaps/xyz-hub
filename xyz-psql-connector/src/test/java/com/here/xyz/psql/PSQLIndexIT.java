@@ -74,9 +74,9 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
     /** Set 5 searchable Properties - 4 should be allowed by default */
     ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpaceId("foo");
+    //modifySpaceEvent.setSpaceId("foo");
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.CREATE);
-    modifySpaceEvent.setConnectorParams(connectorParams);
+    //modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space("foo"));
     ErrorResponse error = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals(XyzError.ILLEGAL_ARGUMENT, error.getError());
@@ -86,9 +86,9 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
     /** Set 4 searchable Properties */
     modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpaceId("foo");
+    //modifySpaceEvent.setSpaceId("foo");
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.CREATE);
-    modifySpaceEvent.setConnectorParams(connectorParams);
+    //modifySpaceEvent.setConnectorParams(connectorParams);
     /** Table gets created also without features */
     modifySpaceEvent.setSpaceDefinition(new Space("foo")); //.withEnableHistory(true)
 
@@ -103,9 +103,9 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     searchableProperties.put("foo7", false);
 
     modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpaceId("foo");
+    //modifySpaceEvent.setSpaceId("foo");
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
-    modifySpaceEvent.setConnectorParams(connectorParams);
+    //modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space("foo"));
 
     response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
@@ -157,9 +157,9 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     }};
 
     ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpaceId("foo");
+    //modifySpaceEvent.setSpaceId("foo");
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
-    modifySpaceEvent.setConnectorParams(connectorParams);
+    //modifySpaceEvent.setConnectorParams(connectorParams);
     /** Table gets created also without features */
     modifySpaceEvent.setSpaceDefinition(new Space("foo")); //.withEnableHistory(true)
 
@@ -204,8 +204,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     }
 
     GetStatisticsEvent statisticsEvent = new GetStatisticsEvent();
-    statisticsEvent.setSpaceId("foo");
-    statisticsEvent.setConnectorParams(connectorParams);
+    //statisticsEvent.setSpaceId("foo");
+    //statisticsEvent.setConnectorParams(connectorParams);
     // =========== Invoke GetStatisticsEvent ==========
     StatisticsResponse resp = XyzSerializable.deserialize(invokeLambda(statisticsEvent.serialize()));
     assertEquals(StatisticsResponse.PropertiesStatistics.Searchable.ALL, resp.getProperties().getSearchable());
@@ -232,9 +232,9 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     connectorParams.put(PsqlStorageParams.ON_DEMAND_IDX_LIMIT, 5);
 
     ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpaceId("foo");
+    //modifySpaceEvent.setSpaceId("foo");
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
-    modifySpaceEvent.setConnectorParams(connectorParams);
+    //modifySpaceEvent.setConnectorParams(connectorParams);
     /** Table gets created also without features */
     modifySpaceEvent.withSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
 
@@ -305,10 +305,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
   @Test
   public void testAutoIndexing() throws Exception {
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setSpaceId("foo");
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setInsertFeatures(FeatureGenerator.get11kFeatureCollection().getFeatures());
-    mfevent.setConnectorParams(connectorParams);
+    //mfevent.setConnectorParams(connectorParams);
 
     invokeLambda(mfevent.serialize());
 
@@ -323,14 +323,14 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     invokeLambdaFromFile("/events/HealthCheckEventWithAutoIndexing.json");
 
     GetStatisticsEvent statisticsEvent = new GetStatisticsEvent();
-    statisticsEvent.setSpaceId("foo");
-    statisticsEvent.setConnectorParams(connectorParams);
+    //statisticsEvent.setSpaceId("foo");
+    //statisticsEvent.setConnectorParams(connectorParams);
     // =========== Invoke GetStatisticsEvent ==========
     String stringResponse = invokeLambda(statisticsEvent.serialize());
     StatisticsResponse response = XyzSerializable.deserialize(stringResponse);
 
     assertNotNull(response);
-    assertEquals(new Long(11000), response.getCount().getValue());
+    assertEquals(Long.valueOf(11000L), response.getCount().getValue());
     assertEquals(true, response.getCount().getEstimated());
     assertEquals(StatisticsResponse.PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
 
@@ -351,9 +351,9 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
     /** Deactivate autoIndexing */
     ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpaceId("foo");
+    //modifySpaceEvent.setSpaceId("foo");
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
-    modifySpaceEvent.setConnectorParams(connectorParams);
+    //modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space("foo"));
 
     // =========== Invoke ModifySpaceEvent ==========

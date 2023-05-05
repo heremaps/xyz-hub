@@ -75,7 +75,7 @@ import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.ModifiedEventResponse;

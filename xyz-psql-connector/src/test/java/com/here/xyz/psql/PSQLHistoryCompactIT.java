@@ -23,6 +23,7 @@ import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.*;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.models.hub.Space;
 import java.util.Collections;
 import org.junit.After;
@@ -64,9 +65,9 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
   public void testHistoryTableCreation() throws Exception {
     // =========== CREATE SPACE with UUID support ==========
     ModifySpaceEvent mse = new ModifySpaceEvent();
-    mse.setSpaceId("foo");
+    //mse.setSpaceId("foo");
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
-    mse.setConnectorParams(connectorParams);
+    //mse.setConnectorParams(connectorParams);
     mse.setSpaceDefinition(new Space("foo"));
     //mse.setEnableHistory(true);
 
@@ -93,9 +94,9 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     int maxVersionCount = 5;
     // =========== CREATE SPACE with UUID support ==========
     ModifySpaceEvent mse = new ModifySpaceEvent();
-    mse.setSpaceId("foo");
+    //mse.setSpaceId("foo");
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
-    mse.setConnectorParams(connectorParams);
+    //mse.setConnectorParams(connectorParams);
     mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
 
     invokeLambda(mse.serialize());
@@ -106,16 +107,16 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     List<Feature> featureList = new ArrayList<>();
 
     Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-    Feature f = new Feature()
-        .withId("1234")
-        .withGeometry(point)
-        .withProperties(new Properties().with("foo", 0).withXyzNamespace(xyzNamespace));
+    Feature f = new Feature();
+    f.setId("1234");
+    f.setGeometry(point);
+    f.getProperties().put("foo", 0);
     featureList.add(f);
     collection.setLazyParsableFeatureList(featureList);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(connectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(connectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
 
@@ -126,7 +127,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     // ============= UPDATE FEATURE 10 Times ======================
     mfevent.setInsertFeatures(null);
     for (int i = 1; i <= 10; i++) {
-      f.getProperties().with("foo", i);
+      f.getProperties().put("foo", i);
       mfevent.setUpdateFeatures(collection.getFeatures());
       setPUUID(collection);
       invokeLambda(mfevent.serialize());
@@ -152,15 +153,15 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
     // set history to infinite
     mse = new ModifySpaceEvent();
-    mse.setSpaceId("foo");
-    mse.setConnectorParams(connectorParams);
+    //mse.setSpaceId("foo");
+    //mse.setConnectorParams(connectorParams);
     mse.setOperation(ModifySpaceEvent.Operation.UPDATE);
     mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
     invokeLambda(mse.serialize());
 
     // ============= UPDATE FEATURE 10 Times ======================
     for (int i = 11; i <= 20; i++) {
-      f.getProperties().with("foo", i);//(new Properties().with("foo", i).withXyzNamespace(xyzNamespace));
+      f.getProperties().put("foo", i);//(new Properties().with("foo", i).withXyzNamespace(xyzNamespace));
       mfevent.setUpdateFeatures(collection.getFeatures());
       setPUUID(collection);
       invokeLambda(mfevent.serialize());
@@ -187,14 +188,14 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
     // set withMaxVersionCount to 2
     mse = new ModifySpaceEvent();
-    mse.setSpaceId("foo");
-    mse.setConnectorParams(connectorParams);
+    //mse.setSpaceId("foo");
+    //mse.setConnectorParams(connectorParams);
     mse.setOperation(ModifySpaceEvent.Operation.UPDATE);
     mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
     invokeLambda(mse.serialize());
 
     //Do one Update to fire the updated trigger
-    f.getProperties().with("foo", 21);
+    f.getProperties().put("foo", 21);
     mfevent.setUpdateFeatures(collection.getFeatures());
     setPUUID(collection);
     invokeLambda(mfevent.serialize());
@@ -224,10 +225,10 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     int maxVersionCount = 5;
     // =========== CREATE SPACE with UUID support ==========
     ModifySpaceEvent mse = new ModifySpaceEvent();
-        mse.setSpaceId("foo");
+    //mse.setSpaceId("foo");
+    //mse.setParams(Collections.singletonMap("maxVersionCount", maxVersionCount));
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
-    mse.setParams(Collections.singletonMap("maxVersionCount", maxVersionCount));
-    mse.setConnectorParams(connectorParams);
+    //mse.setConnectorParams(connectorParams);
     mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
 
     String response = invokeLambda(mse.serialize());
@@ -238,16 +239,16 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     List<Feature> featureList = new ArrayList<>();
 
     Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-    Feature f = new Feature()
-        .withId("1234")
-        .withGeometry(point)
-        .withProperties(new Properties().with("foo", 0).withXyzNamespace(xyzNamespace));
+    Feature f = new Feature();
+    f.setId("1234");
+    f.setGeometry(point);
+    f.getProperties().put("foo", 0);
     featureList.add(f);
     collection.setLazyParsableFeatureList(featureList);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(connectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(connectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
 
@@ -278,9 +279,9 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     int maxVersionCount = 8;
     // =========== CREATE SPACE with UUID support ==========
     ModifySpaceEvent mse = new ModifySpaceEvent();
-    mse.setSpaceId("foo");
+    //mse.setSpaceId("foo");
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
-    mse.setConnectorParams(connectorParams);
+    //mse.setConnectorParams(connectorParams);
     mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
 
     invokeLambda(mse.serialize());

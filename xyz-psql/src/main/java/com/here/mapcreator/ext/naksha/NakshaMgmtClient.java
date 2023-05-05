@@ -84,6 +84,11 @@ public class NakshaMgmtClient extends NakshaPsqlClient<NakshaDataSource> impleme
   }
 
   @Override
+  public @NotNull Iterable<Connector> getConnectors() {
+    return allConnectorsById.values();
+  }
+
+  @Override
   public @Nullable Subscription getSubscriptionById(@NotNull String id) {
     return allSubscriptionsById.get(id);
   }

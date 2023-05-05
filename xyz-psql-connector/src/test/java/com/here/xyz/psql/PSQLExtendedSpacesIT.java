@@ -22,7 +22,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.tools.FeatureGenerator;
@@ -86,9 +86,9 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
 
     /** Update Searchable and SortableProperties in Base */
     ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpaceId(BASE1);
+    //modifySpaceEvent.setSpaceId(BASE1);
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
-    modifySpaceEvent.setConnectorParams(connectorParams);
+    //modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space(BASE1));
     SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals("OK", response.getStatus());
@@ -100,10 +100,10 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     Map<String, Object> params = new HashMap<>();
 
     modifySpaceEvent = new ModifySpaceEvent();
-    modifySpaceEvent.setSpaceId(DELTA1);
+    //modifySpaceEvent.setSpaceId(DELTA1);
+    //modifySpaceEvent.setParams(params);
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
-    modifySpaceEvent.setConnectorParams(connectorParams);
-    modifySpaceEvent.setParams(params);
+    //modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space(DELTA1));
     response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals("OK", response.getStatus());
@@ -143,10 +143,10 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
       }
 
       ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
-      modifySpaceEvent.setSpaceId(space);
+      //modifySpaceEvent.setSpaceId(space);
+      //modifySpaceEvent.setParams(params);
       modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.CREATE);
-      modifySpaceEvent.setConnectorParams(connectorParams);
-      modifySpaceEvent.setParams(params);
+      //modifySpaceEvent.setConnectorParams(connectorParams);
       modifySpaceEvent.setSpaceDefinition(new Space(space));
       SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
       assertEquals("OK", response.getStatus());
@@ -156,8 +156,8 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
       }};
 
       ModifyFeaturesEvent modifyFeaturesEvent = new ModifyFeaturesEvent();
-      modifyFeaturesEvent.setSpaceId(space);
-      modifyFeaturesEvent.setConnectorParams(connectorParams);
+      //modifyFeaturesEvent.setSpaceId(space);
+      //modifyFeaturesEvent.setConnectorParams(connectorParams);
       modifyFeaturesEvent.setTransaction(true);
       modifyFeaturesEvent.setInsertFeatures(features);
       invokeLambda(modifyFeaturesEvent.serialize());

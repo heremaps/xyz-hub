@@ -30,7 +30,7 @@ import com.here.xyz.View;
 import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

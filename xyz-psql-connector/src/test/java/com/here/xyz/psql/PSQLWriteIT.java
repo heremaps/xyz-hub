@@ -82,8 +82,8 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     setPUUID(featureCollection);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(defaultTestConnectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
@@ -114,8 +114,8 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     setPUUID(featureCollection);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(defaultTestConnectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
@@ -137,8 +137,8 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     final String deleteId = featureCollection.getFeatures().get(0).getId();
 
     mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(defaultTestConnectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setDeleteFeatures(new HashMap<String, String>() {{
@@ -183,8 +183,8 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     });
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(defaultTestConnectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
 
     String updateRequest = mfevent.serialize();

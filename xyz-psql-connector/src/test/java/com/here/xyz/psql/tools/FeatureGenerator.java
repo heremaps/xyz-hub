@@ -21,6 +21,7 @@ package com.here.xyz.psql.tools;
 
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.*;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import org.apache.commons.lang3.RandomStringUtils;
 
 import java.util.ArrayList;
@@ -31,36 +32,38 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class FeatureGenerator {
-    protected static Random RANDOM = new Random();
 
-    public static Feature generateFeature(XyzNamespace xyzNamespace, List<String> propertyKeys) {
-        propertyKeys = propertyKeys == null ? Collections.emptyList() : propertyKeys;
+  protected static Random RANDOM = new Random();
 
-        return new Feature()
-                .withGeometry(
-                        new Point().withCoordinates(new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)))
-                .withProperties(propertyKeys.stream().reduce(new Properties().withXyzNamespace(xyzNamespace), (properties, k) -> {
-                    properties.put(k, RandomStringUtils.randomAlphanumeric(3));
-                    return properties;
-                }, (a, b) -> a));
+  public static Feature generateFeature(XyzNamespace xyzNamespace, List<String> propertyKeys) {
+    propertyKeys = propertyKeys == null ? Collections.emptyList() : propertyKeys;
+
+    final Feature f = new Feature();
+    f.setGeometry(new Point().withCoordinates(new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)));
+    propertyKeys.stream().reduce(new Properties(), (properties, k) -> {
+      properties.put(k, RandomStringUtils.randomAlphanumeric(3));
+      return properties;
+    }, (a, b) -> a);
+    return f;
+  }
+
+  public static FeatureCollection get11kFeatureCollection() throws Exception {
+    final XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+    final List<String> propertyKeys = Stream.generate(() ->
+        RandomStringUtils.randomAlphanumeric(10)).limit(3).collect(Collectors.toList());
+
+    FeatureCollection collection = new FeatureCollection();
+    collection.setFeatures(new ArrayList<>());
+    collection.getFeatures().addAll(
+        Stream.generate(() -> generateFeature(xyzNamespace, propertyKeys)).limit(11000).collect(Collectors.toList()));
+
+    /** This property does not get auto-indexed */
+    for (int i = 0; i < 11000; i++) {
+      if (i % 5 == 0) {
+        collection.getFeatures().get(i).getProperties().put("test", 1);
+      }
     }
 
-    public static FeatureCollection get11kFeatureCollection() throws Exception {
-        final XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
-        final List<String> propertyKeys = Stream.generate(() ->
-                RandomStringUtils.randomAlphanumeric(10)).limit(3).collect(Collectors.toList());
-
-        FeatureCollection collection = new FeatureCollection();
-        collection.setFeatures(new ArrayList<>());
-        collection.getFeatures().addAll(
-                Stream.generate(() -> generateFeature(xyzNamespace, propertyKeys)).limit(11000).collect(Collectors.toList()));
-
-        /** This property does not get auto-indexed */
-        for (int i = 0; i < 11000 ; i++) {
-            if(i % 5 == 0)
-                collection.getFeatures().get(i).getProperties().with("test",1);
-        }
-
-        return collection;
-    }
+    return collection;
+  }
 }

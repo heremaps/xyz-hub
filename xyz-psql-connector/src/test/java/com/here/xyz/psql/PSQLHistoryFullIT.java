@@ -23,6 +23,7 @@ import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.*;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.models.hub.Space;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -67,9 +68,9 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     space.setId("foo");
     //space.setEnableHistory(true);
     final ModifySpaceEvent event = new ModifySpaceEvent();
-    event.setSpaceId("foo");
+    //event.setSpaceId("foo");
     event.setOperation(ModifySpaceEvent.Operation.CREATE);
-    event.setConnectorParams(connectorParams);
+    //event.setConnectorParams(connectorParams);
     event.setSpaceDefinition(space);
     invokeLambda(event.serialize());
 
@@ -79,16 +80,17 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     List<Feature> featureList = new ArrayList<>();
 
     Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-    Feature f = new Feature()
-        .withId("1234")
-        .withGeometry(point)
-        .withProperties(new Properties().with("foo", 0).withXyzNamespace(xyzNamespace));
+    Feature f = new Feature();
+    f.setId("1234");
+    f.setGeometry(point);
+    f.getProperties().put("foo", 0);
+    f.getProperties().setXyzNamespace(xyzNamespace);
     featureList.add(f);
     collection.setLazyParsableFeatureList(featureList);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(connectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(connectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
 
@@ -100,7 +102,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     // ============= UPDATE FEATURE 10 Times ======================
     mfevent.setInsertFeatures(null);
     for (int i = 1; i <= 5; i++) {
-      f.getProperties().with("foo", i);
+      f.getProperties().put("foo", i);
       mfevent.setUpdateFeatures(collection.getFeatures());
       setPUUID(collection);
       invokeLambda(mfevent.serialize());
@@ -148,9 +150,9 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     //space.setEnableHistory(true);
 
     final ModifySpaceEvent mse = new ModifySpaceEvent();
-    mse.setSpaceId("foo");
+    //mse.setSpaceId("foo");
     mse.setOperation(ModifySpaceEvent.Operation.CREATE);
-    mse.setConnectorParams(connectorParams);
+    //mse.setConnectorParams(connectorParams);
     mse.setSpaceDefinition(space);
 
     invokeLambda(mse.serialize());

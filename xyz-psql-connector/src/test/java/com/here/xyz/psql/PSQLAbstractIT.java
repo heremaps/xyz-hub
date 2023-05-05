@@ -74,7 +74,7 @@ public abstract class PSQLAbstractIT extends Helper {
 
     final HealthCheckEvent event = new HealthCheckEvent();
     event.setMinResponseTime(100);
-    event.setConnectorParams(connectorParameters);
+    //event.setConnectorParams(connectorParameters);
 
     invokeLambda(event.serialize());
     LOGGER.info("Setup environment Completed.");
@@ -87,9 +87,9 @@ public abstract class PSQLAbstractIT extends Helper {
     final Space space = new Space();
     space.setId(spaceId);
     final ModifySpaceEvent event = new ModifySpaceEvent();
-    event.setSpaceId(spaceId);
+    //event.setSpaceId(spaceId);
     event.setOperation(ModifySpaceEvent.Operation.CREATE);
-    event.setConnectorParams(connectorParameters);
+    //event.setConnectorParams(connectorParameters);
     event.setSpaceDefinition(space);
     SuccessResponse response = XyzSerializable.deserialize(invokeLambda(event.serialize()));
     assertEquals("OK", response.getStatus());
@@ -100,9 +100,9 @@ public abstract class PSQLAbstractIT extends Helper {
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
     final ModifySpaceEvent event = new ModifySpaceEvent();
-    event.setSpaceId(TEST_SPACE_ID);
+    //event.setSpaceId(TEST_SPACE_ID);
     event.setOperation(ModifySpaceEvent.Operation.DELETE);
-    event.setConnectorParams(connectorParameters);
+    //event.setConnectorParams(connectorParameters);
     String response = invokeLambda(event.serialize());
     assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
 
@@ -116,9 +116,9 @@ public abstract class PSQLAbstractIT extends Helper {
 
     for (String space : spaces) {
       final ModifySpaceEvent event = new ModifySpaceEvent();
-      event.setSpaceId(space);
+      //event.setSpaceId(space);
       event.setOperation(ModifySpaceEvent.Operation.DELETE);
-      event.setConnectorParams(connectorParameters);
+      //event.setConnectorParams(connectorParameters);
 
       String response = invokeLambda(event.serialize());
       assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());

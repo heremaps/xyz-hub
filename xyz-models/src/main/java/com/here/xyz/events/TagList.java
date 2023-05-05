@@ -19,7 +19,7 @@
 
 package com.here.xyz.events;
 
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import java.util.ArrayList;
 import org.jetbrains.annotations.NotNull;
 

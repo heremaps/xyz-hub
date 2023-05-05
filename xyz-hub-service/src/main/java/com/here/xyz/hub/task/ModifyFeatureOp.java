@@ -19,22 +19,14 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.CREATED_AT;
-import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.MUUID;
-import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.PROPERTIES;
-import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.PUUID;
-import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.REVISION;
-import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.SPACE;
-import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.UPDATED_AT;
-import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.UUID;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.JsonObject;
 import java.util.Collections;
@@ -53,8 +45,9 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
   /**
    * @param featureModifications A list of FeatureModifications of which each may have different settings for existence-handling and/or
-   * conflict-handling. If these settings are not specified at the FeatureModification the according other parameters (ifNotExists,
-   * ifExists, conflictResolution) of this constructor will be applied for that purpose.
+   *                             conflict-handling. If these settings are not specified at the FeatureModification the according other
+   *                             parameters (ifNotExists, ifExists, conflictResolution) of this constructor will be applied for that
+   *                             purpose.
    */
   public ModifyFeatureOp(List<Map<String, Object>> featureModifications, IfNotExists ifNotExists, IfExists ifExists,
       boolean isTransactional, ConflictResolution conflictResolution, boolean allowFeatureCreationWithUUID) {
@@ -130,7 +123,8 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     @Override
     protected String getUuid(Map<String, Object> feature) {
       try {
-        return new JsonObject(feature).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getString(UUID);
+        return new JsonObject(feature).getJsonObject(Feature.PROPERTIES).getJsonObject(Properties.XYZ_NAMESPACE)
+            .getString(XyzNamespace.UUID);
       } catch (Exception e) {
         return null;
       }
@@ -156,18 +150,19 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
 
     @SuppressWarnings("unchecked")
     public static Map<String, Object> metadataFilter = new JsonObject()
-        .put(PROPERTIES, new JsonObject()
-            .put(XyzNamespace.XYZ_NAMESPACE, new JsonObject()
-                .put(SPACE, true)
-                .put(CREATED_AT, true)
-                .put(UPDATED_AT, true)
-                .put(UUID, true)
-                .put(PUUID, true)
-                .put(MUUID, true))).mapTo(Map.class);
+        .put(Feature.PROPERTIES, new JsonObject()
+            .put(Properties.XYZ_NAMESPACE, new JsonObject()
+                .put(XyzNamespace.SPACE, true)
+                .put(XyzNamespace.CREATED_AT, true)
+                .put(XyzNamespace.UPDATED_AT, true)
+                .put(XyzNamespace.UUID, true)
+                .put(XyzNamespace.PUUID, true)
+                .put(XyzNamespace.MUUID, true))).mapTo(Map.class);
 
     private int getRevision(Map<String, Object> input) {
       try {
-        return new JsonObject(input).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getInteger(REVISION, 0);
+        return new JsonObject(input).getJsonObject(Feature.PROPERTIES).getJsonObject(Properties.XYZ_NAMESPACE)
+            .getInteger(XyzNamespace.REVISION, 0);
       } catch (Exception e) {
         return 0;
       }
@@ -175,16 +170,17 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
   }
 
   /**
-   * Validates whether the feature can be created based on the space's flag allowFeatureCreationWithUUID.
-   * Creation of features using UUID in the payload should always return an error, however at the moment, due to a bug,
-   * the creation succeeds.
+   * Validates whether the feature can be created based on the space's flag allowFeatureCreationWithUUID. Creation of features using UUID in
+   * the payload should always return an error, however at the moment, due to a bug, the creation succeeds.
+   *
    * @param entry
    * @throws ModifyOpError
    */
   @Override
   public void validateCreate(Entry<Feature> entry) throws ModifyOpError {
-    if (!allowFeatureCreationWithUUID && entry.inputUUID != null)
+    if (!allowFeatureCreationWithUUID && entry.inputUUID != null) {
       throw new ModifyOpError(
           "The feature with id " + entry.input.get("id") + " cannot be created. Property UUID should not be provided as input.");
+    }
   }
 }

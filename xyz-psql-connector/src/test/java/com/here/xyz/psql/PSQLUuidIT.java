@@ -25,7 +25,7 @@ import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import org.junit.After;
@@ -70,9 +70,11 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
     featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
 
-    Feature newFeature = new Feature().withId("test2").withProperties(new Properties().withXyzNamespace(xyzNamespace));
+    Feature f = new Feature();
+    f.setId("test2");
+    f.getProperties().setXyzNamespace(xyzNamespace);
     List<Feature> insertFeatureList = new ArrayList<>();
-    insertFeatureList.add(newFeature);
+    insertFeatureList.add(f);
 
     List<String> idList = featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
     idList.add("test2");
@@ -80,8 +82,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     setPUUID(featureCollection);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(defaultTestConnectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(false);
     mfevent.setEnableUUID(true);
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
@@ -102,8 +104,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     //Check if updates got written (correct UUID)
     SearchForFeaturesEvent searchEvent = (SearchForFeaturesEvent) new SearchForFeaturesEvent();
-    searchEvent.setConnectorParams(defaultTestConnectorParams);
-    searchEvent.setSpaceId("foo");
+    //searchEvent.setConnectorParams(defaultTestConnectorParams);
+    //searchEvent.setSpaceId("foo");
 
     String eventJson = searchEvent.serialize();
     String searchResponse = invokeLambda(eventJson);
@@ -213,9 +215,11 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
     featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
 
-    Feature newFeature = new Feature().withId("test2").withProperties(new Properties().withXyzNamespace(xyzNamespace));
+    Feature f = new Feature();
+    f.setId("test2");
+    f.getProperties().setXyzNamespace(xyzNamespace);
     List<Feature> insertFeatureList = new ArrayList<>();
-    insertFeatureList.add(newFeature);
+    insertFeatureList.add(f);
 
     List<String> idList = featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
     idList.add("test2");
@@ -223,8 +227,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     setPUUID(featureCollection);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(defaultTestConnectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(true);
     mfevent.setEnableUUID(true);
     mfevent.setUpdateFeatures(featureCollection.getFeatures());
@@ -244,8 +248,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     //Check if nothing got written
     SearchForFeaturesEvent searchEvent = new SearchForFeaturesEvent();
-    searchEvent.setConnectorParams(defaultTestConnectorParams);
-    searchEvent.setSpaceId("foo");
+    //searchEvent.setConnectorParams(defaultTestConnectorParams);
+    //searchEvent.setSpaceId("foo");
 
     String eventJson = searchEvent.serialize();
     String searchResponse = invokeLambda(eventJson);
@@ -340,8 +344,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     // =========== DELETE NOT EXISTING FEATURE ==========
     //Stream
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    mfevent.setConnectorParams(defaultTestConnectorParams);
-    mfevent.setSpaceId("foo");
+    //mfevent.setConnectorParams(defaultTestConnectorParams);
+    //mfevent.setSpaceId("foo");
     mfevent.setTransaction(false);
     mfevent.setDeleteFeatures(Collections.singletonMap("doesnotexist", null));
     if (withUUID) {

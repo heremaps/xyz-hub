@@ -1,6 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
-import com.here.xyz.models.geojson.implementation.AbstractFeature;
+import com.here.xyz.models.geojson.implementation.Feature;
 import java.sql.SQLException;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
@@ -113,9 +113,9 @@ public class NakshaPsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DAT
    * @return The inserted, update and deleted features in the same order as given.
    * @throws SQLException If any error occurred.
    */
-  public @NotNull List<List<@Nullable AbstractFeature<?, ?>>> modifyFeatures(
-      @Nullable List<@NotNull AbstractFeature<?, ?>> insert,
-      @Nullable List<@NotNull AbstractFeature<?, ?>> update,
+  public @NotNull List<List<@Nullable Feature>> modifyFeatures(
+      @Nullable List<@NotNull Feature> insert,
+      @Nullable List<@NotNull Feature> update,
       @Nullable List<@NotNull DeleteOp> delete
   ) throws SQLException {
     throw new SQLException("Not Implemented");
