@@ -95,21 +95,21 @@ public class PsqlStorageParams extends EventHandlerParams {
       replicas = new ArrayList<>();
     }
     dbReplicas = replicas;
-    role = parseValue(connectorParams, "spaceRole", dbConfig.user);
-    schema = parseValue(connectorParams, "spaceSchema", "naksha");
+    role = parseValueWithDefault(connectorParams, "spaceRole", dbConfig.user);
+    schema = parseValueWithDefault(connectorParams, "spaceSchema", "naksha");
     id = parseValue(connectorParams, ID, String.class);
     connectorId = parseValue(connectorParams, CONNECTOR_ID, Long.class);
     if (connectorId <= 0L) {
       currentTask().warn("Illegal cid: {}", connectorParams.get(CONNECTOR_ID));
     }
-    autoIndexing = parseValue(connectorParams, AUTO_INDEXING, false);
-    propertySearch = parseValue(connectorParams, PROPERTY_SEARCH, false);
-    mvtSupport = parseValue(connectorParams, MVT_SUPPORT, false);
-    enableHashedSpaceId = parseValue(connectorParams, ENABLE_HASHED_SPACEID, false);
-    compactHistory = parseValue(connectorParams, COMPACT_HISTORY, true);
-    onDemandIdxLimit = parseValue(connectorParams, ON_DEMAND_IDX_LIMIT, 4);
-    hrnShortening = parseValue(connectorParams, HRN_SHORTENING, false);
-    ignoreCreateMse = parseValue(connectorParams, IGNORE_CREATE_MSE, false);
+    autoIndexing = parseValueWithDefault(connectorParams, AUTO_INDEXING, false);
+    propertySearch = parseValueWithDefault(connectorParams, PROPERTY_SEARCH, false);
+    mvtSupport = parseValueWithDefault(connectorParams, MVT_SUPPORT, false);
+    enableHashedSpaceId = parseValueWithDefault(connectorParams, ENABLE_HASHED_SPACEID, false);
+    compactHistory = parseValueWithDefault(connectorParams, COMPACT_HISTORY, true);
+    onDemandIdxLimit = parseValueWithDefault(connectorParams, ON_DEMAND_IDX_LIMIT, 4);
+    hrnShortening = parseValueWithDefault(connectorParams, HRN_SHORTENING, false);
+    ignoreCreateMse = parseValueWithDefault(connectorParams, IGNORE_CREATE_MSE, false);
   }
 
   public @NotNull String getId() {

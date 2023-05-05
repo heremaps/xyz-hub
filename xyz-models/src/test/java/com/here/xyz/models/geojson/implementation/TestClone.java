@@ -43,10 +43,9 @@ public class TestClone {
     collection.setFeatures(new ArrayList<>());
     collection.getFeatures().addAll(
         Stream.generate(() -> {
-          Feature f = new Feature()
-              .withGeometry(
-                  new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties());
+          final Feature f = new Feature();
+          f.setGeometry(new Point()
+                  .withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)));
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
           return f;
         }).limit(featureCount).collect(Collectors.toList()));

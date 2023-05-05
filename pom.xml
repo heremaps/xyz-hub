@@ -52,6 +52,7 @@
     <module>xyz-psql</module>
     <module>xyz-psql-connector</module>
     <module>xyz-txn-handler</module>
+    <module>xyz-activitylog-handler</module>
   </modules>
 
   <scm>
@@ -506,6 +507,12 @@
         <groupId>junit</groupId>
         <scope>test</scope>
         <version>4.13.2</version>
+      </dependency>
+      <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-engine</artifactId>
+        <version>5.9.2</version>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <artifactId>rest-assured</artifactId>

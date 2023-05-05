@@ -27,15 +27,37 @@ public abstract class EventHandlerParams {
    * @param expectedType    The type that is expected.
    * @param <T>             The value-type.
    * @return the value.
-   * @throws NullPointerException     If the parameter is not given.
-   * @throws IllegalArgumentException If the parameter is not of the expected type.
+   * @throws NullPointerException     If the parameter not given.
+   * @throws IllegalArgumentException If the parameter given, but not of the expected type.
    */
   protected <T> @NotNull T parseValue(
       @NotNull Map<@NotNull String, @Nullable Object> connectorParams,
       @NotNull String name,
       @NotNull Class<T> expectedType
   ) {
-    return parseValue(connectorParams, name, expectedType, null);
+    return parseValueWithNullableDefault(connectorParams, name, expectedType, null);
+  }
+
+  /**
+   * Parses the given value from the connector parameters, return {@code null}, if the given value not given.
+   *
+   * @param connectorParams The connector params.
+   * @param name            The name of the parameter.
+   * @param expectedType    The type that is expected.
+   * @param <T>             The value-type.
+   * @return the value; {@code null} if the value not given.
+   * @throws IllegalArgumentException If the parameter given, but not of the expected type.
+   */
+  protected <T> @Nullable T parseOptionalValue(
+      @NotNull Map<@NotNull String, @Nullable Object> connectorParams,
+      @NotNull String name,
+      @NotNull Class<T> expectedType
+  ) {
+    try {
+      return parseValueWithNullableDefault(connectorParams, name, expectedType, null);
+    } catch (NullPointerException e) {
+      return null;
+    }
   }
 
   /**
@@ -47,15 +69,15 @@ public abstract class EventHandlerParams {
    * @param <T>             the type of the value.
    * @return the value.
    */
-  protected <T> @NotNull T parseValue(
+  protected <T> @NotNull T parseValueWithDefault(
       @NotNull Map<@NotNull String, @Nullable Object> connectorParams,
       @NotNull String name,
       @NotNull T defaultValue
   ) throws NullPointerException {
-    return parseValue(connectorParams, name, (Class<T>) defaultValue.getClass(), defaultValue);
+    return parseValueWithNullableDefault(connectorParams, name, (Class<T>) defaultValue.getClass(), defaultValue);
   }
 
-  private <T> @NotNull T parseValue(
+  private <T> @NotNull T parseValueWithNullableDefault(
       @NotNull Map<@NotNull String, @Nullable Object> connectorParams,
       @NotNull String parameter,
       @NotNull Class<T> type,

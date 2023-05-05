@@ -23,8 +23,8 @@ public class HttpStorageParams extends EventHandlerParams {
    */
   public HttpStorageParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws MalformedURLException {
     url = new URL(parseValue(connectorParams, "url", String.class));
-    connTimeout = parseValue(connectorParams, "connTimeout", TimeUnit.SECONDS.toMillis(5));
-    readTimeout = parseValue(connectorParams, "readTimeout", TimeUnit.SECONDS.toMillis(60));
+    connTimeout = parseValueWithDefault(connectorParams, "connTimeout", TimeUnit.SECONDS.toMillis(5));
+    readTimeout = parseValueWithDefault(connectorParams, "readTimeout", TimeUnit.SECONDS.toMillis(60));
   }
 
   /**

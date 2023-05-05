@@ -29,6 +29,7 @@ import com.here.xyz.View;
 import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.implementation.Feature;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
@@ -42,7 +43,9 @@ import org.jetbrains.annotations.Nullable;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class Connector extends Feature {
 
-  public Connector() {}
+  public Connector() {
+    this.params = new HashMap<>();
+  }
 
   /**
    * The connector number.
@@ -75,7 +78,7 @@ public final class Connector extends Feature {
    */
   @JsonProperty
   @JsonView(View.Protected.class)
-  public Map<@NotNull String, @NotNull Object> params;
+  public @NotNull Map<@NotNull String, @NotNull Object> params;
 
   /**
    * A list of email addresses of responsible owners for this connector. These email addresses will be used to send potential health

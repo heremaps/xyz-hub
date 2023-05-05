@@ -8,7 +8,9 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -16,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -24,6 +27,36 @@ import org.jetbrains.annotations.Nullable;
  * {@link OutputStream}; using JSON representation.
  */
 public class IoEventPipeline extends EventPipeline {
+
+  /**
+   * Read a resource from the JAR.
+   *
+   * @param resource The resource name, which should start with a slash.
+   * @return The input stream to the resource.
+   * @throws IOException If any error occurred.
+   */
+  public static @NotNull InputStream openResource(@NotNull String resource) throws IOException {
+    final InputStream is = ClassLoader.getSystemResourceAsStream(resource);
+    if (is == null) {
+      throw new IOException("Resource " + resource + " not found");
+    }
+    return is;
+  }
+
+  /**
+   * Read a resource from the JAR.
+   *
+   * @param resource The resource name, which should start with a slash.
+   * @return The resource as string.
+   * @throws IOException If any error occurred.
+   */
+  public static @NotNull String readResource(@NotNull String resource) throws IOException {
+    final InputStream is = ClassLoader.getSystemResourceAsStream(resource);
+    assert is != null;
+    try (final BufferedReader buffer = new BufferedReader(new InputStreamReader(is))) {
+      return buffer.lines().collect(Collectors.joining("\n"));
+    }
+  }
 
   /**
    * The maximal size of uncompressed bytes, exceeding leads to the response getting gzipped.
@@ -54,7 +87,7 @@ public class IoEventPipeline extends EventPipeline {
    * @throws IllegalStateException if this method has already been called.
    */
   public XyzResponse sendEvent(@NotNull InputStream input, @Nullable OutputStream output) {
-    if (processCalled.compareAndSet(false, true)) {
+    if (!processCalled.compareAndSet(false, true)) {
       throw new IllegalStateException("process must not be called multiple times");
     }
     XyzResponse response;

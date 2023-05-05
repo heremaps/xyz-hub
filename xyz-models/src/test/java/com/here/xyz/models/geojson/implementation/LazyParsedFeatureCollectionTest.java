@@ -51,7 +51,7 @@ public class LazyParsedFeatureCollectionTest {
     Field features = response.getClass().getDeclaredField("features");
     features.setAccessible(true);
     //noinspection unchecked
-    LazyParsableFeatureList<List<String>> lp = (LazyParsableFeatureList<List<String>>) features.get(response);
+    LazyParsableFeatureList lp = (LazyParsableFeatureList) features.get(response);
     Field value = lp.getClass().getDeclaredField("value");
     value.setAccessible(true);
     assertNull(value.get(lp));
@@ -61,7 +61,7 @@ public class LazyParsedFeatureCollectionTest {
     features = response.getClass().getDeclaredField("features");
     features.setAccessible(true);
     //noinspection unchecked
-    lp = (LazyParsableFeatureList<List<String>>) features.get(response);
+    lp = (LazyParsableFeatureList) features.get(response);
     value = lp.getClass().getDeclaredField("value");
     value.setAccessible(true);
     assertNull(value.get(lp));

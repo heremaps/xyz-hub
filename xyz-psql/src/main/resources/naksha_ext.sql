@@ -47,6 +47,9 @@ SELECT * FROM xyz_config.xyz_space xs ;
 // }
 
 
+SELECT * from "RnxiONGZ" limit 100;
+SELECT * from "prd_feedback" limit 100;
+
 COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
 SELECT pg_catalog.obj_description('xyz_config.transactions'::regclass, 'pg_class');
 

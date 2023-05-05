@@ -39,10 +39,7 @@ public class TestBinaryResponse {
 
   @Test
   public void testSerialize() {
-    BinaryResponse br = new BinaryResponse()
-        .withMimeType(MIME_TYPE)
-        .withBytes(SAMPLE_TEXT.getBytes());
-
+    final BinaryResponse br = new BinaryResponse(SAMPLE_TEXT.getBytes(), MIME_TYPE);
     assertEquals(CALCULATED_ETAG, br.getEtag());
     assertArrayEquals(SAMPLE_BYTES, br.toByteArray());
   }
@@ -57,11 +54,8 @@ public class TestBinaryResponse {
 
   @Test
   public void testOverrideEtag() {
-    BinaryResponse br = new BinaryResponse();
+    final BinaryResponse br = new BinaryResponse(SAMPLE_TEXT.getBytes(), MIME_TYPE);
     br.setEtag(SAMPLE_ETAG);
-    br.setMimeType(MIME_TYPE);
-    br.setBytes(SAMPLE_TEXT.getBytes());
-
     assertEquals(SAMPLE_ETAG, br.getEtag());
   }
 

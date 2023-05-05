@@ -307,21 +307,6 @@ public class NakshaPsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOUR
   // maintainTransactions()
   //
 
-  /**
-   * Read a resource from the JAR.
-   *
-   * @param resource The resource name, which should start with a slash.
-   * @return The resource as string.
-   * @throws IOException If any error occurred.
-   */
-  public static @NotNull String readResource(@NotNull String resource) throws IOException {
-    final InputStream is = ClassLoader.getSystemResourceAsStream(resource);
-    assert is != null;
-    try (final BufferedReader buffer = new BufferedReader(new InputStreamReader(is))) {
-      return buffer.lines().collect(Collectors.joining("\n"));
-    }
-  }
-
   // -----------------------------------------------------------------------------------------------------------------------------------
   // ---------- Caching code
   // -----------------------------------------------------------------------------------------------------------------------------------
