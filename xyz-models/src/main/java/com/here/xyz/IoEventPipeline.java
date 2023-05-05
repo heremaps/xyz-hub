@@ -75,7 +75,7 @@ public class IoEventPipeline extends EventPipeline {
   public IoEventPipeline() {
   }
 
-  private final AtomicBoolean processCalled = new AtomicBoolean();
+  private final AtomicBoolean sendEvent = new AtomicBoolean();
 
   /**
    * To be invoked to process the event. Start reading the event form the given input stream, invoke the
@@ -87,7 +87,7 @@ public class IoEventPipeline extends EventPipeline {
    * @throws IllegalStateException if this method has already been called.
    */
   public XyzResponse sendEvent(@NotNull InputStream input, @Nullable OutputStream output) {
-    if (!processCalled.compareAndSet(false, true)) {
+    if (!sendEvent.compareAndSet(false, true)) {
       throw new IllegalStateException("process must not be called multiple times");
     }
     XyzResponse response;
@@ -140,6 +140,8 @@ public class IoEventPipeline extends EventPipeline {
       if (output != null) {
         writeDataOut(output, response, null);
       }
+    } finally {
+      sendEvent.set(false);
     }
     return response;
   }
