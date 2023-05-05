@@ -35,6 +35,7 @@ class ActivityLogHandlerTest {
   void test_GetFeaturesById() throws IOException {
     final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent();
     final ByteArrayOutputStream out = new ByteArrayOutputStream();
+    //XyzSerializable.deserialize(IoEventPipeline.readResource(""))
     eventPipeline.sendEvent(IoEventPipeline.openResource("testevent.json"), out);
     final XyzResponse response = XyzSerializable.deserialize(out.toByteArray(), XyzResponse.class);
     assertNotNull(response);
