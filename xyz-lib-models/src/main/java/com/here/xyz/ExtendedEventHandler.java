@@ -43,7 +43,7 @@ public class ExtendedEventHandler extends EventHandler implements IExtendedEvent
   @Override
   public void initialize(@NotNull IEventContext ctx) {
     this.ctx = ctx;
-    this.event = ctx.event();
+    this.event = ctx.getEvent();
   }
 
   protected Event event;

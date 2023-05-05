@@ -40,7 +40,7 @@ public interface IExtendedEventHandler extends IEventHandler {
    * @return the response to send.
    */
   default @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
-    final Event event = eventContext.event();
+    final Event event = eventContext.getEvent();
     try {
       if (event instanceof ModifySpaceEvent) {
         initialize(eventContext);

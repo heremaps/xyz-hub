@@ -50,7 +50,9 @@
     <module>xyz-handler-psql</module>
     <module>xyz-handler-http</module>
     <module>xyz-handler-activitylog</module>
+    <!--
     <module>xyz-txn-handler</module>
+    -->
     <module>xyz-hub-service</module>
     <module>xyz-hub-test</module>
   </modules>
@@ -223,11 +225,13 @@
         <artifactId>xyz-handler-activitylog</artifactId>
         <version>${project.version}</version>
       </dependency>
+      <!--
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-handler-http</artifactId>
         <version>${project.version}</version>
       </dependency>
+      -->
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-txn-handler</artifactId>

@@ -197,7 +197,8 @@ public class ApiParam {
      * https://github.com/vert-x3/issues/issues/380 is resolved.
      */
     public static List<String> queryParam(String param, RoutingContext context) {
-      return Context.queryParameters(context).getAll(param);
+      //return Context.queryParameters(context).getAll(param);
+      return null;
     }
 
     /**
@@ -392,10 +393,11 @@ public class ApiParam {
             ? Arrays.asList(value.split(","))
             : Collections.singletonList(value.split(",")[0]);
 
-        return new PropertyQuery()
-            .withKey(key)
-            .withOperation(operators.get(operation))
-            .getValues(values);
+        final PropertyQuery propertyQuery = new PropertyQuery();
+        propertyQuery.setKey(key);
+        propertyQuery.setOperation(operators.get(operation));
+        propertyQuery.setValues(values);
+        return propertyQuery;
       }
 
       return null;

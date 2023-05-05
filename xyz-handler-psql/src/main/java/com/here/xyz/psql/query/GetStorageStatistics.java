@@ -22,7 +22,6 @@ package com.here.xyz.psql.query;
 import static com.here.xyz.AbstractTask.currentTask;
 
 import com.here.mapcreator.ext.naksha.NakshaCollection;
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;
 import com.here.xyz.psql.PsqlStorage;
 import com.here.xyz.psql.SQLQueryExt;
@@ -50,9 +49,7 @@ public class GetStorageStatistics
   private final List<String> remainingSpaceIds;
   private Map<String, String> tableName2SpaceId;
 
-  public GetStorageStatistics(
-      @NotNull GetStorageStatisticsEvent event, @NotNull PsqlStorage psqlConnector)
-      throws SQLException, ErrorResponseException {
+  public GetStorageStatistics(@NotNull GetStorageStatisticsEvent event, @NotNull PsqlStorage psqlConnector) throws SQLException {
     super(event, psqlConnector);
     setUseReadReplica(true);
     remainingSpaceIds = new LinkedList<>(event.getSpaceIds());

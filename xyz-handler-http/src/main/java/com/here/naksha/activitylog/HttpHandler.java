@@ -2,7 +2,6 @@ package com.here.naksha.activitylog;
 
 import com.here.xyz.EventHandler;
 import com.here.xyz.IEventContext;
-import com.here.xyz.IEventHandler;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
@@ -43,7 +42,7 @@ public class HttpHandler extends EventHandler {
 
   @Override
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
-    final Event event = eventContext.event();
+    final Event event = eventContext.getEvent();
     try {
       byte @NotNull [] bytes = Payload.compress(event.toByteArray());
       final HttpURLConnection conn = (HttpURLConnection) params.url.openConnection();

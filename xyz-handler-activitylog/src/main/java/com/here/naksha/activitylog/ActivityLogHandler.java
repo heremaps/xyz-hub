@@ -76,7 +76,7 @@ public class ActivityLogHandler extends EventHandler {
 
   @Override
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
-    final Event event = eventContext.event();
+    final Event event = eventContext.getEvent();
     final Map<@NotNull String, Object> spaceParams = event.getParams();
     // TODO: Maybe allow overriding of some parameters per space?
     // TODO: If necessary, perform pre-processing.

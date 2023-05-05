@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql.query;
 
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.PsqlStorage;
 import com.here.xyz.responses.XyzResponse;
@@ -33,7 +32,7 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
   private static final String EXTENDS = "extends";
   private static final String SPACE_ID = "spaceId";
 
-  public ExtendedSpace(E event, final @NotNull PsqlStorage psqlConnector) throws SQLException, ErrorResponseException {
+  public ExtendedSpace(E event, final @NotNull PsqlStorage psqlConnector) throws SQLException {
     super(event, psqlConnector);
   }
 

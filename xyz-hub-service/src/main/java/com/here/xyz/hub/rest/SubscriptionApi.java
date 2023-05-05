@@ -22,7 +22,7 @@ package com.here.xyz.hub.rest;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
-import com.here.xyz.hub.task.SubscriptionHandler;
+import com.here.xyz.hub.task.subscription.SubscriptionHandler;
 import com.here.xyz.models.hub.Subscription;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;

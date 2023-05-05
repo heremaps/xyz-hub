@@ -197,10 +197,12 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-handler-psql</artifactId>
     </dependency>
+    <!--
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-txn-handler</artifactId>
     </dependency>
+    -->
 
     <!-- Logging libraries -->
     <dependency>

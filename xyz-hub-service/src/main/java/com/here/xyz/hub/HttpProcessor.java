@@ -179,7 +179,7 @@ public class HttpProcessor implements IEventHandler {
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
     logger.info("{}:{}:{}us - Send event to URL: {}", logId(context), logStream(context), logTime(context), params.url);
 
-    final Event event = eventContext.event();
+    final Event event = eventContext.getEvent();
     event.setConnectorId(connector.id);
     event.setConnectorNumber(connector.number);
     event.setConnectorParams(JsonUtils.deepCopy(connector.params));

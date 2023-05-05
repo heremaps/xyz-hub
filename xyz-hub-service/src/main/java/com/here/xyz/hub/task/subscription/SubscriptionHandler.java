@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.task;
+package com.here.xyz.hub.task.subscription;
 
 import com.here.xyz.events.admin.ModifySubscriptionEvent;
 import com.here.xyz.events.admin.ModifySubscriptionEvent.Operation;

@@ -19,7 +19,7 @@
 
 package com.here.xyz.psql.query.helpers;
 
-import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.psql.PsqlStorage;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQueryExt;
@@ -34,12 +34,12 @@ import org.jetbrains.annotations.NotNull;
 
 public class FetchExistingIds extends QueryRunner<FetchIdsInput, List<String>> {
 
-  public FetchExistingIds(@Nonnull FetchIdsInput input, @NotNull PsqlStorage processor) throws SQLException, ErrorResponseException {
+  public FetchExistingIds(@Nonnull FetchIdsInput input, @NotNull PsqlStorage processor) throws SQLException, XyzErrorException {
     super(input, processor);
   }
 
   @Override
-  protected @NotNull SQLQueryExt buildQuery(@Nonnull FetchIdsInput input) throws SQLException, ErrorResponseException {
+  protected @NotNull SQLQueryExt buildQuery(@Nonnull FetchIdsInput input) throws SQLException {
     SQLQueryExt query = new SQLQueryExt("SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(#{ids})");
     query.setVariable(SCHEMA, processor.spaceSchema());
     query.setVariable(TABLE, input.targetTable);

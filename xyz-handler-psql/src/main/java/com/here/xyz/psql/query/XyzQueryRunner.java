@@ -1,6 +1,5 @@
 package com.here.xyz.psql.query;
 
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.psql.PsqlStorage;
 import com.here.xyz.psql.QueryRunner;
@@ -20,8 +19,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public abstract class XyzQueryRunner<E extends Event, R extends XyzResponse> extends QueryRunner<E, R> {
 
-  public XyzQueryRunner(E event, final @NotNull PsqlStorage psqlConnector)
-      throws SQLException, ErrorResponseException {
+  public XyzQueryRunner(E event, final @NotNull PsqlStorage psqlConnector) throws SQLException {
     super(event, psqlConnector);
   }
 

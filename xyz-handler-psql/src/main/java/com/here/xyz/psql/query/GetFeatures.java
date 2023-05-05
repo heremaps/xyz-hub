@@ -20,7 +20,6 @@
 package com.here.xyz.psql.query;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.QueryEvent;
 import com.here.xyz.events.FeatureEvent;
@@ -36,7 +35,7 @@ import org.jetbrains.annotations.NotNull;
 
 public abstract class GetFeatures<E extends Event> extends ExtendedSpace<E, FeatureCollection> {
 
-  public GetFeatures(@NotNull E event, final @NotNull PsqlStorage psqlConnector) throws SQLException, ErrorResponseException {
+  public GetFeatures(@NotNull E event, final @NotNull PsqlStorage psqlConnector) throws SQLException {
     super(event, psqlConnector);
     setUseReadReplica(true);
   }

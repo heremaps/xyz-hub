@@ -20,7 +20,6 @@
 package com.here.xyz.psql;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.connectors.ErrorResponseException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -44,7 +43,7 @@ public abstract class QueryRunner<E, R> implements ResultSetHandler<R> {
   private boolean useReadReplica;
   protected final @NotNull PsqlStorage processor;
 
-  public QueryRunner(@NotNull E input, final @NotNull PsqlStorage processor) throws SQLException, ErrorResponseException {
+  public QueryRunner(@NotNull E input, final @NotNull PsqlStorage processor) throws SQLException {
     this.processor = processor;
     query = buildQuery(input);
   }
@@ -63,7 +62,7 @@ public abstract class QueryRunner<E, R> implements ResultSetHandler<R> {
     query.substitute();
   }
 
-  protected abstract @NotNull SQLQuery buildQuery(@NotNull E input) throws SQLException, ErrorResponseException;
+  protected abstract @NotNull SQLQuery buildQuery(@NotNull E input) throws SQLException;
 
   @Override
   public abstract @NotNull R handle(@NotNull ResultSet rs) throws SQLException;

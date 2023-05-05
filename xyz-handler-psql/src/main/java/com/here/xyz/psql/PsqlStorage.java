@@ -51,7 +51,6 @@ import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
 import com.here.xyz.NanoTime;
 import com.here.mapcreator.ext.naksha.NakshaCollection;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
@@ -163,7 +162,7 @@ public class PsqlStorage extends ExtendedEventHandler {
 
   @Override
   public void initialize(@NotNull IEventContext ctx) {
-    this.event = ctx.event();
+    this.event = ctx.getEvent();
     this.retryAttempted = false;
     Map<@NotNull String, @Nullable Object> raw = event.getConnectorParams();
     if (raw == null) {
@@ -391,23 +390,21 @@ public class PsqlStorage extends ExtendedEventHandler {
       GetFeaturesByTileEvent tileEv = (event instanceof GetFeaturesByTileEvent ? (GetFeaturesByTileEvent) event : null);
       if (tileEv != null && tileEv.getHereTileFlag()) {
         if (clustering != null) {
-          throw new ErrorResponseException(
-              streamId(),
+          throw new XyzErrorException(
               XyzError.ILLEGAL_ARGUMENT,
-              "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms).");
+              "clustering=[hexbin,quadbin] is not supported for 'here' tile type. Use Web Mercator projection (quadkey, web, tms)."
+          );
         }
       }
 
       if (bMvtRequested && tileEv == null) {
-        throw new ErrorResponseException(
-            streamId(), XyzError.ILLEGAL_ARGUMENT, "mvt format needs tile request");
+        throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "mvt format needs tile request");
       }
 
       if (bMvtRequested) {
         if (event.getConnectorParams() == null
             || event.getConnectorParams().get("mvtSupport") != Boolean.TRUE) {
-          throw new ErrorResponseException(
-              streamId(), XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
+          throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
         }
 
         if (!tileEv.getHereTileFlag()) {
@@ -588,10 +585,9 @@ public class PsqlStorage extends ExtendedEventHandler {
       int relResolution,
       @NotNull GetFeaturesByBBoxEvent event,
       String streamId
-  ) throws ErrorResponseException {
+  ) throws XyzErrorException {
     if (countMode == null) {
-      throw new ErrorResponseException(
-          streamId,
+      throw new XyzErrorException(
           XyzError.ILLEGAL_ARGUMENT,
           "Invalid request parameters. Unknown clustering.countmode="
               + countMode
@@ -605,8 +601,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     }
 
     if (relResolution > 5) {
-      throw new ErrorResponseException(
-          streamId,
+      throw new XyzErrorException(
           XyzError.ILLEGAL_ARGUMENT,
           "Invalid request parameters. clustering.relativeResolution="
               + relResolution
@@ -614,8 +609,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     }
 
     if (event.getPropertiesQuery() != null && event.getPropertiesQuery().get(0).size() != 1) {
-      throw new ErrorResponseException(
-          streamId,
+      throw new XyzErrorException(
           XyzError.ILLEGAL_ARGUMENT,
           "Invalid request parameters. Only one Property is allowed");
     }
@@ -691,10 +685,9 @@ public class PsqlStorage extends ExtendedEventHandler {
   }
 
   private void checkCanSearchFor(@NotNull SearchForFeaturesEvent event)
-      throws ErrorResponseException {
+      throws XyzErrorException {
     if (!Capabilities.canSearchFor(event.getPropertiesQuery(), this)) {
-      throw new ErrorResponseException(
-          streamId(),
+      throw new XyzErrorException(
           XyzError.ILLEGAL_ARGUMENT,
           "Invalid request parameters. Search for the provided properties is not supported for this"
               + " space.");
@@ -815,8 +808,7 @@ public class PsqlStorage extends ExtendedEventHandler {
       case DELETE:
         break;
       default:
-        throw new ErrorResponseException(
-            streamId(),
+        throw new XyzErrorException(
             XyzError.ILLEGAL_ARGUMENT,
             "Modify Subscription - Operation (" + event.getOperation() + ") not supported");
     }
@@ -1160,7 +1152,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   }
 
   protected @NotNull XyzResponse executeModifySpace(@NotNull ModifySpaceEvent event)
-      throws SQLException, ErrorResponseException {
+      throws SQLException {
     // TODO: We need to fix this, we do not use this to compact history!
     if (event.getSpaceDefinition() != null && false) {
       boolean compactHistory = connectorParams().isCompactHistory();

@@ -5,8 +5,6 @@ import com.here.xyz.pub.models.ConnectorDTO;
 import com.here.xyz.pub.models.JdbcConnectionParams;
 import com.here.xyz.pub.models.PubConfig;
 import com.here.xyz.pub.models.SeqJobRequest;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.*;

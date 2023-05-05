@@ -197,16 +197,22 @@ public class EventPipeline implements IEventContext {
   }
 
   @Override
-  public final @NotNull Event event() {
+  public final @NotNull Event getEvent() {
     return event;
   }
 
   @Override
-  public @NotNull XyzResponse sendUpstream(@NotNull Event event) {
+  public final @NotNull Event setEvent(@NotNull Event newEvent) {
+    final Event oldEvent = this.event;
+    this.event = newEvent;
+    return oldEvent;
+  }
+
+  @Override
+  public @NotNull XyzResponse sendUpstream() {
     if (next >= pipeline.length) {
       return notImplemented();
     }
-    this.event = event;
     final IEventHandler handler = this.pipeline[next];
     next++;
     if (handler == null) {

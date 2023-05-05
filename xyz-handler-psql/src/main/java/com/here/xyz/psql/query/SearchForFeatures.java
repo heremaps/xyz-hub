@@ -20,7 +20,6 @@
 package com.here.xyz.psql.query;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.QueryOperation;
 import com.here.xyz.events.feature.QueryEvent;
@@ -44,7 +43,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
 
   protected boolean hasSearch;
 
-  public SearchForFeatures(@NotNull E event, @NotNull PsqlStorage psqlConnector) throws SQLException, ErrorResponseException {
+  public SearchForFeatures(@NotNull E event, @NotNull PsqlStorage psqlConnector) throws SQLException {
     super(event, psqlConnector);
   }
 

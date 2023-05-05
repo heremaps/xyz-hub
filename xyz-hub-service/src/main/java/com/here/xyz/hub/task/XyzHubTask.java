@@ -56,6 +56,7 @@ import io.vertx.ext.web.RoutingContext;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -124,7 +125,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    *
    * @param taskClass      The class of the task to execute.
    * @param routingContext The routing context.
-   * @param responseTypes   The response types.
+   * @param responseTypes  The response types.
    */
   public static void start(
       @NotNull Class<? extends XyzHubTask<?>> taskClass,
@@ -135,15 +136,15 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
       final XyzHubTask<?> task = taskClass.getConstructor(String.class).newInstance(streamId);
       try {
         task.initFromRoutingContext(routingContext, extractResponseType(routingContext, responseTypes));
-        task.addListener(task::__sendResponse);
+        task.addListener(task::sendResponse);
         task.start();
       } catch (Throwable t) {
         task.routingContext = routingContext;
-        task.__sendErrorResponse(t);
+        task.sendErrorResponse(t);
       }
     } catch (Throwable t) {
       logger.error("Failed to create task: {}", taskClass.getName(), t);
-      routingContext_sendFatalError(routingContext, streamId, "Failed to create task: " + taskClass.getSimpleName());
+      rcSendFatalError(routingContext, streamId, "Failed to create task: " + taskClass.getSimpleName());
     }
   }
 
@@ -370,27 +371,37 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
     return pipeline.sendEvent(event);
   }
 
-  private void __sendErrorResponse(@NotNull Throwable error) {
+  /**
+   * Send an error response for the given exception.
+   *
+   * @param error The error for which to send an error response.
+   */
+  private void sendErrorResponse(@NotNull Throwable error) {
     assert routingContext != null;
     assert responseType != null;
-    XyzHubTask.sendErrorResponse(routingContext, responseType, streamId, error);
+    XyzHubTask.rcSendErrorResponse(routingContext, responseType, streamId, error);
   }
 
-  private void __sendResponse(@NotNull XyzResponse response) {
+  /**
+   * Send a response.
+   *
+   * @param response The response to send.
+   */
+  private void sendResponse(@NotNull XyzResponse response) {
     assert routingContext != null;
     assert responseType != null;
-    XyzHubTask.sendResponse(routingContext, responseType, streamId, response);
+    XyzHubTask.rcSendResponse(routingContext, responseType, streamId, response);
   }
 
   /**
    * Send an error response for the given exception.
    *
    * @param routingContext The routing context for which to send the response.
-   * @param responseType The response type to return.
-   * @param streamId  The stream-id.
-   * @param throwable The exception for which to send an error response.
+   * @param responseType   The response type to return.
+   * @param streamId       The stream-id.
+   * @param throwable      The exception for which to send an error response.
    */
-  public static void sendErrorResponse(
+  public static void rcSendErrorResponse(
       @NotNull RoutingContext routingContext,
       @NotNull ApiResponseType responseType,
       @NotNull String streamId,
@@ -410,18 +421,18 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
       assert errorResponse.getError() != null;
       errorResponse.setErrorMessage(throwable.getMessage());
     }
-    XyzHubTask.sendResponse(routingContext, responseType, streamId, errorResponse);
+    XyzHubTask.rcSendResponse(routingContext, responseType, streamId, errorResponse);
   }
 
   /**
    * Send a response.
    *
    * @param routingContext The routing context for which to send the response.
-   * @param responseType The response type to return.
-   * @param streamId  The stream-id.
-   * @param response The response to send.
+   * @param responseType   The response type to return.
+   * @param streamId       The stream-id.
+   * @param response       The response to send.
    */
-  public static void sendResponse(
+  public static void rcSendResponse(
       @NotNull RoutingContext routingContext,
       @NotNull ApiResponseType responseType,
       @NotNull String streamId,
@@ -436,31 +447,31 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
         headers = null;
       }
       if (responseType == ApiResponseType.EMPTY) {
-        routingContext_sendEmptyResponse(routingContext, streamId, OK, headers);
+        rcSendEmptyResponse(routingContext, streamId, OK, headers);
         return;
       }
       if (response instanceof BinaryResponse br) {
-        routingContext_sendRawResponse(routingContext, streamId, OK, headers, br.getMimeType(), Buffer.buffer(br.getBytes()));
+        rcSendRawResponse(routingContext, streamId, OK, headers, br.getMimeType(), Buffer.buffer(br.getBytes()));
         return;
       }
       if (response instanceof NotModifiedResponse) {
-        routingContext_sendEmptyResponse(routingContext, streamId, NOT_MODIFIED, headers);
+        rcSendEmptyResponse(routingContext, streamId, NOT_MODIFIED, headers);
         return;
       }
       if (response instanceof FeatureCollection fc && responseType == ApiResponseType.FEATURE) {
         // If we should only send back a single feature.
         final List<@NotNull Feature> features = fc.getFeatures();
         if (features.size() == 0) {
-          routingContext_sendEmptyResponse(routingContext, streamId, OK, headers);
+          rcSendEmptyResponse(routingContext, streamId, OK, headers);
         } else {
           final String content = features.get(0).serialize();
-          routingContext_sendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(content));
+          rcSendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(content));
         }
       }
-      routingContext_sendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(response.serialize()));
+      rcSendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(response.serialize()));
     } catch (Throwable t) {
       logger.error("Unexpected failure while serializing response", t);
-      routingContext_sendFatalError(routingContext, streamId, t.getMessage());
+      rcSendFatalError(routingContext, streamId, t.getMessage());
     }
   }
 
@@ -473,7 +484,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    * @param streamId       The stream-id to return.
    * @param errorMessage   The error message to return.
    */
-  private static void routingContext_sendFatalError(
+  private static void rcSendFatalError(
       @NotNull RoutingContext routingContext,
       @NotNull String streamId,
       @NotNull String errorMessage
@@ -485,7 +496,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
         + "\"errorMessage\": \"" + errorMessage + "\",\n"
         + "\"streamId\": \"" + streamId + "\"\n"
         + "}";
-    routingContext_sendRawResponse(routingContext, streamId, OK, null, APPLICATION_JSON, Buffer.buffer(content));
+    rcSendRawResponse(routingContext, streamId, OK, null, APPLICATION_JSON, Buffer.buffer(content));
   }
 
   /**
@@ -496,13 +507,13 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    * @param status         The HTTP status code to set.
    * @param headers        The additional HTTP headers to set; if any.
    */
-  private static void routingContext_sendEmptyResponse(
+  private static void rcSendEmptyResponse(
       @NotNull RoutingContext routingContext,
       @NotNull String streamId,
       @NotNull HttpResponseStatus status,
       @Nullable Map<@NotNull String, @NotNull String> headers
   ) {
-    routingContext_sendRawResponse(routingContext, streamId, status, headers, null, null);
+    rcSendRawResponse(routingContext, streamId, status, headers, null, null);
   }
 
   /**
@@ -515,7 +526,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    * @param contentType    The content-type; if any.
    * @param content        The content; if any.
    */
-  private static void routingContext_sendRawResponse(
+  private static void rcSendRawResponse(
       @NotNull RoutingContext routingContext,
       @NotNull String streamId,
       @NotNull HttpResponseStatus status,

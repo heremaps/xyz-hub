@@ -25,13 +25,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.QueryOperation;
 import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQueryAnd;
 import com.here.xyz.events.TagsQuery;
+import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.Capabilities.IndexList;
@@ -64,8 +64,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
   private IterateFeaturesEvent tmpEvent; // TODO: Remove after refactoring
 
-  public IterateFeatures(@NotNull IterateFeaturesEvent event, @NotNull PsqlStorage psqlConnector)
-      throws SQLException, ErrorResponseException {
+  public IterateFeatures(@NotNull IterateFeaturesEvent event, @NotNull PsqlStorage psqlConnector) throws SQLException {
     super(event, psqlConnector);
     limit = event.getLimit();
     isOrderByEvent = PsqlStorage.isOrderByEvent(event);
@@ -715,7 +714,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
         event.setSort(
             getSortFromSearchKeys(getSearchKeys(event.getPropertiesQuery()), processor));
       } else if (!canSortBy(event.getSort(), processor)) {
-        throw new ErrorResponseException(
+        throw new XyzErrorException(
             XyzError.ILLEGAL_ARGUMENT,
             "Invalid request parameters. Sorting by for the provided properties is not supported"
                 + " for this space.");
@@ -723,7 +722,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
       event.setSort(translateSortSysValues(event.getSort()));
     } else if (!event.getHandle().startsWith(HPREFIX)) {
-      throw new ErrorResponseException(
+      throw new XyzErrorException(
           XyzError.ILLEGAL_ARGUMENT, "Invalid request parameter. handle is corrupted");
     } else {
       try {
@@ -731,7 +730,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
             event,
             chrD(event.getHandle().substring(HPREFIX.length())));
       } catch (IllegalArgumentException e) {
-        throw new ErrorResponseException(
+        throw new XyzErrorException(
             XyzError.ILLEGAL_ARGUMENT, "Invalid request parameter. handle is corrupted");
       }
     }
