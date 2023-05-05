@@ -38,7 +38,6 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.task.feature.AbstractFeatureTask;
 import com.here.xyz.hub.task.XyzHubTask;
-import com.here.xyz.hub.task.TaskPipelineCancelled;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;

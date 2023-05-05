@@ -45,14 +45,14 @@
   <packaging>pom</packaging>
 
   <modules>
+    <module>xyz-lib-models</module>
+    <module>xyz-lib-psql</module>
+    <module>xyz-handler-psql</module>
+    <module>xyz-handler-http</module>
+    <module>xyz-handler-activitylog</module>
+    <module>xyz-txn-handler</module>
     <module>xyz-hub-service</module>
     <module>xyz-hub-test</module>
-    <module>xyz-models</module>
-    <module>xyz-connectors</module>
-    <module>xyz-psql</module>
-    <module>xyz-psql-connector</module>
-    <module>xyz-txn-handler</module>
-    <module>xyz-activitylog-handler</module>
   </modules>
 
   <scm>
@@ -210,32 +210,32 @@
       <!-- Modules versions -->
       <dependency>
         <groupId>${project.groupId}</groupId>
-        <artifactId>xyz-models</artifactId>
+        <artifactId>xyz-lib-models</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
-        <artifactId>xyz-psql</artifactId>
+        <artifactId>xyz-lib-psql</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
-        <artifactId>xyz-connectors</artifactId>
+        <artifactId>xyz-handler-activitylog</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
-        <artifactId>xyz-hub-service</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>${project.groupId}</groupId>
-        <artifactId>xyz-psql-connector</artifactId>
+        <artifactId>xyz-handler-http</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-txn-handler</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-hub-service</artifactId>
         <version>${project.version}</version>
       </dependency>
 

@@ -179,15 +179,23 @@
     <!-- XYZ libraries -->
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>xyz-models</artifactId>
+      <artifactId>xyz-lib-models</artifactId>
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>xyz-psql</artifactId>
+      <artifactId>xyz-lib-psql</artifactId>
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>xyz-psql-connector</artifactId>
+      <artifactId>xyz-handler-activitylog</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-handler-http</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-handler-psql</artifactId>
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
