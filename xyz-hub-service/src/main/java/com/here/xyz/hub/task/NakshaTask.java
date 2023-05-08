@@ -56,7 +56,6 @@ import io.vertx.ext.web.RoutingContext;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -69,8 +68,26 @@ import org.jetbrains.annotations.Nullable;
  * @param <EVENT> The event type to execute.
  */
 @SuppressWarnings({"SameParameterValue", "unused"})
-public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
+public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
 
+  /**
+   * The key used in the routing context to attach a task to a routing context.
+   */
+  public static final String NAKSHA_ROUTING_CONTEXT_KEY = "nakshaTask";
+
+  /**
+   * Tries to return the Naksha task bound to the given routing context.
+   *
+   * @param routingContext The routing context to query.
+   * @return The Naksha task attached or {@code null}, if no Naksha tasks attached.
+   */
+  public static @Nullable NakshaTask<?> getFromRoutingContext(@NotNull RoutingContext routingContext) {
+    final Object raw = routingContext.get(NAKSHA_ROUTING_CONTEXT_KEY);
+    //noinspection rawtypes
+    return raw instanceof NakshaTask task ? task : null;
+  }
+
+  private static final String NAKSHA_STREAM_ID = "nakshaStreamId";
   private static final String STREAM_ID_PATTERN_TEXT = "^[a-zA-Z0-9_-]{10,32}$";
   private static final Pattern STREAM_ID_PATTERN = Pattern.compile(STREAM_ID_PATTERN_TEXT);
   private static final Pattern IF_NONE_MATCH_PATTERN = Pattern.compile("^[a-zA-Z0-9/_-]{10,}$");
@@ -112,10 +129,18 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    */
   abstract public @NotNull EVENT createEvent();
 
-  protected XyzHubTask(@Nullable String streamId) {
+  protected NakshaTask(@Nullable String streamId) {
     super(streamId);
     this.event = createEvent();
     this.requestMatrix = new XyzHubActionMatrix();
+    this.logger = new NakshaLogger(this.streamId);
+  }
+
+  private final @NotNull NakshaLogger logger;
+
+  @Override
+  protected final @NotNull NakshaLogger logger() {
+    return logger;
   }
 
   /**
@@ -128,43 +153,54 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    * @param responseTypes  The response types.
    */
   public static void start(
-      @NotNull Class<? extends XyzHubTask<?>> taskClass,
+      @NotNull Class<? extends NakshaTask<?>> taskClass,
       @NotNull RoutingContext routingContext,
       @NotNull ApiResponseType... responseTypes) {
-    final String streamId = extractStreamId(routingContext);
+    final String streamId = getStreamId(routingContext);
+    NakshaLogger logger = null;
     try {
-      final XyzHubTask<?> task = taskClass.getConstructor(String.class).newInstance(streamId);
+      final NakshaTask<?> task = taskClass.getConstructor(String.class).newInstance(streamId);
+      logger = task.logger;
       try {
-        task.initFromRoutingContext(routingContext, extractResponseType(routingContext, responseTypes));
         task.addListener(task::sendResponse);
+        task.initFromRoutingContext(routingContext, extractResponseType(routingContext, responseTypes));
         task.start();
       } catch (Throwable t) {
         task.routingContext = routingContext;
         task.sendErrorResponse(t);
       }
     } catch (Throwable t) {
+      if (logger == null) {
+        logger = new NakshaLogger(routingContext);
+      }
       logger.error("Failed to create task: {}", taskClass.getName(), t);
       rcSendFatalError(routingContext, streamId, "Failed to create task: " + taskClass.getSimpleName());
     }
   }
 
   /**
-   * Extracts the stream-id from the given routing context or creates a new one.
+   * Extracts the stream-id from the given routing context or creates a new one and attaches it to the routing context.
    *
    * @param routingContext The routing context.
    * @return The stream-id.
    */
-  public static @NotNull String extractStreamId(@NotNull RoutingContext routingContext) {
-    final String externalStreamId = routingContext.request().headers().get("Stream-Id");
-    if (externalStreamId != null) {
-      final Matcher matcher = STREAM_ID_PATTERN.matcher(externalStreamId);
+  public static @NotNull String getStreamId(@NotNull RoutingContext routingContext) {
+    final Object raw = routingContext.get(NAKSHA_STREAM_ID);
+    if (raw instanceof String streamId) {
+      return streamId;
+    }
+    String streamId = routingContext.request().headers().get("Stream-Id");
+    if (streamId != null) {
+      final Matcher matcher = STREAM_ID_PATTERN.matcher(streamId);
       if (matcher.matches()) {
-        return externalStreamId;
+        return streamId;
       } else {
-        logger.warn("The given external stream-id is invalid: {}", externalStreamId);
+        new NakshaLogger(routingContext).warn("The given external stream-id is invalid: {}", streamId);
       }
     }
-    return RandomStringUtils.randomAlphanumeric(12);
+    streamId = RandomStringUtils.randomAlphanumeric(12);
+    routingContext.put(NAKSHA_STREAM_ID, streamId);
+    return streamId;
   }
 
   /**
@@ -207,6 +243,12 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    */
   public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
     this.routingContext = routingContext;
+    // Note: This is not bullet-proof, because it is not concurrency poof.
+    final NakshaTask<?> existing = getFromRoutingContext(routingContext);
+    if (existing != null) {
+      throw new ParameterError("The given routing context is already bound to a Naksha task");
+    }
+    routingContext.put(NAKSHA_ROUTING_CONTEXT_KEY, this);
 
     final String externalStreamId = routingContext.request().headers().get("Stream-Id");
     if (externalStreamId != null) {
@@ -224,7 +266,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
       if (matcher.matches()) {
         event.setIfNoneMatch(ifNoneMatch);
       } else {
-        info("The externally provided 'If-None-Match' contains illegal characters, ignoring it: {}", ifNoneMatch);
+        logger().info("The externally provided 'If-None-Match' contains illegal characters, ignoring it: {}", ifNoneMatch);
       }
     }
 
@@ -322,8 +364,8 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    * @throws IllegalStateException if the pipeline is already in use.
    */
   protected final @NotNull XyzResponse sendUnauthorizedEvent(@NotNull Event event) {
-    info("Send unauthorized event " + event.getClass().getSimpleName());
-    event.setStartNanos(startNanos);
+    logger().info("Send unauthorized event " + event.getClass().getSimpleName());
+    event.setStartNanos(startNanos());
     event.setStreamId(streamId);
     return pipeline.sendEvent(event);
   }
@@ -346,8 +388,8 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
    * @return the response.
    */
   protected final @NotNull XyzResponse sendAuthorizedEvent(@NotNull Event event, @NotNull XyzHubActionMatrix eventMatrix) {
-    info("Send authorize event " + event.getClass().getSimpleName());
-    event.setStartNanos(startNanos);
+    logger().info("Send authorize event " + event.getClass().getSimpleName());
+    event.setStartNanos(startNanos());
     event.setStreamId(streamId);
     final JWTPayload jwt = getJwt();
     if (jwt == null) {
@@ -362,11 +404,11 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
       final String errorMessage = "Insufficient rights. " +
           "\nToken access: " + Json.encode(rightsMatrix) +
           "\nRequest access: " + Json.encode(eventMatrix);
-      info(errorMessage);
+      logger().info(errorMessage);
       return errorResponse(XyzError.FORBIDDEN, errorMessage);
     }
-    if (isDebugEnabled()) {
-      debug("Grant access.\nToken access: {}\nRequest access: {}", Json.encode(rightsMatrix), Json.encode(eventMatrix));
+    if (logger().isDebugEnabled()) {
+      logger().debug("Grant access.\nToken access: {}\nRequest access: {}", Json.encode(rightsMatrix), Json.encode(eventMatrix));
     }
     return pipeline.sendEvent(event);
   }
@@ -379,7 +421,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
   private void sendErrorResponse(@NotNull Throwable error) {
     assert routingContext != null;
     assert responseType != null;
-    XyzHubTask.rcSendErrorResponse(routingContext, responseType, streamId, error);
+    NakshaTask.rcSendErrorResponse(routingContext, responseType, streamId, error);
   }
 
   /**
@@ -390,7 +432,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
   private void sendResponse(@NotNull XyzResponse response) {
     assert routingContext != null;
     assert responseType != null;
-    XyzHubTask.rcSendResponse(routingContext, responseType, streamId, response);
+    NakshaTask.rcSendResponse(routingContext, responseType, streamId, response);
   }
 
   /**
@@ -421,7 +463,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
       assert errorResponse.getError() != null;
       errorResponse.setErrorMessage(throwable.getMessage());
     }
-    XyzHubTask.rcSendResponse(routingContext, responseType, streamId, errorResponse);
+    NakshaTask.rcSendResponse(routingContext, responseType, streamId, errorResponse);
   }
 
   /**
@@ -470,7 +512,7 @@ public abstract class XyzHubTask<EVENT extends Event> extends AbstractTask {
       }
       rcSendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(response.serialize()));
     } catch (Throwable t) {
-      logger.error("Unexpected failure while serializing response", t);
+      new NakshaLogger(routingContext).error("Unexpected failure while serializing response", t);
       rcSendFatalError(routingContext, streamId, t.getMessage());
     }
   }

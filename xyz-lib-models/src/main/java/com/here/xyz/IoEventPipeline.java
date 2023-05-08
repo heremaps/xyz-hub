@@ -1,6 +1,7 @@
 package com.here.xyz;
 
 import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.TaskLogger.currentLogger;
 
 import com.here.xyz.events.Event;
 import com.here.xyz.responses.BinaryResponse;
@@ -8,9 +9,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -18,7 +17,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,36 +25,6 @@ import org.jetbrains.annotations.Nullable;
  * {@link OutputStream}; using JSON representation.
  */
 public class IoEventPipeline extends EventPipeline {
-
-  /**
-   * Read a resource from the JAR.
-   *
-   * @param resource The resource name, which should start with a slash.
-   * @return The input stream to the resource.
-   * @throws IOException If any error occurred.
-   */
-  public static @NotNull InputStream openResource(@NotNull String resource) throws IOException {
-    final InputStream is = ClassLoader.getSystemResourceAsStream(resource);
-    if (is == null) {
-      throw new IOException("Resource " + resource + " not found");
-    }
-    return is;
-  }
-
-  /**
-   * Read a resource from the JAR.
-   *
-   * @param resource The resource name, which should start with a slash.
-   * @return The resource as string.
-   * @throws IOException If any error occurred.
-   */
-  public static @NotNull String readResource(@NotNull String resource) throws IOException {
-    final InputStream is = ClassLoader.getSystemResourceAsStream(resource);
-    assert is != null;
-    try (final BufferedReader buffer = new BufferedReader(new InputStreamReader(is))) {
-      return buffer.lines().collect(Collectors.joining("\n"));
-    }
-  }
 
   /**
    * The maximal size of uncompressed bytes, exceeding leads to the response getting gzipped.
@@ -109,7 +77,7 @@ public class IoEventPipeline extends EventPipeline {
       if (!(typed instanceof Event)) {
         final String expected = Event.class.getSimpleName();
         final String deserialized = typed.getClass().getSimpleName();
-        currentTask().info("Event parsed in {}ms, but expected {}, deserialized {}", parsedInMillis, expected, deserialized);
+        currentLogger().info("Event parsed in {}ms, but expected {}, deserialized {}", parsedInMillis, expected, deserialized);
         response = new ErrorResponse()
             .withStreamId(currentTask().streamId())
             .withError(XyzError.EXCEPTION)
@@ -121,8 +89,8 @@ public class IoEventPipeline extends EventPipeline {
       }
       event = (Event) typed;
       event.setStartNanos(START);
-      currentTask().info("Event parsed in {}ms", parsedInMillis);
-      currentTask().debug("Event raw string: {}", rawEvent);
+      currentLogger().info("Event parsed in {}ms", parsedInMillis);
+      currentLogger().debug("Event raw string: {}", rawEvent);
       //noinspection UnusedAssignment
       rawEvent = null;
       // Note: We explicitly set the rawEvent to null to ensure that the garbage collector can collect the variables.
@@ -132,7 +100,7 @@ public class IoEventPipeline extends EventPipeline {
         writeDataOut(output, response, event.getIfNoneMatch());
       }
     } catch (Throwable e) {
-      currentTask().warn("Exception while processing the event", e);
+      currentLogger().warn("Exception while processing the event", e);
       response = new ErrorResponse()
           .withStreamId(currentTask().streamId())
           .withError(XyzError.EXCEPTION)
@@ -156,7 +124,7 @@ public class IoEventPipeline extends EventPipeline {
       //       the JSON document is not significant, therefore we should implement weak e-tags,
       //       because {"a":1,"b":2} is semantically equals to {"b":2,"a":1} !
       byte @NotNull [] bytes = dataOut.toByteArray();
-      currentTask().info("Write data out for response with type: {}", dataOut.getClass().getSimpleName());
+      currentLogger().info("Write data out for response with type: {}", dataOut.getClass().getSimpleName());
 
       // All this effort does not make sense for small responses.
       if (bytes.length >= ETAG_THRESHOLD_SIZE) {
@@ -194,14 +162,14 @@ public class IoEventPipeline extends EventPipeline {
               os.close();
               bytes = os.toByteArray();
             } catch (Exception e) {
-              currentTask().error("Unexpected exception while trying to generate response bytes with e-tag", e);
+              currentLogger().error("Unexpected exception while trying to generate response bytes with e-tag", e);
             }
           }
         }
       }
       output.write(bytes);
     } catch (Exception e) {
-      currentTask().error("Unexpected exception while writing to output stream:", e);
+      currentLogger().error("Unexpected exception while writing to output stream:", e);
     }
   }
 }

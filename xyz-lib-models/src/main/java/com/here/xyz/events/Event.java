@@ -19,7 +19,6 @@
 
 package com.here.xyz.events;
 
-import static com.here.xyz.AbstractTask.currentTask;
 import static com.here.xyz.AbstractTask.currentTaskOrNull;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
@@ -30,9 +29,9 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.INaksha;
 import com.here.xyz.NanoTime;
 import com.here.xyz.Payload;
+import com.here.xyz.TaskLogger;
 import com.here.xyz.events.admin.ModifySubscriptionEvent;
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
@@ -54,7 +53,6 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.AbstractTask;
 import com.here.xyz.util.JsonUtils;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -101,7 +99,7 @@ public abstract class Event extends Payload {
   protected Event() {
     final AbstractTask context = currentTaskOrNull();
     if (context != null) {
-      startNanos = context.startNanos;
+      startNanos = context.startNanos();
       streamId = context.streamId();
     } else {
       startNanos = NanoTime.now();
@@ -334,7 +332,7 @@ public abstract class Event extends Payload {
         return (String) raw;
       }
     }
-    currentTask().debug("Missing 'connectorParams.connectorId' in event");
+    TaskLogger.currentLogger().debug("Missing 'connectorParams.connectorId' in event");
     return getClass().getName();
   }
 
@@ -352,7 +350,7 @@ public abstract class Event extends Payload {
         return ((Number) raw).longValue();
       }
     }
-    currentTask().debug("Missing 'connectorParams.connectorNumber' in event");
+    TaskLogger.currentLogger().debug("Missing 'connectorParams.connectorNumber' in event");
     return 0L;
   }
 

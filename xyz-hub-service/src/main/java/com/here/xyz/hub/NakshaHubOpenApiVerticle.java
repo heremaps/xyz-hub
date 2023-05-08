@@ -25,19 +25,16 @@ import static io.vertx.core.http.HttpHeaders.LOCATION;
 
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
-import com.here.xyz.hub.auth.ExtendedJWTAuthHandler;
-import com.here.xyz.hub.auth.XyzAuthProvider;
-import com.here.xyz.hub.rest.AdminApi;
+import com.here.xyz.hub.auth.NakshaJwtAuthHandler;
+import com.here.xyz.hub.auth.NakshaAuthProvider;
 import com.here.xyz.hub.rest.ConnectorApi;
-import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.HistoryQueryApi;
-import com.here.xyz.hub.rest.RevisionApi;
 import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.SubscriptionApi;
 import com.here.xyz.hub.rest.health.HealthApi;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.NakshaTask;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
@@ -59,7 +56,7 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
+public class NakshaHubOpenApiVerticle extends AbstractHttpServerVerticle {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -71,9 +68,9 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
   static {
     try {
-      final byte[] openapi = ByteStreams.toByteArray(Objects.requireNonNull(XYZHubRESTVerticle.class.getResourceAsStream("/openapi.yaml")));
+      final byte[] openapi = ByteStreams.toByteArray(Objects.requireNonNull(NakshaHubOpenApiVerticle.class.getResourceAsStream("/openapi.yaml")));
       final byte[] recipes = ByteStreams.toByteArray(
-          Objects.requireNonNull(XYZHubRESTVerticle.class.getResourceAsStream("/openapi-recipes.yaml")));
+          Objects.requireNonNull(NakshaHubOpenApiVerticle.class.getResourceAsStream("/openapi-recipes.yaml")));
 
       FULL_API = new String(openapi);
       STABLE_API = new String(generate(openapi, recipes, "stable"));
@@ -91,7 +88,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
   @Override
   protected void onRequestCancelled(RoutingContext context) {
     super.onRequestCancelled(context);
-    final XyzHubTask<?,?> task = Context.task(context);
+    final NakshaTask<?,?> task = Context.task(context);
     if (task != null) {
       //Cancel all pending actions of the task which might be in progress
       task.cancel();
@@ -114,7 +111,6 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
           new HistoryQueryApi(rb);
           new ConnectorApi(rb);
           new SubscriptionApi(rb);
-          new RevisionApi(rb);
 
           final AuthenticationHandler jwtHandler = createJWTHandler();
           rb.securityHandler("Bearer", jwtHandler);
@@ -226,7 +222,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
     }
     assert pubKey != null;
     final JWTAuthOptions authConfig = new JWTAuthOptions().addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(pubKey));
-    return new ExtendedJWTAuthHandler(new XyzAuthProvider(vertx, authConfig), null);
+    return new NakshaJwtAuthHandler(new NakshaAuthProvider(vertx, authConfig), null);
   }
 
   private static class DelegatingHandler<E> implements Handler<E> {

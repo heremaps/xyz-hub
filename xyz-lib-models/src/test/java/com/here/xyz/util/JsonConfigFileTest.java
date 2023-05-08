@@ -8,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.LinkedHashMap;
 import javax.annotation.Nullable;
+import org.jetbrains.annotations.NotNull;
 import org.junit.Test;
 
 @SuppressWarnings("DuplicatedCode")
@@ -27,21 +28,15 @@ public class JsonConfigFileTest {
       super(filename);
     }
 
-    protected void info(String message) {
-      System.out.println(message);
-    }
-
-    protected void error(String message, Throwable t) {
-      System.err.println(message);
-      if (t != null) {
-        t.printStackTrace(System.err);
-      }
-    }
-
     @Nullable
     @Override
     protected String envPrefix() {
       return "TEST_";
+    }
+
+    @Override
+    protected @NotNull String appName() {
+      return "qwerty38q4f934f9843hf9438hf9834hf943h";
     }
 
     public int theInt = 1;
@@ -86,7 +81,7 @@ public class JsonConfigFileTest {
     testValues.put("theBool", true);
     testValues.put("theString", "string");
     testValues.put("env", "env");
-    testConfig.load(testValues, null);
+    testConfig.loadFromMap(testValues, null);
     assertEquals(5, testConfig.theInt);
     assertTrue(testConfig.theBool);
     assertEquals("string", testConfig.theString);
@@ -112,7 +107,7 @@ public class JsonConfigFileTest {
     testValues.put("theBool", true);
     testValues.put("theString", "string");
     testValues.put("env", "env");
-    testConfig.load(testValues, JsonConfigFileTest::test_withMapAndEnv_getEnv);
+    testConfig.loadFromMap(testValues, JsonConfigFileTest::test_withMapAndEnv_getEnv);
     assertEquals(5, testConfig.theInt);
     assertTrue(testConfig.theBool);
     assertNull(testConfig.theString);

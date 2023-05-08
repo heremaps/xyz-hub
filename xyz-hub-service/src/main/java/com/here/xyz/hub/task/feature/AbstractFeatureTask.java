@@ -24,7 +24,7 @@ import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.ext.web.RoutingContext;
@@ -34,7 +34,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * All tasks related to features in a space.
  */
-public abstract class AbstractFeatureTask<EVENT extends Event> extends XyzHubTask<EVENT> {
+public abstract class AbstractFeatureTask<EVENT extends Event> extends NakshaTask<EVENT> {
 
   protected AbstractFeatureTask(@Nullable String streamId) {
     super(streamId);

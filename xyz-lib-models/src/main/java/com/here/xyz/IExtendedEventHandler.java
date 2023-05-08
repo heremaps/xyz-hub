@@ -1,6 +1,7 @@
 package com.here.xyz;
 
 import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.TaskLogger.currentLogger;
 
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
@@ -113,7 +114,7 @@ public interface IExtendedEventHandler extends IEventHandler {
     } catch (XyzErrorException e) {
       return e.toErrorResponse(event.getStreamId());
     } catch (Exception e) {
-      currentTask().error("Uncaught exception in event processor", e);
+      currentLogger().error("Uncaught exception in event processor", e);
       return new ErrorResponse()
           .withStreamId(event.getStreamId())
           .withError(XyzError.EXCEPTION)

@@ -22,7 +22,7 @@ package com.here.xyz.hub.task.subscription;
 import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.hub.events.AbstractSubscriptionEvent;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.NakshaTask;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * All tasks related to connectors.
  */
-public abstract class AbstractSubscriptionTask<EVENT extends AbstractSubscriptionEvent> extends XyzHubTask<EVENT> {
+public abstract class AbstractSubscriptionTask<EVENT extends AbstractSubscriptionEvent> extends NakshaTask<EVENT> {
 
   protected AbstractSubscriptionTask(@Nullable String streamId) {
     super(streamId);

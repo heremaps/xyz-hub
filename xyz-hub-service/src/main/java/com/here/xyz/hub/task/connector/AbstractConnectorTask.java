@@ -19,11 +19,10 @@
 
 package com.here.xyz.hub.task.connector;
 
-import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.hub.events.AbstractConnectorEvent;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.NakshaTask;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -31,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * All tasks related to connectors.
  */
-public abstract class AbstractConnectorTask<EVENT extends AbstractConnectorEvent> extends XyzHubTask<EVENT> {
+public abstract class AbstractConnectorTask<EVENT extends AbstractConnectorEvent> extends NakshaTask<EVENT> {
 
   protected AbstractConnectorTask(@Nullable String streamId) {
     super(streamId);

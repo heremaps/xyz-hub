@@ -7,41 +7,55 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 
 /**
- * A class that implements the logger interface.
+ * A class implementing the logger interface.
  */
-public abstract class AbstractLoggedObject implements Logger {
+public class TaskLogger implements Logger {
 
-  protected AbstractLoggedObject() {
-    sb = new StringBuilder();
+  /**
+   * Returns the logger of the current task.
+   *
+   * @return The logger of the current task.
+   */
+  public static @NotNull TaskLogger currentLogger() {
+    return AbstractTask.currentTask().logger;
   }
 
+  protected TaskLogger(@NotNull AbstractTask task) {
+    this.sb = new StringBuilder();
+    this.task = task;
+    this.thread = Thread.currentThread();
+  }
+
+  private final @NotNull Thread thread;
+  private final @NotNull AbstractTask task;
   private final @NotNull StringBuilder sb;
 
   private @NotNull String prefix(@NotNull String message) {
-    sb.append(streamId());
+    // It is suboptimal to log for a not thread-local task, but possible.
+    final StringBuilder sb = thread == Thread.currentThread() ? this.sb : new StringBuilder();
+    sb.setLength(0);
+    sb.append(task.streamId);
     sb.append(':');
-    sb.append(NanoTime.timeSince(startNanos, TimeUnit.MICROSECONDS));
+    sb.append(NanoTime.timeSince(task.startNanos, TimeUnit.MICROSECONDS));
     sb.append("us - ");
     sb.append(message);
     return sb.toString();
   }
 
   /**
-   * The nano-time when creating the context.
+   * Returns the task of the logger.
+   *
+   * @return The task of the logger
    */
-  public final long startNanos = NanoTime.now();
-
-  /**
-   * Returns the current stream-id.
-   * @return The current stream-id.
-   */
-  abstract public @NotNull String streamId();
+  public @NotNull AbstractTask task() {
+    return task;
+  }
 
   protected static final Logger logger = LoggerFactory.getLogger(AbstractTask.class);
 
   @Override
   public String getName() {
-    return streamId();
+    return task.streamId;
   }
 
   @Override

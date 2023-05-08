@@ -1,16 +1,19 @@
 package com.here.xyz.util;
 
+import static com.here.xyz.util.IoHelp.readConfigFromHomeOrResource;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.IoHelp.LoadedConfig;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.function.Function;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Base class of a configuration file that is read from a JSON file with optional override via environment variables. The environment
@@ -19,10 +22,11 @@ import javax.annotation.Nullable;
  *
  * @param <SELF> this type.
  */
+@SuppressWarnings("unchecked")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends FileOrResource<SELF> {
 
-  protected JsonConfigFile(@Nonnull String filename) {
+  protected JsonConfigFile(@NotNull String filename) {
     super(filename);
   }
 
@@ -32,14 +36,13 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends 
    * Optionally it is possible to add an {@link EnvName} annotation to the class, then this defines the name of the environment variable
    * that holds the search path.
    * <p>
-   * In a nutshell, by default the method returns {@code XYZ_CONFIG_PATH}, if the {@link EnvName} annotation is found at the given class
+   * In a nutshell, by default the method returns {@code NAKSHA_CONFIG_PATH}, if the {@link EnvName} annotation is found at the given class
    * type, for example {@code @EnvName("MY_CONFIG_PATH")}, then the method returns exactly this: {@code MY_CONFIG_PATH}.
    *
    * @param classType the class for which to check the annotations.
    * @return the name of the environment variable that holds the config file search path.
    */
-  @Nonnull
-  public static String configPathEnvName(@Nullable Class<?> classType) {
+  public static @NotNull String configPathEnvName(@Nullable Class<?> classType) {
     while (classType != null) {
       if (classType.isAnnotationPresent(EnvName.class)) {
         final EnvName[] envNames = classType.getAnnotationsByType(EnvName.class);
@@ -47,18 +50,17 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends 
       }
       classType = classType.getSuperclass();
     }
-    return "XYZ_CONFIG_PATH";
+    return "NAKSHA_CONFIG_PATH";
   }
 
   /**
    * An optional prefix to be placed in-front of all field names to be read from environment variables. So, the prefix "FOO_" will cause the
-   * property "bar" to be looked-up as "FOO_BAR". If no prefix is returned, the environment variable name must explicitly be declared using
+   * property “bar” to be looked-up as "FOO_BAR". If no prefix is returned, the environment variable name must explicitly be declared using
    * the annotation {@link EnvName}. Multiple names can be defined and combined with the prefix.
    *
    * @return a prefix or null.
    */
-  @Nullable
-  protected String envPrefix() {
+  protected @Nullable String envPrefix() {
     return null;
   }
 
@@ -69,73 +71,95 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends 
    * @param string the string that is read from the environment variable.
    * @return null if the value represents null; otherwise the given value.
    */
-  @Nullable
-  public static String nullable(@Nullable String string) {
+  public static @Nullable String nullable(@Nullable String string) {
     return string == null || string.isEmpty() || "null".equalsIgnoreCase(string) ? null : string;
   }
 
   /**
    * Used for Jackson to parse a JSON object into a map.
    */
-  private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<Map<String, Object>>() {
+  private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
   };
+
+  /**
+   * Returns the name of the application, needed to search for the default configuration location.
+   *
+   * @return The application name.
+   */
+  abstract protected @NotNull String appName();
 
   /**
    * Load the configuration from a disk file, a file in the resources (JAR) or from environment variables. Basically the order is to first
    * read from a disk file, if not found, read from resources. In both cases, eventually the environment variables will override all values
-   * being read from the configuration file.
+   * read.
    *
    * @return this.
    * @throws IOException if any error occurred while reading from disk or resources.
    */
-  public final SELF load() throws IOException {
+  public final @NotNull SELF load() throws IOException {
     return load(System::getenv);
   }
 
   /**
    * Load the configuration from a disk file, a file in the resources (JAR) or from environment variables. Basically the order is to first
    * read from a disk file, if not found, read from resources. In both cases, eventually the environment variables will override all values
-   * being read from the configuration file.
+   * read.
    *
    * @param getEnv the reference to the method that reads environment variables.
    * @return this.
    * @throws IOException          if any error occurred while reading from disk or resources.
    * @throws NullPointerException if getEnv is null.
    */
-  public final SELF load(final @Nonnull Function<String, String> getEnv) throws IOException {
+  public final @NotNull SELF load(final @Nullable Function<@NotNull String, @Nullable String> getEnv) throws IOException {
     Map<String, Object> configValues = null;
+    LoadedConfig loaded = null;
     try {
-      final String searchPath = nullable(getEnv.apply(configPathEnvName(getClass())));
-      try (final InputStream in = open(searchPath)) {
-        configValues = new ObjectMapper().readValue(in, MAP_TYPE);
-      }
+      loaded = readConfigFromHomeOrResource(filename(), appName(), searchPath());
+      configValues = XyzSerializable.DEFAULT_MAPPER.get().readValue(loaded.bytes(), MAP_TYPE);
     } catch (Throwable t) {
-      error("Failed to load configuration file: " + filename, t);
+      logger.error("Failed to load configuration file: {} (path={})", filename, loaded != null ? loaded.path() : "", t);
+      loaded = null;
     }
-    return load(configValues, getEnv);
+    loadFromMap(configValues, getEnv);
+    this.loadPath = loaded != null ? loaded.path() : null;
+    return (SELF) this;
+  }
+
+  @JsonIgnore
+  private String loadPath;
+
+  /**
+   * Return the path of the config file loaded; if any.
+   *
+   * @return The path of the config file loaded; if any.
+   */
+  public @Nullable String loadPath() {
+    return loadPath;
   }
 
   /**
    * Read the configuration from the given map and eventually use environment variables to override values.
    *
-   * @param defaultValues the map to load values from.
+   * @param configValues the configuration values to use.
    * @return this.
    */
-  @Nonnull
-  public final SELF load(@Nonnull Map<String, Object> defaultValues) {
-    return load(defaultValues, System::getenv);
+  public final @NotNull SELF loadFromMap(@NotNull Map<String, Object> configValues) {
+    return loadFromMap(configValues, System::getenv);
   }
 
   /**
-   * Read the configuration from a given map and eventually use environment variables to override all values being read from the map.
+   * Read the configuration from a given map and eventually use environment variables to override values.
    *
    * @param configValues the configuration values to use.
-   * @param getEnv       the reference to the method that reads the environment variable; if null, then no environment variables are read.
+   * @param getEnv       the reference to the method that reads the environment variable; if {@code null}, then no environment variables
+   *                     read.
    * @return this.
    */
-  @Nonnull
-  public final SELF load(
-      @Nullable Map<String, Object> configValues, @Nullable Function<String, String> getEnv) {
+  public final @NotNull SELF loadFromMap(
+      @Nullable Map<@NotNull String, @Nullable Object> configValues,
+      @Nullable Function<String, String> getEnv
+  ) {
+    this.loadPath = null;
     final String prefix;
     final int prefixLen;
     final StringBuilder sb;
@@ -197,17 +221,17 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends 
       }
       theClass = theClass.getSuperclass();
     } while (theClass != null);
-    //noinspection unchecked
     return (SELF) this;
   }
 
   private void setFromEnv(
-      @Nonnull StringBuilder sb,
+      @NotNull StringBuilder sb,
       int prefixLen,
-      @Nonnull Field field,
-      @Nonnull String name,
+      @NotNull Field field,
+      @NotNull String name,
       boolean withPrefix,
-      @Nonnull Function<String, String> getEnv) {
+      @NotNull Function<@NotNull String, @Nullable String> getEnv
+  ) {
     sb.setLength(prefixLen);
     for (int i = 0; i < name.length(); i++) {
       sb.append(Character.toUpperCase(name.charAt(i)));
@@ -219,7 +243,7 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends 
     }
   }
 
-  private void setField(@Nonnull Field field, @Nullable Object value) {
+  private void setField(@NotNull Field field, @Nullable Object value) {
     if (value instanceof String) {
       value = nullable((String) value);
     }

@@ -5,4 +5,4 @@
 srcFolder='src/main/resources'
 schemas=$(find "$srcFolder" -name '*.fbs')
 
-flatc --java -o src/main/java $schemas
+flatc --java -o src/main/java "$schemas"

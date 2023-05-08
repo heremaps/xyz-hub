@@ -24,7 +24,6 @@ import static com.here.xyz.hub.rest.ApiParam.Query.ACCESS_TOKEN;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization.AuthorizationType;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.util.Compression;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -38,12 +37,14 @@ import io.vertx.ext.web.handler.impl.JWTAuthHandlerImpl;
 import java.util.Base64;
 import java.util.List;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
+public class NakshaJwtAuthHandler extends JWTAuthHandlerImpl {
 
-  private static final Logger logger = LogManager.getLogger();
+  protected static final Logger logger = LoggerFactory.getLogger(NakshaJwtAuthHandler.class);
 
   final String RAW_TOKEN = "RAW_TOKEN";
 
@@ -64,14 +65,14 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
   final boolean ALLOW_ANONYMOUS_ACCESS = Service.configuration.XYZ_HUB_AUTH == AuthorizationType.DUMMY;
 
   private static final String ANONYMOUS_JWT_RESOURCE_FILE = "auth/dummyJwt.json";
-  private static final String ANONYMOUS_JWT = JwtGenerator.generateToken(ANONYMOUS_JWT_RESOURCE_FILE);
+  private static final String ANONYMOUS_JWT = JwtKey.generateToken(ANONYMOUS_JWT_RESOURCE_FILE);
 
-  public ExtendedJWTAuthHandler(JWTAuth authProvider, String realm) {
+  public NakshaJwtAuthHandler(@NotNull JWTAuth authProvider, @Nullable String realm) {
     super(authProvider, realm);
   }
 
   @Override
-  public void authenticate(RoutingContext context, Handler<AsyncResult<User>> handler) {
+  public void authenticate(@NotNull RoutingContext context, @NotNull Handler<@NotNull AsyncResult<User>> handler) {
     String jwt = getFromAuthHeader(context.request().headers().get(HttpHeaders.AUTHORIZATION));
 
     // Try to get the token from the query parameter
@@ -119,12 +120,11 @@ public class ExtendedJWTAuthHandler extends JWTAuthHandlerImpl {
     });
   }
 
-  private String getFromAuthHeader(String authHeader) {
-    return (authHeader != null && authHeader.startsWith("Bearer ")) ?
-        authHeader.substring(7) : null;
+  private @Nullable String getFromAuthHeader(@Nullable String authHeader) {
+    return (authHeader != null && authHeader.startsWith("Bearer ")) ? authHeader.substring(7) : null;
   }
 
-  private boolean isJWT(final String jwt) {
+  private boolean isJWT(final @Nullable String jwt) {
     return StringUtils.countMatches(jwt, ".") == 2;
   }
 }

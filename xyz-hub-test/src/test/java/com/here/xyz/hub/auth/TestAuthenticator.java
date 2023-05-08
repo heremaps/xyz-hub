@@ -110,8 +110,8 @@ public class TestAuthenticator {
 
     AuthProfile() {
       String resourceFilename = "/auth/" + name() + ".json";
-      this.payload = JwtGenerator.readTokenPayload(resourceFilename);
-      jwt_string = JwtGenerator.generateToken(this.payload);
+      this.payload = JwtKey.readTokenPayload(resourceFilename);
+      jwt_string = JwtKey.generateToken(this.payload);
     }
   }
 }

@@ -32,7 +32,8 @@ import org.jetbrains.annotations.Nullable;
  * at least a {@link LoadFeaturesEvent} is needed to fetch the current state of the features and then to (optionally) perform a merge and
  * execute the {@link ModifyFeaturesEvent}. Other combinations are possible.
  */
-public abstract class AbstractTask extends AbstractLoggedObject implements UncaughtExceptionHandler {
+@SuppressWarnings({"UnusedReturnValue", "unused"})
+public abstract class AbstractTask implements UncaughtExceptionHandler {
 
   /**
    * Internal default No Operation Task, just useful for testing or other edge cases. The NOP task binding is weak, that means all other
@@ -76,6 +77,7 @@ public abstract class AbstractTask extends AbstractLoggedObject implements Uncau
    * @param streamId The stream-id to use; if any.
    */
   public AbstractTask(@Nullable String streamId) {
+    startNanos = NanoTime.now();
     if (streamId == null) {
       final AbstractTask currentTask = AbstractTask.currentTaskOrNull();
       if (currentTask != null) {
@@ -86,6 +88,34 @@ public abstract class AbstractTask extends AbstractLoggedObject implements Uncau
     }
     this.streamId = streamId;
     attachments = new ConcurrentHashMap<>();
+    this.logger = newTaskLogger();
+  }
+
+  /**
+   * Creates a new task logger. Called only ones from the constructor.
+   *
+   * @return a new task logger.
+   */
+  protected @NotNull TaskLogger newTaskLogger() {
+    return new TaskLogger(this);
+  }
+
+  /**
+   * Returns the logger of this task.
+   *
+   * @return the logger of this task.
+   */
+  public final @NotNull TaskLogger logger() {
+    return this.logger;
+  }
+
+  /**
+   * Returns the start time of the task in nanoseconds.
+   *
+   * @return The start time of the task in nanoseconds.
+   */
+  public long startNanos() {
+    return startNanos;
   }
 
   /**
@@ -95,7 +125,7 @@ public abstract class AbstractTask extends AbstractLoggedObject implements Uncau
    * @param t      the exception.
    */
   public void uncaughtException(Thread thread, Throwable t) {
-    error("Uncaught exception", t);
+    logger().error("Uncaught exception", t);
   }
 
   /**
@@ -184,6 +214,13 @@ public abstract class AbstractTask extends AbstractLoggedObject implements Uncau
    * The steam-id of this context.
    */
   protected @NotNull String streamId;
+
+  /**
+   * The nano-time when creating the context.
+   */
+  protected long startNanos;
+
+  final @NotNull TaskLogger logger;
 
   /**
    * Returns the stream-id.
@@ -359,7 +396,7 @@ public abstract class AbstractTask extends AbstractLoggedObject implements Uncau
             return future;
           } catch (Throwable t) {
             AbstractTask.threadCount.decrementAndGet();
-            error("Unexpected exception while trying to fork a new thread", t);
+            logger().error("Unexpected exception while trying to fork a new thread", t);
             throw new XyzErrorException(XyzError.EXCEPTION, "Internal error while forking new worker thread");
           }
         }
@@ -383,7 +420,7 @@ public abstract class AbstractTask extends AbstractLoggedObject implements Uncau
       return future;
     } catch (Throwable t) {
       AbstractTask.threadCount.decrementAndGet();
-      error("Unexpected exception while trying to fork a new thread, ignoring the soft-limit", t);
+      logger().error("Unexpected exception while trying to fork a new thread, ignoring the soft-limit", t);
       throw t;
     } finally {
       unlock();
@@ -405,7 +442,7 @@ public abstract class AbstractTask extends AbstractLoggedObject implements Uncau
       } catch (ParameterError e) {
         response = errorResponse(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
       } catch (Throwable t) {
-        error("Uncaught exception in task execute", t);
+        logger().error("Uncaught exception in task execute", t);
         response = errorResponse(XyzError.EXCEPTION, "Uncaught exception in task " + getClass().getSimpleName());
       }
       state.set(State.CALLING_LISTENER);
@@ -413,7 +450,7 @@ public abstract class AbstractTask extends AbstractLoggedObject implements Uncau
         try {
           listener.accept(response);
         } catch (Throwable t) {
-          error("Uncaught exception in listener", t);
+          logger().error("Uncaught exception in listener", t);
         }
       }
       return response;

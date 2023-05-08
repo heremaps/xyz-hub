@@ -1,15 +1,31 @@
-openapi: 3.0.2
-info:
-  title: HERE XYZ Hub
-  description: |-
-    HERE XYZ Hub is a REST API for simple access to geo data.
-  contact: {}
-  version: 1.0.0
+openapi: "3.0.2"
+
 servers:
-  - url: /hub
+  - url: "/hub/"
+    description: "Current host"
+  - url: "https://naksha.ext.mapcreator.here.com/hub/"
+    description: "PRD"
+  - url: "https://naksha-e2e.ext.mapcreator.here.com/hub/"
+    description: "E2E"
+  - url: "https://naksha-e2e-kasa.ext.mapcreator.here.com/hub/"
+    description: "E2E - Kasa"
+  - url: "https://naksha-e2e-kotori.ext.mapcreator.here.com/hub/"
+    description: "E2E - Kotori"
+  - url: "https://naksha-dev.ext.mapcreator.here.com/hub/"
+    description: "DEV"
+  - url: "https://naksha-local.ext.mapcreator.here.com:8443/hub/"
+    description: "LOCAL"
+  - url: "https://xyz.api.here.com/hub/"
+    description: "XYZ (deprecated)"
+
+info:
+  title: "Naskha Hub-API"
+  description: "Naksha Hub-API is a REST API to provide simple access to geo data."
+  version: "1.24.0"
+
 security:
-  - AccessToken: []
-  - Bearer: []
+  - AccessToken: [ ]
+  - Bearer: [ ]
 tags:
   - name: Manage Spaces
     description: Space management endpoints.
@@ -191,44 +207,13 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/revisions':
-    delete:
-      tags:
-        - Manage Spaces
-      summary: Delete revisions
-      description: >-
-        Deletes one or more revisions where the revision number can be specified by the query parameter 'revision', where
-        the value must be an integer, bigger than 0 and the comparator should be one of the below list:
-          - <
-          - =lt=
-        
-        
-        Example: To remove revisions older than the 10th revision,
-        a DELETE /spaces/{spaceId}/revisions?revision=lt=10 could be executed.
-
-
-        The service will begin the process to remove the revisions from 9th revision until the 1st revision.
-        During the deletion process, newer revisions can be created and won't be affected.
-      operationId: deleteRevisions
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/RevisionLowerThan'
-      responses:
-        '204':
-          $ref: '#/components/responses/EmptyResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
   '/spaces/{spaceId}/features':
     get:
       tags:
         - Read Features
       summary: Get features by ID
       description: >-
-        Returns all the features found for the provided list of IDs.
+        Returns all of the features found for the provided list of IDs.
         The response is always a FeatureCollection,
         even if there are no features with the provided IDs.
       operationId: getFeatures
@@ -237,9 +222,6 @@ paths:
         - $ref: '#/components/parameters/RequiredIds'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
-        - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Revision'
-        - $ref: '#/components/parameters/Author'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -430,7 +412,6 @@ paths:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/TagList'
-        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionModificationResponse'
@@ -454,9 +435,6 @@ paths:
         - $ref: '#/components/parameters/FeatureId'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
-        - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Revision'
-        - $ref: '#/components/parameters/Author'
       responses:
         '200':
           $ref: '#/components/responses/FeatureResponse'
@@ -535,7 +513,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/FeatureId'
-        - $ref: '#/components/parameters/Context'
       responses:
         '204':
           $ref: '#/components/responses/EmptyResponse'
@@ -590,7 +567,6 @@ paths:
         - $ref: '#/components/parameters/Tweaks'
         - $ref: '#/components/parameters/TweaksParams'
         - $ref: '#/components/parameters/Force2D'
-        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionResponse'
@@ -636,7 +612,6 @@ paths:
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Mode'
         - $ref: '#/components/parameters/VizSampling'
-        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/TileResponse'
@@ -978,108 +953,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/subscriptions':
-    post:
-      tags:
-        - Manage Subscriptions
-      summary: Create a subscription
-      description: Creates a subscription.
-      operationId: postSubscription
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-      requestBody:
-        $ref: '#/components/requestBodies/SubscriptionRequest'
-      responses:
-        '201':
-          $ref: '#/components/responses/SubscriptionResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '409':
-          $ref: '#/components/responses/ErrorResponse409'
-    get:
-      tags:
-        - Manage Subscriptions
-      summary: Get list of subscriptions
-      description: Gets a list of all subscription for a space.
-      operationId: getSubscriptions
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-      responses:
-        '200':
-          $ref: '#/components/responses/SubscriptionsResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-  '/spaces/{spaceId}/subscriptions/{subscriptionId}':
-    put:
-      tags:
-        - Manage Subscriptions
-      summary: Create or replace a subscription
-      description: Creates or replaces a subscription to a space.
-      operationId: putSubscription
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/SubscriptionId'
-      requestBody:
-        $ref: '#/components/requestBodies/SubscriptionRequest'
-      responses:
-        '200':
-          $ref: '#/components/responses/SubscriptionResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-    get:
-      tags:
-        - Manage Subscriptions
-      summary: Get a subscription by ID
-      description: Returns the subscription definition
-      operationId: getSubscription
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/SubscriptionId'
-      responses:
-        '200':
-          $ref: '#/components/responses/SubscriptionResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-    delete:
-      tags:
-        - Manage Subscriptions
-      summary: Delete a subscription
-      description: Deletes a subscription configuration.
-      operationId: deleteSubscription
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/SubscriptionId'
-      responses:
-        '200':
-          $ref: '#/components/responses/SubscriptionResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
 components:
   securitySchemes:
     AccessToken:
@@ -1101,14 +974,6 @@ components:
         type: array
         items:
           type: string
-    Author:
-      name: author
-      in: query
-      description: >-
-        Filter the results per author.
-      required: false
-      schema:
-        type: string
     Clip:
       name: clip
       in: query
@@ -1217,7 +1082,6 @@ components:
         To overwrite the value of the head state select _replace_.
         To abort the entry update select _error_.
       required: false
-      deprecated: true
       schema:
         type: string
         enum:
@@ -1232,28 +1096,6 @@ components:
       required: true
       schema:
         type: string
-    Context:
-      name: context
-      in: query
-      description: |
-        The context where the operation will be performed on a composite space.
-        If not specified, the operation occurs based on the extension rules.
-        For additional information, see Space.extends.
-
-        Available context are:
-        |Context|Description|
-        |-------|-----------|
-        |default|The default value if none is given. For composite spaces the operation occurs based on the extension rules. For normal spaces this is the only valid context.|
-        |extension|The operation will be executed only in the extension and no operation will be performed in the extended space.|
-        |super|Only applicable for read-operations. The operation will be executed only in the space being extended (super space).|
-      schema:
-        type: string
-        enum:
-          - default
-          - extension
-          - super
-        default: default
-
     East:
       name: east
       in: query
@@ -1312,7 +1154,6 @@ components:
         The action to execute, when a feature with the provided ID exists.
         Default is _patch_.
       required: false
-      deprecated: true
       schema:
         type: string
         enum:
@@ -1330,7 +1171,6 @@ components:
         The action to execute, when a feature with the provided ID does not
         exist or the feature contains no ID. Default is _create_.
       required: false
-      deprecated: true
       schema:
         type: string
         enum:
@@ -1412,7 +1252,7 @@ components:
       description: |
         Requests disjunct parts of iteration results (used with sort). List of two integers "part,total".
         part=1,4 read as first part out of 4, ... until part=4,4 .
-
+        
         Example: ?part=7,9
       explode: false
       schema:
@@ -1440,7 +1280,7 @@ components:
 
 
         Properties initiated with 'f.' are used to access values which are added by default in the
-        stored feature. The possible values are: 'f.id', 'f.createdAt', 'f.updatedAt', 'f.revision' and 'f.author'
+        stored feature. The possible values are: 'f.id', 'f.createdAt' and 'f.updatedAt'.
 
 
         Properties initiated with 'p.' are used to access values in the stored feature which are
@@ -1555,28 +1395,6 @@ components:
         type: array
         items:
           type: string
-    Revision:
-      name: revision
-      in: query
-      description: >-
-        The query parameter used to specify one specific revision or all revisions when '*' is used.
-        The supported values for this field are:
-          - the char '*', e.g. ?revision=*
-          - an integer e.g. ?revision=5
-      required: false
-      schema:
-        type: string
-    RevisionLowerThan:
-      name: revision
-      in: query
-      description: >-
-        The query parameter used to specify the revisions to be deleted.
-        The value must be an integer, bigger than 1, and the comparator should be one of the below list:
-          - <
-          - =lt=
-      required: false
-      schema:
-        type: string
     SkipCache:
       name: skipCache
       in: query
@@ -1764,13 +1582,6 @@ components:
         format: double
         minimum: -180
         maximum: 180
-    SubscriptionId:
-      name: subscriptionId
-      in: path
-      description: The unique identifier of the subscription.
-      required: true
-      schema:
-        type: string
   responses:
     ConnectorResponse:
       description: The connector
@@ -1904,7 +1715,7 @@ components:
                       - stadium
                   amenity: Football Stadium
                   capacity: 54074
-                  description: Home of the Liverpool Football Club.
+                  description: Home of Liverpool Football Club
     FeatureCollectionResponse:
       description: An array of features response.
       content:
@@ -1990,19 +1801,6 @@ components:
             type: string
             format: binary
           example: ''
-    SubscriptionResponse:
-      description: The subscription
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Subscription'
-    SubscriptionsResponse:
-      description: The list of subscriptions
-      content:
-        application/json:
-          schema:
-            items:
-              $ref: '#/components/schemas/Subscription'
   requestBodies:
     ConnectorConfig:
       required: true
@@ -2046,17 +1844,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Space'
-    SubscriptionRequest:
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Subscription'
-          example:
-            id: my-subscription-id
-            destination: string
-            config:
-              type: PER_FEATURE
   schemas:
     # TODO add Typed and Iterable schemas
     AWSLambda:
@@ -2377,27 +2164,27 @@ components:
           items:
             type: string
             enum: [
-                ModifySpaceEvent.request,
-                ModifySpaceEvent.response,
-                GetStatisticsEvent.request,
-                GetStatisticsEvent.response,
-                GetFeaturesByIdEvent.request,
-                GetFeaturesByIdEvent.response,
-                SearchForFeaturesEvent.request,
-                SearchForFeaturesEvent.response,
-                IterateFeaturesEvent.request,
-                IterateFeaturesEvent.response,
-                GetFeaturesByTileEvent.request,
-                GetFeaturesByTileEvent.response,
-                GetFeaturesByBBoxEvent.request,
-                GetFeaturesByBBoxEvent.response,
-                GetFeaturesByGeometryEvent.request,
-                GetFeaturesByGeometryEvent.response,
-                ModifyFeaturesEvent.request,
-                ModifyFeaturesEvent.response,
-                DeleteFeaturesByTagEvent.request,
-                DeleteFeaturesByTagEvent.response,
-                ContentModifiedNotification.request
+              ModifySpaceEvent.request,
+              ModifySpaceEvent.response,
+              GetStatisticsEvent.request,
+              GetStatisticsEvent.response,
+              GetFeaturesByIdEvent.request,
+              GetFeaturesByIdEvent.response,
+              SearchForFeaturesEvent.request,
+              SearchForFeaturesEvent.response,
+              IterateFeaturesEvent.request,
+              IterateFeaturesEvent.response,
+              GetFeaturesByTileEvent.request,
+              GetFeaturesByTileEvent.response,
+              GetFeaturesByBBoxEvent.request,
+              GetFeaturesByBBoxEvent.response,
+              GetFeaturesByGeometryEvent.request,
+              GetFeaturesByGeometryEvent.response,
+              ModifyFeaturesEvent.request,
+              ModifyFeaturesEvent.response,
+              DeleteFeaturesByTagEvent.request,
+              DeleteFeaturesByTagEvent.response,
+              ContentModifiedNotification.request
             ]
         contactEmails:
           description: >-
@@ -2522,18 +2309,7 @@ components:
                   - stadium
               amenity: Football Stadium
               capacity: 54074
-              description: Home of the Liverpool Football Club.
-    Extension:
-      type: object
-      description: >-
-        The extension definition which allows the space's content to be based on an existing space.
-        The entities in the extension space override the features with the same id in the extended space.
-      required:
-        - spaceId
-      properties:
-        spaceId:
-          type: string
-          description: The space id in which this space is extending
+              description: Home of Liverpool Football Club
     FeatureCollection:
       allOf:
         - $ref: '#/components/schemas/GeoJSON'
@@ -2572,7 +2348,7 @@ components:
                       - stadium
                   amenity: Football Stadium
                   capacity: 54074
-                  description: Home of the Liverpool Football Club.
+                  description: Home of Liverpool Football Club
     FeatureCollectionIterable:
       allOf:
         - $ref: '#/components/schemas/FeatureCollection'
@@ -2606,7 +2382,7 @@ components:
                       - stadium
                   amenity: Football Stadium
                   capacity: 54074
-                  description: Home of the Liverpool Football Club.
+                  description: Home of Liverpool Football Club
     FeatureCollectionModification:
       allOf:
         - $ref: '#/components/schemas/FeatureCollection'
@@ -2653,7 +2429,7 @@ components:
                       - stadium
                   amenity: Football Stadium
                   capacity: 54074
-                  description: Home of the Liverpool Football Club.
+                  description: Home of Liverpool Football Club
     FeatureModification:
       type: object
       description: |
@@ -2698,13 +2474,13 @@ components:
                     - stadium
                 amenity: Football Stadium
                 capacity: 54074
-                description: Home of the Liverpool Football Club.
+                description: Home of Liverpool Football Club
     FeatureModificationList:
       type: object
       description: |
-        An object describing modifications of features. Contains feature data being provided as
+        An object describing modifications of features. It contains feature data being provided as
         GeoJSON FeatureCollections (see [RFC-7946](https://tools.ietf.org/html/rfc7946))
-        or (in case of deletions) a list of feature IDs.
+        or (in case if deletions) a list of feature IDs.
       externalDocs:
         url: 'https://tools.ietf.org/html/rfc7946'
       required:
@@ -2739,7 +2515,7 @@ components:
                         - stadium
                     amenity: Football Stadium
                     capacity: 54074
-                    description: Home of the Liverpool Football Club.
+                    description: Home of Liverpool Football Club
     GeoJSON:
       type: object
       description: The base type for all possible GeoJSON objects.
@@ -2790,6 +2566,20 @@ components:
               minimum: 0
             estimated:
               $ref: '#/components/schemas/Estimated'
+        byteSize:
+          deprecated: true
+          type: object
+          readOnly: true
+          properties:
+            value:
+              type: integer
+              description: >-
+                The amount of bytes that are allocated in the storage for
+                this history.
+              format: int64
+              minimum: 0
+            estimated:
+              $ref: '#/components/schemas/Estimated'
         dataSize:
           type: object
           readOnly: true
@@ -2819,6 +2609,9 @@ components:
         type: HistoryStatisticsResponse
         count:
           value: 29208
+          estimated: true
+        byteSize:
+          value: 108364
           estimated: true
         dataSize:
           value: 108364
@@ -2930,21 +2723,6 @@ components:
           format: int64
           readOnly: true
           type: integer
-        revision:
-          description: >-
-            The revision number groups the feature modifications in the space history in which
-            this feature is part of.
-          example: 1
-          format: int64
-          readOnly: true
-          type: integer
-        author:
-          description: >-
-            The author who performed the modification in the Feature's revision pointed
-            by 'revision'.
-          example: anonymous
-          readOnly: true
-          type: string
     OnFeatureExists:
       type: string
       enum:
@@ -3097,26 +2875,21 @@ components:
           type: string
         storage:
           $ref: '#/components/schemas/SpaceStorage'
-        extends:
-          $ref: '#/components/schemas/Extension'
         client:
           $ref: '#/components/schemas/SpaceClient'
         enableUUID:
-          deprecated: true
           default: false
           description: >-
             Whether the uuid should be added to the response or not.
           example: true
           type: boolean
         enableHistory:
-          deprecated: true
           default: false
           description: >-
             Whether the feature's modification history should be saved.
           example: true
           type: boolean
         maxVersionCount:
-          deprecated: true
           default: 0
           description: >-
             Used to control how many versions should be kept in the history. -1 means infinite.
@@ -3205,16 +2978,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Connector'
-        revisionsToKeep:
-          default: 1
-          description: >-
-            Defines how many revisions will be kept, while older revisions may be purged. By default
-            this value will be set to 1. That means there will be only one (HEAD) state of the space
-            and no further revisions will be kept. If the value is bigger than 1, then older
-            revisions, up to the "revisionsToKeep" revision, can be retrieved by
-            e.g. ?revision=revision_number
-          example: 2
-          type: integer
       example:
         title: My Demo Space
         description: Description as markdown
@@ -3270,13 +3033,21 @@ components:
               type: integer
             estimated:
               $ref: '#/components/schemas/Estimated'
+        byteSize:
+          deprecated: true
+          type: object
+          description: The amount of bytes that are allocated in the storage for this space.
+          properties:
+            value:
+              type: integer
+            estimated:
+              $ref: '#/components/schemas/Estimated'
         dataSize:
           type: object
           description: The amount of bytes that are allocated in the storage for this space.
           properties:
             value:
               type: integer
-              format: int64
             estimated:
               $ref: '#/components/schemas/Estimated'
         bbox:
@@ -3354,6 +3125,9 @@ components:
         count:
           value: 29208
           estimated: true
+        byteSize:
+          value: 108364
+          estimated: true
         dataSize:
           value: 108364
           estimated: true
@@ -3428,50 +3202,3 @@ components:
           items:
             type: string
           type: array
-    Subscription:
-      type: object
-      description: A subscription object that contains notification information.
-      properties:
-        id:
-          description: >- 
-            The uniques identifier for the subscription.
-          type: string
-          example: my-subscription-id
-        source:
-          description: >-
-            The source for the subscribed notification (usually the space).
-          type: string
-        destination:
-          description: >-
-            The destination for the subscribed notification.
-          type: string
-        config:
-          $ref: '#/components/schemas/SubscriptionConfig'
-        status:
-          description: >-
-            The status of the subscription.
-          type: object
-          properties:
-            state:
-              description: The state of the subscription.
-              type: string
-              example: ACTIVE
-            stateReason:
-              description: "The reason for the current state."
-              type: string
-              example: ""
-    SubscriptionConfig:
-      type: object
-      description: The subscription configuration.
-      properties:
-        type:
-          description: >- 
-            The type of subscribed notification.
-          type: string
-          enum:
-            - PER_FEATURE
-            - PER_TRANSACTION
-            - CONTENT_CHANGE
-        params:
-          type: "object"
-          description: "The additional parameters of the subscription config"

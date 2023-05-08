@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest;
 
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByBBoxTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByGeometryTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByTileTask;
@@ -47,48 +47,48 @@ public class FeatureQueryApi extends SpaceBasedApi {
    */
   @Deprecated
   private void getFeaturesCount(final RoutingContext context) {
-    XyzHubTask.start(GetStatisticsTask.class, context, ApiResponseType.COUNT_RESPONSE);
+    NakshaTask.start(GetStatisticsTask.class, context, ApiResponseType.COUNT_RESPONSE);
   }
 
   /**
    * Retrieves the statistics about a space.
    */
   private void getStatistics(final RoutingContext context) {
-    XyzHubTask.start(GetStatisticsTask.class, context, ApiResponseType.STATISTICS_RESPONSE);
+    NakshaTask.start(GetStatisticsTask.class, context, ApiResponseType.STATISTICS_RESPONSE);
   }
 
   /**
    * Searches for features by tags.
    */
   private void searchForFeatures(final RoutingContext context) {
-    XyzHubTask.start(SearchForFeaturesTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    NakshaTask.start(SearchForFeaturesTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**
    * Iterate the content of the space.
    */
   private void iterateFeatures(final RoutingContext context) {
-    XyzHubTask.start(IterateFeaturesTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    NakshaTask.start(IterateFeaturesTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**
    * Retrieves the features by intersecting with the provided geometry.
    */
   private void getFeaturesBySpatial(final RoutingContext context) {
-    XyzHubTask.start(GetFeaturesByGeometryTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    NakshaTask.start(GetFeaturesByGeometryTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**
    * Retrieves the features in the bounding box.
    */
   private void getFeaturesByBBox(final RoutingContext context) {
-    XyzHubTask.start(GetFeaturesByBBoxTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    NakshaTask.start(GetFeaturesByBBoxTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**
    * Retrieves the features in a tile.
    */
   private void getFeaturesByTile(final RoutingContext context) {
-    XyzHubTask.start(GetFeaturesByTileTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    NakshaTask.start(GetFeaturesByTileTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 }

@@ -19,49 +19,14 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpHeaderValues.TEXT_PLAIN;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
-import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
-import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.XYZHubRESTVerticle;
-import com.here.xyz.hub.task.feature.AbstractFeatureTask;
-import com.here.xyz.hub.task.XyzHubTask;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.BinaryResponse;
-import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.HistoryStatisticsResponse;
-import com.here.xyz.responses.NotModifiedResponse;
-import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.responses.changesets.ChangesetCollection;
-import com.here.xyz.responses.changesets.CompactChangeset;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.vertx.core.MultiMap;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.HttpHeaders;
-import io.vertx.core.http.HttpServerResponse;
-import io.vertx.core.json.EncodeException;
-import io.vertx.core.json.Json;
-import io.vertx.core.json.jackson.DatabindCodec;
-import io.vertx.ext.web.RoutingContext;
-import java.io.ByteArrayOutputStream;
-import java.util.Collections;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

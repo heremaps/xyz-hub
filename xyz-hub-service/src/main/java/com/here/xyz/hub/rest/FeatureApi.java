@@ -28,7 +28,7 @@ import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.task.feature.ConditionalModifyFeaturesTask;
 import com.here.xyz.hub.task.feature.DeleteFeaturesByTagTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByIdTask;
@@ -81,14 +81,14 @@ public class FeatureApi extends SpaceBasedApi {
    * Retrieves a feature.
    */
   private void getFeature(final RoutingContext context) {
-    XyzHubTask.start(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE);
+    NakshaTask.start(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE);
   }
 
   /**
    * Retrieves multiple features by ID.
    */
   private void getFeatures(final RoutingContext context) {
-    XyzHubTask.start(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    NakshaTask.start(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**

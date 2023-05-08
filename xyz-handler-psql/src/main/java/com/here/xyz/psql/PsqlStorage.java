@@ -23,6 +23,7 @@ import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_MIXED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_REAL;
 import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.TaskLogger.currentLogger;
 import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT;
 import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
 import static com.here.xyz.events.space.ModifySpaceEvent.Operation.CREATE;
@@ -249,7 +250,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   @Override
   public @NotNull XyzResponse processHealthCheckEvent(@NotNull HealthCheckEvent event) {
     try {
-      currentTask().info("Received HealthCheckEvent, perform database maintenance");
+      currentLogger().info("Received HealthCheckEvent, perform database maintenance");
       //Naksha.setupH3(this.event.masterPool(), this.event.logId());
       // NakshaPsqlClient.maintain();
       return new HealthStatus();
@@ -267,14 +268,14 @@ public class PsqlStorage extends ExtendedEventHandler {
           .withError(EXCEPTION)
           .withErrorMessage("Unknown internal error.");
     } finally {
-      currentTask().info("Finished HealthCheckEvent");
+      currentLogger().info("Finished HealthCheckEvent");
     }
   }
 
   @Override
   public @NotNull XyzResponse processGetHistoryStatisticsEvent(@NotNull GetHistoryStatisticsEvent event) {
     try {
-      currentTask().info("Received HistoryStatisticsEvent");
+      currentLogger().info("Received HistoryStatisticsEvent");
       return executeQueryWithRetry(
           SQLQueryBuilder.buildGetStatisticsQuery(this, true),
           this::getHistoryStatisticsResultSetHandler,
@@ -282,7 +283,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished GetHistoryStatisticsEvent");
+      currentLogger().info("Finished GetHistoryStatisticsEvent");
     }
   }
 
@@ -290,7 +291,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processGetStatistics(@NotNull GetStatisticsEvent event)
       throws Exception {
     try {
-      currentTask().info("Received GetStatisticsEvent");
+      currentLogger().info("Received GetStatisticsEvent");
       return executeQueryWithRetry(
           SQLQueryBuilder.buildGetStatisticsQuery(this, false),
           this::getStatisticsResultSetHandler,
@@ -298,7 +299,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished GetStatisticsEvent");
+      currentLogger().info("Finished GetStatisticsEvent");
     }
   }
 
@@ -306,7 +307,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processGetFeaturesByIdEvent(@NotNull GetFeaturesByIdEvent event)
       throws Exception {
     try {
-      currentTask().info("Received GetFeaturesByIdEvent");
+      currentLogger().info("Received GetFeaturesByIdEvent");
       if (event.getIds() == null || event.getIds().size() == 0) {
         return new FeatureCollection();
       }
@@ -315,7 +316,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished GetFeaturesByIdEvent");
+      currentLogger().info("Finished GetFeaturesByIdEvent");
     }
   }
 
@@ -323,12 +324,12 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processGetFeaturesByGeometryEvent(
       @NotNull GetFeaturesByGeometryEvent event) throws Exception {
     try {
-      currentTask().info("Received GetFeaturesByGeometryEvent");
+      currentLogger().info("Received GetFeaturesByGeometryEvent");
       return new GetFeaturesByGeometry(event, this).run();
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished GetFeaturesByGeometryEvent");
+      currentLogger().info("Finished GetFeaturesByGeometryEvent");
     }
   }
 
@@ -373,7 +374,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processGetFeaturesByBBoxEvent(
       @NotNull GetFeaturesByBBoxEvent event) throws Exception {
     try {
-      currentTask().info("Received {}", event.getClass().getSimpleName());
+      currentLogger().info("Received {}", event.getClass().getSimpleName());
 
       final BBox bbox = event.getBbox();
 
@@ -573,7 +574,7 @@ public class PsqlStorage extends ExtendedEventHandler {
         SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished : {}", event.getClass().getSimpleName());
+      currentLogger().info("Finished : {}", event.getClass().getSimpleName());
     }
   }
 
@@ -627,7 +628,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processIterateFeaturesEvent(@NotNull IterateFeaturesEvent event)
       throws Exception {
     try {
-      currentTask().info("Received : {}", event.getClass().getSimpleName());
+      currentLogger().info("Received : {}", event.getClass().getSimpleName());
       checkCanSearchFor(event);
 
       if (isOrderByEvent(event)) {
@@ -641,7 +642,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished {}", event.getClass().getSimpleName());
+      currentLogger().info("Finished {}", event.getClass().getSimpleName());
     }
   }
 
@@ -660,7 +661,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processSearchForFeaturesEvent(
       @NotNull SearchForFeaturesEvent event) throws Exception {
     try {
-      currentTask().info("Received {}", event.getClass().getSimpleName());
+      currentLogger().info("Received {}", event.getClass().getSimpleName());
       checkCanSearchFor(event);
 
       // For testing purposes.
@@ -680,7 +681,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished {}", event.getClass().getSimpleName());
+      currentLogger().info("Finished {}", event.getClass().getSimpleName());
     }
   }
 
@@ -698,7 +699,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processDeleteFeaturesByTagEvent(
       @NotNull DeleteFeaturesByTagEvent event) throws Exception {
     try {
-      currentTask().info("Received DeleteFeaturesByTagEvent");
+      currentLogger().info("Received DeleteFeaturesByTagEvent");
       if (isReadOnly()) {
         return new ErrorResponse()
             .withStreamId(streamId())
@@ -709,7 +710,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished DeleteFeaturesByTagEvent");
+      currentLogger().info("Finished DeleteFeaturesByTagEvent");
     }
   }
 
@@ -717,7 +718,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processLoadFeaturesEvent(@NotNull LoadFeaturesEvent event)
       throws Exception {
     try {
-      currentTask().info("Received LoadFeaturesEvent");
+      currentLogger().info("Received LoadFeaturesEvent");
       if (event.getIdsMap() == null || event.getIdsMap().size() == 0) {
         return new FeatureCollection();
       }
@@ -726,7 +727,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished LoadFeaturesEvent");
+      currentLogger().info("Finished LoadFeaturesEvent");
     }
   }
 
@@ -734,7 +735,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processModifyFeaturesEvent(@NotNull ModifyFeaturesEvent event)
       throws Exception {
     try {
-      currentTask().info("Received ModifyFeaturesEvent");
+      currentLogger().info("Received ModifyFeaturesEvent");
       if (isReadOnly()) {
         return new ErrorResponse()
             .withStreamId(streamId())
@@ -765,7 +766,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished ModifyFeaturesEvent");
+      currentLogger().info("Finished ModifyFeaturesEvent");
     }
   }
 
@@ -773,7 +774,7 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processModifySpaceEvent(@NotNull ModifySpaceEvent event)
       throws Exception {
     try {
-      currentTask().info("Received ModifySpaceEvent");
+      currentLogger().info("Received ModifySpaceEvent");
 
       if (connectorParams().isIgnoreCreateMse()) {
         return new SuccessResponse().withStatus("OK");
@@ -782,7 +783,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished ModifySpaceEvent");
+      currentLogger().info("Finished ModifySpaceEvent");
     }
   }
 
@@ -790,13 +791,13 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processModifySubscriptionEvent(
       @NotNull ModifySubscriptionEvent event) throws Exception {
     try {
-      currentTask().info("Received ModifySpaceEvent");
+      currentLogger().info("Received ModifySpaceEvent");
       this.validateModifySubscriptionEvent(event);
       return executeModifySubscription(event);
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished ModifySpaceEvent");
+      currentLogger().info("Finished ModifySpaceEvent");
     }
   }
 
@@ -816,13 +817,13 @@ public class PsqlStorage extends ExtendedEventHandler {
 
   @Override
   public @NotNull XyzResponse processIterateHistoryEvent(@NotNull IterateHistoryEvent event) {
-    currentTask().info("Received IterateHistoryEvent");
+    currentLogger().info("Received IterateHistoryEvent");
     try {
       return executeIterateHistory(event);
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished IterateHistoryEvent");
+      currentLogger().info("Finished IterateHistoryEvent");
     }
   }
 
@@ -830,12 +831,12 @@ public class PsqlStorage extends ExtendedEventHandler {
   public @NotNull XyzResponse processGetStorageStatisticsEvent(
       @NotNull GetStorageStatisticsEvent event) throws Exception {
     try {
-      currentTask().info("Received {}", event.getClass().getSimpleName());
+      currentLogger().info("Received {}", event.getClass().getSimpleName());
       return new GetStorageStatistics(event, this).run();
     } catch (SQLException e) {
       return checkSQLException(e);
     } finally {
-      currentTask().info("Finished {}", event.getClass().getSimpleName());
+      currentLogger().info("Finished {}", event.getClass().getSimpleName());
     }
   }
 
@@ -1044,12 +1045,12 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (Exception e) {
       try {
         if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-          currentTask().info("Retry Query permitted.");
+          currentLogger().info("Retry Query permitted.");
           return executeQuery(query, handler, useReadReplica ? readDataSource() : masterDataSource());
         }
       } catch (Exception e1) {
         if (retryCausedOnServerlessDB(e1)) {
-          currentTask().info("Retry Query permitted.");
+          currentLogger().info("Retry Query permitted.");
           return executeQuery(query, handler, useReadReplica ? readDataSource() : masterDataSource());
         }
         throw e;
@@ -1064,12 +1065,12 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (Exception e) {
       try {
         if (retryCausedOnServerlessDB(e) || canRetryAttempt()) {
-          currentTask().info("Retry Update permitted.");
+          currentLogger().info("Retry Update permitted.");
           return executeUpdate(query);
         }
       } catch (Exception e1) {
         if (retryCausedOnServerlessDB(e)) {
-          currentTask().info("Retry Update permitted.");
+          currentLogger().info("Retry Update permitted.");
           return executeUpdate(query);
         }
         throw e;
@@ -1094,7 +1095,7 @@ public class PsqlStorage extends ExtendedEventHandler {
         return false;
       }
       if (!retryAttempted) {
-        currentTask().warn("Retry based on serverless scaling detected! RemainingTime: {} {}", remainingSeconds, e);
+        currentLogger().warn("Retry based on serverless scaling detected! RemainingTime: {} {}", remainingSeconds, e);
         return true;
       }
     }
@@ -1119,10 +1120,10 @@ public class PsqlStorage extends ExtendedEventHandler {
       query.setText(SQLQuery.replaceVars(query.text(), spaceSchema(), spaceTable()));
       final String queryText = query.text();
       final List<Object> queryParameters = query.parameters();
-      currentTask().debug("executeQuery: {} - Parameter: {}", queryText, queryParameters);
+      currentLogger().debug("executeQuery: {} - Parameter: {}", queryText, queryParameters);
       return run.query(queryText, handler, queryParameters.toArray());
     } finally {
-      currentTask().info("query time: {}ms", NanoTime.timeSince(start, TimeUnit.MICROSECONDS));
+      currentLogger().info("query time: {}ms", NanoTime.timeSince(start, TimeUnit.MICROSECONDS));
     }
   }
 
@@ -1144,10 +1145,10 @@ public class PsqlStorage extends ExtendedEventHandler {
       query.setText(SQLQuery.replaceVars(query.text(), spaceSchema(), spaceTable()));
       final String queryText = query.text();
       final List<Object> queryParameters = query.parameters();
-      currentTask().debug("executeUpdate: {} - Parameter: {}", queryText, queryParameters);
+      currentLogger().debug("executeUpdate: {} - Parameter: {}", queryText, queryParameters);
       return run.update(queryText, queryParameters.toArray());
     } finally {
-      currentTask().info("query time: {}ms", NanoTime.timeSince(start, TimeUnit.MILLISECONDS));
+      currentLogger().info("query time: {}ms", NanoTime.timeSince(start, TimeUnit.MILLISECONDS));
     }
   }
 
@@ -1554,7 +1555,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     ensureSpace();
     retryAttempted = true;
 
-    currentTask().info("Retry the execution.");
+    currentLogger().info("Retry the execution.");
     return true;
   }
 
@@ -1577,7 +1578,7 @@ public class PsqlStorage extends ExtendedEventHandler {
 
       stmt.setQueryTimeout(calculateTimeout());
       if ((rs = stmt.executeQuery(query)).next()) {
-        currentTask().debug("Time for table check: {}ms", NanoTime.timeSince(start, TimeUnit.MILLISECONDS));
+        currentLogger().debug("Time for table check: {}ms", NanoTime.timeSince(start, TimeUnit.MILLISECONDS));
         String oid = rs.getString(1);
         return oid != null;
       }
@@ -1585,7 +1586,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     } catch (Exception e) {
       if (!retryAttempted) {
         retryAttempted = true;
-        currentTask().info("Retry table check.");
+        currentLogger().info("Retry table check.");
         return hasTable();
       } else {
         throw e;
@@ -1648,10 +1649,10 @@ public class PsqlStorage extends ExtendedEventHandler {
           stmt.setQueryTimeout(calculateTimeout());
           stmt.executeBatch();
           connection.commit();
-          currentTask().debug("Successfully created table '{}' for space id '{}'", tableName, spaceId());
+          currentLogger().debug("Successfully created table '{}' for space id '{}'", tableName, spaceId());
         }
       } catch (Exception e) {
-        currentTask().error("Failed to create table '{}' for space id: '{}': {}", tableName, spaceId(), e);
+        currentLogger().error("Failed to create table '{}' for space id: '{}': {}", tableName, spaceId(), e);
         connection.rollback();
         // check if the table was created in the meantime, by another instance.
         if (hasTable()) {
@@ -1839,7 +1840,7 @@ public class PsqlStorage extends ExtendedEventHandler {
           stmt.setQueryTimeout(calculateTimeout());
           stmt.executeBatch();
           connection.commit();
-          currentTask().debug("Successfully created history table '{}' for space id '{}'", tableName, spaceId());
+          currentLogger().debug("Successfully created history table '{}' for space id '{}'", tableName, spaceId());
         }
       } catch (Exception e) {
         throw new SQLException("Creation of history table has failed: " + tableName, e);
@@ -2049,7 +2050,7 @@ public class PsqlStorage extends ExtendedEventHandler {
       try {
         feature = new ObjectMapper().readValue(rs.getString("Feature"), Feature.class);
       } catch (JsonProcessingException e) {
-        currentTask().error("Error in compactHistoryResultSetHandler for space id '{}': {}", spaceId(), e);
+        currentLogger().error("Error in compactHistoryResultSetHandler for space id '{}': {}", spaceId(), e);
         throw new SQLException("Cant read json from database!");
       }
 
@@ -2126,7 +2127,7 @@ public class PsqlStorage extends ExtendedEventHandler {
       try {
         feature = new ObjectMapper().readValue(rs.getString("Feature"), Feature.class);
       } catch (JsonProcessingException e) {
-        currentTask().error("Error in historyResultSetHandler for space id '{}': {}", spaceId(), e);
+        currentLogger().error("Error in historyResultSetHandler for space id '{}': {}", spaceId(), e);
         throw new SQLException("Cant read json from database!");
       }
 

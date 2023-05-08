@@ -63,7 +63,7 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ICallback;
 import com.here.xyz.hub.task.ModifyFeatureOp;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.task.feature.TileQuery.TransformationContext;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.task.ModifyOp.Entry;
@@ -172,7 +172,7 @@ public class FeatureTaskHandler {
      * NOTE: The event may only be consumed once. Once it was consumed it should only be referenced in the request-phase. Referencing it in the
      *     response-phase will keep the whole event-data in the memory and could cause many major GCs to because of large request-payloads.
      *
-     * @see XyzHubTask#consumeEvent()
+     * @see NakshaTask#consumeEvent()
      */
     Event event = task.consumeEvent();
 

@@ -1,6 +1,7 @@
 package com.here.mapcreator.ext.naksha;
 
 import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.TaskLogger.currentLogger;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.zaxxer.hikari.HikariConfig;
@@ -67,7 +68,7 @@ public final class PsqlPool implements AutoCloseable {
       if (pool == null) {
         Thread.currentThread().getUncaughtExceptionHandler();
         cache.remove(config, poolRef);
-        currentTask().info("Remove garbage collected connection pool {}", config);
+        currentLogger().info("Remove garbage collected connection pool {}", config);
       }
     }
   }

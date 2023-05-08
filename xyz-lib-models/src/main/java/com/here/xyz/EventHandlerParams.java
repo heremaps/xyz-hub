@@ -1,7 +1,9 @@
 package com.here.xyz;
 
-import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.util.IoHelp.asString;
+import static com.here.xyz.util.IoHelp.format;
 
+import com.here.xyz.util.IoHelp;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -84,37 +86,16 @@ public abstract class EventHandlerParams {
       @Nullable T defaultValue
   ) throws NullPointerException {
     final Object value = connectorParams.get(parameter);
-    if (value == null) {
-      if (defaultValue == null) {
-        throw new NullPointerException(parameter);
+    try {
+      final T result = IoHelp.parseNullableValue(value, type, defaultValue, false);
+      if (result == null) {
+        throw new NullPointerException("Parameter " + parameter + " is null");
       }
-      return defaultValue;
+      return result;
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          format("Cannot set value %s=%s. Load default '%s'", parameter, asString(value), asString(defaultValue)));
     }
-    if (value.getClass() == type) {
-      return type.cast(value);
-    }
-
-    if (value instanceof Number) {
-      if (type == Byte.class) {
-        return (T) Byte.valueOf((((Number) value).byteValue()));
-      } else if (type == Short.class) {
-        return (T) Short.valueOf((((Number) value).shortValue()));
-      } else if (type == Integer.class) {
-        return (T) Integer.valueOf((((Number) value).intValue()));
-      } else if (type == Long.class) {
-        return (T) Long.valueOf((((Number) value).longValue()));
-      } else if (type == Float.class) {
-        return (T) Float.valueOf((((Number) value).floatValue()));
-      } else if (type == Double.class) {
-        return (T) Double.valueOf((((Number) value).doubleValue()));
-      }
-    }
-
-    currentTask().info("Cannot set value {}={}. Load default '{}'", parameter, value, defaultValue);
-    if (defaultValue == null) {
-      throw new IllegalArgumentException(parameter);
-    }
-    return defaultValue;
   }
 
 }

@@ -32,9 +32,9 @@ import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 
-public class XyzAuthProvider extends JWTAuthProviderImpl {
+public class NakshaAuthProvider extends JWTAuthProviderImpl {
 
-  public XyzAuthProvider(Vertx vertx, JWTAuthOptions config) {
+  public NakshaAuthProvider(Vertx vertx, JWTAuthOptions config) {
     super(vertx, config);
   }
 

@@ -23,9 +23,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.BYTES;
 import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.MILLISECONDS;
 
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.connectors.HTTPFunctionClient.HttpFunctionRegistry;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric.AggregatedValues;
 import com.here.xyz.hub.util.metrics.base.AttributedMetricCollection;
@@ -33,15 +31,10 @@ import com.here.xyz.hub.util.metrics.base.AttributedMetricCollection.Attribute;
 import com.here.xyz.hub.util.metrics.base.CWAggregatedValuesPublisher;
 import com.here.xyz.hub.util.metrics.base.CWAttributedMetricCollectionPublisher;
 import com.here.xyz.hub.util.metrics.base.MetricPublisher;
-import io.vertx.core.VertxOptions;
-import io.vertx.core.http.HttpClientOptions;
-import io.vertx.core.net.NetClientOptions;
 import io.vertx.core.net.SocketAddress;
-import io.vertx.core.spi.VertxMetricsFactory;
 import io.vertx.core.spi.metrics.ClientMetrics;
 import io.vertx.core.spi.metrics.HttpClientMetrics;
 import io.vertx.core.spi.metrics.TCPMetrics;
-import io.vertx.core.spi.metrics.VertxMetrics;
 import io.vertx.core.spi.observability.HttpRequest;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -77,32 +70,7 @@ public class ConnectionMetrics {
   private static int REDIS_PORT;
   private static List remoteHubHosts = new ArrayList();
 
-  public static void initialize() {
-    try {
-      URI redisUri = new URI(Service.configuration.getRedisUri());
-      REDIS_HOST = redisUri.getHost();
-      REDIS_PORT = redisUri.getPort();
-      if (REDIS_PORT == -1) REDIS_PORT = 6379; //Default redis port if none given
-    }
-    catch (Exception e) {
-      REDIS_PORT = 0;
-    }
-    try {
-      if (Service.configuration.getHubRemoteServiceUrls() != null) {
-        remoteHubHosts = Service.configuration.getHubRemoteServiceUrls().stream().map(url -> {
-          try {
-            return new URL(url).getHost();
-          }
-          catch (MalformedURLException e) {
-            return null;
-          }
-        }).filter(host -> host != null).collect(Collectors.toList());
-      }
-    }
-    catch (Exception e) {
-      //ignore
-    }
-  }
+  public static void initialize() {}
 
   private static void aggregate(String target, Map<String, AggregatingMetric> metricsMap,
       AttributedMetricCollection<AggregatedValues> metricCollection, double valueToAggregate) {
@@ -432,29 +400,4 @@ public class ConnectionMetrics {
     }
   }
 
-  public static class HubMetrics implements VertxMetrics {
-
-    @Override
-    public HttpClientMetrics<?, ?, ?, ?> createHttpClientMetrics(HttpClientOptions options) {
-      return new HubHttpClientMetrics();
-    }
-
-    @Override
-    public ClientMetrics<?, ?, ?, ?> createClientMetrics(SocketAddress remoteAddress, String type, String namespace) {
-      return null;
-    }
-
-    @Override
-    public TCPMetrics<?> createNetClientMetrics(NetClientOptions options) {
-      return new HubTCPMetrics();
-    }
-  }
-
-  public static class HubMetricsFactory implements VertxMetricsFactory {
-
-    @Override
-    public VertxMetrics metrics(VertxOptions options) {
-      return new HubMetrics();
-    }
-  }
 }

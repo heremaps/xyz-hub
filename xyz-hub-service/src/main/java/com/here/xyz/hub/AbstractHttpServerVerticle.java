@@ -45,10 +45,7 @@ import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.google.common.base.Strings;
-import com.here.xyz.hub.rest.Context;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.feature.AbstractFeatureTask;
-import com.here.xyz.hub.task.TaskPipelineCancelled;
 import com.here.xyz.hub.util.logging.LogUtil;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
@@ -91,7 +88,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
 
   private static final Logger logger = LogManager.getLogger();
   /**
-   * The methods the client is allowed to use.
+   * The methods the client allowed to use.
    */
   private final List<HttpMethod> allowMethods = Arrays.asList(OPTIONS, GET, POST, PUT, DELETE, PATCH);
 
@@ -101,7 +98,7 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
   private final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, STREAM_INFO, ETAG);
 
   /**
-   * The headers the client is allowed to send.
+   * The headers the client allowed to send.
    */
   private final List<CharSequence> allowHeaders = Arrays.asList(
       AUTHORIZATION, CONTENT_TYPE, USER_AGENT, IF_MODIFIED_SINCE, IF_NONE_MATCH, CACHE_CONTROL, STREAM_ID

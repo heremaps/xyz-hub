@@ -12,6 +12,7 @@ import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.IoHelp;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import org.junit.jupiter.api.BeforeAll;
@@ -35,7 +36,7 @@ class HttpHandlerTest {
   void test_GetFeaturesById() throws IOException {
     final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent();
     final ByteArrayOutputStream out = new ByteArrayOutputStream();
-    eventPipeline.sendEvent(IoEventPipeline.openResource("testevent.json"), out);
+    eventPipeline.sendEvent(IoHelp.openResource("testevent.json"), out);
     final XyzResponse response = XyzSerializable.deserialize(out.toByteArray(), XyzResponse.class);
     assertNotNull(response);
     assertInstanceOf(ErrorResponse.class, response);

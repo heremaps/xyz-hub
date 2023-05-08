@@ -1,5 +1,6 @@
 package com.here.xyz.util;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -13,8 +14,10 @@ import java.nio.file.Paths;
 import java.util.jar.JarFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A file that is read either from disk or resources.
@@ -22,40 +25,42 @@ import javax.annotation.Nullable;
  * @param <SELF> this type.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
+@SuppressWarnings("unchecked")
 public abstract class FileOrResource<SELF extends FileOrResource<SELF>> {
 
-  protected FileOrResource(@Nonnull String filename) {
+  /**
+   * The SLF4j logger.
+   */
+  protected static Logger logger = LoggerFactory.getLogger(FileOrResource.class);
+
+  protected FileOrResource(@NotNull String filename) {
     this(filename, null);
   }
 
-  protected FileOrResource(@Nonnull String filename, @Nullable String searchPath) {
+  protected FileOrResource(@NotNull String filename, @Nullable String searchPath) {
     this.filename = filename;
     this.searchPath = searchPath;
   }
 
-  protected String filename;
-  protected String searchPath;
+  @JsonIgnore
+  protected @NotNull String filename;
+  @JsonIgnore
+  protected @Nullable String searchPath;
 
-  @Nullable
-  public String searchPath() {
+  public @Nullable String searchPath() {
     return searchPath;
   }
 
-  @Nonnull
-  @SuppressWarnings("unchecked")
   public SELF withSearchPath(@Nullable String searchPath) {
     this.searchPath = searchPath;
     return (SELF) this;
   }
 
-  @Nonnull
-  public String filename() {
+  public @NotNull String filename() {
     return filename;
   }
 
-  @SuppressWarnings("unchecked")
-  @Nonnull
-  public SELF withFilename(@Nonnull String filename) {
+  public @NotNull SELF withFilename(@NotNull String filename) {
     final char firstChar = filename.charAt(0);
     if (firstChar != '/' && firstChar != '\\') {
       this.filename = '/' + filename;
@@ -65,13 +70,11 @@ public abstract class FileOrResource<SELF extends FileOrResource<SELF>> {
     return (SELF) this;
   }
 
-  @Nonnull
-  public InputStream open() throws NullPointerException, IOException {
+  public @NotNull InputStream open() throws NullPointerException, IOException {
     return open(searchPath());
   }
 
-  @Nonnull
-  public InputStream open(@Nullable String searchPath) throws NullPointerException, IOException {
+  public @NotNull InputStream open(@Nullable String searchPath) throws NullPointerException, IOException {
     String filePath = null;
     try {
       final Path path = (searchPath != null ? Paths.get(searchPath, filename) : Paths.get(filename)).toAbsolutePath();
@@ -90,7 +93,7 @@ public abstract class FileOrResource<SELF extends FileOrResource<SELF>> {
         filePath = url != null ? url.getPath() : null;
       }
     } catch (final Throwable t) {
-      error("Exception while opening file: " + filename, t);
+      logger.error("Exception while opening file: {}", filename, t);
     }
 
     if (filePath != null) {
@@ -103,7 +106,7 @@ public abstract class FileOrResource<SELF extends FileOrResource<SELF>> {
           if (filePath.startsWith("/")) {
             filePath = filePath.substring(1);
           }
-          info("Load file from JAR, jar-path: " + jarPath + ", file-path: " + filePath);
+          logger.info("Load file from JAR, jar-path: {}, file-path: {}", jarPath, filePath);
           //noinspection resource
           final JarFile jarFile = new JarFile(new File(jarPath), false, ZipFile.OPEN_READ);
           final ZipEntry entry = jarFile.getEntry(filePath);
@@ -115,20 +118,20 @@ public abstract class FileOrResource<SELF extends FileOrResource<SELF>> {
           }
           in = jarFile.getInputStream(entry);
         } else {
-          info("Load file from disk: " + filePath);
+          logger.info("Load file from disk: {}", filePath);
           in = Files.newInputStream(new File(filePath).toPath());
         }
         return in;
       } catch (IOException e) {
         throw e;
       } catch (Throwable t) {
-        error("Exception while opening file: " + filename, t);
+        logger.error("Exception while opening file: {}", filename, t);
       }
     }
     throw new FileNotFoundException("Failed to find file: " + filename);
   }
 
-  public static byte[] readAllBytes(final @Nonnull InputStream in) throws IOException {
+  public static byte @NotNull[] readAllBytes(final @NotNull InputStream in) throws IOException {
     final ByteArrayOutputStream out = new ByteArrayOutputStream();
     final byte[] buffer = new byte[1024];
     int read;
@@ -139,26 +142,9 @@ public abstract class FileOrResource<SELF extends FileOrResource<SELF>> {
     return out.toByteArray();
   }
 
-  public byte[] readAllBytes() throws IOException {
+  public byte @NotNull[] readAllBytes() throws IOException {
     try (final InputStream in = open()) {
       return readAllBytes(in);
     }
-  }
-
-  /**
-   * A method that can be overridden to send information to a logger.
-   *
-   * @param message the message to log as information.
-   */
-  protected void info(String message) {
-  }
-
-  /**
-   * A method that can be overridden to send errors to a logger.
-   *
-   * @param message the message to log.
-   * @param cause   the cause.
-   */
-  protected void error(String message, Throwable cause) {
   }
 }

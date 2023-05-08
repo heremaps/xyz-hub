@@ -26,13 +26,12 @@ import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.task.connector.ConnectorHandler;
-import com.here.xyz.hub.task.XyzHubTask;
+import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.task.connector.GetConnectorsByIdTask;
 import com.here.xyz.hub.util.diff.Difference;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -54,21 +53,12 @@ public class ConnectorApi extends Api {
     rb.operation("deleteConnector").handler(this::deleteConnector);
   }
 
-  private JsonObject getInput(final RoutingContext context) throws HttpException {
-    try {
-      return context.getBodyAsJson();
-    }
-    catch (DecodeException e) {
-      throw new HttpException(BAD_REQUEST, "Invalid JSON string");
-    }
-  }
-
   private void getConnector(final RoutingContext routingContext) {
-    XyzHubTask.start(GetConnectorsByIdTask.class, routingContext, ApiResponseType.FEATURE);
+    NakshaTask.start(GetConnectorsByIdTask.class, routingContext, ApiResponseType.FEATURE);
   }
 
   private void getConnectors(final RoutingContext routingContext) {
-    XyzHubTask.start(GetConnectorsByIdTask.class, routingContext, ApiResponseType.FEATURE_COLLECTION);
+    NakshaTask.start(GetConnectorsByIdTask.class, routingContext, ApiResponseType.FEATURE_COLLECTION);
   }
 
   private void createConnector(final RoutingContext context) {

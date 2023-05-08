@@ -1,6 +1,7 @@
 package com.here.xyz;
 
 import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.TaskLogger.currentLogger;
 
 import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -173,7 +174,7 @@ public class EventPipeline implements IEventContext {
     try {
       response = sendUpstream(event);
     } catch (Throwable t) {
-      context.error("Uncaught exception in event pipeline", t);
+      context.logger.error("Uncaught exception in event pipeline", t);
       response = new ErrorResponse()
           .withStreamId(event.getStreamId())
           .withError(XyzError.EXCEPTION)
@@ -185,7 +186,7 @@ public class EventPipeline implements IEventContext {
         callback.accept(response);
       }
     } catch (Throwable t) {
-      context.error("Uncaught exception in event pipeline callback", t);
+      context.logger.error("Uncaught exception in event pipeline callback", t);
     } finally {
       callback = null;
       this.event = null;
@@ -216,13 +217,13 @@ public class EventPipeline implements IEventContext {
     final IEventHandler handler = this.pipeline[next];
     next++;
     if (handler == null) {
-      currentTask().error("Pipeline handler[{}] is null, skip it", next - 1, new NullPointerException());
+      currentLogger().error("Pipeline handler[{}] is null, skip it", next - 1, new NullPointerException());
       return sendUpstream(event);
     }
     try {
       return handler.processEvent(this);
     } catch (XyzErrorException e) {
-      currentTask().info("Event processing failed at handler #{}", next - 1, e);
+      currentLogger().info("Event processing failed at handler #{}", next - 1, e);
       return e.toErrorResponse(event.getStreamId());
     }
   }
@@ -234,7 +235,7 @@ public class EventPipeline implements IEventContext {
    * @return an unimplemented error response.
    */
   private @NotNull XyzResponse pipelineEnd(@NotNull IEventContext eventContext) {
-    currentTask().info("End of pipeline reached and no handle created a response", new NullPointerException());
+    currentLogger().info("End of pipeline reached and no handle created a response", new NullPointerException());
     return notImplemented();
   }
 
