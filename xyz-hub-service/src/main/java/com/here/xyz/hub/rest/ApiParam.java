@@ -80,7 +80,7 @@ public class ApiParam {
 
   private static String getConvertedKey(String rawKey) {
     if (rawKey.startsWith("p.")) {
-      return rawKey.replace("p.", "properties.");
+      return rawKey.replaceFirst("p.", "properties.");
     }
     Map<String, String> keyReplacements = new HashMap<String, String>() {{
       put("f.id", "id");
