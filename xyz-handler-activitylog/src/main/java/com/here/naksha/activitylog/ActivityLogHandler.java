@@ -66,6 +66,7 @@ public class ActivityLogHandler extends EventHandler {
   }
 
   protected void fromActivityLogFormat(@NotNull Feature activityLogFeature) {
+    String originalId = activityLogFeature.getId();
     // TODO:
     //     - Remove "@ns:com:here:xyz:log"
     //     - Change "id" back to saved id

@@ -11,12 +11,17 @@ import org.jetbrains.annotations.Nullable;
 class ActivityLogParams extends EventHandlerParams {
 
   ActivityLogParams(@NotNull Map<@NotNull String, @Nullable Object> params) {
-    foo = parseOptionalValue(params, "foo", String.class);
-    value = parseValueWithDefault(params, "value", 5L);
+    //param1 - storage_mode can have DIFF_ONLY or FULL or FEATURE_ONLY. Default will be FULL
+    storage_mode = parseValueWithDefault(params, "storage_mode", "FULL");
+    //param2 - (Optional) Keeps a maximum of x states per object (x > 0).
+    states = parseValueWithDefault(params, "states", 1);
+    //param3 - (Optional) Write and update the invalidateAt timestamp. If set to false, this can reduce space requests.
+    writeInvalidatedAt = parseValueWithDefault(params, "writeInvalidatedAt", false);
   }
 
-  final @Nullable String foo;
-  final long value;
+  final String storage_mode;
+  final int states;
+  final boolean writeInvalidatedAt;
 }
 /*
 
@@ -24,7 +29,8 @@ class ActivityLogParams extends EventHandlerParams {
   {
     "eventHandler": "activityLog" // -> com.here.naksha.activitylog.ActivityLogHandler
     "params": {
-      "foo": "Hello"
+      "storage_mode": "DIFF_ONLY",
+      "states":5
     }
   }
 

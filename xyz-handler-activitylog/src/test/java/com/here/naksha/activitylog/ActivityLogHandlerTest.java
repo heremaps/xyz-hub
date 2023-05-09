@@ -1,22 +1,27 @@
 package com.here.naksha.activitylog;
 
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.exceptions.XyzErrorException;
+import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.IoHelp;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 class ActivityLogHandlerTest {
 
@@ -43,5 +48,15 @@ class ActivityLogHandlerTest {
     assertInstanceOf(ErrorResponse.class, response);
     final ErrorResponse errorResponse = (ErrorResponse) response;
     assertSame(XyzError.NOT_IMPLEMENTED, errorResponse.getError());
+  }
+
+  @Test
+  void test_fromActivityLog() throws IOException {
+    Feature feature;
+    ObjectMapper mapper=new ObjectMapper();
+    File file=new File(ActivityLogHandler.class.getClassLoader().getResource("activity_log_feature.json").getFile());
+    byte[] encode= Files.readAllBytes(Paths.get(file.getPath()));
+    feature=mapper.readValue(new String(encode, StandardCharsets.US_ASCII),Feature.class);
+    activityLogHandler.fromActivityLogFormat(feature);
   }
 }
