@@ -31,7 +31,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.NanoTime;
 import com.here.xyz.Payload;
-import com.here.xyz.TaskLogger;
+import com.here.xyz.XyzLogger;
 import com.here.xyz.events.admin.ModifySubscriptionEvent;
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
@@ -332,7 +332,7 @@ public abstract class Event extends Payload {
         return (String) raw;
       }
     }
-    TaskLogger.currentLogger().debug("Missing 'connectorParams.connectorId' in event");
+    XyzLogger.currentLogger().debug("Missing 'connectorParams.connectorId' in event");
     return getClass().getName();
   }
 
@@ -350,7 +350,7 @@ public abstract class Event extends Payload {
         return ((Number) raw).longValue();
       }
     }
-    TaskLogger.currentLogger().debug("Missing 'connectorParams.connectorNumber' in event");
+    XyzLogger.currentLogger().debug("Missing 'connectorParams.connectorNumber' in event");
     return 0L;
   }
 

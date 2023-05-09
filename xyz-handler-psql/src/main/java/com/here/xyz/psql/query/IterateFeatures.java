@@ -20,6 +20,7 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.XyzLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -323,7 +324,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
       return false;
     } catch (Exception e) {
       // In cases where something with the check went wrong, allow the sort.
-      currentTask().error("Unexpected exception in canSortBy({}, ...)", sort, e);
+      currentLogger().error("Unexpected exception in canSortBy({}, ...)", sort, e);
       return true;
     }
   }

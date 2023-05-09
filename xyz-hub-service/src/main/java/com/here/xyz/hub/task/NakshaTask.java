@@ -26,6 +26,8 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.here.xyz.AbstractTask;
+import com.here.xyz.NanoTime;
+import com.here.xyz.XyzLogger;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.LoadFeaturesEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
@@ -73,7 +75,7 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
   /**
    * The key used in the routing context to attach a task to a routing context.
    */
-  public static final String NAKSHA_ROUTING_CONTEXT_KEY = "nakshaTask";
+  private static final String NAKSHA_ROUTING_CONTEXT = "nakshaTask";
 
   /**
    * Tries to return the Naksha task bound to the given routing context.
@@ -81,13 +83,32 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
    * @param routingContext The routing context to query.
    * @return The Naksha task attached or {@code null}, if no Naksha tasks attached.
    */
-  public static @Nullable NakshaTask<?> getFromRoutingContext(@NotNull RoutingContext routingContext) {
-    final Object raw = routingContext.get(NAKSHA_ROUTING_CONTEXT_KEY);
+  public static @Nullable NakshaTask<?> ofRoutingContext(@NotNull RoutingContext routingContext) {
+    final Object raw = routingContext.get(NAKSHA_ROUTING_CONTEXT);
     //noinspection rawtypes
     return raw instanceof NakshaTask task ? task : null;
   }
 
+  /**
+   * Returns the logger for the given routing context.
+   *
+   * @param routingContext The routing context; if any.
+   * @return The logger.
+   */
+  public static @NotNull XyzLogger currentLogger(@Nullable RoutingContext routingContext) {
+    if (routingContext != null) {
+      final NakshaTask<?> task = NakshaTask.ofRoutingContext(routingContext);
+      if (task != null) {
+        return task.logger();
+      }
+      return XyzLogger.currentLogger().with(getStreamId(routingContext), getStartNanos(routingContext));
+    }
+    // Note: This method will check if a task bound to the current thread and return the correct streamId.
+    return XyzLogger.currentLogger();
+  }
+
   private static final String NAKSHA_STREAM_ID = "nakshaStreamId";
+  private static final String NAKSHA_START_NANOS = "nakshaStartNanos";
   private static final String STREAM_ID_PATTERN_TEXT = "^[a-zA-Z0-9_-]{10,32}$";
   private static final Pattern STREAM_ID_PATTERN = Pattern.compile(STREAM_ID_PATTERN_TEXT);
   private static final Pattern IF_NONE_MATCH_PATTERN = Pattern.compile("^[a-zA-Z0-9/_-]{10,}$");
@@ -133,14 +154,6 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
     super(streamId);
     this.event = createEvent();
     this.requestMatrix = new XyzHubActionMatrix();
-    this.logger = new NakshaLogger(this.streamId);
-  }
-
-  private final @NotNull NakshaLogger logger;
-
-  @Override
-  protected final @NotNull NakshaLogger logger() {
-    return logger;
   }
 
   /**
@@ -157,10 +170,9 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
       @NotNull RoutingContext routingContext,
       @NotNull ApiResponseType... responseTypes) {
     final String streamId = getStreamId(routingContext);
-    NakshaLogger logger = null;
+    XyzLogger logger = null;
     try {
       final NakshaTask<?> task = taskClass.getConstructor(String.class).newInstance(streamId);
-      logger = task.logger;
       try {
         task.addListener(task::sendResponse);
         task.initFromRoutingContext(routingContext, extractResponseType(routingContext, responseTypes));
@@ -170,10 +182,7 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
         task.sendErrorResponse(t);
       }
     } catch (Throwable t) {
-      if (logger == null) {
-        logger = new NakshaLogger(routingContext);
-      }
-      logger.error("Failed to create task: {}", taskClass.getName(), t);
+      currentLogger(routingContext).error("Failed to create task: {}", taskClass.getName(), t);
       rcSendFatalError(routingContext, streamId, "Failed to create task: " + taskClass.getSimpleName());
     }
   }
@@ -189,18 +198,44 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
     if (raw instanceof String streamId) {
       return streamId;
     }
-    String streamId = routingContext.request().headers().get("Stream-Id");
-    if (streamId != null) {
-      final Matcher matcher = STREAM_ID_PATTERN.matcher(streamId);
+    final @NotNull String streamId;
+    final @Nullable String streamIdFromHttpHeader = routingContext.request().headers().get("Stream-Id");
+    if (streamIdFromHttpHeader != null) {
+      final Matcher matcher = STREAM_ID_PATTERN.matcher(streamIdFromHttpHeader);
       if (matcher.matches()) {
-        return streamId;
+        streamId = streamIdFromHttpHeader;
       } else {
-        new NakshaLogger(routingContext).warn("The given external stream-id is invalid: {}", streamId);
+        streamId = RandomStringUtils.randomAlphanumeric(12);
       }
+    } else {
+      streamId = RandomStringUtils.randomAlphanumeric(12);
     }
-    streamId = RandomStringUtils.randomAlphanumeric(12);
     routingContext.put(NAKSHA_STREAM_ID, streamId);
+
+    //noinspection StringEquality
+    if (streamIdFromHttpHeader != null && streamIdFromHttpHeader != streamId) {
+      // Note: "currentLogger" will invoke this method again, therefore we needed to store the stream-id into the routing context before!
+      currentLogger(routingContext).warn("The given external stream-id is invalid: {}", streamIdFromHttpHeader);
+    }
     return streamId;
+  }
+
+  /**
+   * Extracts the start-nanos from the given routing context or creates a new one and attaches it to the routing context.
+   *
+   * @param routingContext The routing context.
+   * @return The start-nanos.
+   */
+  public static long getStartNanos(@NotNull RoutingContext routingContext) {
+    final Object raw = routingContext.get(NAKSHA_START_NANOS);
+    if (raw instanceof Long startNanos) {
+      return startNanos;
+    }
+    // TODO: Can we extract the start nanos from the HTTP request?
+    //       routingContext.request().headers().get("???");
+    final long startNanos = NanoTime.now();
+    routingContext.put(NAKSHA_START_NANOS, startNanos);
+    return startNanos;
   }
 
   /**
@@ -243,21 +278,15 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
    */
   public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
     this.routingContext = routingContext;
+
     // Note: This is not bullet-proof, because it is not concurrency poof.
-    final NakshaTask<?> existing = getFromRoutingContext(routingContext);
-    if (existing != null) {
+    final NakshaTask<?> existing = ofRoutingContext(routingContext);
+    if (existing != null && existing != this) {
       throw new ParameterError("The given routing context is already bound to a Naksha task");
     }
-    routingContext.put(NAKSHA_ROUTING_CONTEXT_KEY, this);
-
-    final String externalStreamId = routingContext.request().headers().get("Stream-Id");
-    if (externalStreamId != null) {
-      final Matcher matcher = STREAM_ID_PATTERN.matcher(externalStreamId);
-      if (!matcher.matches()) {
-        throw new ParameterError("The given stream-id is invalid, must match " + STREAM_ID_PATTERN_TEXT + ", found: " + externalStreamId);
-      }
-      streamId = externalStreamId;
-    }
+    routingContext.put(NAKSHA_ROUTING_CONTEXT, this);
+    streamId = getStreamId(routingContext);
+    startNanos = getStartNanos(routingContext);
     event.setStreamId(streamId);
 
     final String ifNoneMatch = routingContext.request().headers().get("If-None-Match");
@@ -512,7 +541,7 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
       }
       rcSendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(response.serialize()));
     } catch (Throwable t) {
-      new NakshaLogger(routingContext).error("Unexpected failure while serializing response", t);
+      currentLogger(routingContext).error("Unexpected failure while serializing response", t);
       rcSendFatalError(routingContext, streamId, t.getMessage());
     }
   }

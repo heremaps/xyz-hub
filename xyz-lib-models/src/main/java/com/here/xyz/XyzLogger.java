@@ -1,61 +1,135 @@
 package com.here.xyz;
 
+import com.here.xyz.lambdas.F0;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 
 /**
- * A class implementing the logger interface.
+ * A class implementing the logger interface, bound to a thread.
  */
-public class TaskLogger implements Logger {
+public class XyzLogger implements Logger {
 
   /**
-   * Returns the logger of the current task.
-   *
-   * @return The logger of the current task.
+   * A supplied that can be modified by an extending class, all instances of the logger then will be turned into the application class.
    */
-  public static @NotNull TaskLogger currentLogger() {
-    return AbstractTask.currentTask().logger;
+  protected static final AtomicReference<F0<XyzLogger>> constructor = new AtomicReference<>(XyzLogger::new);
+
+  /**
+   * The thread local instance.
+   */
+  protected static final ThreadLocal<XyzLogger> instance = ThreadLocal.withInitial(() -> constructor.get().call());
+
+  /**
+   * Returns the current thread local logger.
+   *
+   * @return The current thread local logger.
+   */
+  public static @NotNull XyzLogger currentLogger() {
+    final XyzLogger logger = instance.get();
+    final AbstractTask task = AbstractTask.currentTaskOrNull();
+    if (task != null) {
+      logger.with(task.streamId(), task.startNanos());
+    }
+    return logger;
   }
 
-  protected TaskLogger(@NotNull AbstractTask task) {
-    this.sb = new StringBuilder();
-    this.task = task;
-    this.thread = Thread.currentThread();
+  /**
+   * A special string that, when used as stream-id by the constructor, is replaced by the getter with a random string.
+   */
+  protected static final String CREATE_STREAM_ID = "";
+
+  /**
+   * Create a new thread local logger.
+   */
+  protected XyzLogger() {
+    streamId = CREATE_STREAM_ID;
+    startNanos = NanoTime.now();
   }
 
-  private final @NotNull Thread thread;
-  private final @NotNull AbstractTask task;
-  private final @NotNull StringBuilder sb;
+  /**
+   * Create a new thread local logger.
+   *
+   * @param streamId   The initial stream-id.
+   * @param startNanos The start nanos to use.
+   */
+  protected XyzLogger(@NotNull String streamId, long startNanos) {
+    this.streamId = streamId;
+    this.startNanos = startNanos;
+  }
+
+  /**
+   * The stream-id.
+   */
+  private @NotNull String streamId;
+
+  /**
+   * The start nano time for time measurements.
+   */
+  private long startNanos;
+
+  /**
+   * Returns the stream-id.
+   *
+   * @return The stream-id.
+   */
+  public @NotNull String streamId() {
+    //noinspection StringEquality
+    if (streamId == CREATE_STREAM_ID) {
+      streamId = RandomStringUtils.randomAlphanumeric(12);
+    }
+    return streamId;
+  }
+
+  /**
+   * The start nanoseconds. This can be used to calculate time differences, for example via: <pre>{@code
+   * final long millis = NanoTime.timeSince(XyzLogger.currentLogger().startNanos(), TimeUnit.MILLIS);
+   * }</pre>
+   *
+   * @return The start nanoseconds.
+   */
+  public long startNanos() {
+    return startNanos;
+  }
+
+  /**
+   * Binds the thread local logger to the given stream and start time.
+   *
+   * @param streamId   The stream.
+   * @param startNanos The start-time.
+   * @return this.
+   */
+  public @NotNull XyzLogger with(@NotNull String streamId, long startNanos) {
+    this.streamId = streamId;
+    this.startNanos = startNanos;
+    return this;
+  }
+
+  /**
+   * The string builder used by this thread local logger.
+   */
+  protected final @NotNull StringBuilder sb = new StringBuilder();
 
   private @NotNull String prefix(@NotNull String message) {
-    // It is suboptimal to log for a not thread-local task, but possible.
-    final StringBuilder sb = thread == Thread.currentThread() ? this.sb : new StringBuilder();
+    final StringBuilder sb = this.sb;
     sb.setLength(0);
-    sb.append(task.streamId);
+    sb.append(streamId());
     sb.append(':');
-    sb.append(NanoTime.timeSince(task.startNanos, TimeUnit.MICROSECONDS));
+    sb.append(NanoTime.timeSince(startNanos(), TimeUnit.MICROSECONDS));
     sb.append("us - ");
     sb.append(message);
     return sb.toString();
-  }
-
-  /**
-   * Returns the task of the logger.
-   *
-   * @return The task of the logger
-   */
-  public @NotNull AbstractTask task() {
-    return task;
   }
 
   protected static final Logger logger = LoggerFactory.getLogger(AbstractTask.class);
 
   @Override
   public String getName() {
-    return task.streamId;
+    return streamId();
   }
 
   @Override

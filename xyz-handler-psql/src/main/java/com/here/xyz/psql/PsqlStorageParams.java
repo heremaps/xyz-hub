@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.XyzLogger.currentLogger;
 
 import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
 import com.here.xyz.XyzSerializable;
@@ -100,7 +101,7 @@ public class PsqlStorageParams extends EventHandlerParams {
     id = parseValue(connectorParams, ID, String.class);
     connectorId = parseValue(connectorParams, CONNECTOR_ID, Long.class);
     if (connectorId <= 0L) {
-      currentTask().warn("Illegal cid: {}", connectorParams.get(CONNECTOR_ID));
+      currentLogger().warn("Illegal cid: {}", connectorParams.get(CONNECTOR_ID));
     }
     autoIndexing = parseValueWithDefault(connectorParams, AUTO_INDEXING, false);
     propertySearch = parseValueWithDefault(connectorParams, PROPERTY_SEARCH, false);

@@ -1,7 +1,7 @@
 package com.here.xyz;
 
 import static com.here.xyz.AbstractTask.currentTask;
-import static com.here.xyz.TaskLogger.currentLogger;
+import static com.here.xyz.XyzLogger.currentLogger;
 
 import com.here.xyz.events.Event;
 import com.here.xyz.responses.BinaryResponse;

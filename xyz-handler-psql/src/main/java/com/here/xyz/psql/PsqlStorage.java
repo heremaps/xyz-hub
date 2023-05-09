@@ -23,7 +23,7 @@ import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_MIXED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_REAL;
 import static com.here.xyz.AbstractTask.currentTask;
-import static com.here.xyz.TaskLogger.currentLogger;
+import static com.here.xyz.XyzLogger.currentLogger;
 import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT;
 import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
 import static com.here.xyz.events.space.ModifySpaceEvent.Operation.CREATE;

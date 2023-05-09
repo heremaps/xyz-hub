@@ -24,7 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A configurable event task, that executes one or more events in an own dedicated thread. Basically a task is {@link #bind() bound} to a
+ * A configurable event task, that executes one or more events in an own dedicated thread. Basically a task is {@link #attachToCurrentThread() bound} to a
  * dedicated thread and sends events through a private pipeline with added handlers. All handlers added to the pipeline of the task can
  * query the current task simply via {@link #currentTask()}.
  * <p>
@@ -88,25 +88,15 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
     }
     this.streamId = streamId;
     attachments = new ConcurrentHashMap<>();
-    this.logger = newTaskLogger();
   }
 
   /**
-   * Creates a new task logger. Called only ones from the constructor.
+   * Returns the thread local logger configured to this task.
    *
-   * @return a new task logger.
+   * @return the thread local logger configured to this task.
    */
-  protected @NotNull TaskLogger newTaskLogger() {
-    return new TaskLogger(this);
-  }
-
-  /**
-   * Returns the logger of this task.
-   *
-   * @return the logger of this task.
-   */
-  public final @NotNull TaskLogger logger() {
-    return this.logger;
+  public @NotNull XyzLogger logger() {
+    return XyzLogger.currentLogger().with(streamId, startNanos);
   }
 
   /**
@@ -220,8 +210,6 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
    */
   protected long startNanos;
 
-  final @NotNull TaskLogger logger;
-
   /**
    * Returns the stream-id.
    *
@@ -244,7 +232,7 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
   @Nullable String oldName;
 
   /**
-   * Returns the task bound to the current thread. If no task bound, creating a new one.
+   * Returns the task attached to the current thread. If no task attached, creating a new one and attach it.
    *
    * @return the task of the current thread.
    * @throws ClassCastException if the current task is not of the expected type.
@@ -297,7 +285,7 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
    *
    * @throws IllegalStateException if this task bound to another thread, or the current thread bound to another task.
    */
-  protected void bind() {
+  public void attachToCurrentThread() {
     if (thread != null) {
       throw new IllegalStateException("Already bound to a thread");
     }
@@ -321,11 +309,11 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
   }
 
   /**
-   * Removes this task form the current thread. The call will be ignored, if the task is already unbound.
+   * Removes this task form the current thread. The call will be ignored, if the task is unbound.
    *
    * @throws IllegalStateException If called from a thread to which this task is not bound.
    */
-  protected void unbind() {
+  public void detachFromCurrentThread() {
     if (this.thread == null) {
       return;
     }
@@ -432,7 +420,7 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
   private @NotNull XyzResponse run() {
     assert state.get() == State.START;
     state.set(State.EXECUTE);
-    bind();
+    attachToCurrentThread();
     try {
       XyzResponse response;
       try {
@@ -458,7 +446,7 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
       state.set(State.DONE);
       final long newValue = AbstractTask.threadCount.decrementAndGet();
       assert newValue >= 0L;
-      unbind();
+      detachFromCurrentThread();
     }
   }
 

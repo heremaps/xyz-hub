@@ -20,6 +20,7 @@
 package com.here.xyz.psql.query;
 
 import static com.here.xyz.AbstractTask.currentTask;
+import static com.here.xyz.XyzLogger.currentLogger;
 
 import com.here.mapcreator.ext.naksha.NakshaCollection;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;
@@ -65,9 +66,9 @@ public class GetStorageStatistics
             spaceId -> {
               final NakshaCollection space = processor.getSpaceById(spaceId);
               if (space == null) {
-                currentTask().info("Unknown space: {}", spaceId);
+                currentLogger().info("Unknown space: {}", spaceId);
               } else if (!schema.equals(space.schema)) {
-                currentTask().error(
+                currentLogger().error(
                     "The given space '{}' is located in schema '{}', but this connector is bound to schema '{}', ignore space",
                     spaceId, space.schema, schema);
               } else {

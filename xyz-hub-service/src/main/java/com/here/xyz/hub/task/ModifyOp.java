@@ -25,7 +25,6 @@ import static com.here.xyz.hub.task.ModifyOp.IfExists.PATCH;
 import static com.here.xyz.hub.task.ModifyOp.IfExists.REPLACE;
 import static com.here.xyz.hub.task.ModifyOp.IfExists.RETAIN;
 
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
@@ -109,7 +108,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
    *
    * @throws ModifyOpError when a processing error occurs.
    */
-  public void process() throws ModifyOpError, HttpException {
+  public void process() throws ModifyOpError {
     for (K entry : entries) {
       try {
         //IF NOT EXISTS
@@ -240,14 +239,14 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
       this.ifNotExists = ifNotExists;
     }
 
-    private Map<String, Object> getHeadMap() throws HttpException, ModifyOpError {
+    private Map<String, Object> getHeadMap() throws ModifyOpError {
       if (headMap == null && head != null) {
           headMap = toMap(head);
       }
       return headMap;
     }
 
-    private Map<String, Object> getResultMap() throws HttpException, ModifyOpError {
+    private Map<String, Object> getResultMap() throws ModifyOpError {
       if (resultMap == null && result!=null) {
         resultMap = toMap(result);
       }
@@ -260,7 +259,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
 
     protected abstract String getUuid(Map<String, Object> record);
 
-    public T patch() throws ModifyOpError, HttpException {
+    public T patch() throws ModifyOpError {
       final Map<String, Object> computedInput = toMap(base);
       final Difference diff = Patcher.calculateDifferenceOfPartialUpdate(computedInput, input, null, true);
       if (diff == null) {
@@ -272,7 +271,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
       return merge();
     }
 
-    public T merge() throws ModifyOpError, HttpException {
+    public T merge() throws ModifyOpError {
       if (base.equals(head)) {
         return replace();
       }
@@ -295,7 +294,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
       }
     }
 
-    public T replace() throws ModifyOpError, HttpException {
+    public T replace() throws ModifyOpError {
       if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
         throw new ModifyOpError(
             "The feature with id " + getId(head) + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
@@ -304,7 +303,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
       return fromMap(input);
     }
 
-    public T delete() throws ModifyOpError, HttpException {
+    public T delete() throws ModifyOpError {
       if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
         throw new ModifyOpError(
             "The feature with id " + getId(head) + " cannot be deleted. The provided UUID doesn't match the UUID of the head state: "
@@ -316,7 +315,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
       return null;
     }
 
-    public T create() throws ModifyOpError, HttpException {
+    public T create() throws ModifyOpError {
       isModified = true;
       return fromMap(input);
     }
@@ -327,9 +326,9 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
 
     public abstract Map<String, Object> filterMetadata(Map<String, Object> map);
 
-    public abstract T fromMap(Map<String, Object> map) throws ModifyOpError, HttpException;
+    public abstract T fromMap(Map<String, Object> map) throws ModifyOpError;
 
-    public abstract Map<String, Object> toMap(T record) throws ModifyOpError, HttpException;
+    public abstract Map<String, Object> toMap(T record) throws ModifyOpError;
 
     /**
      * Checks, if the result of the operation is different than the head state.
