@@ -19,9 +19,10 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.XyzLogger.currentLogger;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -101,22 +102,21 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
     }
 
     @Override
-    public Feature fromMap(Map<String, Object> map) throws ModifyOpError, HttpException {
+    public Feature fromMap(Map<String, Object> map) throws ModifyOpError {
       try {
         return XyzSerializable.fromMap(map, Feature.class);
       } catch (Exception e) {
+        currentLogger().error("Failed to deserialize feature from map", e);
         try {
-          throw new HttpException(HttpResponseStatus.BAD_REQUEST,
-              "Unable to create a Feature from the provided input: " + XyzSerializable.DEFAULT_MAPPER.get().writeValueAsString(map));
+          throw new ModifyOpError("Unable to deserialize feature from map: " + XyzSerializable.DEFAULT_MAPPER.get().writeValueAsString(map));
         } catch (JsonProcessingException jsonProcessingException) {
-          throw new HttpException(HttpResponseStatus.BAD_REQUEST,
-              "Unable to create a Feature from the provided input. id: " + map.get("id") + ",type: " + map.get("type"));
+          throw new ModifyOpError("Unable to deserialize feature from map. id: " + map.get("id") + ",type: " + map.get("type"));
         }
       }
     }
 
     @Override
-    public Map<String, Object> toMap(Feature record) throws ModifyOpError, HttpException {
+    public Map<String, Object> toMap(Feature record) throws ModifyOpError {
       return filterMetadata(record.asMap());
     }
 

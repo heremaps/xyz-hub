@@ -19,10 +19,10 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.XyzLogger.currentLogger;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifySpaceOp.SpaceEntry;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -69,16 +69,17 @@ public class ModifySpaceOp extends ModifyOp<Space, SpaceEntry> {
     }
 
     @Override
-    public Space fromMap(Map<String, Object> map) throws ModifyOpError, HttpException {
+    public Space fromMap(Map<String, Object> map) throws ModifyOpError {
       try {
         return DatabindCodec.mapper().readValue(Json.encode(map), Space.class);
       } catch (JsonProcessingException e) {
-        throw new HttpException(BAD_REQUEST, "Invalid space definition: " + e.getMessage(), e);
+        currentLogger().error("Failed to deserialize space from map", e);
+        throw new ModifyOpError("Internal error while deserializing space from map: " + e.getMessage());
       }
     }
 
     @Override
-    public Map<String, Object> toMap(Space record) throws ModifyOpError, HttpException {
+    public Map<String, Object> toMap(Space record) throws ModifyOpError {
       return filter(record.asMap(), metadataFilter);
     }
 

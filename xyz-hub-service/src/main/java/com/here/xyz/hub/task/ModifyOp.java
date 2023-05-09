@@ -335,7 +335,7 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
      *
      * @return true, if the result of the operation is different than the head state.
      */
-    boolean isModified() throws HttpException, ModifyOpError {
+    boolean isModified() throws ModifyOpError {
       if (Objects.equals(head, result)) {
         return false;
       }
