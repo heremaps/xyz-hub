@@ -24,9 +24,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A configurable event task, that executes one or more events in an own dedicated thread. Basically a task is {@link #attachToCurrentThread() bound} to a
- * dedicated thread and sends events through a private pipeline with added handlers. All handlers added to the pipeline of the task can
- * query the current task simply via {@link #currentTask()}.
+ * A configurable event task, that executes one or more events in an own dedicated thread. Basically a task is
+ * {@link #attachToCurrentThread() bound} to a dedicated thread and sends events through a private pipeline with added handlers. All
+ * handlers added to the pipeline of the task can query the current task simply via {@link #currentTask()}.
  * <p>
  * A task may send multiple events through the attached pipeline and modify the pipeline between the events. For example to modify features
  * at least a {@link LoadFeaturesEvent} is needed to fetch the current state of the features and then to (optionally) perform a merge and
@@ -46,6 +46,10 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
       // We know that NOP Tasks only created internally and only when currentTask() is invoked, therefore we set the stream-id to
       // the name of the current thread, so that the thread is not renamed.
       super(Thread.currentThread().getName());
+    }
+
+    @Override
+    protected void init() {
     }
 
     @Override
@@ -422,16 +426,12 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
     state.set(State.EXECUTE);
     attachToCurrentThread();
     try {
-      XyzResponse response;
+      @NotNull XyzResponse response;
       try {
+        init();
         response = execute();
-      } catch (XyzErrorException e) {
-        response = e.toErrorResponse(streamId);
-      } catch (ParameterError e) {
-        response = errorResponse(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
       } catch (Throwable t) {
-        logger().error("Uncaught exception in task execute", t);
-        response = errorResponse(XyzError.EXCEPTION, "Uncaught exception in task " + getClass().getSimpleName());
+        response = errorResponse(t);
       }
       state.set(State.CALLING_LISTENER);
       for (final @NotNull Consumer<@NotNull XyzResponse> listener : listeners) {
@@ -449,6 +449,12 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
       detachFromCurrentThread();
     }
   }
+
+  /**
+   * Initializes this task.
+   * @throws Throwable The exception to throw.
+   */
+  abstract protected void init() throws Throwable;
 
   /**
    * Execute this task.
@@ -540,6 +546,25 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
     } finally {
       state.set(State.NEW);
     }
+  }
+
+  /**
+   * Helper method to return a valid error response for the given exception.
+   *
+   * @param t The exception for which to return a valid error response.
+   * @return The error response.
+   */
+  protected @NotNull XyzResponse errorResponse(@NotNull Throwable t) {
+    final XyzResponse response;
+    if (t instanceof XyzErrorException e) {
+      response = e.toErrorResponse(streamId);
+    } else if (t instanceof ParameterError e) {
+      response = errorResponse(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
+    } else {
+      logger().error("Unexpected exception (not XyzErrorException or ParameterError): {}", t.getClass().getName(), t);
+      response = errorResponse(XyzError.EXCEPTION, "Uncaught exception in task " + getClass().getSimpleName());
+    }
+    return response;
   }
 
   /**

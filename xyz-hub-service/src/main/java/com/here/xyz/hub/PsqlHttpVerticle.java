@@ -62,7 +62,7 @@ public class PsqlHttpVerticle extends AbstractHttpServerVerticle {
 
   static {
     try {
-      final byte[] openapi = ByteStreams.toByteArray(NakshaHubOpenApiVerticle.class.getResourceAsStream("/openapi-http-connector.yaml"));
+      final byte[] openapi = ByteStreams.toByteArray(NakshaHubVerticle.class.getResourceAsStream("/openapi-http-connector.yaml"));
       API = new String(openapi);
     } catch (Exception e) {
       logger.error("Unable to generate OpenApi specs.", e);

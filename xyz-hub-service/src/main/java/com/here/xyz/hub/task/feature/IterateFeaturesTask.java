@@ -2,7 +2,6 @@ package com.here.xyz.hub.task.feature;
 
 import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.exceptions.ParameterError;
-import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.rest.ApiResponseType;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
@@ -20,8 +19,8 @@ public class IterateFeaturesTask extends AbstractSearchForFeaturesTask<IterateFe
   }
 
   @Override
-  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
-    super.initFromRoutingContext(routingContext, responseType);
+  public void initEventFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
+    super.initEventFromRoutingContext(routingContext, responseType);
 
     assert queryParameters != null;
     event.setForce2D(queryParameters.getForce2D());

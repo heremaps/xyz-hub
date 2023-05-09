@@ -83,7 +83,7 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
    * @param routingContext The routing context to query.
    * @return The Naksha task attached or {@code null}, if no Naksha tasks attached.
    */
-  public static @Nullable NakshaTask<?> ofRoutingContext(@NotNull RoutingContext routingContext) {
+  public static @Nullable NakshaTask<?> get(@NotNull RoutingContext routingContext) {
     final Object raw = routingContext.get(NAKSHA_ROUTING_CONTEXT);
     //noinspection rawtypes
     return raw instanceof NakshaTask task ? task : null;
@@ -97,7 +97,7 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
    */
   public static @NotNull XyzLogger currentLogger(@Nullable RoutingContext routingContext) {
     if (routingContext != null) {
-      final NakshaTask<?> task = NakshaTask.ofRoutingContext(routingContext);
+      final NakshaTask<?> task = NakshaTask.get(routingContext);
       if (task != null) {
         return task.logger();
       }
@@ -115,19 +115,19 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
 
   /**
    * The routing context; only set for tasks initialized from a routing context via
-   * {@link #initFromRoutingContext(RoutingContext, ApiResponseType)}.
+   * {@link #initEventFromRoutingContext(RoutingContext, ApiResponseType)}.
    */
-  protected @Nullable RoutingContext routingContext;
+  private @Nullable RoutingContext routingContext;
 
   /**
    * The response type that should be produced by this task; only set for tasks initialized from a routing context via
-   * {@link #initFromRoutingContext(RoutingContext, ApiResponseType)}.
+   * {@link #initEventFromRoutingContext(RoutingContext, ApiResponseType)}.
    */
-  @Nullable ApiResponseType responseType;
+  private @Nullable ApiResponseType responseType;
 
   /**
    * The query parameters; only set for tasks initialized from a routing context via
-   * {@link #initFromRoutingContext(RoutingContext, ApiResponseType)}.
+   * {@link #initEventFromRoutingContext(RoutingContext, ApiResponseType)}.
    */
   protected @Nullable XyzHubQueryParameters queryParameters;
 
@@ -140,52 +140,6 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
    * The request matrix, by default an empty matrix that means no rights required to execute the task.
    */
   protected @NotNull XyzHubActionMatrix requestMatrix;
-
-  /**
-   * Creates a new main event for this task. Internally a task may generate multiple sub-events and send them through the pipeline. For
-   * example a {@link ModifyFeaturesEvent} requires a {@link LoadFeaturesEvent} pre-flight event, some other events may require other
-   * pre-flight request.
-   *
-   * @return a new main event for this task.
-   */
-  abstract public @NotNull EVENT createEvent();
-
-  protected NakshaTask(@Nullable String streamId) {
-    super(streamId);
-    this.event = createEvent();
-    this.requestMatrix = new XyzHubActionMatrix();
-  }
-
-  /**
-   * Helper method to implement the repetitive way of initialize and execute requests from REST API. Internally simply invokes
-   * {@link #initFromRoutingContext(RoutingContext, ApiResponseType)}, adds a listener to be able to send back the response and eventually
-   * {@link #start() starts} the worker thread of this task.
-   *
-   * @param taskClass      The class of the task to execute.
-   * @param routingContext The routing context.
-   * @param responseTypes  The response types.
-   */
-  public static void start(
-      @NotNull Class<? extends NakshaTask<?>> taskClass,
-      @NotNull RoutingContext routingContext,
-      @NotNull ApiResponseType... responseTypes) {
-    final String streamId = getStreamId(routingContext);
-    XyzLogger logger = null;
-    try {
-      final NakshaTask<?> task = taskClass.getConstructor(String.class).newInstance(streamId);
-      try {
-        task.addListener(task::sendResponse);
-        task.initFromRoutingContext(routingContext, extractResponseType(routingContext, responseTypes));
-        task.start();
-      } catch (Throwable t) {
-        task.routingContext = routingContext;
-        task.sendErrorResponse(t);
-      }
-    } catch (Throwable t) {
-      currentLogger(routingContext).error("Failed to create task: {}", taskClass.getName(), t);
-      rcSendFatalError(routingContext, streamId, "Failed to create task: " + taskClass.getSimpleName());
-    }
-  }
 
   /**
    * Extracts the stream-id from the given routing context or creates a new one and attaches it to the routing context.
@@ -245,7 +199,7 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
    * @param allowedTypes   All response types to be allowed with the first one being the one used as default.
    * @return The response type.
    */
-  public static @NotNull ApiResponseType extractResponseType(
+  private static @NotNull ApiResponseType extractResponseType(
       @NotNull RoutingContext routingContext,
       @NotNull ApiResponseType... allowedTypes
   ) {
@@ -269,18 +223,74 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
   }
 
   /**
-   * Initialize the task from the given routing context. Must be overridden by extending tasks do setup all parameters. The method must not
-   * perform any blocking IO calls, this should be delayed to {@link #execute()}.
+   * Start a Naksha task directly from the REST API. Internally creates a new task, binds the routing-context and response-type, add a
+   * listener to be able to send back the response and eventually {@link #start() starts} the worker thread of this task. This causes the
+   * {@link #init()} method to invoke the {@link #initEventFromRoutingContext(RoutingContext, ApiResponseType)} method before
+   * {@link #execute()} is called.
+   * <p>
+   * By moving the {@link #initEventFromRoutingContext(RoutingContext, ApiResponseType)} into the worker thread we can distribute the
+   * parsing effort of the query string and payload into own worker threads, instead of having to do all the work in the event loop. Apart
+   * of this we may even perform blocking requests, when needed.
+   * <p>
+   * Technically a task does not need to be bound directly to a routing-context, for example when being created as sub-task by another task
+   * or when executed as background job. However, for this purpose the event of the task must be manually setup.
+   *
+   * @param taskClass      The class of the task to execute.
+   * @param routingContext The routing context.
+   * @param responseTypes  The response types.
+   */
+  public static void start(
+      @NotNull Class<? extends NakshaTask<?>> taskClass,
+      @NotNull RoutingContext routingContext,
+      @NotNull ApiResponseType... responseTypes) {
+    final String streamId = getStreamId(routingContext);
+    final ApiResponseType apiResponseType = extractResponseType(routingContext, responseTypes);
+    XyzLogger logger = null;
+    try {
+      final NakshaTask<?> task = taskClass.getConstructor(String.class).newInstance(streamId);
+      task.addListener(task::sendResponse);
+      task.routingContext = routingContext;
+      task.responseType = apiResponseType;
+      try {
+        task.start();
+      } catch (Throwable t) {
+        task.sendResponse(task.errorResponse(t));
+      }
+    } catch (Throwable t) {
+      currentLogger(routingContext).error("Failed to create task: {}", taskClass.getName(), t);
+      rcSendFatalError(routingContext, streamId, "Failed to create task: " + taskClass.getSimpleName());
+    }
+  }
+
+  protected NakshaTask(@Nullable String streamId) {
+    super(streamId);
+    this.event = createEvent();
+    this.requestMatrix = new XyzHubActionMatrix();
+  }
+
+  /**
+   * Creates a new main event for this task. Internally a task may generate multiple sub-events and send them through the pipeline. For
+   * example a {@link ModifyFeaturesEvent} requires a {@link LoadFeaturesEvent} pre-flight event, some other events may require other
+   * pre-flight request.
+   * <p>
+   * The constructor invokes this method.
+   *
+   * @return a new main event for this task.
+   */
+  abstract protected @NotNull EVENT createEvent();
+
+  /**
+   * Initialize the task from the given routing context. Must be overridden by extending tasks do setup all parameters. The default
+   * {@link #init()} method will call this method, and therefore this method may perform blocking IO calls if needed.
    *
    * @param routingContext The routing context to use to initialize this task.
    * @param responseType   The expected response type.
    * @throws ParameterError If any error happened while parsing query parameters or content.
    */
-  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
-    this.routingContext = routingContext;
-
+  protected void initEventFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType)
+      throws ParameterError {
     // Note: This is not bullet-proof, because it is not concurrency poof.
-    final NakshaTask<?> existing = ofRoutingContext(routingContext);
+    final NakshaTask<?> existing = get(routingContext);
     if (existing != null && existing != this) {
       throw new ParameterError("The given routing context is already bound to a Naksha task");
     }
@@ -307,6 +317,18 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
 
     queryParameters = new XyzHubQueryParameters(routingContext.request().query());
     setResponseType(responseType);
+  }
+
+  /**
+   * Invokes the {@link #initEventFromRoutingContext(RoutingContext, ApiResponseType)} method, when appropriate.
+   *
+   * @throws Throwable If any error occurred.
+   */
+  @Override
+  protected void init() throws Throwable {
+    if (routingContext != null && responseType != null) {
+      initEventFromRoutingContext(routingContext, responseType);
+    }
   }
 
   /**
@@ -443,22 +465,11 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
   }
 
   /**
-   * Send an error response for the given exception.
-   *
-   * @param error The error for which to send an error response.
-   */
-  private void sendErrorResponse(@NotNull Throwable error) {
-    assert routingContext != null;
-    assert responseType != null;
-    NakshaTask.rcSendErrorResponse(routingContext, responseType, streamId, error);
-  }
-
-  /**
    * Send a response.
    *
    * @param response The response to send.
    */
-  private void sendResponse(@NotNull XyzResponse response) {
+  protected void sendResponse(@NotNull XyzResponse response) {
     assert routingContext != null;
     assert responseType != null;
     NakshaTask.rcSendResponse(routingContext, responseType, streamId, response);
@@ -517,8 +528,8 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
       } else {
         headers = null;
       }
-      if (responseType == ApiResponseType.EMPTY) {
-        rcSendEmptyResponse(routingContext, streamId, OK, headers);
+      if (response instanceof ErrorResponse) {
+        rcSendRawResponse(routingContext, streamId, OK, headers, APPLICATION_JSON, Buffer.buffer(response.serialize()));
         return;
       }
       if (response instanceof BinaryResponse br) {
@@ -538,6 +549,10 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask {
           final String content = features.get(0).serialize();
           rcSendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(content));
         }
+      }
+      if (responseType == ApiResponseType.EMPTY) {
+        rcSendEmptyResponse(routingContext, streamId, OK, headers);
+        return;
       }
       rcSendRawResponse(routingContext, streamId, OK, headers, responseType, Buffer.buffer(response.serialize()));
     } catch (Throwable t) {

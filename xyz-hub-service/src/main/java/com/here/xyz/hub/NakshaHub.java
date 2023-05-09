@@ -3,11 +3,7 @@ package com.here.xyz.hub;
 import static com.here.xyz.util.IoHelp.openResource;
 import static com.here.xyz.util.IoHelp.parseValue;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.NakshaAuthProvider;
-import com.here.xyz.hub.util.ARN;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
 import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
 import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
@@ -25,7 +21,6 @@ import io.vertx.core.metrics.MetricsOptions;
 import io.vertx.ext.auth.JWTOptions;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
-import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
@@ -40,13 +35,9 @@ import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.ThreadFactory;
@@ -217,7 +208,6 @@ public class NakshaHub {
     webClientOptions.setTcpKeepAlive(true).setTcpQuickAck(true).setTcpFastOpen(true);
     webClientOptions.setIdleTimeoutUnit(TimeUnit.MINUTES).setIdleTimeout(2);
     webClient = WebClient.create(vertx, webClientOptions);
-
     shutdownThread = new Thread(this::shutdownHook);
   }
 
@@ -234,18 +224,32 @@ public class NakshaHub {
 
   /**
    * Start the server.
+   *
    * @throws IllegalStateException If the service already started.
    */
   public void start() {
     if (!start.compareAndSet(false, true)) {
       throw new IllegalStateException("Service already started");
     }
-
+    final int processors = Runtime.getRuntime().availableProcessors();
+    verticles = new NakshaHubVerticle[processors];
+    for (int i = 0; i < processors; i++) {
+      verticles[i] = new NakshaHubVerticle(this, i);
+      vertx.deployVerticle(verticles[i]);
+    }
     Thread.setDefaultUncaughtExceptionHandler(NakshaHub::uncaughtExceptionHandler);
     Runtime.getRuntime().addShutdownHook(this.shutdownThread);
     startMetricPublishers();
   }
 
+  protected @NotNull NakshaHubVerticle[] verticles;
+
+  /**
+   * Emergency uncaught exception handler to prevent that the server crashs.
+   *
+   * @param thread    The thread that cause the exception.
+   * @param throwable The exception thrown.
+   */
   protected static void uncaughtExceptionHandler(@NotNull Thread thread, @NotNull Throwable throwable) {
     logger.error("Uncaught exception in thread {}", thread.getName(), throwable);
   }
@@ -296,8 +300,6 @@ public class NakshaHub {
   private static final AtomicReference<@Nullable Boolean> usesZGC = new AtomicReference<>();
 
   public static boolean isUsingZgc() {
-    // Why is IntelliJ thinking "usesZGC" may be null?
-    assert usesZGC != null;
     final Boolean usesZgc = usesZGC.get();
     if (usesZgc != null) {
       return usesZgc;

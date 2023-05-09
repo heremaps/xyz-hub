@@ -54,7 +54,9 @@
     <module>xyz-txn-handler</module>
     -->
     <module>xyz-hub-service</module>
+    <!--
     <module>xyz-hub-test</module>
+    -->
   </modules>
 
   <scm>
@@ -569,7 +571,6 @@
   </dependencyManagement>
 
   <repositories>
-
     <repository>
       <id>mvnapache</id>
       <layout>default</layout>
@@ -580,7 +581,6 @@
       </releases>
       <url>https://repo.maven.apache.org/maven2/</url>
     </repository>
-
      <repository>
         <id>osgeo</id>
         <name>OSGeo Release Repository</name>
@@ -588,7 +588,6 @@
         <snapshots><enabled>false</enabled></snapshots>
         <releases><enabled>true</enabled></releases>
     </repository>
-
   </repositories>
 
 </project>

@@ -34,6 +34,12 @@ public class XyzLogger implements Logger {
     final AbstractTask task = AbstractTask.currentTaskOrNull();
     if (task != null) {
       logger.with(task.streamId(), task.startNanos());
+    } else {
+      final String threadName = Thread.currentThread().getName();
+      //noinspection StringEquality
+      if (logger.streamId() != threadName) {
+        logger.with(threadName, NanoTime.now());
+      }
     }
     return logger;
   }

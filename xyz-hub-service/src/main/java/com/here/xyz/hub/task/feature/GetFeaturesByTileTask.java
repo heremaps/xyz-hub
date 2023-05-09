@@ -35,8 +35,8 @@ public final class GetFeaturesByTileTask extends AbstractGetFeaturesByBBoxTask<G
   }
 
   @Override
-  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
-    super.initFromRoutingContext(routingContext, responseType);
+  public void initEventFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
+    super.initEventFromRoutingContext(routingContext, responseType);
     assert queryParameters != null;
 
     String tileId = routingContext.pathParam(Path.TILE_ID);

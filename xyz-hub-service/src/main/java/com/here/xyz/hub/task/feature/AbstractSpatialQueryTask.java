@@ -14,8 +14,9 @@ public abstract class AbstractSpatialQueryTask<EVENT extends SpatialQueryEvent> 
   }
 
   @Override
-  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
-    super.initFromRoutingContext(routingContext, responseType);
+  protected void initEventFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType)
+      throws ParameterError {
+    super.initEventFromRoutingContext(routingContext, responseType);
     assert queryParameters != null;
     event.setClip(queryParameters.getClip());
   }

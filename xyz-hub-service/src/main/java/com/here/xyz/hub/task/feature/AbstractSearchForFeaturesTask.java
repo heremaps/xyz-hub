@@ -14,8 +14,9 @@ public abstract class AbstractSearchForFeaturesTask<EVENT extends SearchForFeatu
   }
 
   @Override
-  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
-    super.initFromRoutingContext(routingContext, responseType);
+  protected void initEventFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType)
+      throws ParameterError {
+    super.initEventFromRoutingContext(routingContext, responseType);
 
     assert queryParameters != null;
     event.setLimit(queryParameters.getLimit());

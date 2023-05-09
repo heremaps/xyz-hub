@@ -35,8 +35,8 @@ public final class GetFeaturesByGeometryTask extends AbstractSpatialQueryTask<Ge
       + "Define either 'lat' and 'lon', refer a feature in another space via 'refFeatureId' and 'refSpaceId' or address a hex via 'h3Index'.";
 
   @Override
-  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
-    super.initFromRoutingContext(routingContext, responseType);
+  public void initEventFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
+    super.initEventFromRoutingContext(routingContext, responseType);
     assert queryParameters != null;
 
     // Loading of the features delayed to execute to not block the IO thread!

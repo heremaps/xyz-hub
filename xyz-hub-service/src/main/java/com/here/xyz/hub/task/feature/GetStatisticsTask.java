@@ -19,8 +19,8 @@ public final class GetStatisticsTask extends AbstractFeatureTask<GetStatisticsEv
   }
 
   @Override
-  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
-    super.initFromRoutingContext(routingContext, responseType);
+  public void initEventFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
+    super.initEventFromRoutingContext(routingContext, responseType);
     // TODO: Do we need any additional arguments?
   }
 }

@@ -27,8 +27,8 @@ public class GetConnectorsByIdTask extends AbstractConnectorTask<GetConnectorsBy
   }
 
   @Override
-  public void initFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
-    super.initFromRoutingContext(routingContext, responseType);
+  public void initEventFromRoutingContext(@NotNull RoutingContext routingContext, @NotNull ApiResponseType responseType) throws ParameterError {
+    super.initEventFromRoutingContext(routingContext, responseType);
     assert queryParameters != null;
     final List<@NotNull String> ids = queryParameters.getIds();
     if (ids != null) {

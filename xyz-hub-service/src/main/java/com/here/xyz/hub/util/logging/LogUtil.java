@@ -20,7 +20,7 @@
 package com.here.xyz.hub.util.logging;
 
 import static com.google.common.net.HttpHeaders.X_FORWARDED_FOR;
-import static com.here.xyz.hub.NakshaHubOpenApiVerticle.STREAM_INFO_CTX_KEY;
+import static com.here.xyz.hub.NakshaHubVerticle.STREAM_INFO_CTX_KEY;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import static io.vertx.core.http.HttpHeaders.ORIGIN;
