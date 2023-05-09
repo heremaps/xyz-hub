@@ -52,8 +52,8 @@
     <module>xyz-handler-activitylog</module>
     <!--
     <module>xyz-txn-handler</module>
-    -->
     <module>xyz-hub-service</module>
+    -->
     <!--
     <module>xyz-hub-test</module>
     -->
