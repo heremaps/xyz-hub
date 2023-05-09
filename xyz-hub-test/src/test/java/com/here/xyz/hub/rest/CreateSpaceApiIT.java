@@ -404,7 +404,18 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
 
   @Test
   public void createSpaceWithVersionsToKeepTooBig() {
-    final ValidatableResponse response = given()
+    ValidatableResponse response = given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
+        .body("{\"title\":\"test\", \"versionsToKeep\":1000000002}")
+        .when()
+        .post("/spaces")
+        .then();
+    cleanUpId = response.extract().path("id");
+
+    response.statusCode(BAD_REQUEST.code());
+
+    response = given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_NO_ADMIN))
         .body("{\"title\":\"test\", \"versionsToKeep\":1000000001}")
@@ -413,6 +424,6 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
         .then();
     cleanUpId = response.extract().path("id");
 
-    response.statusCode(BAD_REQUEST.code());
+    response.statusCode(OK.code());
   }
 }
