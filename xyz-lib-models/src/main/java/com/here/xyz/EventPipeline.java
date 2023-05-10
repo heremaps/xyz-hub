@@ -1,7 +1,6 @@
 package com.here.xyz;
 
-import static com.here.xyz.AbstractTask.currentTask;
-import static com.here.xyz.XyzLogger.currentLogger;
+import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -168,13 +167,12 @@ public class EventPipeline implements IEventContext {
     }
     this.event = event;
     addEventHandler(this::pipelineEnd);
-    final AbstractTask context = currentTask();
     this.next = 0;
     XyzResponse response;
     try {
       response = sendUpstream(event);
     } catch (Throwable t) {
-      context.logger().error("Uncaught exception in event pipeline", t);
+      currentLogger().error("Uncaught exception in event pipeline", t);
       response = new ErrorResponse()
           .withStreamId(event.getStreamId())
           .withError(XyzError.EXCEPTION)
@@ -186,7 +184,7 @@ public class EventPipeline implements IEventContext {
         callback.accept(response);
       }
     } catch (Throwable t) {
-      context.logger().error("Uncaught exception in event pipeline callback", t);
+      currentLogger().error("Uncaught exception in event pipeline callback", t);
     } finally {
       callback = null;
       this.event = null;

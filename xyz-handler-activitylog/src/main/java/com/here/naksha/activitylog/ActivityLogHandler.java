@@ -1,11 +1,8 @@
 package com.here.naksha.activitylog;
 
-import static com.here.xyz.XyzLogger.currentLogger;
-
 import com.here.xyz.EventHandler;
 import com.here.xyz.IEventContext;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;

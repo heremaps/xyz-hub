@@ -1,5 +1,11 @@
 package com.here.xyz.hub;
 
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
+import com.here.mapcreator.ext.naksha.PsqlPoolConfigBuilder;
 import com.here.xyz.util.JsonConfigFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -32,6 +38,46 @@ public class NakshaHubConfig extends JsonConfigFile<NakshaHubConfig> {
   // ----------------------------------------------------------------------------------------------------------------------------------
 
   /**
+   * The server name to use.
+   */
+  private String serverName;
+
+  @JsonGetter
+  public @NotNull String getServerName() {
+    return serverName != null ? serverName : "Naksha";
+  }
+
+  @JsonSetter
+  public void setServerName(@NotNull String name) {
+    this.serverName = name;
+  }
+
+  /**
+   * The configuration for the Naksha admin database.
+   */
+  private PsqlPoolConfig db;
+
+
+  @JsonGetter
+  public @NotNull PsqlPoolConfig getDb() {
+    if (this.db == null) {
+      this.db = new PsqlPoolConfigBuilder()
+          .withDb("postgres")
+          .withUser("postgres")
+          .withPassword("password")
+          .withHost("localhost")
+          .withPort(5432)
+          .build();
+    }
+    return this.db;
+  }
+
+  @JsonSetter
+  public void setDb(@NotNull PsqlPoolConfig db) {
+    this.db = db;
+  }
+
+  /**
    * The port at which to listen for HTTP requests.
    */
   public int httpPort = 7080;
@@ -58,6 +104,11 @@ public class NakshaHubConfig extends JsonConfigFile<NakshaHubConfig> {
   public String env = "local";
 
   /**
+   * If set, then serving static files from this directory.
+   */
+  public String webRoot;
+
+  /**
    * If the JWT key should be read from the disk ({@code "~/.config/naksha/auth/$<jwtKeyName>.pub"}), evaluated after {@link #jwtPubKey}.
    */
   public String jwtKeyName;
@@ -67,8 +118,8 @@ public class NakshaHubConfig extends JsonConfigFile<NakshaHubConfig> {
   }
 
   /**
-   * If the public key given via configuration, rather than as file in the {@code "~/.config/naksha/auth/$<jwtKeyName>.pub"}) directory.
-   * If this is given, the service is unable to run tests, because it can't generate own tokens!
+   * If the public key given via configuration, rather than as file in the {@code "~/.config/naksha/auth/$<jwtKeyName>.pub"}) directory. If
+   * this is given, the service is unable to run tests, because it can't generate own tokens!
    */
   public String jwtPubKey;
 

@@ -19,8 +19,7 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.AbstractTask.currentTask;
-import static com.here.xyz.XyzLogger.currentLogger;
+import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.here.mapcreator.ext.naksha.NakshaCollection;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;

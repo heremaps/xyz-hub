@@ -19,8 +19,7 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.AbstractTask.currentTask;
-import static com.here.xyz.XyzLogger.currentLogger;
+import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.implementation.Feature;

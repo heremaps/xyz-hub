@@ -16,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
  * connectors and subscriptions. Normally this is only created and used by the Naksha-Hub itself and exposed to all other parts of the
  * Naksha-Hub via the {@link INaksha#instance}.
  */
-public class NakshaMgmtClient extends NakshaPsqlClient<NakshaDataSource> implements INaksha {
+public abstract class NakshaMgmtClient extends NakshaPsqlClient<NakshaDataSource> implements INaksha {
 
   /**
    * The collection for spaces.

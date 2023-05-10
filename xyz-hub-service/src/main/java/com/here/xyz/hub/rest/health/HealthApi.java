@@ -81,11 +81,11 @@ public class HealthApi extends Api {
   }
 
   public HealthApi(Vertx vertx, Router router) {
-    //The main health check endpoint
+    // The main health check endpoint.
     router.route(HttpMethod.GET, MAIN_HEALTCHECK_ENDPOINT).handler(HealthApi::onHealthStatus);
     router.route(HttpMethod.GET, "/hub").handler(HealthApi::onHealthStatus);
     router.route(HttpMethod.GET, "/").handler(HealthApi::onHealthStatus); //TODO: Maybe better replace that one by a redirect to /hub/
-    //Legacy:
+    // Legacy.
     router.route(HttpMethod.GET, "/hub/health-status").handler(HealthApi::onHealthStatus);
   }
 

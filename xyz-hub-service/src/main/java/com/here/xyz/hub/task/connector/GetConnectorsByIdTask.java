@@ -17,13 +17,8 @@ import org.jetbrains.annotations.Nullable;
 
 public class GetConnectorsByIdTask extends AbstractConnectorTask<GetConnectorsByIdEvent> {
 
-  public GetConnectorsByIdTask(@Nullable String streamId) {
-    super(streamId);
-  }
-
-  @Override
-  public @NotNull GetConnectorsByIdEvent createEvent() {
-    return new GetConnectorsByIdEvent();
+  public GetConnectorsByIdTask() {
+    super(new GetConnectorsByIdEvent());
   }
 
   @Override

@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.XyzLogger.currentLogger;
+import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -28,7 +28,6 @@ import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.JsonObject;
 import java.util.Collections;
 import java.util.List;

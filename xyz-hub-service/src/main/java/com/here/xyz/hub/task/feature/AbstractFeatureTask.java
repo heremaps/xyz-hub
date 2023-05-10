@@ -29,15 +29,14 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * All tasks related to features in a space.
  */
 public abstract class AbstractFeatureTask<EVENT extends Event> extends NakshaTask<EVENT> {
 
-  protected AbstractFeatureTask(@Nullable String streamId) {
-    super(streamId);
+  protected AbstractFeatureTask(@NotNull EVENT event) {
+    super(event);
   }
 
   @Override
@@ -55,41 +54,18 @@ public abstract class AbstractFeatureTask<EVENT extends Event> extends NakshaTas
     if (space == null) {
       throw new ParameterError("Unknown space " + spaceId);
     }
-    setSpace(space);
-    requestMatrix.readFeatures(getSpace());
-  }
-
-  /**
-   * Sets the space.
-   *
-   * @param space The space to use.
-   */
-  public void setSpace(@NotNull Space space) {
     event.setSpace(space);
-    this.space = space;
+    requestMatrix.readFeatures(space);
   }
 
-  /**
-   * The space on which this task operates.
-   */
-  private @Nullable Space space;
-
-  /**
-   * Returns the space.
-   *
-   * @return The space.
-   * @throws ParameterError If the space parameter is missing or invalid.
-   */
-  public @NotNull Space getSpace() throws ParameterError {
-    if (space == null) {
-      throw new ParameterError("Missing space");
-    }
-    return space;
-  }
 
   @Override
   protected @NotNull XyzResponse execute() throws Exception {
-    pipeline.addSpaceHandler(getSpace());
+    final Space space = event.getSpace();
+    if (space == null) {
+      throw new ParameterError("Missing space for spaceId "+event.getStreamId());
+    }
+    pipeline.addSpaceHandler(space);
     return sendAuthorizedEvent(event, requestMatrix());
   }
 }

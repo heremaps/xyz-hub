@@ -1,6 +1,6 @@
 package com.here.xyz;
 
-import static com.here.xyz.XyzLogger.currentLogger;
+import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;

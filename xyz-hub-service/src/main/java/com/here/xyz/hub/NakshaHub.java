@@ -3,7 +3,17 @@ package com.here.xyz.hub;
 import static com.here.xyz.util.IoHelp.openResource;
 import static com.here.xyz.util.IoHelp.parseValue;
 
+import com.here.mapcreator.ext.naksha.NakshaMgmtClient;
+import com.here.xyz.AbstractTask;
+import com.here.xyz.INaksha;
+import com.here.xyz.events.Event;
+import com.here.xyz.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.hub.auth.NakshaAuthProvider;
+import com.here.xyz.hub.events.GetConnectorsByIdEvent;
+import com.here.xyz.hub.task.NakshaTask;
+import com.here.xyz.hub.task.connector.GetConnectorsByIdTask;
+import com.here.xyz.hub.task.feature.GetFeaturesByIdTask;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
 import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
 import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
@@ -13,6 +23,10 @@ import com.here.xyz.hub.util.metrics.base.CWBareValueMetricPublisher;
 import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.NakshaHubMetricsFactory;
+import com.here.xyz.lambdas.F0;
+import com.here.xyz.lambdas.F1;
+import com.here.xyz.lambdas.F2;
+import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.IoHelp;
 import com.here.xyz.util.IoHelp.LoadedConfig;
 import io.vertx.core.Vertx;
@@ -40,6 +54,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,7 +66,31 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("unused")
-public class NakshaHub {
+public class NakshaHub extends NakshaMgmtClient {
+
+  @SuppressWarnings("rawtypes")
+  private static final ConcurrentHashMap<@NotNull Class<? extends Event>, @NotNull F0<@NotNull AbstractTask>> tasks = new ConcurrentHashMap<>();
+
+  static {
+    // Connector events.
+    tasks.put(GetConnectorsByIdEvent.class, GetConnectorsByIdTask::new);
+
+    // Subscription events.
+
+    // Feature events.
+    tasks.put(GetFeaturesByIdEvent.class, GetFeaturesByIdTask::new);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public final <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newTask(@NotNull Class<EVENT> eventClass)
+      throws XyzErrorException {
+    final F0<TASK> constructor = (F0<TASK>) tasks.get(eventClass);
+    if (constructor == null) {
+      throw new XyzErrorException(XyzError.EXCEPTION, "No task for event " + eventClass.getName() + " found");
+    }
+    return constructor.call();
+  }
 
   /**
    * The logger.
@@ -140,6 +179,7 @@ public class NakshaHub {
    * @throws IOException If loading the build properties failed.
    */
   public NakshaHub(@NotNull NakshaHubConfig config) throws IOException {
+    super(config.getDb(), config.getServerName(), 0L);
     this.config = config;
     buildProperties = NakshaHub.getBuildProperties();
     buildVersion = parseValue(buildProperties.get("naksha.version"), String.class);
@@ -325,7 +365,7 @@ public class NakshaHub {
    */
   protected static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
 
-  public static final ThreadFactory newThreadFactory(String groupName) {
+  public static ThreadFactory newThreadFactory(String groupName) {
     return new DefaultThreadFactory(groupName);
   }
 

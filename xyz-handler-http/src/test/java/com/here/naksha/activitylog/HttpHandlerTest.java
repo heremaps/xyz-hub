@@ -22,14 +22,14 @@ class HttpHandlerTest {
 
   static Connector connector;
   static IoEventPipeline eventPipeline;
-  static HttpHandler activityLogHandler;
+  static HttpHandler httpHandler;
 
   @BeforeAll
   static void setup() throws XyzErrorException {
     connector = new Connector();
     eventPipeline = new IoEventPipeline();
-    activityLogHandler = new HttpHandler(connector);
-    eventPipeline.addEventHandler(activityLogHandler);
+    httpHandler = new HttpHandler(connector);
+    eventPipeline.addEventHandler(httpHandler);
   }
 
   @Test

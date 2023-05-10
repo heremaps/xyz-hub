@@ -1,5 +1,7 @@
 package com.here.xyz;
 
+import com.here.xyz.events.Event;
+import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Subscription;
@@ -17,9 +19,28 @@ import org.jetbrains.annotations.Nullable;
 public interface INaksha {
 
   /**
-   * The reference to the Naksha implementation provided by the host.
+   * The reference to the Naksha implementation provided by the host. Rather use the {@link #get()} method to get the instance.
    */
   AtomicReference<@NotNull INaksha> instance = new AtomicReference<>();
+
+  /**
+   * Returns the reference to the Naksha implementation provided by the host.
+   *
+   * @return The reference to the Naksha implementation provided by the host.
+   */
+  static @NotNull INaksha get() {
+    return instance.getPlain();
+  }
+
+  /**
+   * Create a new task for the given event.
+   *
+   * @param eventClass The class of the event-type to create a task for.
+   * @param <EVENT>    The event-type.
+   * @return The created task.
+   * @throws XyzErrorException If the creation of the task failed for some reason.
+   */
+  <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newTask(@NotNull Class<EVENT> eventClass) throws XyzErrorException;
 
   /**
    * Returns a list of all spaces that are directly mapped to the given collection.
@@ -55,12 +76,14 @@ public interface INaksha {
 
   /**
    * Return an iterable about all connectors.
+   *
    * @return An iterable about all connectors.
    */
   @NotNull Iterable<Connector> getConnectors();
 
   /**
    * Returns the subscription with the given identifier.
+   *
    * @param id The identifier.
    * @return The subscription or {@code null}; if no such subscription exists.
    */

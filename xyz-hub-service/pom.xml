@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>1.26.8-SNAPSHOT</version>
+    <version>2.0.0-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -37,7 +37,7 @@
     </license>
   </licenses>
 
-  <name>XYZ Hub Service</name>
+  <name>XYZ Hub - Service</name>
   <description>XYZ Hub Service</description>
   <artifactId>xyz-hub-service</artifactId>
   <packaging>jar</packaging>

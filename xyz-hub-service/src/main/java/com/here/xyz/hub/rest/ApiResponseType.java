@@ -39,6 +39,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public enum ApiResponseType implements CharSequence {
   EMPTY,
+  ERROR(APPLICATION_JSON),
   FEATURE(APPLICATION_GEO_JSON, GetFeaturesByTileResponseType.GEO_JSON),
   FEATURE_COLLECTION(APPLICATION_GEO_JSON, GetFeaturesByTileResponseType.GEO_JSON),
   COMPACT_CHANGESET(APPLICATION_JSON),

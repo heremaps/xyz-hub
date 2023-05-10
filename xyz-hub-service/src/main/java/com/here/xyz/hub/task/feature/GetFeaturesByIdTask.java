@@ -6,17 +6,11 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 public final class GetFeaturesByIdTask extends AbstractFeatureTask<GetFeaturesByIdEvent> {
 
-  public GetFeaturesByIdTask(@Nullable String streamId) {
-    super(streamId);
-  }
-
-  @Override
-  public @NotNull GetFeaturesByIdEvent createEvent() {
-    return new GetFeaturesByIdEvent();
+  public GetFeaturesByIdTask() {
+    super(new GetFeaturesByIdEvent());
   }
 
   @Override

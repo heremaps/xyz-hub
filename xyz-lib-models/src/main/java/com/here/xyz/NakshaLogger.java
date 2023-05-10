@@ -12,26 +12,26 @@ import org.slf4j.Marker;
 /**
  * A class implementing the logger interface, bound to a thread.
  */
-public class XyzLogger implements Logger {
+public class NakshaLogger implements Logger {
 
   /**
    * A supplied that can be modified by an extending class, all instances of the logger then will be turned into the application class.
    */
-  protected static final AtomicReference<F0<XyzLogger>> constructor = new AtomicReference<>(XyzLogger::new);
+  protected static final AtomicReference<F0<NakshaLogger>> constructor = new AtomicReference<>(NakshaLogger::new);
 
   /**
    * The thread local instance.
    */
-  protected static final ThreadLocal<XyzLogger> instance = ThreadLocal.withInitial(() -> constructor.get().call());
+  protected static final ThreadLocal<NakshaLogger> instance = ThreadLocal.withInitial(() -> constructor.get().call());
 
   /**
    * Returns the current thread local logger.
    *
    * @return The current thread local logger.
    */
-  public static @NotNull XyzLogger currentLogger() {
-    final XyzLogger logger = instance.get();
-    final AbstractTask task = AbstractTask.currentTaskOrNull();
+  public static @NotNull NakshaLogger currentLogger() {
+    final NakshaLogger logger = instance.get();
+    final AbstractTask<?> task = AbstractTask.currentTask();
     if (task != null) {
       logger.with(task.streamId(), task.startNanos());
     } else {
@@ -52,7 +52,7 @@ public class XyzLogger implements Logger {
   /**
    * Create a new thread local logger.
    */
-  protected XyzLogger() {
+  protected NakshaLogger() {
     streamId = CREATE_STREAM_ID;
     startNanos = NanoTime.now();
   }
@@ -63,7 +63,7 @@ public class XyzLogger implements Logger {
    * @param streamId   The initial stream-id.
    * @param startNanos The start nanos to use.
    */
-  protected XyzLogger(@NotNull String streamId, long startNanos) {
+  protected NakshaLogger(@NotNull String streamId, long startNanos) {
     this.streamId = streamId;
     this.startNanos = startNanos;
   }
@@ -109,7 +109,7 @@ public class XyzLogger implements Logger {
    * @param startNanos The start-time.
    * @return this.
    */
-  public @NotNull XyzLogger with(@NotNull String streamId, long startNanos) {
+  public @NotNull NakshaLogger with(@NotNull String streamId, long startNanos) {
     this.streamId = streamId;
     this.startNanos = startNanos;
     return this;

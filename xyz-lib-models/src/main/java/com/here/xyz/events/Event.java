@@ -19,7 +19,8 @@
 
 package com.here.xyz.events;
 
-import static com.here.xyz.AbstractTask.currentTaskOrNull;
+import static com.here.xyz.AbstractTask.SOFT_LIMIT;
+import static com.here.xyz.AbstractTask.currentTask;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -29,9 +30,13 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.EventPipeline;
+import com.here.xyz.IEventContext;
+import com.here.xyz.IEventHandler;
+import com.here.xyz.INaksha;
 import com.here.xyz.NanoTime;
 import com.here.xyz.Payload;
-import com.here.xyz.XyzLogger;
+import com.here.xyz.NakshaLogger;
 import com.here.xyz.events.admin.ModifySubscriptionEvent;
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
@@ -51,6 +56,7 @@ import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.AbstractTask;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.JsonUtils;
 import java.util.HashMap;
 import java.util.Map;
@@ -60,19 +66,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The base class of all events that are sent by the XYZ Hub to a "procedure". All events extend this event. All "procedures" can be sure to
- * receive events that extend this class and need to respond with any {@link com.here.xyz.responses.XyzResponse}.
+ * The base class of all events that are sent by the Hub to a {@link IEventHandler handler}. All events extend this event. All
+ * {@link IEventHandler handler} can be sure to receive events that extend this class and need to respond with an object extending the
+ * {@link XyzResponse} class.
  *
- * <p>It's not defined if that procedure is embedded into the XYZ Hub or located at a remote host
- * nor is any assumption being made about how the event or response are transferred. Basically the event-response model just describes what
- * events the XYZ hub may trigger and how the processing "procedures" must respond.
+ * <p>An event can be serialized and send to another instance to be processed there, this is decided by the {@link EventPipeline}. When
+ * a handler sends an event {@link IEventContext#sendUpstream() upstream}, the handler itself does not know if this event is processed in
+ * the current host or on a foreign host. Basically the event model just describes what events exist and what the event should produce.
  *
- * <p>A "procedure" is defined as
- *
- * <p>Every event is basically encoded into a binary using a "procedure encoder". Be aware that this
- * event is translated into some protocol using a corresponding encoder. Only the remote procedure client will receive this event. It's not
- * necessary that the remote procedure itself uses this event class to communicate. Rather the remote procedure client needs to accept the
- * event, translate it into an arbitrary binary (byte[]), which is then sent to a remote service that processes the event.
+ * <p>Every event can be encoded/decoded into/from any binary form using an encoder/decoder. It is unnecessary, that the remote procedure
+ * itself uses this class or any code from this package to handle the event.
  */
 @SuppressWarnings("unused")
 @JsonSubTypes({
@@ -94,16 +97,10 @@ import org.jetbrains.annotations.Nullable;
     @JsonSubTypes.Type(value = IterateHistoryEvent.class, name = "IterateHistoryEvent")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
-public abstract class Event extends Payload {
+public class Event extends Payload {
 
   protected Event() {
-    final AbstractTask context = currentTaskOrNull();
-    if (context != null) {
-      startNanos = context.startNanos();
-      streamId = context.streamId();
-    } else {
-      startNanos = NanoTime.now();
-    }
+    startNanos = NanoTime.now();
   }
 
   /**
@@ -181,6 +178,12 @@ public abstract class Event extends Payload {
   private @Nullable String spaceId;
 
   /**
+   * The internal cache of the space.
+   */
+  @JsonIgnore
+  private @Nullable Space space;
+
+  /**
    * The collection; if any.
    */
   @JsonProperty
@@ -248,6 +251,19 @@ public abstract class Event extends Payload {
     this.spaceId = space.getId();
     this.collection = space.getCollection();
     this.params = JsonUtils.deepCopy(space.params);
+    this.space = space;
+  }
+
+  /**
+   * Returns the space; if the referred space exists locally.
+   *
+   * @return The space; if the referred space exists locally.
+   */
+  public @Nullable Space getSpace() {
+    if (space == null && spaceId != null) {
+      space = INaksha.get().getSpaceById(spaceId);
+    }
+    return space;
   }
 
   /**
@@ -282,9 +298,9 @@ public abstract class Event extends Payload {
   @JsonIgnore
   public @NotNull String getStreamId() {
     if (streamId == null) {
-      final AbstractTask context = currentTaskOrNull();
-      if (context != null) {
-        streamId = context.streamId();
+      final AbstractTask<?> task = currentTask();
+      if (task != null) {
+        streamId = task.streamId();
       } else {
         streamId = RandomStringUtils.randomAlphanumeric(12);
       }
@@ -332,7 +348,7 @@ public abstract class Event extends Payload {
         return (String) raw;
       }
     }
-    XyzLogger.currentLogger().debug("Missing 'connectorParams.connectorId' in event");
+    NakshaLogger.currentLogger().debug("Missing 'connectorParams.connectorId' in event");
     return getClass().getName();
   }
 
@@ -350,13 +366,13 @@ public abstract class Event extends Payload {
         return ((Number) raw).longValue();
       }
     }
-    XyzLogger.currentLogger().debug("Missing 'connectorParams.connectorNumber' in event");
+    NakshaLogger.currentLogger().debug("Missing 'connectorParams.connectorNumber' in event");
     return 0L;
   }
 
   /**
-   * Sets the given connector to the event. Calling this method is only necessary, when sending the event over the network to a remote
-   * host, because for embedded implementation the connector configuration will be passed to the constructor of the event handler.
+   * Sets the given connector to the event. Calling this method is only necessary, when sending the event over the network to a remote host,
+   * because for embedded implementation the connector configuration will be passed to the constructor of the event handler.
    *
    * @param connector The connector to set.
    */

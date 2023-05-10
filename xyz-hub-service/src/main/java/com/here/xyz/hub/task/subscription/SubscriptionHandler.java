@@ -23,8 +23,6 @@ import com.here.xyz.events.admin.ModifySubscriptionEvent;
 import com.here.xyz.events.admin.ModifySubscriptionEvent.Operation;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.rest.Context;
-import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.feature.ModifySubscriptionQuery;
 import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.models.hub.SubscriptionStatus;

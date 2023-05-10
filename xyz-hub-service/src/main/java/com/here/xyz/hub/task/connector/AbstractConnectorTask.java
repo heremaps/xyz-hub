@@ -25,15 +25,14 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.NakshaTask;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * All tasks related to connectors.
  */
 public abstract class AbstractConnectorTask<EVENT extends AbstractConnectorEvent> extends NakshaTask<EVENT> {
 
-  protected AbstractConnectorTask(@Nullable String streamId) {
-    super(streamId);
+  protected AbstractConnectorTask(@NotNull EVENT event) {
+    super(event);
   }
 
   @Override

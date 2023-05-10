@@ -24,6 +24,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
+import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.hub.rest.ApiParam.Path;
@@ -81,14 +82,14 @@ public class FeatureApi extends SpaceBasedApi {
    * Retrieves a feature.
    */
   private void getFeature(final RoutingContext context) {
-    NakshaTask.start(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE);
+    NakshaTask.start(GetFeaturesByIdEvent.class, context, ApiResponseType.FEATURE);
   }
 
   /**
    * Retrieves multiple features by ID.
    */
   private void getFeatures(final RoutingContext context) {
-    NakshaTask.start(GetFeaturesByIdTask.class, context, ApiResponseType.FEATURE_COLLECTION);
+    NakshaTask.start(GetFeaturesByIdEvent.class, context, ApiResponseType.FEATURE_COLLECTION);
   }
 
   /**

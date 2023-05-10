@@ -19,8 +19,7 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.XyzLogger.currentLogger;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.hub.task.ModifySpaceOp.SpaceEntry;

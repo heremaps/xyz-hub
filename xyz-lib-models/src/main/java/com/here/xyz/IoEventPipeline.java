@@ -1,7 +1,6 @@
 package com.here.xyz;
 
-import static com.here.xyz.AbstractTask.currentTask;
-import static com.here.xyz.XyzLogger.currentLogger;
+import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.here.xyz.events.Event;
 import com.here.xyz.responses.BinaryResponse;
@@ -79,7 +78,7 @@ public class IoEventPipeline extends EventPipeline {
         final String deserialized = typed.getClass().getSimpleName();
         currentLogger().info("Event parsed in {}ms, but expected {}, deserialized {}", parsedInMillis, expected, deserialized);
         response = new ErrorResponse()
-            .withStreamId(currentTask().streamId())
+            .withStreamId(currentLogger().streamId())
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Invalid event, expected " + expected + ", but found " + deserialized);
         if (output != null) {
@@ -102,7 +101,7 @@ public class IoEventPipeline extends EventPipeline {
     } catch (Throwable e) {
       currentLogger().warn("Exception while processing the event", e);
       response = new ErrorResponse()
-          .withStreamId(currentTask().streamId())
+          .withStreamId(currentLogger().streamId())
           .withError(XyzError.EXCEPTION)
           .withErrorMessage(e.getMessage());
       if (output != null) {

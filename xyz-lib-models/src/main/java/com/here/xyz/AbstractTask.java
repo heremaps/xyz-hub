@@ -1,5 +1,6 @@
 package com.here.xyz;
 
+import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.LoadFeaturesEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.exceptions.ParameterError;
@@ -19,49 +20,25 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * A configurable event task, that executes one or more events in an own dedicated thread. Basically a task is
- * {@link #attachToCurrentThread() bound} to a dedicated thread and sends events through a private pipeline with added handlers. All
+ * {@link #attachToCurrentThread() attached} to a dedicated thread and sends events through a private pipeline with handlers added. All
  * handlers added to the pipeline of the task can query the current task simply via {@link #currentTask()}.
  * <p>
- * A task may send multiple events through the attached pipeline and modify the pipeline between the events. For example to modify features
- * at least a {@link LoadFeaturesEvent} is needed to fetch the current state of the features and then to (optionally) perform a merge and
- * execute the {@link ModifyFeaturesEvent}. Other combinations are possible.
+ * A task may send multiple events through the attached pipeline and modify the pipeline between these events. For example to modify
+ * features at least a {@link LoadFeaturesEvent} is needed to fetch the current state of the features and then to (optionally) perform a
+ * merge and execute the {@link ModifyFeaturesEvent}. Other combinations are possible.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
-public abstract class AbstractTask implements UncaughtExceptionHandler {
-
-  /**
-   * Internal default No Operation Task, just useful for testing or other edge cases. The NOP task binding is weak, that means all other
-   * tasks are forcefully unbinding the NOP task. Its purpose is to ensure that {@link #currentTask()} is always able to return a task for
-   * logging purpose.
-   */
-  static final class NopTask extends AbstractTask {
-
-    NopTask() {
-      // We know that NOP Tasks only created internally and only when currentTask() is invoked, therefore we set the stream-id to
-      // the name of the current thread, so that the thread is not renamed.
-      super(Thread.currentThread().getName());
-    }
-
-    @Override
-    protected void init() {
-    }
-
-    @Override
-    protected @NotNull XyzResponse execute() {
-      return errorResponse(XyzError.NOT_IMPLEMENTED, "Not Implemented");
-    }
-  }
+public abstract class AbstractTask<EVENT extends Event> implements UncaughtExceptionHandler {
 
   /**
    * The constructor to use, when creating new task instances on demand.
    */
-  public static final AtomicReference<@Nullable Supplier<@NotNull AbstractTask>> FACTORY = new AtomicReference<>();
+  public static final AtomicReference<@Nullable Supplier<@NotNull AbstractTask<?>>> FACTORY = new AtomicReference<>();
 
   /**
    * The soft-limit of tasks to run concurrently.
@@ -74,23 +51,16 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
   private static final ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
 
   /**
-   * Creates a new task. If no stream-id is given, and the thread creating this task does have an own task bound, then the new task will
-   * have the same stream-id. If no stream-id is given, and the thread creating this task does <b>NOT</b> have an own task bound, then a new
-   * random stream-id is generated.
+   * Creates a new task. If no stream-id is given, and the thread creating this task does have a task attached, then this task will derive
+   * the stream-id. If no stream-id is given, and the thread creating this task does <b>NOT</b> have an own task bound, then a new random
+   * stream-id is generated.
    *
-   * @param streamId The stream-id to use; if any.
+   * @param event The event.
    */
-  public AbstractTask(@Nullable String streamId) {
-    startNanos = NanoTime.now();
-    if (streamId == null) {
-      final AbstractTask currentTask = AbstractTask.currentTaskOrNull();
-      if (currentTask != null) {
-        streamId = currentTask.streamId;
-      } else {
-        streamId = RandomStringUtils.randomAlphanumeric(12);
-      }
-    }
-    this.streamId = streamId;
+  public AbstractTask(@NotNull EVENT event) {
+    this.startNanos = event.startNanos();
+    this.streamId = event.getStreamId();
+    this.event = event;
     attachments = new ConcurrentHashMap<>();
   }
 
@@ -99,8 +69,8 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
    *
    * @return the thread local logger configured to this task.
    */
-  public @NotNull XyzLogger logger() {
-    return XyzLogger.currentLogger().with(streamId, startNanos);
+  public @NotNull NakshaLogger logger() {
+    return NakshaLogger.currentLogger().with(streamId, startNanos);
   }
 
   /**
@@ -207,12 +177,46 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
   /**
    * The steam-id of this context.
    */
-  protected @NotNull String streamId;
+  protected final @NotNull String streamId;
 
   /**
    * The nano-time when creating the context.
    */
-  protected long startNanos;
+  protected final long startNanos;
+
+  /**
+   * The main event to be processed by the task, created by the constructor.
+   */
+  protected final @NotNull EVENT event;
+
+  /**
+   * A flag to signal that this task is internal.
+   */
+  protected boolean internal;
+
+  /**
+   * Flag this task as internal, so when starting the task, the maximum amount of parallel tasks limit should be ignored.
+   *
+   * @param internal {@code true} if this task is internal and therefore bypassing the maximum parallel tasks limit.
+   * @throws IllegalStateException If the task is not in the state {@link State#NEW}.
+   */
+  public void setInternal(boolean internal) throws IllegalStateException {
+    lock();
+    try {
+      this.internal = internal;
+    } finally {
+      unlock();
+    }
+  }
+
+  /**
+   * Tests whether this task flagged as internal.
+   *
+   * @return {@code true} if this task flagged as internal; {@code false} otherwise.
+   */
+  public boolean isInternal() {
+    return internal;
+  }
 
   /**
    * Returns the stream-id.
@@ -221,6 +225,17 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
    */
   public @NotNull String streamId() {
     return streamId;
+  }
+
+  /**
+   * Returns the main event of this task. Internally a task may generate multiple sub-events and send them through the pipeline. For example
+   * a {@link ModifyFeaturesEvent} requires a {@link LoadFeaturesEvent} pre-flight event, some other events may require other pre-flight
+   * request.
+   *
+   * @return the main event of this task.
+   */
+  public @NotNull EVENT event() {
+    return event;
   }
 
   /**
@@ -236,37 +251,13 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
   @Nullable String oldName;
 
   /**
-   * Returns the task attached to the current thread. If no task attached, creating a new one and attach it.
+   * Returns the task attached to the current thread; if any.
    *
-   * @return the task of the current thread.
-   * @throws ClassCastException if the current task is not of the expected type.
-   */
-  @SuppressWarnings("unchecked")
-  public static <T extends AbstractTask> @NotNull T currentTask() {
-    final Thread thread = Thread.currentThread();
-    final UncaughtExceptionHandler uncaughtExceptionHandler = thread.getUncaughtExceptionHandler();
-    if (uncaughtExceptionHandler instanceof AbstractTask) {
-      return (T) uncaughtExceptionHandler;
-    }
-
-    final Supplier<@NotNull AbstractTask> eventTaskSupplier = FACTORY.get();
-    final @NotNull AbstractTask newTask = eventTaskSupplier != null ? eventTaskSupplier.get() : new NopTask();
-    newTask.thread = thread;
-    newTask.oldName = thread.getName();
-    newTask.oldUncaughtExceptionHandler = uncaughtExceptionHandler;
-    thread.setName(newTask.streamId);
-    thread.setUncaughtExceptionHandler(newTask);
-    return (T) newTask;
-  }
-
-  /**
-   * Returns the task bound to the current thread; if any.
-   *
-   * @return The task of the current thread or {@code null}, if the current thread has no task bound.
+   * @return The task attached to the current thread or {@code null}, if the current thread has no task attached.
    * @throws ClassCastException if the task is not of the expected type.
    */
   @SuppressWarnings("unchecked")
-  public static <T extends AbstractTask> @Nullable T currentTaskOrNull() {
+  public static <T extends AbstractTask<?>> @Nullable T currentTask() {
     final Thread thread = Thread.currentThread();
     final UncaughtExceptionHandler uncaughtExceptionHandler = thread.getUncaughtExceptionHandler();
     if (uncaughtExceptionHandler instanceof AbstractTask) {
@@ -297,13 +288,7 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
     final String threadName = thread.getName();
     final UncaughtExceptionHandler threadUncaughtExceptionHandler = thread.getUncaughtExceptionHandler();
     if (threadUncaughtExceptionHandler instanceof AbstractTask) {
-      if (threadUncaughtExceptionHandler.getClass() == NopTask.class) {
-        // Force unbind of NOP task.
-        final NopTask nopTask = (NopTask) threadUncaughtExceptionHandler;
-        nopTask.thread = null;
-      } else {
-        throw new IllegalStateException("The current thread is already bound to task " + threadName);
-      }
+      throw new IllegalStateException("The current thread is already bound to task " + threadName);
     }
     this.thread = thread;
     this.oldName = threadName;
@@ -358,18 +343,19 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
   }
 
   /**
-   * Unlocks.
+   * Unlocks a lock acquired previously via {@link #lock()}.
    */
   protected final void unlock() {
     mutex.unlock();
   }
 
   /**
-   * Creates a new thread, bind this task to the new thread, calling the {@link #execute()} method.
+   * Creates a new thread, attach this task to the new thread, then call {@link #init()} followed by an invocation of {@link #execute()} to
+   * generate the response.
    *
    * @return The future to the result.
    * @throws IllegalStateException If the {@link #state()} is not {@link State#NEW}.
-   * @throws XyzErrorException     Too many concurrent threads.
+   * @throws XyzErrorException     If any error occurred, for example too many concurrent tasks.
    */
   public @NotNull Future<@NotNull XyzResponse> start() throws XyzErrorException {
     final long LIMIT = AbstractTask.SOFT_LIMIT.get();
@@ -378,7 +364,7 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
       do {
         final long threadCount = AbstractTask.threadCount.get();
         assert threadCount >= 0L;
-        if (threadCount >= LIMIT) {
+        if (!internal && threadCount >= LIMIT) {
           throw new XyzErrorException(XyzError.TOO_MANY_REQUESTS, "Maximum number of concurrent requests (" + LIMIT + ") reached");
         }
         if (AbstractTask.threadCount.compareAndSet(threadCount, threadCount + 1)) {
@@ -394,26 +380,6 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
         }
         // Conflict, two threads concurrently try to fork.
       } while (true);
-    } finally {
-      unlock();
-    }
-  }
-
-  /**
-   * Creates a new thread and binds this task to the thread, executing the given method, ignoring the thread limit. This should only be used
-   * internally (we do not want a running request to be aborted just because of some arbitrary thread limit, rather reject new requests).
-   */
-  public @NotNull Future<@NotNull XyzResponse> startWithoutLimit() {
-    lock();
-    try {
-      AbstractTask.threadCount.incrementAndGet();
-      final Future<XyzResponse> future = threadPool.submit(this::run);
-      state.set(State.START);
-      return future;
-    } catch (Throwable t) {
-      AbstractTask.threadCount.decrementAndGet();
-      logger().error("Unexpected exception while trying to fork a new thread, ignoring the soft-limit", t);
-      throw t;
     } finally {
       unlock();
     }
@@ -452,6 +418,7 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
 
   /**
    * Initializes this task.
+   *
    * @throws Throwable The exception to throw.
    */
   abstract protected void init() throws Throwable;
@@ -464,6 +431,15 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
    * @throws Throwable         If any unexpected error occurred (will be logged as error).
    */
   abstract protected @NotNull XyzResponse execute() throws Throwable;
+
+  /**
+   * Try to cancel the task.
+   *
+   * @return {@code true} if the task cancelled successfully; {@code false} otherwise.
+   */
+  public boolean cancel() {
+    return false;
+  }
 
   /**
    * The state of the task.
@@ -513,7 +489,7 @@ public abstract class AbstractTask implements UncaughtExceptionHandler {
    *
    * @param listener The listener to add.
    * @return {@code true} if added the listener; {@code false} if the listener already added.
-   * @throws IllegalStateException After {@link #start()} called.
+   * @throws IllegalStateException If called after {@link #start()}.
    */
   public final boolean addListener(@NotNull Consumer<@NotNull XyzResponse> listener) {
     lock();
