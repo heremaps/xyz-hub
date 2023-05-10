@@ -5,13 +5,11 @@ import static com.here.xyz.util.IoHelp.parseValue;
 
 import com.here.mapcreator.ext.naksha.NakshaMgmtClient;
 import com.here.xyz.AbstractTask;
-import com.here.xyz.INaksha;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.hub.auth.NakshaAuthProvider;
 import com.here.xyz.hub.events.GetConnectorsByIdEvent;
-import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.task.connector.GetConnectorsByIdTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByIdTask;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
@@ -24,8 +22,6 @@ import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.NakshaHubMetricsFactory;
 import com.here.xyz.lambdas.F0;
-import com.here.xyz.lambdas.F1;
-import com.here.xyz.lambdas.F2;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.IoHelp;
 import com.here.xyz.util.IoHelp.LoadedConfig;
@@ -133,11 +129,6 @@ public class NakshaHub extends NakshaMgmtClient {
   public final @NotNull WebClient webClient;
 
   /**
-   * The public endpoint.
-   */
-  public final @NotNull URL endpoint;
-
-  /**
    * The VertX-Options.
    */
   public final @NotNull VertxOptions vertxOptions;
@@ -194,28 +185,8 @@ public class NakshaHub extends NakshaMgmtClient {
     vertxMetricsOptions = new MetricsOptions().setEnabled(true).setFactory(new NakshaHubMetricsFactory());
     vertxOptions = new VertxOptions();
     logger.info("Config file location: {} (path={})", config.filename(), config.loadPath());
-
-    if (config.hostname == null || config.hostname.length() == 0) {
-      try {
-        config.hostname = InetAddress.getLocalHost().getHostAddress();
-      } catch (UnknownHostException e) {
-        logger.error("Unable to resolve the hostname using Java's API.", e);
-        config.hostname = "localhost";
-      }
-    }
-
-    URL endpoint = null;
-    if (config.endpoint != null && config.endpoint.length() > 0) {
-      try {
-        endpoint = new URL(config.endpoint);
-      } catch (MalformedURLException e) {
-        logger.error("Invalid configuration of endpoint", e);
-      }
-    }
-    if (endpoint == null) {
-      endpoint = new URL("http://" + config.hostname + ":" + config.httpPort);
-    }
-    this.endpoint = endpoint;
+    logger.info("Naksha host: {}", config.getHostname());
+    logger.info("Naksha endpoint: {}", config.getEndpoint());
 
     // See: https://vertx.io/docs/vertx-core/java
     vertxOptions.setMetricsOptions(vertxMetricsOptions);
@@ -230,11 +201,11 @@ public class NakshaHub extends NakshaMgmtClient {
     }
     vertx = Vertx.vertx(vertxOptions);
 
-    if (config.jwtPubKey != null) {
-      final String jwtPubKey = jwtPubKey(config.jwtPubKey);
+    if (config.getJwtPubKey() != null) {
+      final String jwtPubKey = jwtPubKey(config.getJwtPubKey());
       authOptions = new JWTAuthOptions().addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtPubKey));
     } else {
-      final LoadedConfig loadedConfig = IoHelp.readConfigFromHomeOrResource("auth/" + config.jwtKeyName() + ".key", config.appName());
+      final LoadedConfig loadedConfig = IoHelp.readConfigFromHomeOrResource("auth/" + config.getJwtKeyName() + ".key", config.appName());
       logger.info("Loaded JWT key file {}", loadedConfig.path());
       final String jwt = new String(loadedConfig.bytes(), StandardCharsets.UTF_8);
       authOptions = new JWTAuthOptions()
@@ -282,7 +253,7 @@ public class NakshaHub extends NakshaMgmtClient {
     startMetricPublishers();
   }
 
-  protected @NotNull NakshaHubVerticle[] verticles;
+  @NotNull NakshaHubVerticle[] verticles;
 
   /**
    * Emergency uncaught exception handler to prevent that the server crashs.

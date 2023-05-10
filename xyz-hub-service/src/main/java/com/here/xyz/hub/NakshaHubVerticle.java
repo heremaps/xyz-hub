@@ -82,7 +82,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The Naksha-Hub verticle. Can only be created by the Naksha-Hub.
+ * The Naksha-Hub verticle. Can only be created by the Naksha-Hub. We deploy as many verticle as we have CPUs.
  */
 public class NakshaHubVerticle extends AbstractVerticle {
 
@@ -113,8 +113,8 @@ public class NakshaHubVerticle extends AbstractVerticle {
     final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, STREAM_INFO, ETAG);
     exposeHeaders.stream().map(String::valueOf).forEach(corsHandler::exposedHeader);
 
-    if (hub.config.webRoot != null) {
-      staticHandler = StaticHandler.create(FileSystemAccess.ROOT, hub.config.webRoot)
+    if (hub.config.getWebRoot() != null) {
+      staticHandler = StaticHandler.create(FileSystemAccess.ROOT, hub.config.getWebRoot())
           .setIndexPage("index.html")
           .setDirectoryListing(true)
           .setIncludeHidden(false);
@@ -124,7 +124,7 @@ public class NakshaHubVerticle extends AbstractVerticle {
   }
 
   /**
-   * The Naksha-Hub to which the verticle blongs.
+   * The Naksha-Hub to which the verticle belongs.
    */
   protected final @NotNull NakshaHub hub;
 
@@ -135,10 +135,6 @@ public class NakshaHubVerticle extends AbstractVerticle {
 
   @Override
   public void start(final @NotNull Promise<Void> startPromise) throws Exception {
-    // In a nutshell:
-    // When several HTTP servers listen on the same port, vert.x orchestrates the request handling using a round-robin strategy.
-    //
-    // https://vertx.io/docs/vertx-core/java/#_server_sharing
     RouterBuilder.create(vertx, "static/openapi.yaml").onComplete(ar -> {
       try {
         if (ar.failed()) {
@@ -191,7 +187,7 @@ public class NakshaHubVerticle extends AbstractVerticle {
 
     // Optional: Web server.
     if (staticHandler != null) {
-      currentLogger().debug("Serving extra web-root folder in file-system with location: {}", hub.config.webRoot);
+      currentLogger().debug("Serving extra web-root folder in file-system with location: {}", hub.config.getWebRoot());
       router.route("/hub/web/*").handler(staticHandler);
     }
 
@@ -202,9 +198,12 @@ public class NakshaHubVerticle extends AbstractVerticle {
     router.route().failureHandler(this::failureHandler);
 
     // Add the HTTP server.
-    vertx.createHttpServer(SERVER_OPTIONS).requestHandler(router).listen(hub.config.httpPort, result -> {
+    // When several HTTP servers listen on the same port, vert.x orchestrates the request handling using a round-robin strategy.
+    //
+    // https://vertx.io/docs/vertx-core/java/#_server_sharing
+    vertx.createHttpServer(SERVER_OPTIONS).requestHandler(router).listen(hub.config.getHttpPort(), result -> {
       if (result.succeeded()) {
-        currentLogger().info("HTTP Server started on port {}", hub.config.httpPort);
+        currentLogger().info("HTTP Server started on port {}", hub.config.getHttpPort());
       } else {
         currentLogger().error("An error occurred, during the initialization of the server.", result.cause());
       }

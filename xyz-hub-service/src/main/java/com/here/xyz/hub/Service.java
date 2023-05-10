@@ -60,7 +60,7 @@ public class Service extends NakshaHub {
       config = new NakshaHubConfig();
     }
     if (args.contains("--debug")) {
-      config.enableDebug();
+      config.debug = true;
     }
     if (config.loadPath() != null) {
       System.out.println("Loaded configuration file: " + config.loadPath());
