@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ public class MaintenanceSQL {
     private static String XYZ_CONFIG_SPACE_META_TABLE = "space_meta";
     private static String XYZ_CONFIG_STORAGE_TABLE = "xyz_storage";
     private static String XYZ_CONFIG_SPACE_TABLE = "xyz_space";
+    private static String XYZ_CONFIG_SUBSCRIPTION_TABLE = "xyz_subscription";
     private static String XYZ_CONFIG_TAG_TABLE = "xyz_tags";
 
     /**
@@ -58,6 +59,7 @@ public class MaintenanceSQL {
                 + "(SELECT (to_regclass('" + IDX_STATUS_TABLE_FQN + "') IS NOT NULL) as idx_table), "
                 + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+ XYZ_CONFIG_DB_STATUS_TABLE +"') IS NOT NULL) as db_status_table), "
                 + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_META_TABLE+"') IS NOT NULL) as space_meta_table), "
+                + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SUBSCRIPTION_TABLE+"') IS NOT NULL) as subscription_table), "
                 + "(SELECT (to_regclass('" + XYZ_CONFIG_SCHEMA + "."+ XYZ_CONFIG_TAG_TABLE +"') IS NOT NULL) as tag_table) "
                 + "FROM( "
                 + "	SELECT nspname::text FROM pg_catalog.pg_namespace "
@@ -93,10 +95,11 @@ public class MaintenanceSQL {
                 "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public; " +
                 "CREATE EXTENSION IF NOT EXISTS dblink SCHEMA public; " +
                 "BEGIN" +
-                "   CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE; " +
+                "   CREATE EXTENSION IF NOT EXISTS plpython3u CASCADE; " +
                 "   EXCEPTION WHEN OTHERS THEN " +
-                "       RAISE NOTICE 'Not able to install aws_s3 extension'; " +
+                "       RAISE NOTICE 'Not able to install plpython3u extension'; " +
                 "   END;" +
+                "CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE; " +
                 "END; " +
                 "$$;";
     }
@@ -172,7 +175,7 @@ public class MaintenanceSQL {
     public static String configSchemaAndSystemTablesSQL =
             "CREATE SCHEMA IF NOT EXISTS \"" + XYZ_CONFIG_SCHEMA + "\";"+
                     "CREATE TABLE IF NOT EXISTS  "+ XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_STORAGE_TABLE+" (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB);"+
-                    "CREATE TABLE IF NOT EXISTS  " + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_TABLE+" (id VARCHAR(50) primary key, owner VARCHAR (50), cid VARCHAR (50), config JSONB);";
+                    "CREATE TABLE IF NOT EXISTS  " + XYZ_CONFIG_SCHEMA + "."+XYZ_CONFIG_SPACE_TABLE+" (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB, region VARCHAR (50));";
 
     public static String createIDXInitEntry =  "INSERT INTO " + IDX_STATUS_TABLE_FQN + " (spaceid,count) " +
         "   VALUES ('idx_in_progress','0') " +
@@ -232,6 +235,14 @@ public class MaintenanceSQL {
                     "  space VARCHAR (255)," +
                     "  version BIGINT," +
                     "  PRIMARY KEY(id, space)"+
+                    "); ";
+
+    public static String createSubscriptionTable =
+            "CREATE TABLE IF NOT EXISTS " + XYZ_CONFIG_SCHEMA + "."+ XYZ_CONFIG_SUBSCRIPTION_TABLE +
+                    "( " +
+                    "  id VARCHAR(255) primary key," +
+                    "  source VARCHAR (255)," +
+                    "  config JSONB" +
                     "); ";
 
     public static String createSpaceMetaTable =
