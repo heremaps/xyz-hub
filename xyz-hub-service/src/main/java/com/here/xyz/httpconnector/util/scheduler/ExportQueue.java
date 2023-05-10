@@ -216,7 +216,7 @@ public class ExportQueue extends JobQueue{
         if (!commenced) {
             logger.info("Start!");
             commenced = true;
-            this.executionHandle = this.executorService.scheduleWithFixedDelay(this, 0, CService.configuration.JOB_CHECK_QUEUE_INTERVAL_SECONDS, TimeUnit.SECONDS);
+            this.executionHandle = this.executorService.scheduleWithFixedDelay(this, 0, CService.configuration.JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS, TimeUnit.MILLISECONDS);
         }
         return this;
     }

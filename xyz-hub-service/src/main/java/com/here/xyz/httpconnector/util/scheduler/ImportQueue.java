@@ -77,7 +77,6 @@ public class ImportQueue extends JobQueue{
                                     logger.info("JOB[{}] is finalized!", importJob.getId());
                                     /** Remove Job from Queue */
                                     removeJob(importJob);
-                                    releaseReadOnlyLockFromSpace(importJob);
                                     break;
                                 case failed:
                                     logger.info("JOB[{}] has failed!",importJob.getId());
@@ -243,7 +242,9 @@ public class ImportQueue extends JobQueue{
                 .onFailure(f -> {
                     logger.warn("JOB[{}] finalization failed!", j.getId(), f);
                     failJob(j, null , Import.ERROR_TYPE_FINALIZATION_FAILED);
-                }).compose(
+                })
+                .map(releaseReadOnlyLockFromSpace(j))
+                .compose(
                     f -> {
                         j.setFinalizedAt(Core.currentTimeMillis() / 1000L);
                         logger.info("JOB[{}] finalization finished!", j.getId());
@@ -265,7 +266,7 @@ public class ImportQueue extends JobQueue{
         if (!commenced) {
             logger.info("Start!");
             commenced = true;
-            this.executionHandle = this.executorService.scheduleWithFixedDelay(this, 0, CService.configuration.JOB_CHECK_QUEUE_INTERVAL_SECONDS, TimeUnit.SECONDS);
+            this.executionHandle = this.executorService.scheduleWithFixedDelay(this, 0, CService.configuration.JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS, TimeUnit.MILLISECONDS);
         }
         return this;
     }

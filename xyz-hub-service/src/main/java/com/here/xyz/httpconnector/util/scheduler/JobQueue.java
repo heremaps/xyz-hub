@@ -180,11 +180,11 @@ public abstract class JobQueue implements Runnable {
                 });
     }
 
-    protected void releaseReadOnlyLockFromSpace(Job job){
-        HubWebClient.updateSpaceConfig(new JsonObject().put("readOnly", false), job.getTargetSpaceId())
+    protected Future<Void> releaseReadOnlyLockFromSpace(Job job){
+        return HubWebClient.updateSpaceConfig(new JsonObject().put("readOnly", false), job.getTargetSpaceId())
                 .onFailure(f -> {
                     job.setErrorDescription( Import.ERROR_DESCRIPTION_READONLY_MODE_FAILED);
-                    updateJobStatus(job,Job.Status.failed);
+                    updateJobStatus(job, Job.Status.failed);
                 });
     }
 
