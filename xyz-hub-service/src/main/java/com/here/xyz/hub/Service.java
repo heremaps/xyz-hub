@@ -66,5 +66,6 @@ public class Service extends NakshaHub {
       System.out.println("Loaded configuration file: " + config.loadPath());
     }
     instance = new Service(config);
+    instance.start();
   }
 }
