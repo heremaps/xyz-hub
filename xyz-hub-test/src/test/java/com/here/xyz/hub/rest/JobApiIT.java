@@ -257,6 +257,8 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     protected static void uploadDummyFile(URL url, int type) throws IOException {
+        url = new URL(url.toString().replace("localstack","localhost"));
+
         String input;
         switch (type){
             default:
