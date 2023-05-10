@@ -1,7 +1,7 @@
 package com.here.naksha.activitylog;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.IoEventPipeline;
+import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -11,16 +11,11 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.IoHelp;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -56,5 +51,11 @@ class ActivityLogHandlerTest {
     final Feature feature = XyzSerializable.deserialize(IoHelp.openResource("activity_log_feature.json"), Feature.class);
     assertNotNull(feature);
     activityLogHandler.fromActivityLogFormat(feature);
+  }
+
+  @Test
+  void test_deserialization() throws IOException {
+    final Typed raw = XyzSerializable.deserialize(IoHelp.openResource("activity_log_feature.json"), Typed.class);
+    assertInstanceOf(Feature.class, raw);
   }
 }
