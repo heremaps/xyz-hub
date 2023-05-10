@@ -11,6 +11,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.IoHelp;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -52,11 +53,8 @@ class ActivityLogHandlerTest {
 
   @Test
   void test_fromActivityLog() throws IOException {
-    Feature feature;
-    ObjectMapper mapper=new ObjectMapper();
-    File file=new File(ActivityLogHandler.class.getClassLoader().getResource("activity_log_feature.json").getFile());
-    byte[] encode= Files.readAllBytes(Paths.get(file.getPath()));
-    feature=mapper.readValue(new String(encode, StandardCharsets.US_ASCII),Feature.class);
+    final Feature feature = XyzSerializable.deserialize(IoHelp.openResource("activity_log_feature.json"), Feature.class);
+    assertNotNull(feature);
     activityLogHandler.fromActivityLogFormat(feature);
   }
 }
