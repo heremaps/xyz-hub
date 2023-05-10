@@ -18,14 +18,11 @@
  */
 package com.here.xyz.hub.rest;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
-import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.jayway.restassured.response.Response;
@@ -33,30 +30,31 @@ import com.jayway.restassured.response.ValidatableResponse;
 import io.vertx.core.json.jackson.DatabindCodec;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
-import java.net.MalformedURLException;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 public class JobApiIT extends TestSpaceWithFeature {
 
-    private static String testSpaceId1 = "x-psql-job-test1";
-    private static String testSpaceId2 = "x-psql-job-test2";
-    private static String testSpaceId2Ext = "x-psql-job-test2-ext";
-    private static String testSpaceId2ExtExt = "x-psql-job-test2-ext-ext";
-    private static String testJobId = "x-test-job";
+    protected static String testSpaceId1 = "x-psql-job-test1";
+    protected static String testSpaceId2 = "x-psql-job-test2";
+    protected static String testSpaceId2Ext = "x-psql-job-test2-ext";
+    protected static String testSpaceId2ExtExt = "x-psql-job-test2-ext-ext";
+    protected static String testJobId = "x-test-job";
 
     @BeforeClass
     public static void setup() {
@@ -89,6 +87,9 @@ public class JobApiIT extends TestSpaceWithFeature {
         );
 
         deleteAllJobsOnSpace(testSpaceId1);
+        deleteAllJobsOnSpace(testSpaceId2);
+        deleteAllJobsOnSpace(testSpaceId2Ext);
+        deleteAllJobsOnSpace(testSpaceId2ExtExt);
     }
 
     @AfterClass
@@ -97,20 +98,23 @@ public class JobApiIT extends TestSpaceWithFeature {
         removeSpace(testSpaceId2);
         removeSpace(testSpaceId2Ext);
         removeSpace(testSpaceId2ExtExt);
-        deleteAllJobsOnSpace(testSpaceId1);
     }
 
-    private static ValidatableResponse postJob(Job job){
+    protected static ValidatableResponse postJob(Job job){
+        return postJob(job, testSpaceId1);
+    }
+
+    protected static ValidatableResponse postJob(Job job, String spaceId){
         return given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .body(job)
-                .post("/spaces/" + testSpaceId1 + "/jobs")
+                .post("/spaces/" + spaceId + "/jobs")
                 .then();
     }
 
-    private static ValidatableResponse patchJob(Job job, String path){
+    protected static ValidatableResponse patchJob(Job job, String path){
         return given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
@@ -120,36 +124,40 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .then();
     }
 
-    public static Job createTestJobWithId(String id, Job.Type type) {
+    protected static Job createTestJobWithId(String id, Job.Type type) {
+        return createTestJobWithId(testSpaceId1, id, type, Job.CSVFormat.JSON_WKB);
+    }
+
+    protected static Job createTestJobWithId( String spaceId, String id, Job.Type type, Job.CSVFormat csvFormat) {
         Job job;
         if(type.equals(Job.Type.Import)) {
             job = new Import()
                     .withDescription("Job Description")
-                    .withCsvFormat(Job.CSVFormat.JSON_WKT);
+                    .withCsvFormat(csvFormat);
 
             if (id != null)
                 job.setId(id);
 
-            postJob(job)
+            postJob(job, spaceId)
                     .body("createdAt", notNullValue())
                     .body("updatedAt", notNullValue())
                     .body("id", id == null ? notNullValue() : equalTo(id))
                     .body("description", equalTo("Job Description"))
                     .body("status", equalTo(Job.Status.waiting.toString()))
-                    .body("csvFormat", equalTo(Job.CSVFormat.JSON_WKT.toString()))
+                    .body("csvFormat", equalTo(csvFormat.toString()))
                     .body("importObjects.size()", equalTo(0))
                     .body("type", equalTo(Import.class.getSimpleName()))
                     .statusCode(CREATED.code());
         }else{
             job = new Export()
                     .withDescription("Job Description")
-                    .withCsvFormat(Job.CSVFormat.JSON_WKB)
+                    .withCsvFormat(csvFormat)
                     .withExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD));
 
             if (id != null)
                 job.setId(id);
 
-            postJob(job)
+            postJob(job, spaceId)
                     .body("createdAt", notNullValue())
                     .body("updatedAt", notNullValue())
                     .body("finalizedAt", equalTo(null))
@@ -157,7 +165,7 @@ public class JobApiIT extends TestSpaceWithFeature {
                     .body("id", id == null ? notNullValue() : equalTo(id))
                     .body("description", equalTo("Job Description"))
                     .body("status", equalTo(Job.Status.waiting.toString()))
-                    .body("csvFormat", equalTo(Job.CSVFormat.JSON_WKB.toString()))
+                    .body("csvFormat", equalTo(csvFormat.toString()))
                     .body("importObjects", equalTo(null))
                     .body("exportObjects", equalTo(null))
                     .body("type", equalTo(Export.class.getSimpleName()))
@@ -167,24 +175,27 @@ public class JobApiIT extends TestSpaceWithFeature {
         return job;
     }
 
-    public static void deleteJob(String jobId) {
+    protected static void deleteJob(String jobId) {
+        deleteJob(jobId, testSpaceId1);
+    }
+    protected static void deleteJob(String jobId, String spaceId) {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .delete("/spaces/" + testSpaceId1 + "/job/"+jobId)
+                .delete("/spaces/" + spaceId + "/job/"+jobId)
                 .then()
                 .statusCode(OK.code());
     }
 
-    public static void deleteAllJobsOnSpace(String spaceId){
+    protected static void deleteAllJobsOnSpace(String spaceId){
         List<String> allJobsOnSpace = getAllJobsOnSpace(spaceId);
         for (String id : allJobsOnSpace) {
-            deleteJob(id);
+            deleteJob(id,spaceId);
         }
     }
 
-    public static List<String> getAllJobsOnSpace(String spaceId) {
+    protected static List<String> getAllJobsOnSpace(String spaceId) {
         /** Get all jobs */
         Response response = given()
                 .accept(APPLICATION_JSON)
@@ -202,8 +213,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         }
     }
 
-
-    public static Job getJob(String spaceId, String jobId) {
+    protected static Job getJob(String spaceId, String jobId) {
         /** Get all jobs */
         Response response = given()
                 .accept(APPLICATION_JSON)
@@ -221,281 +231,69 @@ public class JobApiIT extends TestSpaceWithFeature {
         }
     }
 
-    @Test
-    public void getAllJobsOnSpace() throws JsonProcessingException {
-        /** Create test job */
-        createTestJobWithId(testJobId, Job.Type.Import);
-
-        /** Get all jobs */
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + testSpaceId1 + "/jobs")
-                .then()
-                .body("size()", equalTo(1))
-                .statusCode(OK.code());
-
-        /** Delete Job */
-        deleteJob(testJobId);
-    }
-
-    @Test
-    public void createJobWithExistingId(){
-        /** Create job */
-        Job job = createTestJobWithId(testJobId, Job.Type.Import);
-
-        /** Create job with same Id */
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Delete Job */
-        deleteJob(testJobId);
-    }
-
-    @Test
-    public void createJobWithInvalidFilter() throws InvalidGeometryException {
-        /** Create job */
-        Export job = new Export()
-                .withId(testJobId)
-                .withDescription("Job Description")
-                .withExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD))
-                .withCsvFormat(Job.CSVFormat.GEOJSON);
-
-        job.setFilters(new Export.Filters().withSpatialFilter(new Export.SpatialFilter().withGeometry(new Point().withCoordinates(new PointCoordinates(399,399)))));
-
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
-    }
-
-    @Test
-    public void getJob(){
-        /** Create job */
-        createTestJobWithId(testJobId, Job.Type.Import);
-
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces/" + testSpaceId1 + "/job/"+testJobId)
-                .then()
-                .body("createdAt", notNullValue())
-                .body("updatedAt", notNullValue())
-                .body("id", equalTo(testJobId))
-                .body("description", equalTo("Job Description"))
-                .body("status", equalTo(Job.Status.waiting.toString()))
-                .body("csvFormat", equalTo(Job.CSVFormat.JSON_WKT.toString()))
-                .body("importObjects.size()", equalTo(0))
-                .body("type", equalTo(Import.class.getSimpleName()))
-                .statusCode(OK.code());
-
-        /** Delete Job */
-        deleteJob(testJobId);
-    }
-
-    @Test
-    public void updateMutableFields() {
-        /** Create job */
-        createTestJobWithId(testJobId, Job.Type.Import);
-
-        /** Modify job */
-        Job modified = new Import()
-                .withId(testJobId)
-                .withDescription("New Description")
-                .withCsvFormat(Job.CSVFormat.JSON_WKB);
-
-        patchJob(modified,"/spaces/" + testSpaceId1 + "/job/"+testJobId)
-                .body("description", equalTo("New Description"))
-                .body("csvFormat", equalTo(Job.CSVFormat.JSON_WKB.toString()))
-                .statusCode(OK.code());
-
-        /** Delete Job */
-        deleteJob(testJobId);
-    }
-
-    @Test
-    public void createJobOnLayerWithContent(){
-
-    }
-
-    @Test
-    public void updateImmutableFields() throws MalformedURLException {
-        /** Create job */
-        createTestJobWithId(testJobId, Job.Type.Import);
-
-        /** Modify job */
-        Job modified = new Import()
-                .withId(testJobId)
-                .withStatus(Job.Status.prepared);
-
-        patchJob(modified,"/spaces/" + testSpaceId1 + "/job/"+testJobId)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Modify job */
-        modified = new Import()
-                .withId(testJobId)
-                .withErrorType("test");
-
-        patchJob(modified,"/spaces/" + testSpaceId1 + "/job/"+testJobId)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Modify job */
-        modified = new Import()
-                .withId(testJobId)
-                .withErrorDescription("test");
-
-        patchJob(modified,"/spaces/" + testSpaceId1 + "/job/"+testJobId)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Modify job */
-        Import modified2 = new Import();
-        modified2.setId(testJobId);
-        modified2.setImportObjects(new HashMap<String, ImportObject>(){{put("test",new ImportObject("test",new URL("http://test.com")));}});
-
-        patchJob(modified2,"/spaces/" + testSpaceId1 + "/job/"+testJobId)
-                .statusCode(BAD_REQUEST.code());
-        /** Delete Job */
-        deleteJob(testJobId);
-    }
-
-    @Test
-    public void createUploadUrlJob() throws InterruptedException {
-        /** Create job */
-        createTestJobWithId(testJobId, Job.Type.Import);
-
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .post("/spaces/" + testSpaceId1 + "/job/"+testJobId+"/execute?command=createUploadUrl")
-                .then()
-                .statusCode(CREATED.code());
-
-
-        Import job = (Import) getJob(testSpaceId1,testJobId);
-        Map<String, ImportObject> importObjects = job.getImportObjects();
-
-        assertEquals(importObjects.size(), 1);
-        assertNotNull(importObjects.get("part_0.csv"));
-        assertNotNull(importObjects.get("part_0.csv").getUploadUrl());
-        assertNull(importObjects.get("part_0.csv").getFilename());
-        assertNull(importObjects.get("part_0.csv").getS3Key());
-        assertNull(importObjects.get("part_0.csv").getStatus());
-        assertNull(importObjects.get("part_0.csv").getDetails());
-
-        /** Delete Job */
-        deleteJob(testJobId);
-    }
-
-    @Test
-    public void startIncompleteImportJob() throws InterruptedException {
-        /** Create job */
-        createTestJobWithId(testJobId, Job.Type.Import);
-
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .post("/spaces/" + testSpaceId1 + "/job/"+testJobId+"/execute?command=start")
-                .then()
-                .statusCode(NO_CONTENT.code());
+    protected static Job pollStatus(String spaceId, String jobId,
+                                  Job.Status expectedStatus, Job.Status failStatus)
+            throws InterruptedException {
 
         Job.Status status = Job.Status.waiting;
         Job job = null;
-        while(!status.equals(Job.Status.failed)){
-            job = getJob(testSpaceId1,testJobId);
+
+        while(!status.equals(expectedStatus)){
+            /**
+             waiting -> validating -> validated -> queued -> executing -> executed
+             -> (executing_trigger -> trigger_executed) -> finalizing -> finalized
+                OR
+             failed
+            */
+            job = getJob(spaceId, jobId);
             status = job.getStatus();
-            System.out.println("Current Status of Job "+status);
-            Thread.sleep(2000);
+            assertNotEquals(status, failStatus);
+
+            System.out.println("Current Status of Job["+jobId+"]: "+status);
+            Thread.sleep(150);
         }
-        assertEquals(job.getErrorDescription(), Import.ERROR_DESCRIPTION_UPLOAD_MISSING );
-        assertEquals(job.getErrorType(), Import.ERROR_TYPE_VALIDATION_FAILED);
 
-        /** Delete Job */
-        deleteJob(testJobId);
+        return job;
     }
 
-    @Test
-    public void createValidExportJob(){
-        /** Create job */
-        createTestJobWithId(testJobId, Job.Type.Export);
+    protected static void uploadDummyFile(URL url, int type) throws IOException {
+        String input;
+        switch (type){
+            default:
+            case 0 :
+                //valid JSON_WKB
+                input = "\"{'\"root'\": '\"test'\", '\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000";
+                break;
+            case 1 :
+                //invalid json - JSON_WKB
+                input = "\"'\"root'\": '\"test'\", '\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000";
+                break;
+            case 2 :
+                //invalid geometry - JSON_WKB
+                input = "\"{'\"root'\": '\"test'\", '\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",00800000028BF4047640D1B71758E407E373333333333401A9443D46B26C040476412AD81ADEB407E3170A3D70A3D";
+                break;
+            case 3 :
+                //unknown column - JSON_WKB
+                input = "\"{'\"foo'\":'\"bar'\"}\",008000000200000002401A94B9CB6848BF4047640D1B71758E407E373333333333401A9443D46B26C040476412AD81ADEB407E3170A3D70A3D,notValid";
+                break;
+            case 10 :
+                //valid GEOJSON
+                input = "\"{'\"type'\":'\"Feature'\",'\"id'\":'\"BfiimUxHjj'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":[-2.960847,53.430828]},'\"properties'\":{'\"name'\":'\"Anfield'\",'\"amenity'\":'\"Football Stadium'\",'\"capacity'\":54074,'\"description'\":'\"Home of Liverpool Football Club'\"}}\"";
+                break;
+        }
+        System.out.println("Start Upload");
 
-        /** Delete Job */
-        deleteJob(testJobId);
-    }
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setDoOutput(true);
 
-    @Test
-    public void createInvalidS3ExportJob(){
-        /** Create job */
-        Export job = new Export()
-                .withId(testJobId)
-                .withDescription("Job Description");
+        connection.setRequestProperty("Content-Type","text/csv");
+        connection.setRequestMethod("PUT");
+        OutputStreamWriter out = new OutputStreamWriter(connection.getOutputStream());
 
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
+        out.write(input);
+        out.close();
 
-        /** Add missing target */
-        job.setExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD));
-
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Add missing format - but wrong one */
-        job.setCsvFormat(Job.CSVFormat.TILEID_FC_B64);
-
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Add missing format - correct one */
-        job.setCsvFormat(Job.CSVFormat.GEOJSON);
-
-        postJob(job)
-                .statusCode(CREATED.code());
-
-        /** Delete Job */
-        deleteJob(testJobId);
-    }
-
-    @Test
-    public void createInvalidVMLExportJob() throws InvalidGeometryException {
-        /** Create job */
-        Export job = new Export()
-                .withId(testJobId)
-                .withDescription("Job Description");
-
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
-
-        job.setExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.VML));
-
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Add missing target-id - invalid one*/
-        job.setExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.VML).withTargetId("testId"));
-
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Add correct target-id */
-        job.setExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.VML).withTargetId(testSpaceId1+":id"));
-
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Add missing targetLevel - but invalid one */
-        job.setTargetLevel(99);
-
-        postJob(job)
-                .statusCode(BAD_REQUEST.code());
-
-        /** Add missing targetLevel - correct one +  invalid Filter*/
-        job.setTargetLevel(10);
-
-        postJob(job)
-                .statusCode(CREATED.code());
-
-        /** Delete Job */
-        deleteJob(testJobId);
+        connection.getResponseCode();
+        System.out.println("Upload finished with: " + connection.getResponseCode());
     }
 }
