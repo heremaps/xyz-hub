@@ -103,6 +103,9 @@ public class JobS3Client extends AwsS3Client{
 
         ObjectListing objectListing = client.listObjects(listObjects);
         for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+            /** localstack does not set the bucket name */
+            if(objectSummary.getBucketName() == null)
+                objectSummary.setBucketName(bucketName);
             ObjectMetadata objectMetadata = client.getObjectMetadata(bucketName, objectSummary.getKey());
             ImportObject importObject = checkFile(objectSummary, objectMetadata, csvFormat);
             importObjectList.put(importObject.getFilename(), importObject );

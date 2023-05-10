@@ -21,7 +21,9 @@ package com.here.xyz.httpconnector.config;
 
 import com.amazonaws.HttpMethod;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
@@ -44,8 +46,16 @@ public class AwsS3Client {
 
     public AwsS3Client() {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
-        final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
-        builder.setRegion(region);
+
+        if(isLocal()){
+            builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
+                    CService.configuration.JOBS_S3_ENDPOINT, CService.configuration.JOBS_REGION))
+                    .withCredentials(new DefaultAWSCredentialsProviderChain())
+                    .withPathStyleAccessEnabled(true);
+        }else{
+            final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
+            builder.setRegion(region);
+        }
 
         if (CService.configuration != null && CService.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {
             synchronized(AwsS3Client.class) {
@@ -79,5 +89,12 @@ public class AwsS3Client {
         for (S3ObjectSummary file : client.listObjects(bucketName, folderPath).getObjectSummaries()){
             client.deleteObject(bucketName, file.getKey());
         }
+    }
+
+    public boolean isLocal() {
+        if(CService.configuration.HUB_ENDPOINT.contains("localhost") ||
+                CService.configuration.HUB_ENDPOINT.contains("xyz-hub:8080"))
+            return true;
+        return false;
     }
 }
