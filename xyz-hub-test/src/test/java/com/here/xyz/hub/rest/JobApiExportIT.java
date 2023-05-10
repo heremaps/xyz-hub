@@ -608,6 +608,7 @@ public class JobApiExportIT extends JobApiIT {
     }
 
     public static String downloadAndCheck(URL url, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContains) throws IOException {
+        url = new URL(url.toString().replace("localstack","localhost"));
         BufferedInputStream bis = new BufferedInputStream(url.openStream());
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
