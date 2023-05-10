@@ -16,7 +16,6 @@ services:
             - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
             - CONNECTORS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-connectors
             - PACKAGES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-packages
-            - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-jobs
             - SUBSCRIPTIONS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-subscriptions
             - TAGS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-tags
     xyz-http-connector:
@@ -26,6 +25,10 @@ services:
         container_name: xyz-http-connector
         ports:
             - "9090:9090"
+        environment:
+            - AWS_ACCESS_KEY_ID=localstack
+            - AWS_SECRET_ACCESS_KEY=localstack
+            - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-jobs
         depends_on:
             - "postgres"
             - "dynamodb"
@@ -56,3 +59,16 @@ services:
             - "8888:8080"
         environment:
             - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
+    localstack:
+        image: "localstack/localstack"
+        hostname: localstack
+        ports:
+            - "4563-4599:4563-4599"
+        environment:
+            - SERVICES="s3"
+            - DEBUG="true"
+            - AWS_ACCESS_KEY_ID=localstack
+            - AWS_SECRET_ACCESS_KEY=localstack
+            - AWS_DEFAULT_REGION=eu-west-1
+        volumes:
+            - $PWD/mock-servers/localstack/docker-entrypoint-initaws.d/01-create-bucket.sh:/etc/localstack/init/ready.d/init-aws.sh
