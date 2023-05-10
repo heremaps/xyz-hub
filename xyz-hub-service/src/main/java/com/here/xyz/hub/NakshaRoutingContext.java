@@ -2,7 +2,6 @@ package com.here.xyz.hub;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
@@ -64,10 +63,10 @@ public final class NakshaRoutingContext {
     try {
       final ErrorResponse response;
       if (throwable instanceof XyzErrorException) {
-        response = ((XyzErrorException) throwable).toErrorResponse(getStreamId(routingContext));
+        response = ((XyzErrorException) throwable).toErrorResponse(routingContextStreamId(routingContext));
       } else {
         response = new ErrorResponse();
-        response.setStreamId(getStreamId(routingContext));
+        response.setStreamId(routingContextStreamId(routingContext));
         response.setErrorMessage(throwable.getMessage());
 
         if (throwable instanceof ParameterError) {
@@ -135,7 +134,7 @@ public final class NakshaRoutingContext {
         + "\"type\": \"ErrorResponse\",\n"
         + "\"error\": \"Exception\",\n"
         + "\"errorMessage\": \"" + errorMessage + "\",\n"
-        + "\"streamId\": \"" + getStreamId(routingContext) + "\"\n"
+        + "\"streamId\": \"" + routingContextStreamId(routingContext) + "\"\n"
         + "}";
     sendRawResponse(routingContext, OK, APPLICATION_JSON, Buffer.buffer(content));
   }
@@ -216,7 +215,7 @@ public final class NakshaRoutingContext {
   ) {
     final HttpServerResponse httpResponse = routingContext.response();
     httpResponse.setStatusCode(status.code()).setStatusMessage(status.reasonPhrase());
-    httpResponse.putHeader(STREAM_ID, getStreamId(routingContext));
+    httpResponse.putHeader(STREAM_ID, routingContextStreamId(routingContext));
     if (content == null || content.length() == 0) {
       httpResponse.end();
     } else {
@@ -241,7 +240,7 @@ public final class NakshaRoutingContext {
       if (task != null) {
         return task.logger();
       }
-      return NakshaLogger.currentLogger().with(getStreamId(routingContext), getStartNanos(routingContext));
+      return NakshaLogger.currentLogger().with(routingContextStreamId(routingContext), routingContextStartNanos(routingContext));
     }
     // Note: This method will check if a task bound to the current thread and return the correct streamId.
     return NakshaLogger.currentLogger();
@@ -253,7 +252,7 @@ public final class NakshaRoutingContext {
    * @param routingContext The routing context.
    * @return The stream-id.
    */
-  public static @NotNull String getStreamId(@NotNull RoutingContext routingContext) {
+  public static @NotNull String routingContextStreamId(@NotNull RoutingContext routingContext) {
     final Object raw = routingContext.get(NAKSHA_STREAM_ID);
     if (raw instanceof String streamId) {
       return streamId;
@@ -286,7 +285,7 @@ public final class NakshaRoutingContext {
    * @param routingContext The routing context.
    * @return The start-nanos.
    */
-  public static long getStartNanos(@NotNull RoutingContext routingContext) {
+  public static long routingContextStartNanos(@NotNull RoutingContext routingContext) {
     final Object raw = routingContext.get(NAKSHA_START_NANOS);
     if (raw instanceof Long startNanos) {
       return startNanos;

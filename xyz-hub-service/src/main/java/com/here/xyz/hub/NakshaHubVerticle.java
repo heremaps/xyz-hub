@@ -324,7 +324,7 @@ public class NakshaHubVerticle extends AbstractVerticle {
    * @param routingContext The routing context.
    */
   private void onNewRequest(final @NotNull RoutingContext routingContext) {
-    final String streamId = NakshaRoutingContext.getStreamId(routingContext);
+    final String streamId = NakshaRoutingContext.routingContextStreamId(routingContext);
     LogUtil.addRequestInfo(routingContext);
     routingContext.response().putHeader(STREAM_ID, streamId);
     routingContext.response().putHeader(STRICT_TRANSPORT_SECURITY, "max-age=" + TimeUnit.MINUTES.toSeconds(1));
