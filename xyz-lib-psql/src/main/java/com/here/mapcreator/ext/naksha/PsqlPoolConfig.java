@@ -18,7 +18,7 @@ import org.jetbrains.annotations.NotNull;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
-public final class PsqlPoolConfig {
+public class PsqlPoolConfig {
 
   @JsonIgnore
   public final String driverClass = "org.postgresql.Driver";

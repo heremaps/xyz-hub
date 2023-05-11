@@ -32,8 +32,8 @@ import static org.junit.Assert.*;
 
 public class PSQLMetaTableIT extends PSQLAbstractIT {
     protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(PsqlStorageParams.ID, "test-connector");
-            put(PsqlStorageParams.ENABLE_HASHED_SPACEID, true);
+        {
+            put(PsqlHandlerParams.ENABLE_HASHED_SPACEID, true);
         }
     };
 

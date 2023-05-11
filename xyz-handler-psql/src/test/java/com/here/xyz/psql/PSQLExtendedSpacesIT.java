@@ -58,9 +58,8 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
 
   protected static Map<String, Object> connectorParams = new HashMap<String, Object>() {
     {
-      put(PsqlStorageParams.ID, "test-connector");
-      put(PsqlStorageParams.AUTO_INDEXING, true);
-      put(PsqlStorageParams.PROPERTY_SEARCH, true);
+      put(PsqlHandlerParams.AUTO_INDEXING, true);
+      put(PsqlHandlerParams.PROPERTY_SEARCH, true);
     }
   };
 

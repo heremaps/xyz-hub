@@ -329,7 +329,7 @@ public class Event extends Payload {
   }
 
   /**
-   * The parameters as {@link Connector#params configured in the connector}.
+   * The parameters as {@link Connector#getParams()}  configured in the connector}.
    */
   public @Nullable Map<@NotNull String, @Nullable Object> getConnectorParams() {
     return this.connectorParams;
@@ -378,12 +378,12 @@ public class Event extends Payload {
    */
   public void setConnector(@NotNull Connector connector) {
     // Note: The last configured connector is essentially
-    connectorParams = JsonUtils.deepCopy(connector.params);
+    connectorParams = JsonUtils.deepCopy(connector.getParams());
     if (connectorParams == null) {
       connectorParams = new HashMap<>();
     }
     connectorParams.put("connectorId", connector.getId());
-    connectorParams.put("connectorNumber", connector.number);
+    connectorParams.put("connectorNumber", connector.getParams());
   }
 
   /**

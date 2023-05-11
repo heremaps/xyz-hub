@@ -19,9 +19,7 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.NakshaLogger.currentLogger;
-
-import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
+import com.here.mapcreator.ext.naksha.PsqlConfig;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.EventHandlerParams;
 import java.util.ArrayList;
@@ -33,14 +31,19 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The PostgresQL connector parameters.
  */
-@SuppressWarnings("unused")
-public class PsqlStorageParams extends EventHandlerParams {
+@SuppressWarnings({"unused", "rawtypes", "unchecked"})
+public class PsqlHandlerParams extends EventHandlerParams {
 
   /**
-   * Paramters
+   * The master database configuration ({@link PsqlConfig}), must be provided, is used for read and write.
    */
-  public final static String ID = "id";
-  public final static String CONNECTOR_ID = "connectorId";
+  public final static String DB_CONFIG = "dbConfig";
+  /**
+   * An array of {@link PsqlConfig}'s to be used as read-replicas, when read from replica is okay for the client.
+   */
+  public final static String DB_REPLICAS = "dbReplicas";
+
+  // TODO: Document the parameters!
   public final static String PROPERTY_SEARCH = "propertySearch";
   public final static String MVT_SUPPORT = "mvtSupport";
   public final static String AUTO_INDEXING = "autoIndexing";
@@ -50,8 +53,6 @@ public class PsqlStorageParams extends EventHandlerParams {
   public final static String HRN_SHORTENING = "hrnShortening";
   public final static String IGNORE_CREATE_MSE = "ignoreCreateMse";
 
-  private final @NotNull String id;
-  private final long connectorId;
   private final boolean propertySearch;
   private final boolean mvtSupport;
   private final boolean autoIndexing;
@@ -61,10 +62,8 @@ public class PsqlStorageParams extends EventHandlerParams {
   private final boolean hrnShortening;
   private final boolean ignoreCreateMse;
 
-  private final @NotNull PsqlPoolConfig dbConfig;
-  private final @NotNull List<@NotNull PsqlPoolConfig> dbReplicas;
-  private final @NotNull String role;
-  private final @NotNull String schema;
+  private final @NotNull PsqlConfig dbConfig;
+  private final @NotNull List<@NotNull PsqlConfig> dbReplicas;
 
   /**
    * Parse the given connector params into this type-safe class.
@@ -73,35 +72,28 @@ public class PsqlStorageParams extends EventHandlerParams {
    * @throws NullPointerException     if a value is {@code null} that must not be null.
    * @throws IllegalArgumentException if a value has an invalid type, for example a map expected, and a string found.
    */
-  @SuppressWarnings("unchecked")
-  public PsqlStorageParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws NullPointerException {
-    Object raw = connectorParams.get("dbConfig");
-    if (!(raw instanceof Map)) {
-      throw new IllegalArgumentException("dbConfig");
+  public PsqlHandlerParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws NullPointerException {
+    Object raw = connectorParams.get(DB_CONFIG);
+    if (raw instanceof Map params) {
+      this.dbConfig = XyzSerializable.fromAnyMap(params, PsqlConfig.class);
+    } else {
+      throw new IllegalArgumentException(DB_CONFIG);
     }
-    this.dbConfig = XyzSerializable.fromAnyMap((Map<String, Object>) raw, PsqlPoolConfig.class);
-    raw = connectorParams.get("dbReplicas");
-    final ArrayList<@NotNull PsqlPoolConfig> replicas;
-    if (raw instanceof List) {
-      final List<Object> rawList = (List<Object>) raw;
-      final int SIZE = rawList.size();
+    raw = connectorParams.get(DB_REPLICAS);
+    final ArrayList<@NotNull PsqlConfig> replicas;
+    if (raw instanceof List list) {
+      final int SIZE = list.size();
       replicas = new ArrayList<>(SIZE);
-      for (final Object o : rawList) {
-        if (o instanceof Map) {
-          replicas.add(XyzSerializable.fromAnyMap((Map<String, Object>) o, PsqlPoolConfig.class));
+      for (final Object o : list) {
+        if (o instanceof Map m) {
+          replicas.add(XyzSerializable.fromAnyMap(m, PsqlConfig.class));
         }
       }
     } else {
       replicas = new ArrayList<>();
     }
     dbReplicas = replicas;
-    role = parseValueWithDefault(connectorParams, "spaceRole", dbConfig.user);
-    schema = parseValueWithDefault(connectorParams, "spaceSchema", "naksha");
-    id = parseValue(connectorParams, ID, String.class);
-    connectorId = parseValue(connectorParams, CONNECTOR_ID, Long.class);
-    if (connectorId <= 0L) {
-      currentLogger().warn("Illegal cid: {}", connectorParams.get(CONNECTOR_ID));
-    }
+
     autoIndexing = parseValueWithDefault(connectorParams, AUTO_INDEXING, false);
     propertySearch = parseValueWithDefault(connectorParams, PROPERTY_SEARCH, false);
     mvtSupport = parseValueWithDefault(connectorParams, MVT_SUPPORT, false);
@@ -110,14 +102,6 @@ public class PsqlStorageParams extends EventHandlerParams {
     onDemandIdxLimit = parseValueWithDefault(connectorParams, ON_DEMAND_IDX_LIMIT, 4);
     hrnShortening = parseValueWithDefault(connectorParams, HRN_SHORTENING, false);
     ignoreCreateMse = parseValueWithDefault(connectorParams, IGNORE_CREATE_MSE, false);
-  }
-
-  public @NotNull String getId() {
-    return id;
-  }
-
-  public long getConnectorId() {
-    return connectorId;
   }
 
   public boolean isPropertySearch() {
@@ -153,29 +137,11 @@ public class PsqlStorageParams extends EventHandlerParams {
   }
 
   /**
-   * Returns the schema in which to store the spaces.
-   *
-   * @return the schema in which to store the spaces.
-   */
-  public @NotNull String getSchema() {
-    return schema;
-  }
-
-  /**
-   * Returns the role to use when modifying space content.
-   *
-   * @return the role to use when modifying space content.
-   */
-  public @NotNull String getRole() {
-    return schema;
-  }
-
-  /**
    * Returns the master database configuration.
    *
    * @return the master database configuration.
    */
-  public @NotNull PsqlPoolConfig getDbConfig() {
+  public @NotNull PsqlConfig getDbConfig() {
     return dbConfig;
   }
 
@@ -184,7 +150,7 @@ public class PsqlStorageParams extends EventHandlerParams {
    *
    * @return all configured replicas; the returned list may be empty.
    */
-  public @NotNull List<@NotNull PsqlPoolConfig> getDbReplicas() {
+  public @NotNull List<@NotNull PsqlConfig> getDbReplicas() {
     return dbReplicas;
   }
 
@@ -201,8 +167,6 @@ public class PsqlStorageParams extends EventHandlerParams {
         ", onDemandIdxLimit=" + onDemandIdxLimit +
         ", dbConfig=" + dbConfig +
         //", dbReplicas=" + dbReplicas +
-        ", spaceRole=" + role +
-        ", spaceSchema=" + schema +
         '}';
   }
 }

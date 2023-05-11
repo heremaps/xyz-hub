@@ -19,6 +19,7 @@ import org.jetbrains.annotations.Nullable;
  * The activity log compatibility handler. Can be used as pre- and post-processor.
  */
 public class ActivityLogHandler extends EventHandler {
+  public static final String ID = "xyz-hub:activity-log";
 
   /**
    * Creates a new activity log handler.
@@ -29,13 +30,13 @@ public class ActivityLogHandler extends EventHandler {
   public ActivityLogHandler(@NotNull Connector connector) throws XyzErrorException {
     super(connector);
     try {
-      this.params = new ActivityLogParams(connector.params);
+      this.params = new ActivityLogHandlerParams(connector.params);
     } catch (Exception e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
     }
   }
 
-  final @NotNull ActivityLogParams params;
+  final @NotNull ActivityLogHandlerParams params;
 
 
   protected void toActivityLogFormat(@NotNull Feature feature, @Nullable Feature oldState) {

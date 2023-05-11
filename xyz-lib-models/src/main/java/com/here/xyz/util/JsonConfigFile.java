@@ -114,7 +114,7 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends 
     Map<String, Object> configValues = null;
     LoadedConfig loaded = null;
     try {
-      loaded = readConfigFromHomeOrResource(filename(), appName(), searchPath());
+      loaded = readConfigFromHomeOrResource(filename(), false, appName(), searchPath());
       configValues = XyzSerializable.DEFAULT_MAPPER.get().readValue(loaded.bytes(), MAP_TYPE);
     } catch (Throwable t) {
       logger.error("Failed to load configuration file: {} (path={})", filename, loaded != null ? loaded.path() : "", t);

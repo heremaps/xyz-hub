@@ -29,18 +29,20 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Ask the xyz storage connector to modify the state of features. For those features that do not have an ID, the storage must generated
  * unique identifiers.
- *
+ * <p>
  * The response to this event will be a {@link FeatureCollection} where the {@link FeatureCollection#getFeatures()} list contains the new
  * HEAD state of all successfully modified features.
- *
- * - For successfully inserted features their IDs are returned in the {@link FeatureCollection#getInserted()} list. - For successfully
+ * <p>
+ * For successfully inserted features their IDs are returned in the {@link FeatureCollection#getInserted()} list. - For successfully
  * updated features their IDs are returned in the {@link FeatureCollection#getUpdated()} list. - For successfully deleted features their IDs
  * are returned in the {@link FeatureCollection#getDeleted()} list.
- *
+ * <p>
  * When the operation for a feature failed, then the reason is returned in the {@link FeatureCollection#getFailed()} map, of which the key
  * is the {@link Feature#getId()} and the value is the error message (reason).
  */
@@ -48,11 +50,10 @@ import java.util.Map;
 @JsonTypeName(value = "ModifyFeaturesEvent")
 public final class ModifyFeaturesEvent extends FeatureEvent {
 
-  private List<Feature> insertFeatures;
-  private List<Feature> updateFeatures;
-  private List<Feature> upsertFeatures;
-  @JsonInclude(Include.ALWAYS)
-  private Map<String, String> deleteFeatures;
+  private List<@NotNull Feature> insertFeatures;
+  private List<@NotNull Feature> updateFeatures;
+  private List<@NotNull Feature> upsertFeatures;
+  private Map<@NotNull String, @Nullable String> deleteFeatures;
   private Boolean transaction;
   @JsonInclude(Include.NON_DEFAULT)
   private boolean enableHistory;

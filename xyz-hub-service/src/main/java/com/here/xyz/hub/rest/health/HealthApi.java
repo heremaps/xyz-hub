@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.rest.health;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 import com.here.xyz.hub.Core;

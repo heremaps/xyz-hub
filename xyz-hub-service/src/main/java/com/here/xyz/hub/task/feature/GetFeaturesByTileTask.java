@@ -1,6 +1,6 @@
 package com.here.xyz.hub.task.feature;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 
 import com.here.xyz.events.feature.GetFeaturesByTileEvent;
 import com.here.xyz.events.feature.GetFeaturesByTileResponseType;

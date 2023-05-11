@@ -19,8 +19,8 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_JSON;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
@@ -32,7 +32,6 @@ import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.task.feature.ConditionalModifyFeaturesTask;
 import com.here.xyz.hub.task.feature.DeleteFeaturesByTagTask;
-import com.here.xyz.hub.task.feature.GetFeaturesByIdTask;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;

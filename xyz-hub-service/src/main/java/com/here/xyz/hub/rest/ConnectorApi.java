@@ -25,6 +25,7 @@ import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
+import com.here.xyz.hub.events.GetConnectorsByIdEvent;
 import com.here.xyz.hub.task.connector.ConnectorHandler;
 import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.task.connector.GetConnectorsByIdTask;
@@ -43,7 +44,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class ConnectorApi extends Api {
-  private static final Logger logger = LogManager.getLogger();
 
   public ConnectorApi(RouterBuilder rb) {
     rb.operation("getConnectors").handler(this::getConnectors);
@@ -54,14 +54,15 @@ public class ConnectorApi extends Api {
   }
 
   private void getConnector(final RoutingContext routingContext) {
-    NakshaTask.start(GetConnectorsByIdTask.class, routingContext, ApiResponseType.FEATURE);
+    NakshaTask.start(GetConnectorsByIdEvent.class, routingContext, ApiResponseType.FEATURE);
   }
 
   private void getConnectors(final RoutingContext routingContext) {
-    NakshaTask.start(GetConnectorsByIdTask.class, routingContext, ApiResponseType.FEATURE_COLLECTION);
+    NakshaTask.start(GetConnectorsByIdEvent.class, routingContext, ApiResponseType.FEATURE_COLLECTION);
   }
 
   private void createConnector(final RoutingContext context) {
+
     try {
       JsonObject input = getInput(context);
       String connectorId = input.getString("id");

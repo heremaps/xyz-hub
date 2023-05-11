@@ -6,9 +6,9 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The read replica (read-only) data-source of a Naksha space.
  */
-public class PsqlSpaceReplicaDataSource extends PsqlStorageDataSource {
+public class PsqlSpaceReplicaDataSource extends PsqlHandlerDataSource {
 
-  public PsqlSpaceReplicaDataSource(@NotNull PsqlStorageParams params, @NotNull String spaceId, @Nullable String collection) {
+  public PsqlSpaceReplicaDataSource(@NotNull PsqlHandlerParams params, @NotNull String spaceId, @Nullable String collection) {
     super(params, spaceId, collection, true);
   }
 }

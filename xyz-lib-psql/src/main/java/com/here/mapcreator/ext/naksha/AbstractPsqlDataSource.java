@@ -92,7 +92,7 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
     return pool;
   }
 
-  public final @NotNull PsqlPoolConfig getConfig() {
+  public @NotNull PsqlPoolConfig getConfig() {
     return pool.config;
   }
 

@@ -1,6 +1,7 @@
 package com.here.xyz.psql;
 
 import com.here.mapcreator.ext.naksha.AbstractPsqlDataSource;
+import com.here.mapcreator.ext.naksha.PsqlConfig;
 import com.here.mapcreator.ext.naksha.PsqlPool;
 import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
 import java.util.List;
@@ -9,12 +10,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The data-source used by the {@link PsqlStorage}.
+ * The data-source used by the {@link PsqlHandler}.
  */
-public class PsqlStorageDataSource extends AbstractPsqlDataSource<PsqlStorageDataSource> {
+public class PsqlHandlerDataSource extends AbstractPsqlDataSource<PsqlHandlerDataSource> {
 
-  private static @NotNull PsqlPool readOnlyPool(@NotNull PsqlStorageParams params) {
-    final List<@NotNull PsqlPoolConfig> dbReplicas = params.getDbReplicas();
+  private static @NotNull PsqlPool readOnlyPool(@NotNull PsqlHandlerParams params) {
+    final List<@NotNull PsqlConfig> dbReplicas = params.getDbReplicas();
     final int SIZE = dbReplicas.size();
     if (SIZE == 0) {
       final PsqlPoolConfig dbConfig = params.getDbConfig();
@@ -38,16 +39,16 @@ public class PsqlStorageDataSource extends AbstractPsqlDataSource<PsqlStorageDat
    * @param readOnly   true if the connection should use a read-replica, if available; false otherwise.
    * @param collection the collection to use; if {@code null}, the space-id is used.
    */
-  public PsqlStorageDataSource(
-      @NotNull PsqlStorageParams params,
+  public PsqlHandlerDataSource(
+      @NotNull PsqlHandlerParams params,
       @NotNull String spaceId,
       @Nullable String collection,
       boolean readOnly) {
     super(readOnly ? readOnlyPool(params) : PsqlPool.get(params.getDbConfig()), spaceId);
     this.readOnly = readOnly;
     this.connectorParams = params;
-    setSchema(params.getSchema());
-    setRole(params.getRole());
+    setSchema(params.getDbConfig().schema);
+    setRole(params.getDbConfig().role);
     this.spaceId = spaceId;
     this.table = collection != null ? collection : spaceId;
     this.historyTable = collection + "_hst";
@@ -57,7 +58,7 @@ public class PsqlStorageDataSource extends AbstractPsqlDataSource<PsqlStorageDat
   /**
    * The connector parameters used to create this data source.
    */
-  public final @NotNull PsqlStorageParams connectorParams;
+  public final @NotNull PsqlHandlerParams connectorParams;
 
   /**
    * The space identifier.

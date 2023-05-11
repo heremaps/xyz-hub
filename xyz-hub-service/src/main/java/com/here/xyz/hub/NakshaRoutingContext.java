@@ -1,7 +1,7 @@
 package com.here.xyz.hub;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.HeaderValues.STREAM_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_MODIFIED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;

@@ -23,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
  * The HTTP handler that sends events to a foreign host.
  */
 public class HttpHandler extends EventHandler {
+  public static final String ID = "naksha:http";
 
   /**
    * Creates a new activity log handler.
@@ -32,13 +33,13 @@ public class HttpHandler extends EventHandler {
   public HttpHandler(@NotNull Connector connector) throws XyzErrorException {
     super(connector);
     try {
-      this.params = new HttpParams(connector.params);
+      this.params = new HttpHandlerParams(connector.getParams());
     } catch (Exception e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
     }
   }
 
-  final @NotNull HttpParams params;
+  final @NotNull HttpHandlerParams params;
 
   @Override
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {

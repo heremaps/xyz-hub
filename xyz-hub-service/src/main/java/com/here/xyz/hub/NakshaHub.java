@@ -1,10 +1,15 @@
 package com.here.xyz.hub;
 
+import static com.here.xyz.psql.PsqlHandlerParams.DB_CONFIG;
+import static com.here.xyz.psql.PsqlHandlerParams.SCHEMA;
 import static com.here.xyz.util.IoHelp.openResource;
 import static com.here.xyz.util.IoHelp.parseValue;
 
 import com.here.mapcreator.ext.naksha.NakshaMgmtClient;
+import com.here.naksha.activitylog.ActivityLogHandler;
+import com.here.naksha.activitylog.HttpHandler;
 import com.here.xyz.AbstractTask;
+import com.here.xyz.EventHandler;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -22,9 +27,14 @@ import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.NakshaHubMetricsFactory;
 import com.here.xyz.lambdas.F0;
+import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.psql.PsqlHandler;
+import com.here.xyz.psql.PsqlHandlerParams;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.IoHelp;
 import com.here.xyz.util.IoHelp.LoadedConfig;
+import com.here.xyz.util.Params;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.metrics.MetricsOptions;
@@ -38,14 +48,11 @@ import java.io.InputStream;
 import java.lang.Thread.State;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
@@ -63,30 +70,6 @@ import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("unused")
 public class NakshaHub extends NakshaMgmtClient {
-
-  @SuppressWarnings("rawtypes")
-  private static final ConcurrentHashMap<@NotNull Class<? extends Event>, @NotNull F0<@NotNull AbstractTask>> tasks = new ConcurrentHashMap<>();
-
-  static {
-    // Connector events.
-    tasks.put(GetConnectorsByIdEvent.class, GetConnectorsByIdTask::new);
-
-    // Subscription events.
-
-    // Feature events.
-    tasks.put(GetFeaturesByIdEvent.class, GetFeaturesByIdTask::new);
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public final <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newTask(@NotNull Class<EVENT> eventClass)
-      throws XyzErrorException {
-    final F0<TASK> constructor = (F0<TASK>) tasks.get(eventClass);
-    if (constructor == null) {
-      throw new XyzErrorException(XyzError.EXCEPTION, "No task for event " + eventClass.getName() + " found");
-    }
-    return constructor.call();
-  }
 
   /**
    * The logger.
@@ -170,7 +153,7 @@ public class NakshaHub extends NakshaMgmtClient {
    * @throws IOException If loading the build properties failed.
    */
   public NakshaHub(@NotNull NakshaHubConfig config) throws IOException {
-    super(config.getDb(), config.getServerName(), 0L);
+    super(config.db, config.serverName, 0L);
     this.config = config;
     buildProperties = NakshaHub.getBuildProperties();
     buildVersion = parseValue(buildProperties.get("naksha.version"), String.class);
@@ -180,13 +163,12 @@ public class NakshaHub extends NakshaMgmtClient {
     } catch (ParseException e) {
       throw new IOException("Failed to parse the build time from build.properties resources");
     }
-    userAgent = "Naksha/" + buildVersion;
+    userAgent = config.serverName + buildVersion;
     hostId = UUID.randomUUID().toString();
     vertxMetricsOptions = new MetricsOptions().setEnabled(true).setFactory(new NakshaHubMetricsFactory());
     vertxOptions = new VertxOptions();
-    logger.info("Config file location: {} (path={})", config.filename(), config.loadPath());
-    logger.info("Naksha host: {}", config.getHostname());
-    logger.info("Naksha endpoint: {}", config.getEndpoint());
+    logger.info("Naksha host: {}", config.hostname);
+    logger.info("Naksha endpoint: {}", config.endpoint);
 
     // See: https://vertx.io/docs/vertx-core/java
     vertxOptions.setMetricsOptions(vertxMetricsOptions);
@@ -201,16 +183,17 @@ public class NakshaHub extends NakshaMgmtClient {
     }
     vertx = Vertx.vertx(vertxOptions);
 
-    if (config.getJwtPubKey() != null) {
-      final String jwtPubKey = jwtPubKey(config.getJwtPubKey());
+    if (config.jwtPubKey != null) {
+      final String jwtPubKey = jwtPubKey(config.jwtPubKey);
       authOptions = new JWTAuthOptions().addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtPubKey));
     } else {
-      final LoadedConfig loadedConfig = IoHelp.readConfigFromHomeOrResource("auth/" + config.getJwtKeyName() + ".key", config.appName());
-      logger.info("Loaded JWT key file {}", loadedConfig.path());
-      final String jwt = new String(loadedConfig.bytes(), StandardCharsets.UTF_8);
+      final String jwtKeyPath = "auth/" + config.jwtKeyName + ".key";
+      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource(jwtKeyPath, false, NakshaHubConfig.appName);
+      logger.info("Loaded JWT key file {}", loaded.path());
+      final String jwtKey = new String(loaded.bytes(), StandardCharsets.UTF_8);
       authOptions = new JWTAuthOptions()
           .setJWTOptions(new JWTOptions().setAlgorithm("RS256"))
-          .addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwt));
+          .addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtKey));
     }
     authProvider = new NakshaAuthProvider(vertx, authOptions);
 
@@ -220,6 +203,55 @@ public class NakshaHub extends NakshaMgmtClient {
     webClientOptions.setIdleTimeoutUnit(TimeUnit.MINUTES).setIdleTimeout(2);
     webClient = WebClient.create(vertx, webClientOptions);
     shutdownThread = new Thread(this::shutdownHook);
+  }
+
+  @SuppressWarnings("rawtypes")
+  private final ConcurrentHashMap<@NotNull Class<? extends Event>, @NotNull F0<@NotNull AbstractTask>> tasks = new ConcurrentHashMap<>();
+
+  /**
+   * Register the tasks for the events.
+   */
+  private void initTasks() {
+    tasks.put(GetFeaturesByIdEvent.class, GetFeaturesByIdTask::new);
+  }
+
+  /**
+   * Register all handlers.
+   */
+  private void initHandlers() {
+    EventHandler.register(PsqlHandler.ID, PsqlHandler.class);
+    EventHandler.register(HttpHandler.ID, HttpHandler.class);
+    EventHandler.register(ActivityLogHandler.ID, ActivityLogHandler.class);
+  }
+
+  /**
+   * Create the virtual spaces and connectors for the internal features for spaces, connectors and subscriptions.
+   */
+  private void initAdminDatabase() {
+    final Connector admin = new Connector();
+    admin.setId("naksha:admin");
+    admin.setNumber(0);
+    admin.setParams(new Params()
+        .with(DB_CONFIG, config.db)
+        .with()
+    );
+
+    final Space spaces = new Space();
+    spaces.setId("naksha:spaces");
+    spaces.setForceOwner("naksha");
+    spaces.setHistory(true);
+    spaces.setConnectorIds();
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public final <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newTask(@NotNull Class<EVENT> eventClass)
+      throws XyzErrorException {
+    final F0<TASK> constructor = (F0<TASK>) tasks.get(eventClass);
+    if (constructor == null) {
+      throw new XyzErrorException(XyzError.EXCEPTION, "No task for event " + eventClass.getName() + " found");
+    }
+    return constructor.call();
   }
 
   private final AtomicBoolean start = new AtomicBoolean();

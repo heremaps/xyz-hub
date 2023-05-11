@@ -23,10 +23,9 @@ import static com.here.xyz.NakshaLogger.currentLogger;
 import static com.here.xyz.hub.NakshaRoutingContext.routingContextLogger;
 import static com.here.xyz.hub.NakshaRoutingContext.sendErrorResponse;
 import static com.here.xyz.hub.NakshaRoutingContext.sendRawResponse;
-import static com.here.xyz.hub.rest.Api.CLIENT_CLOSED_REQUEST;
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_INFO;
-import static com.here.xyz.hub.rest.Api.HeaderValues.STRICT_TRANSPORT_SECURITY;
+import static com.here.xyz.hub.rest.HeaderValues.STREAM_ID;
+import static com.here.xyz.hub.rest.HeaderValues.STREAM_INFO;
+import static com.here.xyz.hub.rest.HeaderValues.STRICT_TRANSPORT_SECURITY;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.AUTHORIZATION;
@@ -59,6 +58,7 @@ import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.util.logging.LogUtil;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.IoHelp;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
@@ -113,8 +113,8 @@ public class NakshaHubVerticle extends AbstractVerticle {
     final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, STREAM_INFO, ETAG);
     exposeHeaders.stream().map(String::valueOf).forEach(corsHandler::exposedHeader);
 
-    if (hub.config.getWebRoot() != null) {
-      staticHandler = StaticHandler.create(FileSystemAccess.ROOT, hub.config.getWebRoot())
+    if (hub.config.webRoot != null) {
+      staticHandler = StaticHandler.create(FileSystemAccess.ROOT, hub.config.webRoot)
           .setIndexPage("index.html")
           .setDirectoryListing(true)
           .setIncludeHidden(false);
@@ -187,7 +187,7 @@ public class NakshaHubVerticle extends AbstractVerticle {
 
     // Optional: Web server.
     if (staticHandler != null) {
-      currentLogger().debug("Serving extra web-root folder in file-system with location: {}", hub.config.getWebRoot());
+      currentLogger().debug("Serving extra web-root folder in file-system with location: {}", hub.config.webRoot);
       router.route("/hub/web/*").handler(staticHandler);
     }
 
@@ -201,9 +201,9 @@ public class NakshaHubVerticle extends AbstractVerticle {
     // When several HTTP servers listen on the same port, vert.x orchestrates the request handling using a round-robin strategy.
     //
     // https://vertx.io/docs/vertx-core/java/#_server_sharing
-    vertx.createHttpServer(SERVER_OPTIONS).requestHandler(router).listen(hub.config.getHttpPort(), result -> {
+    vertx.createHttpServer(SERVER_OPTIONS).requestHandler(router).listen(hub.config.httpPort, result -> {
       if (result.succeeded()) {
-        currentLogger().info("HTTP Server started on port {}", hub.config.getHttpPort());
+        currentLogger().info("HTTP Server started on port {}", hub.config.httpPort);
       } else {
         currentLogger().error("An error occurred, during the initialization of the server.", result.cause());
       }
@@ -285,6 +285,8 @@ public class NakshaHubVerticle extends AbstractVerticle {
     LogUtil.addResponseInfo(routingContext).end();
     LogUtil.writeAccessLog(routingContext);
   }
+
+  private static final HttpResponseStatus CLIENT_CLOSED_REQUEST = new HttpResponseStatus(499, "Client closed request");
 
   private void onRequestCancelled(@NotNull RoutingContext routingContext) {
     final NakshaTask<?> task = AbstractTask.currentTask();

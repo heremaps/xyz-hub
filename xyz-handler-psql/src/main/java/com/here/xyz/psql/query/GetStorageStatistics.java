@@ -23,7 +23,7 @@ import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.here.mapcreator.ext.naksha.NakshaCollection;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;
-import com.here.xyz.psql.PsqlStorage;
+import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.SQLQueryExt;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
@@ -49,7 +49,7 @@ public class GetStorageStatistics
   private final List<String> remainingSpaceIds;
   private Map<String, String> tableName2SpaceId;
 
-  public GetStorageStatistics(@NotNull GetStorageStatisticsEvent event, @NotNull PsqlStorage psqlConnector) throws SQLException {
+  public GetStorageStatistics(@NotNull GetStorageStatisticsEvent event, @NotNull PsqlHandler psqlConnector) throws SQLException {
     super(event, psqlConnector);
     setUseReadReplica(true);
     remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
@@ -106,10 +106,10 @@ public class GetStorageStatistics
     // Read the space / history info from the returned ResultSet
     while (rs.next()) {
       String tableName = rs.getString(TABLE_NAME);
-      boolean isHistoryTable = tableName.endsWith(PsqlStorage.HISTORY_TABLE_SUFFIX);
+      boolean isHistoryTable = tableName.endsWith(PsqlHandler.HISTORY_TABLE_SUFFIX);
       tableName =
           isHistoryTable
-              ? tableName.substring(0, tableName.length() - PsqlStorage.HISTORY_TABLE_SUFFIX.length())
+              ? tableName.substring(0, tableName.length() - PsqlHandler.HISTORY_TABLE_SUFFIX.length())
               : tableName;
       String spaceId =
           tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;

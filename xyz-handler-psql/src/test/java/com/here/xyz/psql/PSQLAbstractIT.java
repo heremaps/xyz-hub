@@ -60,7 +60,7 @@ public abstract class PSQLAbstractIT extends Helper {
     }
   };
 
-  protected static PsqlStorageParams connectorParams;
+  protected static PsqlHandlerParams connectorParams;
 
   protected static DataSource dataSource() {
     assert connectorParams != null;
@@ -70,7 +70,7 @@ public abstract class PSQLAbstractIT extends Helper {
   protected static void initEnv(Map<String, Object> connectorParameters) throws Exception {
     LOGGER.info("Setup environment...");
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    connectorParams = new PsqlStorageParams(connectorParameters);
+    connectorParams = new PsqlHandlerParams(connectorParameters);
 
     final HealthCheckEvent event = new HealthCheckEvent();
     event.setMinResponseTime(100);
@@ -132,7 +132,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlStorage(new Connector()));
+    pipeline.addEventHandler(new PsqlHandler(new Connector()));
     assert jsonStream != null;
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
@@ -146,7 +146,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlStorage(new Connector()));
+    pipeline.addEventHandler(new PsqlHandler(new Connector()));
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);

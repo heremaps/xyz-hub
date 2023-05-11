@@ -19,8 +19,8 @@
 
 package com.here.xyz.hub.task.feature;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT;
 import static com.here.xyz.hub.rest.ApiResponseType.MVT_FLATTENED;
 import static com.here.xyz.hub.task.feature.AbstractFeatureTask.FeatureKey.BBOX;

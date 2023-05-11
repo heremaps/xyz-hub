@@ -56,11 +56,11 @@ public final class IoHelp {
   /**
    * Read a file from the resources.
    *
-   * @param filename    The filename of the file to read, e.g. "foo.json".
+   * @param filename The filename of the file to read, e.g. "foo.json".
    * @return The loaded file.
    * @throws IOException If the file does not exist or any other error occurred.
    */
-  public static byte @NotNull[] readResourceBytes(@NotNull String filename) throws IOException {
+  public static byte @NotNull [] readResourceBytes(@NotNull String filename) throws IOException {
     final URL url = ClassLoader.getSystemResource(filename);
     if (url == null) {
       throw new FileNotFoundException(filename);
@@ -174,31 +174,43 @@ public final class IoHelp {
    * @param bytes The bytes loaded.
    */
   public record LoadedConfig(@NotNull String path, byte @NotNull [] bytes) {
+
   }
 
   /**
    * Read a file either from the given search paths or when not found there from "~/.config/{appName}", and eventually from the resources.
    *
-   * @param filename    The filename of the file to read, e.g. "auth/jwt.key".
-   * @param appName     The name of the application, when searching the default location (~/.config/{appName}).
-   * @param searchPaths Optional paths to search along, before trying the default location.
+   * @param filename            The filename of the file to read, e.g. "auth/jwt.key".
+   * @param tryWorkingDirectory If the filename should be used relative to the working directory (or as absolute file path).
+   * @param appName             The name of the application, when searching the default location (~/.config/{appName}).
+   * @param searchPaths         Optional paths to search along, before trying the default location.
    * @return The loaded configuration file.
    * @throws IOException If the file does not exist or any other error occurred.
    */
   public static @NotNull LoadedConfig readConfigFromHomeOrResource(
       @NotNull String filename,
+      boolean tryWorkingDirectory,
       @NotNull String appName,
       @Nullable String... searchPaths) throws IOException {
     //noinspection ConstantConditions
     if (filename == null) {
       throw new FileNotFoundException("null");
     }
+
+    Path filePath;
+    if (tryWorkingDirectory) {
+      filePath = Paths.get(filename).toAbsolutePath();
+      final File file = filePath.toFile();
+      if (file.exists() && file.isFile() && file.canRead()) {
+        return new LoadedConfig(filePath.toString(), Files.readAllBytes(filePath));
+      }
+    }
+
     final char first = filename.charAt(0);
     if (first == '/' || first == '\\') {
       filename = filename.substring(1);
     }
 
-    Path filePath;
     for (final String path : searchPaths) {
       if (path == null) {
         continue;

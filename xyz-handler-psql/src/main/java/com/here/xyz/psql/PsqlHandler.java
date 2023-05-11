@@ -32,7 +32,7 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.mapcreator.ext.naksha.NakshaDataSource;
+import com.here.mapcreator.ext.naksha.PsqlDataSource;
 import com.here.xyz.EventHandler;
 import com.here.xyz.ExtendedEventHandler;
 import com.here.xyz.IEventContext;
@@ -129,7 +129,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlStorage extends ExtendedEventHandler {
+public class PsqlHandler extends ExtendedEventHandler {
 
   /**
    * The
@@ -137,24 +137,21 @@ public class PsqlStorage extends ExtendedEventHandler {
   public static final String ID = "naksha:psql";
 
   public static void register() {
-    EventHandler.register(ID, PsqlStorage.class);
+    EventHandler.register(PsqlHandler.ID, PsqlHandler.class);
   }
 
 
-  public PsqlStorage(@NotNull Connector connector) throws XyzErrorException {
+  public PsqlHandler(@NotNull Connector connector) throws XyzErrorException {
     super(connector);
-    if (connector.params == null) {
-      throw new XyzErrorException(EXCEPTION, "Missing 'params' in connector configuration");
-    }
-    connectorParams = new PsqlStorageParams(connector.params);
+    connectorParams = new PsqlHandlerParams(connector.getParams());
   }
 
-  private static final Logger logger = LoggerFactory.getLogger(PsqlStorage.class);
+  private static final Logger logger = LoggerFactory.getLogger(PsqlHandler.class);
 
-  private final @NotNull PsqlStorageParams connectorParams;
+  private final @NotNull PsqlHandlerParams connectorParams;
   private @NotNull Event event;
   private @NotNull String applicationName;
-  private @NotNull NakshaDataSource adminDataSource;
+  private @NotNull PsqlDataSource adminDataSource;
   private @NotNull PsqlSpaceMasterDataSource masterDataSource;
   private @NotNull PsqlSpaceReplicaDataSource replicaDataSource;
   private @NotNull String spaceId;
@@ -238,7 +235,7 @@ public class PsqlStorage extends ExtendedEventHandler {
     return table + "_hst";
   }
 
-  public final @NotNull PsqlStorageParams connectorParams() {
+  public final @NotNull PsqlHandlerParams connectorParams() {
     return connectorParams;
   }
 

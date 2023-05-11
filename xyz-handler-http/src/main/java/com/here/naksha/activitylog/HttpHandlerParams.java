@@ -11,7 +11,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The parameter parser.
  */
-class HttpParams extends EventHandlerParams {
+class HttpHandlerParams extends EventHandlerParams {
 
   /**
    * Parse the given connector params into this type-safe class.
@@ -21,7 +21,7 @@ class HttpParams extends EventHandlerParams {
    * @throws IllegalArgumentException if a value has an invalid type, for example a map expected, and a string found.
    * @throws MalformedURLException    if the given URL is invalid.
    */
-  HttpParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws MalformedURLException {
+  HttpHandlerParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws MalformedURLException {
     url = new URL(parseValue(connectorParams, "url", String.class));
     connTimeout = parseValueWithDefault(connectorParams, "connTimeout", TimeUnit.SECONDS.toMillis(5));
     readTimeout = parseValueWithDefault(connectorParams, "readTimeout", TimeUnit.SECONDS.toMillis(60));

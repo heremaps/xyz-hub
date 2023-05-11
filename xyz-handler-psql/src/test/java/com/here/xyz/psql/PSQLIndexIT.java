@@ -46,9 +46,8 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
   static Map<String, Object> connectorParams = new HashMap<String, Object>() {
     {
-      put(PsqlStorageParams.ID, "test-connector");
-      put(PsqlStorageParams.AUTO_INDEXING, true);
-      put(PsqlStorageParams.PROPERTY_SEARCH, true);
+      put(PsqlHandlerParams.AUTO_INDEXING, true);
+      put(PsqlHandlerParams.PROPERTY_SEARCH, true);
     }
   };
 
@@ -96,7 +95,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     assertEquals("OK", response.getStatus());
 
     /** Increase to 5 allowed Indices */
-    connectorParams.put(PsqlStorageParams.ON_DEMAND_IDX_LIMIT, 5);
+    connectorParams.put(PsqlHandlerParams.ON_DEMAND_IDX_LIMIT, 5);
     /** deactivated ones does not get into account - result will be 5 which are required */
     searchableProperties.put("foo5", true);
     searchableProperties.put("foo6", false);
@@ -229,7 +228,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     }};
 
     /** Increase to 5 allowed Indices */
-    connectorParams.put(PsqlStorageParams.ON_DEMAND_IDX_LIMIT, 5);
+    connectorParams.put(PsqlHandlerParams.ON_DEMAND_IDX_LIMIT, 5);
 
     ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent();
     //modifySpaceEvent.setSpaceId("foo");

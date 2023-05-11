@@ -16,7 +16,7 @@ import org.jetbrains.annotations.Nullable;
  * connectors and subscriptions. Normally this is only created and used by the Naksha-Hub itself and exposed to all other parts of the
  * Naksha-Hub via the {@link INaksha#instance}.
  */
-public abstract class NakshaMgmtClient extends NakshaPsqlClient<NakshaDataSource> implements INaksha {
+public abstract class NakshaMgmtClient extends NakshaPsqlClient<PsqlDataSource> implements INaksha {
 
   /**
    * The collection for spaces.
@@ -43,7 +43,7 @@ public abstract class NakshaMgmtClient extends NakshaPsqlClient<NakshaDataSource
    *                   Naksha-Hub as connector number.
    */
   public NakshaMgmtClient(@NotNull PsqlPoolConfig config, @NotNull String clientName, long clientId) {
-    super(new NakshaDataSource(PsqlPool.get(config), clientName), clientId);
+    super(new PsqlDataSource(PsqlPool.get(config), clientName), clientId);
   }
 
   // TODO: Create a cache-client for each of the managed collections: spaces, connectors and subscriptions!

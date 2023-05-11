@@ -39,7 +39,6 @@ import org.junit.Test;
 public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
   static Map<String, Object> connectorParams = new HashMap<String,Object>(){{
-    put(PsqlStorageParams.ID, "test-connector");
   }};
 
   @BeforeClass

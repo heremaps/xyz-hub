@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.EventHandler;
 import com.here.xyz.View;
@@ -41,10 +42,69 @@ import org.jetbrains.annotations.Nullable;
  * used by multiple spaces.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
+@JsonTypeName(value = "Connector")
 public final class Connector extends Feature {
 
   public Connector() {
     this.params = new HashMap<>();
+    this.packages = new ArrayList<>();
+    this.active = true;
+  }
+
+  public long getNumber() {
+    return number;
+  }
+
+  public void setNumber(long number) {
+    this.number = number;
+  }
+
+  public boolean isActive() {
+    return active;
+  }
+
+  public void setActive(boolean active) {
+    this.active = active;
+  }
+
+  public String getEventHandler() {
+    return eventHandler;
+  }
+
+  public void setEventHandler(String eventHandler) {
+    this.eventHandler = eventHandler;
+  }
+
+  public @NotNull Map<@NotNull String, @Nullable Object> getParams() {
+    return params;
+  }
+
+  public void setParams(@NotNull Map<@NotNull String, @Nullable Object> params) {
+    this.params = params;
+  }
+
+  public List<String> getContactEmails() {
+    return contactEmails;
+  }
+
+  public void setContactEmails(List<String> contactEmails) {
+    this.contactEmails = contactEmails;
+  }
+
+  public ConnectorForward getForward() {
+    return forward;
+  }
+
+  public void setForward(ConnectorForward forward) {
+    this.forward = forward;
+  }
+
+  public void setPackages(@NotNull List<@NotNull String> packages) {
+    this.packages = packages;
+  }
+
+  public @NotNull List<@NotNull String> getPackages() {
+    return packages;
   }
 
   /**
@@ -52,7 +112,7 @@ public final class Connector extends Feature {
    */
   @JsonProperty
   @JsonView(All.class)
-  public long number;
+  private long number;
 
   /**
    * Whether this connector is active. If set to false, the handler will not be added into the event pipelines of spaces. So all spaces
@@ -61,7 +121,7 @@ public final class Connector extends Feature {
    */
   @JsonProperty
   @JsonView(All.class)
-  public boolean active = true;
+  private boolean active;
 
   /**
    * The ID of the event handler to instantiate. This is resolved using {@link EventHandler#getClass(String)}, usage like: <pre>{@code
@@ -71,14 +131,14 @@ public final class Connector extends Feature {
    */
   @JsonProperty
   @JsonView(All.class)
-  public String eventHandler;
+  private String eventHandler;
 
   /**
    * Connector (event handler) parameters to be provided to the event handler constructor.
    */
   @JsonProperty
   @JsonView(View.Protected.class)
-  public @NotNull Map<@NotNull String, @NotNull Object> params;
+  private @NotNull Map<@NotNull String, @NotNull Object> params;
 
   /**
    * A list of email addresses of responsible owners for this connector. These email addresses will be used to send potential health
@@ -86,7 +146,7 @@ public final class Connector extends Feature {
    */
   @JsonProperty
   @JsonView(All.class)
-  public @Nullable List<@NotNull String> contactEmails;
+  private @Nullable List<@NotNull String> contactEmails;
 
   /**
    * An object containing the list of different HTTP headers, cookies and query parameters, and their names, that should be forwarded from
@@ -94,7 +154,7 @@ public final class Connector extends Feature {
    */
   @JsonProperty
   @JsonView(All.class)
-  public @Nullable ConnectorForward forward;
+  private @Nullable ConnectorForward forward;
 
   /**
    * List of packages that this connector belongs to.
@@ -102,13 +162,5 @@ public final class Connector extends Feature {
   @JsonProperty
   @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
-  public List<@NotNull String> packages;
-
-  public @NotNull List<@NotNull String> getPackages() {
-    List<@NotNull String> packages = this.packages;
-    if (packages == null) {
-      this.packages = packages = new ArrayList<>();
-    }
-    return packages;
-  }
+  private @NotNull List<@NotNull String> packages;
 }

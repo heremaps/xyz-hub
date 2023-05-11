@@ -38,16 +38,14 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 
 public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
   static Map<String, Object> connectorParams = new HashMap<String, Object>() {
     {
-      put(PsqlStorageParams.ID, "test-connector");
-      put(PsqlStorageParams.COMPACT_HISTORY, false);
-      put(PsqlStorageParams.PROPERTY_SEARCH, true);
+      put(PsqlHandlerParams.COMPACT_HISTORY, false);
+      put(PsqlHandlerParams.PROPERTY_SEARCH, true);
     }
   };
 

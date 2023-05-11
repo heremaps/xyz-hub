@@ -24,7 +24,7 @@ import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.GEO_JSON
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.psql.PsqlStorage;
+import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.SQLQueryBuilder;
 import java.sql.SQLException;
 import javax.annotation.Nonnull;
@@ -32,7 +32,7 @@ import org.jetbrains.annotations.NotNull;
 
 public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial<E> {
 
-  public GetFeaturesByBBox(@NotNull E event, @NotNull PsqlStorage psqlConnector) throws SQLException {
+  public GetFeaturesByBBox(@NotNull E event, @NotNull PsqlHandler psqlConnector) throws SQLException {
     super(event, psqlConnector);
   }
 

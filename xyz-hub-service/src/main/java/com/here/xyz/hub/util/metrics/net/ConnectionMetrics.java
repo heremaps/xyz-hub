@@ -19,11 +19,10 @@
 
 package com.here.xyz.hub.util.metrics.net;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
+import static com.here.xyz.hub.rest.HeaderValues.STREAM_ID;
 import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.BYTES;
 import static com.here.xyz.hub.util.metrics.base.Metric.MetricUnit.MILLISECONDS;
 
-import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric;
 import com.here.xyz.hub.util.metrics.base.AggregatingMetric.AggregatedValues;
 import com.here.xyz.hub.util.metrics.base.AttributedMetricCollection;
@@ -37,7 +36,6 @@ import io.vertx.core.spi.metrics.HttpClientMetrics;
 import io.vertx.core.spi.metrics.TCPMetrics;
 import io.vertx.core.spi.observability.HttpRequest;
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;

@@ -42,9 +42,9 @@ import org.junit.Test;
 public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
   protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(PsqlStorageParams.ID, "test-connector");
-            put(PsqlStorageParams.ENABLE_HASHED_SPACEID, true);
-            put(PsqlStorageParams.AUTO_INDEXING, true);
+        {
+            put(PsqlHandlerParams.ENABLE_HASHED_SPACEID, true);
+            put(PsqlHandlerParams.AUTO_INDEXING, true);
         }
   };
 

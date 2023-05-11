@@ -20,11 +20,10 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.events.feature.GetFeaturesByTileResponseType;
-import com.here.xyz.hub.rest.Api.HeaderValues;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_GEO_JSON;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_JSON;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_TILE;
 
 import com.here.xyz.responses.ErrorResponse;
 import io.vertx.ext.web.MIMEHeader;

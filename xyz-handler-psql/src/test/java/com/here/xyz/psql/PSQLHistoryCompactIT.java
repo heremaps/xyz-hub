@@ -25,7 +25,6 @@ import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.models.hub.Space;
-import java.util.Collections;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -45,9 +44,8 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
   static Map<String, Object> connectorParams = new HashMap<String, Object>() {
     {
-      put(PsqlStorageParams.ID, "test-connector");
-      put(PsqlStorageParams.COMPACT_HISTORY, true);
-      put(PsqlStorageParams.PROPERTY_SEARCH, true);
+      put(PsqlHandlerParams.COMPACT_HISTORY, true);
+      put(PsqlHandlerParams.PROPERTY_SEARCH, true);
     }
   };
 

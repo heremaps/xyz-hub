@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub;
 
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.IoHelp;
+import com.here.xyz.util.IoHelp.LoadedConfig;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -46,8 +49,8 @@ public class Service extends NakshaHub {
    */
   public static void main(final @NotNull String @NotNull [] arguments) throws IOException {
     final List<@NotNull String> args = Arrays.asList(arguments);
-    final NakshaHubConfig config;
     final int configIndex = args.indexOf("--config");
+    final NakshaHubConfig config;
     if (configIndex >= 0) {
       final String[] split = args.get(configIndex).split("=", 1);
       if (split.length != 2 || split[1].length() == 0) {
@@ -55,15 +58,17 @@ public class Service extends NakshaHub {
         System.exit(1);
         return;
       }
-      config = new NakshaHubConfig(split[1]);
+      final String customFilename = split[1];
+      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource(customFilename, true, NakshaHubConfig.appName);
+      System.out.println("Loaded configuration file: " + loaded.path());
+      config = XyzSerializable.deserialize(loaded.bytes(), NakshaHubConfig.class);
     } else {
-      config = new NakshaHubConfig();
+      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource("config.json", false, NakshaHubConfig.appName);
+      System.out.println("Loaded configuration file: " + loaded.path());
+      config = XyzSerializable.deserialize(loaded.bytes(), NakshaHubConfig.class);
     }
     if (args.contains("--debug")) {
       config.debug = true;
-    }
-    if (config.loadPath() != null) {
-      System.out.println("Loaded configuration file: " + config.loadPath());
     }
     instance = new Service(config);
     instance.start();

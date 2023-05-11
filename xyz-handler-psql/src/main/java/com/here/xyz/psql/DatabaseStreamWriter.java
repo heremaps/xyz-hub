@@ -34,7 +34,7 @@ import java.util.Map;
 
 public class DatabaseStreamWriter extends DatabaseWriter{
 
-    protected static FeatureCollection insertFeatures(@NotNull PsqlStorage processor, FeatureCollection collection,
+    protected static FeatureCollection insertFeatures(@NotNull PsqlHandler processor, FeatureCollection collection,
         List<FeatureCollection.ModificationFailure> fails,
         List<Feature> inserts, Connection connection, boolean forExtendedSpace)
         throws SQLException {
@@ -97,7 +97,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         return collection;
     }
 
-    protected static FeatureCollection updateFeatures(@NotNull PsqlStorage processor, FeatureCollection collection,
+    protected static FeatureCollection updateFeatures(@NotNull PsqlHandler processor, FeatureCollection collection,
         List<FeatureCollection.ModificationFailure> fails,
         List<Feature> updates, Connection connection,
         boolean handleUUID, boolean forExtendedSpace)
@@ -174,7 +174,7 @@ public class DatabaseStreamWriter extends DatabaseWriter{
         return collection;
     }
 
-    protected static void deleteFeatures(@NotNull PsqlStorage processor,
+    protected static void deleteFeatures(@NotNull PsqlHandler processor,
         List<FeatureCollection.ModificationFailure> fails, Map<String, String> deletes,
         Connection connection, boolean handleUUID)
         throws SQLException {

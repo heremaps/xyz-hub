@@ -22,14 +22,14 @@ package com.here.xyz.psql.query;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
-import com.here.xyz.psql.PsqlStorage;
+import com.here.xyz.psql.PsqlHandler;
 import java.sql.SQLException;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
 public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent> {
 
-  public GetFeaturesByGeometry(@NotNull GetFeaturesByGeometryEvent event, @NotNull PsqlStorage psqlConnector) throws SQLException {
+  public GetFeaturesByGeometry(@NotNull GetFeaturesByGeometryEvent event, @NotNull PsqlHandler psqlConnector) throws SQLException {
     super(event, psqlConnector);
   }
 

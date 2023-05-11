@@ -18,7 +18,7 @@
  */
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_COMPACT_CHANGESET;
+import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_VND_HERE_COMPACT_CHANGESET;
 import static com.here.xyz.hub.rest.ApiParam.Query.SKIP_CACHE;
 
 import com.here.xyz.events.info.GetHistoryStatisticsEvent;

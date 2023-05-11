@@ -41,9 +41,9 @@ public abstract class QueryRunner<E, R> implements ResultSetHandler<R> {
 
   private final @NotNull SQLQuery query;
   private boolean useReadReplica;
-  protected final @NotNull PsqlStorage processor;
+  protected final @NotNull PsqlHandler processor;
 
-  public QueryRunner(@NotNull E input, final @NotNull PsqlStorage processor) throws SQLException {
+  public QueryRunner(@NotNull E input, final @NotNull PsqlHandler processor) throws SQLException {
     this.processor = processor;
     query = buildQuery(input);
   }

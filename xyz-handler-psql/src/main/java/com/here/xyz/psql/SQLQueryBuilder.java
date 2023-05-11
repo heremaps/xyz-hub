@@ -59,7 +59,7 @@ public class SQLQueryBuilder {
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   private static final Integer BIG_SPACE_THRESHOLD = 10000;
 
-  public static @NotNull SQLQuery buildGetStatisticsQuery(@NotNull PsqlStorage processor, boolean historyMode) {
+  public static @NotNull SQLQuery buildGetStatisticsQuery(@NotNull PsqlHandler processor, boolean historyMode) {
     String function;
     if (processor.event() instanceof GetHistoryStatisticsEvent) {
       function = "xyz_statistic_history";

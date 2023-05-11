@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.events.space.ModifySpaceEvent.Operation;
-import com.here.xyz.psql.PsqlStorage;
+import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.responses.SuccessResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -43,7 +43,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
   public static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
   private static final String SPACE_META_TABLE = "xyz_config.space_meta";
 
-  public ModifySpace(@NotNull ModifySpaceEvent event, @NotNull PsqlStorage psqlConnector) throws SQLException {
+  public ModifySpace(@NotNull ModifySpaceEvent event, @NotNull PsqlHandler psqlConnector) throws SQLException {
     super(event, psqlConnector);
     setUseReadReplica(false);
   }

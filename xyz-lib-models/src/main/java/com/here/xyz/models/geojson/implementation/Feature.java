@@ -23,16 +23,17 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.fasterxml.jackson.databind.annotation.JsonAppend;
 import com.here.xyz.Extensible;
 import com.here.xyz.Typed;
 import com.here.xyz.View.All;
-import com.here.xyz.lambdas.P;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
-import java.util.UUID;
+import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.Subscription;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,8 +41,13 @@ import org.jetbrains.annotations.Nullable;
  * A standard GeoJson feature.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "Feature")
 @SuppressWarnings({"unused", "WeakerAccess"})
+@JsonTypeName(value = "Feature")
+@JsonSubTypes({ // Note: These types need to be added as well into Typed!
+    @JsonSubTypes.Type(value = Space.class, name = "Space"),
+    @JsonSubTypes.Type(value = Connector.class, name = "Connector"),
+    @JsonSubTypes.Type(value = Subscription.class, name = "Subscription")
+})
 public class Feature extends Extensible implements Typed {
   public static final String ID = "id";
   public static final String BBOX = "bbox";

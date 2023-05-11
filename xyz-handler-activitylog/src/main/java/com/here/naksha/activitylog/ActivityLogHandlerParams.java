@@ -8,9 +8,9 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The parameter parser.
  */
-class ActivityLogParams extends EventHandlerParams {
+class ActivityLogHandlerParams extends EventHandlerParams {
 
-  ActivityLogParams(@NotNull Map<@NotNull String, @Nullable Object> params) {
+  ActivityLogHandlerParams(@NotNull Map<@NotNull String, @Nullable Object> params) {
     //param1 - storage_mode can have DIFF_ONLY or FULL or FEATURE_ONLY. Default will be FULL
     storage_mode = parseValueWithDefault(params, "storage_mode", "FULL");
     //param2 - (Optional) Keeps a maximum of x states per object (x > 0).
