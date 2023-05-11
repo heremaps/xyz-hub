@@ -183,6 +183,9 @@ public class JDBCExporter extends JDBCClients{
         if(params != null && params.get("enableHashedSpaceId") != null)
             event.setConnectorParams(new HashMap<String, Object>(){{put("enableHashedSpaceId",params.get("enableHashedSpaceId"));}});
 
+        if(params != null && params.get("versionsToKeep") != null)
+            event.setVersionsToKeep((int)params.get("versionsToKeep"));
+
         if(targetVersion != null) {
             event.setRef(targetVersion);
         }
