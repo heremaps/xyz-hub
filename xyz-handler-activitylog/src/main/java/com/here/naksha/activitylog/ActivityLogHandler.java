@@ -43,18 +43,30 @@ public class ActivityLogHandler extends EventHandler {
 
   protected void toActivityLogFormat(@NotNull Feature feature, @Nullable Feature oldState) {
     final XyzActivityLog xyzActivityLog = new XyzActivityLog();
-    final Original org = new Original();
-    org.setSpace("abc");
-    // TODO: modify feature like:
-    //       - Create namespace "@ns:com:here:xyz:log"
-    //       - Copy "id" into "@ns:com:here:xyz:log"
-    //       - Create "original" sub in "@ns:com:here:xyz:log"
-    //       - Copy "createdAt", "updatedAt", "muuid", "puuid" and "space" into "@ns:com:here:xyz:log.original"
-    //       - Copy "uuid" from "@ns:com:here:xyz" into root "id"
-    //       - Set "@ns:com:here:xyz:log.invalidatedAt", no idea what it does?
-    //       - Set "@ns:com:here:xyz:log.action" to "SAVE, "UPDATE", "DELETE"
-    //       - Set "@ns:com:here:xyz:log.diff" to the diff between oldState and new feature state.
-    feature.getProperties().setXyzActivityLog(xyzActivityLog);
+    final Original original = new Original();
+    if(feature.getProperties() != null && feature.getProperties().getXyzNamespace() != null) {
+      // TODO: modify feature like:
+      //       - Create namespace "@ns:com:here:xyz:log"
+      //       - Copy "id" into "@ns:com:here:xyz:log"
+      //       - Create "original" sub in "@ns:com:here:xyz:log"
+      //       - Copy "createdAt", "updatedAt", "muuid", "puuid" and "space" into "@ns:com:here:xyz:log.original"
+      //       - Copy "uuid" from "@ns:com:here:xyz" into root "id"
+      //       - Set "@ns:com:here:xyz:log.invalidatedAt", no idea what it does?
+      //       - Set "@ns:com:here:xyz:log.action" to "SAVE, "UPDATE", "DELETE"
+      //       - Set "@ns:com:here:xyz:log.diff" to the diff between oldState and new feature state.
+      original.setPuuid(feature.getProperties().getXyzNamespace().getPuuid());
+      original.setMuuid(feature.getProperties().getXyzNamespace().getMuuid());
+      original.setUpdatedAt(feature.getProperties().getXyzNamespace().getUpdatedAt());
+      original.setSpace(feature.getProperties().getXyzNamespace().getSpace());
+      xyzActivityLog.setOrigin(original);
+      xyzActivityLog.setId(feature.getId());
+      xyzActivityLog.setAction(feature.getProperties().getXyzNamespace().getAction());
+      feature.setId(feature.getProperties().getXyzNamespace().getUuid());
+      feature.getProperties().setXyzActivityLog(xyzActivityLog);
+      //Need to add created at
+      //Add Invalidated At
+      //Add Diff
+    }
     /*
       "original": {
         "muuid": "d8c3afc6-fbde-4542-827b-8ed7f038f199",

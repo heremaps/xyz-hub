@@ -54,6 +54,14 @@ class ActivityLogHandlerTest {
   }
 
   @Test
+  void test_toActivityLog() throws IOException {
+    final Feature feature = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), Feature.class);
+    final Feature Oldfeature = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_2.json"), Feature.class);
+    assertNotNull(feature);
+    activityLogHandler.toActivityLogFormat(feature,Oldfeature);
+  }
+
+  @Test
   void test_deserialization() throws IOException {
     final Typed raw = XyzSerializable.deserialize(IoHelp.openResource("activity_log_feature.json"), Typed.class);
     assertInstanceOf(Feature.class, raw);
