@@ -224,7 +224,7 @@ public class JDBCExporter extends JDBCClients{
                     " 'type',       'Feature'," +
                     " 'id',         jsondata->>'id'," +
                     " 'geometry',   ST_AsGeoJSON(geo)::jsonb," +
-                    " 'properties', jsondata - 'id'" +
+                    " 'properties', jsondata->'properties'" +
                     ") " +
                     "from ( ${{contentQuery}}) X"
             );

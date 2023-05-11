@@ -181,7 +181,7 @@ public class JobApiExportIT extends JobApiIT {
             add("Polygon with hole");
         }};
 
-        downloadAndCheck(downloadUrl, 5151, 11, mustContains );
+        downloadAndCheck(downloadUrl, 4633, 11, mustContains );
         deleteJob(testExportJobId, testSpaceId2);
     }
 
@@ -207,7 +207,7 @@ public class JobApiExportIT extends JobApiIT {
         }};
 
         // 252 + 11 = 263
-        downloadAndCheck(downloadUrl, 125816, 263, mustContains );
+        downloadAndCheck(downloadUrl, 114966, 263, mustContains );
         deleteJob(testExportJobId, testSpaceId2Ext);
     }
 
@@ -228,7 +228,7 @@ public class JobApiExportIT extends JobApiIT {
             add("foo_new"); //Got overridden in composite space
         }};
 
-        downloadAndCheck(downloadUrl, 14210, 30, mustContains );
+        downloadAndCheck(downloadUrl, 12913, 30, mustContains );
         deleteJob(testExportJobId, testSpaceId2Ext);
     }
 
@@ -252,7 +252,7 @@ public class JobApiExportIT extends JobApiIT {
             add("foo_new"); //Got overridden in composite space
         }};
 
-        downloadAndCheck(downloadUrl, 391, 1, mustContains );
+        downloadAndCheck(downloadUrl, 350, 1, mustContains );
         deleteJob(testExportJobId, testSpaceId2Ext);
     }
 
@@ -277,7 +277,7 @@ public class JobApiExportIT extends JobApiIT {
             add("2LPoint");  //Got added in composite space L2
         }};
 
-        downloadAndCheck(downloadUrl, 14555, 31, mustContains );
+        downloadAndCheck(downloadUrl, 13217, 31, mustContains );
         deleteJob(testExportJobId, testSpaceId2ExtExt);
     }
 
@@ -298,7 +298,7 @@ public class JobApiExportIT extends JobApiIT {
             add("2LPoint");  //Got added in composite space L2
         }};
         // 252 + 11 + 1 = 263
-        downloadAndCheck(downloadUrl, 126161, 264, mustContains );
+        downloadAndCheck(downloadUrl, 115270, 264, mustContains );
         deleteJob(testExportJobId, testSpaceId2ExtExt);
     }
 
