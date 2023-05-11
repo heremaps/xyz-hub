@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Action;
+import com.here.xyz.models.geojson.implementation.Original;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,80 +39,104 @@ import org.jetbrains.annotations.Nullable;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class XyzActivityLog implements XyzSerializable {
 
-  public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
-  public static final String CREATED_AT = "createdAt";
-  public static final String UUID = "uuid";
-  public static final String PUUID = "puuid";
-  public static final String MUUID = "muuid";
-  public static final String REVISION = "revision";
-  public static final String SPACE = "space";
-  public static final String UPDATED_AT = "updatedAt";
+  //public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
+  //public static final String CREATED_AT = "createdAt";
+  //public static final String UUID = "uuid";
+  //public static final String PUUID = "puuid";
+  //public static final String MUUID = "muuid";
+  //public static final String REVISION = "revision";
+  //public static final String SPACE = "space";
+  //public static final String UPDATED_AT = "updatedAt";
+  public static final String ID = "id";
+  public static final String ORIGINAL = "original";
+  public static final String ACTION = "action";
+  public static final String INVALIDATED_AT = "invalidatedAt";
+
+  /**
+   * The Original tag.
+   */
+  @JsonProperty(ORIGINAL)
+  private @Nullable Original original;
+
+/*  *//**
+   * The space ID the feature belongs to.
+   *//*
+  @JsonProperty
+  @JsonView(View.All.class)
+  private String space;*/
 
   /**
    * The space ID the feature belongs to.
    */
   @JsonProperty
   @JsonView(View.All.class)
-  private String space;
+  private String id;
+
+  /**
+   * * * The timestamp, when a feature was created.
+   */
+  @JsonProperty
+  @JsonView(View.All.class)
+  private long invalidatedAt;
 
   /**
    * The collection the feature belongs to.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   private String collection;
 
-  /**
+  *//**
    * The timestamp, when a feature was created.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   private long createdAt;
 
-  /**
+  *//**
    * The timestamp, when a feature was last updated.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   private long updatedAt;
 
-  /**
+  *//**
    * The transaction number of this state.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   private String txn;
 
-  /**
+  *//**
    * The uuid of the feature, when the client modifies the feature, it must not modify the uuid.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   private String uuid;
 
-  /**
+  *//**
    * The previous uuid of the feature.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String puuid;
 
-  /**
+  *//**
    * The merge uuid of the feature.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String muuid;
 
-  /**
+  *//**
    * The list of tags attached to the feature.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_EMPTY)
-  private List<@NotNull String> tags;
+  private List<@NotNull String> tags;*/
 
   /**
    * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
@@ -122,34 +147,34 @@ public class XyzActivityLog implements XyzSerializable {
 
   /**
    * The version of the feature, the first version (1) will always be in the state CREATED.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   private long version = 0L;
 
-  /**
+  *//**
    * The author (user or application) that created the current revision of the feature.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String author;
 
-  /**
+  *//**
    * The application that create the current revision of the feature.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String app_id;
 
-  /**
+  *//**
    * The identifier of the owner of this connector.
-   */
+   *//*
   @JsonProperty
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
-  private String owner;
+  private String owner;*/
 
   /**
    * A method to normalize and lower case a tag.
@@ -250,7 +275,7 @@ public class XyzActivityLog implements XyzSerializable {
     }
   }
 
-  public @Nullable String getSpace() {
+  /*public @Nullable String getSpace() {
     return space;
   }
 
@@ -274,7 +299,7 @@ public class XyzActivityLog implements XyzSerializable {
   public @NotNull XyzActivityLog withCollection(@Nullable String collection) {
     setCollection(collection);
     return this;
-  }
+  }*/
 
   public @Nullable String getAction() {
     return action;
@@ -298,6 +323,15 @@ public class XyzActivityLog implements XyzSerializable {
     return this;
   }
 
+  public long getInvalidatedAt() {
+    return invalidatedAt;
+  }
+
+  public void setInvalidatedAt(long invalidatedAt){
+    this.invalidatedAt = invalidatedAt;
+  }
+
+/*
   public long getCreatedAt() {
     return createdAt;
   }
@@ -400,11 +434,11 @@ public class XyzActivityLog implements XyzSerializable {
     return this;
   }
 
-  /**
+  *//**
    * Returns 'true' if the tag was added, 'false' if it was already present.
    *
    * @return true if the tag was added; false otherwise.
-   */
+   *//*
   public boolean addTag(String tag) {
     if (getTags() == null) {
       setTags(new ArrayList<>());
@@ -415,11 +449,11 @@ public class XyzActivityLog implements XyzSerializable {
     return getTags().add(tag);
   }
 
-  /**
+  *//**
    * Returns 'true' if the tag was removed, 'false' if it was not present.
    *
    * @return true if the tag was removed; false otherwise.
-   */
+   *//*
   public boolean removeTag(String tag) {
     if (getTags() == null) {
       return false;
@@ -428,7 +462,7 @@ public class XyzActivityLog implements XyzSerializable {
       return false;
     }
     return getTags().remove(tag);
-  }
+  }*/
 
   public boolean isDeleted() {
     return Action.DELETE.equals(getAction());
@@ -445,7 +479,7 @@ public class XyzActivityLog implements XyzSerializable {
     return this;
   }
 
-  public long getVersion() {
+  /*public long getVersion() {
     return version;
   }
 
@@ -490,11 +524,31 @@ public class XyzActivityLog implements XyzSerializable {
 
   public void setOwner(@Nullable String owner) {
     this.owner = owner;
+  }*/
+
+  public @Nullable String getId() {
+    return id;
   }
 
+  public void setId(@Nullable String id) {
+    this.id = id;
+  }
 
-  public @NotNull XyzActivityLog withOwner(@Nullable String owner) {
+  public @NotNull Original getOriginal() { return original;}
+
+  public void setOrigin(@NotNull Original or) {
+    this.original = or;
+  }
+
+/*  public @NotNull XyzActivityLog withOwner(@Nullable String owner) {
     setOwner(owner);
     return this;
+  }*/
+
+  public @Nullable XyzActivityLog removeOriginal() {
+    final XyzActivityLog xyzActivityLog = this;
+    xyzActivityLog.original = null;
+    return xyzActivityLog;
   }
+
 }

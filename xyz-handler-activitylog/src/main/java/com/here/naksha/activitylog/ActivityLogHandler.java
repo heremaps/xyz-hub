@@ -7,6 +7,8 @@ import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzActivityLog;
+import com.here.xyz.models.geojson.implementation.Original;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -41,6 +43,8 @@ public class ActivityLogHandler extends EventHandler {
 
   protected void toActivityLogFormat(@NotNull Feature feature, @Nullable Feature oldState) {
     final XyzActivityLog xyzActivityLog = new XyzActivityLog();
+    final Original org = new Original();
+    org.setSpace("abc");
     // TODO: modify feature like:
     //       - Create namespace "@ns:com:here:xyz:log"
     //       - Copy "id" into "@ns:com:here:xyz:log"
@@ -64,15 +68,23 @@ public class ActivityLogHandler extends EventHandler {
   }
 
   protected void fromActivityLogFormat(@NotNull Feature activityLogFeature) {
-    String originalId = activityLogFeature.getId();
     // TODO:
     //     - Remove "@ns:com:here:xyz:log"
     //     - Change "id" back to saved id
     //     - Copy values from "@ns:com:here:xyz:log.original" into "@ns:com:here:xyz"
     //     - What is "invalidatedAt" ?
     final XyzActivityLog xyzActivityLog = activityLogFeature.getProperties().getXyzActivityLog();
+    final XyzNamespace xyzNamespace = activityLogFeature.getProperties().getXyzNamespace();
     if (xyzActivityLog != null) {
-      // TODO: Convert
+      activityLogFeature.setId(xyzActivityLog.getId());
+      if(xyzNamespace != null && xyzActivityLog.getOriginal() != null){
+        xyzNamespace.setMuuid(xyzActivityLog.getOriginal().getMuuid());
+        xyzNamespace.setPuuid(xyzActivityLog.getOriginal().getPuuid());
+        xyzNamespace.setSpace(xyzActivityLog.getOriginal().getSpace());
+        xyzNamespace.setUpdatedAt(xyzActivityLog.getOriginal().getUpdatedAt());
+        //Also add created At
+      }
+      activityLogFeature.getProperties().removeActivityLog();
     }
   }
 
