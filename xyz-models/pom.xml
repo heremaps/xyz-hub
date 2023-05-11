@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../</relativePath>
-    <version>2.2.6-SNAPSHOT</version>
+    <version>2.2.6</version>
   </parent>
 
   <licenses>
