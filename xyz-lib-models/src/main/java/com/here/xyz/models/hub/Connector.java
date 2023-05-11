@@ -19,6 +19,7 @@
 
 package com.here.xyz.models.hub;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -45,7 +46,10 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "Connector")
 public final class Connector extends Feature {
 
-  public Connector() {
+  @JsonCreator
+  public Connector(@JsonProperty @NotNull String id, @JsonProperty long number) {
+    super(id);
+    this.number = number;
     this.params = new HashMap<>();
     this.packages = new ArrayList<>();
     this.active = true;

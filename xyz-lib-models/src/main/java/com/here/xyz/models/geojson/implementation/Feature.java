@@ -19,6 +19,7 @@
 
 package com.here.xyz.models.geojson.implementation;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -57,13 +58,15 @@ public class Feature extends Extensible implements Typed {
   /**
    * Create a new empty feature.
    */
-  public Feature() {
+  @JsonCreator
+  public Feature(@JsonProperty @NotNull String id) {
+    this.id = id;
     this.properties = new Properties();
   }
 
   @JsonProperty
   @JsonView(All.class)
-  protected String id;
+  protected @NotNull String id;
 
   @JsonProperty
   @JsonView(All.class)
@@ -80,11 +83,11 @@ public class Feature extends Extensible implements Typed {
   @JsonInclude(Include.NON_NULL)
   protected @NotNull Properties properties;
 
-  public @Nullable String getId() {
+  public @NotNull String getId() {
     return id;
   }
 
-  public void setId(@Nullable String id) {
+  public void setId(@NotNull String id) {
     this.id = id;
   }
 

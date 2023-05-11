@@ -1,7 +1,5 @@
 package com.here.xyz.hub;
 
-import static com.here.xyz.psql.PsqlHandlerParams.DB_CONFIG;
-import static com.here.xyz.psql.PsqlHandlerParams.SCHEMA;
 import static com.here.xyz.util.IoHelp.openResource;
 import static com.here.xyz.util.IoHelp.parseValue;
 
@@ -14,8 +12,6 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.hub.auth.NakshaAuthProvider;
-import com.here.xyz.hub.events.GetConnectorsByIdEvent;
-import com.here.xyz.hub.task.connector.GetConnectorsByIdTask;
 import com.here.xyz.hub.task.feature.GetFeaturesByIdTask;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
 import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
@@ -52,7 +48,6 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
@@ -203,8 +198,37 @@ public class NakshaHub extends NakshaMgmtClient {
     webClientOptions.setIdleTimeoutUnit(TimeUnit.MINUTES).setIdleTimeout(2);
     webClient = WebClient.create(vertx, webClientOptions);
     shutdownThread = new Thread(this::shutdownHook);
+
+    // Create the virtual admin connector.
+    adminConnector = new Connector("naksha:admin", 0);
+    adminConnector.setEventHandler(PsqlHandler.ID);
+    adminConnector.setParams(new Params().with(PsqlHandlerParams.DB_CONFIG, config.db));
+
+    // Create the virtual spaces that are used to manage spaces, connectors and subscriptions.
+    spaces = new Space(DEFAULT_SPACE_COLLECTION);
+    spaces.setForceOwner(NakshaHubConfig.appName);
+    spaces.setHistory(true);
+    spaces.setConnectorIds(adminConnector.getId());
+
+    connectors = new Space(DEFAULT_CONNECTOR_COLLECTION);
+    connectors.setForceOwner(NakshaHubConfig.appName);
+    connectors.setHistory(true);
+    connectors.setConnectorIds(adminConnector.getId());
+
+    subscriptions = new Space(DEFAULT_SUBSCRIPTIONS_COLLECTION);
+    subscriptions.setForceOwner(NakshaHubConfig.appName);
+    subscriptions.setHistory(true);
+    subscriptions.setConnectorIds(adminConnector.getId());
+
+    // Register all supported tasks and handlers.
+    initTasks();
+    initHandlers();
   }
 
+  final @NotNull Connector adminConnector;
+  final @NotNull Space spaces;
+  final @NotNull Space connectors;
+  final @NotNull Space subscriptions;
   @SuppressWarnings("rawtypes")
   private final ConcurrentHashMap<@NotNull Class<? extends Event>, @NotNull F0<@NotNull AbstractTask>> tasks = new ConcurrentHashMap<>();
 
@@ -222,25 +246,6 @@ public class NakshaHub extends NakshaMgmtClient {
     EventHandler.register(PsqlHandler.ID, PsqlHandler.class);
     EventHandler.register(HttpHandler.ID, HttpHandler.class);
     EventHandler.register(ActivityLogHandler.ID, ActivityLogHandler.class);
-  }
-
-  /**
-   * Create the virtual spaces and connectors for the internal features for spaces, connectors and subscriptions.
-   */
-  private void initAdminDatabase() {
-    final Connector admin = new Connector();
-    admin.setId("naksha:admin");
-    admin.setNumber(0);
-    admin.setParams(new Params()
-        .with(DB_CONFIG, config.db)
-        .with()
-    );
-
-    final Space spaces = new Space();
-    spaces.setId("naksha:spaces");
-    spaces.setForceOwner("naksha");
-    spaces.setHistory(true);
-    spaces.setConnectorIds();
   }
 
   @SuppressWarnings("unchecked")
@@ -367,28 +372,6 @@ public class NakshaHub extends NakshaMgmtClient {
    * The Vertx worker pool size environment variable.
    */
   protected static final String VERTX_WORKER_POOL_SIZE = "VERTX_WORKER_POOL_SIZE";
-
-  public static ThreadFactory newThreadFactory(String groupName) {
-    return new DefaultThreadFactory(groupName);
-  }
-
-  private static class DefaultThreadFactory implements ThreadFactory {
-
-    private ThreadGroup group;
-    private final AtomicInteger threadNumber = new AtomicInteger(1);
-    private final String namePrefix;
-
-    public DefaultThreadFactory(String groupName) {
-      assert groupName != null;
-      group = new ThreadGroup(groupName);
-      namePrefix = groupName + "-";
-    }
-
-    @Override
-    public Thread newThread(Runnable r) {
-      return new Thread(group, r, namePrefix + threadNumber.getAndIncrement());
-    }
-  }
 
   /**
    * Read the build properties from the JAR.

@@ -19,6 +19,7 @@
 
 package com.here.xyz.models.hub;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -27,10 +28,16 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.implementation.Feature;
+import org.jetbrains.annotations.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Subscription")
 public final class Subscription extends Feature {
+
+  @JsonCreator
+  public Subscription(@JsonProperty @NotNull String id) {
+    super(id);
+  }
 
   /**
    * The source of the subscribed notification (usually the space).

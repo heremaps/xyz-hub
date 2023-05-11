@@ -19,6 +19,7 @@
 
 package com.here.xyz.models.hub;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -46,18 +47,13 @@ import org.jetbrains.annotations.Nullable;
 public final class Space extends Feature implements Typed {
 
   /**
-   * Create new blank space object.
-   */
-  public Space() {
-  }
-
-  /**
    * Create new space initialized with the given identifier.
    *
    * @param id the identifier.
    */
-  public Space(@NotNull String id) {
-    setId(id);
+  @JsonCreator
+  public Space(@JsonProperty @NotNull String id) {
+    super(id);
   }
 
   /**
