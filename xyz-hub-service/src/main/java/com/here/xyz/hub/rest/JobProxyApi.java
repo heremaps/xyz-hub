@@ -19,6 +19,7 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.httpconnector.rest.HApiParam;
+import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.Authorization;
@@ -68,7 +69,7 @@ public class JobProxyApi extends Api{
                                     if (headSpace == null) {
                                         return Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID does not exist!"));
                                     }
-                                    if (headSpace.getVersionsToKeep() != 1) {
+                                    if (job instanceof Import && headSpace.getVersionsToKeep() != 1) {
                                         return Future.failedFuture(new HttpException(BAD_REQUEST, "Versioning is not supported!"));
                                     }
 
