@@ -54,7 +54,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     private Long expiration;
 
     public DynamoJobConfigClient(String tableArn) {
-        dynamoClient = new DynamoClient(tableArn, CService.configuration.LOCALSTACK_ENDPOINT);
+        dynamoClient = new DynamoClient(tableArn, null);
         logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
         jobs = dynamoClient.db.getTable(dynamoClient.tableName);
         if(CService.configuration != null && CService.configuration.JOB_DYNAMO_EXP_IN_DAYS != null)

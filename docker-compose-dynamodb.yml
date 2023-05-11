@@ -9,6 +9,7 @@ services:
             - "8080:8080"
         depends_on:
             - "localstack"
+            - "dynamodb"
             - "postgres"
             - "redis"
             - "xyz-http-connector"
@@ -31,6 +32,7 @@ services:
             - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-jobs
         depends_on:
             - "localstack"
+            - "dynamodb"
             - "postgres"
         command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
     postgres:
@@ -46,6 +48,12 @@ services:
         container_name: "redis"
         ports:
             - "6379:6379"
+    dynamodb:
+        image: "amazon/dynamodb-local"
+        container_name: "dynamodb"
+        ports:
+            - "8000:8000"
+        command: ["-jar", "DynamoDBLocal.jar", "-sharedDb"]
     swagger-ui:
         image: "swaggerapi/swagger-ui"
         container_name: "swagger-ui"
@@ -54,14 +62,14 @@ services:
         environment:
             - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
     localstack:
-        image: "localstack/localstack"
+        image: "localstack/localstack:latest"
         hostname: localstack
         ports:
             - "4563-4599:4563-4599"
         environment:
-            - SERVICES="s3,dynamodb,cloudwatch"
+            - SERVICES="s3,cloudwatch"
             - PERSISTENCE=0
-            - DEBUG="true"
+            - DEBUG=0
             - AWS_ACCESS_KEY_ID=localstack
             - AWS_SECRET_ACCESS_KEY=localstack
             - AWS_DEFAULT_REGION=eu-west-1

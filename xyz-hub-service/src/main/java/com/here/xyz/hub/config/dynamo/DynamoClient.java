@@ -66,9 +66,15 @@ public class DynamoClient {
     final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
 
     if (isLocal()) {
-      builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
-                      (localstackEndpoint == null ? Service.configuration.LOCALSTACK_ENDPOINT : localstackEndpoint), "eu-west-1"))
-              .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")));
+      if(localstackEndpoint == null) {
+        builder.setCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")));
+        final String endpoint = "http://" + arn.getRegion() + ":" + Integer.parseInt(arn.getAccountId());
+        builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, "US-WEST-1"));
+      }else {
+        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
+                        (localstackEndpoint == null ? Service.configuration.LOCALSTACK_ENDPOINT : localstackEndpoint), "eu-west-1"))
+                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")));
+      }
     }
     else {
       builder.setRegion(arn.getRegion());
