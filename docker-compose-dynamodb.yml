@@ -74,4 +74,4 @@ services:
             - AWS_SECRET_ACCESS_KEY=localstack
             - AWS_DEFAULT_REGION=eu-west-1
         volumes:
-            - $PWD/mock-servers/localstack/docker-entrypoint-initaws.d/01-create-bucket.sh:/etc/localstack/init/ready.d/init-aws.sh
+            - ./mock-servers/localstack/docker-entrypoint-initaws.d/01-create-bucket.sh:/etc/localstack/init/ready.d/init-aws.sh
