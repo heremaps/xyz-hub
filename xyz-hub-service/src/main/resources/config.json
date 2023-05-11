@@ -51,5 +51,7 @@
 
   "INCLUDE_HEADERS_FOR_DECOMPRESSED_IO_SIZE" : true,
   "DECOMPRESSED_INPUT_SIZE_HEADER_NAME" : "X-Decompressed-Input-Size",
-  "DECOMPRESSED_OUTPUT_SIZE_HEADER_NAME" : "X-Decompressed-Output-Size"
+  "DECOMPRESSED_OUTPUT_SIZE_HEADER_NAME" : "X-Decompressed-Output-Size",
+
+  "LOCALSTACK_ENDPOINT" : "http://localhost:4566"
 }

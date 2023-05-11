@@ -37,7 +37,7 @@ public class DynamoSettingsConfigClient extends SettingsConfigClient {
   private Table settings;
 
   public DynamoSettingsConfigClient(String tableArn) {
-    dynamoClient = new DynamoClient(tableArn);
+    dynamoClient = new DynamoClient(tableArn, null);
     logger.info("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     settings = dynamoClient.getTable();
   }

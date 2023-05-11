@@ -196,9 +196,9 @@ public class CService extends Core {
      */
     public String JOBS_DYNAMODB_TABLE_ARN;
     /**
-     * S3 Endpoint - used for localstack
+     * S3/CW/Dynamodb localstack endpoints
      */
-    public String JOBS_S3_ENDPOINT;
+    public String LOCALSTACK_ENDPOINT;
     /**
      * S3 Bucket for imports/exports
      */

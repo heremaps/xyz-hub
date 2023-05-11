@@ -10,6 +10,7 @@ services:
         depends_on:
             - "postgres"
             - "redis"
+            - "xyz-http-connector"
     xyz-http-connector:
         image: "xyz-hub"
         build:
@@ -18,11 +19,9 @@ services:
         ports:
             - "9090:9090"
         environment:
-            - AWS_ACCESS_KEY_ID=localstack
-            - AWS_SECRET_ACCESS_KEY=localstack
+            - LOCALSTACK_ENDPOINT=http://localstack:4566
         depends_on:
             - "postgres"
-            - "xyz-hub"
             - "localstack"
         command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
     postgres:
@@ -51,7 +50,8 @@ services:
         ports:
             - "4563-4599:4563-4599"
         environment:
-            - SERVICES="s3"
+            - SERVICES="s3,cloudwatch"
+            - PERSISTENCE=1
             - DEBUG="true"
             - AWS_ACCESS_KEY_ID=localstack
             - AWS_SECRET_ACCESS_KEY=localstack
