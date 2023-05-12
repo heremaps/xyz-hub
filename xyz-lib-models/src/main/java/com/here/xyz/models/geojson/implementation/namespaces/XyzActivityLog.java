@@ -21,6 +21,8 @@ package com.here.xyz.models.geojson.implementation.namespaces;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.View;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Action;
 import org.jetbrains.annotations.NotNull;
@@ -44,12 +46,14 @@ public class XyzActivityLog implements XyzSerializable {
    * The Original tag.
    */
   @JsonProperty(ORIGINAL)
+  @JsonView(View.All.class)
   private @NotNull Original original;
 
   /**
    * The space ID the feature belongs to.
    */
   @JsonProperty(ID)
+  @JsonView(View.All.class)
   private String id;
 
   //For Now It is not used
@@ -65,6 +69,7 @@ public class XyzActivityLog implements XyzSerializable {
    * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
    */
   @JsonProperty(ACTION)
+  @JsonView(View.All.class)
   private String action;
 
   public @Nullable String getAction() {
