@@ -38,7 +38,7 @@ public class FeatureGenerator {
   public static Feature generateFeature(XyzNamespace xyzNamespace, List<String> propertyKeys) {
     propertyKeys = propertyKeys == null ? Collections.emptyList() : propertyKeys;
 
-    final Feature f = new Feature();
+    final Feature f = new Feature(null);
     f.setGeometry(new Point().withCoordinates(new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)));
     propertyKeys.stream().reduce(new Properties(), (properties, k) -> {
       properties.put(k, RandomStringUtils.randomAlphanumeric(3));

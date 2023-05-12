@@ -53,6 +53,7 @@ import com.here.xyz.events.info.GetStatisticsEvent;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;
 import com.here.xyz.events.info.HealthCheckEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
+import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.AbstractTask;
@@ -255,13 +256,17 @@ public class Event extends Payload {
   }
 
   /**
-   * Returns the space; if the referred space exists locally.
+   * Returns the space; if the referred space exists.
    *
-   * @return The space; if the referred space exists locally.
+   * @return The space; if the referred space exists.
+   * @throws ParameterError If no such space exists (so space-id given, but no such space exists).
    */
-  public @Nullable Space getSpace() {
+  public @NotNull Space getSpace() throws ParameterError {
     if (space == null && spaceId != null) {
       space = INaksha.get().getSpaceById(spaceId);
+    }
+    if (space == null) {
+      throw new ParameterError("Missing or invalid spaceId: " + spaceId);
     }
     return space;
   }

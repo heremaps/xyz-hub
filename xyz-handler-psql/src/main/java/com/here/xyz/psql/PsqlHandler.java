@@ -1276,8 +1276,7 @@ public class PsqlHandler extends ExtendedEventHandler {
 
         for (String featureId : originalDeletes) {
           if (existingIdsInBase.contains(featureId)) {
-            final Feature feature = new Feature();
-            feature.setId(featureId);
+            final Feature feature = new Feature(featureId);
             feature.getProperties().getXyzNamespace().setDeleted(true);
             upserts.add(feature);
             deletes.remove(featureId);

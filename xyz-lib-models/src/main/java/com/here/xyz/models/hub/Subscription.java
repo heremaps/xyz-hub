@@ -28,14 +28,14 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.implementation.Feature;
-import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Subscription")
 public final class Subscription extends Feature {
 
   @JsonCreator
-  public Subscription(@JsonProperty @NotNull String id) {
+  public Subscription(@JsonProperty @Nullable String id) {
     super(id);
   }
 

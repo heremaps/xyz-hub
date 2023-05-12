@@ -35,6 +35,7 @@ import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Subscription;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -50,6 +51,7 @@ import org.jetbrains.annotations.Nullable;
     @JsonSubTypes.Type(value = Subscription.class, name = "Subscription")
 })
 public class Feature extends Extensible implements Typed {
+
   public static final String ID = "id";
   public static final String BBOX = "bbox";
   public static final String GEOMETRY = "geometry";
@@ -57,10 +59,12 @@ public class Feature extends Extensible implements Typed {
 
   /**
    * Create a new empty feature.
+   *
+   * @param id The ID; if {@code null}, then a random one is generated.
    */
   @JsonCreator
-  public Feature(@JsonProperty @NotNull String id) {
-    this.id = id;
+  public Feature(@JsonProperty @Nullable String id) {
+    this.id = id != null && id.length() > 0 ? id : RandomStringUtils.randomAlphabetic(12);
     this.properties = new Properties();
   }
 

@@ -44,7 +44,7 @@ public class TestClone {
     collection.setFeatures(new ArrayList<>());
     collection.getFeatures().addAll(
         Stream.generate(() -> {
-          final Feature f = new Feature();
+          final Feature f = new Feature(RandomStringUtils.randomAlphanumeric(8));
           f.setGeometry(new Point()
                   .withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)));
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
@@ -64,7 +64,7 @@ public class TestClone {
   public void testClone() throws JsonProcessingException {
     FeatureCollection collection = generateRandomFeatures(1, 1);
     Feature feature = collection.getFeatures().get(0);
-    feature.getProperties().setXyzNamespace(new XyzNamespace().withSpace("test").withTags(Arrays.asList("a", "b", "c")));
+    feature.getProperties().setXyzNamespace(new XyzNamespace().withSpace("test").setTags(Arrays.asList("a", "b", "c"), false));
     Feature copy = feature.copy();
     copy.setId("changed");
     assertNotEquals(copy.getId(), feature.getId());

@@ -32,7 +32,7 @@ public class ActivityLogHandler extends EventHandler {
   public ActivityLogHandler(@NotNull Connector connector) throws XyzErrorException {
     super(connector);
     try {
-      this.params = new ActivityLogHandlerParams(connector.params);
+      this.params = new ActivityLogHandlerParams(connector.getParams());
     } catch (Exception e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
     }

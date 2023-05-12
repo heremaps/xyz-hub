@@ -28,6 +28,7 @@ import com.here.xyz.View;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Action;
 import java.text.Normalizer;
+import java.text.Normalizer.Form;
 import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
@@ -150,29 +151,54 @@ public class XyzNamespace implements XyzSerializable {
   @JsonInclude(Include.NON_NULL)
   private String owner;
 
+  private static final char[] TO_LOWER;
+  private static final char[] AS_IS;
+
+  static {
+    TO_LOWER = new char[128 - 32];
+    AS_IS = new char[128 - 32];
+    for (char c = 32; c < 128; c++) {
+      AS_IS[c] = c;
+      TO_LOWER[c] = Character.toLowerCase(c);
+    }
+  }
+
   /**
    * A method to normalize and lower case a tag.
    *
    * @param tag the tag.
+   * @param sb  The string builder to use for normalization; if {@code null}, then a new string builder is created.
    * @return the normalized and lower cased version of it.
    */
-  public static @NotNull String normalizeTag(final @NotNull String tag) {
+  public static @NotNull String normalizeTag(final @NotNull String tag, @Nullable StringBuilder sb) {
     if (tag.length() == 0) {
       return tag;
     }
     final char first = tag.charAt(0);
-    if (first == '@') // All tags starting with an at-sign, will not be modified in any way.
-    {
+    // All tags starting with an at-sign, will not be modified in any way.
+    if (first == '@') {
       return tag;
     }
 
-    String normalized = Normalizer.normalize(tag, Normalizer.Form.NFD).replaceAll("[^\\p{ASCII}]", "");
-    // All tags starting with a tilde or sharp will not be lower cased, same as deprecated "ref_" prefix.
-    if (first != '~' && !tag.startsWith("ref_") && !tag.startsWith("sourceID_")) {
-      normalized = normalized.toLowerCase();
-    }
+    // Normalize the tag.
+    final String normalized = Normalizer.normalize(tag, Form.NFD);
 
-    return normalized;
+    // All tags starting with a tilde, sharp, or the deprecated "ref_" / "sourceID_" prefix will not be lower cased.
+    final char[] MAP = first == '~'
+        || first == '#'
+        || normalized.startsWith("ref_")
+        || normalized.startsWith("sourceID_") ? AS_IS : TO_LOWER;
+    if (sb == null) {
+      sb = new StringBuilder(normalized.length());
+    }
+    for (int i = 0; i < normalized.length(); i++) {
+      // Note: This saves one branch, and the array-size check, because 0 - 32 will become 65504.
+      final char c = (char) (normalized.charAt(i) - 32);
+      if (c < MAP.length) {
+        sb.append(MAP[c]);
+      }
+    }
+    return sb.toString();
   }
 
   /**
@@ -181,11 +207,12 @@ public class XyzNamespace implements XyzSerializable {
    * @param tags a list of tags.
    * @return the same list, just that the content is normalized.
    */
-
   public static @Nullable List<@NotNull String> normalizeTags(final @Nullable List<@NotNull String> tags) {
-    if (tags != null) {
-      for (int SIZE = tags.size(), i = 0; i < SIZE; i++) {
-        tags.set(i, normalizeTag(tags.get(i)));
+    final int SIZE;
+    if (tags != null && (SIZE = tags.size()) > 0) {
+      final StringBuilder sb = new StringBuilder(32);
+      for (int i = 0; i < SIZE; i++) {
+        tags.set(i, normalizeTag(tags.get(i), sb));
       }
     }
     return tags;
@@ -193,18 +220,18 @@ public class XyzNamespace implements XyzSerializable {
 
   /**
    * This method is a hot-fix for an issue of plenty of frameworks. For example vertx does automatically URL decode query parameters (as
-   * certain other frameworks may as well). This is often very hard to fix, even while RFC-3986 is very clear about that reserved characters
-   * may have semantic meaning when not being URI encoded and MUST be URI encoded to take away the meaning. Therefore there normally must be
-   * a way to detect if a reserved character in a query parameter was originally URI encoded or not, because in the later case it may have a
+   * certain other frameworks may as well). This is often hard to fix, even while RFC-3986 is clear about that reserved characters may have
+   * semantic meaning when not being URI encoded and MUST be URI encoded to take away the meaning. Therefore, there normally must be a way
+   * to detect if a reserved character in a query parameter was originally URI encoded or not, because in the later case it may have a
    * semantic meaning.
    * <p>
-   * As many frameworks fail to follow this very important detail, this method fixes tags for all those frameworks, effectively it removes
-   * the commas from tags and splits the tags by the comma. Therefore a comma is not allowed as part of a tag.
+   * As many frameworks fail to follow this important detail, this method fixes tags for all those frameworks, effectively it removes the
+   * commas from tags and splits the tags by the comma. Therefore, a comma is not allowed as part of a tag.
    *
    * @param tags The list of tags, will be modified if any tag contains a comma (so may extend).
    * @see [https://tools.ietf.org/html/rfc3986#section-2.2]
    */
-
+  @Deprecated
   public static void fixNormalizedTags(final @NotNull List<@NotNull String> tags) {
     int j = 0;
     StringBuilder sb = null;
@@ -385,48 +412,141 @@ public class XyzNamespace implements XyzSerializable {
     return tags;
   }
 
-  public void setTags(@Nullable List<@NotNull String> tags) {
-    if (tags != null) {
-      for (int SIZE = tags.size(), i = 0; i < SIZE; i++) {
-        tags.set(i, normalizeTag(tags.get(i)));
+  /**
+   * Set the tags to the given array.
+   *
+   * @param tags      The tags to set.
+   * @param normalize {@code true} if the given tags should be normalized; {@code false}, if they are already normalized.
+   */
+  public @NotNull XyzNamespace setTags(@Nullable List<@NotNull String> tags, boolean normalize) {
+    if (normalize) {
+      final int SIZE;
+      if (tags != null && (SIZE = tags.size()) > 0) {
+        final StringBuilder sb = new StringBuilder(32);
+        for (int i = 0; i < SIZE; i++) {
+          tags.set(i, normalizeTag(tags.get(i), sb));
+        }
       }
     }
     this.tags = tags;
-  }
-
-  public @NotNull XyzNamespace withTags(@Nullable List<@NotNull String> tags) {
-    setTags(tags);
     return this;
   }
 
   /**
-   * Returns 'true' if the tag was added, 'false' if it was already present.
+   * Returns 'true' if the tag added, 'false' if it was already present.
    *
-   * @return true if the tag was added; false otherwise.
+   * @param tag       The tag to add.
+   * @param normalize {@code true} if the tag should be normalized; {@code false} otherwise.
+   * @return true if the tag added; false otherwise.
    */
-  public boolean addTag(String tag) {
-    if (getTags() == null) {
-      setTags(new ArrayList<>());
+  public boolean addTag(@NotNull String tag, boolean normalize) {
+    List<@NotNull String> thisTags = getTags();
+    if (thisTags == null) {
+      thisTags = this.tags = new ArrayList<>();
     }
-    if (getTags().contains(tag)) {
-      return false;
+    if (normalize) {
+      tag = normalizeTag(tag, null);
     }
-    return getTags().add(tag);
+    if (!thisTags.contains(tag)) {
+      thisTags.add(tag);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Add the given tags.
+   *
+   * @param tags      The tags to add.
+   * @param normalize {@code true} if the given tags should be normalized; {@code false}, if they are already normalized.
+   * @return this.
+   */
+  public @NotNull XyzNamespace addTags(@Nullable List<@NotNull String> tags, boolean normalize) {
+    final int SIZE;
+    List<@NotNull String> thisTags = this.tags;
+    if (thisTags == null) {
+      thisTags = this.tags = new ArrayList<>();
+    }
+    if (tags != null && tags.size() > 0) {
+      if (normalize) {
+        final StringBuilder sb = new StringBuilder(32);
+        for (final @NotNull String s : tags) {
+          final String tag = normalizeTag(s, sb);
+          if (!thisTags.contains(tag)) {
+            thisTags.add(tag);
+          }
+        }
+      } else {
+        thisTags.addAll(tags);
+      }
+    }
+    return this;
+  }
+
+  /**
+   * Add and normalize all given tags.
+   *
+   * @param tags The tags to normalize and add.
+   * @return this.
+   */
+  public @NotNull XyzNamespace addAndNormalizeTags(@NotNull String... tags) {
+    final int SIZE;
+    List<@NotNull String> thisTags = this.tags;
+    if (thisTags == null) {
+      thisTags = this.tags = new ArrayList<>();
+    }
+    if (tags != null && tags.length > 0) {
+      final StringBuilder sb = new StringBuilder(32);
+      for (final @NotNull String s : tags) {
+        final String tag = normalizeTag(s, sb);
+        if (!thisTags.contains(tag)) {
+          thisTags.add(tag);
+        }
+      }
+    }
+    return this;
   }
 
   /**
    * Returns 'true' if the tag was removed, 'false' if it was not present.
    *
+   * @param tag       The normalized tag to remove.
+   * @param normalize {@code true} if the tag should be normalized before trying to remove; {@code false} if the tag is normalized.
    * @return true if the tag was removed; false otherwise.
    */
-  public boolean removeTag(String tag) {
-    if (getTags() == null) {
+  public boolean removeTag(@NotNull String tag, boolean normalize) {
+    final List<@NotNull String> thisTags = getTags();
+    if (thisTags == null) {
       return false;
     }
-    if (!getTags().contains(tag)) {
-      return false;
+    if (normalize) {
+      tag = normalizeTag(tag, null);
     }
-    return getTags().remove(tag);
+    return thisTags.remove(tag);
+  }
+
+  /**
+   * Removes the given tags.
+   *
+   * @param tags      The tags to remove.
+   * @param normalize {@code true} if the tags should be normalized before trying to remove; {@code false} if the tags are normalized.
+   * @return this.
+   */
+  public @NotNull XyzNamespace removeTags(@Nullable List<@NotNull String> tags, boolean normalize) {
+    final List<@NotNull String> thisTags = getTags();
+    if (thisTags == null || thisTags.size() == 0 || tags == null || tags.size() == 0) {
+      return this;
+    }
+    if (normalize) {
+      final StringBuilder sb = new StringBuilder(32);
+      for (@NotNull String tag : tags) {
+        tag = normalizeTag(tag, sb);
+        thisTags.remove(tag);
+      }
+    } else {
+      thisTags.removeAll(tags);
+    }
+    return this;
   }
 
   public boolean isDeleted() {

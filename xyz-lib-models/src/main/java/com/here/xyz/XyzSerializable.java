@@ -91,6 +91,10 @@ public interface XyzSerializable {
     }
   }
 
+  static <T> T deserialize(@NotNull InputStream is, @NotNull TypeReference<T> type) throws IOException {
+    return DEFAULT_MAPPER.get().readValue(is, type);
+  }
+
   static <T extends Typed> @Nullable T deserialize(@NotNull String string) throws JsonProcessingException {
     //noinspection unchecked
     return (T) deserialize(string, Typed.class);

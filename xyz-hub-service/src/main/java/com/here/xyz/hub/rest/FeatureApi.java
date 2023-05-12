@@ -62,22 +62,6 @@ public class FeatureApi extends SpaceBasedApi {
   }
 
   /**
-   * Returns either the {@link ApiResponseType#EMPTY} response type, if requested by the client, or the given default response type.
-   *
-   * @param context the context from which to read the {@link HttpHeaders#ACCEPT Accept} header to detect if the client does not want any
-   * response (204).
-   * @param defaultResponseType the default response type to return.
-   * @return either the {@link ApiResponseType#EMPTY} response type, if requested by the client or the given default response type, if the
-   * client did not explicitly request an empty response.
-   */
-  private ApiResponseType getEmptyResponseTypeOr(final RoutingContext context, ApiResponseType defaultResponseType) {
-    if ("application/x-empty".equalsIgnoreCase(context.request().headers().get(HttpHeaders.ACCEPT))) {
-      return ApiResponseType.EMPTY;
-    }
-    return defaultResponseType;
-  }
-
-  /**
    * Retrieves a feature.
    */
   private void getFeature(final RoutingContext context) {
@@ -95,6 +79,7 @@ public class FeatureApi extends SpaceBasedApi {
    * Creates or replaces a feature.
    */
   private void putFeature(final RoutingContext context) {
+    NakshaTask.start(ModifyFeaturesEvent.class, context, ApiResponseType.FEATURE_COLLECTION, ApiResponseType.EMPTY);
     executeConditionalOperationChain(false, context, ApiResponseType.FEATURE, IfExists.REPLACE, IfNotExists.CREATE, true, ConflictResolution.ERROR);
   }
 

@@ -19,11 +19,13 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.XyzSerializable.deserialize;
 import static com.here.xyz.hub.NakshaRoutingContext.routingContextLogger;
 
 import com.here.xyz.AbstractTask;
 import com.here.xyz.INaksha;
 import com.here.xyz.NakshaLogger;
+import com.here.xyz.Typed;
 import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.hub.NakshaRoutingContext;
@@ -32,10 +34,13 @@ import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.params.XyzHubQueryParameters;
 import com.here.xyz.hub.rest.ApiResponseType;
+import com.here.xyz.hub.util.BufferInputStream;
 import com.here.xyz.hub.util.logging.AccessLog;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.JsonUtils;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.auth.User;
@@ -115,9 +120,9 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask<EVENT
     // If we have multiple allowed types, then review all types the client accepts and pick the best matching one.
     if (allowedTypes.length > 1) {
       final List<MIMEHeader> accept = routingContext.parsedHeaders().accept();
-      for (final @NotNull MIMEHeader mimeType : accept) {
+      for (final @NotNull MIMEHeader acceptType : accept) {
         for (final ApiResponseType allowedType : allowedTypes) {
-          if (mimeType.isMatchedBy(allowedType.mimeType)) {
+          if (acceptType.isMatchedBy(allowedType.mimeType)) {
             return allowedType;
           }
         }
@@ -207,6 +212,29 @@ public abstract class NakshaTask<EVENT extends Event> extends AbstractTask<EVENT
 
     queryParameters = new XyzHubQueryParameters(routingContext.request().query());
     setResponseType(responseType);
+
+    if (!routingContext.body().isEmpty()) {
+      final Buffer buffer = routingContext.body().buffer();
+      if (buffer.length() > 0) {
+        try {
+          handleBodyBuffer(routingContext, buffer);
+        } catch (Exception e) {
+          throw new ParameterError("Failed to parse body:" + e.getMessage());
+        } finally {
+          // Note: Release the memory allocated for the request, vertx does not reuse the buffer and does not use pooled buffers!
+          routingContext.setBody(null);
+        }
+      }
+    }
+  }
+
+  /**
+   * This method should be overridden, if the body of a request needed, when it returns the body will be instantly released.
+   *
+   * @param routingContext The routing context.
+   * @param buffer         The body buffer to handle.
+   */
+  protected void handleBodyBuffer(final @NotNull RoutingContext routingContext, final Buffer buffer) throws Exception {
   }
 
   /**

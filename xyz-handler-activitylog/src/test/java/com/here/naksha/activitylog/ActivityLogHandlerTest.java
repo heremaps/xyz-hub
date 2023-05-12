@@ -11,6 +11,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.IoHelp;
+import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +28,7 @@ class ActivityLogHandlerTest {
 
   @BeforeAll
   static void setup() throws XyzErrorException {
-    connector = new Connector();
+    connector = new Connector("test:activity-log", Math.abs(RandomUtils.nextLong()));
     eventPipeline = new IoEventPipeline();
     activityLogHandler = new ActivityLogHandler(connector);
     eventPipeline.addEventHandler(activityLogHandler);

@@ -62,8 +62,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
   @Test
   public void testFullHistoryTableWriting() throws Exception {
     // =========== CREATE SPACE with UUID support ==========
-    final Space space = new Space();
-    space.setId("foo");
+    final Space space = new Space("foo");
     //space.setEnableHistory(true);
     final ModifySpaceEvent event = new ModifySpaceEvent();
     //event.setSpaceId("foo");
@@ -78,8 +77,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     List<Feature> featureList = new ArrayList<>();
 
     Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-    Feature f = new Feature();
-    f.setId("1234");
+    Feature f = new Feature("1234");
     f.setGeometry(point);
     f.getProperties().put("foo", 0);
     f.getProperties().setXyzNamespace(xyzNamespace);
@@ -143,8 +141,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
   public void testFullHistoryTableTrigger() throws Exception {
     int maxVersionCount = -1;
     // =========== CREATE SPACE with UUID support ==========
-    final Space space = new Space();
-    space.setId("foo");
+    final Space space = new Space("foo");
     //space.setEnableHistory(true);
 
     final ModifySpaceEvent mse = new ModifySpaceEvent();

@@ -185,10 +185,8 @@ public class XyzHubActionMatrix extends ActionMatrix {
     addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(connector));
 
     // MANAGE_PACKAGES right is needed to add the connector to a packages.
-    if (connector.packages != null) {
-      for (final @NotNull String packageId : connector.packages) {
-        addAction(MANAGE_PACKAGES, XyzHubAttributeMap.ofPackage(packageId));
-      }
+    for (final @NotNull String packageId : connector.getPackages()) {
+      addAction(MANAGE_PACKAGES, XyzHubAttributeMap.ofPackage(packageId));
     }
   }
 
@@ -202,13 +200,13 @@ public class XyzHubActionMatrix extends ActionMatrix {
     addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(_old));
     addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(_new));
 
-    // MANAGE_PACKAGES right is needed to add the connector to a packages.
     // MANAGE_CONNECTORS includes the right to remove the connector from a package.
-    if (_new.packages != null) {
-      for (final @NotNull String newPackageId : _new.packages) {
-        if (_old.packages == null || !_old.packages.contains(newPackageId)) {
-          addAction(MANAGE_PACKAGES, XyzHubAttributeMap.ofPackage(newPackageId));
-        }
+    // MANAGE_PACKAGES right is needed to add the connector to a packages.
+    final List<@NotNull String> newPackages = _new.getPackages();
+    final List<@NotNull String> oldPackages = _old.getPackages();
+    for (final @NotNull String newPackageId : _new.getPackages()) {
+      if (oldPackages.contains(newPackageId)) {
+        addAction(MANAGE_PACKAGES, XyzHubAttributeMap.ofPackage(newPackageId));
       }
     }
   }

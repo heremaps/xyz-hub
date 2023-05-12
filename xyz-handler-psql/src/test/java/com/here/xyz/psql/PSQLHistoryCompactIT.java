@@ -105,8 +105,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     List<Feature> featureList = new ArrayList<>();
 
     Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-    Feature f = new Feature();
-    f.setId("1234");
+    Feature f = new Feature("1234");
     f.setGeometry(point);
     f.getProperties().put("foo", 0);
     featureList.add(f);
@@ -237,8 +236,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
     List<Feature> featureList = new ArrayList<>();
 
     Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-    Feature f = new Feature();
-    f.setId("1234");
+    Feature f = new Feature("1234");
     f.setGeometry(point);
     f.getProperties().put("foo", 0);
     featureList.add(f);

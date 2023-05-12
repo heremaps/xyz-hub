@@ -15,6 +15,7 @@ import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.IoHelp;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +27,7 @@ class HttpHandlerTest {
 
   @BeforeAll
   static void setup() throws XyzErrorException {
-    connector = new Connector();
+    connector = new Connector("test:http", Math.abs(RandomUtils.nextLong()));
     eventPipeline = new IoEventPipeline();
     httpHandler = new HttpHandler(connector);
     eventPipeline.addEventHandler(httpHandler);

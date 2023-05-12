@@ -32,6 +32,8 @@ import com.here.xyz.psql.tools.Helper;
 import com.here.xyz.responses.SuccessResponse;
 import com.jayway.jsonpath.JsonPath;
 import javax.sql.DataSource;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -84,7 +86,7 @@ public abstract class PSQLAbstractIT extends Helper {
     LOGGER.info("Creat Test space..");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    final Space space = new Space();
+    final Space space = new Space(RandomStringUtils.randomAlphabetic(12));
     space.setId(spaceId);
     final ModifySpaceEvent event = new ModifySpaceEvent();
     //event.setSpaceId(spaceId);
@@ -132,7 +134,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlHandler(new Connector()));
+    pipeline.addEventHandler(new PsqlHandler(new Connector(RandomStringUtils.randomAlphabetic(12), RandomUtils.nextInt())));
     assert jsonStream != null;
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
@@ -146,7 +148,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlHandler(new Connector()));
+    pipeline.addEventHandler(new PsqlHandler(new Connector(RandomStringUtils.randomAlphabetic(12), RandomUtils.nextInt())));
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);

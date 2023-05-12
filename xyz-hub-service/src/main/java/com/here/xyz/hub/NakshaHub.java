@@ -10,9 +10,11 @@ import com.here.xyz.AbstractTask;
 import com.here.xyz.EventHandler;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.hub.auth.NakshaAuthProvider;
 import com.here.xyz.hub.task.feature.GetFeaturesByIdTask;
+import com.here.xyz.hub.task.feature.ModifyFeaturesTask;
 import com.here.xyz.hub.util.metrics.GcDurationMetric;
 import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
 import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
@@ -237,6 +239,7 @@ public class NakshaHub extends NakshaMgmtClient {
    */
   private void initTasks() {
     tasks.put(GetFeaturesByIdEvent.class, GetFeaturesByIdTask::new);
+    tasks.put(ModifyFeaturesEvent.class, ModifyFeaturesTask::new);
   }
 
   /**

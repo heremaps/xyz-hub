@@ -1126,6 +1126,7 @@ public class MIMEType {
   public static final String APPLICATION_X_DTBOOK_XML = "application/x-dtbook+xml";
   public static final String APPLICATION_X_DTBRESOURCE_XML = "application/x-dtbresource+xml";
   public static final String APPLICATION_X_DVI = "application/x-dvi";
+  public static final String APPLICATION_X_EMPTY = "application/x-empty";
   public static final String APPLICATION_X_ENVOY = "application/x-envoy";
   public static final String APPLICATION_X_EVA = "application/x-eva";
   public static final String APPLICATION_X_FONT_BDF = "application/x-font-bdf";

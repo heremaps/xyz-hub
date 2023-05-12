@@ -20,7 +20,7 @@ public abstract class AbstractSearchForFeaturesTask<EVENT extends SearchForFeatu
 
     assert queryParameters != null;
     event.setLimit(queryParameters.getLimit());
-    event.setTags(queryParameters.getTags());
+    event.setTags(queryParameters.getTagsQuery());
     event.setPropertiesQuery(queryParameters.getPropertiesQuery());
     event.setForce2D(queryParameters.getForce2D());
     event.setSelection(queryParameters.getSelection());

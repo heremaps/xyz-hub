@@ -70,8 +70,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
     featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
 
-    Feature f = new Feature();
-    f.setId("test2");
+    Feature f = new Feature("test2");
     f.getProperties().setXyzNamespace(xyzNamespace);
     List<Feature> insertFeatureList = new ArrayList<>();
     insertFeatureList.add(f);
@@ -215,8 +214,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
     featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
 
-    Feature f = new Feature();
-    f.setId("test2");
+    Feature f = new Feature("test2");
     f.getProperties().setXyzNamespace(xyzNamespace);
     List<Feature> insertFeatureList = new ArrayList<>();
     insertFeatureList.add(f);

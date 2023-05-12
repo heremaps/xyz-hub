@@ -19,16 +19,22 @@
 
 package com.here.xyz.hub.task.feature;
 
+import static com.here.xyz.XyzSerializable.deserialize;
+
 import com.here.xyz.INaksha;
+import com.here.xyz.Typed;
 import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.NakshaTask;
+import com.here.xyz.hub.util.BufferInputStream;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.XyzResponse;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * All tasks related to features in a space.
@@ -58,13 +64,37 @@ public abstract class AbstractFeatureTask<EVENT extends Event> extends NakshaTas
     requestMatrix.readFeatures(space);
   }
 
+  @Override
+  protected void handleBodyBuffer(final @NotNull RoutingContext routingContext, final Buffer buffer) throws Exception {
+    body = deserialize(new BufferInputStream(buffer), Typed.class);
+  }
+
+  private @Nullable Typed body;
+
+  /**
+   * Returns the body, if any is available.
+   *
+   * @return the body.
+   */
+  protected @Nullable Typed getBody() {
+    return body;
+  }
+
+  /**
+   * Returns the body and, if any was available.
+   *
+   * @param body The new body to set.
+   * @return the previously set body.
+   */
+  protected @Nullable Typed setBody(@Nullable Typed body) {
+    final Typed old = this.body;
+    this.body = body;
+    return old;
+  }
 
   @Override
   protected @NotNull XyzResponse execute() throws Exception {
     final Space space = event.getSpace();
-    if (space == null) {
-      throw new ParameterError("Missing space for spaceId "+event.getStreamId());
-    }
     pipeline.addSpaceHandler(space);
     return sendAuthorizedEvent(event, requestMatrix());
   }

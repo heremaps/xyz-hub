@@ -206,7 +206,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     // =========== INSERT Point Grid 20x20 ==========
     for (double x = 7.; x < 7.19d; x += 0.01d) {
       for (double y = 50.; y < 50.19d; y += 0.01d) {
-        Feature f = new Feature();
+        Feature f = new Feature(RandomStringUtils.randomAlphabetic(12));
         f.setGeometry(new Point().withCoordinates(new PointCoordinates((Math.round(x * 10000.0) / 10000.0), Math.round(y * 10000.0) / 10000.0)));
         f.getProperties().put("foo", Math.round(x * 10000.0) / 10000.0);
         f.getProperties().put("foo2", 1);
@@ -223,7 +223,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     rC.add(new Position(7.01, 50.01));
     singlePoly.add(rC);
 
-    Feature f = new Feature();
+    Feature f = new Feature(RandomStringUtils.randomAlphabetic(8));
     f.setGeometry(new Polygon().withCoordinates(singlePoly));
     f.getProperties().put("foo", 999.1);
     f.getProperties().setXyzNamespace(xyzNamespace);
@@ -240,7 +240,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     rC.add(new Position(7.06, 50.07));
     singlePoly.add(rC);
 
-    f = new Feature();
+    f = new Feature(RandomStringUtils.randomAlphabetic(8));
     f.setGeometry(new Polygon().withCoordinates(singlePoly));
     f.getProperties().put("foo", 999.2);
     f.getProperties().setXyzNamespace(xyzNamespace);
@@ -252,7 +252,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     lcCoords.add(new Position(7.02, 50.02));
     lcCoords.add(new Position(7.18, 50.18));
 
-    f = new Feature();
+    f = new Feature(RandomStringUtils.randomAlphabetic(8));
     f.setGeometry(new LineString().withCoordinates(lcCoords));
     f.getProperties().put("foo", 999.3);
     f.getProperties().setXyzNamespace(xyzNamespace);
@@ -263,7 +263,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     lcCoords.add(new Position(7.16, 50.01));
     lcCoords.add(new Position(7.19, 50.01));
 
-    f = new Feature();
+    f = new Feature(RandomStringUtils.randomAlphabetic(8));
     f.setGeometry(new LineString().withCoordinates(lcCoords));
     f.getProperties().put("foo", 999.4);
     f.getProperties().setXyzNamespace(xyzNamespace);
@@ -503,7 +503,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     collection.setFeatures(new ArrayList<>());
     collection.getFeatures().addAll(
         Stream.generate(() -> {
-          Feature f = new Feature();
+          Feature f = new Feature(RandomStringUtils.randomAlphabetic(8));
           f.setGeometry(new Point().withCoordinates(new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)));
           f.getProperties().setXyzNamespace(xyzNamespace);
           pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));

@@ -22,6 +22,7 @@ import com.here.xyz.hub.util.geo.GeoTools;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.util.ValueList;
 import java.util.HashMap;
 import java.util.List;
@@ -136,7 +137,7 @@ public class XyzHubQueryParameters extends QueryParameterList {
    * @return The first value of the first parameter, if being a string; the alternative otherwise.
    * @throws ParameterError If any error occurred.
    */
-  public @Nullable String getString(@NotNull String key, @Nullable String alternative) throws ParameterError {
+  @Nullable String getString(@NotNull String key, @Nullable String alternative) throws ParameterError {
     final QueryParameter queryParameter = get(key);
     if (queryParameter == null) {
       return alternative;
@@ -160,7 +161,7 @@ public class XyzHubQueryParameters extends QueryParameterList {
    * @return The first value of the first parameter, if being a boolean; the alternative otherwise.
    * @throws ParameterError If any error occurred.
    */
-  public @Nullable Boolean getBoolean(@NotNull String key, @Nullable Boolean alternative) throws ParameterError {
+  @Nullable Boolean getBoolean(@NotNull String key, @Nullable Boolean alternative) throws ParameterError {
     final QueryParameter queryParameter = get(key);
     if (queryParameter == null) {
       return alternative;
@@ -182,7 +183,7 @@ public class XyzHubQueryParameters extends QueryParameterList {
    * @return The first value of the first parameter, if being a double and within the given range; {@code null} otherwise.
    * @throws ParameterError If any error occurred.
    */
-  public @Nullable Double getDouble(@NotNull String key, double minValue, double maxValue) throws ParameterError {
+  @Nullable Double getDouble(@NotNull String key, double minValue, double maxValue) throws ParameterError {
     final QueryParameter queryParameter = get(key);
     if (queryParameter == null) {
       return null;
@@ -208,7 +209,7 @@ public class XyzHubQueryParameters extends QueryParameterList {
    * @return The first value of the first parameter, if being a double and within the latitude range; {@code null} otherwise.
    * @throws ParameterError If any error occurred.
    */
-  public @Nullable Double getWgs84Latitude(@NotNull String key) throws ParameterError {
+  @Nullable Double getWgs84Latitude(@NotNull String key) throws ParameterError {
     return getDouble(key, -90d, +90d);
   }
 
@@ -219,7 +220,7 @@ public class XyzHubQueryParameters extends QueryParameterList {
    * @return The first value of the first parameter, if being a double and within the longitude range; {@code null} otherwise.
    * @throws ParameterError If any error occurred.
    */
-  public @Nullable Double getWgs84Longitude(@NotNull String key) throws ParameterError {
+  @Nullable Double getWgs84Longitude(@NotNull String key) throws ParameterError {
     return getDouble(key, -180d, +180d);
   }
 
@@ -232,7 +233,7 @@ public class XyzHubQueryParameters extends QueryParameterList {
    * @return The first value of the first parameter, if being a long and within the given range; {@code null} otherwise.
    * @throws ParameterError If any error occurred.
    */
-  public @Nullable Long getLong(@NotNull String key, long minValue, long maxValue) throws ParameterError {
+  @Nullable Long getLong(@NotNull String key, long minValue, long maxValue) throws ParameterError {
     final QueryParameter queryParameter = get(key);
     if (queryParameter == null) {
       return null;
@@ -318,7 +319,7 @@ public class XyzHubQueryParameters extends QueryParameterList {
    *
    * @return The parsed tags; {@code null} if no tags given.
    */
-  public @NotNull TagsQuery getTags() {
+  public @NotNull TagsQuery getTagsQuery() {
     if (__tagsQuery != null) {
       return __tagsQuery;
     }
@@ -353,6 +354,42 @@ public class XyzHubQueryParameters extends QueryParameterList {
     }
     return __tagsQuery = and;
   }
+
+  /**
+   * Returns a list of tags that should be added to all features modified.
+   *
+   * @return A list of tags that should be added to all features modified; {@code null} if no tag modification should be done.
+   */
+  public @Nullable List<@NotNull String> getAddTags() {
+    if (__addTags != null) {
+      return __addTags;
+    }
+    final QueryParameter param = join(ADD_TAGS);
+    if (param == null) {
+      return null;
+    }
+    return __addTags = XyzNamespace.normalizeTags(param.values().removeEmpty());
+  }
+
+  private @Nullable List<@NotNull String> __addTags;
+
+  /**
+   * Returns a list of tags that should be removed from all features modified.
+   *
+   * @return A list of tags that should be removed from all features modified; {@code null} if no tag modification should be done.
+   */
+  public @Nullable List<@NotNull String> getRemoveTags() {
+    if (__removeTags != null) {
+      return __removeTags;
+    }
+    final QueryParameter param = join(REMOVE_TAGS);
+    if (param == null) {
+      return null;
+    }
+    return __removeTags = XyzNamespace.normalizeTags(param.values().removeEmpty());
+  }
+
+  private @Nullable List<@NotNull String> __removeTags;
 
   private @Nullable List<@NotNull String> __selection;
 
@@ -472,6 +509,16 @@ public class XyzHubQueryParameters extends QueryParameterList {
   public boolean getForce2D() throws ParameterError {
     final Boolean value = getBoolean(FORCE_2D, null);
     return value != null ? value : false;
+  }
+
+  /**
+   * If given for a feature modification, all IDs must be prefixed with the given string.
+   *
+   * @return The string with which to prefix all IDs; {@code null} if no prefix wished.
+   * @throws ParameterError If multiple values given or in an invalid form.
+   */
+  public @Nullable String getPrefixId() throws ParameterError {
+    return getString(PREFIX_ID, null);
   }
 
   public boolean getClip() throws ParameterError {

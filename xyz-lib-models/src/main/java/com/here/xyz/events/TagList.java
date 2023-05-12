@@ -22,19 +22,28 @@ package com.here.xyz.events;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import java.util.ArrayList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class TagList extends ArrayList<String> {
 
-  @SuppressWarnings("unused")
   public TagList() {
     super();
   }
 
-  @SuppressWarnings("WeakerAccess")
-  public TagList(String[] tags) throws NullPointerException {
+  public TagList(@NotNull String @NotNull [] tags, boolean normalize) throws NullPointerException {
     super(tags.length);
-    for (String tag : tags) {
-      add(XyzNamespace.normalizeTag(tag));
+    if (tags.length > 0) {
+      if (normalize) {
+        final StringBuilder sb = new StringBuilder(tags[0].length());
+        for (final @NotNull String tag : tags) {
+          add(XyzNamespace.normalizeTag(tag, sb));
+        }
+      } else {
+        for (final @NotNull String tag : tags) {
+          //noinspection UseBulkOperation
+          add(tag);
+        }
+      }
     }
   }
 

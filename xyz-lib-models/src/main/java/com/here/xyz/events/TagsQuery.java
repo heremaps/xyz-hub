@@ -32,7 +32,7 @@ public class TagsQuery extends ArrayList<TagList> {
   /**
    * Create the tags object from a query parameter.
    */
-  @SuppressWarnings("unused")
+  @Deprecated
   public static TagsQuery fromQueryParameter(String[] tagsQueryParam) {
     if (tagsQueryParam == null) {
       return new TagsQuery();
@@ -40,7 +40,7 @@ public class TagsQuery extends ArrayList<TagList> {
     return fromQueryParameter(Arrays.asList(tagsQueryParam));
   }
 
-  @SuppressWarnings("WeakerAccess")
+  @Deprecated
   public static @NotNull TagsQuery fromQueryParameter(@Nullable List<@Nullable String> tagsQueryParam) {
     final TagsQuery result = new TagsQuery();
 
@@ -61,7 +61,7 @@ public class TagsQuery extends ArrayList<TagList> {
       }
 
       final String[] split = s.split(operatorPlus);
-      result.add(new TagList(split));
+      result.add(new TagList(split, true));
     }
 
     return result;
