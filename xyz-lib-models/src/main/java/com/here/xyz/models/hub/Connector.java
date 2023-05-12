@@ -46,8 +46,10 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "Connector")
 public final class Connector extends Feature {
 
+  public static final String NUMBER = "number";
+
   @JsonCreator
-  public Connector(@JsonProperty @NotNull String id, @JsonProperty long number) {
+  public Connector(@JsonProperty(Feature.ID) @NotNull String id, @JsonProperty(NUMBER) long number) {
     super(id);
     this.number = number;
     this.params = new HashMap<>();
@@ -114,7 +116,7 @@ public final class Connector extends Feature {
   /**
    * The connector number.
    */
-  @JsonProperty
+  @JsonProperty(NUMBER)
   @JsonView(All.class)
   private long number;
 

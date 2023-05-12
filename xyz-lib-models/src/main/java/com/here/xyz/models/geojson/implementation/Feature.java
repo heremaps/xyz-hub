@@ -63,26 +63,26 @@ public class Feature extends Extensible implements Typed {
    * @param id The ID; if {@code null}, then a random one is generated.
    */
   @JsonCreator
-  public Feature(@JsonProperty @Nullable String id) {
+  public Feature(@JsonProperty(ID) @Nullable String id) {
     this.id = id != null && id.length() > 0 ? id : RandomStringUtils.randomAlphabetic(12);
     this.properties = new Properties();
   }
 
-  @JsonProperty
+  @JsonProperty(ID)
   @JsonView(All.class)
   protected @NotNull String id;
 
-  @JsonProperty
+  @JsonProperty(BBOX)
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   protected BBox bbox;
 
-  @JsonProperty
+  @JsonProperty(GEOMETRY)
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   protected Geometry geometry;
 
-  @JsonProperty
+  @JsonProperty(PROPERTIES)
   @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   protected @NotNull Properties properties;
