@@ -44,28 +44,24 @@ public class Original extends Extensible {
    * The space ID the feature belongs to.
    */
   @JsonProperty(SPACE)
-  @JsonView(View.All.class)
   private String space;
 
   /**
    * The timestamp, when a feature was created.
    */
   @JsonProperty(CREATED_AT)
-  @JsonView(View.All.class)
   private long createdAt;
 
   /**
    * The timestamp, when a feature was last updated.
    */
   @JsonProperty(UPDATED_AT)
-  @JsonView(View.All.class)
   private long updatedAt;
 
   /**
    * The previous uuid of the feature.
    */
   @JsonProperty(PUUID)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String puuid;
 
@@ -73,7 +69,6 @@ public class Original extends Extensible {
    * The merge muuid of the feature.
    */
   @JsonProperty(MUUID)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String muuid;
 

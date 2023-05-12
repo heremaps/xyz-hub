@@ -69,21 +69,17 @@ public class Feature extends Extensible implements Typed {
   }
 
   @JsonProperty(ID)
-  @JsonView(All.class)
   protected @NotNull String id;
 
   @JsonProperty(BBOX)
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   protected BBox bbox;
 
   @JsonProperty(GEOMETRY)
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   protected Geometry geometry;
 
   @JsonProperty(PROPERTIES)
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   protected @NotNull Properties properties;
 
