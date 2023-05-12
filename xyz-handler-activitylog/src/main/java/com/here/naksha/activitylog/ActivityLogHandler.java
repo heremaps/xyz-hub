@@ -7,7 +7,7 @@ import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzActivityLog;
-import com.here.xyz.models.geojson.implementation.Original;
+import com.here.xyz.models.geojson.implementation.namespaces.Original;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.XyzError;
