@@ -1,7 +1,10 @@
 package com.here.naksha.activitylog;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.here.xyz.EventHandler;
 import com.here.xyz.IEventContext;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -9,11 +12,16 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.xyz.models.geojson.implementation.namespaces.Original;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
+import com.flipkart.zjsonpatch.JsonDiff;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.util.List;
 import java.util.Map;
+
+import com.here.xyz.util.IoHelp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -44,47 +52,40 @@ public class ActivityLogHandler extends EventHandler {
   protected void toActivityLogFormat(@NotNull Feature feature, @Nullable Feature oldState) {
     final XyzActivityLog xyzActivityLog = new XyzActivityLog();
     final Original original = new Original();
+    final ObjectMapper mapper = new ObjectMapper();
+    JsonNode jsonNodeFeature = mapper.createObjectNode();
+    JsonNode jsonNodeOldFeature = mapper.createObjectNode();
+    JsonNode jsonDiff = mapper.createObjectNode();
     if(feature.getProperties() != null && feature.getProperties().getXyzNamespace() != null) {
-      // TODO: modify feature like:
-      //       - Create namespace "@ns:com:here:xyz:log"
-      //       - Copy "id" into "@ns:com:here:xyz:log"
-      //       - Create "original" sub in "@ns:com:here:xyz:log"
-      //       - Copy "createdAt", "updatedAt", "muuid", "puuid" and "space" into "@ns:com:here:xyz:log.original"
-      //       - Copy "uuid" from "@ns:com:here:xyz" into root "id"
-      //       - Set "@ns:com:here:xyz:log.invalidatedAt", no idea what it does?
-      //       - Set "@ns:com:here:xyz:log.action" to "SAVE, "UPDATE", "DELETE"
-      //       - Set "@ns:com:here:xyz:log.diff" to the diff between oldState and new feature state.
       original.setPuuid(feature.getProperties().getXyzNamespace().getPuuid());
       original.setMuuid(feature.getProperties().getXyzNamespace().getMuuid());
       original.setUpdatedAt(feature.getProperties().getXyzNamespace().getUpdatedAt());
+      original.setCreatedAt(feature.getProperties().getXyzNamespace().getCreatedAt());
       original.setSpace(feature.getProperties().getXyzNamespace().getSpace());
-      xyzActivityLog.setOrigin(original);
-      xyzActivityLog.setId(feature.getId());
       xyzActivityLog.setAction(feature.getProperties().getXyzNamespace().getAction());
       feature.setId(feature.getProperties().getXyzNamespace().getUuid());
-      feature.getProperties().setXyzActivityLog(xyzActivityLog);
-      //Need to add created at
-      //Add Invalidated At
-      //Add Diff
     }
-    /*
-      "original": {
-        "muuid": "d8c3afc6-fbde-4542-827b-8ed7f038f199",
-        "puuid": "d8c3afc6-fbde-4542-827b-8ed7f038f199",
-        "space": "qYlBmcq8",
-        "createdAt": 1582715742239,
-        "updatedAt": 1582715746638,
-        "_inputPosition": 0
+    xyzActivityLog.setOrigin(original);
+    xyzActivityLog.setId(feature.getId());
+    if(feature.getProperties() != null) {
+      feature.getProperties().setXyzActivityLog(xyzActivityLog);
+    }
+    if(feature.getProperties() != null && feature.getProperties().getXyzActivityLog() != null){
+      try {
+        jsonNodeFeature = mapper.readTree(XyzSerializable.serialize(feature));
+        jsonNodeOldFeature = mapper.readTree(XyzSerializable.serialize(oldState));
+      } catch (JsonProcessingException e) {
+        e.printStackTrace();
       }
-     */
+      if (jsonNodeFeature != null && jsonNodeOldFeature != null){
+        jsonDiff = JsonDiff.asJson(jsonNodeFeature, jsonNodeOldFeature);
+      }
+      feature.getProperties().getXyzActivityLog().setDiff(jsonDiff);
+    }
+    //InvalidatedAt can be ignored for now.
   }
 
   protected void fromActivityLogFormat(@NotNull Feature activityLogFeature) {
-    // TODO:
-    //     - Remove "@ns:com:here:xyz:log"
-    //     - Change "id" back to saved id
-    //     - Copy values from "@ns:com:here:xyz:log.original" into "@ns:com:here:xyz"
-    //     - What is "invalidatedAt" ?
     final XyzActivityLog xyzActivityLog = activityLogFeature.getProperties().getXyzActivityLog();
     final XyzNamespace xyzNamespace = activityLogFeature.getProperties().getXyzNamespace();
     if (xyzActivityLog != null) {
@@ -94,7 +95,8 @@ public class ActivityLogHandler extends EventHandler {
         xyzNamespace.setPuuid(xyzActivityLog.getOriginal().getPuuid());
         xyzNamespace.setSpace(xyzActivityLog.getOriginal().getSpace());
         xyzNamespace.setUpdatedAt(xyzActivityLog.getOriginal().getUpdatedAt());
-        //Also add created At
+        xyzNamespace.setCreatedAt(xyzActivityLog.getOriginal().getCreatedAt());
+        //InvalidatedAt can be ignored for now.
       }
       activityLogFeature.getProperties().removeActivityLog();
     }

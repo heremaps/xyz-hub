@@ -22,6 +22,9 @@ package com.here.xyz.models.geojson.implementation.namespaces;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.View;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Action;
@@ -32,14 +35,16 @@ import org.jetbrains.annotations.Nullable;
 @SuppressWarnings("unused")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class XyzActivityLog implements XyzSerializable {
-
+  public static final ObjectMapper mapper = new ObjectMapper();
   public static final String ID = "id";
   public static final String ORIGINAL = "original";
   public static final String ACTION = "action";
   public static final String INVALIDATED_AT = "invalidatedAt";
+  public static final String DIFF = "diff";
 
   public XyzActivityLog() {
     this.original = new Original();
+    this.diff = mapper.createObjectNode();
   }
 
   /**
@@ -50,20 +55,26 @@ public class XyzActivityLog implements XyzSerializable {
   private @NotNull Original original;
 
   /**
+   * The Difference tag.
+   */
+  @JsonProperty(DIFF)
+  @JsonView(View.All.class)
+  private JsonNode diff;
+
+  /**
    * The space ID the feature belongs to.
    */
   @JsonProperty(ID)
   @JsonView(View.All.class)
   private String id;
 
-  //For Now It is not used
+  //For Now INVALIDATED_AT is not used
   /**
    * * * The timestamp, when a feature was created.
    */
-  /*
   @JsonProperty(INVALIDATED_AT)
   private long invalidatedAt;
-  */
+
 
   /**
    * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
@@ -80,6 +91,14 @@ public class XyzActivityLog implements XyzSerializable {
     this.action = action;
   }
 
+  public @Nullable JsonNode getDiff() {
+    return diff;
+  }
+
+  public void setDiff(@Nullable JsonNode diff) {
+    this.diff = diff;
+  }
+
   public void setAction(@NotNull Action action) {
     this.action = action.toString();
   }
@@ -94,15 +113,13 @@ public class XyzActivityLog implements XyzSerializable {
     return this;
   }
 
-  //For now invalidated is not required
-  /*
   public long getInvalidatedAt() {
     return invalidatedAt;
   }
 
   public void setInvalidatedAt(long invalidatedAt) {
     this.invalidatedAt = invalidatedAt;
-  }*/
+  }
 
   public boolean isDeleted() {
     return Action.DELETE.equals(getAction());

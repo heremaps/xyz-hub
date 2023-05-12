@@ -1,5 +1,7 @@
 package com.here.naksha.activitylog;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
@@ -14,6 +16,7 @@ import com.here.xyz.util.IoHelp;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import com.flipkart.zjsonpatch.JsonDiff;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -51,7 +54,22 @@ class ActivityLogHandlerTest {
   void test_fromActivityLog() throws IOException {
     final Feature feature = XyzSerializable.deserialize(IoHelp.openResource("activity_log_feature.json"), Feature.class);
     assertNotNull(feature);
+    assertNotNull(feature.getProperties());
+    assertNotNull(feature.getProperties().getXyzNamespace());
+    assertNotNull(feature.getProperties().getXyzActivityLog());
+    assertNotNull(feature.getProperties().getXyzActivityLog().getOriginal());
+    final String xyzNamespacePuuid = feature.getProperties().getXyzActivityLog().getOriginal().getPuuid();
+    final String xyzNamespaceMuuid = feature.getProperties().getXyzActivityLog().getOriginal().getMuuid();
+    final String xyzNamespaceSpace = feature.getProperties().getXyzActivityLog().getOriginal().getSpace();
+    final long xyzNamespaceCreatedAt = feature.getProperties().getXyzActivityLog().getOriginal().getCreatedAt();
+    final long xyzNamespaceUpdatedAt = feature.getProperties().getXyzActivityLog().getOriginal().getUpdatedAt();
     activityLogHandler.fromActivityLogFormat(feature);
+    assertSame(xyzNamespacePuuid, feature.getProperties().getXyzNamespace().getPuuid());
+    assertSame(xyzNamespaceMuuid, feature.getProperties().getXyzNamespace().getMuuid());
+    assertSame(xyzNamespaceSpace, feature.getProperties().getXyzNamespace().getSpace());
+    assertEquals(xyzNamespaceCreatedAt, feature.getProperties().getXyzNamespace().getCreatedAt());
+    assertEquals(xyzNamespaceUpdatedAt, feature.getProperties().getXyzNamespace().getUpdatedAt());
+    assertNull(feature.getProperties().getXyzActivityLog());
   }
 
   @Test
@@ -64,7 +82,10 @@ class ActivityLogHandlerTest {
 
   @Test
   void test_deserialization() throws IOException {
-    final Typed raw = XyzSerializable.deserialize(IoHelp.openResource("activity_log_feature.json"), Typed.class);
+    final Feature feature = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), Feature.class);
+    final Typed raw = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), Typed.class);
+    final JsonNode raw1 = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), JsonNode.class);
+    final String raw3 = XyzSerializable.serialize(feature);
     assertInstanceOf(Feature.class, raw);
   }
 }

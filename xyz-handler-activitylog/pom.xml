@@ -127,6 +127,12 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-lib-models</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.flipkart.zjsonpatch</groupId>
+      <artifactId>zjsonpatch</artifactId>
+      <version>0.4.8</version>
+    </dependency>
+
 
     <!--  Logging libraries -->
     <dependency>
