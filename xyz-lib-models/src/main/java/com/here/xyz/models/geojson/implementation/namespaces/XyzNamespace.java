@@ -158,8 +158,8 @@ public class XyzNamespace implements XyzSerializable {
     TO_LOWER = new char[128 - 32];
     AS_IS = new char[128 - 32];
     for (char c = 32; c < 128; c++) {
-      AS_IS[c] = c;
-      TO_LOWER[c] = Character.toLowerCase(c);
+      AS_IS[c - 32] = c;
+      TO_LOWER[c - 32] = Character.toLowerCase(c);
     }
   }
 
