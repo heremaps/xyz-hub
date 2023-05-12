@@ -8,6 +8,9 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.namespaces.Original;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzActivityLog;
+import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
@@ -75,9 +78,23 @@ class ActivityLogHandlerTest {
   @Test
   void test_toActivityLog() throws IOException {
     final Feature feature = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), Feature.class);
-    final Feature Oldfeature = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_2.json"), Feature.class);
+    final Feature oldFeature = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_2.json"), Feature.class);
     assertNotNull(feature);
-    activityLogHandler.toActivityLogFormat(feature,Oldfeature);
+    assertNotNull(oldFeature);
+    activityLogHandler.toActivityLogFormat(feature,oldFeature);
+    final Original original = feature.getProperties().getXyzActivityLog().getOriginal();
+    final XyzNamespace xyzNameSpace = feature.getProperties().getXyzNamespace();
+    final XyzActivityLog xyzActivityLog = feature.getProperties().getXyzActivityLog();
+    assertNotNull(original);
+    assertNotNull(xyzNameSpace);
+    assertNotNull(xyzActivityLog);
+    assertNotNull(xyzActivityLog.getDiff());
+    assertSame(original.getPuuid(), xyzNameSpace.getPuuid());
+    assertSame(original.getMuuid(), xyzNameSpace.getMuuid());
+    assertSame(original.getSpace(), xyzNameSpace.getSpace());
+    assertSame(original.getSpace(), xyzNameSpace.getSpace());
+    assertEquals(original.getCreatedAt(), xyzNameSpace.getCreatedAt());
+    assertEquals(xyzActivityLog.getAction(), xyzNameSpace.getAction());
   }
 
   @Test

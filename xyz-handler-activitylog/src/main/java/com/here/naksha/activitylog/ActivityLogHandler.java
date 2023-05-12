@@ -49,7 +49,7 @@ public class ActivityLogHandler extends EventHandler {
   final @NotNull ActivityLogHandlerParams params;
 
 
-  protected void toActivityLogFormat(@NotNull Feature feature, @Nullable Feature oldState) {
+  protected void toActivityLogFormat(@NotNull Feature feature, @Nullable Feature oldFeature) {
     final XyzActivityLog xyzActivityLog = new XyzActivityLog();
     final Original original = new Original();
     final ObjectMapper mapper = new ObjectMapper();
@@ -65,7 +65,7 @@ public class ActivityLogHandler extends EventHandler {
       xyzActivityLog.setAction(feature.getProperties().getXyzNamespace().getAction());
       feature.setId(feature.getProperties().getXyzNamespace().getUuid());
     }
-    xyzActivityLog.setOrigin(original);
+    xyzActivityLog.setOriginal(original);
     xyzActivityLog.setId(feature.getId());
     if(feature.getProperties() != null) {
       feature.getProperties().setXyzActivityLog(xyzActivityLog);
@@ -73,7 +73,7 @@ public class ActivityLogHandler extends EventHandler {
     if(feature.getProperties() != null && feature.getProperties().getXyzActivityLog() != null){
       try {
         jsonNodeFeature = mapper.readTree(XyzSerializable.serialize(feature));
-        jsonNodeOldFeature = mapper.readTree(XyzSerializable.serialize(oldState));
+        jsonNodeOldFeature = mapper.readTree(XyzSerializable.serialize(oldFeature));
       } catch (JsonProcessingException e) {
         e.printStackTrace();
       }

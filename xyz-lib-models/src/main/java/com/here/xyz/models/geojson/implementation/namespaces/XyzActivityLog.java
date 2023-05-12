@@ -148,7 +148,7 @@ public class XyzActivityLog implements XyzSerializable {
     return original;
   }
 
-  public void setOrigin(@NotNull Original original) {
+  public void setOriginal(@NotNull Original original) {
     this.original = original;
   }
 
