@@ -30,9 +30,9 @@ class HttpHandlerTest {
   static HttpHandler httpHandler;
 
   @BeforeAll
-  static void setup() throws XyzErrorException {
+  static void setup() throws XyzErrorException, IOException {
     connector = new Connector("test:http", Math.abs(RandomUtils.nextLong()));
-    connector.setParams(new Params().with(HttpHandlerParams.URL,System.getenv("FOO")));
+    connector.setParams(new Params().with(HttpHandlerParams.URL,new String(IoHelp.openResource("endpoint").readAllBytes())));
     eventPipeline = new IoEventPipeline();
     httpHandler = new HttpHandler(connector);
     eventPipeline.addEventHandler(httpHandler);
@@ -46,7 +46,6 @@ class HttpHandlerTest {
     ids.add("b");
     event.setIds(ids);
     final ByteArrayOutputStream out = new ByteArrayOutputStream();
-//    eventPipeline.sendEvent(IoHelp.openResource("testevent.json"), out);
     eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray()), out);
     final XyzResponse response = XyzSerializable.deserialize(out.toByteArray(), XyzResponse.class);
     assertNotNull(response);
