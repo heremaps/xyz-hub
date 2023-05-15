@@ -70,6 +70,6 @@ public class HttpHandler extends EventHandler {
       return new ErrorResponse()
           .withStreamId(event.getStreamId())
           .withError(XyzError.BAD_GATEWAY)
-          .withErrorMessage(e.getMessage());
+          .withErrorMessage(e.toString());
     }
   }}

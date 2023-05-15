@@ -13,6 +13,11 @@ import org.jetbrains.annotations.Nullable;
  */
 class HttpHandlerParams extends EventHandlerParams {
 
+  /** Enums */
+  public static final String URL = "url";
+  public static final String CONN_TIMEOUT = "connTimeout";
+  public static final String READ_TIMEOUT = "readTimeout";
+
   /**
    * Parse the given connector params into this type-safe class.
    *
@@ -22,9 +27,9 @@ class HttpHandlerParams extends EventHandlerParams {
    * @throws MalformedURLException    if the given URL is invalid.
    */
   HttpHandlerParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws MalformedURLException {
-    url = new URL(parseValue(connectorParams, "url", String.class));
-    connTimeout = parseValueWithDefault(connectorParams, "connTimeout", TimeUnit.SECONDS.toMillis(5));
-    readTimeout = parseValueWithDefault(connectorParams, "readTimeout", TimeUnit.SECONDS.toMillis(60));
+    url = new URL(parseValue(connectorParams, URL, String.class));
+    connTimeout = parseValueWithDefault(connectorParams, CONN_TIMEOUT, TimeUnit.SECONDS.toMillis(5));
+    readTimeout = parseValueWithDefault(connectorParams, READ_TIMEOUT, TimeUnit.SECONDS.toMillis(60));
   }
 
   /**
