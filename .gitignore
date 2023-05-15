@@ -8,3 +8,4 @@ target/
 file-uploads/
 /static/
 release.properties
+/xyz-handler-http/src/test/resources/endpoint
