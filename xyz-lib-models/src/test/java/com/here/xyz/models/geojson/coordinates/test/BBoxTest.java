@@ -19,13 +19,13 @@
 
 package com.here.xyz.models.geojson.coordinates.test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.MultiPolygon;
 import com.here.xyz.models.geojson.implementation.Point;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class BBoxTest {
 

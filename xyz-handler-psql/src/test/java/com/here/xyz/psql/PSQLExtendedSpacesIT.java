@@ -18,6 +18,8 @@
  */
 package com.here.xyz.psql;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
@@ -28,9 +30,6 @@ import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.SuccessResponse;
 import org.json.JSONObject;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -39,8 +38,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.Assert.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
 
@@ -63,13 +63,13 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     }
   };
 
-  @BeforeClass
+  @BeforeAll
   public static void init() throws Exception {
     initEnv(connectorParams);
     generateTestSpaces();
   }
 
-  @After
+  @AfterAll
   public void shutdown() throws Exception {
     invokeDeleteTestSpaces(connectorParams, spaces);
   }

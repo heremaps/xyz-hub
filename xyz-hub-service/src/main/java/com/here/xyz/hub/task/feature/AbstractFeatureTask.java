@@ -81,7 +81,7 @@ public abstract class AbstractFeatureTask<EVENT extends Event> extends NakshaTas
   }
 
   /**
-   * Returns the body and, if any was available.
+   * Sets the body and returns the old one, if any was available.
    *
    * @param body The new body to set.
    * @return the previously set body.

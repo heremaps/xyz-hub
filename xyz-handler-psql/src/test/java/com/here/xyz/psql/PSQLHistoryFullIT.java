@@ -25,9 +25,6 @@ import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.models.hub.Space;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -36,9 +33,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
@@ -49,12 +48,12 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
     }
   };
 
-  @BeforeClass
+  @BeforeAll
   public static void init() throws Exception {
     initEnv(connectorParams);
   }
 
-  @After
+  @AfterAll
   public void shutdown() throws Exception {
     invokeDeleteTestSpace(connectorParams);
   }

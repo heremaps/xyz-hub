@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.Extensible;
+import com.here.xyz.JsonObject;
 import com.here.xyz.Typed;
 import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -50,7 +50,7 @@ import org.jetbrains.annotations.Nullable;
     @JsonSubTypes.Type(value = Connector.class, name = "Connector"),
     @JsonSubTypes.Type(value = Subscription.class, name = "Subscription")
 })
-public class Feature extends Extensible implements Typed {
+public class Feature extends JsonObject implements Typed {
 
   public static final String ID = "id";
   public static final String BBOX = "bbox";

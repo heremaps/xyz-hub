@@ -71,8 +71,8 @@
       <groupId>com.fasterxml.jackson.core</groupId>
     </dependency>
     <dependency>
-      <artifactId>junit</artifactId>
-      <groupId>junit</groupId>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

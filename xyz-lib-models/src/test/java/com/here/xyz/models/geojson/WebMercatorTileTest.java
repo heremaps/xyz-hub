@@ -24,9 +24,10 @@ import static com.here.xyz.models.geojson.WebMercatorTile.forWeb;
 import static com.here.xyz.models.geojson.WebMercatorTile.x;
 import static com.here.xyz.models.geojson.WebMercatorTile.xy;
 import static com.here.xyz.models.geojson.WebMercatorTile.y;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class WebMercatorTileTest {
 
@@ -58,54 +59,54 @@ public class WebMercatorTileTest {
     forWeb("10_800_800");
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier1() {
-    forQuadkey("052301230123");
+    assertThrows(IllegalArgumentException.class, () -> forQuadkey("052301230123"));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier2() {
-    forQuadkey("1A000");
+    assertThrows(IllegalArgumentException.class, () -> forQuadkey("1A000"));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier3() {
-    forQuadkey("-9");
+    assertThrows(IllegalArgumentException.class, () -> forQuadkey("-9"));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier4() {
-    forQuadkey("1234");
+    assertThrows(IllegalArgumentException.class, () -> forQuadkey("1234"));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier5() {
-    forQuadkey("052301230123");
+    assertThrows(IllegalArgumentException.class, () -> forQuadkey("052301230123"));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier6() {
-    forWeb("0_0_1");
+    assertThrows(IllegalArgumentException.class, () -> forWeb("0_0_1"));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier7() {
-    forWeb("0_0_1");
+    assertThrows(IllegalArgumentException.class, () -> forWeb("0_0_1"));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier8() {
-    forWeb("2_4_4");
+    assertThrows(IllegalArgumentException.class, () -> forWeb("2_4_4"));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier9() {
-    forWeb("5_10");
+    assertThrows(IllegalArgumentException.class, () -> forWeb("5_10"));
   }
 
-  @Test(expected = IllegalArgumentException.class)
+  @Test
   public void invalidQuadIdentifier10() {
-    forWeb("\"10_-1_10");
+    assertThrows(IllegalArgumentException.class, () -> forWeb("\"10_-1_10"));
   }
 
   @Test

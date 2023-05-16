@@ -19,6 +19,8 @@
 
 package com.here.xyz.psql;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.amazonaws.util.IOUtils;
 import com.here.mapcreator.ext.naksha.PsqlPool;
 import com.here.xyz.models.hub.Connector;
@@ -45,8 +47,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
-import static org.junit.Assert.assertEquals;
 
 public abstract class PSQLAbstractIT extends Helper {
 

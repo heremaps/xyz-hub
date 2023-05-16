@@ -19,7 +19,7 @@
 
 package com.here.xyz.models.geojson.implementation;
 
-import static org.junit.Assert.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -31,7 +31,7 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestClone {
 

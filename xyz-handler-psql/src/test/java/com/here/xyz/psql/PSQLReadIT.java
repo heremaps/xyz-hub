@@ -35,27 +35,26 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.sql.Connection;
 import java.sql.Statement;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
-import static org.junit.Assert.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class PSQLReadIT extends PSQLAbstractIT {
 
-  @BeforeClass
+  @BeforeAll
   public static void init() throws Exception {
     initEnv(null);
   }
 
-  @After
+  @AfterAll
   public void shutdown() throws Exception {
     invokeDeleteTestSpace(null);
   }
@@ -703,7 +702,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     FeatureCollection responseCollection = XyzSerializable.deserialize(response);
     List<Feature> responseFeatures = responseCollection.getFeatures();
     String id = responseFeatures.get(0).getId();
-    assertEquals("Check size", 4, responseFeatures.size());
+    assertEquals(4, responseFeatures.size());
 
     Map<String, Object> test15 = mapper.readValue(basic, tr);
     Map<String, Object> properties15_1 = new HashMap<>();
@@ -771,10 +770,10 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     final FeatureCollection responseCollection = XyzSerializable.deserialize(response);
     final List<Feature> responseFeatures = responseCollection.getFeatures();
-    assertEquals("Check size", size, responseFeatures.size());
+    assertEquals(size, responseFeatures.size());
 
     for (int i = 0; i < size; i++) {
-      assertEquals("Check name", names[i], responseFeatures.get(i).getProperties().get("name"));
+      assertEquals(names[i], responseFeatures.get(i).getProperties().get("name"));
     }
   }
 }

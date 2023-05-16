@@ -28,23 +28,23 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class PSQLUuidIT extends PSQLAbstractIT {
 
-  @BeforeClass
+  @BeforeAll
   public static void init() throws Exception {
     initEnv(null);
   }
 
-  @After
+  @AfterAll
   public void shutdown() throws Exception {
     invokeDeleteTestSpace(null);
   }

@@ -18,27 +18,27 @@
  */
 package com.here.xyz.psql;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.amazonaws.util.IOUtils;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
-import static org.junit.Assert.assertTrue;
 
 public class PSQLDeleteIT extends PSQLAbstractIT {
 
-    @BeforeClass
+    @BeforeAll
     public static void init() throws Exception { initEnv(null); }
 
-    @After
+    @AfterAll
     public void shutdown() throws Exception { invokeDeleteTestSpace(null); }
 
     @Test
@@ -105,10 +105,10 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
         final JsonPath jsonPathFeatures = JsonPath.compile("$.features");
         @SuppressWarnings("rawtypes") List features = jsonPathFeatures.read(deleteByTagResponse, jsonPathConf);
         if (includeOldStates) {
-            assertNotNull("'features' element in DeleteByTagResponse is missing", features);
-            assertTrue("'features' element in DeleteByTagResponse is empty", features.size() > 0);
+            assertNotNull(features, "'features' element in DeleteByTagResponse is missing");
+            assertTrue(features.size() > 0, "'features' element in DeleteByTagResponse is empty");
         } else if (features != null) {
-            assertEquals("unexpected features in DeleteByTagResponse", 0, features.size());
+            assertEquals(0, features.size(), "unexpected features in DeleteByTagResponse");
         }
 
         statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");
@@ -123,7 +123,7 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
         assertNoErrorInResponse(deleteAllResponse);
         features = jsonPathFeatures.read(deleteAllResponse, jsonPathConf);
         if (features != null) {
-            assertEquals("unexpected features in DeleteByTagResponse", 0, features.size());
+            assertEquals(0, features.size(), "unexpected features in DeleteByTagResponse");
         }
 
         statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");

@@ -19,9 +19,8 @@
 
 package com.here.xyz.psql;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -34,9 +33,9 @@ import java.sql.Statement;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.digest.DigestUtils;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 @SuppressWarnings("unused")
 public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
@@ -48,10 +47,10 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
         }
   };
 
-  @BeforeClass
+  @BeforeAll
   public static void init() throws Exception { initEnv(connectorParams); }
 
-  @After
+  @AfterAll
   public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }
 
   @Test
@@ -126,7 +125,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
           add("idx_" + hashedSpaceId + "_id");
         }};
 
-        indexes.addAll(features.get(0).getProperties().keySet().stream()
+        indexes.addAll(features.get(0).getProperties().getAdditionalProperties().keySet().stream()
             .filter(k->!"test".equals(k))
             .filter(k->!"@ns:com:here:xyz".equals(k))
             .map(k ->"idx_" + hashedSpaceId + "_" + DigestUtils.md5Hex(k).substring(0, 7) + "_a")
