@@ -23,10 +23,12 @@ import org.jetbrains.annotations.NotNull;
  * The HTTP handler that sends events to a foreign host.
  */
 public class HttpHandler extends EventHandler {
+
   public static final String ID = "naksha:http";
 
   /**
    * Creates a new HTTP handler.
+   *
    * @param connector The connector configuration.
    * @throws XyzErrorException If any error occurred.
    */
@@ -45,11 +47,16 @@ public class HttpHandler extends EventHandler {
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
     final Event event = eventContext.getEvent();
     try {
-      byte @NotNull [] bytes = Payload.compress(event.toByteArray());
+      byte @NotNull [] bytes = event.toByteArray();
       final HttpURLConnection conn = (HttpURLConnection) params.url.openConnection();
       conn.setConnectTimeout((int) params.connTimeout);
       conn.setReadTimeout((int) params.readTimeout);
       conn.setRequestMethod(params.httpMethod);
+      conn.setRequestProperty("Content-type", "application/json");
+      if (Boolean.TRUE.equals(params.gzip) || params.gzip == null && bytes.length >= 16384) {
+        bytes = Payload.compress(event.toByteArray());
+        conn.setRequestProperty("Content-encoding", "gzip");
+      }
       conn.setFixedLengthStreamingMode(bytes.length);
       conn.setUseCaches(false);
       conn.setDoInput(true);
@@ -72,4 +79,5 @@ public class HttpHandler extends EventHandler {
           .withError(XyzError.BAD_GATEWAY)
           .withErrorMessage(e.toString());
     }
-  }}
+  }
+}

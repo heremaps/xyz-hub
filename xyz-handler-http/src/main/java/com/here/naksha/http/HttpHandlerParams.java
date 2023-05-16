@@ -14,16 +14,18 @@ import org.jetbrains.annotations.Nullable;
  */
 class HttpHandlerParams extends EventHandlerParams {
 
-  /** Enums */
+  /**
+   * Enums
+   */
   public static final String URL = "url";
   public static final String CONN_TIMEOUT = "connTimeout";
   public static final String READ_TIMEOUT = "readTimeout";
   public static final String HTTP_METHOD = "httpMethod";
+  public static final String GZIP = "gzip";
   public static final String HTTP_GET = "GET";
   public static final String HTTP_PUT = "PUT";
   public static final String HTTP_POST = "POST";
   public static final String HTTP_PATCH = "PATCH";
-
 
 
   /**
@@ -39,6 +41,7 @@ class HttpHandlerParams extends EventHandlerParams {
     connTimeout = parseValueWithDefault(connectorParams, CONN_TIMEOUT, TimeUnit.SECONDS.toMillis(5));
     readTimeout = parseValueWithDefault(connectorParams, READ_TIMEOUT, TimeUnit.SECONDS.toMillis(60));
     httpMethod = parseValueWithDefault(connectorParams, HTTP_METHOD, HTTP_POST);
+    gzip = parseOptionalValue(connectorParams, GZIP, Boolean.class);
   }
 
   /**
@@ -56,6 +59,14 @@ class HttpHandlerParams extends EventHandlerParams {
    */
   final long readTimeout;
 
-  /**HTTP method*/
+  /**
+   * HTTP method
+   */
   final String httpMethod;
+
+  /**
+   * If the JSON should be gzip compressed, {@code null} means auto-detect, {@code true} means always compress, {@code false} means never
+   * compress.
+   */
+  final Boolean gzip;
 }

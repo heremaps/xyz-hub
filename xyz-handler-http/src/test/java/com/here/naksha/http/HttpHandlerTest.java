@@ -13,6 +13,7 @@ import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -21,9 +22,11 @@ import com.here.xyz.util.Params;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -36,15 +39,33 @@ class HttpHandlerTest {
   @BeforeAll
   static void setup() throws XyzErrorException, IOException {
     connector = new Connector("test:http", Math.abs(RandomUtils.nextLong()));
-    connector.setParams(
-        new Params()
-            .with(HttpHandlerParams.URL,new String(IoHelp.openResource("endpoint").readAllBytes()))
-            .with(HttpHandlerParams.HTTP_METHOD, HttpHandlerParams.HTTP_GET)
+    String url = "http://localhost:9999/";
+    try {
+      final byte[] endpoint = IoHelp.readResourceBytes("endpoint");
+      final String rawUrl = new String(endpoint);
+      final URL goodURL = new URL(rawUrl);
+      url = goodURL.toString();
+    } catch (Exception ignore) {
+    }
+    connector.setParams(new Params()
+        .with(HttpHandlerParams.URL, url)
+        .with(HttpHandlerParams.HTTP_METHOD, HttpHandlerParams.HTTP_GET)
     );
     eventPipeline = new IoEventPipeline();
     httpHandler = new HttpHandler(connector);
     eventPipeline.addEventHandler(httpHandler);
+    fakeWebserver = new HttpFakeWebserver(9999);
   }
+
+  @AfterAll
+  public static void stopWebServer() {
+    if (fakeWebserver != null) {
+      fakeWebserver.server.stop(0);
+      fakeWebserver = null;
+    }
+  }
+
+  static HttpFakeWebserver fakeWebserver;
 
   @Test
   void test_GetFeaturesById() throws IOException {
@@ -57,8 +78,7 @@ class HttpHandlerTest {
     eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray()), out);
     final XyzResponse response = XyzSerializable.deserialize(out.toByteArray(), XyzResponse.class);
     assertNotNull(response);
-    assertInstanceOf(ErrorResponse.class, response);
-    final ErrorResponse errorResponse = (ErrorResponse) response;
+    final ErrorResponse errorResponse = assertInstanceOf(ErrorResponse.class, response);
     assertSame(XyzError.NOT_IMPLEMENTED, errorResponse.getError());
   }
 
@@ -71,6 +91,6 @@ class HttpHandlerTest {
     //    eventPipeline.sendEvent(IoHelp.openResource("testevent.json"), out);
     final XyzResponse response = XyzSerializable.deserialize(out.toByteArray(), XyzResponse.class);
     assertNotNull(response);
-    assertInstanceOf(SuccessResponse.class, response);
+    assertInstanceOf(HealthStatus.class, response);
   }
 }
