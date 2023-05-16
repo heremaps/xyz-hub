@@ -1,6 +1,7 @@
 package com.here.naksha.activitylog;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.util.IoHelp;
@@ -25,13 +26,17 @@ public class ActivityLogDBWriter {
                 final ResultSet result = stmt.executeQuery();
                 while (result.next()) {
                     //sids.add(result.getString(1));
-                    final Feature activityLogFeature = XyzSerializable.deserialize(result.getString(1), Feature.class);
-                    ActivityLogHandler.fromActivityLogFormat(activityLogFeature);
+                    try {
+                        //Feature activityLogFeature =  new ObjectMapper().readValue(result.getString(1), Feature.class);
+                        Feature activityLogFeature = XyzSerializable.deserialize(result.getString(1), Feature.class);
+                        ActivityLogHandler.fromActivityLogFormat(activityLogFeature);
+                    } catch (JsonProcessingException e) {
+                        e.printStackTrace();
+                    }
+                    //final Feature activityLogFeature = XyzSerializable.deserialize(result.getString(1), Feature.class);
                 }
                 //String cbx = sids.get(0);
                 String abc = "";
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
             }
         } catch (SQLException throwables) {
             throwables.printStackTrace();
