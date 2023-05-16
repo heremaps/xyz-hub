@@ -3,6 +3,7 @@ package com.here.mapcreator.ext.naksha;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.xyz.lambdas.P;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -14,23 +15,39 @@ import org.jetbrains.annotations.Nullable;
 @SuppressWarnings("unused")
 public class PsqlConfig extends PsqlPoolConfig {
 
+  public static final String HOST = "host";
+  public static final String PORT = "port";
+  public static final String DB = "db";
+  public static final String USER = "user";
+  public static final String PASSWORD = "password";
+  public static final String CONN_TIMEOUT = "connTimeout";
+  public static final String STMT_TIMEOUT = "stmtTimeout";
+  public static final String LOCK_TIMEOUT = "lockTimeout";
+  public static final String MIN_POOL_SIZE = "minPoolSize";
+  public static final String MAX_POOL_SIZE = "maxPoolSize";
+  public static final String IDLE_TIMEOUT = "idleTimeout";
+  public static final String SCHEMA = "schema";
+  public static final String APP_NAME = "appName";
+  public static final String ROLE = "role";
+  public static final String SEARCH_PATH = "searchPath";
+
   @JsonCreator
   PsqlConfig(
-      @JsonProperty @NotNull String host,
-      @JsonProperty Integer port,
-      @JsonProperty @NotNull String db,
-      @JsonProperty @NotNull String user,
-      @JsonProperty @NotNull String password,
-      @JsonProperty Long connTimeout,
-      @JsonProperty Long stmtTimeout,
-      @JsonProperty Long lockTimeout,
-      @JsonProperty Integer minPoolSize,
-      @JsonProperty Integer maxPoolSize,
-      @JsonProperty Long idleTimeout,
-      @JsonProperty @NotNull String schema,
-      @JsonProperty @NotNull String appName,
-      @JsonProperty @Nullable String role,
-      @JsonProperty @Nullable String searchPath
+      @JsonProperty(HOST) @NotNull String host,
+      @JsonProperty(PORT) Integer port,
+      @JsonProperty(DB) @NotNull String db,
+      @JsonProperty(USER) @NotNull String user,
+      @JsonProperty(PASSWORD) @NotNull String password,
+      @JsonProperty(CONN_TIMEOUT) Long connTimeout,
+      @JsonProperty(STMT_TIMEOUT) Long stmtTimeout,
+      @JsonProperty(LOCK_TIMEOUT) Long lockTimeout,
+      @JsonProperty(MIN_POOL_SIZE) Integer minPoolSize,
+      @JsonProperty(MAX_POOL_SIZE) Integer maxPoolSize,
+      @JsonProperty(IDLE_TIMEOUT) Long idleTimeout,
+      @JsonProperty(SCHEMA) @NotNull String schema,
+      @JsonProperty(APP_NAME) @NotNull String appName,
+      @JsonProperty(ROLE) @Nullable String role,
+      @JsonProperty(SEARCH_PATH) @Nullable String searchPath
   ) {
     super(host, port, db, user, password, connTimeout, stmtTimeout, lockTimeout, minPoolSize, maxPoolSize, idleTimeout);
     this.schema = schema;

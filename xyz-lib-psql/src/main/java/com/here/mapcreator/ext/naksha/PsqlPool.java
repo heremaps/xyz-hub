@@ -103,7 +103,7 @@ public final class PsqlPool implements AutoCloseable {
     final HikariConfig hikariConfig = new HikariConfig();
     hikariConfig.setDriverClassName(config.driverClass);
     hikariConfig.setJdbcUrl(config.url);
-    hikariConfig.setUsername(config.url);
+    hikariConfig.setUsername(config.user);
     hikariConfig.setPassword(config.password);
     hikariConfig.setConnectionTimeout(config.connTimeout);
     hikariConfig.setMinimumIdle(config.minPoolSize);

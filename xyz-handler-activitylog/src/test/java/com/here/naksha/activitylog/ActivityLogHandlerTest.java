@@ -19,6 +19,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.IoHelp;
+import com.here.xyz.util.IoHelp.LoadedConfig;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,8 @@ import java.sql.SQLException;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ActivityLogHandlerTest {
+  private static final String APP_NAME = "xyz-hub.test";
+  private static final String CONFIG_FILENAME = "http-handler-activitylog.json";
 
   static Connector connector;
   static IoEventPipeline eventPipeline;
@@ -105,8 +108,8 @@ class ActivityLogHandlerTest {
 
   @Test
   void test_connectToDb() throws IOException{
-    final PsqlConfig config = new PsqlConfigBuilder().withSchema("").withAppName("").withDb("").withHost("").withUser("").withPassword("").build();
-    final PsqlDataSource dataSource = new PsqlDataSource(config);
+    final LoadedConfig<PsqlConfig> loaded = IoHelp.readConfigFromHomeOrResource(CONFIG_FILENAME, false, APP_NAME, PsqlConfig.class);
+    final PsqlDataSource dataSource = new PsqlDataSource(loaded.config());
     try (Connection conn = dataSource.getConnection()) {
       assertEquals(52, 52);
     } catch (SQLException throwables) {
