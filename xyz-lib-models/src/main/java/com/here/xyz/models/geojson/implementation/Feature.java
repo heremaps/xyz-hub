@@ -20,10 +20,12 @@
 package com.here.xyz.models.geojson.implementation;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -42,7 +44,6 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A standard GeoJson feature.
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings({"unused", "WeakerAccess"})
 @JsonTypeName(value = "Feature")
 @JsonSubTypes({ // Note: These types need to be added as well into Typed!
@@ -74,17 +75,14 @@ public class Feature extends JsonObject implements Typed {
 
   @JsonProperty(BBOX)
   @JsonView(All.class)
-  @JsonInclude(Include.NON_NULL)
   protected BBox bbox;
 
   @JsonProperty(GEOMETRY)
   @JsonView(All.class)
-  @JsonInclude(Include.NON_NULL)
   protected Geometry geometry;
 
   @JsonProperty(PROPERTIES)
   @JsonView(All.class)
-  @JsonInclude(Include.NON_NULL)
   protected @NotNull Properties properties;
 
   public @NotNull String getId() {
@@ -111,10 +109,12 @@ public class Feature extends JsonObject implements Typed {
     this.geometry = geometry;
   }
 
+  @JsonGetter
   public @NotNull Properties getProperties() {
     return properties;
   }
 
+  @JsonSetter
   public void setProperties(@NotNull Properties properties) {
     this.properties = properties;
   }

@@ -32,7 +32,6 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The standard properties of the standard feature store in the Naksha-Hub.
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 public class Properties extends JsonObject {
 
   public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";

@@ -7,8 +7,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.mapcreator.ext.naksha.PsqlConfig;
 import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
-import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
-import com.here.mapcreator.ext.naksha.PsqlPoolConfigBuilder;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -27,7 +25,7 @@ public final class NakshaHubConfig {
   /**
    * The application name for the configuration directory ({@code ~/.config/<appname>/...}).
    */
-  public static final String appName = "naksha";
+  public static final String APP_NAME = "naksha";
 
   @JsonCreator
   NakshaHubConfig(
@@ -56,8 +54,8 @@ public final class NakshaHubConfig {
           .withDb("postgres")
           .withUser("postgres")
           .withPassword("password")
-          .withAppName(appName)
-          .withSchema(appName)
+          .withAppName(APP_NAME)
+          .withSchema(APP_NAME)
           .build();
     }
     if (httpPort != null && (httpPort < 0 || httpPort > 65535)) {

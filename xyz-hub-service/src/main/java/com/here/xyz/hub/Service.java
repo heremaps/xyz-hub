@@ -59,11 +59,11 @@ public class Service extends NakshaHub {
         return;
       }
       final String customFilename = split[1];
-      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource(customFilename, true, NakshaHubConfig.appName);
+      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource(customFilename, true, NakshaHubConfig.APP_NAME);
       System.out.println("Loaded configuration file: " + loaded.path());
       config = XyzSerializable.deserialize(loaded.bytes(), NakshaHubConfig.class);
     } else {
-      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource("config.json", false, NakshaHubConfig.appName);
+      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource("config.json", false, NakshaHubConfig.APP_NAME);
       System.out.println("Loaded configuration file: " + loaded.path());
       config = XyzSerializable.deserialize(loaded.bytes(), NakshaHubConfig.class);
     }

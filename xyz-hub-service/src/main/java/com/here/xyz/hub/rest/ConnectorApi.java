@@ -28,8 +28,9 @@ import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.events.GetConnectorsByIdEvent;
 import com.here.xyz.hub.task.connector.ConnectorHandler;
 import com.here.xyz.hub.task.NakshaTask;
-import com.here.xyz.hub.task.connector.GetConnectorsByIdTask;
-import com.here.xyz.hub.util.diff.Difference;
+import com.here.xyz.util.diff.Difference;
+import com.here.xyz.util.diff.MapDiff;
+import com.here.xyz.util.diff.PrimitiveDiff;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -40,8 +41,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class ConnectorApi extends Api {
 
@@ -188,7 +187,7 @@ public class ConnectorApi extends Api {
       return f;
     }
 
-    public static void validateAdminChanges(RoutingContext context, Difference.DiffMap diffMap) throws HttpException {
+    public static void validateAdminChanges(RoutingContext context, MapDiff diffMap) throws HttpException {
       //Is Admin change?
       if (!isAdmin(context)) {
         checkParameterChange(diffMap.get("owner"), "owner", Context.jwt(context).aid);
@@ -213,8 +212,8 @@ public class ConnectorApi extends Api {
     }
 
     private static void checkParameterChange(Difference diff, String parameterName, Object expected) throws HttpException {
-      if (diff instanceof Difference.Primitive) {
-        Difference.Primitive prim = (Difference.Primitive) diff;
+      if (diff instanceof PrimitiveDiff) {
+        PrimitiveDiff prim = (PrimitiveDiff) diff;
         if (prim.newValue() != null && !prim.newValue().equals(expected)) throw new HttpException(FORBIDDEN, "The property '" + parameterName + "' can not be changed manually.");
       }
     }

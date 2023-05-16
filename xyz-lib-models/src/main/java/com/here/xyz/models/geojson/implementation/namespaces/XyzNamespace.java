@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.JsonObject;
 import com.here.xyz.View;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Action;
@@ -36,71 +37,78 @@ import org.jetbrains.annotations.Nullable;
 
 
 @SuppressWarnings("unused")
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class XyzNamespace implements XyzSerializable {
+public class XyzNamespace extends JsonObject {
 
+  public static final String REVISION = "revision";
+  public static final String SPACE = "space";
+  public static final String COLLECTION = "collection";
   public static final String CREATED_AT = "createdAt";
+  public static final String UPDATED_AT = "updatedAt";
+  public static final String TXN = "txn";
   public static final String UUID = "uuid";
   public static final String PUUID = "puuid";
   public static final String MUUID = "muuid";
-  public static final String REVISION = "revision";
-  public static final String SPACE = "space";
-  public static final String UPDATED_AT = "updatedAt";
+  public static final String TAGS = "tags";
+  public static final String ACTION = "action";
+  public static final String VERSION = "version";
+  public static final String AUTHOR = "author";
+  public static final String APP_ID = "app_id";
+  public static final String OWNER = "owner";
 
   /**
    * The space ID the feature belongs to.
    */
-  @JsonProperty
+  @JsonProperty(SPACE)
   @JsonView(View.All.class)
   private String space;
 
   /**
    * The collection the feature belongs to.
    */
-  @JsonProperty
+  @JsonProperty(COLLECTION)
   @JsonView(View.All.class)
   private String collection;
 
   /**
-   * The timestamp, when a feature was created.
+   * The timestamp in Epoch-Millis, when the feature was created.
    */
-  @JsonProperty
+  @JsonProperty(CREATED_AT)
   @JsonView(View.All.class)
   private long createdAt;
 
   /**
-   * The timestamp, when a feature was last updated.
+   * The timestamp in Epoch-Millis, when the feature was updated.
    */
-  @JsonProperty
+  @JsonProperty(UPDATED_AT)
   @JsonView(View.All.class)
   private long updatedAt;
 
   /**
-   * The transaction number of this state.
+   * The transaction number of this feature state.
    */
-  @JsonProperty
+  @JsonProperty(TXN)
   @JsonView(View.All.class)
   private String txn;
 
   /**
    * The uuid of the feature, when the client modifies the feature, it must not modify the uuid.
    */
-  @JsonProperty
+  @JsonProperty(UUID)
   @JsonView(View.All.class)
   private String uuid;
 
   /**
-   * The previous uuid of the feature.
+   * The previous uuid of the feature; {@code null} if this feature is new and has no previous state.
    */
-  @JsonProperty
+  @JsonProperty(PUUID)
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String puuid;
 
   /**
-   * The merge uuid of the feature.
+   * The merge uuid of the feature; {@code null} if the state is not the result of an auto-merge operation.
    */
-  @JsonProperty
+  @JsonProperty(MUUID)
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String muuid;
@@ -108,7 +116,7 @@ public class XyzNamespace implements XyzSerializable {
   /**
    * The list of tags attached to the feature.
    */
-  @JsonProperty
+  @JsonProperty(TAGS)
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<@NotNull String> tags;
@@ -116,21 +124,21 @@ public class XyzNamespace implements XyzSerializable {
   /**
    * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
    */
-  @JsonProperty
+  @JsonProperty(ACTION)
   @JsonView(View.All.class)
   private String action;
 
   /**
    * The version of the feature, the first version (1) will always be in the state CREATED.
    */
-  @JsonProperty
+  @JsonProperty(VERSION)
   @JsonView(View.All.class)
-  private long version = 0L;
+  private long version;
 
   /**
    * The author (user or application) that created the current revision of the feature.
    */
-  @JsonProperty
+  @JsonProperty(AUTHOR)
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String author;
@@ -138,7 +146,7 @@ public class XyzNamespace implements XyzSerializable {
   /**
    * The application that create the current revision of the feature.
    */
-  @JsonProperty
+  @JsonProperty(APP_ID)
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String app_id;
@@ -146,7 +154,7 @@ public class XyzNamespace implements XyzSerializable {
   /**
    * The identifier of the owner of this connector.
    */
-  @JsonProperty
+  @JsonProperty(OWNER)
   @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String owner;

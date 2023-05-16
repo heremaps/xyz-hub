@@ -26,9 +26,9 @@ import static com.here.xyz.hub.task.ModifyOp.IfExists.REPLACE;
 import static com.here.xyz.hub.task.ModifyOp.IfExists.RETAIN;
 
 import com.here.xyz.hub.task.ModifyOp.Entry;
-import com.here.xyz.hub.util.diff.Difference;
-import com.here.xyz.hub.util.diff.Patcher;
-import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
+import com.here.xyz.util.diff.Difference;
+import com.here.xyz.util.diff.Patcher;
+import com.here.xyz.util.diff.ConflictResolution;
 import io.vertx.core.json.JsonObject;
 import java.util.Arrays;
 import java.util.Collections;
@@ -39,7 +39,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * A modify operation
+ * A modify operation.
  */
 public abstract class ModifyOp<T, K extends Entry<T>> {
 
@@ -202,22 +202,22 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
   public static abstract class Entry<T> {
 
     /**
-     * The input as it comes from the caller
+     * The input as it comes from the caller.
      */
     public Map<String, Object> input;
 
     /**
-     * The latest state the object currently has in the data storage
+     * The latest state the object currently has in the data storage.
      */
     public T head;
 
     /**
-     * The state onto which the caller made the modifications
+     * The state onto which the caller made the modifications.
      */
     public T base;
 
     /**
-     * The resulting target state which should go to the data storage after merging
+     * The resulting target state, which should go to the data storage after merging.
      */
     public T result;
 

@@ -21,6 +21,7 @@ package com.here.xyz;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -44,6 +45,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings({"unchecked", "UnusedReturnValue", "unused"})
 @JsonInclude(Include.NON_EMPTY)
+@JsonFormat(shape = JsonFormat.Shape.OBJECT)
 public class JsonObject implements Map<@NotNull String, @Nullable Object>, XyzSerializable {
 
   @JsonIgnore

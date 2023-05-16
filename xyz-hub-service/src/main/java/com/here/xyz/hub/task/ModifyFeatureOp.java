@@ -24,7 +24,7 @@ import static com.here.xyz.NakshaLogger.currentLogger;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
-import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
+import com.here.xyz.util.diff.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
