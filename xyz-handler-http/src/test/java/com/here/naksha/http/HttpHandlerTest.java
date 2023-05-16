@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
@@ -14,10 +13,8 @@ import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
-import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.IoHelp;
 import com.here.xyz.util.Params;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -41,8 +38,8 @@ class HttpHandlerTest {
     connector = new Connector("test:http", Math.abs(RandomUtils.nextLong()));
     String url = "http://localhost:9999/";
     try {
-      final byte[] endpoint = IoHelp.readResourceBytes("endpoint");
-      final String rawUrl = new String(endpoint);
+      // Set the env var below if you want to run the test against a specific endpoint
+      final String rawUrl = System.getenv("HTTP_HANDLER_TEST_URI");
       final URL goodURL = new URL(rawUrl);
       url = goodURL.toString();
     } catch (Exception ignore) {
