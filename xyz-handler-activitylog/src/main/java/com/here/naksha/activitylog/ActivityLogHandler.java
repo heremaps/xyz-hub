@@ -2,6 +2,8 @@ package com.here.naksha.activitylog;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.here.mapcreator.ext.naksha.PsqlConfig;
+import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
 import com.here.xyz.EventHandler;
 import com.here.xyz.IEventContext;
 import com.here.xyz.XyzSerializable;
@@ -100,6 +102,11 @@ public class ActivityLogHandler extends EventHandler {
       }
       activityLogFeature.getProperties().removeActivityLog();
     }
+  }
+
+  protected void FetchActivityLogs() {
+    final PsqlConfig config = new PsqlConfigBuilder().withSchema("abc").withDb("adbfg").build();
+
   }
 
   @Override

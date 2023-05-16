@@ -2,6 +2,9 @@ package com.here.naksha.activitylog;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.here.mapcreator.ext.naksha.PsqlConfig;
+import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
+import com.here.mapcreator.ext.naksha.PsqlDataSource;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
@@ -23,6 +26,9 @@ import com.flipkart.zjsonpatch.JsonDiff;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.sql.Connection;
+import java.sql.SQLException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -95,6 +101,17 @@ class ActivityLogHandlerTest {
     assertSame(original.getSpace(), xyzNameSpace.getSpace());
     assertEquals(original.getCreatedAt(), xyzNameSpace.getCreatedAt());
     assertEquals(xyzActivityLog.getAction(), xyzNameSpace.getAction());
+  }
+
+  @Test
+  void test_connectToDb() throws IOException{
+    final PsqlConfig config = new PsqlConfigBuilder().withSchema("").withAppName("").withDb("").withHost("").withUser("").withPassword("").build();
+    final PsqlDataSource dataSource = new PsqlDataSource(config);
+    try (Connection conn = dataSource.getConnection()) {
+      assertEquals(52, 52);
+    } catch (SQLException throwables) {
+      throwables.printStackTrace();
+    }
   }
 
   @Test
