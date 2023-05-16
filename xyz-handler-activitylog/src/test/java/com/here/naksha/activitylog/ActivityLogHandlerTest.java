@@ -85,6 +85,28 @@ class ActivityLogHandlerTest {
   }
 
   @Test
+  void test_fromActivityLogPartial() throws IOException {
+    final Feature feature = XyzSerializable.deserialize(IoHelp.openResource("activity_log_partial.json"), Feature.class);
+    assertNotNull(feature);
+    assertNotNull(feature.getProperties());
+    assertNotNull(feature.getProperties().getXyzNamespace());
+    assertNotNull(feature.getProperties().getXyzActivityLog());
+    assertNotNull(feature.getProperties().getXyzActivityLog().getOriginal());
+    final String xyzNamespacePuuid = feature.getProperties().getXyzActivityLog().getOriginal().getPuuid();
+    final String xyzNamespaceMuuid = feature.getProperties().getXyzActivityLog().getOriginal().getMuuid();
+    final String xyzNamespaceSpace = feature.getProperties().getXyzActivityLog().getOriginal().getSpace();
+    final long xyzNamespaceCreatedAt = feature.getProperties().getXyzActivityLog().getOriginal().getCreatedAt();
+    final long xyzNamespaceUpdatedAt = feature.getProperties().getXyzActivityLog().getOriginal().getUpdatedAt();
+    activityLogHandler.fromActivityLogFormat(feature);
+    assertSame(xyzNamespacePuuid, feature.getProperties().getXyzNamespace().getPuuid());
+    assertSame(xyzNamespaceMuuid, feature.getProperties().getXyzNamespace().getMuuid());
+    assertSame(xyzNamespaceSpace, feature.getProperties().getXyzNamespace().getSpace());
+    assertEquals(xyzNamespaceCreatedAt, feature.getProperties().getXyzNamespace().getCreatedAt());
+    assertEquals(xyzNamespaceUpdatedAt, feature.getProperties().getXyzNamespace().getUpdatedAt());
+    assertNull(feature.getProperties().getXyzActivityLog());
+  }
+
+  @Test
   void test_toActivityLog() throws IOException {
     final Feature feature = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), Feature.class);
     final Feature oldFeature = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_2.json"), Feature.class);
@@ -97,7 +119,7 @@ class ActivityLogHandlerTest {
     assertNotNull(original);
     assertNotNull(xyzNameSpace);
     assertNotNull(xyzActivityLog);
-    //assertNotNull(xyzActivityLog.getDiff());
+    assertNotNull(xyzActivityLog.getDiff());
     assertSame(original.getPuuid(), xyzNameSpace.getPuuid());
     assertSame(original.getMuuid(), xyzNameSpace.getMuuid());
     assertSame(original.getSpace(), xyzNameSpace.getSpace());
