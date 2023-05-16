@@ -41,9 +41,9 @@ import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.space.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.space.SpaceTask.MatrixReadQuery;
 import com.here.xyz.hub.task.ICallback;
-import com.here.xyz.hub.util.diff.Difference;
-import com.here.xyz.hub.util.diff.Difference.DiffMap;
-import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.util.diff.Difference;
+import com.here.xyz.util.diff.MapDiff;
+import com.here.xyz.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.Static;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -284,10 +284,10 @@ public class SpaceAuthorization extends Authorization {
 
     // check the difference between head & input and return the modified ones
     Difference diff = Patcher.getDifference(head, target);
-    if (diff instanceof DiffMap && ((DiffMap) diff).containsKey(field)) {
-      diff = ((DiffMap) diff).get(field);
-      if (diff instanceof DiffMap) {
-        return ((DiffMap) diff).keySet();
+    if (diff instanceof MapDiff && ((MapDiff) diff).containsKey(field)) {
+      diff = ((MapDiff) diff).get(field);
+      if (diff instanceof MapDiff) {
+        return ((MapDiff) diff).keySet();
       }
     }
 
@@ -296,7 +296,7 @@ public class SpaceAuthorization extends Authorization {
 
   private static boolean isAdminEdit(Map state1, Map state2) {
     try {
-      DiffMap diff = (DiffMap) Patcher.getDifference(state1, state2);
+      MapDiff diff = (MapDiff) Patcher.getDifference(state1, state2);
       final List<String> basicPlusPackagesList = Stream.concat(basicEdit.stream(), packageEdit.stream()).collect(Collectors.toList());
 
       return diff != null && !basicPlusPackagesList.containsAll(diff.keySet());
@@ -307,7 +307,7 @@ public class SpaceAuthorization extends Authorization {
 
   private static boolean isBasicEdit(Map state1, Map state2) {
     try {
-      DiffMap diff = (DiffMap) Patcher.getDifference(state1, state2);
+      MapDiff diff = (MapDiff) Patcher.getDifference(state1, state2);
       return diff != null && basicEdit.containsAll(diff.keySet());
     } catch (Exception e) {
       return true;
@@ -316,7 +316,7 @@ public class SpaceAuthorization extends Authorization {
 
   private static boolean isPropertyEdit(Map state1, Map state2, String property) {
     try {
-      DiffMap diff = (DiffMap) Patcher.getDifference(state1, state2);
+      MapDiff diff = (MapDiff) Patcher.getDifference(state1, state2);
       return diff != null && diff.containsKey(property);
     } catch (Exception e) {
       return true;

@@ -33,8 +33,8 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.ConnectorApi;
 import com.here.xyz.hub.rest.Context;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.diff.Difference.DiffMap;
-import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.util.diff.MapDiff;
+import com.here.xyz.util.diff.Patcher;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
@@ -153,7 +153,7 @@ public class ConnectorHandler {
       handler.handle(Future.failedFuture(new HttpException(BAD_REQUEST, "Invalid connector definition..")));
       return;
     }
-    DiffMap diffMap = (DiffMap) Patcher.getDifference(new HashMap<>(), asMap(connector));
+    MapDiff diffMap = (MapDiff) Patcher.getDifference(new HashMap<>(), asMap(connector));
 
     try {
       if (diffMap == null) {
@@ -192,7 +192,7 @@ public class ConnectorHandler {
 
         Connector oldConnector = ar.result();
         Map oldConnectorMap = asMap(oldConnector);
-        DiffMap diffMap = (DiffMap) Patcher.calculateDifferenceOfPartialUpdate(oldConnectorMap, asMap(connector), null, true);
+        MapDiff diffMap = (MapDiff) Patcher.calculateDifferenceOfPartialUpdate(oldConnectorMap, asMap(connector), null, true);
         try {
           if (diffMap == null) {
             handler.handle(Future.succeededFuture(oldConnector));

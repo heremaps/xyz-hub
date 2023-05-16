@@ -183,7 +183,7 @@ public class NakshaHub extends NakshaMgmtClient {
       authOptions = new JWTAuthOptions().addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtPubKey));
     } else {
       final String jwtKeyPath = "auth/" + config.jwtKeyName + ".key";
-      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource(jwtKeyPath, false, NakshaHubConfig.appName);
+      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource(jwtKeyPath, false, NakshaHubConfig.APP_NAME);
       logger.info("Loaded JWT key file {}", loaded.path());
       final String jwtKey = new String(loaded.bytes(), StandardCharsets.UTF_8);
       authOptions = new JWTAuthOptions()
@@ -206,17 +206,17 @@ public class NakshaHub extends NakshaMgmtClient {
 
     // Create the virtual spaces that are used to manage spaces, connectors and subscriptions.
     spaces = new Space(DEFAULT_SPACE_COLLECTION);
-    spaces.setForceOwner(NakshaHubConfig.appName);
+    spaces.setForceOwner(NakshaHubConfig.APP_NAME);
     spaces.setHistory(true);
     spaces.setConnectorIds(adminConnector.getId());
 
     connectors = new Space(DEFAULT_CONNECTOR_COLLECTION);
-    connectors.setForceOwner(NakshaHubConfig.appName);
+    connectors.setForceOwner(NakshaHubConfig.APP_NAME);
     connectors.setHistory(true);
     connectors.setConnectorIds(adminConnector.getId());
 
     subscriptions = new Space(DEFAULT_SUBSCRIPTIONS_COLLECTION);
-    subscriptions.setForceOwner(NakshaHubConfig.appName);
+    subscriptions.setForceOwner(NakshaHubConfig.APP_NAME);
     subscriptions.setHistory(true);
     subscriptions.setConnectorIds(adminConnector.getId());
 

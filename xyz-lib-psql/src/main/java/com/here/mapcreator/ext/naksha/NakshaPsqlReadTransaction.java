@@ -1,6 +1,5 @@
 package com.here.mapcreator.ext.naksha;
 
-import com.here.xyz.Extensible;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.hub.Space;
 import java.sql.SQLException;

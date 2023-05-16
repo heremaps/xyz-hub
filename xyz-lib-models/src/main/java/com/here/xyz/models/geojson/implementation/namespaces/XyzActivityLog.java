@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.here.xyz.JsonObject;
 import com.here.xyz.View;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Action;
@@ -33,8 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 
 @SuppressWarnings("unused")
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class XyzActivityLog implements XyzSerializable {
+public class XyzActivityLog extends JsonObject {
   public static final ObjectMapper mapper = new ObjectMapper();
   public static final String ID = "id";
   public static final String ORIGINAL = "original";

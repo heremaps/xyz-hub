@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.Extensible;
+import com.here.xyz.JsonObject;
 import com.here.xyz.View;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,7 +32,7 @@ import org.jetbrains.annotations.Nullable;
  * The standard properties of the standard feature store in the Naksha-Hub.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Original extends Extensible {
+public class Original extends JsonObject {
 
   public static final String CREATED_AT = "createdAt";
   public static final String PUUID = "puuid";

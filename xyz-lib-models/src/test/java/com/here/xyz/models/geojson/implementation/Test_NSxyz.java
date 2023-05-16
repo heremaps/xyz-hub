@@ -19,12 +19,13 @@
 
 package com.here.xyz.models.geojson.implementation;
 
-import static org.junit.Assert.assertEquals;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class Test_NSxyz {
 

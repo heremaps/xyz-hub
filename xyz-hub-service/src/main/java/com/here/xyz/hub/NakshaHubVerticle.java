@@ -86,6 +86,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The Naksha-Hub verticle. Can only be created by the Naksha-Hub. We deploy as many verticle as we have CPUs.
  */
+@SuppressWarnings("unused")
 public class NakshaHubVerticle extends AbstractVerticle {
 
   private static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()

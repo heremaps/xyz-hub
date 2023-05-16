@@ -27,10 +27,6 @@ import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.*;
 import com.here.mapcreator.ext.naksha.sql.DhString;
 
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -38,9 +34,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class PSQLIndexIT extends PSQLAbstractIT {
 
@@ -51,12 +49,12 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     }
   };
 
-  @BeforeClass
+  @BeforeAll
   public static void init() throws Exception {
     initEnv(connectorParams);
   }
 
-  @After
+  @AfterAll
   public void shutdown() throws Exception {
     invokeDeleteTestSpace(connectorParams);
   }

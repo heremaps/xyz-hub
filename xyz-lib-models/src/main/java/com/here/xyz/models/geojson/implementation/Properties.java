@@ -23,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.xyz.Extensible;
+import com.here.xyz.JsonObject;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.NotNull;
@@ -32,8 +32,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The standard properties of the standard feature store in the Naksha-Hub.
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class Properties extends Extensible {
+public class Properties extends JsonObject {
 
   public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
   public static final String XYZ_ACTIVITY_LOG_NS = "@ns:com:here:xyz:log";

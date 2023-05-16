@@ -19,9 +19,6 @@
 
 package com.here.xyz.psql;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.IterateFeaturesEvent;
@@ -30,10 +27,11 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import java.util.HashMap;
 import java.util.Map;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 @SuppressWarnings("unused")
 public class PSQLResponseSizeIT extends PSQLAbstractIT {
@@ -41,16 +39,16 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
   static Map<String, Object> connectorParams = new HashMap<String,Object>(){{
   }};
 
-  @BeforeClass
+  @BeforeAll
   public static void init() throws Exception { initEnv(connectorParams); }
 
-  @Before
+  @BeforeAll
   public void prepare() throws Exception {
     invokeDeleteTestSpace(connectorParams);
     invokeLambdaFromFile("/events/InsertFeaturesEventTransactional.json");
   }
 
-  @After
+  @AfterAll
   public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }
 
   @Test

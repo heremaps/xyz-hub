@@ -3,15 +3,19 @@ package com.here.xyz.events;
 import static com.here.xyz.events.QueryDelimiter.AMPERSAND;
 import static com.here.xyz.events.QueryDelimiter.COLON;
 import static com.here.xyz.events.QueryDelimiter.END;
-import static com.here.xyz.events.QueryDelimiter.EQUAL;
 import static com.here.xyz.events.QueryDelimiter.EXCLAMATION_MARK;
 import static com.here.xyz.events.QueryDelimiter.PLUS;
 import static com.here.xyz.events.QueryParameterType.STRING;
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.exceptions.ParameterError;
 import org.jetbrains.annotations.NotNull;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class QueryParameterListTest {
 

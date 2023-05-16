@@ -7,7 +7,7 @@ import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.ModifyFeatureOp;
 import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.TaskPipeline;
-import com.here.xyz.hub.util.diff.Patcher;
+import com.here.xyz.util.diff.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.ext.web.RoutingContext;
@@ -22,7 +22,7 @@ public final class ConditionalModifyFeaturesTask extends AbstractFeatureTask<Mod
   public @Nullable ModifyOp.IfNotExists ifNotExists;
   public @Nullable ModifyOp.IfExists ifExists;
   public boolean transactional;
-  public @Nullable Patcher.ConflictResolution conflictResolution;
+  public @Nullable ConflictResolution conflictResolution;
   public List<Feature> unmodifiedFeatures;
   public final boolean requireResourceExists;
   public List<String> addTags;
