@@ -1,1 +1,2 @@
-# remove this comment here and just directly add the endpoint URL of a dev instance naksha here
+# remove these comments here and just directly add the endpoint URL of a dev instance naksha here
+# to prevent the file from being tracked by git, run "git update-index --assume-unchanged [<file> ...]"
