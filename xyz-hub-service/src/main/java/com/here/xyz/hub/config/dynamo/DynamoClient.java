@@ -23,13 +23,12 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.InstanceProfileCredentialsProvider;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
-import com.amazonaws.services.dynamodbv2.model.BillingMode;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
 import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndex;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
@@ -61,15 +60,21 @@ public class DynamoClient {
   public final DynamoDB db;
   final ARN arn;
 
-  public DynamoClient(String tableArn) {
+  public DynamoClient(String tableArn, String localstackEndpoint) {
     arn = new ARN(tableArn);
 
     final AmazonDynamoDBAsyncClientBuilder builder = AmazonDynamoDBAsyncClientBuilder.standard();
 
     if (isLocal()) {
-      builder.setCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")));
-      final String endpoint = "http://" + arn.getRegion() + ":" + Integer.parseInt(arn.getAccountId());
-      builder.setEndpointConfiguration(new EndpointConfiguration(endpoint, "US-WEST-1"));
+      if(localstackEndpoint == null) {
+        builder.setCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("dummy", "dummy")));
+        final String endpoint = "http://" + arn.getRegion() + ":" + Integer.parseInt(arn.getAccountId());
+        builder.setEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, "US-WEST-1"));
+      }else {
+        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
+                        (localstackEndpoint == null ? Service.configuration.LOCALSTACK_ENDPOINT : localstackEndpoint), "eu-west-1"))
+                .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")));
+      }
     }
     else {
       builder.setRegion(arn.getRegion());
@@ -109,8 +114,7 @@ public class DynamoClient {
           .withTableName(tableName)
           .withAttributeDefinitions(attList)
           .withKeySchema(keyList)
-          .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L))
-          .withBillingMode(BillingMode.PAY_PER_REQUEST);
+          .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L));
 
       // optional
       if (indexes != null) {

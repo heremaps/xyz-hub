@@ -136,7 +136,7 @@ public class JobApi extends Api {
                     final String latestObject = "part_"+(importJob.getImportObjects().size()-1)+".csv";
 
                     HashMap<String,URL> urlObj = new HashMap<String,URL>(){{
-                      put("ulr",importJob.getImportObjects().get(latestObject).getUploadUrl());
+                      put("url",importJob.getImportObjects().get(latestObject).getUploadUrl());
                     }};
                     this.sendResponse(context, CREATED, urlObj);
                   }catch (Exception e){

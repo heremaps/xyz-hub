@@ -48,7 +48,7 @@ public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
     private final DynamoClient dynamoClient;
 
     public DynamoSubscriptionConfigClient(String tableArn) {
-        dynamoClient = new DynamoClient(tableArn);
+        dynamoClient = new DynamoClient(tableArn, null);
         logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
         subscriptions = dynamoClient.db.getTable(dynamoClient.tableName);
     }

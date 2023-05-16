@@ -77,7 +77,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   private Table packages;
 
   public DynamoSpaceConfigClient(final String tableArn) {
-    dynamoClient = new DynamoClient(tableArn);
+    dynamoClient = new DynamoClient(tableArn, null);
 
     logger.info("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     spaces = dynamoClient.db.getTable(dynamoClient.tableName);

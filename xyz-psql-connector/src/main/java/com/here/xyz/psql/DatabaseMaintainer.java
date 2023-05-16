@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    public static final int XYZ_EXT_VERSION = 160;
+    public static final int XYZ_EXT_VERSION = 161;
 
     public static final int H3_CORE_VERSION = 107;
 
@@ -149,6 +149,7 @@ public class DatabaseMaintainer {
                 final boolean db_status_table = rs.getBoolean("db_status_table");
                 final boolean space_meta_table = rs.getBoolean("space_meta_table");
                 final boolean tag_table = rs.getBoolean("tag_table");
+                final boolean subscription_table = rs.getBoolean("subscription_table");
 
                 try {
                     // Set the default compression algorithm
@@ -185,6 +186,10 @@ public class DatabaseMaintainer {
                         stmt.execute(MaintenanceSQL.createTagTable);
                     }
 
+                    if (!subscription_table) {
+                        /** Create Missing Tag Table */
+                        stmt.execute(MaintenanceSQL.createSubscriptionTable);
+                    }
                 } catch (Exception e) {
                     logger.warn("{} Failed to create missing Schema(s) on database: {} / {}@{} '{}'", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost(), e);
                 }

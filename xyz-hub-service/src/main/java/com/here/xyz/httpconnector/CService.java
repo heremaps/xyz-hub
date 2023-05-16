@@ -196,6 +196,10 @@ public class CService extends Core {
      */
     public String JOBS_DYNAMODB_TABLE_ARN;
     /**
+     * S3/CW/Dynamodb localstack endpoints
+     */
+    public String LOCALSTACK_ENDPOINT;
+    /**
      * S3 Bucket for imports/exports
      */
     public String JOBS_S3_BUCKET;
@@ -206,7 +210,7 @@ public class CService extends Core {
     /**
      * Set interval for JobQueue processing
      */
-    public int JOB_CHECK_QUEUE_INTERVAL_SECONDS;
+    public int JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS;
     /**
      * Define how many job are allowed to run in parallel
      */

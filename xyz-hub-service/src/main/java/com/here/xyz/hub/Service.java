@@ -845,6 +845,10 @@ public class Service extends Core {
      * The PEM encoded certificate(-chain) to be used as truststore for client TLS authentication (mTLS) including header & footer.
      */
     public String XYZ_HUB_CLIENT_TLS_TRUSTSTORE;
+    /**
+     * S3/CW/Dynamodb localstack endpoints
+     */
+    public String LOCALSTACK_ENDPOINT;
 
     /**
      * A JSON String which holds the regional cluster mapping.

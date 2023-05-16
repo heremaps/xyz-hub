@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ public class MaintenanceClient {
     private static Map<String, MaintenanceInstance> dbInstanceMap = new HashMap<>();
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
 
-    private static final String[] extensionList = new String[]{"postgis","postgis_topology","tsm_system_rows","dblink"};
+    private static final String[] extensionList = new String[]{"postgis","postgis_topology","tsm_system_rows","dblink","aws_s3"};
     private static final String[] localScripts = new String[]{"/xyz_ext.sql", "/h3Core.sql"};
 
     private static final Logger logger = LogManager.getLogger();
@@ -188,6 +188,9 @@ public class MaintenanceClient {
 
             logger.info("{}: Create required Tag-Table..", connectorId);
             executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createTagTable), source);
+
+            logger.info("{}: Create required Subscription-Table..", connectorId);
+            executeQueryWithoutResults(new SQLQuery(MaintenanceSQL.createSubscriptionTable), source);
 
             /** set searchPath */
             executeQueryWithoutResults(setSearchpath, source);

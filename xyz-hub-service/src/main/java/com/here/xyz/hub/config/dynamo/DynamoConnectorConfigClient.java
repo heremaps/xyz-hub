@@ -47,7 +47,7 @@ public class DynamoConnectorConfigClient extends ConnectorConfigClient {
   private final DynamoClient dynamoClient;
 
   public DynamoConnectorConfigClient(String tableArn) {
-    dynamoClient = new DynamoClient(tableArn);
+    dynamoClient = new DynamoClient(tableArn, null);
     logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     connectors = dynamoClient.db.getTable(dynamoClient.tableName);
   }

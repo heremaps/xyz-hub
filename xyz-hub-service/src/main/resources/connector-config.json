@@ -19,10 +19,11 @@
   "STORAGE_DB_USER": "postgres",
   "STORAGE_DB_PASSWORD": "password",
 
-  "JOBS_DYNAMODB_TABLE_ARN" : "arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-jobs",
-  "JOBS_S3_BUCKET": "TBD",
+  "LOCALSTACK_ENDPOINT" : "http://localhost:4566",
+
+  "JOBS_S3_BUCKET": "test-bucket",
   "JOBS_REGION": "eu-west-1",
-  "JOB_CHECK_QUEUE_INTERVAL_SECONDS" : 10,
+  "JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS" : 100,
   "JOB_MAX_RUNNING_JOBS" : 2,
 
   "JOB_MAX_RDS_CPU_LOAD" : 20,

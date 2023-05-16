@@ -19,6 +19,9 @@
 
 package com.here.xyz.httpconnector.config;
 
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
 import com.amazonaws.services.cloudwatch.model.*;
@@ -47,7 +50,17 @@ public class AwsCWClient {
 
     public AwsCWClient(){
         final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
-        this.client = AmazonCloudWatchClientBuilder.standard().withRegion(region).build();
+        AmazonCloudWatchClientBuilder builder = AmazonCloudWatchClientBuilder.standard();
+
+        if(isLocal()){
+            builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
+                            CService.configuration.LOCALSTACK_ENDPOINT, CService.configuration.JOBS_REGION))
+                   .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")));
+        }else {
+            builder.setRegion(region);
+        }
+
+        this.client = builder.build();
     }
 
     public JSONObject getAvg5MinRDSMetrics(String dbInstanceIdentifier){
@@ -115,5 +128,12 @@ public class AwsCWClient {
         return new MetricDataQuery()
                 .withId(METRIC_MAP.get(metricName))
                 .withMetricStat(metricStat);
+    }
+
+    public boolean isLocal() {
+        if(CService.configuration.HUB_ENDPOINT.contains("localhost") ||
+                CService.configuration.HUB_ENDPOINT.contains("xyz-hub:8080"))
+            return true;
+        return false;
     }
 }

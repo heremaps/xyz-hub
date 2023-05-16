@@ -3,7 +3,7 @@ FROM postgres:14.7
 ENV POSTGRES_PASSWORD password
 
 RUN apt-get update && \
-    apt-get -y install postgresql-14-postgis-3 postgresql-14-wal2json
+    apt-get -y install postgresql-14-postgis-3 postgresql-14-wal2json postgresql-plpython3-14 git python3-boto3 make
 
 RUN echo "#!/bin/sh -e\n\
 \n\n\
@@ -12,3 +12,18 @@ sed -i.2.org -e \"s/#track_commit_timestamp\s*=/track_commit_timestamp = on #/\"
 " > /docker-entrypoint-initdb.d/cfg_logical_replication.sh
 
 RUN chmod 755 /docker-entrypoint-initdb.d/cfg_logical_replication.sh
+
+WORKDIR /home
+#Clone forked AWS RDS S3-Extension mock called "chimpler"
+RUN git clone https://github.com/mchrza/postgres-aws-s3.git --branch 01 .
+RUN make install
+
+#Add mocked aws settings during initializiation phase
+RUN echo "#!/bin/sh -e \n\
+echo aws_s3.endpoint_url='http://localstack:4566' >> /var/lib/postgresql/data/postgresql.conf \n\
+echo aws_s3.access_key_id='localstack' >> /var/lib/postgresql/data/postgresql.conf \n\
+echo aws_s3.secret_access_key='localstack' >> /var/lib/postgresql/data/postgresql.conf \n\
+psql -a -d postgres -U postgres -c \"SELECT pg_reload_conf();\" > /dev/null \n\
+" > /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
+
+RUN chmod 755 /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
