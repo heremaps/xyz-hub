@@ -38,7 +38,7 @@ class HttpHandlerParams extends EventHandlerParams {
     url = new URL(parseValue(connectorParams, URL, String.class));
     connTimeout = parseValueWithDefault(connectorParams, CONN_TIMEOUT, TimeUnit.SECONDS.toMillis(5));
     readTimeout = parseValueWithDefault(connectorParams, READ_TIMEOUT, TimeUnit.SECONDS.toMillis(60));
-    httpMethod = parseValueWithDefault(connectorParams, HTTP_METHOD, HTTP_GET);
+    httpMethod = parseValueWithDefault(connectorParams, HTTP_METHOD, HTTP_POST);
   }
 
   /**

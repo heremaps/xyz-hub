@@ -4,12 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.events.info.HealthCheckEvent;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.IoHelp;
@@ -56,5 +60,17 @@ class HttpHandlerTest {
     assertInstanceOf(ErrorResponse.class, response);
     final ErrorResponse errorResponse = (ErrorResponse) response;
     assertSame(XyzError.NOT_IMPLEMENTED, errorResponse.getError());
+  }
+
+  @Test
+  public void test_HealthCheckEvent() throws IOException {
+    final HealthCheckEvent event = new HealthCheckEvent();
+    event.setSpace(new Space("ASpaceThatShouldNotExistBecauseWeAreTesting"));
+    final ByteArrayOutputStream out = new ByteArrayOutputStream();
+    eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray()), out);
+    //    eventPipeline.sendEvent(IoHelp.openResource("testevent.json"), out);
+    final XyzResponse response = XyzSerializable.deserialize(out.toByteArray(), XyzResponse.class);
+    assertNotNull(response);
+    assertInstanceOf(SuccessResponse.class, response);
   }
 }
