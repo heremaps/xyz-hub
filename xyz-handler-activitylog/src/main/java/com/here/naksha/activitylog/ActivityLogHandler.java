@@ -87,7 +87,7 @@ public class ActivityLogHandler extends EventHandler {
     //InvalidatedAt can be ignored for now.
   }
 
-  protected void fromActivityLogFormat(@NotNull Feature activityLogFeature) {
+  protected static void fromActivityLogFormat(@NotNull Feature activityLogFeature) {
     final XyzActivityLog xyzActivityLog = activityLogFeature.getProperties().getXyzActivityLog();
     final XyzNamespace xyzNamespace = activityLogFeature.getProperties().getXyzNamespace();
     if (xyzActivityLog != null) {
