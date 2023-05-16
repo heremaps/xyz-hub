@@ -1,13 +1,11 @@
 package com.here.xyz.util;
 
-import static com.here.xyz.util.IoHelp.readConfigFromHomeOrResource;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.util.IoHelp.LoadedConfig;
+import com.here.xyz.util.IoHelp.LoadedBytes;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Map;
@@ -112,9 +110,9 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends 
    */
   public final @NotNull SELF load(final @Nullable Function<@NotNull String, @Nullable String> getEnv) throws IOException {
     Map<String, Object> configValues = null;
-    LoadedConfig loaded = null;
+    LoadedBytes loaded = null;
     try {
-      loaded = readConfigFromHomeOrResource(filename(), false, appName(), searchPath());
+      loaded = IoHelp.readBytesFromHomeOrResource(filename(), false, appName(), searchPath());
       configValues = XyzSerializable.DEFAULT_MAPPER.get().readValue(loaded.bytes(), MAP_TYPE);
     } catch (Throwable t) {
       logger.error("Failed to load configuration file: {} (path={})", filename, loaded != null ? loaded.path() : "", t);

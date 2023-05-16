@@ -31,7 +31,7 @@ import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.PsqlHandlerParams;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.util.IoHelp;
-import com.here.xyz.util.IoHelp.LoadedConfig;
+import com.here.xyz.util.IoHelp.LoadedBytes;
 import com.here.xyz.util.Params;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
@@ -183,7 +183,7 @@ public class NakshaHub extends NakshaMgmtClient {
       authOptions = new JWTAuthOptions().addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtPubKey));
     } else {
       final String jwtKeyPath = "auth/" + config.jwtKeyName + ".key";
-      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource(jwtKeyPath, false, NakshaHubConfig.APP_NAME);
+      final LoadedBytes loaded = IoHelp.readBytesFromHomeOrResource(jwtKeyPath, false, NakshaHubConfig.APP_NAME);
       logger.info("Loaded JWT key file {}", loaded.path());
       final String jwtKey = new String(loaded.bytes(), StandardCharsets.UTF_8);
       authOptions = new JWTAuthOptions()

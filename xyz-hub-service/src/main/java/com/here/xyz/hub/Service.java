@@ -21,7 +21,7 @@ package com.here.xyz.hub;
 
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.IoHelp;
-import com.here.xyz.util.IoHelp.LoadedConfig;
+import com.here.xyz.util.IoHelp.LoadedBytes;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -59,11 +59,11 @@ public class Service extends NakshaHub {
         return;
       }
       final String customFilename = split[1];
-      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource(customFilename, true, NakshaHubConfig.APP_NAME);
+      final LoadedBytes loaded = IoHelp.readBytesFromHomeOrResource(customFilename, true, NakshaHubConfig.APP_NAME);
       System.out.println("Loaded configuration file: " + loaded.path());
       config = XyzSerializable.deserialize(loaded.bytes(), NakshaHubConfig.class);
     } else {
-      final LoadedConfig loaded = IoHelp.readConfigFromHomeOrResource("config.json", false, NakshaHubConfig.APP_NAME);
+      final LoadedBytes loaded = IoHelp.readBytesFromHomeOrResource("config.json", false, NakshaHubConfig.APP_NAME);
       System.out.println("Loaded configuration file: " + loaded.path());
       config = XyzSerializable.deserialize(loaded.bytes(), NakshaHubConfig.class);
     }

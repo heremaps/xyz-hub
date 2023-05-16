@@ -1,5 +1,6 @@
 package com.here.xyz.util;
 
+import com.here.xyz.XyzSerializable;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -168,12 +169,23 @@ public final class IoHelp {
   }
 
   /**
-   * The loaded config.
+   * The loaded bytes.
    *
    * @param path  The path loaded.
    * @param bytes The bytes loaded.
    */
-  public record LoadedConfig(@NotNull String path, byte @NotNull [] bytes) {
+  public record LoadedBytes(@NotNull String path, byte @NotNull [] bytes) {
+
+  }
+
+  /**
+   * The loaded config.
+   *
+   * @param path     The path loaded.
+   * @param config   The loaded config.
+   * @param <CONFIG> The config-type.
+   */
+  public record LoadedConfig<CONFIG>(@NotNull String path, CONFIG config) {
 
   }
 
@@ -187,7 +199,28 @@ public final class IoHelp {
    * @return The loaded configuration file.
    * @throws IOException If the file does not exist or any other error occurred.
    */
-  public static @NotNull LoadedConfig readConfigFromHomeOrResource(
+  public static <CONFIG> @NotNull LoadedConfig<CONFIG> readConfigFromHomeOrResource(
+      @NotNull String filename,
+      boolean tryWorkingDirectory,
+      @NotNull String appName,
+      @NotNull Class<CONFIG> configClass,
+      @Nullable String... searchPaths) throws IOException {
+    final LoadedBytes loadedBytes = readBytesFromHomeOrResource(filename, tryWorkingDirectory, appName, searchPaths);
+    final CONFIG config = XyzSerializable.deserialize(loadedBytes.bytes, configClass);
+    return new LoadedConfig<>(loadedBytes.path, config);
+  }
+
+  /**
+   * Read a file either from the given search paths or when not found there from "~/.config/{appName}", and eventually from the resources.
+   *
+   * @param filename            The filename of the file to read, e.g. "auth/jwt.key".
+   * @param tryWorkingDirectory If the filename should be used relative to the working directory (or as absolute file path).
+   * @param appName             The name of the application, when searching the default location (~/.config/{appName}).
+   * @param searchPaths         Optional paths to search along, before trying the default location.
+   * @return The loaded configuration file.
+   * @throws IOException If the file does not exist or any other error occurred.
+   */
+  public static @NotNull LoadedBytes readBytesFromHomeOrResource(
       @NotNull String filename,
       boolean tryWorkingDirectory,
       @NotNull String appName,
@@ -202,7 +235,7 @@ public final class IoHelp {
       filePath = Paths.get(filename).toAbsolutePath();
       final File file = filePath.toFile();
       if (file.exists() && file.isFile() && file.canRead()) {
-        return new LoadedConfig(filePath.toString(), Files.readAllBytes(filePath));
+        return new LoadedBytes(filePath.toString(), Files.readAllBytes(filePath));
       }
     }
 
@@ -218,7 +251,7 @@ public final class IoHelp {
       filePath = Paths.get(path).toAbsolutePath();
       final File file = filePath.toFile();
       if (file.exists() && file.isFile() && file.canRead()) {
-        return new LoadedConfig(filePath.toString(), Files.readAllBytes(filePath));
+        return new LoadedBytes(filePath.toString(), Files.readAllBytes(filePath));
       }
     }
     final String userHome = System.getProperty("user.home");
@@ -230,7 +263,7 @@ public final class IoHelp {
     if (filePath != null) {
       final File file = filePath.toFile();
       if (file.exists() && file.isFile() && file.canRead()) {
-        return new LoadedConfig(filePath.toString(), Files.readAllBytes(filePath));
+        return new LoadedBytes(filePath.toString(), Files.readAllBytes(filePath));
       }
     }
 
@@ -239,7 +272,7 @@ public final class IoHelp {
       throw new FileNotFoundException(filename);
     }
     try (final InputStream is = url.openStream()) {
-      return new LoadedConfig(url.toString(), readNBytes(is, Integer.MAX_VALUE));
+      return new LoadedBytes(url.toString(), readNBytes(is, Integer.MAX_VALUE));
     }
   }
 
