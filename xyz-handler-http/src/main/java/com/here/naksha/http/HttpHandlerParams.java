@@ -1,6 +1,7 @@
-package com.here.naksha.activitylog;
+package com.here.naksha.http;
 
 import com.here.xyz.EventHandlerParams;
+import com.sun.net.httpserver.HttpContext;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Map;
@@ -17,6 +18,13 @@ class HttpHandlerParams extends EventHandlerParams {
   public static final String URL = "url";
   public static final String CONN_TIMEOUT = "connTimeout";
   public static final String READ_TIMEOUT = "readTimeout";
+  public static final String HTTP_METHOD = "httpMethod";
+  public static final String HTTP_GET = "GET";
+  public static final String HTTP_PUT = "PUT";
+  public static final String HTTP_POST = "POST";
+  public static final String HTTP_PATCH = "PATCH";
+
+
 
   /**
    * Parse the given connector params into this type-safe class.
@@ -30,6 +38,7 @@ class HttpHandlerParams extends EventHandlerParams {
     url = new URL(parseValue(connectorParams, URL, String.class));
     connTimeout = parseValueWithDefault(connectorParams, CONN_TIMEOUT, TimeUnit.SECONDS.toMillis(5));
     readTimeout = parseValueWithDefault(connectorParams, READ_TIMEOUT, TimeUnit.SECONDS.toMillis(60));
+    httpMethod = parseValueWithDefault(connectorParams, HTTP_METHOD, HTTP_GET);
   }
 
   /**
@@ -46,4 +55,7 @@ class HttpHandlerParams extends EventHandlerParams {
    * Abort read timeout in milliseconds.
    */
   final long readTimeout;
+
+  /**HTTP method*/
+  final String httpMethod;
 }

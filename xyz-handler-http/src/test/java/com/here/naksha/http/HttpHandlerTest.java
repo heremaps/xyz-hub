@@ -1,4 +1,4 @@
-package com.here.naksha.activitylog;
+package com.here.naksha.http;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -32,7 +32,11 @@ class HttpHandlerTest {
   @BeforeAll
   static void setup() throws XyzErrorException, IOException {
     connector = new Connector("test:http", Math.abs(RandomUtils.nextLong()));
-    connector.setParams(new Params().with(HttpHandlerParams.URL,new String(IoHelp.openResource("endpoint").readAllBytes())));
+    connector.setParams(
+        new Params()
+            .with(HttpHandlerParams.URL,new String(IoHelp.openResource("endpoint").readAllBytes()))
+            .with(HttpHandlerParams.HTTP_METHOD, HttpHandlerParams.HTTP_GET)
+    );
     eventPipeline = new IoEventPipeline();
     httpHandler = new HttpHandler(connector);
     eventPipeline.addEventHandler(httpHandler);

@@ -1,4 +1,4 @@
-package com.here.naksha.activitylog;
+package com.here.naksha.http;
 
 import com.here.xyz.EventHandler;
 import com.here.xyz.IEventContext;
@@ -26,7 +26,7 @@ public class HttpHandler extends EventHandler {
   public static final String ID = "naksha:http";
 
   /**
-   * Creates a new activity log handler.
+   * Creates a new HTTP handler.
    * @param connector The connector configuration.
    * @throws XyzErrorException If any error occurred.
    */
@@ -49,7 +49,7 @@ public class HttpHandler extends EventHandler {
       final HttpURLConnection conn = (HttpURLConnection) params.url.openConnection();
       conn.setConnectTimeout((int) params.connTimeout);
       conn.setReadTimeout((int) params.readTimeout);
-      conn.setRequestMethod("POST");
+      conn.setRequestMethod(params.httpMethod);
       conn.setFixedLengthStreamingMode(bytes.length);
       conn.setUseCaches(false);
       conn.setDoInput(true);
