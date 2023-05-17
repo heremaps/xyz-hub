@@ -1,9 +1,7 @@
 package com.here.naksha.activitylog;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.here.mapcreator.ext.naksha.PsqlConfig;
-import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
 import com.here.mapcreator.ext.naksha.PsqlDataSource;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.Typed;
@@ -23,19 +21,17 @@ import com.here.xyz.util.IoHelp.LoadedConfig;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import com.flipkart.zjsonpatch.JsonDiff;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class ActivityLogHandlerTest {
   private static final String APP_NAME = "xyz-hub.test";
-  private static final String CONFIG_FILENAME = "http-handler-activitylog.json";
+  private static final String CONFIG_FILENAME = "activitylog-db-config.json";
 
   static Connector connector;
   static IoEventPipeline eventPipeline;
@@ -142,5 +138,11 @@ class ActivityLogHandlerTest {
     final JsonNode raw1 = XyzSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), JsonNode.class);
     final String raw3 = XyzSerializable.serialize(feature);
     assertInstanceOf(Feature.class, raw);
+  }
+
+  @Test
+  void test_sqlQueryBuilder() throws IOException{
+    List<String> listStrings = Arrays.asList("sup1", "sup2", "sup3");
+    ActivityLogDBWriter.sqlQueryBuilder(listStrings);
   }
 }

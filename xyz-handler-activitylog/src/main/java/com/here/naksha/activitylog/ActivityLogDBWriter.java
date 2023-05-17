@@ -15,7 +15,7 @@ public class ActivityLogDBWriter {
     public static void fromActicityLogDBToFeature(PsqlDataSource dataSource) {
         List<String> featureList = new ArrayList<String>();
         try (Connection conn = dataSource.getConnection()) {
-            String SQL = "SELECT * FROM activity.\"RnxiONGZ\" LIMIT 10;";
+            String SQL = "SELECT * FROM activity.\"RnxiONGZ\" LIMIT 2;";
             try (final PreparedStatement stmt = conn.prepareStatement(SQL)) {
                 final ResultSet result = stmt.executeQuery();
                 while (result.next()) {
@@ -28,8 +28,38 @@ public class ActivityLogDBWriter {
                     }
                 }
             }
+            String queryPreRequisite = sqlQueryPreRequisites();
+            try (final PreparedStatement stmt = conn.prepareStatement(queryPreRequisite)) {
+                stmt.executeQuery();
+            }
+            String sqlBulkInsertQuery = sqlQueryBuilder(featureList);
+            try (final PreparedStatement stmt = conn.prepareStatement(sqlBulkInsertQuery)) {
+                stmt.executeQuery();
+            }
         } catch (SQLException throwables) {
             throwables.printStackTrace();
         }
+    }
+    public static String sqlQueryBuilder(List<String> featureList){
+        String firstPart = "INSERT INTO activity.\"RnxiONGZ\"(jsondata, i) VALUES ";
+        for(int iterator=0; iterator<featureList.size();iterator++){
+            firstPart+= "(" + "\'"+featureList.get(iterator)+"\'" +","+ iterator + ")";
+            if(iterator+1!=featureList.size()){
+                firstPart+=",";
+            }
+        }
+        sqlQueryPreRequisites();
+        return firstPart;
+    }
+    public static String sqlQueryPreRequisites(){
+        String sqlQuery = "CREATE SCHEMA IF NOT EXISTS activity;\n" +
+                "CREATE TABLE IF NOT EXISTS activity.\"Features_Original_Format\"\n" +
+                "(\n" +
+                "    jsondata      jsonb,\n" +
+                "    geo           varchar,\n" +
+                "    i             int8 PRIMARY KEY NOT NULL\n" +
+                ");\n";
+        String abc = "";
+        return sqlQuery;
     }
 }
