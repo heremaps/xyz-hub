@@ -368,11 +368,5 @@
       <artifactId>jackson-dataformat-yaml</artifactId>
     </dependency>
 
-    <!-- Test -->
-    <dependency>
-      <artifactId>junit</artifactId>
-      <groupId>junit</groupId>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 </project>
