@@ -30,18 +30,19 @@ public class ActivityLogDBWriter {
             }
             String queryPreRequisite = sqlQueryPreRequisites();
             try (final PreparedStatement stmt = conn.prepareStatement(queryPreRequisite)) {
-                stmt.executeQuery();
+                stmt.executeUpdate();
             }
             String sqlBulkInsertQuery = sqlQueryBuilder(featureList);
             try (final PreparedStatement stmt = conn.prepareStatement(sqlBulkInsertQuery)) {
-                stmt.executeQuery();
+                stmt.executeUpdate();
             }
         } catch (SQLException throwables) {
             throwables.printStackTrace();
         }
     }
     public static String sqlQueryBuilder(List<String> featureList){
-        String firstPart = "INSERT INTO activity.\"RnxiONGZ\"(jsondata, i) VALUES ";
+        //TODO Custom Table Name & Schema
+        String firstPart = "INSERT INTO activity.\"Features_Original_Format\"(jsondata, i) VALUES ";
         for(int iterator=0; iterator<featureList.size();iterator++){
             firstPart+= "(" + "\'"+featureList.get(iterator)+"\'" +","+ iterator + ")";
             if(iterator+1!=featureList.size()){
@@ -52,14 +53,15 @@ public class ActivityLogDBWriter {
         return firstPart;
     }
     public static String sqlQueryPreRequisites(){
+        //TODO Custom Table Name & Schema
         String sqlQuery = "CREATE SCHEMA IF NOT EXISTS activity;\n" +
                 "CREATE TABLE IF NOT EXISTS activity.\"Features_Original_Format\"\n" +
                 "(\n" +
                 "    jsondata      jsonb,\n" +
                 "    geo           varchar,\n" +
                 "    i             int8 PRIMARY KEY NOT NULL\n" +
-                ");\n";
-        String abc = "";
+                ");\n" +
+                "CREATE SEQUENCE IF NOT EXISTS activity.\"Features_Original_Format\" AS int8 OWNED BY activity.\"Features_Original_Format\".i;";
         return sqlQuery;
     }
 }
