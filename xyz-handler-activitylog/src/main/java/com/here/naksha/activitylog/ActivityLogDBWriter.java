@@ -12,10 +12,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class ActivityLogDBWriter {
-    public static void fromActicityLogDBToFeature(PsqlDataSource dataSource) {
+    public static void fromActicityLogDBToFeature(PsqlDataSource dataSource, String tableName) {
+        String schema = dataSource.getSchema();
         List<String> featureList = new ArrayList<String>();
         try (Connection conn = dataSource.getConnection()) {
-            String SQL = "SELECT * FROM activity.\"RnxiONGZ\" LIMIT 2;";
+            String SQL = "SELECT * FROM "+ schema +".\""+tableName+"\" LIMIT 2;";
             try (final PreparedStatement stmt = conn.prepareStatement(SQL)) {
                 final ResultSet result = stmt.executeQuery();
                 while (result.next()) {
@@ -28,11 +29,11 @@ public class ActivityLogDBWriter {
                     }
                 }
             }
-            String queryPreRequisite = sqlQueryPreRequisites();
+            String queryPreRequisite = sqlQueryPreRequisites(schema);
             try (final PreparedStatement stmt = conn.prepareStatement(queryPreRequisite)) {
                 stmt.executeUpdate();
             }
-            String sqlBulkInsertQuery = sqlQueryBuilder(featureList);
+            String sqlBulkInsertQuery = sqlQueryBuilder(featureList,schema);
             try (final PreparedStatement stmt = conn.prepareStatement(sqlBulkInsertQuery)) {
                 stmt.executeUpdate();
             }
@@ -40,28 +41,25 @@ public class ActivityLogDBWriter {
             throwables.printStackTrace();
         }
     }
-    public static String sqlQueryBuilder(List<String> featureList){
-        //TODO Custom Table Name & Schema
-        String firstPart = "INSERT INTO activity.\"Features_Original_Format\"(jsondata, i) VALUES ";
-        for(int iterator=0; iterator<featureList.size();iterator++){
-            firstPart+= "(" + "\'"+featureList.get(iterator)+"\'" +","+ iterator + ")";
-            if(iterator+1!=featureList.size()){
+    public static String sqlQueryBuilder(List<String> featureList,String schema){
+        String firstPart = "INSERT INTO "+ schema +".\"Features_Original_Format\"(jsondata,i) VALUES ";
+        for(int iterator=1; iterator<featureList.size()+1;iterator++){
+            firstPart+= "(" + "\'"+featureList.get(iterator-1)+"\', "+iterator + ")";
+            if(iterator!=featureList.size()){
                 firstPart+=",";
             }
         }
-        sqlQueryPreRequisites();
         return firstPart;
     }
-    public static String sqlQueryPreRequisites(){
-        //TODO Custom Table Name & Schema
-        String sqlQuery = "CREATE SCHEMA IF NOT EXISTS activity;\n" +
-                "CREATE TABLE IF NOT EXISTS activity.\"Features_Original_Format\"\n" +
+    public static String sqlQueryPreRequisites(String schema){
+        String sqlQuery = "CREATE SCHEMA IF NOT EXISTS "+ schema + ";\n" +
+                "CREATE TABLE IF NOT EXISTS " + schema +".\"Features_Original_Format\"\n" +
                 "(\n" +
                 "    jsondata      jsonb,\n" +
                 "    geo           varchar,\n" +
-                "    i             int8 PRIMARY KEY NOT NULL\n" +
+                "    i             int8 PRIMARY KEY\n" +
                 ");\n" +
-                "CREATE SEQUENCE IF NOT EXISTS activity.\"Features_Original_Format\" AS int8 OWNED BY activity.\"Features_Original_Format\".i;";
+                "CREATE SEQUENCE IF NOT EXISTS " + schema +".\"Features_Original_Format\" AS int8 OWNED BY " + schema +".\"Features_Original_Format\".i;";
         return sqlQuery;
     }
 }

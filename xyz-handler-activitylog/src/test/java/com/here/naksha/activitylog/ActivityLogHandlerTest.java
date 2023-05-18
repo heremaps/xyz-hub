@@ -128,7 +128,7 @@ class ActivityLogHandlerTest {
   void test_connectToDb() throws IOException{
     final LoadedConfig<PsqlConfig> loaded = IoHelp.readConfigFromHomeOrResource(CONFIG_FILENAME, false, APP_NAME, PsqlConfig.class);
     final PsqlDataSource dataSource = new PsqlDataSource(loaded.config());
-    ActivityLogDBWriter.fromActicityLogDBToFeature(dataSource);
+    ActivityLogDBWriter.fromActicityLogDBToFeature(dataSource,"RnxiONGZ");
   }
 
   @Test
@@ -143,6 +143,6 @@ class ActivityLogHandlerTest {
   @Test
   void test_sqlQueryBuilder() throws IOException{
     List<String> listStrings = Arrays.asList("sup1", "sup2", "sup3");
-    ActivityLogDBWriter.sqlQueryBuilder(listStrings);
+    ActivityLogDBWriter.sqlQueryBuilder(listStrings,"activity");
   }
 }
