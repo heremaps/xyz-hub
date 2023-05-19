@@ -37,6 +37,7 @@ public class ActivityLogDBWriter {
             try (final PreparedStatement stmt = conn.prepareStatement(sqlBulkInsertQuery)) {
                 stmt.execute();
             }
+            conn.commit();
         } catch (SQLException throwables) {
             throwables.printStackTrace();
         }
