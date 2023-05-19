@@ -31,11 +31,11 @@ public class ActivityLogDBWriter {
             }
             String queryPreRequisite = sqlQueryPreRequisites(schema);
             try (final PreparedStatement stmt = conn.prepareStatement(queryPreRequisite)) {
-                stmt.executeUpdate();
+                stmt.execute();
             }
             String sqlBulkInsertQuery = sqlQueryBuilder(featureList,schema);
             try (final PreparedStatement stmt = conn.prepareStatement(sqlBulkInsertQuery)) {
-                stmt.executeUpdate();
+                stmt.execute();
             }
         } catch (SQLException throwables) {
             throwables.printStackTrace();
@@ -52,13 +52,13 @@ public class ActivityLogDBWriter {
         return firstPart;
     }
     public static String sqlQueryPreRequisites(String schema){
-        String sqlQuery = "CREATE SCHEMA IF NOT EXISTS "+ schema + ";\n" +
-                "CREATE TABLE IF NOT EXISTS " + schema +".\"Features_Original_Format\"\n" +
+        String sqlQuery = "CREATE SCHEMA IF NOT EXISTS "+ schema + ";" +
+                "CREATE TABLE IF NOT EXISTS " + schema +".\"Features_Original_Format\"" +
                 "(\n" +
-                "    jsondata      jsonb,\n" +
-                "    geo           varchar,\n" +
-                "    i             int8 PRIMARY KEY\n" +
-                ");\n" +
+                "    jsondata      jsonb," +
+                "    geo           varchar," +
+                "    i             int8 PRIMARY KEY" +
+                ");" +
                 "CREATE SEQUENCE IF NOT EXISTS " + schema +"."+ "Features_Original_Format_i_seq" +" AS int8 OWNED BY " + schema +".\"Features_Original_Format\".i;";
         return sqlQuery;
     }
