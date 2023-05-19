@@ -44,7 +44,7 @@ public class ActivityLogDBWriter {
     public static String sqlQueryBuilder(List<String> featureList,String schema){
         String firstPart = "INSERT INTO "+ schema +".\"Features_Original_Format\"(jsondata,i) VALUES ";
         for(int iterator=1; iterator<featureList.size()+1;iterator++){
-            firstPart+= "(" + "\'"+featureList.get(iterator-1)+"\', "+iterator + ")";
+            firstPart+= "(" + "\'"+featureList.get(iterator-1)+"\', "+"nextval('" +schema +".Features_Original_Format_i_seq')" + ")";
             if(iterator!=featureList.size()){
                 firstPart+=",";
             }
@@ -59,7 +59,7 @@ public class ActivityLogDBWriter {
                 "    geo           varchar,\n" +
                 "    i             int8 PRIMARY KEY\n" +
                 ");\n" +
-                "CREATE SEQUENCE IF NOT EXISTS " + schema +".\"Features_Original_Format\" AS int8 OWNED BY " + schema +".\"Features_Original_Format\".i;";
+                "CREATE SEQUENCE IF NOT EXISTS " + schema +"."+ "Features_Original_Format_i_seq" +" AS int8 OWNED BY " + schema +".\"Features_Original_Format\".i;";
         return sqlQuery;
     }
 }
