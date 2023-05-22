@@ -142,7 +142,9 @@ class ActivityLogHandlerTest {
 
   @Test
   void test_sqlQueryBuilder() throws IOException{
-    List<String> listStrings = Arrays.asList("sup1", "sup2", "sup3");
-    ActivityLogDBWriter.sqlQueryBuilder(listStrings,"activity");
+    List<String> listFeatures = Arrays.asList("sup1", "sup2", "sup3");
+    List<String> listGeos = Arrays.asList("geo1", "geo2", "geo3");
+    String query = ActivityLogDBWriter.sqlQueryBuilder(listFeatures,"activity",listGeos);
+    assertEquals(query,"INSERT INTO activity.\"Features_Original_Format\"(jsondata,geo,i) VALUES ('sup1', 'geo1', nextval('activity.Features_Original_Format_i_seq')),('sup2', 'geo2', nextval('activity.Features_Original_Format_i_seq')),('sup3', 'geo3', nextval('activity.Features_Original_Format_i_seq'))");
   }
 }

@@ -15,13 +15,15 @@ public class ActivityLogDBWriter {
     public static void fromActicityLogDBToFeature(PsqlDataSource dataSource, String tableName) {
         String schema = dataSource.getSchema();
         List<String> featureList = new ArrayList<String>();
+        List<String> geoList = new ArrayList<String>();
         try (Connection conn = dataSource.getConnection()) {
-            String SQL = "SELECT * FROM "+ schema +".\""+tableName+"\" LIMIT 2;";
+            String SQL = "SELECT jsondata,geo FROM "+ schema +".\""+tableName+"\" LIMIT 4;";
             try (final PreparedStatement stmt = conn.prepareStatement(SQL)) {
                 final ResultSet result = stmt.executeQuery();
                 while (result.next()) {
                     try {
                         Feature activityLogFeature = XyzSerializable.deserialize(result.getString(1), Feature.class);
+                        geoList.add(result.getString(2));
                         ActivityLogHandler.fromActivityLogFormat(activityLogFeature);
                         featureList.add(activityLogFeature.serialize());
                     } catch (JsonProcessingException e) {
@@ -33,7 +35,7 @@ public class ActivityLogDBWriter {
             try (final PreparedStatement stmt = conn.prepareStatement(queryPreRequisite)) {
                 stmt.execute();
             }
-            String sqlBulkInsertQuery = sqlQueryBuilder(featureList,schema);
+            String sqlBulkInsertQuery = sqlQueryBuilder(featureList,schema, geoList);
             try (final PreparedStatement stmt = conn.prepareStatement(sqlBulkInsertQuery)) {
                 stmt.execute();
             }
@@ -42,10 +44,10 @@ public class ActivityLogDBWriter {
             throwables.printStackTrace();
         }
     }
-    public static String sqlQueryBuilder(List<String> featureList,String schema){
-        String firstPart = "INSERT INTO "+ schema +".\"Features_Original_Format\"(jsondata,i) VALUES ";
+    public static String sqlQueryBuilder(List<String> featureList,String schema,List<String> geoList){
+        String firstPart = "INSERT INTO "+ schema +".\"Features_Original_Format\"(jsondata,geo,i) VALUES ";
         for(int iterator=1; iterator<featureList.size()+1;iterator++){
-            firstPart+= "(" + "\'"+featureList.get(iterator-1)+"\', "+"nextval('" +schema +".Features_Original_Format_i_seq')" + ")";
+            firstPart+= "(" + "\'"+featureList.get(iterator-1)+"\', " + "'"+geoList.get(iterator-1) + "'"+", nextval('" +schema +".Features_Original_Format_i_seq')" + ")";
             if(iterator!=featureList.size()){
                 firstPart+=",";
             }

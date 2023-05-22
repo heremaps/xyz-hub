@@ -107,11 +107,6 @@ public class ActivityLogHandler extends EventHandler {
     }
   }
 
-  protected void FetchActivityLogs() {
-    final PsqlConfig config = new PsqlConfigBuilder().withSchema("abc").withDb("adbfg").build();
-
-  }
-
   @Override
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
     final Event event = eventContext.getEvent();
