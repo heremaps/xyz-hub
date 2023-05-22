@@ -128,7 +128,7 @@ class ActivityLogHandlerTest {
   void test_connectToDb() throws IOException{
     final LoadedConfig<PsqlConfig> loaded = IoHelp.readConfigFromHomeOrResource(CONFIG_FILENAME, false, APP_NAME, PsqlConfig.class);
     final PsqlDataSource dataSource = new PsqlDataSource(loaded.config());
-    ActivityLogDBWriter.fromActicityLogDBToFeature(dataSource,"RnxiONGZ");
+    ActivityLogDBWriter.fromActicityLogDBToFeature(dataSource,"RnxiONGZ",1);
   }
 
   @Test
@@ -144,7 +144,8 @@ class ActivityLogHandlerTest {
   void test_sqlQueryBuilder() throws IOException{
     List<String> listFeatures = Arrays.asList("sup1", "sup2", "sup3");
     List<String> listGeos = Arrays.asList("geo1", "geo2", "geo3");
-    String query = ActivityLogDBWriter.sqlQueryBuilder(listFeatures,"activity",listGeos);
-    assertEquals(query,"INSERT INTO activity.\"Features_Original_Format\"(jsondata,geo,i) VALUES ('sup1', 'geo1', nextval('activity.Features_Original_Format_i_seq')),('sup2', 'geo2', nextval('activity.Features_Original_Format_i_seq')),('sup3', 'geo3', nextval('activity.Features_Original_Format_i_seq'))");
+    List<Integer> listi = Arrays.asList(1,2,3);
+    String query = ActivityLogDBWriter.sqlQueryBuilder(listFeatures,"activity",listGeos,listi);
+    assertEquals(query,"INSERT INTO activity.\"Features_Original_Format\"(jsondata,geo,i) VALUES ('sup1', 'geo1', 1),('sup2', 'geo2', 2),('sup3', 'geo3', 3)");
   }
 }
