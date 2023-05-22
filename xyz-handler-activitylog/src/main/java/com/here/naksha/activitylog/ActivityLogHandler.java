@@ -94,6 +94,17 @@ public class ActivityLogHandler extends EventHandler {
       xyzNamespace.setUuid(activityLogFeature.getId());
     }
     if (xyzActivityLog != null) {
+      if(xyzActivityLog.getOriginal()!=null){
+        if(xyzActivityLog.getOriginal().getPuuid()==null){
+          xyzNamespace.setAction("CREATE");
+        }
+        if(xyzActivityLog.getOriginal().getPuuid()!=null){
+          xyzNamespace.setAction("UPDATE");
+        }
+      }
+      if(xyzActivityLog.getAction() == "DELETE" && xyzNamespace!=null){
+        xyzNamespace.setAction("DELETE");
+      }
       activityLogFeature.setId(xyzActivityLog.getId());
       if(xyzNamespace != null && xyzActivityLog.getOriginal() != null){
         xyzNamespace.setMuuid(xyzActivityLog.getOriginal().getMuuid());
