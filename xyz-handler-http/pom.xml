@@ -51,6 +51,13 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>xyz-lib-models</artifactId>
+      <version>${project.parent.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>xyz-mock</artifactId>
+      <version>${project.parent.version}</version>
+      <scope>test</scope>
     </dependency>
 
     <!--  Logging libraries -->

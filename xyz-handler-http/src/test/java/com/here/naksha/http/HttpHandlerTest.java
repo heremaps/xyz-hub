@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import com.here.naksha.test.mock.MockHttpServer;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
@@ -51,7 +52,7 @@ class HttpHandlerTest {
     eventPipeline = new IoEventPipeline();
     httpHandler = new HttpHandler(connector);
     eventPipeline.addEventHandler(httpHandler);
-    fakeWebserver = new HttpFakeWebserver(9999);
+    fakeWebserver = new MockHttpServer(9999);
   }
 
   @AfterAll
@@ -62,7 +63,7 @@ class HttpHandlerTest {
     }
   }
 
-  static HttpFakeWebserver fakeWebserver;
+  static MockHttpServer fakeWebserver;
 
   @Test
   void test_GetFeaturesById() throws IOException {

@@ -1,4 +1,4 @@
-package com.here.naksha.http;
+package com.here.naksha.test.mock;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -8,11 +8,11 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.jetbrains.annotations.NotNull;
 
-public class HttpFakeWebserver {
+public class MockHttpServer {
 
   public final @NotNull HttpServer server;
 
-  public HttpFakeWebserver(int port) throws IOException {
+  public MockHttpServer(int port) throws IOException {
     server = HttpServer.create(new InetSocketAddress(port), 0);
     server.createContext("/", new MyHandler());
     server.setExecutor(null); // Use the default executor

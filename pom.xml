@@ -53,7 +53,10 @@
     <!--
     <module>xyz-txn-handler</module>
     -->
+    <!--
     <module>xyz-hub-service</module>
+    -->
+    <module>xyz-mock</module>
     <!--
     <module>xyz-hub-test</module>
     -->
