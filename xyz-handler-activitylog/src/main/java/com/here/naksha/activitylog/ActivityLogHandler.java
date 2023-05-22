@@ -90,6 +90,9 @@ public class ActivityLogHandler extends EventHandler {
   protected static void fromActivityLogFormat(@NotNull Feature activityLogFeature) {
     final XyzActivityLog xyzActivityLog = activityLogFeature.getProperties().getXyzActivityLog();
     final XyzNamespace xyzNamespace = activityLogFeature.getProperties().getXyzNamespace();
+    if(xyzNamespace != null){
+      xyzNamespace.setUuid(activityLogFeature.getId());
+    }
     if (xyzActivityLog != null) {
       activityLogFeature.setId(xyzActivityLog.getId());
       if(xyzNamespace != null && xyzActivityLog.getOriginal() != null){
