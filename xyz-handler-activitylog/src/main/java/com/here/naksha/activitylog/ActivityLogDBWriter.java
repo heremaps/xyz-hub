@@ -36,9 +36,9 @@ public class ActivityLogDBWriter {
                 if (result.next())
                     intMaxIFeaturesTable = result.getInt(1);
             }
-            Integer batchNumber = intMaxIFeaturesTable;
-            while(batchNumber<intMaxIActivityTable) {
-                String SQLSelectActiLog = "SELECT jsondata,geo,i FROM " + schema + ".\"" + tableName + "\" Where i>" + batchNumber + " limit "+limit+";";
+            Integer batchNumber = intMaxIFeaturesTable+limit;
+            while(batchNumber<(intMaxIActivityTable+limit)) {
+                String SQLSelectActiLog = "SELECT jsondata,geo,i FROM " + schema + ".\"" + tableName + "\" Where i>" + (batchNumber-limit) + " limit "+limit+";";
                 try (final PreparedStatement stmt = conn.prepareStatement(SQLSelectActiLog)) {
                     final ResultSet result = stmt.executeQuery();
                     while (result.next()) {

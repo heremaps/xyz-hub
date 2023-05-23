@@ -128,7 +128,7 @@ class ActivityLogHandlerTest {
   void test_connectToDb() throws IOException{
     final LoadedConfig<PsqlConfig> loaded = IoHelp.readConfigFromHomeOrResource(CONFIG_FILENAME, false, APP_NAME, PsqlConfig.class);
     final PsqlDataSource dataSource = new PsqlDataSource(loaded.config());
-    ActivityLogDBWriter.fromActicityLogDBToFeature(dataSource,"RnxiONGZ",1);
+    ActivityLogDBWriter.fromActicityLogDBToFeature(dataSource,"RnxiONGZ",4);
   }
 
   @Test
