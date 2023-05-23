@@ -31,7 +31,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ActivityLogHandlerTest {
   private static final String APP_NAME = "xyz-hub.test";
-  private static final String CONFIG_FILENAME = "activitylog-db-config.json";
+  private static final String CONFIG_FILENAME_LOCALHOST = "activity_log_localhost_db_config.json";
+  private static final String CONFIG_FILENAME_ACTIVITY_LOG = "activity_log_DB_config.json";
 
   static Connector connector;
   static IoEventPipeline eventPipeline;
@@ -126,9 +127,11 @@ class ActivityLogHandlerTest {
 
   @Test
   void test_connectToDb() throws IOException{
-    final LoadedConfig<PsqlConfig> loaded = IoHelp.readConfigFromHomeOrResource(CONFIG_FILENAME, false, APP_NAME, PsqlConfig.class);
-    final PsqlDataSource dataSource = new PsqlDataSource(loaded.config());
-    ActivityLogDBWriter.fromActicityLogDBToFeature(dataSource,"RnxiONGZ",4);
+    final LoadedConfig<PsqlConfig> loadedLocalhost = IoHelp.readConfigFromHomeOrResource(CONFIG_FILENAME_LOCALHOST, false, APP_NAME, PsqlConfig.class);
+    final LoadedConfig<PsqlConfig> loadedActivityLog = IoHelp.readConfigFromHomeOrResource(CONFIG_FILENAME_ACTIVITY_LOG, false, APP_NAME, PsqlConfig.class);
+    final PsqlDataSource dataSourceLocalhost = new PsqlDataSource(loadedLocalhost.config());
+    final PsqlDataSource dataSourceActivityLog = new PsqlDataSource(loadedActivityLog.config());
+    ActivityLogDBWriter.fromActicityLogDBToFeature(dataSourceLocalhost,dataSourceActivityLog,"RnxiONGZ",10);
   }
 
   @Test
