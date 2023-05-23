@@ -25,6 +25,7 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
+import com.here.xyz.Payload;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
@@ -36,10 +37,12 @@ import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,11 +50,14 @@ import java.util.List;
  * A client for writing and editing JOBs on a DynamoDb
  */
 public class DynamoJobConfigClient extends JobConfigClient {
+
     private static final Logger logger = LogManager.getLogger();
 
     private final Table jobs;
     private final DynamoClient dynamoClient;
     private Long expiration;
+
+    private static final String IO_ATTR_NAME = "importObjects";
 
     public DynamoJobConfigClient(String tableArn) {
         dynamoClient = new DynamoClient(tableArn, null);
@@ -96,7 +102,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 }
                 else {
                     logger.info(marker, "Loaded Job width ID: {}", jobId);
-                    p.complete(Json.decodeValue(jobItem.toJSON(), Job.class));
+                    p.complete(converItemToJob(jobItem));
                 }
             }
             catch (Exception e) {
@@ -121,7 +127,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
                 jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(j -> j.forEach(i -> {
                     try{
-                        final Job job = Json.decodeValue(i.toJSON(), Job.class);
+                        final Job job = converItemToJob(i);
                         result.add(job);
                     }catch (DecodeException e){
                         logger.warn("Cant decode Job-Item - skip",e);
@@ -145,7 +151,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
                 jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(j -> j.forEach(i -> {
                     try{
-                        final Job job = Json.decodeValue(i.toJSON(), Job.class);
+                        final Job job = converItemToJob(i);
 
                         switch (job.getStatus()){
                             case waiting:
@@ -177,9 +183,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
             DeleteItemOutcome response = jobs.deleteItem(deleteItemSpec);
 
             if (response.getItem() != null)
-                p.complete(Json.decodeValue(response.getItem().toJSON(), Job.class));
-
-            p.complete();
+                p.complete(converItemToJob(response.getItem()));
+            else {
+                p.complete();
+            }
         });
     }
 
@@ -191,8 +198,47 @@ public class DynamoJobConfigClient extends JobConfigClient {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
-    private void storeJobSync(Job job, Promise p){
-        jobs.putItem(Item.fromJSON(Json.encode(job)));
+    private void storeJobSync(Job job, Promise<Job> p){
+        Item item = convertJobToItem(job);
+        jobs.putItem(item);
         p.complete(job);
+    }
+
+    private static Item convertJobToItem(Job job) {
+        JsonObject json = JsonObject.mapFrom(job);
+        if( !json.containsKey(IO_ATTR_NAME) )
+            return Item.fromJSON(json.toString());
+
+        String str = json.getJsonObject(IO_ATTR_NAME).encode();
+        json.remove(IO_ATTR_NAME);
+        Item item = Item.fromJSON(json.toString());
+        return item.withBinary(IO_ATTR_NAME, compressString(str));
+    }
+
+    private static Job converItemToJob(Item item){
+        JsonObject importObjects = null;
+        if(item.isPresent(IO_ATTR_NAME)) {
+            importObjects = new JsonObject(uncompressString(item.getBinary(IO_ATTR_NAME)));
+        }
+        System.out.println(importObjects);
+
+        JsonObject json = new JsonObject( item.removeAttribute(IO_ATTR_NAME).toJSON());
+        json.put(IO_ATTR_NAME, importObjects);
+        return Json.decodeValue(json.toString(), Job.class);
+    }
+
+    private static byte[] compressString(String input) {
+        if( input == null )
+            return null;
+        return Payload.compress(input.getBytes());
+    }
+
+    private static String uncompressString(byte[] input){
+        try {
+            return new String(Payload.decompress(input), StandardCharsets.UTF_8);
+        }
+        catch(Exception e) {
+            return null;
+        }
     }
 }
