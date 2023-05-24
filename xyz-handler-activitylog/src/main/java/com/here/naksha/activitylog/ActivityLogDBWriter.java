@@ -14,47 +14,58 @@ import java.util.List;
 public class ActivityLogDBWriter {
     public static void fromActicityLogDBToFeature(PsqlDataSource dataSourceLocalHost,PsqlDataSource dataSourceActivityLog, String tableName, Integer limit) {
         String schema = dataSourceActivityLog.getSchema();
-        List<String> featureList = new ArrayList<String>();
-        List<String> geoList = new ArrayList<String>();
-        List<Integer> iList = new ArrayList<Integer>();
+        List<String> featureList = new ArrayList<>();
+        List<String> geoList = new ArrayList<>();
+        List<Integer> iList = new ArrayList<>();
         int intMaxIFeaturesTable = 0;
         int intMaxIActivityTable = 0;
-        ResultSet result = null;
         try (Connection conn = dataSourceActivityLog.getConnection()) {
-            String SQLMaxIActivityTable = "select i from " + schema + ".\"" + tableName + "\"" + "order by i desc limit 1;";
-            result = sqlExecuteQuery(conn,SQLMaxIActivityTable);
-            if (result!=null && result.next()) {
-                intMaxIActivityTable = result.getInt(1);
+            String SQLMaxIActivityTable = sqlQueryMaxIActivity(schema,tableName);
+            try (final PreparedStatement stmt = conn.prepareStatement(SQLMaxIActivityTable)) {
+                final ResultSet result = stmt.executeQuery();
+                if (result!=null && result.next()) {
+                    intMaxIActivityTable = result.getInt(1);
+                }
+            } catch (SQLException throwables) {
+                throwables.printStackTrace();
             }
             //Assigning this value for testing purpose
             intMaxIActivityTable=100;
             try (Connection connLocalHost = dataSourceLocalHost.getConnection()) {
                 String queryPreRequisite = sqlQueryPreRequisites(schema);
                 sqlExecute(connLocalHost,queryPreRequisite);
-                String SQLMaxIFeaturesTable = "select i from activity.\"Features_Original_Format\" order by i desc limit 1;";
-                result = sqlExecuteQuery(connLocalHost,SQLMaxIFeaturesTable);
-                if (result!=null && result.next()) {
-                    intMaxIFeaturesTable = result.getInt(1);
+                String SQLMaxIFeaturesTable = sqlQuerySelectMaxIFeatures();
+                try (final PreparedStatement stmt = connLocalHost.prepareStatement(SQLMaxIFeaturesTable)) {
+                    final ResultSet result = stmt.executeQuery();
+                    if (result!=null && result.next()) {
+                        intMaxIFeaturesTable = result.getInt(1);
+                    }
+                } catch (SQLException throwables) {
+                    throwables.printStackTrace();
                 }
                 Integer batchNumber = intMaxIFeaturesTable + limit;
                 while (batchNumber < (intMaxIActivityTable + limit)) {
-                    String SQLSelectActiLog = "SELECT jsondata,geo,i FROM " + schema + ".\"" + tableName + "\" Where i>" + (batchNumber - limit) + " And i<="+batchNumber+" limit " + limit + ";";
-                    result = sqlExecuteQuery(conn,SQLSelectActiLog);
-                    if(result!=null) {
-                        while (result.next()) {
-                            try {
-                                Feature activityLogFeature = XyzSerializable.deserialize(result.getString(1), Feature.class);
-                                geoList.add(result.getString(2));
-                                iList.add(result.getInt(3));
-                                ActivityLogHandler.fromActivityLogFormat(activityLogFeature);
-                                featureList.add(activityLogFeature.serialize());
-                            } catch (JsonProcessingException e) {
-                                e.printStackTrace();
+                    String SQLSelectActiLog = sqlQuerySelectFromActivityLog(schema,tableName,batchNumber,limit);
+                    try (final PreparedStatement stmt = conn.prepareStatement(SQLSelectActiLog)) {
+                        final ResultSet result = stmt.executeQuery();
+                        if(result!=null) {
+                            while (result.next()) {
+                                try {
+                                    Feature activityLogFeature = XyzSerializable.deserialize(result.getString(1), Feature.class);
+                                    geoList.add(result.getString(2));
+                                    iList.add(result.getInt(3));
+                                    ActivityLogHandler.fromActivityLogFormat(activityLogFeature);
+                                    featureList.add(activityLogFeature.serialize());
+                                } catch (JsonProcessingException e) {
+                                    e.printStackTrace();
+                                }
                             }
                         }
+                    } catch (SQLException throwables) {
+                        throwables.printStackTrace();
                     }
                     if(featureList.size()!=0) {
-                        String sqlBulkInsertQuery = sqlQueryBuilder(featureList, schema, geoList, iList);
+                        String sqlBulkInsertQuery = sqlQueryInsertConvertedFeatures(featureList, schema, geoList, iList);
                         sqlExecute(connLocalHost,sqlBulkInsertQuery);
                     }
                     connLocalHost.commit();
@@ -70,7 +81,22 @@ public class ActivityLogDBWriter {
             throwables.printStackTrace();
         }
     }
-    public static String sqlQueryBuilder(List<String> featureList,String schema,List<String> geoList,List<Integer> iList){
+    public static String sqlQuerySelectFromActivityLog(String schema,String tableName,int batchNumber, int limit){
+        String SQLSelectActiLog = "SELECT jsondata,geo,i FROM " + schema + ".\"" + tableName + "\" Where i>" + (batchNumber - limit) + " And i<="+batchNumber+" limit " + limit + ";";
+        return SQLSelectActiLog;
+    }
+
+    public static String sqlQuerySelectMaxIFeatures(){
+        String SQLMaxIFeaturesTable = "select i from activity.\"Features_Original_Format\" order by i desc limit 1;";
+        return SQLMaxIFeaturesTable;
+    }
+
+    public static String sqlQueryMaxIActivity(String schema,String tableName){
+        String SQLMaxIActivityTable = "select i from " + schema + ".\"" + tableName + "\"" + "order by i desc limit 1;";
+        return SQLMaxIActivityTable;
+    }
+
+    public static String sqlQueryInsertConvertedFeatures(List<String> featureList,String schema,List<String> geoList,List<Integer> iList){
         String firstPart = "INSERT INTO "+ schema +".\"Features_Original_Format\"(jsondata,geo,i) VALUES ";
         for(int iterator=1; iterator<featureList.size()+1;iterator++){
             firstPart+= "(" + "\'"+featureList.get(iterator-1)+"\', " + "'"+geoList.get(iterator-1) + "', "+iList.get(iterator-1)+ ")";
@@ -80,6 +106,7 @@ public class ActivityLogDBWriter {
         }
         return firstPart;
     }
+
     public static String sqlQueryPreRequisites(String schema){
         String sqlQuery = "CREATE SCHEMA IF NOT EXISTS "+ schema + ";" +
                 "CREATE TABLE IF NOT EXISTS " + schema +".\"Features_Original_Format\"" +
@@ -97,14 +124,5 @@ public class ActivityLogDBWriter {
         } catch (SQLException throwables) {
             throwables.printStackTrace();
         }
-    }
-    public static ResultSet sqlExecuteQuery(Connection conn, String sqlQuery){
-        ResultSet result = null;
-        try (final PreparedStatement stmt = conn.prepareStatement(sqlQuery)) {
-            result = stmt.executeQuery();
-        } catch (SQLException throwables) {
-            throwables.printStackTrace();
-        }
-        return result;
     }
 }
