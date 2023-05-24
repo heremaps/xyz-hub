@@ -187,7 +187,6 @@ public class SpaceTaskHandler {
         task.template.setStorage(new ConnectorRef().withId(regionalStorageId));
       }
 
-
       //When the input explicitly contains {"owner": null}
       if (input.getString("owner") == null) {
         input.remove("owner");
@@ -312,7 +311,7 @@ public class SpaceTaskHandler {
     if (task.modifyOp.entries.get(0).result.getExtension() != null) {
       // in case of create, the storage must be not set from the user (or set exactly as if the storage property in space template)
       // in case of update, the property storage is checked for modification against the head value
-      Space inputSpace = task.isUpdate() ? task.modifyOp.entries.get(0).head : getSpaceTemplate(null, null);
+      Space inputSpace = task.isUpdate() ? task.modifyOp.entries.get(0).head : task.template;
       Space resultSpace = task.modifyOp.entries.get(0).result;
 
       // normalize params in case of null, so the diff calculator considers: null params == empty params
