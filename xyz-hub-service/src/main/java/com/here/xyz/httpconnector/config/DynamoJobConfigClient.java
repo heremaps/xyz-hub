@@ -45,6 +45,7 @@ import org.apache.logging.log4j.Marker;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A client for writing and editing JOBs on a DynamoDb
@@ -218,12 +219,16 @@ public class DynamoJobConfigClient extends JobConfigClient {
     private static Job converItemToJob(Item item){
         JsonObject importObjects = null;
         if(item.isPresent(IO_ATTR_NAME)) {
-            importObjects = new JsonObject(uncompressString(item.getBinary(IO_ATTR_NAME)));
+            try{
+                importObjects = new JsonObject(Objects.requireNonNull(uncompressString(item.getBinary(IO_ATTR_NAME))));
+            }
+            catch(Exception e){
+                importObjects = new JsonObject(item.getJSON(IO_ATTR_NAME));
+            }
         }
-        System.out.println(importObjects);
 
-        JsonObject json = new JsonObject( item.removeAttribute(IO_ATTR_NAME).toJSON());
-        json.put(IO_ATTR_NAME, importObjects);
+        JsonObject json = new JsonObject(item.removeAttribute(IO_ATTR_NAME).toJSON())
+                .put(IO_ATTR_NAME, importObjects);
         return Json.decodeValue(json.toString(), Job.class);
     }
 
