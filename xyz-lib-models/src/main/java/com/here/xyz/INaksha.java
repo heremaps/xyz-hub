@@ -45,8 +45,8 @@ public interface INaksha {
   /**
    * Returns a list of all spaces that are directly mapped to the given collection.
    *
-   * @param collection The collection to query for.
-   * @return The spaces that are mapped directly to the collection; may be empty.
+   * @param collection The collection identifier to query for.
+   * @return The spaces that are mapped to the collection; may be empty.
    */
   @NotNull List<@NotNull Space> getSpacesByCollection(@NotNull String collection);
 
@@ -79,7 +79,7 @@ public interface INaksha {
    *
    * @return An iterable about all connectors.
    */
-  @NotNull Iterable<Connector> getConnectors();
+  @NotNull Iterable<Connector> getAllConnectors();
 
   /**
    * Returns the subscription with the given identifier.
@@ -88,4 +88,5 @@ public interface INaksha {
    * @return The subscription or {@code null}; if no such subscription exists.
    */
   @Nullable Subscription getSubscriptionById(@NotNull String id);
+
 }

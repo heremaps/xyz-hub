@@ -1,21 +1,13 @@
 package com.here.mapcreator.ext.naksha;
 
 import com.here.xyz.INaksha;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The Naksha PostgresQL client. This client does implement low level access to manage collections and the features within these
@@ -36,11 +28,6 @@ public class NakshaPsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOUR
     this.pool = datasource.pool;
     this.clientId = clientId;
   }
-
-  /**
-   * The logger to be used.
-   */
-  protected static final Logger logger = LoggerFactory.getLogger(NakshaPsqlClient.class);
 
   /**
    * The default schema to use for the Naksha client.

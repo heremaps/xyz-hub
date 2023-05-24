@@ -47,7 +47,7 @@ public class Payload implements Typed {
 
   protected static final Logger logger = LoggerFactory.getLogger(Payload.class);
 
-  public static final String VERSION = "0.6.0";
+  public static final String VERSION = "0.7.0";
 
   public static @NotNull InputStream prepareInputStream(@NotNull InputStream input)
       throws IOException {

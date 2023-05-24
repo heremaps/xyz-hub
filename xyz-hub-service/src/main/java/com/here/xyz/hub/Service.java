@@ -51,6 +51,9 @@ public class Service extends NakshaHub {
     final List<@NotNull String> args = Arrays.asList(arguments);
     final int configIndex = args.indexOf("--config");
     final NakshaHubConfig config;
+    // TODO: Detect if being in EC2.
+    //       Then, read service config from UserData.
+    //       Use KMS to decrypt the config.
     if (configIndex >= 0) {
       final String[] split = args.get(configIndex).split("=", 1);
       if (split.length != 2 || split[1].length() == 0) {

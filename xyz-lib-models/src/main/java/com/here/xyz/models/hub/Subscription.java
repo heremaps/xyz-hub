@@ -25,8 +25,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.implementation.Feature;
 import org.jetbrains.annotations.Nullable;
 
@@ -43,25 +41,21 @@ public final class Subscription extends Feature {
    * The source of the subscribed notification (usually the space).
    */
   @JsonProperty
-  @JsonView(All.class)
   private String source;
 
   /**
    * The destination of the subscribe notification.
    */
   @JsonProperty
-  @JsonView(All.class)
   private String destination;
 
   /**
    * The configuration of the subscription.
    */
   @JsonProperty
-  @JsonView(All.class)
   private SubscriptionConfig config;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private SubscriptionStatus status;
 

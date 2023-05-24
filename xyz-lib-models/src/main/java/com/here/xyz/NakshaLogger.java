@@ -14,8 +14,11 @@ import org.slf4j.Marker;
  */
 public class NakshaLogger implements Logger {
 
+  // TODO: Add the args as supported by Wikvaya/SFW and make a new package to allow binding the Wikvaya/SFW logger.
+
   /**
-   * A supplied that can be modified by an extending class, all instances of the logger then will be turned into the application class.
+   * A supplied that can be modified by an extending class, all instances of the logger then will be turned into the application class. This
+   * can be used to redirect all logging. The default implementation will redirect all logging to SLF4j.
    */
   protected static final AtomicReference<F0<NakshaLogger>> constructor = new AtomicReference<>(NakshaLogger::new);
 

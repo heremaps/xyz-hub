@@ -27,8 +27,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
-import com.here.xyz.View;
-import com.here.xyz.View.All;
+import com.here.xyz.view.View;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
@@ -65,7 +64,6 @@ public final class Space extends Feature implements Typed {
    * A human-readable title of the space.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private String title;
 
@@ -75,7 +73,6 @@ public final class Space extends Feature implements Typed {
    * does not explicitly set the collection name, then it will be set to the same as the space identifier.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private String collection;
 
@@ -83,7 +80,6 @@ public final class Space extends Feature implements Typed {
    * A human-readable description of the space, and its content.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private String description;
 
@@ -91,7 +87,6 @@ public final class Space extends Feature implements Typed {
    * If set to true, every authenticated user can read the features in the space.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_DEFAULT)
   private boolean shared = false;
 
@@ -99,7 +94,6 @@ public final class Space extends Feature implements Typed {
    * Copyright information for the data in the space.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<Copyright> copyright;
 
@@ -107,7 +101,6 @@ public final class Space extends Feature implements Typed {
    * Information about the license bound to the data within the space. For valid keywords see {@link License}.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private License license;
 
@@ -123,21 +116,18 @@ public final class Space extends Feature implements Typed {
    * The list of connector IDs (configured event handlers) to be added to the task (event handler pipeline) in order.
    */
   @JsonProperty
-  @JsonView(All.class)
   public @Nullable List<@NotNull String> connectors;
 
   /**
    * Allows to temporary or permanently disable history.
    */
   @JsonProperty
-  @JsonView(All.class)
   private boolean history = true;
 
   /**
    * The maximum days of history to keep; {@code null} means forever.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Integer maxHistoryAge;
 
@@ -145,7 +135,6 @@ public final class Space extends Feature implements Typed {
    * List of packages that this space belongs to.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<@NotNull String> packages;
 
@@ -153,14 +142,12 @@ public final class Space extends Feature implements Typed {
    * Arbitrary properties added to the space, this includes the standard {@link XyzNamespace}.
    */
   @JsonProperty
-  @JsonView(All.class)
   private Properties properties;
 
   /**
    * Indicates if the space is in a read-only mode.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_DEFAULT)
   private boolean readOnly = false;
 
@@ -170,7 +157,6 @@ public final class Space extends Feature implements Typed {
    * but the result can be bad.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private Map<@NotNull String, @NotNull Index> indices;
 
@@ -179,7 +165,6 @@ public final class Space extends Feature implements Typed {
    * will fail, if the space does not fulfill the constraint.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private Map<@NotNull String, @NotNull Constraint> constraints;
 
@@ -187,7 +172,6 @@ public final class Space extends Feature implements Typed {
    * If set, then the owner of all features in this space forcefully set to this value.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private String forceOwner;
 

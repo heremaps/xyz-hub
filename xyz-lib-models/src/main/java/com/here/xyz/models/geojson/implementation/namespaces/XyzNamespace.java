@@ -19,15 +19,12 @@
 
 package com.here.xyz.models.geojson.implementation.namespaces;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.JsonObject;
-import com.here.xyz.View;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.models.geojson.implementation.Action;
+import com.here.xyz.models.geojson.implementation.Properties;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.util.ArrayList;
@@ -35,15 +32,17 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-
+/**
+ * The properties stored as value for the {@link Properties#XYZ_NAMESPACE @ns:com:here:xyz} key in the {@link Properties}.
+ */
 @SuppressWarnings("unused")
 public class XyzNamespace extends JsonObject {
 
-  public static final String REVISION = "revision";
   public static final String SPACE = "space";
   public static final String COLLECTION = "collection";
   public static final String CREATED_AT = "createdAt";
   public static final String UPDATED_AT = "updatedAt";
+  public static final String RT_UTS = "rtuts";
   public static final String TXN = "txn";
   public static final String UUID = "uuid";
   public static final String PUUID = "puuid";
@@ -52,64 +51,64 @@ public class XyzNamespace extends JsonObject {
   public static final String ACTION = "action";
   public static final String VERSION = "version";
   public static final String AUTHOR = "author";
-  public static final String APP_ID = "app_id";
+  public static final String APP_ID = "appId";
   public static final String OWNER = "owner";
 
   /**
    * The space ID the feature belongs to.
    */
   @JsonProperty(SPACE)
-  @JsonView(View.All.class)
   private String space;
 
   /**
    * The collection the feature belongs to.
    */
   @JsonProperty(COLLECTION)
-  @JsonView(View.All.class)
   private String collection;
 
   /**
    * The timestamp in Epoch-Millis, when the feature was created.
    */
   @JsonProperty(CREATED_AT)
-  @JsonView(View.All.class)
   private long createdAt;
 
   /**
-   * The timestamp in Epoch-Millis, when the feature was updated.
+   * The transaction start timestamp in Epoch-Millis, when the feature was updated.
    */
   @JsonProperty(UPDATED_AT)
-  @JsonView(View.All.class)
   private long updatedAt;
+
+  /**
+   * The realtime timestamp in Epoch-Millis, when the feature was updated.
+   */
+  @JsonProperty(RT_UTS)
+  @JsonInclude(Include.NON_EMPTY)
+  private long rtuts;
 
   /**
    * The transaction number of this feature state.
    */
   @JsonProperty(TXN)
-  @JsonView(View.All.class)
   private String txn;
 
   /**
-   * The uuid of the feature, when the client modifies the feature, it must not modify the uuid.
+   * The uuid of the current state of the feature. When the client modifies the feature, it must not modify the uuid. For change requests
+   * the uuid is read and used to identify the base state that was modified.
    */
   @JsonProperty(UUID)
-  @JsonView(View.All.class)
   private String uuid;
 
   /**
-   * The previous uuid of the feature; {@code null} if this feature is new and has no previous state.
+   * The uuid of the previous feature state; {@code null} if this feature is new and has no previous state.
    */
   @JsonProperty(PUUID)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String puuid;
 
   /**
-   * The merge uuid of the feature; {@code null} if the state is not the result of an auto-merge operation.
+   * The uuid of the feature state merged; {@code null} if the state is not the result of an auto-merge operation.
    */
   @JsonProperty(MUUID)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String muuid;
 
@@ -117,7 +116,6 @@ public class XyzNamespace extends JsonObject {
    * The list of tags attached to the feature.
    */
   @JsonProperty(TAGS)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<@NotNull String> tags;
 
@@ -125,21 +123,18 @@ public class XyzNamespace extends JsonObject {
    * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
    */
   @JsonProperty(ACTION)
-  @JsonView(View.All.class)
   private String action;
 
   /**
    * The version of the feature, the first version (1) will always be in the state CREATED.
    */
   @JsonProperty(VERSION)
-  @JsonView(View.All.class)
   private long version;
 
   /**
    * The author (user or application) that created the current revision of the feature.
    */
   @JsonProperty(AUTHOR)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String author;
 
@@ -147,15 +142,13 @@ public class XyzNamespace extends JsonObject {
    * The application that create the current revision of the feature.
    */
   @JsonProperty(APP_ID)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
-  private String app_id;
+  private String appId;
 
   /**
    * The identifier of the owner of this connector.
    */
   @JsonProperty(OWNER)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String owner;
 
@@ -310,8 +303,12 @@ public class XyzNamespace extends JsonObject {
     return this;
   }
 
-  public @Nullable String getAction() {
+  public @Nullable String rawAction() {
     return action;
+  }
+
+  public @Nullable Action getAction() {
+    return Action.get(action);
   }
 
   public void setAction(@Nullable String action) {
@@ -360,6 +357,18 @@ public class XyzNamespace extends JsonObject {
     return this;
   }
 
+  public long getRealTimeUpdatedAt() {
+    return rtuts;
+  }
+
+  public void setRealTimeUpdatedAt(long updatedAt) {
+    this.rtuts = updatedAt;
+  }
+
+  public @NotNull XyzNamespace withRealTimeUpdatedAt(long updatedAt) {
+    setRealTimeUpdatedAt(updatedAt);
+    return this;
+  }
 
   public @Nullable String getTxn() {
     return txn;
@@ -599,11 +608,11 @@ public class XyzNamespace extends JsonObject {
   }
 
   public @Nullable String getAppId() {
-    return app_id;
+    return appId;
   }
 
   public void setAppId(@Nullable String app_id) {
-    this.app_id = app_id;
+    this.appId = app_id;
   }
 
   public @NotNull XyzNamespace withAppId(@Nullable String app_id) {

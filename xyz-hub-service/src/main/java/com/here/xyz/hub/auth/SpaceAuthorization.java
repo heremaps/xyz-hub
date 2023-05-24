@@ -35,8 +35,8 @@ import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.task.ModifyOp;
-import com.here.xyz.hub.task.ModifyOp.Entry;
+import com.here.xyz.util.modify.FeatureModificationList;
+import com.here.xyz.util.modify.FeatureModificationEntry;
 import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.space.SpaceTask.ConditionalOperation;
 import com.here.xyz.hub.task.space.SpaceTask.MatrixReadQuery;
@@ -98,7 +98,7 @@ public class SpaceAuthorization extends Authorization {
     final XyzHubActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
     final XyzHubActionMatrix requestRights = new XyzHubActionMatrix();
 
-    final Entry<Space> entry = task.modifyOp.entries.get(0);
+    final FeatureModificationEntry<Space> entry = task.modifyOp.entries.get(0);
     final Map<String, Object> input = entry.input;
     final Space head = entry.head;
     final Space target = entry.result;
@@ -335,11 +335,11 @@ public class SpaceAuthorization extends Authorization {
     return !tokenRights.get(XyzHubActionMatrix.ACCESS_CONNECTORS).isEmpty();
   }
 
-  private static String getStorageFromInput(Entry<Space> entry) {
+  private static String getStorageFromInput(FeatureModificationEntry<Space> entry) {
     return new JsonObject(entry.input).getJsonObject("storage").getString("id");
   }
 
-  private static List<String> getPackagesFromInput(Entry<Space> entry) {
+  private static List<String> getPackagesFromInput(FeatureModificationEntry<Space> entry) {
     if (entry.input.containsKey("packages")) {
       return new JsonObject(entry.input).getJsonArray("packages").stream().map(Object::toString).collect(Collectors.toList());
     }
@@ -368,7 +368,7 @@ public class SpaceAuthorization extends Authorization {
   private static Map asMap(Object object) {
     try {
       //noinspection unchecked
-      return ModifyOp.filter(
+      return FeatureModificationList.filter(
           Json.decodeValue(DatabindCodec.mapper().writerWithView(Static.class).writeValueAsString(object), Map.class), ModifySpaceOp.metadataFilter);
     } catch (Exception e) {
       return Collections.emptyMap();

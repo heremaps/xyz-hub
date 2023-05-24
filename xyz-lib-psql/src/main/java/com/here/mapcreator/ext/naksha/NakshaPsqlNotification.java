@@ -9,6 +9,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class NakshaPsqlNotification {
 
+  public static final String TXN = "txn";
+  public static final String TXI = "txi";
+
   /**
    * The channel on which notifications are send.
    */
@@ -17,6 +20,12 @@ public class NakshaPsqlNotification {
   /**
    * The transaction that happened.
    */
-  @JsonProperty
+  @JsonProperty(TXN)
   public String txn;
+
+  /**
+   * Unique transaction identifier.
+   */
+  @JsonProperty(TXI)
+  public String txi;
 }

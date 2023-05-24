@@ -1,9 +1,10 @@
 package com.here.xyz.hub;
 
+import static com.here.xyz.NakshaLogger.currentLogger;
 import static com.here.xyz.util.IoHelp.openResource;
 import static com.here.xyz.util.IoHelp.parseValue;
 
-import com.here.mapcreator.ext.naksha.NakshaMgmtClient;
+import com.here.mapcreator.ext.naksha.AbstractNakshaHub;
 import com.here.naksha.activitylog.ActivityLogHandler;
 import com.here.naksha.http.HttpHandler;
 import com.here.xyz.AbstractTask;
@@ -64,7 +65,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("unused")
-public class NakshaHub extends NakshaMgmtClient {
+public class NakshaHub extends AbstractNakshaHub {
 
   /**
    * The logger.
@@ -279,6 +280,11 @@ public class NakshaHub extends NakshaMgmtClient {
   public void start() {
     if (!start.compareAndSet(false, true)) {
       throw new IllegalStateException("Service already started");
+    }
+    if (register() != null) {
+      currentLogger().warn("Unregistering existing global naksha client!");
+    } else {
+      currentLogger().info("Registering as new global naksha client.");
     }
     final int processors = Runtime.getRuntime().availableProcessors();
     verticles = new NakshaHubVerticle[processors];

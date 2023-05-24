@@ -5,8 +5,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.NotNull;
 
@@ -15,10 +13,10 @@ import org.jetbrains.annotations.NotNull;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
-public class TxItem {
+public class TxEvent {
 
   @JsonCreator
-  public TxItem(@JsonProperty @NotNull String id) {
+  public TxEvent(@JsonProperty @NotNull String id) {
     this.id = id;
   }
 
@@ -27,28 +25,25 @@ public class TxItem {
    * {@link TxAction#COMMIT_MESSAGE}, this normally is the same as {@link #collection}.
    */
   @JsonProperty
-  @JsonView(All.class)
   public final @NotNull String id;
 
   /**
    * The action that this transaction item represents.
    */
   @JsonProperty
-  @JsonView(All.class)
   public TxAction action;
 
   /**
    * The collection that this transaction item is related to.
    */
   @JsonProperty
-  @JsonView(All.class)
   public String collection;
 
   /**
-   * The space identifier as known by the client when performing the transaction.
+   * The space identifier as known by the client when performing the transaction. Note that technically the same collection can belong to
+   * multiple spaces, therefore the space identifier in the same collection can differ.
    */
   @JsonProperty
-  @JsonView(All.class)
   public String space;
 
   /**
@@ -56,28 +51,24 @@ public class TxItem {
    * transaction have the same transaction number.
    */
   @JsonProperty
-  @JsonView(All.class)
   public String txn;
 
   /**
    * The connector-number of the connector that created the transaction.
    */
   @JsonProperty("cn")
-  @JsonView(All.class)
   public long connectorNumber;
 
   /**
    * The Epoch timestamp in milliseconds when the transaction started.
    */
   @JsonProperty
-  @JsonView(All.class)
   public long startTs;
 
   /**
    * An optional message added to this item; only used for the action {@link TxAction#COMMIT_MESSAGE}.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   public String message;
 
@@ -85,24 +76,21 @@ public class TxItem {
    * An optional JSON attachment added to this item; only used for the action {@link TxAction#COMMIT_MESSAGE}.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   public Object attachment;
 
   /**
    * The unique sequential publishing identifier of the transaction, set as soon as the transaction becomes visible. This is a sequential
-   * number without holes, with the lowest valid number being 1. It is set by the maintenance client. All items of a transaction will have
+   * number without holes, with the lowest valid number being 1. It is set by the maintenance thread. All items of a transaction will have
    * the same publish identifier.
    */
   @JsonProperty
-  @JsonView(All.class)
   public long publishId;
 
   /**
    * The Epoch timestamp in milliseconds of when the transaction became publicly visible, set by the maintenance client.
    */
   @JsonProperty
-  @JsonView(All.class)
   public long publishTs;
 }
 

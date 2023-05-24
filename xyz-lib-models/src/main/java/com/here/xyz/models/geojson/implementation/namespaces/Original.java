@@ -25,7 +25,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.JsonObject;
-import com.here.xyz.View;
+import com.here.xyz.view.View;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -44,28 +44,24 @@ public class Original extends JsonObject {
    * The space ID the feature belongs to.
    */
   @JsonProperty(SPACE)
-  @JsonView(View.All.class)
   private String space;
 
   /**
    * The timestamp, when a feature was created.
    */
   @JsonProperty(CREATED_AT)
-  @JsonView(View.All.class)
   private long createdAt;
 
   /**
    * The timestamp, when a feature was last updated.
    */
   @JsonProperty(UPDATED_AT)
-  @JsonView(View.All.class)
   private long updatedAt;
 
   /**
    * The previous uuid of the feature.
    */
   @JsonProperty(PUUID)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String puuid;
 
@@ -73,7 +69,6 @@ public class Original extends JsonObject {
    * The merge muuid of the feature.
    */
   @JsonProperty(MUUID)
-  @JsonView(View.All.class)
   @JsonInclude(Include.NON_NULL)
   private String muuid;
 

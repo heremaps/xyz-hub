@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p><b>In a nutshell, this class fixes data-source to add initialization to new connections.</b>
  *
- * @param <SELF> The type of the extending class.
+ * @param <SELF> The extending class type.
  */
 @SuppressWarnings("unused")
 public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource<SELF>> implements DataSource {

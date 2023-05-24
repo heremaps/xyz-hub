@@ -32,9 +32,9 @@ import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.task.feature.ConditionalModifyFeaturesTask;
 import com.here.xyz.hub.task.feature.DeleteFeaturesByTagTask;
-import com.here.xyz.hub.task.ModifyFeatureOp;
-import com.here.xyz.hub.task.ModifyOp.IfExists;
-import com.here.xyz.hub.task.ModifyOp.IfNotExists;
+import com.here.xyz.util.modify.XyzModificationList;
+import com.here.xyz.util.modify.IfExists;
+import com.here.xyz.util.modify.IfNotExists;
 import com.here.xyz.util.diff.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -209,7 +209,7 @@ public class FeatureApi extends SpaceBasedApi {
     if (featureModifications == null)
       return new ConditionalModifyFeaturesTask(event, context, apiResponseTypeType, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
 
-    final ModifyFeatureOp modifyFeatureOp = new ModifyFeatureOp(featureModifications, ifNotExists, ifExists, transactional, cr);
+    final XyzModificationList modifyFeatureOp = new XyzModificationList(featureModifications, ifNotExists, ifExists, transactional, cr);
     return new ConditionalModifyFeaturesTask(event, context, apiResponseTypeType, modifyFeatureOp, requireResourceExists, bodySize);
   }
 }

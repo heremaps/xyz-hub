@@ -3,15 +3,18 @@ package com.here.mapcreator.ext.naksha;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View;
-import com.here.xyz.models.hub.TxItem;
+import com.here.xyz.view.View;
+import com.here.xyz.models.hub.TxEvent;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * A Naksha PostgresQL specific transaction event, containing some additional information not being part of the official event.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
-public class NakshaPsqlTxElement extends TxItem {
+public class NakshaPsqlTxEvent extends TxEvent {
 
-  public NakshaPsqlTxElement(@NotNull String id) {
+  public NakshaPsqlTxEvent(@NotNull String id) {
     super(id);
   }
 

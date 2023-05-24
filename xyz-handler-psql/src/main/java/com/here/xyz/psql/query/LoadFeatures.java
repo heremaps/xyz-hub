@@ -45,8 +45,8 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
         .withQueryFragment("filterWhereClause", filterWhereClause);
 
     SQLQuery query = headQuery;
-    if (event.getEnableHistory() && (!isExtendedSpace(event))) {
-      final boolean compactHistory = !event.getEnableGlobalVersioning() && processor.connectorParams().isCompactHistory();
+    if (/*event.getEnableHistory() &&*/ (!isExtendedSpace(event))) {
+      final boolean compactHistory = /*!event.getEnableGlobalVersioning() &&*/ processor.connectorParams().isCompactHistory();
       if (compactHistory)
         //History does not contain Inserts
         query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");

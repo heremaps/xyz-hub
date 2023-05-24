@@ -12,11 +12,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The Naksha management client using the standard PostgresQL database client. This is a special Naksha client, used to manage spaces,
- * connectors and subscriptions. Normally this is only created and used by the Naksha-Hub itself and exposed to all other parts of the
- * Naksha-Hub via the {@link INaksha#instance}.
+ * The abstract Naksha-Hub is the base class for the Naksha-Hub implementation, granting access to the administration PostgresQL database.
+ * This is a special Naksha client, used to manage spaces, connectors, subscriptions and other administrative content. This client should
+ * not be used to query data from a foreign storage, it only holds administrative spaces. Normally this is only created and used by the
+ * Naksha-Hub itself and exposed to all other parts of the Naksha-Hub via the {@link INaksha#get()} method.
  */
-public abstract class NakshaMgmtClient extends NakshaPsqlClient<PsqlDataSource> implements INaksha {
+public abstract class AbstractNakshaHub extends NakshaPsqlClient<PsqlDataSource> implements INaksha {
 
   /**
    * The collection for spaces.
@@ -34,16 +35,24 @@ public abstract class NakshaMgmtClient extends NakshaPsqlClient<PsqlDataSource> 
   public static final @NotNull String DEFAULT_SUBSCRIPTIONS_COLLECTION = "naksha:subscriptions";
 
   /**
-   * Create a new Naksha client instance. You can register this as the main instance by simply setting the {@link INaksha#instance} atomic
-   * reference.
+   * Create a new Naksha client instance.
    *
    * @param config     The configuration of the database to connect to.
    * @param clientName The name of the Naksha client to be used when opening connections to the Postgres database.
    * @param clientId   The client identification number to use. Except for the main database, normally this number is given by the
    *                   Naksha-Hub as connector number.
    */
-  public NakshaMgmtClient(@NotNull PsqlPoolConfig config, @NotNull String clientName, long clientId) {
+  protected AbstractNakshaHub(@NotNull PsqlPoolConfig config, @NotNull String clientName, long clientId) {
     super(new PsqlDataSource(PsqlPool.get(config), clientName), clientId);
+  }
+
+  /**
+   * Register this Naksha client as global singleton.
+   *
+   * @return The previously registered client; if any.
+   */
+  protected @Nullable INaksha register() {
+    return instance.getAndSet(this);
   }
 
   // TODO: Create a cache-client for each of the managed collections: spaces, connectors and subscriptions!
@@ -84,7 +93,7 @@ public abstract class NakshaMgmtClient extends NakshaPsqlClient<PsqlDataSource> 
   }
 
   @Override
-  public @NotNull Iterable<Connector> getConnectors() {
+  public @NotNull Iterable<Connector> getAllConnectors() {
     return allConnectorsById.values();
   }
 

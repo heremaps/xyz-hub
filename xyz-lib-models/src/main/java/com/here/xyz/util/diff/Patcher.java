@@ -124,7 +124,7 @@ public class Patcher {
     final Set keysA = sourceState.keySet();
     final Set keysB = targetState.keySet();
 
-    for (Object key : keysA) {
+    for (final @NotNull Object key : keysA) {
       if (ignoreKey != null && ignoreKey.ignore(key, sourceState, targetState)) {
         continue;
       }
@@ -139,7 +139,7 @@ public class Patcher {
       }
     }
 
-    for (Object key : keysB) {
+    for (final @NotNull Object key : keysB) {
       if (sourceState.containsKey(key) || ignoreKey != null && ignoreKey.ignore(key, sourceState, targetState)) {
         continue;
       }

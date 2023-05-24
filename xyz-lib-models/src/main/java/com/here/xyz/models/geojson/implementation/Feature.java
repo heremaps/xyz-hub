@@ -21,9 +21,6 @@ package com.here.xyz.models.geojson.implementation;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -31,12 +28,16 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.JsonObject;
 import com.here.xyz.Typed;
-import com.here.xyz.View.All;
+import com.here.xyz.view.View.Export;
+import com.here.xyz.view.View.Import;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.util.diff.ConflictResolution;
+import com.here.xyz.util.modify.IfExists;
+import com.here.xyz.util.modify.IfNotExists;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -57,6 +58,9 @@ public class Feature extends JsonObject implements Typed {
   public static final String BBOX = "bbox";
   public static final String GEOMETRY = "geometry";
   public static final String PROPERTIES = "properties";
+  public static final String ON_FEATURE_NOT_EXISTS = "onFeatureNotExists";
+  public static final String ON_FEATURE_EXISTS = "onFeatureExists";
+  public static final String ON_MERGE_CONFLICT = "onMergeConflict";
 
   /**
    * Create a new empty feature.
@@ -70,20 +74,31 @@ public class Feature extends JsonObject implements Typed {
   }
 
   @JsonProperty(ID)
-  @JsonView(All.class)
   protected @NotNull String id;
 
   @JsonProperty(BBOX)
-  @JsonView(All.class)
   protected BBox bbox;
 
   @JsonProperty(GEOMETRY)
-  @JsonView(All.class)
   protected Geometry geometry;
 
   @JsonProperty(PROPERTIES)
-  @JsonView(All.class)
   protected @NotNull Properties properties;
+
+  // Serialize and deserialize internally, do not store in the database, but accept from external.
+  @JsonProperty(ON_FEATURE_NOT_EXISTS)
+  @JsonView({Export.Private.class, Import.Public.class})
+  protected @Nullable IfNotExists onFeatureNotExists;
+
+  // Serialize and deserialize internally, do not store in the database, but accept from external.
+  @JsonProperty(ON_FEATURE_EXISTS)
+  @JsonView({Export.Private.class, Import.Public.class})
+  protected @Nullable IfExists onFeatureExists;
+
+  // Serialize and deserialize internally, do not store in the database, but accept from external.
+  @JsonProperty(ON_MERGE_CONFLICT)
+  @JsonView({Export.Private.class, Import.Public.class})
+  protected @Nullable ConflictResolution onMergeConflict;
 
   public @NotNull String getId() {
     return id;
@@ -117,6 +132,30 @@ public class Feature extends JsonObject implements Typed {
   @JsonSetter
   public void setProperties(@NotNull Properties properties) {
     this.properties = properties;
+  }
+
+  public @Nullable IfNotExists getOnFeatureNotExists() {
+    return onFeatureNotExists;
+  }
+
+  public void setOnFeatureNotExists(@Nullable IfNotExists onFeatureNotExists) {
+    this.onFeatureNotExists = onFeatureNotExists;
+  }
+
+  public @Nullable IfExists getOnFeatureExists() {
+    return onFeatureExists;
+  }
+
+  public void setOnFeatureExists(@Nullable IfExists onFeatureExists) {
+    this.onFeatureExists = onFeatureExists;
+  }
+
+  public @Nullable ConflictResolution getOnMergeConflict() {
+    return onMergeConflict;
+  }
+
+  public void setOnMergeConflict(@Nullable ConflictResolution onMergeConflict) {
+    this.onMergeConflict = onMergeConflict;
   }
 
   public void calculateAndSetBbox(boolean recalculateBBox) {

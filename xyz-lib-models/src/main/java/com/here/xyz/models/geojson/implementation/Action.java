@@ -1,5 +1,6 @@
 package com.here.xyz.models.geojson.implementation;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -21,16 +22,17 @@ public final class Action {
      * @param value the value to check.
      * @return the action instance matching or {@code null}.
      */
+    @JsonCreator
     public static @Nullable Action get(@Nullable String value) {
         if (value != null) {
             // Note:
-            if (CREATE.value.equals(value)) {
+            if (CREATE.value.equalsIgnoreCase(value)) {
                 return CREATE;
             }
-            if (UPDATE.value.equals(value)) {
+            if (UPDATE.value.equalsIgnoreCase(value)) {
                 return UPDATE;
             }
-            if (DELETE.value.equals(value)) {
+            if (DELETE.value.equalsIgnoreCase(value)) {
                 return DELETE;
             }
         }

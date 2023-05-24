@@ -4,8 +4,9 @@ import com.here.xyz.events.feature.LoadFeaturesEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.hub.task.ModifyFeatureOp;
-import com.here.xyz.hub.task.ModifyOp;
+import com.here.xyz.util.modify.IfExists;
+import com.here.xyz.util.modify.IfNotExists;
+import com.here.xyz.util.modify.XyzModificationList;
 import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.util.diff.ConflictResolution;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -18,9 +19,9 @@ import org.jetbrains.annotations.Nullable;
 
 public final class ConditionalModifyFeaturesTask extends AbstractFeatureTask<ModifyFeaturesEvent> {
 
-  public @Nullable ModifyFeatureOp modifyOp;
-  public @Nullable ModifyOp.IfNotExists ifNotExists;
-  public @Nullable ModifyOp.IfExists ifExists;
+  public @Nullable XyzModificationList modifyOp;
+  public @Nullable IfNotExists ifNotExists;
+  public @Nullable IfExists ifExists;
   public boolean transactional;
   public @Nullable ConflictResolution conflictResolution;
   public List<Feature> unmodifiedFeatures;

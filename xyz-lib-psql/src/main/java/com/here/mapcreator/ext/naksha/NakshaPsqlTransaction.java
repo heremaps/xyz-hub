@@ -7,7 +7,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * An abstract collection transaction. All errors that happen are reported to the
+ * A Naksha PostgresQL database transaction that can be used to read and mutate data.
+ *
+ * @param <DATASOURCE> The data-source to read from.
  */
 public class NakshaPsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> extends NakshaPsqlReadTransaction<DATASOURCE> {
 

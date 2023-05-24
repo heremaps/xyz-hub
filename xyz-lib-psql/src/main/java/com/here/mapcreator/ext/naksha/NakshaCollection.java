@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A Naksha collection is a physical storage as understood by Naksha-Hub. The same collection can have multiple space identifiers, but it
- * only has one unique consistent collection identifier.
+ * A Naksha collection is a physical storage as understood by Naksha PostgresQL library. The same collection can have multiple space
+ * identifiers, but it only has one unique consistent collection identifier.
  */
 public class NakshaCollection {
 

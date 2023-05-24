@@ -32,7 +32,6 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.here.xyz.LazyParsableFeatureList;
 import com.here.xyz.LazyParsableFeatureList.RawDeserializer;
 import com.here.xyz.LazyParsableFeatureList.RawSerializer;
-import com.here.xyz.View.All;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.responses.XyzResponse;
 import java.util.List;
@@ -49,58 +48,47 @@ public class FeatureCollection extends XyzResponse {
   private final @NotNull LazyParsableFeatureList features;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private BBox bbox;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Boolean partial;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   @Deprecated
   private String handle;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private String nextPageToken;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Long count;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<String> inserted;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<String> updated;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<String> deleted;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<Feature> oldFeatures;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private List<ModificationFailure> failed;
 
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   private Integer version;
 

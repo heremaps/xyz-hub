@@ -19,104 +19,78 @@
 
 package com.here.xyz.events.feature;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.events.FeatureEvent;
+import com.here.xyz.models.geojson.implementation.Action;
+import java.util.HashMap;
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
- * Ask the xyz storage connector to return the current HEAD state of the objects with the given identifiers. Additionally the query may ask
- * for a specific state of the feature, if the state hash is provided as value in the idsMap property. In that case and when the storage
- * provider does have an object history, it should return the feature in the HEAD and in the requested state. If both, the HEAD state and
- * the requested state, are the same, then only this state should be returned.
+ * Ask the storage to return the current head and base state of the features with the given identifiers. In that case and when the storage
+ * provider does have a history, it should return the feature in the head and in the base state. If both, the head, and the base state, are
+ * the same, then only this state should be returned.
+ * <p>
+ * <b>Note/<b>: A base state is for example requested, when a merge operation may be needed.
  *
- * <b>Note/<b>: A specific state is requested when a merge operation may be needed. This merging of concurrent changes is automatically
- * done by the API gateway, if the xyz connector does support returning objects in history state.
+ * @since 0.1.0
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "LoadFeaturesEvent")
 public final class LoadFeaturesEvent extends FeatureEvent {
 
   public LoadFeaturesEvent() {
     setPreferPrimaryDataSource(true);
+    idsMap = new HashMap<>();
   }
 
-  @JsonInclude(Include.ALWAYS)
-  private Map<String, String> idsMap;
-  @JsonInclude(Include.NON_DEFAULT)
-  private boolean enableHistory;
-  @JsonInclude(Include.NON_DEFAULT)
-  private boolean enableGlobalVersioning;
+  /**
+   * The IDs map, that is a map where the key contains the unique ID of the feature to be loaded. The value is the base uuid or
+   * {@code null}, if only the head state requested.
+   * <p>
+   * If the current head state does not match the provided uuid, so head differs from base, both states should be returned. If the service
+   * does not have a history it may omit to return the base state and only return the head state.
+   *
+   * @since 0.1.0
+   */
+  @JsonInclude(Include.NON_EMPTY)
+  private @NotNull Map<@NotNull String, @Nullable String> idsMap;
 
   /**
-   * Returns the IDs map, that is a map where the key contains the unique ID of the feature to be loaded. The value is the state hash or
-   * null, if the HEAD state is requested.
+   * If a feature does exist in the history, but is in the state deleted ({@link Action#DELETE}), this state should only be returned, if
+   * this property is {@code true}.
+   * <p>
+   * This only applies if the storage does have a history that keeps track of deleted features.
+   * <p>
+   * In a nutshell: {@code true} if deleted states should be returned; {@code false} otherwise.
    *
-   * If the current HEAD state does not match the provided hash, both states, the one requested plus the current HEAD state should be
-   * returned. If the service does not have a history it may omit to return the old state and only return the HEAD state.
-   *
-   * If an object does exist in the requested state, but it does no longer have a HEAD state (it was deleted), then no state must be
-   * returned.
-   *
-   * @return the IDs map.
+   * @since 0.7.0
    */
+  @JsonInclude(Include.NON_DEFAULT)
+  private boolean returnDeletedStates;
+
   @SuppressWarnings("unused")
-  public Map<String, String> getIdsMap() {
+  public @NotNull Map<@NotNull String, @Nullable String> getIdsMap() {
     return idsMap;
   }
 
-  public void setIdsMap(Map<String, String> idsMap) {
+  public void setIdsMap(@NotNull Map<@NotNull String, @Nullable String> idsMap) {
     this.idsMap = idsMap;
   }
 
-  public LoadFeaturesEvent withIdsMap(Map<String, String> idsMap) {
+  public @NotNull LoadFeaturesEvent withIdsMap(@NotNull Map<@NotNull String, @Nullable String> idsMap) {
     setIdsMap(idsMap);
     return this;
   }
 
-  /**
-   * Returns true if the hash should be maintained.
-   *
-   * @return true if the hash should be maintained, false otherwise.
-   */
-  @SuppressWarnings("unused")
-  public boolean getEnableHistory() {
-    return enableHistory;
+  public boolean returnDeletedStates() {
+    return returnDeletedStates;
   }
 
-  /**
-   * Sets the enabler for uuid.
-
-   * @param enableHistory if true, then set an uuid for each feature state
-   */
-  @SuppressWarnings("WeakerAccess")
-  public void setEnableHistory(boolean enableHistory) {
-    this.enableHistory = enableHistory;
+  public void returnDeletedStates(boolean returnDeletedStates) {
+    this.returnDeletedStates = returnDeletedStates;
   }
 
-  @SuppressWarnings("unused")
-  public LoadFeaturesEvent withEnableHistory(boolean enableHistory) {
-    setEnableHistory(enableHistory);
-    return this;
-  }
-
-  /**
-   * Returns true if globalVersioning is supported
-   *
-   * @return true if globalVersioning is supported, false otherwise.
-   */
-  public boolean getEnableGlobalVersioning() {
-    return enableGlobalVersioning;
-  }
-
-  public void setEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    this.enableGlobalVersioning = enableGlobalVersioning;
-  }
-
-  public LoadFeaturesEvent withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    this.enableGlobalVersioning = enableGlobalVersioning;
-    return this;
-  }
 }

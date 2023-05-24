@@ -6,7 +6,6 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View.All;
 
 /**
  * A condition to check.
@@ -74,21 +73,18 @@ public class ConstraintCheck extends Constraint {
    * The check to perform.
    */
   @JsonProperty
-  @JsonView(All.class)
   public Test test;
 
   /**
    * The JSON path to the property to check.
    */
   @JsonProperty
-  @JsonView(All.class)
   public String path;
 
   /**
    * The optional value for the check.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_NULL)
   public Object value;
 }

@@ -19,15 +19,12 @@
 
 package com.here.xyz.models.geojson.implementation.namespaces;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.JsonObject;
-import com.here.xyz.View;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.view.View;
 import com.here.xyz.models.geojson.implementation.Action;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -51,21 +48,18 @@ public class XyzActivityLog extends JsonObject {
    * The Original tag.
    */
   @JsonProperty(ORIGINAL)
-  @JsonView(View.All.class)
   private @NotNull Original original;
 
   /**
    * The Difference tag.
    */
   @JsonProperty(DIFF)
-  @JsonView(View.All.class)
   private JsonNode diff;
 
   /**
    * The space ID the feature belongs to.
    */
   @JsonProperty(ID)
-  @JsonView(View.All.class)
   private String id;
 
   //For Now INVALIDATED_AT is not used
@@ -80,7 +74,6 @@ public class XyzActivityLog extends JsonObject {
    * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
    */
   @JsonProperty(ACTION)
-  @JsonView(View.All.class)
   private String action;
 
   public @Nullable String getAction() {

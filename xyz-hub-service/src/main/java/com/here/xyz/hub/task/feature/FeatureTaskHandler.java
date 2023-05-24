@@ -62,12 +62,11 @@ import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ICallback;
-import com.here.xyz.hub.task.ModifyFeatureOp;
+import com.here.xyz.util.modify.XyzModificationList;
 import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.task.feature.TileQuery.TransformationContext;
-import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
-import com.here.xyz.hub.task.ModifyOp.Entry;
-import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
+import com.here.xyz.util.modify.FeatureModificationEntry;
+import com.here.xyz.util.modify.ModificationException;
 import com.here.xyz.hub.util.geo.MapBoxVectorTileBuilder;
 import com.here.xyz.hub.util.geo.MapBoxVectorTileFlattenedBuilder;
 import com.here.xyz.models.geojson.WebMercatorTile;
@@ -811,7 +810,7 @@ public class FeatureTaskHandler {
     }
 
     try {
-      task.modifyOp = new ModifyFeatureOp(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution, task.space.isAllowFeatureCreationWithUUID());
+      task.modifyOp = new XyzModificationList(getFeatureModifications(task), task.ifNotExists, task.ifExists, task.transactional, task.conflictResolution, task.space.isAllowFeatureCreationWithUUID());
       callback.success(task);
     } catch (HttpException e) {
       logger.warn(task.getMarker(), e.getMessage(), e);
@@ -900,7 +899,7 @@ public class FeatureTaskHandler {
       task.getEvent().setEnableUUID(task.space.isEnableUUID());
       // Ensure that the ID is a string or null and check for duplicate IDs
       Map<String, Boolean> ids = new HashMap<>();
-      for (Entry<Feature> entry : task.modifyOp.entries) {
+      for (FeatureModificationEntry<Feature> entry : task.modifyOp.entries) {
         final Object objId = entry.input.get(ID);
         String id = (objId instanceof String || objId instanceof Number) ? String.valueOf(objId) : null;
         if (task.prefixId != null) { // Generate IDs here, if a prefixId is required. Add the prefix otherwise.
@@ -949,7 +948,7 @@ public class FeatureTaskHandler {
           && task.modifyOp.isWrite()
           && !task.modifyOp.entries.isEmpty()) {
 
-        FeatureEntry entry = task.modifyOp.entries.get(0);
+        FeatureModificationEntry entry = task.modifyOp.entries.get(0);
 
         // monitor only the inputs which the first feature contains uuid
         if (!Strings.isNullOrEmpty(entry.inputUUID)) {
@@ -986,10 +985,10 @@ public class FeatureTaskHandler {
       final Map<String, String> delete = new HashMap<>();
       List<FeatureCollection.ModificationFailure> fails = new ArrayList<>();
 
-      Iterator<FeatureEntry> it = task.modifyOp.entries.iterator();
+      Iterator<FeatureModificationEntry> it = task.modifyOp.entries.iterator();
       int i=-1;
       while( it.hasNext() ){
-        FeatureEntry entry = it.next();
+        FeatureModificationEntry entry = it.next();
         i++;
 
         if(entry.exception != null){
@@ -1056,13 +1055,13 @@ public class FeatureTaskHandler {
       }
 
       callback.success(task);
-    } catch (ModifyOpError e) {
+    } catch (ModificationException e) {
       logger.info(task.getMarker(), "ConditionalOperationError: {}", e.getMessage(), e);
       throw new HttpException(CONFLICT, e.getMessage());
     }
   }
 
-  static void processNamespace(ConditionalModifyFeaturesTask task, FeatureEntry entry, XyzNamespace nsXyz, boolean isInsert, long inputPosition) {
+  static void processNamespace(ConditionalModifyFeaturesTask task, FeatureModificationEntry entry, XyzNamespace nsXyz, boolean isInsert, long inputPosition) {
     // Set the space ID
     boolean spaceIsOptional = Service.configuration.containsFeatureNamespaceOptionalField("space");
     nsXyz.setSpace(spaceIsOptional ? null : task.space.getId());
@@ -1104,7 +1103,7 @@ public class FeatureTaskHandler {
       return;
     }
 
-    for (Entry<Feature> entry : task.modifyOp.entries) {
+    for (FeatureModificationEntry<Feature> entry : task.modifyOp.entries) {
       // For existing objects: if the input does not contain the tags, copy them from the edited state.
       final Map<String, Object> nsXyz = new JsonObject(entry.input).getJsonObject("properties").getJsonObject(XyzNamespace.XYZ_NAMESPACE)
           .getMap();
@@ -1413,7 +1412,7 @@ public class FeatureTaskHandler {
 
     final boolean useRevision = task.space.getRevisionsToKeep() > 0;
     final HashMap<String, String> idsMap = new HashMap<>();
-    for (FeatureEntry entry : task.modifyOp.entries) {
+    for (FeatureModificationEntry entry : task.modifyOp.entries) {
       if (entry.input.get("id") instanceof String) {
         idsMap.put((String) entry.input.get("id"), useRevision ? String.valueOf(entry.inputRevision) : entry.inputUUID);
       }

@@ -19,13 +19,28 @@
 
 package com.here.xyz.events;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class FeatureEvent extends Event {
 
-  private List<String> selection;
+  /**
+   * An optional list of fields to be returned (basically, a white list). If {@code null} or empty, then full features are requested.
+   *
+   * @since 0.6.0
+   */
+  @JsonInclude(Include.NON_EMPTY)
+  private @Nullable List<@NotNull String> selection;
+
+  /**
+   * If 2D coordinates should be enforced.
+   *
+   * @since 0.6.0
+   */
+  @JsonInclude(Include.NON_DEFAULT)
   private boolean force2D;
 
   private String ref;

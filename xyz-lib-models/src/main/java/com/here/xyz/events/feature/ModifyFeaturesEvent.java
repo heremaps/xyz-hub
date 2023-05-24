@@ -33,27 +33,52 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Ask the xyz storage connector to modify the state of features. For those features that do not have an ID, the storage must generated
+ * Ask the xyz storage connector to modify the state of features. For those features that do not have an ID, the storage must generate
  * unique identifiers.
  * <p>
  * The response to this event will be a {@link FeatureCollection} where the {@link FeatureCollection#getFeatures()} list contains the new
  * HEAD state of all successfully modified features.
  * <p>
- * For successfully inserted features their IDs are returned in the {@link FeatureCollection#getInserted()} list. - For successfully
- * updated features their IDs are returned in the {@link FeatureCollection#getUpdated()} list. - For successfully deleted features their IDs
- * are returned in the {@link FeatureCollection#getDeleted()} list.
+ * For successfully inserted features their IDs are returned in the {@link FeatureCollection#getInserted()} list. - For successfully updated
+ * features their IDs are returned in the {@link FeatureCollection#getUpdated()} list. - For successfully deleted features their IDs are
+ * returned in the {@link FeatureCollection#getDeleted()} list.
  * <p>
  * When the operation for a feature failed, then the reason is returned in the {@link FeatureCollection#getFailed()} map, of which the key
  * is the {@link Feature#getId()} and the value is the error message (reason).
+ *
+ * @since 0.1.0
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ModifyFeaturesEvent")
 public final class ModifyFeaturesEvent extends FeatureEvent {
 
-  private List<@NotNull Feature> insertFeatures;
-  private List<@NotNull Feature> updateFeatures;
-  private List<@NotNull Feature> upsertFeatures;
-  private Map<@NotNull String, @Nullable String> deleteFeatures;
+  /**
+   * The features to insert; if any.
+   *
+   * @since 0.1.0
+   */
+  private @Nullable List<@NotNull Feature> insertFeatures;
+
+  /**
+   * The features to update; if any.
+   *
+   * @since 0.1.0
+   */
+  private @Nullable List<@NotNull Feature> updateFeatures;
+
+  /**
+   * The features for which to perform an upsert, this means no matter what the current state is, it should be created or updated.
+   *
+   * @since 0.6.0
+   */
+  private @Nullable List<@NotNull Feature> upsertFeatures;
+
+  /**
+   * A map where the key is the identifier of the feature to delete, and the value optionally the uuid of the state to delete. If the state
+   * is not {@code null} and the current head uuid is not the expected one, deleting must fail.
+   */
+  private @Nullable Map<@NotNull String, @Nullable String> deleteFeatures;
+
   private Boolean transaction;
   @JsonInclude(Include.NON_DEFAULT)
   private boolean enableHistory;

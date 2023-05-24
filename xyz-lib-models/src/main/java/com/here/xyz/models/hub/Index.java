@@ -3,7 +3,6 @@ package com.here.xyz.models.hub;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.View.All;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
@@ -26,21 +25,18 @@ public class Index {
    * <p>Note that if no algorithm given, the PostgresQL processor will auto-select on and return the selected algorithm in the response.
    */
   @JsonProperty
-  @JsonView(All.class)
   public String alg;
 
   /**
    * If the index should be applied to the history too.
    */
   @JsonProperty
-  @JsonView(All.class)
   public boolean indexHistory = false;
 
   /**
    * All properties that should be included in this index.
    */
   @JsonProperty
-  @JsonView(All.class)
   public List<@NotNull IndexProperty> properties;
 
 }

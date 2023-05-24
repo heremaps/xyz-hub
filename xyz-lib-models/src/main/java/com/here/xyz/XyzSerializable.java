@@ -27,8 +27,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.here.xyz.LazyParsableFeatureList.ProxyStringReader;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.view.View;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Formatter;
@@ -40,12 +42,16 @@ import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * All objects being serializable should implement this interface.
+ */
 public interface XyzSerializable {
 
   /**
    * Format a string using the {@link Formatter}.
+   *
    * @param format The format string.
-   * @param args The arguments.
+   * @param args   The arguments.
    * @return The formatted string.
    */
   static @NotNull String format(@NotNull String format, Object... args) {
@@ -56,7 +62,16 @@ public interface XyzSerializable {
   // mapper.disable(MapperFeature.DEFAULT_VIEW_INCLUSION);
   // Support View.Public, View.All and View.Internal
 
-  ThreadLocal<ObjectMapper> DEFAULT_MAPPER = ThreadLocal.withInitial(() -> new ObjectMapper().setSerializationInclusion(Include.NON_NULL));
+  /**
+   * The default mapper.
+   */
+  ThreadLocal<ObjectMapper> DEFAULT_MAPPER = ThreadLocal.withInitial(
+      () -> JsonMapper.builder()
+          .enable(MapperFeature.DEFAULT_VIEW_INCLUSION)
+          .serializationInclusion(Include.NON_NULL)
+          .build()
+      );
+
   ThreadLocal<ObjectMapper> SORTED_MAPPER = ThreadLocal.withInitial(() ->
       new ObjectMapper().configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true).setSerializationInclusion(Include.NON_NULL));
   ThreadLocal<ObjectMapper> STATIC_MAPPER = ThreadLocal.withInitial(() -> new ObjectMapper().setConfig(

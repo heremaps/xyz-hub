@@ -27,8 +27,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.EventHandler;
-import com.here.xyz.View;
-import com.here.xyz.View.All;
+import com.here.xyz.view.View;
 import com.here.xyz.models.geojson.implementation.Feature;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -117,7 +116,6 @@ public final class Connector extends Feature {
    * The connector number.
    */
   @JsonProperty(NUMBER)
-  @JsonView(All.class)
   private long number;
 
   /**
@@ -126,7 +124,6 @@ public final class Connector extends Feature {
    * storage will fail.
    */
   @JsonProperty
-  @JsonView(All.class)
   private boolean active;
 
   /**
@@ -136,7 +133,6 @@ public final class Connector extends Feature {
    * }</pre>
    */
   @JsonProperty
-  @JsonView(All.class)
   private String eventHandler;
 
   /**
@@ -151,7 +147,6 @@ public final class Connector extends Feature {
    * warnings and other notifications.
    */
   @JsonProperty
-  @JsonView(All.class)
   private @Nullable List<@NotNull String> contactEmails;
 
   /**
@@ -159,14 +154,12 @@ public final class Connector extends Feature {
    * Hub to the connector; if anything should be forwarded.
    */
   @JsonProperty
-  @JsonView(All.class)
   private @Nullable ConnectorForward forward;
 
   /**
    * List of packages that this connector belongs to.
    */
   @JsonProperty
-  @JsonView(All.class)
   @JsonInclude(Include.NON_EMPTY)
   private @NotNull List<@NotNull String> packages;
 }

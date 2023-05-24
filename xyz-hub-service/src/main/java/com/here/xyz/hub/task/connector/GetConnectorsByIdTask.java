@@ -13,7 +13,6 @@ import com.here.xyz.responses.XyzResponse;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 public class GetConnectorsByIdTask extends AbstractConnectorTask<GetConnectorsByIdEvent> {
 
@@ -51,7 +50,7 @@ public class GetConnectorsByIdTask extends AbstractConnectorTask<GetConnectorsBy
     final INaksha naksha = INaksha.instance.get();
     if (event.ids.size() == 0) {
       // The client wants to read all connectors it has access to.
-      for (final @NotNull Connector connector : naksha.getConnectors()) {
+      for (final @NotNull Connector connector : naksha.getAllConnectors()) {
         if (returnConnector(connector, rightsMatrix)) {
           collection.getFeatures().add(connector);
         }

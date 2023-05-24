@@ -19,7 +19,6 @@
 
 package com.here.xyz.models.geojson.implementation;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -34,7 +33,18 @@ import org.jetbrains.annotations.Nullable;
  */
 public class Properties extends JsonObject {
 
+  /**
+   * The internal management properties of the Naksha-Hub.
+   *
+   * @since 0.1.0
+   */
   public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
+
+  /**
+   * Properties used by the deprecated Activity-Log service, just here to allow downward compatibility.
+   *
+   * @since 0.6.0
+   */
   public static final String XYZ_ACTIVITY_LOG_NS = "@ns:com:here:xyz:log";
 
   public Properties() {
@@ -45,7 +55,7 @@ public class Properties extends JsonObject {
   private @NotNull XyzNamespace xyzNamespace;
 
   /**
-   * Returns the XYZ namespace.
+   * Returns the XYZ namespace, guaranteed to be always present. If parsing a feature without such property, an empty one will be created.
    *
    * @return The namespace.
    */
@@ -86,6 +96,7 @@ public class Properties extends JsonObject {
 
   /**
    * Removes the activity log namespace.
+   *
    * @return The activity log namespace; if there was any.
    */
   public @Nullable XyzActivityLog removeActivityLog() {
