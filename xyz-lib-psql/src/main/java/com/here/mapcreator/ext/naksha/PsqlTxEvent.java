@@ -12,9 +12,9 @@ import org.jetbrains.annotations.NotNull;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
-public class NakshaPsqlTxEvent extends TxEvent {
+public class PsqlTxEvent extends TxEvent {
 
-  public NakshaPsqlTxEvent(@NotNull String id) {
+  public PsqlTxEvent(@NotNull String id) {
     super(id);
   }
 

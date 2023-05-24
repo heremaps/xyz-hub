@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * The database code will send notifications in this format.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class NakshaPsqlNotification {
+public class PsqlNotification {
 
   public static final String TXN = "txn";
   public static final String TXI = "txi";

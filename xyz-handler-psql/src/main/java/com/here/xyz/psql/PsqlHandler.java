@@ -49,7 +49,7 @@ import com.here.xyz.models.hub.Connector;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
 import com.here.xyz.NanoTime;
-import com.here.mapcreator.ext.naksha.NakshaCollection;
+import com.here.mapcreator.ext.naksha.PsqlCollection;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
@@ -214,7 +214,7 @@ public class PsqlHandler extends ExtendedEventHandler {
     return replicaDataSource;
   }
 
-  public final @Nullable NakshaCollection getSpaceById(@Nullable CharSequence spaceId) {
+  public final @Nullable PsqlCollection getSpaceById(@Nullable CharSequence spaceId) {
     throw new UnsupportedOperationException("getSpaceById");
   }
 

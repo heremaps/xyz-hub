@@ -21,7 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.xyz.NakshaLogger.currentLogger;
 
-import com.here.mapcreator.ext.naksha.NakshaCollection;
+import com.here.mapcreator.ext.naksha.PsqlCollection;
 import com.here.xyz.events.info.GetStorageStatisticsEvent;
 import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.SQLQueryExt;
@@ -63,7 +63,7 @@ public class GetStorageStatistics
         .getSpaceIds()
         .forEach(
             spaceId -> {
-              final NakshaCollection space = processor.getSpaceById(spaceId);
+              final PsqlCollection space = processor.getSpaceById(spaceId);
               if (space == null) {
                 currentLogger().info("Unknown space: {}", spaceId);
               } else if (!schema.equals(space.schema)) {

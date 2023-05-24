@@ -13,7 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * The Naksha PostgresQL client. This client does implement low level access to manage collections and the features within these
  * collections. It as well grants access to transactions.
  */
-public class NakshaPsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
+public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 
   /**
    * Create a new Naksha client instance. You can register this as the main instance by simply setting the {@link INaksha#instance} atomic
@@ -23,7 +23,7 @@ public class NakshaPsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOUR
    * @param clientId   The client identification number to use. Except for the main database, normally this number is given by the
    *                   Naksha-Hub as connector number.
    */
-  public NakshaPsqlClient(@NotNull DATASOURCE datasource, long clientId) {
+  public PsqlClient(@NotNull DATASOURCE datasource, long clientId) {
     this.dataSource = datasource;
     this.pool = datasource.pool;
     this.clientId = clientId;
@@ -235,8 +235,8 @@ public class NakshaPsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOUR
    * @return The new transaction.
    * @throws SQLException If any error occurred.
    */
-  public @NotNull NakshaPsqlReadTransaction<DATASOURCE> startRead() throws SQLException {
-    return new NakshaPsqlTransaction<>(this);
+  public @NotNull PsqlReadTransaction<DATASOURCE> startRead() throws SQLException {
+    return new PsqlTransaction<>(this);
   }
 
   /**
@@ -245,8 +245,8 @@ public class NakshaPsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOUR
    * @return The new transaction.
    * @throws SQLException If any error occurred.
    */
-  public @NotNull NakshaPsqlTransaction<DATASOURCE> startMutation() throws SQLException {
-    return new NakshaPsqlTransaction<>(this);
+  public @NotNull PsqlTransaction<DATASOURCE> startMutation() throws SQLException {
+    return new PsqlTransaction<>(this);
   }
 
   // Add listener for change events like create/update/delete collection and for the features in it.

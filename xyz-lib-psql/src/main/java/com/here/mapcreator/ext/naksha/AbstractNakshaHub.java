@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  * not be used to query data from a foreign storage, it only holds administrative spaces. Normally this is only created and used by the
  * Naksha-Hub itself and exposed to all other parts of the Naksha-Hub via the {@link INaksha#get()} method.
  */
-public abstract class AbstractNakshaHub extends NakshaPsqlClient<PsqlDataSource> implements INaksha {
+public abstract class AbstractNakshaHub extends PsqlClient<PsqlDataSource> implements INaksha {
 
   /**
    * The collection for spaces.

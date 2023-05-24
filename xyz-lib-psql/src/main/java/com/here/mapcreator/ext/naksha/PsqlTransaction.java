@@ -11,14 +11,14 @@ import org.jetbrains.annotations.Nullable;
  *
  * @param <DATASOURCE> The data-source to read from.
  */
-public class NakshaPsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> extends NakshaPsqlReadTransaction<DATASOURCE> {
+public class PsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> extends PsqlReadTransaction<DATASOURCE> {
 
   /**
    * Creates a new transaction for the given PostgresQL client.
    *
    * @param nakshaPsqlClient The PostgresQL client for which to create a new transaction.
    */
-  NakshaPsqlTransaction(@NotNull NakshaPsqlClient<DATASOURCE> nakshaPsqlClient) {
+  PsqlTransaction(@NotNull PsqlClient<DATASOURCE> nakshaPsqlClient) {
     super(nakshaPsqlClient);
   }
 
@@ -71,7 +71,7 @@ public class NakshaPsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DAT
    * @return The collection information.
    * @throws SQLException If any error occurred.
    */
-  public @NotNull NakshaCollection createCollection(@NotNull String id, boolean enableHistory) throws SQLException {
+  public @NotNull PsqlCollection createCollection(@NotNull String id, boolean enableHistory) throws SQLException {
     throw new SQLException("Not implemented");
   }
 
@@ -81,7 +81,7 @@ public class NakshaPsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DAT
    * @param collection The collection to delete.
    * @throws SQLException If any error occurred.
    */
-  public void dropCollection(@NotNull NakshaCollection collection) throws SQLException {
+  public void dropCollection(@NotNull PsqlCollection collection) throws SQLException {
     throw new SQLException("Not implemented");
   }
 
@@ -92,7 +92,7 @@ public class NakshaPsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DAT
    * @param maxAge     The maximum age to store history for given in days.
    * @throws SQLException If any error occurred.
    */
-  public void enableHistory(@NotNull NakshaCollection collection, long maxAge) throws SQLException {
+  public void enableHistory(@NotNull PsqlCollection collection, long maxAge) throws SQLException {
     throw new SQLException("Not implemented");
   }
 
@@ -102,7 +102,7 @@ public class NakshaPsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DAT
    * @param collection The collection on which to disable the history.
    * @throws SQLException If any error occurred.
    */
-  public void disableHistory(@NotNull NakshaCollection collection) throws SQLException {
+  public void disableHistory(@NotNull PsqlCollection collection) throws SQLException {
     throw new SQLException("Not implemented");
   }
 

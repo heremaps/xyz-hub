@@ -12,21 +12,21 @@ import org.jetbrains.annotations.Nullable;
  *
  * @param <DATASOURCE> The data-source to read from.
  */
-public class NakshaPsqlReadTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> implements AutoCloseable {
+public class PsqlReadTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> implements AutoCloseable {
 
   /**
    * Creates a new transaction for the given PostgresQL client.
    *
    * @param nakshaPsqlClient The PostgresQL client for which to create a new transaction.
    */
-  NakshaPsqlReadTransaction(@NotNull NakshaPsqlClient<DATASOURCE> nakshaPsqlClient) {
+  PsqlReadTransaction(@NotNull PsqlClient<DATASOURCE> nakshaPsqlClient) {
     this.nakshaPsqlClient = nakshaPsqlClient;
   }
 
   /**
    * The PostgresQL client to which this transaction is bound.
    */
-  protected final @NotNull NakshaPsqlClient<DATASOURCE> nakshaPsqlClient;
+  protected final @NotNull PsqlClient<DATASOURCE> nakshaPsqlClient;
 
   /**
    * Returns the transaction identifier of this transaction.
@@ -43,7 +43,7 @@ public class NakshaPsqlReadTransaction<DATASOURCE extends AbstractPsqlDataSource
    * @return All collections of the underlying storage.
    * @throws SQLException If any error occurred.
    */
-  public @NotNull List<@NotNull NakshaCollection> getAllCollections() throws SQLException {
+  public @NotNull List<@NotNull PsqlCollection> getAllCollections() throws SQLException {
     throw new SQLException("Not implemented");
   }
 
@@ -54,7 +54,7 @@ public class NakshaPsqlReadTransaction<DATASOURCE extends AbstractPsqlDataSource
    * @return The collection with the given identifier; {@code null} if no collection with the given identifier exists.
    * @throws SQLException If any error occurred.
    */
-  public @Nullable NakshaCollection getCollection(@NotNull String id) throws SQLException {
+  public @Nullable PsqlCollection getCollection(@NotNull String id) throws SQLException {
     throw new SQLException("Not implemented");
   }
 

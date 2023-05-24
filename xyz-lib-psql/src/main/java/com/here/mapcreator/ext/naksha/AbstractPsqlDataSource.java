@@ -1,6 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
-import static com.here.mapcreator.ext.naksha.NakshaPsqlClient.escapeId;
+import static com.here.mapcreator.ext.naksha.PsqlClient.escapeId;
 
 import java.io.PrintWriter;
 import java.sql.Connection;
