@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 public class ActivityLogDBWriter {
     private static final Logger logger = LogManager.getLogger();
     public static void fromActicityLogDBToFeature(PsqlDataSource dataSourceLocalHost,PsqlDataSource dataSourceActivityLog, String tableName, Integer limit) {
+        long startTime = System.currentTimeMillis();
         logger.info("Activity Log table is "+ tableName + " and value of limit is "+limit);
         String schema = dataSourceActivityLog.getSchema();
         List<String> featureList = new ArrayList<>();
@@ -88,6 +89,7 @@ public class ActivityLogDBWriter {
                     iList.clear();
                     featureList.clear();
                 }
+                logger.info("Total Time to process : " + (System.currentTimeMillis() - startTime));
             } catch (SQLException throwables) {
                 logger.info("Error while connecting to destination database.");
                 throwables.printStackTrace();
