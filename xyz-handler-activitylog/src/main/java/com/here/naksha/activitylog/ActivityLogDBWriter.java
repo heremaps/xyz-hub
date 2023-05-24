@@ -19,31 +19,28 @@ public class ActivityLogDBWriter {
         List<Integer> iList = new ArrayList<Integer>();
         int intMaxIFeaturesTable = 0;
         int intMaxIActivityTable = 0;
+        ResultSet result = null;
         try (Connection conn = dataSourceActivityLog.getConnection()) {
             String SQLMaxIActivityTable = "select i from " + schema + ".\"" + tableName + "\"" + "order by i desc limit 1;";
-            try (final PreparedStatement stmt = conn.prepareStatement(SQLMaxIActivityTable)) {
-                final ResultSet result = stmt.executeQuery();
-                if (result.next())
-                    intMaxIActivityTable = result.getInt(1);
+            result = sqlExecuteQuery(conn,SQLMaxIActivityTable);
+            if (result!=null && result.next()) {
+                intMaxIActivityTable = result.getInt(1);
             }
             //Assigning this value for testing purpose
             intMaxIActivityTable=100;
             try (Connection connLocalHost = dataSourceLocalHost.getConnection()) {
                 String queryPreRequisite = sqlQueryPreRequisites(schema);
-                try (final PreparedStatement stmt = connLocalHost.prepareStatement(queryPreRequisite)) {
-                    stmt.execute();
-                }
+                sqlExecute(connLocalHost,queryPreRequisite);
                 String SQLMaxIFeaturesTable = "select i from activity.\"Features_Original_Format\" order by i desc limit 1;";
-                try (final PreparedStatement stmt = connLocalHost.prepareStatement(SQLMaxIFeaturesTable)) {
-                    final ResultSet result = stmt.executeQuery();
-                    if (result.next())
-                        intMaxIFeaturesTable = result.getInt(1);
+                result = sqlExecuteQuery(connLocalHost,SQLMaxIFeaturesTable);
+                if (result!=null && result.next()) {
+                    intMaxIFeaturesTable = result.getInt(1);
                 }
                 Integer batchNumber = intMaxIFeaturesTable + limit;
                 while (batchNumber < (intMaxIActivityTable + limit)) {
                     String SQLSelectActiLog = "SELECT jsondata,geo,i FROM " + schema + ".\"" + tableName + "\" Where i>" + (batchNumber - limit) + " And i<="+batchNumber+" limit " + limit + ";";
-                    try (final PreparedStatement stmt = conn.prepareStatement(SQLSelectActiLog)) {
-                        final ResultSet result = stmt.executeQuery();
+                    result = sqlExecuteQuery(conn,SQLSelectActiLog);
+                    if(result!=null) {
                         while (result.next()) {
                             try {
                                 Feature activityLogFeature = XyzSerializable.deserialize(result.getString(1), Feature.class);
@@ -58,9 +55,7 @@ public class ActivityLogDBWriter {
                     }
                     if(featureList.size()!=0) {
                         String sqlBulkInsertQuery = sqlQueryBuilder(featureList, schema, geoList, iList);
-                        try (final PreparedStatement stmt = connLocalHost.prepareStatement(sqlBulkInsertQuery)) {
-                            stmt.execute();
-                        }
+                        sqlExecute(connLocalHost,sqlBulkInsertQuery);
                     }
                     connLocalHost.commit();
                     batchNumber += limit;
@@ -95,5 +90,21 @@ public class ActivityLogDBWriter {
                 ");" +
                 "CREATE SEQUENCE IF NOT EXISTS " + schema +"."+ "Features_Original_Format_i_seq" +" AS int8 OWNED BY " + schema +".\"Features_Original_Format\".i;";
         return sqlQuery;
+    }
+    public static void sqlExecute(Connection conn, String sqlQuery){
+        try (final PreparedStatement stmt = conn.prepareStatement(sqlQuery)) {
+            stmt.execute();
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+    }
+    public static ResultSet sqlExecuteQuery(Connection conn, String sqlQuery){
+        ResultSet result = null;
+        try (final PreparedStatement stmt = conn.prepareStatement(sqlQuery)) {
+            result = stmt.executeQuery();
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+        return result;
     }
 }
