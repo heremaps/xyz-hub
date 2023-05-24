@@ -314,16 +314,19 @@ public class SpaceTaskHandler {
       Space inputSpace = task.isUpdate() ? task.modifyOp.entries.get(0).head : task.template;
       Space resultSpace = task.modifyOp.entries.get(0).result;
 
+      Map<String, Object> inputStorage = (Map<String, Object>) inputSpace.asMap().get("storage");
+      Map<String, Object> resultStorage = (Map<String, Object>) resultSpace.asMap().get("storage");
+
       // normalize params in case of null, so the diff calculator considers: null params == empty params
       // normalization is necessary because params from head or result are always a map, unless the user specifies params: null and params from space template is null
-      if (inputSpace.getStorage().getParams() == null)
-        inputSpace.getStorage().setParams(new HashMap<>());
+      if (inputStorage.get("params") == null)
+        inputStorage.put("params", new HashMap<>());
 
-      if (resultSpace.getStorage().getParams() == null)
-        resultSpace.getStorage().setParams(new HashMap<>());
+      if (resultStorage.get("params") == null)
+        resultStorage.put("params", new HashMap<>());
 
       // if there is any modification, means the user tried to submit 'storage' and 'extends' properties together
-      if (Patcher.getDifference(resultSpace.asMap().get("storage"), inputSpace.asMap().get("storage")) != null) {
+      if (Patcher.getDifference(inputStorage, resultStorage) != null) {
         throw new HttpException(BAD_REQUEST, "Validation failed. The properties 'storage' and 'extends' cannot be set together.");
       }
     }
