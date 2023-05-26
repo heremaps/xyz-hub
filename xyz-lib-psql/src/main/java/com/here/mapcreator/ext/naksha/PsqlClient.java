@@ -1,5 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
+import com.here.mapcreator.ext.naksha.sql.MaintenanceSQL;
 import com.here.xyz.util.IoHelp;
 import com.here.xyz.INaksha;
 import java.io.IOException;
@@ -175,19 +176,6 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 //    sb.setLength(0);
 //    final String SPACE_SCHEMA = escapeId(connectorParams.getSpaceSchema(), sb).toString();
 
-    try (final Connection conn = dataSource.getConnection()) {
-      SQL = """
-          CREATE SCHEMA IF NOT EXISTS topology;
-          CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public;
-          CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
-          CREATE EXTENSION IF NOT EXISTS postgis_topology SCHEMA topology;
-          CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-          """;
-      try (final Statement stmt = conn.createStatement()) {
-        stmt.execute(SQL);
-        conn.commit();
-      }
-
 //      sb.setLength(0);
 //      sb.append("CREATE SCHEMA IF NOT EXISTS ").append(ADMIN_SCHEMA).append(";\n");
 //      sb.append("CREATE SCHEMA IF NOT EXISTS ").append(SPACE_SCHEMA).append(";\n");
@@ -197,29 +185,27 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 //        conn.commit();
 //      }
 //
-//      // Install extensions.
-//      try (final Statement stmt = conn.createStatement()) {
-//        SQL = IoHelp.readResource("xyz_ext.sql");
-//        stmt.execute(SQL);
-//        conn.commit();
-//
-//        SQL = IoHelp.readResource("naksha_ext.sql");
-//        stmt.execute(SQL);
-//        conn.commit();
-//      }
-//
-//      // Creates the transaction table.
-//      SQL = "SELECT 1 FROM naksha_tx_ensure();";
-//      try (final Statement stmt = conn.createStatement()) {
-//        stmt.execute(SQL);
-//        conn.commit();
-//      }
+    try (final Connection conn = dataSource.getConnection()) {
+      conn.setAutoCommit(true);
+      try (final Statement stmt = conn.createStatement()) {
+        SQL = """
+          CREATE SCHEMA IF NOT EXISTS topology;
+          CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public;
+          CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
+          CREATE EXTENSION IF NOT EXISTS postgis_topology SCHEMA topology;
+          CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
+          """;
+        stmt.execute(SQL);
+        // Install extensions
+        SQL = IoHelp.readResource("naksha_ext.sql");
+        stmt.execute(SQL);
 
-//      stmt.execute(MaintenanceSQL.createIDXTableSQL);
-//      stmt.execute(MaintenanceSQL.createDbStatusTable);
-//      stmt.execute(MaintenanceSQL.createSpaceMetaTable);
-//      stmt.execute(MaintenanceSQL.createTxnPubTableSQL);
-//      setupH3(dataSource, appName);
+//        stmt.execute(MaintenanceSQL.createIDXTableSQL);
+//        stmt.execute(MaintenanceSQL.createDbStatusTable);
+//        stmt.execute(MaintenanceSQL.createSpaceMetaTable);
+//        stmt.execute(MaintenanceSQL.createTxnPubTableSQL);
+      }
+      setupH3();
     }
   }
 
