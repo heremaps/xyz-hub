@@ -102,18 +102,13 @@ public class JDBCJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<String> getImportJobsOnTargetSpace(Marker marker, String targetSpaceId) {
-        List<Object> tuples = new ArrayList<>();
-
-        String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 AND config->>'status' NOT IN ('waiting','failed','finalized') ";
-
-        if (targetSpaceId != null) {
-            tuples.add(targetSpaceId);
-            q += " AND config->>'targetSpaceId' = $1";
-        }
+    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Job.Type type) {
+        String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 AND config->>'status' NOT IN ('waiting','failed','finalized')" +
+                " AND config->>'targetSpaceId' = $1" +
+                " AND jobtype = $2" ;
 
         return client.preparedQuery(q)
-                .execute(Tuple.of(targetSpaceId))
+                .execute(Tuple.of(targetSpaceId, type))
                 .map(rows -> {
                     if (rows.rowCount() == 0) {
                         return null;

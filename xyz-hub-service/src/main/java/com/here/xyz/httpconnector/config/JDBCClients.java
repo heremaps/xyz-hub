@@ -20,16 +20,24 @@
 package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.status.RDSStatus;
+import com.here.xyz.httpconnector.util.status.RunningQueryStatistic;
+import com.here.xyz.httpconnector.util.status.RunningQueryStatistics;
 import com.here.xyz.hub.Core;
+import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.tools.ECPSTool;
 import com.mchange.v3.decode.CannotDecodeException;
+import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.pgclient.PgConnectOptions;
 import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
 import io.vertx.sqlclient.SqlClient;
+import io.vertx.sqlclient.impl.ArrayTuple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 import java.net.URI;
 import java.util.HashMap;
@@ -153,6 +161,63 @@ public class JDBCClients {
 
     public static String getViewName(String tablename){
         return tablename+"_view";
+    }
+
+    public static Future<RunningQueryStatistics> collectRunningQueries(String clientID){
+        SQLQuery q = new SQLQuery(
+                "select '!ignore!' as ignore, datname,pid,state,backend_type,query_start,state_change,application_name,query from pg_stat_activity "
+                        +"WHERE 1=1 "
+                        +"AND application_name=#{applicationName}"
+                        +"AND datname='postgres' "
+                        +"AND state='active' "
+                        +"AND backend_type='client backend'"
+                        +"AND POSITION('!ignore!' in query) = 0"
+        );
+
+        q.setNamedParameter("applicationName", getApplicationName(clientID));
+        q = q.substituteAndUseDollarSyntax(q);
+
+        return getClient(clientID)
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .onFailure(f -> logger.warn(f))
+                .map(rows -> {
+                    RunningQueryStatistics statistics = new RunningQueryStatistics();
+                    rows.forEach(
+                            row -> statistics.addRunningQueryStatistic(new RunningQueryStatistic(
+                                    row.getInteger("pid"),
+                                    row.getString("state"),
+                                    row.getLocalDateTime("query_start"),
+                                    row.getLocalDateTime("state_change"),
+                                    row.getString("query"),
+                                    row.getString("application_name")
+                            ))
+                    );
+
+                    return statistics;
+                });
+    }
+
+    public static Future<RDSStatus> getRDSStatus(String clientId) {
+        Promise<RDSStatus> p = Promise.promise();
+        /** Collection current metrics from Cloudwatch */
+
+        if(JDBCImporter.getClient(clientId) == null){
+            logger.info("DB-Client not Ready!");
+            p.complete(null);
+        }else{
+            JDBCImporter.collectRunningQueries(clientId)
+                    .onSuccess(runningQueryStatistics -> {
+                        /** Collect metrics from Cloudwatch */
+                        JSONObject avg5MinRDSMetrics = CService.jobCWClient.getAvg5MinRDSMetrics(CService.rdsLookupDatabaseIdentifier.get(clientId));
+                        p.complete(new RDSStatus(clientId, avg5MinRDSMetrics, runningQueryStatistics));
+                    }).onFailure(f -> {
+                        logger.warn("Cant get RDS-Resources {}",f);
+                        p.fail(f);
+                    } );
+        }
+
+        return p.future();
     }
 
     /** Vertex SQL-Client */

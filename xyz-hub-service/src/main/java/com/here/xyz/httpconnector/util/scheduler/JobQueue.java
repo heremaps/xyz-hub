@@ -31,15 +31,15 @@ import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.concurrent.*;
+import java.util.concurrent.ScheduledFuture;
 
 public abstract class JobQueue implements Runnable {
     protected static final Logger logger = LogManager.getLogger();
 
     /** Queue for import and export Jobs*/
-    private volatile static HashSet<Job> JOB_QUEUE = new HashSet<>();
+    private volatile static ArrayList<Job> JOB_QUEUE = new ArrayList<>();
 
     private volatile HashMap<String, RDSStatus> RDS_STATUS_MAP = new HashMap<>();
 
@@ -71,13 +71,14 @@ public abstract class JobQueue implements Runnable {
                 .onFailure(t -> logger.warn("JOB[{}] update failed!", j.getId()));
     };
 
-    protected Future<Void> isProcessingOnRDSPossible(Integer i, Job job){
-        Promise<Void> p = Promise.promise();
+    protected Future<Boolean> isProcessingOnRDSPossible(Integer i, Job job){
+        Promise<Boolean> p = Promise.promise();
 
         /** Check how many jobs are currently running */
         if(i != null && i > CService.configuration.JOB_MAX_RUNNING_JOBS) {
             logger.info("Maximum number of parallel running Jobs reached!");
-            p.complete();
+
+            p.complete(false);
             return p.future();
         }
 
@@ -92,7 +93,7 @@ public abstract class JobQueue implements Runnable {
             default:
                 /** for all other states it's not relevant to check RDS resources */
                 //executing,preparing,validating,finalizing, finalized,partially_failed,failed,waiting,validated
-                p.complete();
+                p.complete(true);
                 return p.future();
         }
 
@@ -122,7 +123,7 @@ public abstract class JobQueue implements Runnable {
                         p.fail("JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high "+rdsStatus.getCurrentMetrics().getTotalRunningImportQueries()+" > "+CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORTS);
                         return;
                     }
-                    p.complete();
+                    p.complete(true);
                 }).onFailure(f -> {
                     p.fail("Cant get RDS Status! "+f.getMessage());
                 });
@@ -147,17 +148,19 @@ public abstract class JobQueue implements Runnable {
         JOB_QUEUE.remove(job);
     }
 
-    public static String checkRunningImportJobsOnSpace(String targetSpaceId){
+    public static String checkRunningJobsOnSpace(String targetSpaceId){
+        /** Check only for imports */
         for (Job j : JOB_QUEUE ) {
             if(targetSpaceId != null  && j.getTargetSpaceId() != null
-                && targetSpaceId.equalsIgnoreCase(j.getTargetSpaceId())){
+                && targetSpaceId.equalsIgnoreCase(j.getTargetSpaceId())
+                && j instanceof Import){
                 return j.getId();
             }
         }
         return null;
     }
 
-    public static HashSet<Job> getQueue(){
+    public static ArrayList<Job> getQueue(){
         return JOB_QUEUE;
     }
 

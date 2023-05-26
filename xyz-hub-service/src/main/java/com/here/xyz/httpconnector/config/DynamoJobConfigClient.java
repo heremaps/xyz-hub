@@ -141,12 +141,12 @@ public class DynamoJobConfigClient extends JobConfigClient {
         });
     }
 
-    protected Future<String> getImportJobsOnTargetSpace(Marker marker, String targetSpaceId) {
+    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Type type) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 List<ScanFilter> filterList = new ArrayList<>();
 
-                filterList.add(new ScanFilter("type").eq(Type.Import.toString()));
+                filterList.add(new ScanFilter("type").eq(type.toString()));
                 filterList.add(new ScanFilter("status").ne(Status.finalized.toString()));
                 filterList.add(new ScanFilter("targetSpaceId").eq(targetSpaceId));
 
@@ -157,6 +157,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                         switch (job.getStatus()){
                             case waiting:
                             case failed:
+                            case finalized:
                                 break;
                             default: {
                                 logger.info("{} is blocked!",targetSpaceId);

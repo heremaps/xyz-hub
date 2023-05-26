@@ -31,7 +31,6 @@ import com.mchange.v3.decode.CannotDecodeException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -44,61 +43,66 @@ public class ExportQueue extends JobQueue{
     protected static ScheduledThreadPoolExecutor executorService = new ScheduledThreadPoolExecutor(CORE_POOL_SIZE, Core.newThreadFactory("export-queue"));
 
     protected void process() throws InterruptedException, CannotDecodeException {
-        HashSet<Job> queue = getQueue();
 
-        if (!queue.isEmpty()) {
-            int i = 0;
-            for (Job job : getQueue()) {
-                if (!(job instanceof Export))
-                    return;
+        for (int i = 0; i <  getQueue().size(); i++) {
+            Job job = getQueue().get(i);
 
-                /** Check Capacity */
-                isProcessingOnRDSPossible(i++, job)
-                        .onSuccess(ff -> {
-                            /** Check if JDBC Client is available */
-                            if (!isTargetJDBCClientLoaded(job))
-                                return;
+            if (!(job instanceof Export))
+                return;
 
-                            /** Run first Job Queue (FIFO) */
-                            Export exportJob = (Export) job;
+            /** Check Capacity */
+            isProcessingOnRDSPossible(i, job)
+                    .onSuccess(canProcess -> {
 
-                            /**
-                             * Job-Life-Cycle:
-                             * waiting -> (validating) -> validated ->  queued -> (preparing) -> prepared -> (executing) -> executed -> (finalizing) -> finalized
-                             * all stages can end up in failed
-                             **/
+                        /** Execution is currently not possible */
+                        if (!canProcess){
+                            return;
+                        }
 
-                            switch (exportJob.getStatus()) {
-                                case finalized:
-                                    logger.info("JOB[{}] is finalized!", exportJob.getId());
-                                    /** Remove Job from Queue */
-                                    removeJob(exportJob);
-                                    break;
-                                case failed:
-                                    logger.info("JOB[{}] has failed!", exportJob.getId());
-                                    /** Remove Job from Queue - in some cases the user is able to retry */
-                                    removeJob(exportJob);
-                                    break;
-                                case waiting:
-                                    updateJobStatus(exportJob, Job.Status.executing)
-                                            .onSuccess(f -> executeJob(exportJob));
-                                    break;
-                                case executed:
-                                    updateJobStatus(exportJob, Job.Status.executing_trigger)
-                                            .onSuccess(f -> postTrigger(exportJob));
-                                    break;
-                                case trigger_executed:
-                                    updateJobStatus(exportJob, Job.Status.collectiong_trigger_status)
-                                            .onSuccess(f -> collectTriggerStatus(exportJob));
-                                    break;
-                                default: {
-                                    logger.info("JOB[{}] is currently '{}' - current Queue-size: {}", exportJob.getId(), exportJob.getStatus(), queueSize());
-                                }
+                        /** Check if JDBC Client is available */
+                        if (!isTargetJDBCClientLoaded(job))
+                            return;
+
+                        /** Run first Job Queue (FIFO) */
+                        Export exportJob = (Export) job;
+
+                        /**
+                         * Job-Life-Cycle:
+                         * waiting -> (validating) -> validated ->  queued -> (preparing) -> prepared -> (executing) -> executed -> (finalizing) -> finalized
+                         * all stages can end up in failed
+                         **/
+
+                        switch (exportJob.getStatus()) {
+                            case finalized:
+                                logger.info("JOB[{}] is finalized!", exportJob.getId());
+                                /** Remove Job from Queue */
+                                removeJob(exportJob);
+                                break;
+                            case failed:
+                                logger.info("JOB[{}] has failed!", exportJob.getId());
+                                /** Remove Job from Queue - in some cases the user is able to retry */
+                                removeJob(exportJob);
+                                break;
+                            case waiting:
+                            case queued:
+                                updateJobStatus(exportJob, Job.Status.executing)
+                                        .onSuccess(f -> executeJob(exportJob));
+                                break;
+                            case executed:
+                                updateJobStatus(exportJob, Job.Status.executing_trigger)
+                                        .onSuccess(f -> postTrigger(exportJob));
+                                break;
+                            case trigger_executed:
+                                updateJobStatus(exportJob, Job.Status.collectiong_trigger_status)
+                                        .onSuccess(f -> collectTriggerStatus(exportJob));
+                                break;
+                            default: {
+                                logger.info("JOB[{}] is currently '{}' - current Queue-size: {}", exportJob.getId(), exportJob.getStatus(), queueSize());
                             }
-                        })
-                        .onFailure(e -> logger.info(e.getMessage()));
+                        }
+                    })
+                    .onFailure(e -> logger.info(e.getMessage()));
             }
-        }
     }
 
     @Override
@@ -121,10 +125,17 @@ public class ExportQueue extends JobQueue{
         JDBCExporter.executeExport(((Export) j), defaultSchema, CService.configuration.JOBS_S3_BUCKET, s3Path,
                         CService.configuration.JOBS_REGION)
                 .onSuccess(statistic -> {
-//                            NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-                            logger.info("JOB[{}] Export of '{}' succeeded!", j.getId(), j.getTargetSpaceId());
-                            ((Export)j).setStatistic(statistic);
-                            updateJobStatus(j, Job.Status.executed);
+                            if(((Export) j).getProcessingList() == null){
+                                /** All tiles are processed */
+                                logger.info("JOB[{}] Export of '{}' completely succeeded!", j.getId(), j.getTargetSpaceId());
+                                ((Export)j).addStatistic(statistic);
+                                updateJobStatus(j, Job.Status.executed);
+                            }else{
+                                /** Not everything is exported - requeue the job */
+                                logger.info("JOB[{}] Export of '{}' partly succeeded!", j.getId(), j.getTargetSpaceId());
+                                ((Export)j).addStatistic(statistic);
+                                updateJobStatus(j, Job.Status.queued);
+                            }
                         }
                 )
                 .onFailure(f -> {

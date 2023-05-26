@@ -58,6 +58,18 @@ public class ExportObject {
         return s3Key.substring(s3Key.lastIndexOf("/")+1);
     }
 
+    @JsonIgnore
+    public String getFilename(String prefix) {
+        if(s3Key == null || prefix == null)
+            return null;
+
+        int pos = s3Key.indexOf(prefix);
+        if(pos == -1)
+            getFilename();
+
+        return s3Key.substring(pos + prefix.length() + 1);
+    }
+
     public void setS3Key(String s3Key) {
         this.s3Key = s3Key;
     }

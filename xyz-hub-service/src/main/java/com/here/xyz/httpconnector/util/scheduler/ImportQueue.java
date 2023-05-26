@@ -33,7 +33,9 @@ import io.vertx.pgclient.PgException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -48,72 +50,74 @@ public class ImportQueue extends JobQueue{
     protected void process() throws InterruptedException, CannotDecodeException {
         //@TODO CleanUp Jobs: Check all Jobs which are finished/failed and delete them after some time.
         //@TODO Lost Jobs: Find possible orphaned Jobs (system crash) and add them to the queue again
-        HashSet<Job> queue = getQueue();
 
-        if (!queue.isEmpty()){
-            int i = 0;
-            for(Job job : getQueue()){
-                if(!(job instanceof Import))
-                    return;
+        for (int i = 0; i <  getQueue().size(); i++) {
+            Job job = getQueue().get(i);
+            if(!(job instanceof Import))
+                return;
 
-                /** Check Capacity */
-                isProcessingOnRDSPossible(i++, job)
-                        .onSuccess(ff -> {
-                            /** Check if JDBC Client is available */
-                            if(!isTargetJDBCClientLoaded(job))
-                                return;
+            /** Check Capacity */
+            isProcessingOnRDSPossible(i, job)
+                    .onSuccess(canProcess -> {
+                        /** Execution is currently not possible */
+                        if (!canProcess)
+                            return;
 
-                            /** Run first Job Queue (FIFO) */
-                            Import importJob = (Import) job;
+                        /** Check if JDBC Client is available */
+                        if(!isTargetJDBCClientLoaded(job))
+                            return;
 
-                            /**
-                             * Job-Life-Cycle:
-                             * waiting -> (validating) -> validated ->  queued -> (preparing) -> prepared -> (executing) -> executed -> (finalizing) -> finalized
-                             * all stages can end up in failed
-                             **/
+                        /** Run first Job Queue (FIFO) */
+                        Import importJob = (Import) job;
 
-                            switch (importJob.getStatus()){
-                                case finalized:
-                                    logger.info("JOB[{}] is finalized!", importJob.getId());
-                                    /** Remove Job from Queue */
-                                    removeJob(importJob);
-                                    break;
-                                case failed:
-                                    logger.info("JOB[{}] has failed!",importJob.getId());
-                                    /** Remove Job from Queue - in some cases the user is able to retry */
-                                    removeJob(importJob);
-                                    releaseReadOnlyLockFromSpace(importJob);
-                                    break;
-                                case waiting:
-                                    updateJobStatus(importJob,Job.Status.validating)
-                                            .onSuccess(f -> validateJob(importJob));
-                                    break;
-                                case validated:
-                                    updateJobStatus(importJob,Job.Status.queued);
-                                    break;
-                                case queued:
-                                    updateJobStatus(importJob, Job.Status.preparing)
-                                            .onSuccess(f ->
-                                                    addReadOnlyLockToSpace(importJob)
-                                                            .onSuccess(f2 -> prepareJob(importJob))
-                                            );
-                                    break;
-                                case prepared:
-                                    updateJobStatus(importJob,Job.Status.executing)
-                                            .onSuccess(f -> executeJob(importJob));
-                                    break;
-                                case executed:
-                                    updateJobStatus(importJob,Job.Status.finalizing)
-                                            .onSuccess(f -> finalizeJob(importJob));
-                                    break;
-                                default: {
-                                    logger.info("JOB[{}] is currently '{}' - current Queue-size: {}",importJob.getId(), importJob.getStatus(), queueSize());
-                                }
+                        /**
+                         * Job-Life-Cycle:
+                         * waiting -> (validating) -> validated ->  queued -> (preparing) -> prepared -> (executing) -> executed -> (finalizing) -> finalized
+                         * all stages can end up in failed
+                         **/
+
+                        switch (importJob.getStatus()){
+                            case finalized:
+                                logger.info("JOB[{}] is finalized!", importJob.getId());
+                                /** Remove Job from Queue */
+                                removeJob(importJob);
+                                break;
+                            case failed:
+                                logger.info("JOB[{}] has failed!",importJob.getId());
+                                /** Remove Job from Queue - in some cases the user is able to retry */
+                                removeJob(importJob);
+                                releaseReadOnlyLockFromSpace(importJob);
+                                break;
+                            case waiting:
+                                updateJobStatus(importJob,Job.Status.validating)
+                                        .onSuccess(f -> validateJob(importJob));
+                                break;
+                            case validated:
+                                updateJobStatus(importJob,Job.Status.queued);
+                                break;
+                            case queued:
+                                updateJobStatus(importJob, Job.Status.preparing)
+                                        .onSuccess(f ->
+                                                addReadOnlyLockToSpace(importJob)
+                                                        .onSuccess(f2 -> prepareJob(importJob))
+                                        );
+                                break;
+                            case prepared:
+                                updateJobStatus(importJob,Job.Status.executing)
+                                        .onSuccess(f -> executeJob(importJob));
+                                break;
+                            case executed:
+                                updateJobStatus(importJob,Job.Status.finalizing)
+                                        .onSuccess(f -> finalizeJob(importJob));
+                                break;
+                            default: {
+                                logger.info("JOB[{}] is currently '{}' - current Queue-size: {}",importJob.getId(), importJob.getStatus(), queueSize());
                             }
-                        })
-                        .onFailure(e -> logger.info(e.getMessage()));
+                        }
+                    })
+                    .onFailure(e -> logger.info(e.getMessage()));
             }
-        }
+
     }
 
     @Override
