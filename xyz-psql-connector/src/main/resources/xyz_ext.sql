@@ -3989,3 +3989,58 @@ from exp_build_sql_inhabited_txt(true, '013200030201', 12,
 */
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION exp_type_download_precalc(
+	esitmated_count bigint,
+	sql_with_jsondata_geo text,
+	tbls regclass[])
+RETURNS int
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    start_parallelization_threshold integer := 500000;
+    max_threads integer := 8;
+	cnt bigint;
+begin
+	if esitmated_count IS null then
+		 execute format('select count(1) from (%1$s) q1', sql_with_jsondata_geo ) into cnt;
+    else
+		cnt := esitmated_count;
+    end if;
+
+	if cnt < start_parallelization_threshold THEN
+		return 1;
+    else
+		return max_threads;
+    end if;
+end
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
+	htile boolean,
+	iqk text,
+	mlevel integer,
+	sql_with_jsondata_geo text,
+	esitmated_count bigint,
+	tbls regclass[])
+RETURNS TABLE(tilelist text[])
+    LANGUAGE 'plpgsql'
+AS $BODY$
+declare
+    start_parallelization_threshold integer := 500000;
+    parallelization_target_level integer := 3;
+	max_tiles integer := 100;
+begin
+    if esitmated_count !=0 AND esitmated_count < start_parallelization_threshold THEN
+        return query select ARRAY[''];
+    else
+		if mlevel > parallelization_target_level then
+	        mlevel := parallelization_target_level;
+    end if;
+
+	-- return list of tiles with content on targetLevel
+    return query
+        select tile_list from exp_build_sql_inhabited_txt(htile, iqk , mlevel, sql_with_jsondata_geo, max_tiles );
+    end if;
+end
+$BODY$;
