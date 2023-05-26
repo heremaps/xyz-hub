@@ -30,30 +30,6 @@
 -- For Management DB:  SET search_path TO {mgmt_schema}, public, topology;
 -- SET ROLE some_admin;
 
-SELECT * FROM xyz_config.xyz_space xs ;
-// {service-id}:{spaceId}
-// "dcu:topology_master" {
-//   "connectors": ["dcu:autoMerge", "dcu:schemaValidator", "dcu:topology_master"]
-// }
-// connector => {service-id}:{connectorId}
-// dcu:topology_master { // "psql"
-//   "eventHandlerId": "dcu" (-> com.here.xyz.dcu.StorageHandle)
-// }
-// dcu:schemaValidator {
-//   "eventHandlerId": "schemaValidator",
-//   "params": {
-//     "scheamUrl": "http:..."
-//   }
-// }
-
-
-SELECT * from "RnxiONGZ" limit 100;
-SELECT * from "prd_feedback" limit 100;
-
-COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
-SELECT pg_catalog.obj_description('xyz_config.transactions'::regclass, 'pg_class');
-
-
 CREATE SCHEMA IF NOT EXISTS "${schema}";
 -- The effects of SET LOCAL last only till the end of the current transaction.
 SET LOCAL search_path TO "${schema}", public, topology;

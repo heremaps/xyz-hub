@@ -1,5 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
+import com.here.xyz.util.IoHelp;
 import com.here.xyz.INaksha;
 import java.io.IOException;
 import java.sql.Connection;
@@ -173,17 +174,20 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 //    final String ADMIN_SCHEMA = escapeId(connectorParams.getAdminSchema(), sb).toString();
 //    sb.setLength(0);
 //    final String SPACE_SCHEMA = escapeId(connectorParams.getSpaceSchema(), sb).toString();
-//
-//    try (final Connection conn = dataSource.getConnection()) {
-//      SQL = "CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public;\n" +
-//          "CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;\n" +
-//          "CREATE EXTENSION IF NOT EXISTS postgis_topology SCHEMA topology;\n" +
-//          "CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;\n";
-//      try (final Statement stmt = conn.createStatement()) {
-//        stmt.execute(SQL);
-//        conn.commit();
-//      }
-//
+
+    try (final Connection conn = dataSource.getConnection()) {
+      SQL = """
+          CREATE SCHEMA IF NOT EXISTS topology;
+          CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public;
+          CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
+          CREATE EXTENSION IF NOT EXISTS postgis_topology SCHEMA topology;
+          CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
+          """;
+      try (final Statement stmt = conn.createStatement()) {
+        stmt.execute(SQL);
+        conn.commit();
+      }
+
 //      sb.setLength(0);
 //      sb.append("CREATE SCHEMA IF NOT EXISTS ").append(ADMIN_SCHEMA).append(";\n");
 //      sb.append("CREATE SCHEMA IF NOT EXISTS ").append(SPACE_SCHEMA).append(";\n");
@@ -195,11 +199,11 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 //
 //      // Install extensions.
 //      try (final Statement stmt = conn.createStatement()) {
-//        SQL = readResource("/xyz_ext.sql");
+//        SQL = IoHelp.readResource("xyz_ext.sql");
 //        stmt.execute(SQL);
 //        conn.commit();
 //
-//        SQL = readResource("/naksha_ext.sql");
+//        SQL = IoHelp.readResource("naksha_ext.sql");
 //        stmt.execute(SQL);
 //        conn.commit();
 //      }
@@ -216,7 +220,7 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 //      stmt.execute(MaintenanceSQL.createSpaceMetaTable);
 //      stmt.execute(MaintenanceSQL.createTxnPubTableSQL);
 //      setupH3(dataSource, appName);
-//    }
+    }
   }
 
   /**
