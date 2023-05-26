@@ -56,7 +56,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
           "SELECT * FROM ("
           + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
           + "        FROM ${schema}.${table}"
-          + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{iOffsetExtension}} ${{limit}})"
+          + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{customClause}} ${{iOffsetExtension}} ${{limit}})"
           + "    UNION ALL "
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
           + "            ("
@@ -69,7 +69,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
       query = new SQLQuery(
           "SELECT ${{selection}}, ${{geo}}${{iColumn}}"
               + "    FROM ${schema}.${table} ${{tableSample}}"
-              + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}");
+              + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{customClause}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
     query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, isExtended));
@@ -77,6 +77,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     query.withQueryFragment("authorCheck", buildAuthorCheckFragment(event));
     query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildGeoFragment(event));
+
+    query.setQueryFragment("customClause", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("tableSample", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
@@ -168,7 +170,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     return new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}} ${{limit}}")
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{customClause}} ${{iOffsetBase}} ${{limit}}")
         .withVariable("extendedTable", getExtendedTable(event))
         .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, false)) //NOTE: We know that the base space is not an extended one
         .withQueryFragment("versionCheck", buildBaseVersionCheckFragment());
@@ -179,7 +181,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetIntermediate}} ${{limit}})"
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{customClause}} ${{iOffsetIntermediate}} ${{limit}})"
         + "UNION ALL"
         + "    SELECT id, version, operation, jsondata, geo${{iColumn}} FROM"
         + "        ("
