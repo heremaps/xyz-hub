@@ -91,6 +91,8 @@ public class JobHandler {
                     if(j == null){
                         return Future.failedFuture(new HttpException(NOT_FOUND, "Job with Id "+jobId+" not found"));
                     }else{
+                        /** Clean S3 Job Folder */
+                        CService.jobS3Client.cleanJobData(jobId);
                         return Future.succeededFuture(j);
                     }
                 });
@@ -198,12 +200,13 @@ public class JobHandler {
 
     protected static Future<String> checkRunningJobs(Marker marker, Job job){
         /** Check in node memory */
-        String jobId = CService.importQueue.checkRunningImportJobsOnSpace(job.getTargetSpaceId());
+        String jobId = CService.importQueue.checkRunningJobsOnSpace(job.getTargetSpaceId());
 
         if(jobId != null) {
             return Future.succeededFuture(jobId);
         }else{
-            return CService.jobConfigClient.getRunningImportJobsOnSpace(marker, job.getTargetSpaceId());
+            /** Check only for imports*/
+            return CService.jobConfigClient.getRunningJobsOnSpace(marker, job.getTargetSpaceId(), Type.Import);
         }
     }
 

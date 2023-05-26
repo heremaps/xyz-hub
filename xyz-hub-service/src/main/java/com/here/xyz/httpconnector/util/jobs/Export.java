@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.models.geojson.implementation.Geometry;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -47,6 +48,9 @@ public class Export extends Job {
 
     @JsonView({Internal.class})
     private long estimatedFeatureCount;
+
+    @JsonView({Internal.class})
+    private List<String> processingList;
 
     /** Only used by type VML */
     @JsonView({Public.class})
@@ -78,6 +82,14 @@ public class Export extends Job {
         return type;
     }
 
+    public List<String> getProcessingList() {
+        return processingList;
+    }
+
+    public void setProcessingList(List<String> processingList) {
+        this.processingList = processingList;
+    }
+
     public long getEstimatedFeatureCount() {
         return estimatedFeatureCount;
     }
@@ -92,6 +104,15 @@ public class Export extends Job {
 
     public void setStatistic(ExportStatistic statistic) {
         this.statistic = statistic;
+    }
+    public void addStatistic(ExportStatistic statistic) {
+        if(this.statistic == null)
+            this.statistic = statistic;
+        else {
+            this.statistic.setBytesUploaded(this.statistic.getBytesUploaded() + statistic.getBytesUploaded());
+            this.statistic.setFilesUploaded(this.statistic.getFilesUploaded() + statistic.getFilesUploaded());
+            this.statistic.setRowsUploaded(this.statistic.getRowsUploaded() + statistic.getRowsUploaded());
+        }
     }
 
     public Map<String,ExportObject> getExportObjects() {
@@ -146,10 +167,16 @@ public class Export extends Job {
     public void setType(String type) { this.type = type; }
 
     public String getTriggerId() { return triggerId; }
+
     public void setTriggerId(String triggerId) { this.triggerId = triggerId; }
 
     public Export withId(final String id) {
         setId(id);
+        return this;
+    }
+
+    public Export withProcessingList(List<String> processingList) {
+        setProcessingList(processingList);
         return this;
     }
 

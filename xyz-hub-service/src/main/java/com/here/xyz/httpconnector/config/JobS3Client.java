@@ -261,11 +261,15 @@ public class JobS3Client extends AwsS3Client{
         ObjectListing objectListing = client.listObjects(listObjects);
 
         for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+            //Skip empty files
+            if(objectSummary.getSize() == 0)
+                continue;
+
             ExportObject eo = new ExportObject(objectSummary.getKey(), objectSummary.getSize());
             if(eo.getFilename().equalsIgnoreCase("manifest.json"))
                 continue;;
 
-            exportObjectList.put(eo.getFilename(), eo);
+            exportObjectList.put(eo.getFilename(prefix), eo);
             if(createDownloadUrl){
                 try {
                     eo.setDownloadUrl(generateDownloadURL(bucketName, eo.getS3Key()));
@@ -297,5 +301,9 @@ public class JobS3Client extends AwsS3Client{
         } catch (AmazonServiceException | IOException e) {
             logger.error("[{}] Cant write Metafile {}", job.getId(), e);
         }
+    }
+
+    public void cleanJobData(String jobId){
+        this.deleteS3Folder(CService.configuration.JOBS_S3_BUCKET, CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER+"/"+jobId+"/");
     }
 }

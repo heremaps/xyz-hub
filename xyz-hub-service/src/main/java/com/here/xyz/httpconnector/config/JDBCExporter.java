@@ -31,7 +31,9 @@ import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.SearchForFeatures;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.impl.ArrayTuple;
 import org.apache.logging.log4j.LogManager;
@@ -39,74 +41,73 @@ import org.apache.logging.log4j.Logger;
 
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Client for handle Export-Jobs (RDS -> S3)
  */
 public class JDBCExporter extends JDBCClients{
     private static final Logger logger = LogManager.getLogger();
-    private static final boolean VML_USE_CLIPPING = true;
+    private static final int MAX_PARALLEL_EXPORT_QUERIES = 8;
 
     public static Future<Export.ExportStatistic> executeExport(Export j, String schema, String s3Bucket, String s3Path, String s3Region){
-        return executeExport(j.getTargetConnector(), schema, j.getTargetSpaceId(),
-                s3Bucket, s3Path, s3Region,
-                j.getCsvFormat(), j.getExportTarget(),
-                j.getFilters(), j.getParams(),
-                j.getTargetVersion(), j.getTargetLevel(), j.getMaxTilesPerFile());
-    }
-
-    public static Future<Export.ExportStatistic> executeExport(String clientID, String schema, String spaceId,
-                                                               String s3Bucket, String s3Path, String s3Region,
-                                                               CSVFormat csvFormat, Export.ExportTarget target,
-                                                               Export.Filters filters, Map params,
-                                                               String targetVersion, Integer targetLevel, int maxTilesPerFile){
-        SQLQuery q;
-
         try{
-            String propertyFilter = (filters == null ? null : filters.getPropertyFilter());
-            Export.SpatialFilter spatialFilter= (filters == null ? null : filters.getSpatialFilter());
+            String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+            Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+            SQLQuery exportQuery = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
+                    j.getTargetVersion(), j.getParams(), j.getCsvFormat(), null);
 
-            switch (target.getType()){
+            switch (j.getExportTarget().getType()){
                 case DOWNLOAD:
-                    q = buildS3ExportQuery(schema, spaceId, s3Bucket, s3Path, s3Region, csvFormat,
-                            propertyFilter, spatialFilter, targetVersion, params);
-                    logger.info("Execute S3-Export {}->{} {}", spaceId, s3Path, q.text());
+                    return calculateThreadCountForDownload(j, schema, exportQuery)
+                            .compose(threads -> {
+                                try{
+                                    Promise<Export.ExportStatistic> promise = Promise.promise();
+                                    List<Future> exportFutures = new ArrayList<>();
 
-                    return getClient(clientID)
-                            .preparedQuery(q.text())
-                            .execute(new ArrayTuple(q.parameters()))
-                            .map(row -> {
-                                Row res = row.iterator().next();
-                                if (res != null) {
-                                    return new Export.ExportStatistic()
-                                            .withRowsUploaded(res.getLong("rows_uploaded"))
-                                            .withFilesUploaded(res.getLong("files_uploaded"))
-                                            .withBytesUploaded(res.getLong("bytes_uploaded"));
+                                    threads = threads > MAX_PARALLEL_EXPORT_QUERIES ? MAX_PARALLEL_EXPORT_QUERIES : threads;
+
+                                    for (int i = 0; i < threads; i++) {
+                                        String s3Prefix = i + "_";
+                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region,
+                                                new SQLQuery("AND i%% " + threads + " = "+i));
+                                        exportFutures.add( exportTypeDownload(j.getTargetConnector(), q2, j, s3Path));
+                                    }
+
+                                    return executeParallelExportAndCollectStatistics(null, j, promise, exportFutures);
+                                }catch (SQLException e){
+                                    logger.warn(e);
+                                    return Future.failedFuture(e);
                                 }
-                                return null;
                             });
                 case VML:
                 default:
-                    q = buildVMLExportQuery(schema, spaceId, s3Bucket, s3Path, s3Region, csvFormat, targetLevel, maxTilesPerFile,
-                            propertyFilter, spatialFilter, targetVersion, params);
-                    logger.info("Execute VML-Export {}->{} {}", spaceId, s3Path, q.text());
+                    return calculateTileListForVMLExport(j, schema, exportQuery)
+                            .compose(tileList-> {
+                                try{
+                                    /** Store list of tiles which we want to process in parallel. If tiles are exported they are
+                                     * getting removed from this list */
+                                    j.setProcessingList(tileList);
 
-                    return getClient(clientID)
-                            .preparedQuery(q.text())
-                            .execute(new ArrayTuple(q.parameters()))
-                            .map(rows -> {
-                                Export.ExportStatistic es = new Export.ExportStatistic();
+                                    Promise<Export.ExportStatistic> promise = Promise.promise();
+                                    List<Future> exportFutures = new ArrayList<>();
+                                    List<String> processingList = new ArrayList<>();
 
-                                rows.forEach(
-                                        row -> {
-                                            es.addRows(row.getLong("rows_uploaded"));
-                                            es.addBytes(row.getLong("bytes_uploaded"));
-                                            es.addFiles(row.getLong("files_uploaded"));
-                                        }
-                                );
+                                    for (int i = 0; i < (tileList.size() > MAX_PARALLEL_EXPORT_QUERIES ? MAX_PARALLEL_EXPORT_QUERIES : tileList.size()) ; i++) {
+                                        processingList.add(tileList.get(i));
+                                        SQLQuery q2 = buildVMLExportQuery(j, schema, s3Bucket, s3Path, s3Region, null, tileList.get(i));
+                                        exportFutures.add(exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
+                                    }
 
-                                return es;
+                                    return executeParallelExportAndCollectStatistics(processingList, j, promise, exportFutures);
+                                }catch (SQLException e){
+                                    logger.warn(e);
+                                    return Future.failedFuture(e);
+                                }
                             });
             }
         }catch (SQLException e){
@@ -114,10 +115,163 @@ public class JDBCExporter extends JDBCClients{
         }
     }
 
-    public static SQLQuery buildS3ExportQuery(String schema, String spaceId, String s3Bucket, String s3Path, String s3Region, CSVFormat csvFormat,
-                                              String propertyFilter, Export.SpatialFilter spatialFilter, String targetVersion, Map params) throws SQLException {
-        s3Path = s3Path+"/export.csv";
-        SQLQuery exportSelectString = generateFilteredExportQuery(schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat);
+    private static Future<Export.ExportStatistic> executeParallelExportAndCollectStatistics(List<String> processingList, Export j, Promise<Export.ExportStatistic> promise, List<Future> exportFutures) {
+        CompositeFuture
+                .join(exportFutures)
+                .onComplete(
+                        t -> {
+                            if(t.succeeded()){
+                                long overallRowsUploaded = 0;
+                                long overallFilesUploaded = 0;
+                                long overallBytesUploaded = 0;
+
+                                if(processingList != null) {
+                                    //Remove processed chunks from list
+                                    j.getProcessingList().removeAll(processingList);
+
+                                    //If all chunks are exported remove value from job config
+                                    if(j.getProcessingList().size() == 0)
+                                        j.setProcessingList(null);
+                                }
+
+                                // Collect all results of future and summarize them into ExportStatistics
+                                for (Future fut : exportFutures) {
+                                    Export.ExportStatistic eo = (Export.ExportStatistic)fut.result();
+                                    overallRowsUploaded += eo.getRowsUploaded();
+                                    overallFilesUploaded += eo.getFilesUploaded();
+                                    overallBytesUploaded += eo.getBytesUploaded();
+                                }
+
+                                promise.complete(new Export.ExportStatistic()
+                                        .withBytesUploaded(overallBytesUploaded)
+                                        .withFilesUploaded(overallFilesUploaded)
+                                        .withRowsUploaded(overallRowsUploaded)
+                                );
+                            }else{
+                                logger.warn("[{}] Export failed {}: {}", j.getId(), j.getTargetSpaceId(), t.cause());
+                                promise.fail(t.cause());
+                            }
+                        });
+        return promise.future();
+    }
+
+    private static Future<Long> calculateThreadCountForDownload(Export j, String schema, SQLQuery exportQuery) throws SQLException {
+        /**
+         * Currently we are ignoring filters and count only all features
+         **/
+        SQLQuery q = buildS3CalculateQuery(j, schema, exportQuery);
+        logger.info("[{}] Calculate S3-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+
+        return getClient(j.getTargetConnector())
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .map(row -> {
+                    Row res = row.iterator().next();
+                    if (res != null) {
+                        return res.getLong("thread_cnt");
+                    }
+                    return null;
+                });
+    }
+
+    private static Future<List<String>> calculateTileListForVMLExport(Export j, String schema, SQLQuery exportQuery) throws SQLException {
+        if(j.getProcessingList() != null)
+            return Future.succeededFuture(j.getProcessingList());
+
+        SQLQuery q = buildVMLCalculateQuery(j, schema, exportQuery);
+        logger.info("[{}] Calculate VML-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+
+        return getClient(j.getTargetConnector())
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .map(row -> {
+                    Row res = row.iterator().next();
+                    if (res != null) {
+                        return Arrays.stream(res.getArrayOfStrings("tilelist")).collect(Collectors.toList());
+                    }
+                    return null;
+                });
+    }
+
+    private static Future<Export.ExportStatistic> exportTypeDownload(String clientId, SQLQuery q, Export j , String s3Path){
+        logger.info("[{}] Execute S3-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
+
+        return getClient(clientId)
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .map(row -> {
+                    Row res = row.iterator().next();
+                    if (res != null) {
+                        return new Export.ExportStatistic()
+                                .withRowsUploaded(res.getLong("rows_uploaded"))
+                                .withFilesUploaded(res.getLong("files_uploaded"))
+                                .withBytesUploaded(res.getLong("bytes_uploaded"));
+                    }
+                    return null;
+                });
+    }
+
+    private static Future<Export.ExportStatistic> exportTypeVML(String clientId, SQLQuery q, Export j, String s3Path){
+        logger.info("[{}] Execute VML-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
+
+        return getClient(clientId)
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .map(rows -> {
+                    Export.ExportStatistic es = new Export.ExportStatistic();
+
+                    rows.forEach(
+                            row -> {
+                                es.addRows(row.getLong("rows_uploaded"));
+                                es.addBytes(row.getLong("bytes_uploaded"));
+                                es.addFiles(row.getLong("files_uploaded"));
+                            }
+                    );
+
+                    return es;
+                });
+    }
+
+    public static SQLQuery buildS3CalculateQuery(Export job, String schema, SQLQuery query) {
+        SQLQuery q = new SQLQuery("select ${schema}.exp_type_download_precalc(" +
+                "#{estimated_count}, ${{exportSelectString}}, #{tbls}) as thread_cnt");
+
+        q.setVariable("schema", schema);
+        q.setNamedParameter("estimated_count", job.getEstimatedFeatureCount());
+        q.setQueryFragment("exportSelectString", query);
+        //TBD
+        q.setNamedParameter("tbls", null);
+
+        return q.substituteAndUseDollarSyntax(q);
+    }
+
+    public static SQLQuery buildVMLCalculateQuery(Export job, String schema, SQLQuery query) {
+        int exportCalcLevel = 3;
+
+        SQLQuery q = new SQLQuery("select tilelist from ${schema}.exp_type_vml_precalc(" +
+                "#{htile}, '', #{mlevel}, ${{exportSelectString}}, #{estimated_count}, #{tbls})");
+
+        q.setVariable("schema", schema);
+        q.setNamedParameter("htile",true);
+        q.setNamedParameter("idk","''");
+        q.setNamedParameter("mlevel", exportCalcLevel);
+        q.setQueryFragment("exportSelectString", query);
+        q.setNamedParameter("estimated_count", job.getEstimatedFeatureCount());
+        //TBD
+        q.setNamedParameter("tbls",null);
+
+        return q.substituteAndUseDollarSyntax(q);
+    }
+
+    public static SQLQuery buildS3ExportQuery(Export j, String schema,
+                                              String s3Bucket, String s3Path, String s3FilePrefix, String s3Region,
+                                              SQLQuery customWhereCondition) throws SQLException {
+
+        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+
+        s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
+        SQLQuery exportSelectString = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition);
 
         SQLQuery q = new SQLQuery("SELECT *,'{iml_s3_export_hint}' as iml_s3_export_hint from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
@@ -133,24 +287,27 @@ public class JDBCExporter extends JDBCClients{
         return q.substituteAndUseDollarSyntax(q);
     }
 
-    public static SQLQuery buildVMLExportQuery(String schema, String spaceId, String s3Bucket, String s3Path, String s3Region,  CSVFormat csvFormat,
-                                               int targetLevel, int maxTilesPerFile,  String propertyFilter, Export.SpatialFilter spatialFilter,
-                                               String targetVersion, Map params) throws SQLException {
+    public static SQLQuery buildVMLExportQuery(Export j, String schema,
+                                               String s3Bucket, String s3Path, String s3Region,
+                                               SQLQuery customWhereCondition, String parentQk) throws SQLException {
 
-        maxTilesPerFile = (maxTilesPerFile == 0 ? 4096 : maxTilesPerFile);
+        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
-        SQLQuery exportSelectString =  generateFilteredExportQuery(schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat);
+        int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
+
+        SQLQuery exportSelectString =  generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition);
 
         SQLQuery q = new SQLQuery(
                 "select("+
                         " aws_s3.query_export_to_s3( replace( o.s3sql, 'select *', 'select htiles_convert_qk_to_longk(tile_id)::text as tile_id, tile_content' ) , " +
                         "   #{s3Bucket}, " +
-                        "   format('%s/%s/%s-%s.csv',#{s3Path}, o.qk, o.bucket, o.nrbuckets) ," +
+                        "   format('%s/%s/%s-%s.csv',#{s3Path}::text, o.qk, o.bucket, o.nrbuckets) ," +
                         "   #{s3Region}," +
                         "   'format csv')).* ," +
                         "  '{iml_vml_export_hint}' as iml_vml_export_hint " +
                         " from" +
-                        "    exp_build_sql_inhabited_txt(true, '', #{targetLevel}, ${{exportSelectString}}, #{maxTilesPerFile}::int )o"
+                        "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, #{maxTilesPerFile}::int )o"
         );
 
         q.setQueryFragment("exportSelectString", exportSelectString);
@@ -158,15 +315,15 @@ public class JDBCExporter extends JDBCClients{
         q.setNamedParameter("s3Bucket",s3Bucket);
         q.setNamedParameter("s3Path",s3Path);
         q.setNamedParameter("s3Region",s3Region);
-        /* q.setNamedParameter("clipped",VML_USE_CLIPPING); */
-        q.setNamedParameter("targetLevel", targetLevel);
+        q.setNamedParameter("targetLevel", j.getTargetLevel());
+        q.setNamedParameter("parentQK", parentQk);
         q.setNamedParameter("maxTilesPerFile", maxTilesPerFile);
 
         return q.substituteAndUseDollarSyntax(q);
     }
 
     private static SQLQuery generateFilteredExportQuery(String schema, String spaceId, String propertyFilter, Export.SpatialFilter spatialFilter,
-                                                        String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
+                                                        String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition) throws SQLException {
         SQLQuery geoFragment;
 
         if (spatialFilter != null && spatialFilter.isClipped()) {
@@ -220,6 +377,9 @@ public class JDBCExporter extends JDBCClients{
         sqlQuery.setQueryFragment("geo", geoFragment);
         /** Remove Limit */
         sqlQuery.setQueryFragment("limit", "");
+
+        if(customWhereCondition != null)
+            sqlQuery.setQueryFragment("customClause", customWhereCondition);
 
         if (csvFormat.equals(CSVFormat.GEOJSON)) {
             SQLQuery geoJson = new SQLQuery(

@@ -20,8 +20,7 @@ package com.here.xyz.httpconnector.rest;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
-import com.here.xyz.httpconnector.config.JDBCImporter;
-import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
+import com.here.xyz.httpconnector.util.scheduler.JobQueue;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
@@ -71,7 +70,7 @@ public class JobStatusApi {
 
         JSONObject status = new JSONObject();
         status.put("SYSTEM", this.system);
-        status.put("RUNNING_JOBS", ImportQueue.getQueue().stream().map(j ->{
+        status.put("RUNNING_JOBS", JobQueue.getQueue().stream().map(j ->{
             JSONObject info = new JSONObject();
             info.put("type", j.getClass().getSimpleName());
             info.put("id", j.getId());
@@ -83,7 +82,7 @@ public class JobStatusApi {
         JDBCClients.getClientList().forEach(
                 clientId -> {
                     if(CService.supportedConnectors.indexOf(clientId) != -1 && !clientId.equals(JDBCClients.CONFIG_CLIENT_ID))
-                        statusFutures.add(JDBCImporter.getRDSStatus(clientId));
+                        statusFutures.add(JDBCClients.getRDSStatus(clientId));
                 }
         );
 
