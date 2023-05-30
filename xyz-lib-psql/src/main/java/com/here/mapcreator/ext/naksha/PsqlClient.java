@@ -167,7 +167,7 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
   public void init() throws SQLException, IOException {
-    final StringBuilder sb = new StringBuilder();
+//    final StringBuilder sb = new StringBuilder();
     String SQL;
 
 //    final PsqlStorageParams connectorParams = dataSource.connectorParams;
@@ -186,7 +186,7 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 //      }
 //
     try (final Connection conn = dataSource.getConnection()) {
-      conn.setAutoCommit(true);
+      conn.setAutoCommit(true); // It should already be set by default, but we have it here for clarity
       try (final Statement stmt = conn.createStatement()) {
         SQL = """
           CREATE SCHEMA IF NOT EXISTS topology;
@@ -205,7 +205,7 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 //        stmt.execute(MaintenanceSQL.createSpaceMetaTable);
 //        stmt.execute(MaintenanceSQL.createTxnPubTableSQL);
       }
-      setupH3();
+//      setupH3();
     }
   }
 
