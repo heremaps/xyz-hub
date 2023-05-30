@@ -30,9 +30,8 @@
 -- For Management DB:  SET search_path TO {mgmt_schema}, public, topology;
 -- SET ROLE some_admin;
 
-CREATE SCHEMA IF NOT EXISTS "${schema}";
 -- The effects of SET LOCAL last only till the end of the current transaction.
-SET LOCAL search_path TO "${schema}", public, topology;
+-- SET LOCAL search_path TO "${schema}", public, topology;
 
 -- Returns the version: 16 bit reserved, 16 bit major, 16 bit minor, 16 bit revision
 CREATE OR REPLACE FUNCTION naksha_version() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$

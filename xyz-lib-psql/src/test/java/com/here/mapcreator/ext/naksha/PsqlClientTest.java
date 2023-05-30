@@ -19,12 +19,10 @@ public class PsqlClientTest {
         .withDb(System.getenv("NAKSHA_DB"))
         .build();
     final PsqlDataSource ds = new PsqlDataSource(config);
-    final PsqlClient client = new PsqlClient(ds, 0L);
+    final PsqlClient<PsqlDataSource> client = new PsqlClient<>(ds, 0L);
     try {
       client.init();
-    } catch (SQLException e) {
-      throw new RuntimeException(e);
-    } catch (IOException e) {
+    } catch (SQLException | IOException e) {
       throw new RuntimeException(e);
     }
   }
