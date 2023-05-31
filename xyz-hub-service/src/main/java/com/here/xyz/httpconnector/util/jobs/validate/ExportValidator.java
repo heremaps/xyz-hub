@@ -52,14 +52,6 @@ public class ExportValidator extends Validator{
             if(job.getExportTarget().getTargetId() == null)
                 throw new Exception("Please specify the targetId!");
 
-            int catalogMarkerTargetSpace = job.getTargetSpaceId().lastIndexOf(":");
-            catalogMarkerTargetSpace = catalogMarkerTargetSpace == -1 ? job.getTargetSpaceId().length() : catalogMarkerTargetSpace;
-            int catalogMarkerExportTarget= job.getExportTarget().getTargetId().lastIndexOf(":");
-
-            if(catalogMarkerExportTarget == -1 || (!job.getTargetSpaceId().substring(0,catalogMarkerTargetSpace).equalsIgnoreCase(
-                    job.getExportTarget().getTargetId().substring(0,catalogMarkerExportTarget))))
-                throw new Exception("TargetId is invalid");
-
             if(job.getTargetLevel() == null)
                 throw new Exception("Please specify targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
 
