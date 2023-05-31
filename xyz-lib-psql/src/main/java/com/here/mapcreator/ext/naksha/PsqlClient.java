@@ -188,17 +188,12 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
     try (final Connection conn = dataSource.getConnection()) {
       conn.setAutoCommit(true); // It should already be set by default, but we have it here for clarity
       try (final Statement stmt = conn.createStatement()) {
-        SQL = """
-          CREATE SCHEMA IF NOT EXISTS topology;
-          CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public;
-          CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
-          CREATE EXTENSION IF NOT EXISTS postgis_topology SCHEMA topology;
-          CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-          """;
-        stmt.execute(SQL);
         // Install extensions
         SQL = IoHelp.readResource("naksha_ext.sql");
         stmt.execute(SQL);
+        stmt.execute("""
+        SELECT naksha_init();
+        """);
 
 //        stmt.execute(MaintenanceSQL.createIDXTableSQL);
 //        stmt.execute(MaintenanceSQL.createDbStatusTable);

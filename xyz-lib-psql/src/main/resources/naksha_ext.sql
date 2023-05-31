@@ -984,67 +984,6 @@ BEGIN
 END
 $$;
 
-CREATE OR REPLACE FUNCTION naksha_tx_ensure()
-    RETURNS void
-    LANGUAGE 'plpgsql' VOLATILE
-AS $BODY$
-BEGIN
-    EXECUTE 'CREATE TABLE IF NOT EXISTS transactions ('
-        || 'i           BIGSERIAL PRIMARY KEY NOT NULL, '
-        || 'txid        int8 NOT NULL, '
-        || 'txi         int8 NOT NULL, '
-        || 'txcid       int8 NOT NULL, '
-        || 'txts        timestamptz NOT NULL, '
-        || 'txn         uuid NOT NULL, '
-        || '"schema"    text COLLATE "C" NOT NULL, '
-        || '"table"     text COLLATE "C" NOT NULL, '
-        || 'commit_msg  text COLLATE "C", '
-        || 'commit_json jsonb, '
-        || 'space       text COLLATE "C", '
-        || 'id          int8, '
-        || 'ts          timestamptz'
-        || ')';
-
-    EXECUTE 'CREATE SEQUENCE IF NOT EXISTS transactions_txi_seq AS int8';
-    EXECUTE 'CREATE SEQUENCE IF NOT EXISTS transactions_id_seq AS int8';
-
-    -- unique index: id DESC, schema ASC, table ASC
-    EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS transactions_id_idx '
-        || 'ON transactions USING btree (id DESC, "schema" ASC, "table" ASC)'
-        || 'INCLUDE (i)';
-
-    -- index: ts DESC
-    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_ts_idx '
-        || 'ON transactions USING btree (ts DESC)'
-        || 'INCLUDE (i)';
-
-    -- unique index: txn DESC, schema ASC, table ASC
-    EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS transactions_txn_idx '
-        || 'ON transactions USING btree (txn DESC, "schema" ASC, "table" ASC) '
-        || 'INCLUDE (i)';
-
-    -- index: txid DESC, schema ASC, table ASC
-    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_txid_idx '
-        || 'ON transactions USING btree (txid DESC, "schema" ASC, "table" ASC)'
-        || 'INCLUDE (i)';
-
-    -- index: txcid DESC, schema ASC, table ASC
-    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_txcid_idx '
-        || 'ON transactions USING btree (txcid DESC, "schema" ASC, "table" ASC)'
-        || 'INCLUDE (i)';
-
-    -- index: txts DESC, txn DESC
-    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_txts_idx '
-        || 'ON transactions USING btree (txts DESC, txn DESC) '
-        || 'INCLUDE (i)';
-
-    -- index: space ASC, txn DESC, schema ASC, table ASC
-    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_space_idx '
-        || 'ON transactions USING btree (space ASC, txn DESC, "schema" ASC, "table" ASC) '
-        || 'INCLUDE (i)';
-END
-$BODY$;
-
 CREATE OR REPLACE FUNCTION naksha_tx_insert(_schema text, _table text)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
@@ -1102,113 +1041,126 @@ EXCEPTION WHEN OTHERS THEN
 END
 $BODY$;
 
-CREATE OR REPLACE FUNCTION naksha_mgmt_ensure(_schema TEXT)
+CREATE OR REPLACE FUNCTION naksha_init() --mgnt_schema TEXT, admin_schema TEXT, spaces_schema TEXT, connector_id int8)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
-DECLARE
-    SQL TEXT;
+-- DECLARE
+--     SQL TEXT;
 BEGIN
-    CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public;
-    CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-    CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
-
-    SQL := format('CREATE OR REPLACE FUNCTION naksha_mgmt_schema() '
-               || 'RETURNS TEXT LANGUAGE ''plpgsql'' IMMUTABLE AS
-                  ''BEGIN return ''%L''; END'';', _schema);
-    --RAISE NOTICE '%', sql;
-    EXECUTE SQL;
-
-    SQL := format('CREATE OR REPLACE FUNCTION naksha_connector_id() '
-               || 'RETURNS int8 LANGUAGE ''plpgsql'' IMMUTABLE AS
-                  ''BEGIN RETURN 0::int8; END'';');
-    --RAISE NOTICE '%', sql;
-    EXECUTE SQL;
-
-    PERFORM naksha_tx_ensure();
-
-    PERFORM naksha_table_ensure_with_history(_schema, 'spaces');
-    PERFORM naksha_table_enable_history(_schema, 'spaces');
-    --EXECUTE 'CREATE SEQUENCE IF NOT EXISTS xyz_space_i_seq AS int8';
-    --EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS xyz_space_i_idx ON xyz_space USING btree (i ASC)';
-    --EXECUTE 'CREATE INDEX IF NOT EXISTS xyz_space_owner_idx ON xyz_space USING btree (owner ASC)';
-
-    PERFORM naksha_table_ensure_with_history(_schema, 'connectors');
-    PERFORM naksha_table_enable_history(_schema, 'connectors');
-    SQL := 'CREATE UNIQUE INDEX IF NOT EXISTS connectors_cid_idx ON connectors '
-        || 'USING btree (((jsondata->''properties''->''@ns:com:here:xyz''->>''id'')::int8) ASC) '
-        || 'WITH (fillfactor=50)';
-    --RAISE NOTICE '%', sql;
-    EXECUTE SQL;
-
-    --EXECUTE 'CREATE TABLE IF NOT EXISTS xyz_storage ('
-    --     || 'id       TEXT PRIMARY KEY NOT NULL'
-    --     || ',owner   TEXT NOT NULL'
-    --     || ',cid     TEXT'
-    --     || ',config  JSONB NOT NULL'
-    --     || ',i       int8 NOT NULL'
-    --     || ')';
-    --EXECUTE 'CREATE SEQUENCE IF NOT EXISTS xyz_storage_i_seq AS int8';
-    --EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS xyz_storage_i_idx ON xyz_storage USING btree (i ASC)';
-    --EXECUTE 'CREATE INDEX IF NOT EXISTS xyz_storage_owner_idx ON xyz_storage USING btree (owner ASC)';
-
-
-    PERFORM naksha_table_ensure_with_history(_schema, 'publication');
-    PERFORM naksha_table_enable_history(_schema, 'publication');
-    -- xyz_txn_pub
-    --EXECUTE 'CREATE TABLE IF NOT EXISTS xyz_txn_pub ('
-    --     || 'subscription_id   TEXT PRIMARY KEY NOT NULL'
-    --     || ',last_txn_id      int8 NOT NULL'
-    --     || ',updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()'
-    --     || ')';
-    --EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS xyz_txn_pub_id_idx ON xyz_txn_pub USING btree (subscription_id ASC)';
-END
-$BODY$;
-
-CREATE OR REPLACE FUNCTION naksha_admin_ensure(admin_schema TEXT)
-    RETURNS void
-    LANGUAGE 'plpgsql' VOLATILE
-AS $BODY$
-DECLARE
-    SQL TEXT;
-BEGIN
+    CREATE SCHEMA IF NOT EXISTS public;
+    CREATE SCHEMA IF NOT EXISTS topology;
     CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS postgis_topology SCHEMA topology;
     CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
 
-    PERFORM naksha_tx_ensure();
+    EXECUTE 'CREATE TABLE IF NOT EXISTS transactions ('
+                || 'i           BIGSERIAL PRIMARY KEY NOT NULL, '
+                || 'txid        int8 NOT NULL, '
+                || 'txi         int8 NOT NULL, '
+                || 'txcid       int8 NOT NULL, '
+                || 'txts        timestamptz NOT NULL, '
+                || 'txn         uuid NOT NULL, '
+                || '"schema"    text COLLATE "C" NOT NULL, '
+                || '"table"     text COLLATE "C" NOT NULL, '
+                || 'commit_msg  text COLLATE "C", '
+                || 'commit_json jsonb, '
+                || 'space       text COLLATE "C", '
+                || 'id          int8, '
+                || 'ts          timestamptz'
+        || ')';
 
-    SQL := format('CREATE OR REPLACE FUNCTION %I.naksha_admin_schema() '
-               || 'RETURNS TEXT LANGUAGE ''plpgsql'' IMMUTABLE AS
-                  ''BEGIN return ''%L''; END'';', admin_schema, admin_schema);
-    RAISE NOTICE '%', sql;
-    EXECUTE SQL;
-END
-$BODY$;
+    EXECUTE 'CREATE SEQUENCE IF NOT EXISTS transactions_txi_seq AS int8';
+    EXECUTE 'CREATE SEQUENCE IF NOT EXISTS transactions_id_seq AS int8';
 
-CREATE OR REPLACE FUNCTION naksha_spaces_ensure(spaces_schema TEXT, connector_id int8)
-    RETURNS void
-    LANGUAGE 'plpgsql' VOLATILE
-AS $BODY$
-DECLARE
-    SQL TEXT;
-BEGIN
-    SQL := format('CREATE SCHEMA IF NOT EXISTS %I', spaces_schema);
-    RAISE NOTICE '%', sql;
-    EXECUTE SQL;
+    -- unique index: id DESC, schema ASC, table ASC
+    EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS transactions_id_idx '
+                || 'ON transactions USING btree (id DESC, "schema" ASC, "table" ASC)'
+        || 'INCLUDE (i)';
 
-    SQL := format('CREATE OR REPLACE FUNCTION %I.naksha_spaces_schema() '
-               || 'RETURNS TEXT LANGUAGE ''plpgsql'' IMMUTABLE AS
-                  ''BEGIN return ''%L''; END'';', spaces_schema, spaces_schema);
-    RAISE NOTICE '%', sql;
-    EXECUTE SQL;
+    -- index: ts DESC
+    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_ts_idx '
+                || 'ON transactions USING btree (ts DESC)'
+        || 'INCLUDE (i)';
 
-    SQL := format('CREATE OR REPLACE FUNCTION %I.naksha_connector_id() '
-               || 'RETURNS int8 LANGUAGE ''plpgsql'' IMMUTABLE AS
-                  ''BEGIN return %s; END'';', spaces_schema, connector_id);
-    RAISE NOTICE '%', sql;
-    EXECUTE SQL;
+    -- unique index: txn DESC, schema ASC, table ASC
+    EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS transactions_txn_idx '
+                || 'ON transactions USING btree (txn DESC, "schema" ASC, "table" ASC) '
+        || 'INCLUDE (i)';
+
+    -- index: txid DESC, schema ASC, table ASC
+    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_txid_idx '
+                || 'ON transactions USING btree (txid DESC, "schema" ASC, "table" ASC)'
+        || 'INCLUDE (i)';
+
+    -- index: txcid DESC, schema ASC, table ASC
+    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_txcid_idx '
+                || 'ON transactions USING btree (txcid DESC, "schema" ASC, "table" ASC)'
+        || 'INCLUDE (i)';
+
+    -- index: txts DESC, txn DESC
+    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_txts_idx '
+                || 'ON transactions USING btree (txts DESC, txn DESC) '
+        || 'INCLUDE (i)';
+
+    -- index: space ASC, txn DESC, schema ASC, table ASC
+    EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_space_idx '
+                || 'ON transactions USING btree (space ASC, txn DESC, "schema" ASC, "table" ASC) '
+        || 'INCLUDE (i)';
+
+
+
+
+--     --admin, mgnt, tx, spaces stuff
+--
+--     SQL := format('CREATE OR REPLACE FUNCTION %I.naksha_admin_schema() '
+--                       || 'RETURNS TEXT LANGUAGE ''plpgsql'' IMMUTABLE AS
+--                   ''BEGIN return ''%L''; END'';', admin_schema, admin_schema);
+--     RAISE NOTICE '%', sql;
+--     EXECUTE SQL;
+--
+--     SQL := format('CREATE OR REPLACE FUNCTION naksha_mgmt_schema() '
+--                       || 'RETURNS TEXT LANGUAGE ''plpgsql'' IMMUTABLE AS
+--                   ''BEGIN return ''%L''; END'';', mgnt_schema);
+--     --RAISE NOTICE '%', sql;
+--     EXECUTE SQL;
+--
+--     SQL := format('CREATE OR REPLACE FUNCTION naksha_connector_id() '
+--         || 'RETURNS int8 LANGUAGE ''plpgsql'' IMMUTABLE AS
+--                   ''BEGIN RETURN 0::int8; END'';');
+--     --RAISE NOTICE '%', sql;
+--     EXECUTE SQL;
+--
+--     PERFORM naksha_table_ensure_with_history(mgnt_schema, 'spaces');
+--     PERFORM naksha_table_enable_history(mgnt_schema, 'spaces');
+--
+--     PERFORM naksha_table_ensure_with_history(mgnt_schema, 'connectors');
+--     PERFORM naksha_table_enable_history(mgnt_schema, 'connectors');
+--     SQL := 'CREATE UNIQUE INDEX IF NOT EXISTS connectors_cid_idx ON connectors '
+--                || 'USING btree (((jsondata->''properties''->''@ns:com:here:xyz''->>''id'')::int8) ASC) '
+--         || 'WITH (fillfactor=50)';
+--     EXECUTE SQL;
+--
+--     PERFORM naksha_table_ensure_with_history(mgnt_schema, 'publication');
+--     PERFORM naksha_table_enable_history(mgnt_schema, 'publication');
+--
+--     SQL := format('CREATE SCHEMA IF NOT EXISTS %I', spaces_schema);
+--     RAISE NOTICE '%', sql;
+--     EXECUTE SQL;
+--
+--     SQL := format('CREATE OR REPLACE FUNCTION %I.naksha_spaces_schema() '
+--                       || 'RETURNS TEXT LANGUAGE ''plpgsql'' IMMUTABLE AS
+--                   ''BEGIN return ''%L''; END'';', spaces_schema, spaces_schema);
+--     RAISE NOTICE '%', sql;
+--     EXECUTE SQL;
+--
+--     SQL := format('CREATE OR REPLACE FUNCTION %I.naksha_connector_id() '
+--                       || 'RETURNS int8 LANGUAGE ''plpgsql'' IMMUTABLE AS
+--                   ''BEGIN return %s; END'';', spaces_schema, connector_id);
+--     RAISE NOTICE '%', sql;
+--     EXECUTE SQL;
+
 END
 $BODY$;
