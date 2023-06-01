@@ -294,7 +294,7 @@ public class ConnectorHandler {
       throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.lambdaARN' must be a valid Lambda function ARN.");
 
     if (rf.roleARN != null)
-      if (!rf.roleARN.matches("arn:aws:iam::\\d{12}:role/[a-zA-Z0-9_+=,.@-]+"))
+      if (!rf.roleARN.matches("arn:aws:iam::\\d{12}:role/[a-zA-Z0-9_+/=,.@-]+"))
         throw new HttpException(BAD_REQUEST, "Parameter 'remoteFunction.roleARN' must be a valid IAM role ARN");
 
     if (rf.warmUp < 0 || rf.warmUp > 32)
