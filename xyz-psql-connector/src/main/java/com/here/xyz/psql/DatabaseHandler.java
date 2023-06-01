@@ -54,7 +54,6 @@ import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.query.ExtendedSpace;
-import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
@@ -1085,25 +1084,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                 .withVariable("schema", schema)
                 .withVariable("table", tableName);
 
-            List<SQLQuery> storageOptions  = Arrays.asList(
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET STORAGE MAIN;"),
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET STORAGE MAIN;"),
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET STORAGE MAIN;"),
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN operation SET STORAGE PLAIN;"),
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN next_version SET STORAGE PLAIN;"),
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN version SET STORAGE PLAIN;"),
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN i SET STORAGE PLAIN;"),
-
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET COMPRESSION lz4;"),
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET COMPRESSION lz4;"),
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET COMPRESSION lz4;")
-            );
-
-            for (SQLQuery query : storageOptions ){
-                stmt.addBatch(query.withVariable("schema", schema).withVariable("table", tableName).substitute().text());
-            }
-
             stmt.addBatch(alterQuery.substitute().text());
+
+            //Add new way of using different storage-type for columns
+            alterColumnStorage(stmt, schema, tableName);
             //Add new indices for existing tables
             createVersioningIndices(stmt, schema, tableName);
             //Add new sequence for existing tables
@@ -1113,6 +1097,26 @@ public abstract class DatabaseHandler extends StorageConnector {
             stmt.executeBatch();
             connection.commit();
             logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
+        }
+    }
+
+    private void alterColumnStorage(Statement stmt, String schema, String tableName) throws SQLException {
+        List<SQLQuery> storageOptions  = Arrays.asList(
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET STORAGE MAIN;"),
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET STORAGE MAIN;"),
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET STORAGE MAIN;"),
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN operation SET STORAGE PLAIN;"),
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN next_version SET STORAGE PLAIN;"),
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN version SET STORAGE PLAIN;"),
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN i SET STORAGE PLAIN;"),
+
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET COMPRESSION lz4;"),
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET COMPRESSION lz4;"),
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET COMPRESSION lz4;")
+        );
+
+        for (SQLQuery query : storageOptions ){
+            stmt.addBatch(query.withVariable("schema", schema).withVariable("table", tableName).substitute().text());
         }
     }
 
