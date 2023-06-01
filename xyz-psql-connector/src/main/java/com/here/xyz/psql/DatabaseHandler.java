@@ -367,7 +367,6 @@ public abstract class DatabaseHandler extends StorageConnector {
             query.replaceUnnamedParameters();
             query.replaceFragments();
             query.replaceNamedParameters();
-
             return executeQuery(query, handler, useReadReplica ? readDataSource : dataSource);
         } catch (Exception e) {
             try {
@@ -489,7 +488,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             else if(event.getOperation() == Operation.UPDATE)
                 //Update HistoryTrigger to apply maxVersionCount.
                 updateHistoryTrigger(event, maxVersionCount, compactHistory, isEnableGlobalVersioning);
-        }else if(event.getSpaceDefinition() != null && !event.getSpaceDefinition().isEnableHistory()){
+        }
+        else if (event.getSpaceDefinition() != null && !event.getSpaceDefinition().isEnableHistory()) {
             if (event.getOperation() == Operation.CREATE) {
                 //Create Space Table
                 ensureSpace();
@@ -1080,12 +1080,11 @@ public abstract class DatabaseHandler extends StorageConnector {
                 + "ADD COLUMN id TEXT, "
                 + "ADD COLUMN version BIGINT NOT NULL DEFAULT 0, "
                 + "ADD COLUMN next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
+                + "ADD COLUMN author TEXT, "
                 + "ADD COLUMN operation CHAR NOT NULL DEFAULT 'I'")
                 .withVariable("schema", schema)
                 .withVariable("table", tableName);
-
             stmt.addBatch(alterQuery.substitute().text());
-
             //Add new way of using different storage-type for columns
             alterColumnStorage(stmt, schema, tableName);
             //Add new indices for existing tables
@@ -1115,9 +1114,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET COMPRESSION lz4;")
         );
 
-        for (SQLQuery query : storageOptions ){
+        for (SQLQuery query : storageOptions)
             stmt.addBatch(query.withVariable("schema", schema).withVariable("table", tableName).substitute().text());
-        }
     }
 
     private static void setupOneTimeActionFillNewColumns(String phase, Connection connection) throws SQLException {
@@ -1204,17 +1202,10 @@ public abstract class DatabaseHandler extends StorageConnector {
                 .withVariable("table", tableName)
                 .withVariable("oldConstraintName", tableName + "_primKey")
                 .withVariable("constraintName", headPartitionTable + "_primKey");
-
             stmt.addBatch(alterQuery.substitute().text());
 
-            List<SQLQuery> storageOptions  = Arrays.asList(
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET STORAGE MAIN;"),
-                    new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET COMPRESSION lz4;")
-            );
-            for (SQLQuery query : storageOptions ){
-                stmt.addBatch(query.withVariable("schema", schema).withVariable("table", tableName).substitute().text());
-            }
-
+            //Add new way of using different storage-type for author column
+            alterAuthorColumnStorage(stmt, schema, tableName);
             //Get all index definitions for later creation of indices at the new root table
             List<String> allHeadIndexDefs = getAllIndexDefinitions(connection, schema, tableName)
                 .stream()
@@ -1263,6 +1254,15 @@ public abstract class DatabaseHandler extends StorageConnector {
             connection.commit();
             logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
         }
+    }
+
+    private void alterAuthorColumnStorage(Statement stmt, String schema, String tableName) throws SQLException {
+        List<SQLQuery> storageOptions  = Arrays.asList(
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET STORAGE MAIN;"),
+            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET COMPRESSION lz4;")
+        );
+        for (SQLQuery query : storageOptions)
+            stmt.addBatch(query.withVariable("schema", schema).withVariable("table", tableName).substitute().text());
     }
 
     private void attachHeadPartition(Statement stmt, String schema, String rootTable, String partitionTable) throws SQLException {
@@ -1377,25 +1377,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         stmt.addBatch(createTable.substitute().text());
 
-        List<SQLQuery> storageOptions  = Arrays.asList(
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET STORAGE MAIN;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET STORAGE MAIN;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET STORAGE MAIN;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET STORAGE MAIN;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN operation SET STORAGE PLAIN;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN next_version SET STORAGE PLAIN;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN version SET STORAGE PLAIN;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN i SET STORAGE PLAIN;"),
-
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET COMPRESSION lz4;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET COMPRESSION lz4;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET COMPRESSION lz4;"),
-                new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET COMPRESSION lz4;")
-        );
-
-        for (SQLQuery query : storageOptions ){
-            stmt.addBatch(query.withVariable("schema", schema).withVariable("table", table).substitute().text());
-        }
+        //Add new way of using different storage-type for columns
+        alterColumnStorage(stmt, schema, table);
+        alterAuthorColumnStorage(stmt, schema, table);
 
         String query;
 
