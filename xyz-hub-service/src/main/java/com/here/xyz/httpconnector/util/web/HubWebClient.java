@@ -26,8 +26,6 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.StatisticsResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
