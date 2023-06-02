@@ -26,6 +26,8 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.StatisticsResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -67,13 +69,11 @@ public class HubWebClient {
 
     public static Future<String> executeHTTPTriggerStatus(Export job){
         String statusUrl = CService.configuration.HUB_ENDPOINT.substring(0,CService.configuration.HUB_ENDPOINT.lastIndexOf("/"))
-                + "/_export-job-status"
-                + "?targetId="+job.getExportTarget().getTargetId()
-                + "&vmlImportId="+job.getTriggerId();
+                + "/_export-job-status";
 
-        return CService.webClient.getAbs(statusUrl)
+        return CService.webClient.postAbs(statusUrl)
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-                .send()
+                .sendJson(job)
                 .compose(res -> {
                     try {
                         if (res.statusCode() == HttpResponseStatus.NOT_FOUND.code()) {
