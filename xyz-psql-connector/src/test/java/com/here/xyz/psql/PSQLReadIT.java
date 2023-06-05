@@ -26,11 +26,11 @@ import com.here.xyz.events.*;
 import com.here.xyz.models.geojson.coordinates.*;
 import com.here.xyz.models.geojson.implementation.*;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -46,7 +46,14 @@ import static org.junit.Assert.assertNull;
 public class PSQLReadIT extends PSQLAbstractIT {
 
     @BeforeClass
-    public static void init() throws Exception { initEnv(null); }
+    public static void init() throws Exception {
+        initEnv(null);
+    }
+
+    @Before
+    public void createTable() throws Exception {
+        invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
+    }
 
     @After
     public void shutdown() throws Exception { invokeDeleteTestSpace(null); }

@@ -29,6 +29,7 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -41,6 +42,11 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     @BeforeClass
     public static void init() throws Exception { initEnv(null); }
+
+    @Before
+    public void createTable() throws Exception {
+        invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
+    }
 
     @After
     public void shutdown() throws Exception { invokeDeleteTestSpace(null); }

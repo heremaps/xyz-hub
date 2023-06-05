@@ -50,6 +50,7 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
   @Before
   public void prepare() throws Exception {
     invokeDeleteTestSpace(connectorParams);
+    invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
     invokeLambdaFromFile("/events/InsertFeaturesEventTransactional.json");
   }
 
