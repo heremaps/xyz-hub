@@ -47,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -58,6 +59,11 @@ public class PSQLIndexIT extends PSQLAbstractIT {
             put(ConnectorParameters.PROPERTY_SEARCH, true);
         }
     };
+
+    @Before
+    public void createTable() throws Exception {
+        invokeCreateTestSpace(connectorParams, TEST_SPACE_ID);
+    }
 
     @BeforeClass
     public static void init() throws Exception { initEnv(connectorParams); }

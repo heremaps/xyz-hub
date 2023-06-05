@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -57,6 +58,11 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
   @BeforeClass
   public static void init() throws Exception { initEnv(connectorParams); }
+
+  @Before
+  public void createTable() throws Exception {
+    invokeCreateTestSpace(connectorParams,TEST_SPACE_ID);
+  }
 
   @After
   public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }

@@ -27,6 +27,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -41,6 +42,11 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
     @BeforeClass
     public static void init() throws Exception { initEnv(null); }
+
+    @Before
+    public void createTable() throws Exception {
+        invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
+    }
 
     @After
     public void shutdown() throws Exception { invokeDeleteTestSpace(null); }

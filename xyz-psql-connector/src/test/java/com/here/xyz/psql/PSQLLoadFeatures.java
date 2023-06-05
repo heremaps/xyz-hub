@@ -45,27 +45,31 @@ public class PSQLLoadFeatures extends PSQLAbstractIT {
     initEnv(null);
   }
 
+  @Before
+  public void createTable() throws Exception {
+    invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
+    writeFeatures();
+  }
+
   @After
   public void shutdown() throws Exception {
     invokeDeleteTestSpace(null);
   }
 
-  @Before
-  public void load() throws Exception {
+  public void writeFeatures() throws Exception {
     XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
 
     ModifyFeaturesEvent mfe = new ModifyFeaturesEvent()
-        .withConnectorParams(defaultTestConnectorParams)
-        .withSpace("foo")
-        .withTransaction(true)
-        .withEnableUUID(true)
-        .withVersionsToKeep(10)
-        .withInsertFeatures(Arrays.asList(
-            new Feature().withId("F1").withProperties(new Properties().withXyzNamespace(xyzNamespace)),
-            new Feature().withId("F2").withProperties(new Properties().withXyzNamespace(xyzNamespace))
-        ));
-    String result = invokeLambda(mfe.serialize());
-    System.out.println(result);
+            .withConnectorParams(defaultTestConnectorParams)
+            .withSpace("foo")
+            .withTransaction(true)
+            .withEnableUUID(true)
+            .withVersionsToKeep(10)
+            .withInsertFeatures(Arrays.asList(
+                    new Feature().withId("F1").withProperties(new Properties().withXyzNamespace(xyzNamespace)),
+                    new Feature().withId("F2").withProperties(new Properties().withXyzNamespace(xyzNamespace))
+            ));
+    invokeLambda(mfe.serialize());
   }
 
   @Test
