@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>2.2.11-SNAPSHOT</version>
+    <version>2.2.11</version>
   </parent>
 
   <licenses>
