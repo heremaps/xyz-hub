@@ -489,11 +489,9 @@ public abstract class DatabaseHandler extends StorageConnector {
                 //Update HistoryTrigger to apply maxVersionCount.
                 updateHistoryTrigger(event, maxVersionCount, compactHistory, isEnableGlobalVersioning);
         }
-        else if (event.getSpaceDefinition() != null && !event.getSpaceDefinition().isEnableHistory()) {
-            if (event.getOperation() == Operation.CREATE) {
-                //Create Space Table
-                ensureSpace();
-            }
+        else if (event.getSpaceDefinition() != null && event.getOperation() == Operation.CREATE) {
+            //Create Space Table
+            ensureSpace();
         }
 
         new ModifySpace(event, this).write();
@@ -803,14 +801,9 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private boolean canRetryAttempt() throws Exception {
-
-        if (retryAttempted || !isRemainingTimeSufficient(context.getRemainingTimeInMillis() / 1000)) {
+        if (retryAttempted || !isRemainingTimeSufficient(context.getRemainingTimeInMillis() / 1000))
             return false;
-        }
-
-        ensureSpace();
         retryAttempted = true;
-
         logger.info("{} Retry the execution.", traceItem);
         return true;
     }
@@ -882,10 +875,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         return event.getParams() != null && event.getParams().containsKey("extends");
     }
 
+    //TODO: Move the following into ModifySpace QR
     protected void ensureSpace() throws SQLException {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
-        if (hasTable()) return;
-
         final String tableName = config.readTableFromEvent(event);
 
         try (final Connection connection = dataSource.getConnection()) {
