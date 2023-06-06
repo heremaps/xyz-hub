@@ -48,6 +48,7 @@ public class ConnectorParameters {
     public final static String DB_CHECKOUT_TIMEOUT = "dbCheckoutTimeout";
     public final static String DB_TEST_CONNECTION_ON_CHECKOUT = "dbTestConnectionOnCheckout";
     public final static String DB_MAX_IDLE_TIME = "dbMaxIdleTime";
+    public final static String STATEMENT_TIMEOUT_SECONDS = "statementTimeoutSeconds";
 
     /**
      * Connector Settings defaults
@@ -74,10 +75,8 @@ public class ConnectorParameters {
     private int dbCheckoutTimeout = 7;
     private boolean dbTestConnectionOnCheckout = true;
     private Integer dbMaxIdleTime = null;
-
-    private TraceItem TraceItem;
-
     private int statementTimeoutSeconds = 23;
+    private TraceItem TraceItem;
 
     public ConnectorParameters(Map<String, Object> connectorParams, TraceItem TraceItem){
         this.TraceItem = TraceItem;
@@ -101,6 +100,8 @@ public class ConnectorParameters {
             this.dbCheckoutTimeout = parseValue(connectorParams, Integer.class, dbCheckoutTimeout, DB_CHECKOUT_TIMEOUT);
             this.dbTestConnectionOnCheckout = parseValue(connectorParams, Boolean.class, dbTestConnectionOnCheckout, DB_TEST_CONNECTION_ON_CHECKOUT);
             this.dbMaxIdleTime = parseValue(connectorParams, Integer.class, dbMaxIdleTime, DB_MAX_IDLE_TIME);
+            if (connectorParams.containsKey(STATEMENT_TIMEOUT_SECONDS))
+                this.statementTimeoutSeconds = (int) connectorParams.get(STATEMENT_TIMEOUT_SECONDS);
 
             this.ecps = parseValue(connectorParams, String.class, null, "ecps");
         }
