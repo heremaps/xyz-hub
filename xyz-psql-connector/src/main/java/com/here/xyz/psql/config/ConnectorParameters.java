@@ -77,6 +77,8 @@ public class ConnectorParameters {
 
     private TraceItem TraceItem;
 
+    private int statementTimeoutSeconds = 23;
+
     public ConnectorParameters(Map<String, Object> connectorParams, TraceItem TraceItem){
         this.TraceItem = TraceItem;
 
@@ -202,6 +204,10 @@ public class ConnectorParameters {
 
     public void setDbMaxPoolSize(int dbMaxPoolSize) {
         this.dbMaxPoolSize = dbMaxPoolSize;
+    }
+
+    public int getStatementTimeoutSeconds() {
+        return statementTimeoutSeconds;
     }
 
     @Override
