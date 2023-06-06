@@ -122,7 +122,6 @@ public abstract class DatabaseHandler extends StorageConnector {
      * outside.
      **/
     private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
-    protected static final int STATEMENT_TIMEOUT_SECONDS = 23;
     public static final String OTA_PHASE_1_COMPLETE = "phase1_complete";
     public static final String OTA_PHASE_1_STARTED = "phase1_started";
 
@@ -145,7 +144,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * The config for the current event.
      */
-    protected PSQLConfig config;
+    protected static PSQLConfig config;
     /**
      * The write data source for the current event.
      */
@@ -241,15 +240,15 @@ public abstract class DatabaseHandler extends StorageConnector {
     @Override
     protected synchronized void initialize(Event event) {
         this.event = event;
-        this.config= new PSQLConfig(event, context, traceItem);
+        config = new PSQLConfig(event, context, traceItem);
         String connectorId = traceItem.getConnectorId();
 
-        if(connectorId == null) {
+        if (connectorId == null) {
             logger.warn("{} ConnectorId is missing as param in the Connector-Config! {} / {}@{}", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
             connectorId =config.getConfigValuesAsString();
         }
 
-        if(dbInstanceMap.get(connectorId) != null){
+        if (dbInstanceMap.get(connectorId) != null){
             /** Check if db-params has changed*/
             if(!dbInstanceMap.get(connectorId).getConfigValuesAsString().equalsIgnoreCase(config.getConfigValuesAsString())) {
                 logger.info("{} Config has changed -> remove dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
@@ -1887,8 +1886,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             throw new SQLException("No time left to execute query.","54000");
         }
 
-        int timeout = remainingSeconds >= STATEMENT_TIMEOUT_SECONDS ? STATEMENT_TIMEOUT_SECONDS :
-                (remainingSeconds - 2);
+        int timeout = remainingSeconds - 2;
 
         logger.debug("{} New timeout for query set to '{}'", traceItem, timeout);
         return timeout;
@@ -1986,12 +1984,16 @@ public abstract class DatabaseHandler extends StorageConnector {
         return config;
     }
 
-    public void setConfig(PSQLConfig config) {
-        this.config = config;
+    public static void setConfig(PSQLConfig config) {
+        DatabaseHandler.config = config;
     }
 
     public DataSource getDataSource() {
         return dataSource;
+    }
+
+    static int getStatementTimeoutSeconds() {
+        return config.getConnectorParams().getStatementTimeoutSeconds();
     }
 
     public String getStreamId() {
@@ -2008,7 +2010,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             QueryRunner runner = new QueryRunner();
             try {
                 runner.execute(c, "SET enable_seqscan = off;");
-                runner.execute(c, "SET statement_timeout = " + (STATEMENT_TIMEOUT_SECONDS * 1000) + " ;");
+                runner.execute(c, "SET statement_timeout = " + (getStatementTimeoutSeconds() * 1000) + " ;");
                 runner.execute(c, "SET search_path=" + schema + ",h3,public,topology;");
             } catch (SQLException e) {
                 logger.error("Failed to initialize connection " + c + " [" + pdsIdt + "] : {}", e);

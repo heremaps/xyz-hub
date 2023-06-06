@@ -165,7 +165,8 @@ public class PSQLConfig {
             connectorParams.isCompactHistory()+
             connectorParams.isPropertySearch()+
             connectorParams.isMvtSupport()+
-            connectorParams.isAutoIndexing();
+            connectorParams.isAutoIndexing() +
+            connectorParams.getStatementTimeoutSeconds();
   }
 
   public String applicationName() {
