@@ -3989,10 +3989,70 @@ from exp_build_sql_inhabited_txt(true, '013200030201', 12,
 */
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION exp_qk_weight(
+	htile boolean,
+	startqk text,
+	mlevel integer,
+	mweight double precision,
+	tbl regclass,
+	sql_qk_tileqry_with_geo text)
+RETURNS TABLE(lev integer, qk text, weight double precision, reltuples bigint)
+LANGUAGE 'plpgsql'
+AS $BODY$
+begin
+ if not htile then
+  return query
+    with
+    indata as ( select c.reltuples::bigint from pg_class c where oid = tbl ),
+    qkdata as
+    (
+       with recursive t( lev, qk, ew ) as
+       (  select length(startQk) as lev, startQk as qk, 1.0::double precision as ew
+           union all
+            select t.lev+1 as lev, o.qk, o.ew
+            from t, lateral ( select ii.qk, xyz_postgis_selectivity( tbl, 'geo', xyz_qk_qk2bbox(ii.qk) ) as ew
+                              from qk_s_inhabited_txt(t.qk, t.lev+1, sql_qk_tileqry_with_geo ) ii
+                            ) o
+            where 1 = 1
+                and t.ew > mweight
+                and t.lev < least( mlevel, 12 )
+       )
+       select t.lev, t.qk, t.ew from t
+       where 1 = 1
+           and ( t.ew <= mweight or t.lev = least( mlevel, 12 ) )
+    )
+    select qkdata.*, indata.reltuples from qkdata, indata;
+ else
+  return query
+    with
+    indata as ( select c.reltuples::bigint from pg_class c where oid = tbl ),
+    qkdata as
+    (
+            with recursive t( lev, qk, ew ) as
+            (  select length(startQk) as lev, startQk as qk, 1.0::double precision as ew
+                union all
+                 select t.lev+1 as lev, o.qk, o.ew
+                 from t, lateral ( select ii.qk, xyz_postgis_selectivity( tbl, 'geo', htile_bbox(ii.qk) ) as ew
+                                                     from htile_s_inhabited_txt(t.qk, t.lev+1, sql_qk_tileqry_with_geo ) ii
+                                                 ) o
+                 where 1 = 1
+                     and t.ew > mweight
+                     and t.lev < least( mlevel, 12 )
+            )
+            select t.lev, t.qk, t.ew from t
+            where 1 = 1
+                and ( t.ew <= mweight or t.lev = least( mlevel, 12 ) )
+    )
+    select qkdata.*, indata.reltuples from qkdata, indata;
+ end if;
+end
+$BODY$;
+------------------------------------------------
+------------------------------------------------
 CREATE OR REPLACE FUNCTION exp_type_download_precalc(
 	esitmated_count bigint,
 	sql_with_jsondata_geo text,
-	tbls regclass[])
+	tbl regclass)
 RETURNS int
     LANGUAGE 'plpgsql'
 AS $BODY$
@@ -4022,25 +4082,46 @@ CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
 	mlevel integer,
 	sql_with_jsondata_geo text,
 	esitmated_count bigint,
-	tbls regclass[])
-RETURNS TABLE(tilelist text[])
+	tbl regclass)
+RETURNS  TABLE(tilelist text[])
     LANGUAGE 'plpgsql'
 AS $BODY$
 declare
+	-- defines how much rows a table need till we start parallelization
     start_parallelization_threshold integer := 500000;
-    parallelization_target_level integer := 3;
-	max_tiles integer := 100;
+	-- defines how much features should be in one tile as maximum
+	max_features_in_tile decimal := 5000000;
+	-- default weight - may get overridden
+	_weight decimal := 0.1;
+	max_tiles integer := 5000;
+	calc_weighted_fc decimal;
 begin
-    if esitmated_count !=0 AND esitmated_count < start_parallelization_threshold THEN
+	--if esitmated_count is null or esitmated_count = 0 THEN
+        select c.reltuples::bigint from pg_class c where oid = tbl
+            into esitmated_count;
+    --end if;
+
+    if esitmated_count = -1 THEN
+		RAISE NOTICE 'ANALYSE NEEDED % - %',esitmated_count, tbl;
+        execute format('ANALYSE %s',tbl);
+        select c.reltuples::bigint from pg_class c where oid = tbl
+            into esitmated_count;
+    END IF;
+
+    if esitmated_count < start_parallelization_threshold THEN
         return query select ARRAY[''];
     else
-		if mlevel > parallelization_target_level then
-	        mlevel := parallelization_target_level;
-    end if;
+		calc_weighted_fc := esitmated_count * _weight;
 
-	-- return list of tiles with content on targetLevel
-    return query
-        select tile_list from exp_build_sql_inhabited_txt(htile, iqk , mlevel, sql_with_jsondata_geo, max_tiles );
+		if calc_weighted_fc > max_features_in_tile then
+			_weight := (max_features_in_tile / esitmated_count) ;
+        end if;
+
+        return query select ARRAY_AGG(qk) from (
+			select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbl, sql_with_jsondata_geo
+	    ) order by weight DESC) a;
     end if;
 end
 $BODY$;
+------------------------------------------------
+------------------------------------------------
