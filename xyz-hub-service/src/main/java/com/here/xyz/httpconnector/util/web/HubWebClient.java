@@ -67,13 +67,11 @@ public class HubWebClient {
 
     public static Future<String> executeHTTPTriggerStatus(Export job){
         String statusUrl = CService.configuration.HUB_ENDPOINT.substring(0,CService.configuration.HUB_ENDPOINT.lastIndexOf("/"))
-                + "/_export-job-status"
-                + "?targetId="+job.getExportTarget().getTargetId()
-                + "&vmlImportId="+job.getTriggerId();
+                + "/_export-job-status";
 
-        return CService.webClient.getAbs(statusUrl)
+        return CService.webClient.postAbs(statusUrl)
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-                .send()
+                .sendJson(job)
                 .compose(res -> {
                     try {
                         if (res.statusCode() == HttpResponseStatus.NOT_FOUND.code()) {
