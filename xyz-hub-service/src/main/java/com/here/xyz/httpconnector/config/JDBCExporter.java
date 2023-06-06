@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
  */
 public class JDBCExporter extends JDBCClients{
     private static final Logger logger = LogManager.getLogger();
-    private static final int MAX_PARALLEL_EXPORT_QUERIES = 8;
+    private static final int MAX_PARALLEL_EXPORT_QUERIES = 10;
 
     public static Future<Export.ExportStatistic> executeExport(Export j, String schema, String s3Bucket, String s3Path, String s3Region){
         try{
@@ -234,22 +234,21 @@ public class JDBCExporter extends JDBCClients{
 
     public static SQLQuery buildS3CalculateQuery(Export job, String schema, SQLQuery query) {
         SQLQuery q = new SQLQuery("select ${schema}.exp_type_download_precalc(" +
-                "#{estimated_count}, ${{exportSelectString}}, #{tbls}) as thread_cnt");
+                "#{estimated_count}, ${{exportSelectString}}, #{tbl}::regclass) as thread_cnt");
 
         q.setVariable("schema", schema);
         q.setNamedParameter("estimated_count", job.getEstimatedFeatureCount());
         q.setQueryFragment("exportSelectString", query);
-        //TBD
-        q.setNamedParameter("tbls", null);
+        q.setNamedParameter("tbl", schema+".\""+job.getTargetTable()+"\"");
 
         return q.substituteAndUseDollarSyntax(q);
     }
 
     public static SQLQuery buildVMLCalculateQuery(Export job, String schema, SQLQuery query) {
-        int exportCalcLevel = 3;
+        int exportCalcLevel = 12;
 
         SQLQuery q = new SQLQuery("select tilelist from ${schema}.exp_type_vml_precalc(" +
-                "#{htile}, '', #{mlevel}, ${{exportSelectString}}, #{estimated_count}, #{tbls})");
+                "#{htile}, '', #{mlevel}, ${{exportSelectString}}, #{estimated_count}, #{tbl}::regclass)");
 
         q.setVariable("schema", schema);
         q.setNamedParameter("htile",true);
@@ -257,8 +256,7 @@ public class JDBCExporter extends JDBCClients{
         q.setNamedParameter("mlevel", exportCalcLevel);
         q.setQueryFragment("exportSelectString", query);
         q.setNamedParameter("estimated_count", job.getEstimatedFeatureCount());
-        //TBD
-        q.setNamedParameter("tbls",null);
+        q.setNamedParameter("tbl", schema+".\""+job.getTargetTable()+"\"");
 
         return q.substituteAndUseDollarSyntax(q);
     }
