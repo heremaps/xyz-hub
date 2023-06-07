@@ -37,6 +37,7 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
 
   public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
+    setUseReadReplica(false);
   }
 
   @Override
