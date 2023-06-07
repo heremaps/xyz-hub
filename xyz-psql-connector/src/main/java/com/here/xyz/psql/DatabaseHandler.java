@@ -448,7 +448,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             return run.query(queryText, handler, queryParameters.toArray());
         } finally {
             final long end = System.currentTimeMillis();
-            logger.info("{} query time: {}ms", traceItem, (end - start));
+            final String dataSourceURL = dataSource instanceof ComboPooledDataSource ? ((ComboPooledDataSource) dataSource).getJdbcUrl() : "n/a";
+            logger.info("{} query time: {}ms, event: {}, dataSource: {}", traceItem, (end - start), event.getClass().getSimpleName(), dataSourceURL);
         }
     }
 
