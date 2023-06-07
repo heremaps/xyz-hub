@@ -22,7 +22,7 @@ public class PsqlClientTest {
     final PsqlClient<PsqlDataSource> client = new PsqlClient<>(ds, 0L);
     try {
       client.init();
-      client.startMutation().createCollection(); //TODO port over UMapView and related classes from wikvaya
+      client.startMutation().createCollection("testID",true); //TODO port over UMapView and related classes from wikvaya
     } catch (SQLException | IOException e) {
       throw new RuntimeException(e);
     }

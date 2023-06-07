@@ -72,7 +72,10 @@ public class PsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURC
    * @throws SQLException If any error occurred.
    */
   public @NotNull PsqlCollection createCollection(@NotNull String id, boolean enableHistory) throws SQLException {
-    throw new SQLException("Not implemented");
+    final PsqlCollection collection = new PsqlCollection("Naksha-default","default-table");
+
+    if (enableHistory) enableHistory(collection,Long.MAX_VALUE);
+    return collection;
   }
 
   /**
@@ -93,7 +96,7 @@ public class PsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURC
    * @throws SQLException If any error occurred.
    */
   public void enableHistory(@NotNull PsqlCollection collection, long maxAge) throws SQLException {
-    throw new SQLException("Not implemented");
+    collection.maxAge = maxAge;
   }
 
   /**
@@ -103,7 +106,7 @@ public class PsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURC
    * @throws SQLException If any error occurred.
    */
   public void disableHistory(@NotNull PsqlCollection collection) throws SQLException {
-    throw new SQLException("Not implemented");
+    collection.maxAge = 0;
   }
 
   /**
