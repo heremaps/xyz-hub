@@ -189,7 +189,7 @@ public class JDBCExporter extends JDBCClients{
                     if (res != null) {
                       String[] sArr = res.getArrayOfStrings("tilelist");
                       if( sArr != null && sArr.length > 0)
-                        return Arrays.stream(res.getArrayOfStrings("tilelist")).collect(Collectors.toList());
+                        return Arrays.stream(sArr).collect(Collectors.toList());
                     }
                     return null;
                 });
