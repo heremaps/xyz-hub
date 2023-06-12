@@ -187,7 +187,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
   /**
    * The main event to be processed by the task, created by the constructor.
    */
-  protected final @NotNull EVENT event;
+  private @NotNull EVENT event;
 
   /**
    * A flag to signal that this task is internal.
@@ -234,8 +234,22 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
    *
    * @return the main event of this task.
    */
-  public @NotNull EVENT event() {
+  public final @NotNull EVENT getEvent() {
     return event;
+  }
+
+  /**
+   * Set the event of this task.
+   * @param event The event to set.
+   * @return the previously set event.
+   * @throws IllegalStateException If the task has been started already.
+   */
+  public final @NotNull EVENT setEvent(@NotNull EVENT event) {
+    final EVENT old = this.event;
+    lock();
+    this.event = event;
+    unlock();
+    return old;
   }
 
   /**

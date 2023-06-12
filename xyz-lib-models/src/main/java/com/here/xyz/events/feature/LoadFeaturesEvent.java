@@ -66,7 +66,7 @@ public final class LoadFeaturesEvent extends FeatureEvent {
    * <p>
    * In a nutshell: {@code true} if deleted states should be returned; {@code false} otherwise.
    *
-   * @since 0.7.0
+   * @since 2.0.0
    */
   @JsonInclude(Include.NON_DEFAULT)
   private boolean returnDeletedStates;

@@ -437,9 +437,9 @@ public class PsqlHandler extends ExtendedEventHandler {
               SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples))
               .getFeatures()
               .get(0);
-          final int rCount = estimateFtr.get("rcount");
+          final int rCount = (int) estimateFtr.get("rcount");
           if (rTuples == null) {
-            rTuples = estimateFtr.get("rtuples");
+            rTuples = (String) estimateFtr.get("rtuples");
             TupleTime.rTuplesMap.put(event.getSpaceId(), rTuples);
           }
           bSortByHashedValue = isVeryLargeSpace(rTuples);

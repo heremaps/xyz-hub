@@ -12,12 +12,14 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * A JSON class created from a Java class.
+ *
+ * @param <CLASS> the object-type.
  */
 @SuppressWarnings("unused")
-public class JsonClass {
+public final class JsonClass<CLASS> {
 
-  private static final JsonField[] EMPTY = new JsonField[0];
-  private static final ConcurrentHashMap<@NotNull Class<?>, @NotNull JsonClass> cache = new ConcurrentHashMap<>();
+  private static final JsonField<?, ?>[] EMPTY = new JsonField[0];
+  private static final ConcurrentHashMap<@NotNull Class<?>, @NotNull JsonClass<?>> cache = new ConcurrentHashMap<>();
 
   /**
    * Returns a JSON class for a Java class. This method ignores private fields that are not annotated with {@link JsonProperty}.
@@ -25,14 +27,22 @@ public class JsonClass {
    * @param javaClass The JAVA class for which to return the JSON class.
    * @return the JSON class.
    */
-  public static @NotNull JsonClass of(final @NotNull Class<?> javaClass) {
-    JsonClass jsonClass = cache.get(javaClass);
+  public static <C> @NotNull JsonClass<C> of(final @NotNull Class<C> javaClass) {
+    //noinspection unchecked
+    JsonClass<C> jsonClass = (JsonClass<C>) cache.get(javaClass);
     if (jsonClass != null) {
       return jsonClass;
     }
-    jsonClass = new JsonClass(javaClass);
-    final JsonClass existing = cache.putIfAbsent(javaClass, jsonClass);
-    return existing != null ? existing : jsonClass;
+    synchronized (JsonClass.class) {
+      //noinspection unchecked
+      jsonClass = (JsonClass<C>) cache.get(javaClass);
+      if (jsonClass != null) {
+        return jsonClass;
+      }
+      jsonClass = new JsonClass<>(javaClass);
+      cache.put(javaClass, jsonClass);
+      return jsonClass;
+    }
   }
 
   /**
@@ -43,8 +53,9 @@ public class JsonClass {
    * @return the JSON class.
    * @throws NullPointerException if given object is null.
    */
-  public static @NotNull JsonClass of(final @NotNull Object object) {
-    return of(object instanceof Class ? (Class<?>) object : object.getClass());
+  public static <C> @NotNull JsonClass<C> of(final @NotNull C object) {
+    //noinspection unchecked
+    return of((Class<C>) (object instanceof Class ? object : object.getClass()));
   }
 
   /**
@@ -52,25 +63,34 @@ public class JsonClass {
    *
    * @param javaClass The JAVA class.
    */
-  JsonClass(final @NotNull Class<?> javaClass) {
+  JsonClass(final @NotNull Class<CLASS> javaClass) {
     this.javaClass = javaClass;
-    JsonField[] jsonFields = EMPTY;
+    //noinspection unchecked
+    JsonField<CLASS, ?>[] jsonFields = (JsonField<CLASS, ?>[]) EMPTY;
     Class<?> theClass = javaClass;
     while (theClass != null && theClass != Object.class) {
       final Field[] fields = theClass.getDeclaredFields();
       int new_fields_count = fields.length;
       for (int i = 0; i < fields.length; i++) {
         final Field field = fields[i];
-        final JsonProperty jsonProperty = field.getAnnotation(JsonProperty.class);
-        if (jsonProperty != null) {
+        final int fieldModifiers = field.getModifiers();
+
+        // We can't handle static fields.
+        if (Modifier.isStatic(fieldModifiers)) {
+          fields[i] = null;
+          new_fields_count--;
           continue;
         }
 
-        final JsonIgnore jsonIgnore = field.getAnnotation(JsonIgnore.class);
-        final int fieldModifiers = field.getModifiers();
-        if (jsonIgnore != null || Modifier.isStatic(fieldModifiers) || Modifier.isPrivate(fieldModifiers)) {
-          fields[i] = null;
-          new_fields_count--;
+        final JsonProperty jsonProperty = field.getAnnotation(JsonProperty.class);
+        // Special handling for fields not explicitly annotated to be JSON properties.
+        if (jsonProperty == null) {
+          final JsonIgnore jsonIgnore = field.getAnnotation(JsonIgnore.class);
+          // Remove all properties annotated as NOT being a JSON properties or being private.
+          if (jsonIgnore != null || Modifier.isPrivate(fieldModifiers)) {
+            fields[i] = null;
+            new_fields_count--;
+          }
         }
       }
       if (new_fields_count > 0) {
@@ -78,14 +98,15 @@ public class JsonClass {
         jsonFields = Arrays.copyOf(jsonFields, jsonFields.length + new_fields_count);
         for (final @Nullable Field field : fields) {
           if (field != null) {
-            jsonFields[newIndex++] = new JsonField(this, field);
+            //noinspection unchecked
+            jsonFields[newIndex++] = (JsonField<CLASS, ?>) JsonField.construct(this, field, newIndex);
           }
         }
       }
       theClass = theClass.getSuperclass();
     }
     this.fields = jsonFields;
-    for (final JsonField field : fields) {
+    for (final JsonField<CLASS, ?> field : fields) {
       fieldsMap.putIfAbsent(field.jsonName, field);
     }
   }
@@ -95,14 +116,14 @@ public class JsonClass {
    *
    * <p><b>WARNING</b>: This array <b>MUST NOT</b> be modified, it is read-only!</p>
    */
-  public final @NotNull JsonField @NotNull [] fields;
+  public final @NotNull JsonField<CLASS, ?> @NotNull [] fields;
 
   /**
    * The JAVA class.
    */
-  public final Class<?> javaClass;
+  public final Class<CLASS> javaClass;
 
-  private final @NotNull LinkedHashMap<@NotNull String, @NotNull JsonField> fieldsMap = new LinkedHashMap<>();
+  private final @NotNull LinkedHashMap<@NotNull String, @NotNull JsonField<CLASS, ?>> fieldsMap = new LinkedHashMap<>();
 
   /**
    * Returns the field at the given index.
@@ -111,21 +132,61 @@ public class JsonClass {
    * @return The JSON field.
    * @throws ArrayIndexOutOfBoundsException If the given index is out of bounds (less than zero or more than {@link #size()}.
    */
-  public @NotNull JsonField getField(int index) {
+  public @NotNull JsonField<CLASS, ?> getField(int index) {
     return fields[index];
+  }
+
+  /**
+   * Returns the field at the given index.
+   *
+   * @param index      the index to query.
+   * @param valueClass the class of the expected value.
+   * @return The JSON field.
+   * @throws ArrayIndexOutOfBoundsException if the given index is out of bounds (less than zero or more than {@link #size()}.
+   * @throws ClassCastException             if the field exists, but is of a different type.
+   */
+  public <VALUE> @NotNull JsonField<CLASS, VALUE> getField(int index, @NotNull Class<VALUE> valueClass) {
+    final JsonField<CLASS, ?> field = fields[index];
+    if (!valueClass.isAssignableFrom(field.valueClass)) {
+      throw new ClassCastException("type " + valueClass.getName() + " is incompatible with real type of field " + field.javaName + " being "
+          + field.valueClass.getName());
+    }
+    //noinspection unchecked
+    return (JsonField<CLASS, VALUE>) field;
   }
 
   /**
    * Returns the JSON field with the given name; if such a field exists.
    *
-   * @param name The name of the field.
+   * @param name the name of the field.
    * @return the JSON field; {@code null} if no such field exists.
    */
-  public @Nullable JsonField getField(@Nullable CharSequence name) {
-    if (name instanceof String key) {
-      return fieldsMap.get(key);
+  public @Nullable JsonField<CLASS, ?> getField(@Nullable CharSequence name) {
+    return name != null ? fieldsMap.get(StringCache.toString(name)) : null;
+  }
+
+  /**
+   * Returns the JSON field with the given name; if such a field exists.
+   *
+   * @param name       the name of the field.
+   * @param valueClass the class of the expected value.
+   * @return the JSON field; {@code null} if no such field exists.
+   * @throws ClassCastException if the field exists, but is of a different type.
+   */
+  public <VALUE> @Nullable JsonField<CLASS, VALUE> getField(@Nullable CharSequence name, @NotNull Class<VALUE> valueClass) {
+    if (name == null) {
+      return null;
     }
-    return name != null ? fieldsMap.get(name.toString()) : null;
+    final JsonField<CLASS, ?> field = fieldsMap.get(StringCache.toString(name));
+    if (field == null) {
+      return null;
+    }
+    if (!valueClass.isAssignableFrom(field.valueClass)) {
+      throw new ClassCastException("type " + valueClass.getName() + " is incompatible with real type of field " + field.javaName + " being "
+          + field.valueClass.getName());
+    }
+    //noinspection unchecked
+    return (JsonField<CLASS, VALUE>) field;
   }
 
   /**

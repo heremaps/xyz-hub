@@ -1,10 +1,14 @@
 package com.here.xyz.util;
 
+import com.here.xyz.lambdas.F2;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -87,5 +91,112 @@ public class JsonUtils {
       clone[i] = deepCopy(clone[i]);
     }
     return clone;
+  }
+
+  /**
+   * A default extractor that extract the key, to be used with {@link #mapToArray(Map, Object[], F2)}.
+   *
+   * @param entry The map entry.
+   * @param map   The map.
+   * @param <K>   The key-type.
+   * @param <V>   The value-type.
+   * @return The key.
+   */
+  public static <K, V> K extractKey(final Entry<@NotNull K, @Nullable V> entry, final @NotNull Map<@NotNull K, @Nullable V> map) {
+    return entry.getKey();
+  }
+
+  /**
+   * A default extractor that extract the key, to be used with {@link #mapToArray(Map, Object[], F2)}.
+   *
+   * @param entry The map entry.
+   * @param map   The map.
+   * @param <K>   The key-type.
+   * @param <V>   The value-type.
+   * @return The key.
+   */
+  public static <K, V> V extractValue(final Entry<@NotNull K, @Nullable V> entry, final @NotNull Map<@NotNull K, @Nullable V> map) {
+    return entry.getValue();
+  }
+
+  private static final class MapEntryCopy<K, V> implements Entry<@NotNull K, @Nullable V> {
+
+    private MapEntryCopy(@NotNull K key, @Nullable V value) {
+      this.key = key;
+      this.value = value;
+    }
+
+    private final @NotNull K key;
+    private final @Nullable V value;
+
+    @Override
+    public @NotNull K getKey() {
+      return key;
+    }
+
+    @Override
+    public @Nullable V getValue() {
+      return value;
+    }
+
+    @Override
+    public @Nullable V setValue(@Nullable V value) {
+      throw new UnsupportedOperationException("setValue");
+    }
+  }
+
+  /**
+   * A default extractor that extract the hole entry, to be used with {@link #mapToArray(Map, Object[], F2)}.
+   *
+   * @param entry The map entry.
+   * @param map   The map.
+   * @param <K>   The key-type.
+   * @param <V>   The value-type.
+   * @return The entry.
+   */
+  public static <K, V> Map.Entry<K, V> extractEntry(final Entry<@NotNull K, @Nullable V> entry,
+      final @NotNull Map<@NotNull K, @Nullable V> map) {
+    return new MapEntryCopy<>(entry.getKey(), entry.getValue());
+  }
+
+  /**
+   * Copy elements from the given map into the given array. If the given array is too small, allocate a new array. This method fulfills the
+   * contract of {@link Collection#toArray(Object[])}.
+   *
+   * @param map       The map from which to copy.
+   * @param original  The array into which to copy.
+   * @param extractor The method that extracts the element from the map entries.
+   * @param <K>       The key-type.
+   * @param <V>       The value-type.
+   * @param <E>       The element-type to return.
+   * @return Either the original array with not used elements set to {@code null} or a new array, when the original array was too small.
+   */
+  public static <K, V, E> @NotNull E @NotNull [] mapToArray(
+      final @NotNull Map<@NotNull K, @Nullable V> map,
+      final E @NotNull [] original,
+      final @NotNull F2<E, @NotNull Entry<K, V>, @NotNull Map<@NotNull K, @Nullable V>> extractor
+  ) {
+    E @NotNull [] array = original;
+    final Iterator<Entry<@NotNull K, @Nullable V>> it = map.entrySet().iterator();
+    int i = 0;
+    while (it.hasNext()) {
+      final Entry<@NotNull K, @Nullable V> entry = it.next();
+      final E element = extractor.call(entry, map);
+      try {
+        array[i++] = element;
+      } catch (ArrayIndexOutOfBoundsException e) {
+        array = Arrays.copyOf(array, Math.max(i + 8, map.size() + 8));
+        array[i++] = element;
+      }
+    }
+    if (i < array.length) {
+      //noinspection ConstantConditions
+      if (array != original) {
+        // If we return a copy, always return a copy that matches exactly.
+        return Arrays.copyOf(array, i);
+      }
+      Arrays.fill(array, i, array.length, null);
+    }
+    return array;
   }
 }

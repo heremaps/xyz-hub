@@ -5,11 +5,14 @@ import static com.here.xyz.NakshaLogger.currentLogger;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.here.xyz.view.Deserialize;
 import com.here.xyz.view.Serialize;
 import java.lang.ref.WeakReference;
 import java.util.Formatter;
+import java.util.HashMap;
 import java.util.Locale;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,6 +49,7 @@ public final class Json implements AutoCloseable {
     this.mapper = JsonMapper.builder()
         .enable(MapperFeature.DEFAULT_VIEW_INCLUSION)
         .serializationInclusion(Include.NON_NULL)
+        .addModule(new JsonModule())
         .build();
     this.serialize = Serialize.Any.class;
     this.deserialize = Deserialize.Any.class;
@@ -82,11 +86,11 @@ public final class Json implements AutoCloseable {
   private @NotNull Class<? extends Deserialize> deserialize;
 
   /**
-   * Return a new thread local Json instance for this application. Can be used recursive.
+   * Return a new dedicated thread local Json parser instance. Can be used recursive.
    *
    * @return The Json instance.
    */
-  public static @NotNull Json newJson() {
+  public static @NotNull Json useNew() {
     final JsonWeakRef weakRef = idleCache.get();
     Json json = null;
     if (weakRef != null) {
@@ -104,18 +108,18 @@ public final class Json implements AutoCloseable {
   }
 
   /**
-   * If the current thread uses a Json instance, incrementing the open counter, and returning the current instance. Otherwise, creating a
-   * new Json instance and returning it.
+   * If the current thread uses a Json parser instance, acquired by the caller, incrementing the open counter, and returning the same
+   * instance. Otherwise, create a new Json parser instance, or reusing an unused one, and return it.
    *
    * @return a Json instance.
    */
-  public static @NotNull Json currentJson() {
+  public static @NotNull Json useParentOrNew() {
     Json json = current.get();
     if (json != null) {
       json.openCount++;
       return json;
     }
-    return newJson();
+    return useNew();
   }
 
   /**
@@ -142,9 +146,9 @@ public final class Json implements AutoCloseable {
   }
 
   /**
-   * Returns the amount of references current held open to this Json.
+   * Returns the amount of references open to this Json parser instance.
    *
-   * @return The amount of references current held open to this Json.
+   * @return The amount of references open to this Json parser instance.
    */
   public int openCount() {
     return openCount;
@@ -160,6 +164,9 @@ public final class Json implements AutoCloseable {
    */
   private static final ThreadLocal<@Nullable Json> current = new ThreadLocal<>();
 
+  private final HashMap<@NotNull Class<? extends Deserialize>, @NotNull ObjectReader> readers = new HashMap<>();
+  private final HashMap<@NotNull Class<? extends Serialize>, @NotNull ObjectWriter> writers = new HashMap<>();
+
   // ------------------------------------------------------------------------------------------------------------------------------------
   // Standard API
   // ------------------------------------------------------------------------------------------------------------------------------------
@@ -173,5 +180,35 @@ public final class Json implements AutoCloseable {
    */
   public @NotNull String format(@NotNull String format, Object... args) {
     return String.format(Locale.US, format, args);
+  }
+
+  /**
+   * Returns the reader for the given view.
+   *
+   * @param view The view to read.
+   * @return The reader for this view.
+   */
+  public @NotNull ObjectReader reader(@NotNull Class<? extends Deserialize> view) {
+    ObjectReader reader = readers.get(view);
+    if (reader == null) {
+      reader = mapper.readerWithView(view);
+      readers.put(view, reader);
+    }
+    return reader;
+  }
+
+  /**
+   * Returns the writer for the given view.
+   *
+   * @param view The view to write.
+   * @return The writer for this view.
+   */
+  public @NotNull ObjectWriter writer(@NotNull Class<? extends Serialize> view) {
+    ObjectWriter writer = writers.get(view);
+    if (writer == null) {
+      writer = mapper.writerWithView(view);
+      writers.put(view, writer);
+    }
+    return writer;
   }
 }

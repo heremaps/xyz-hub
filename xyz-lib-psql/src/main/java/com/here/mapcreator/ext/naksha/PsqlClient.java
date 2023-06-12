@@ -3,6 +3,7 @@ package com.here.mapcreator.ext.naksha;
 import com.here.mapcreator.ext.naksha.sql.MaintenanceSQL;
 import com.here.xyz.util.IoHelp;
 import com.here.xyz.INaksha;
+import com.here.xyz.util.IoHelp;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;

@@ -113,7 +113,7 @@ public class LazyParsedFeatureCollectionTest {
       assertNotNull(f.getProperties().get("@ns:com:here:maphub"));
       assertTrue(f.getProperties().get("@ns:com:here:maphub") instanceof Map);
 
-      Map<String, Object> maphub = f.getProperties().get("@ns:com:here:maphub");
+      Map<String, Object> maphub = (Map<String, Object>) f.getProperties().get("@ns:com:here:maphub");
       assertNotNull(maphub);
       assertEquals("8100c1baecf3749485ccba46529e751d683d1a4f", maphub.get("previousGuid"));
       assertEquals("15be2f6763b783457d71f2b38a45b8c6bf28c9dc", maphub.get("guid"));

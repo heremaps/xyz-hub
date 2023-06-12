@@ -22,9 +22,9 @@ package com.here.xyz.models.geojson.implementation.namespaces;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.xyz.JsonObject;
 import com.here.xyz.models.geojson.implementation.Action;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.util.JsonMap;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ import org.jetbrains.annotations.Nullable;
  * The properties stored as value for the {@link Properties#XYZ_NAMESPACE @ns:com:here:xyz} key in the {@link Properties}.
  */
 @SuppressWarnings("unused")
-public class XyzNamespace extends JsonObject {
+public class XyzNamespace extends JsonMap {
 
   public static final String SPACE = "space";
   public static final String COLLECTION = "collection";

@@ -676,7 +676,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
 
     FeatureCollection cl =
         psqlConnector.executeQueryWithRetry(buildGetIterateHandlesQuery(nrHandles));
-    List<List<Object>> hdata = cl.getFeatures().get(0).getProperties().get("handles");
+    List<List<Object>> hdata = (List<List<Object>>) cl.getFeatures().get(0).getProperties().get("handles");
     for (List<Object> entry : hdata) {
       event.setPropertiesQuery(null);
       if (entry.get(2) != null) {

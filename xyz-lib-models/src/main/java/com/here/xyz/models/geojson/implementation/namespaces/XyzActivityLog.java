@@ -20,18 +20,16 @@
 package com.here.xyz.models.geojson.implementation.namespaces;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.JsonObject;
-import com.here.xyz.view.View;
+import com.here.xyz.util.JsonMap;
 import com.here.xyz.models.geojson.implementation.Action;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 
 @SuppressWarnings("unused")
-public class XyzActivityLog extends JsonObject {
+public class XyzActivityLog extends JsonMap {
   public static final ObjectMapper mapper = new ObjectMapper();
   public static final String ID = "id";
   public static final String ORIGINAL = "original";

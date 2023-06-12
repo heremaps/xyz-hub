@@ -125,7 +125,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
           add("idx_" + hashedSpaceId + "_id");
         }};
 
-        indexes.addAll(features.get(0).getProperties().getAdditionalProperties().keySet().stream()
+        indexes.addAll(features.get(0).getProperties().additionalProperties().keySet().stream()
             .filter(k->!"test".equals(k))
             .filter(k->!"@ns:com:here:xyz".equals(k))
             .map(k ->"idx_" + hashedSpaceId + "_" + DigestUtils.md5Hex(k).substring(0, 7) + "_a")
