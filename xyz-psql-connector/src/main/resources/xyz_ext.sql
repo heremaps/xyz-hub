@@ -3405,7 +3405,7 @@ begin
     FOR i IN 1 .. level
 	LOOP
 		-- RAISE NOTICE '% %',i,substring(qk,level-(i-1),1)::integer;
-		hkey = hkey+ (substring(qk,level-(i-1),1)::integer << (i-1) * 2);
+		hkey = hkey+ (substring(qk,level-(i-1),1)::bigint << (i-1) * 2);
     END LOOP;
     RETURN hkey | (1::bigint << (level * 2));
 end
