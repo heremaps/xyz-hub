@@ -22,7 +22,7 @@ package com.here.xyz.models.geojson.implementation.namespaces;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.util.JsonMap;
+import com.here.xyz.util.json.JsonMap;
 import com.here.xyz.models.geojson.implementation.Action;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

@@ -1,4 +1,4 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import static com.here.xyz.NakshaLogger.currentLogger;
 

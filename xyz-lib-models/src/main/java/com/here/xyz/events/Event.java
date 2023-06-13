@@ -19,7 +19,6 @@
 
 package com.here.xyz.events;
 
-import static com.here.xyz.AbstractTask.SOFT_LIMIT;
 import static com.here.xyz.AbstractTask.currentTask;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
@@ -58,7 +57,7 @@ import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.AbstractTask;
 import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.util.JsonUtils;
+import com.here.xyz.util.json.JsonUtils;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;

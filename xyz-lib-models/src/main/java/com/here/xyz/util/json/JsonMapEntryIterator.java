@@ -1,5 +1,6 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
+import com.here.xyz.util.FibMapIterator;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;

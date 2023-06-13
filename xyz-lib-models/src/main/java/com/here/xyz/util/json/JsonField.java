@@ -1,9 +1,10 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import static com.here.xyz.util.Unsafe.unsafe;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.lambdas.F5;
+import com.here.xyz.util.StringCache;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.concurrent.ConcurrentHashMap;

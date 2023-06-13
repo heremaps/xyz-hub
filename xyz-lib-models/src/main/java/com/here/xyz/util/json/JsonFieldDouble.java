@@ -1,8 +1,9 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import static java.lang.Double.doubleToRawLongBits;
 import static java.lang.Double.longBitsToDouble;
 
+import com.here.xyz.util.Unsafe;
 import java.lang.reflect.Field;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.xyz.util.JsonObject;
+import com.here.xyz.util.json.JsonObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

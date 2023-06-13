@@ -1,4 +1,4 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import static com.here.xyz.util.StringCache.intern;
 
@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import com.here.xyz.util.StringCache;
 import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
 

@@ -1,4 +1,4 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.xyz.util.EnvName;
 import java.util.LinkedHashMap;
 import javax.annotation.Nullable;
 import org.jetbrains.annotations.NotNull;

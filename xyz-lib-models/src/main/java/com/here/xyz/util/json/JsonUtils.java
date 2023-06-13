@@ -1,4 +1,4 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import com.here.xyz.lambdas.F2;
 import java.util.ArrayList;

@@ -1,4 +1,4 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

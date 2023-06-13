@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.models.geojson.implementation.Action;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.util.JsonMap;
+import com.here.xyz.util.json.JsonMap;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.util.ArrayList;

@@ -1,4 +1,4 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import java.util.Iterator;
 import java.util.Map.Entry;

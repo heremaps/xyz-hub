@@ -1,10 +1,13 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.EnvName;
+import com.here.xyz.util.FileOrResource;
+import com.here.xyz.util.IoHelp;
 import com.here.xyz.util.IoHelp.LoadedBytes;
 import java.io.IOException;
 import java.lang.reflect.Field;

@@ -1,7 +1,8 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.xyz.util.StringCache;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;

@@ -1,4 +1,4 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import static com.here.xyz.util.FibMap.ANY;
 import static com.here.xyz.util.FibMap.CONFLICT;
@@ -8,6 +8,10 @@ import static com.here.xyz.util.FibMap.UNDEFINED;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.here.xyz.util.FibMap;
+import com.here.xyz.util.FibMapConflict;
+import com.here.xyz.util.FibMapEntry;
+import com.here.xyz.util.StringCache;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Collection;

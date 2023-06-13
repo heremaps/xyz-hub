@@ -1,56 +1,57 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
+import com.here.xyz.util.Unsafe;
 import java.lang.reflect.Field;
 import java.nio.ByteOrder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public final class JsonFieldShort<OBJECT> extends JsonField<OBJECT, Short> {
+public final class JsonFieldChar<OBJECT> extends JsonField<OBJECT, Character> {
 
-  JsonFieldShort(@NotNull JsonClass<OBJECT> jsonClass, @NotNull Field javaField, int index, @NotNull String jsonName,
+  JsonFieldChar(@NotNull JsonClass<OBJECT> jsonClass, @NotNull Field javaField, int index, @NotNull String jsonName,
       @Nullable String defaultValue) {
     super(jsonClass, javaField, index, jsonName, defaultValue);
-    this.nullValue = (short) 0;
-    this.defaultValue = defaultValue != null && defaultValue.length() > 0 ? Short.parseShort(defaultValue) : nullValue;
+    this.nullValue = (char) 0;
+    this.defaultValue = defaultValue != null && defaultValue.length() > 0 ? defaultValue.charAt(0) : nullValue;
   }
 
   @Override
-  public @NotNull Short defaultValue() {
+  public @NotNull Character defaultValue() {
     return defaultValue;
   }
 
   @Override
-  public @NotNull Short nullValue() {
+  public @NotNull Character nullValue() {
     return nullValue;
   }
 
   @Override
-  public @NotNull Short value(@Nullable Object value) {
-    if (value instanceof Short v) {
+  public @NotNull Character value(@Nullable Object value) {
+    if (value instanceof Character v) {
       return v;
     }
     if (value == null) {
       return nullValue();
     }
     if (value instanceof Number n) {
-      return n.shortValue();
+      return (char) n.intValue();
     }
     throw new IllegalArgumentException("value is no instance of " + valueClass.getName());
   }
 
   @Override
-  public @NotNull Short _get(@NotNull OBJECT object) {
-    return Unsafe.unsafe.getShort(object, offset);
+  public @NotNull Character _get(@NotNull OBJECT object) {
+    return (char) Unsafe.unsafe.getShort(object, offset);
   }
 
   @Override
-  public void _put(@NotNull OBJECT object, Short value) {
+  public void _put(@NotNull OBJECT object, Character value) {
     assert value != null;
-    Unsafe.unsafe.putShort(object, offset, value);
+    Unsafe.unsafe.putShort(object, offset, (short) (char) value);
   }
 
   @Override
-  public boolean _compareAndSwap(@NotNull OBJECT object, Short expected, Short value) {
+  public boolean _compareAndSwap(@NotNull OBJECT object, Character expected, Character value) {
     assert expected != null && value != null;
     final int byteNumber = (int) (this.offset & 3);
     final int BITS;
@@ -80,6 +81,6 @@ public final class JsonFieldShort<OBJECT> extends JsonField<OBJECT, Short> {
     }
   }
 
-  private final Short defaultValue;
-  private final Short nullValue;
+  private final Character defaultValue;
+  private final Character nullValue;
 }

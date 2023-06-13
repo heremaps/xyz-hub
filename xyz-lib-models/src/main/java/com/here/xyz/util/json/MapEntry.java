@@ -1,4 +1,4 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.Map;

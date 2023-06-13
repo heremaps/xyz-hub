@@ -1,52 +1,57 @@
-package com.here.xyz.util;
+package com.here.xyz.util.json;
 
+import com.here.xyz.util.Unsafe;
 import java.lang.reflect.Field;
 import java.nio.ByteOrder;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public final class JsonFieldBool<OBJECT> extends JsonField<OBJECT, Boolean> {
+public final class JsonFieldByte<OBJECT> extends JsonField<OBJECT, Byte> {
 
-  JsonFieldBool(@NotNull JsonClass<OBJECT> jsonClass, @NotNull Field javaField, int index, @NotNull String jsonName,
+  JsonFieldByte(@NotNull JsonClass<OBJECT> jsonClass, @NotNull Field javaField, int index, @NotNull String jsonName,
       @Nullable String defaultValue) {
     super(jsonClass, javaField, index, jsonName, defaultValue);
-    this.defaultValue = "true".equalsIgnoreCase(defaultValue);
+    this.nullValue = (byte) 0;
+    this.defaultValue = defaultValue != null && defaultValue.length() > 0 ? Byte.parseByte(defaultValue) : nullValue;
   }
 
   @Override
-  public @NotNull Boolean defaultValue() {
+  public @NotNull Byte defaultValue() {
     return defaultValue;
   }
 
   @Override
-  public @NotNull Boolean nullValue() {
-    return Boolean.FALSE;
+  public @NotNull Byte nullValue() {
+    return nullValue;
   }
 
   @Override
-  public @NotNull Boolean value(@Nullable Object value) {
-    if (value instanceof Boolean v) {
+  public @NotNull Byte value(@Nullable Object value) {
+    if (value instanceof Byte v) {
       return v;
     }
     if (value == null) {
       return nullValue();
     }
+    if (value instanceof Number n) {
+      return n.byteValue();
+    }
     throw new IllegalArgumentException("value is no instance of " + valueClass.getName());
   }
 
   @Override
-  public @NotNull Boolean _get(@NotNull OBJECT object) {
-    return Unsafe.unsafe.getBoolean(object, offset);
+  public @NotNull Byte _get(@NotNull OBJECT object) {
+    return Unsafe.unsafe.getByte(object, offset);
   }
 
   @Override
-  public void _put(@NotNull OBJECT object, Boolean value) {
+  public void _put(@NotNull OBJECT object, Byte value) {
     assert value != null;
-    Unsafe.unsafe.putBoolean(object, offset, value);
+    Unsafe.unsafe.putByte(object, offset, value);
   }
 
   @Override
-  public boolean _compareAndSwap(@NotNull OBJECT object, Boolean expected, Boolean value) {
+  public boolean _compareAndSwap(@NotNull OBJECT object, Byte expected, Byte value) {
     assert expected != null && value != null;
     final int byteNumber = (int) (this.offset & 3);
     final int BITS;
@@ -62,11 +67,11 @@ public final class JsonFieldBool<OBJECT> extends JsonField<OBJECT, Boolean> {
     final long offset = this.offset & 0xffff_ffff_ffff_fffCL;
     while (true) {
       final int current = Unsafe.unsafe.getInt(object, offset);
-      final boolean current_value = ((current >>> BITS) & 0xff) != 0;
+      final byte current_value = (byte) ((current >>> BITS) & 0xff);
       if (current_value != expected) {
         return false;
       }
-      final int new_value = (current & UNMASK) | ((value ? 1 << BITS : 0) << BITS);
+      final int new_value = (current & UNMASK) | ((value & 0xff) << BITS);
       if (Unsafe.unsafe.compareAndSwapInt(object, offset, current, new_value)) {
         return true;
       }
@@ -74,5 +79,6 @@ public final class JsonFieldBool<OBJECT> extends JsonField<OBJECT, Boolean> {
     }
   }
 
-  private final boolean defaultValue;
+  private final Byte defaultValue;
+  private final Byte nullValue;
 }
