@@ -167,10 +167,10 @@ public class JDBCClients {
         SQLQuery q = new SQLQuery(
                 "select '!ignore!' as ignore, datname,pid,state,backend_type,query_start,state_change,application_name,query from pg_stat_activity "
                         +"WHERE 1=1 "
-                        +"AND application_name=#{applicationName}"
+                        +"AND application_name=#{applicationName} "
                         +"AND datname='postgres' "
                         +"AND state='active' "
-                        +"AND backend_type='client backend'"
+                        +"AND backend_type='client backend' "
                         +"AND POSITION('!ignore!' in query) = 0"
         );
 

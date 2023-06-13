@@ -21,10 +21,11 @@ package com.here.xyz.hub.rest;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import io.vertx.core.json.JsonObject;
-import org.junit.Test;
-import org.junit.BeforeClass;
-import org.junit.Before;
 import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import java.net.URL;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
