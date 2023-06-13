@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 161
+ select 163
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
