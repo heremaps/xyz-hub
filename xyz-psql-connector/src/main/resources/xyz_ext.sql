@@ -3332,7 +3332,7 @@ CREATE OR REPLACE FUNCTION htile(x integer, y integer, level integer) RETURNS bi
     LANGUAGE plpgsql
     AS $$
 begin
-    return htiles_convert_xy_to_long_key(x, y) | (1 << (level * 2));
+    return htiles_convert_xy_to_long_key(x, y) | (1::bigint << (level * 2));
 end
 $$;
 ------------------------------------------------
