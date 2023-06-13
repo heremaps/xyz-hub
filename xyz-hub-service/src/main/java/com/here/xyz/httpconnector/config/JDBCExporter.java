@@ -187,7 +187,9 @@ public class JDBCExporter extends JDBCClients{
                 .map(row -> {
                     Row res = row.iterator().next();
                     if (res != null) {
-                        return Arrays.stream(res.getArrayOfStrings("tilelist")).collect(Collectors.toList());
+                      String[] sArr = res.getArrayOfStrings("tilelist");
+                      if( sArr != null && sArr.length > 0)
+                        return Arrays.stream(sArr).collect(Collectors.toList());
                     }
                     return null;
                 });
