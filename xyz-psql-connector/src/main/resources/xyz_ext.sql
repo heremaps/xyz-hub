@@ -3319,9 +3319,9 @@ begin
     hkey = htiles_convert_qk_to_longk(qk);
 
     /** Remove first level bit and convert to x */
-    colX = htiles_utils_modify_bits(hkey & ((1 << lev * 2) - 1),'extract');
+    colX = htiles_utils_modify_bits(hkey & ((1::bigint << lev * 2) - 1),'extract');
     /** Remove first level bit and convert to y */
-    rowY = htiles_utils_modify_bits(hkey & ((1 << lev * 2) - 1) >> 1, 'extract');
+    rowY = htiles_utils_modify_bits(hkey & ((1::bigint << lev * 2) - 1) >> 1, 'extract');
 
 	RETURN next;
 end
@@ -3407,7 +3407,7 @@ begin
 		-- RAISE NOTICE '% %',i,substring(qk,level-(i-1),1)::integer;
 		hkey = hkey+ (substring(qk,level-(i-1),1)::integer << (i-1) * 2);
     END LOOP;
-    RETURN hkey | (1 << (level * 2));
+    RETURN hkey | (1::bigint << (level * 2));
 end
 $$;
 ------------------------------------------------
