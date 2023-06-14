@@ -11,7 +11,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.util.FibMap;
-import com.here.xyz.util.StringCache;
+import com.here.xyz.util.StringHelper;
 import com.here.xyz.util.diff.Patcher;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -297,7 +297,7 @@ public class JsonObject implements Map<@NotNull String, @Nullable Object>, Itera
     if (!(key instanceof CharSequence)) {
       return false;
     }
-    final CharSequence name = StringCache.toCharSequence(key);
+    final CharSequence name = StringHelper.toCharSequence(key);
     final JsonClass<?> jsonClass = jsonClass();
     final JsonField<?, ?> field = jsonClass.getField(name);
     if (field != null) {
@@ -517,7 +517,7 @@ public class JsonObject implements Map<@NotNull String, @Nullable Object>, Itera
     if (!(key instanceof CharSequence)) {
       return alternative;
     }
-    final CharSequence name = StringCache.toCharSequence(key);
+    final CharSequence name = StringHelper.toCharSequence(key);
     final JsonClass<?> jsonClass = jsonClass();
     final JsonField<?, ?> field = jsonClass.getField(name);
     if (field != null) {

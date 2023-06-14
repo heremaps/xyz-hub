@@ -22,8 +22,7 @@ public class PsqlClientTest {
         .withAppName("Naksha-Psql-Test")
         .parseUrl(System.getenv("TEST_ADMIN_DB"))
         .build();
-    final PsqlDataSource ds = new PsqlDataSource(config);
-    final PsqlClient<PsqlDataSource> client = new PsqlClient<>(ds, 0L);
+    final PsqlClient<PsqlDataSource> client = PsqlClient.create(config,0);
     try {
       client.init();
       try (final PsqlTransaction<PsqlDataSource> transaction = client.startMutation()) {

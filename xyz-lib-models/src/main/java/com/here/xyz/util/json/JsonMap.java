@@ -12,6 +12,7 @@ import com.here.xyz.util.FibMap;
 import com.here.xyz.util.FibMapConflict;
 import com.here.xyz.util.FibMapEntry;
 import com.here.xyz.util.StringCache;
+import com.here.xyz.util.StringHelper;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Collection;
@@ -69,7 +70,7 @@ public class JsonMap implements Map<@NotNull String, @Nullable Object>, Iterable
    * @return The key as {@link String}.
    */
   protected @NotNull Object intern(Object key) {
-    return StringCache.intern(StringCache.toCharSequence(key));
+    return StringCache.intern(StringHelper.toCharSequence(key));
   }
 
   /**
@@ -139,7 +140,7 @@ public class JsonMap implements Map<@NotNull String, @Nullable Object>, Iterable
     if (!(key instanceof CharSequence)) {
       return false;
     }
-    final CharSequence name = StringCache.toCharSequence(key);
+    final CharSequence name = StringHelper.toCharSequence(key);
     return FibMap.containsKey(name, root);
   }
 
@@ -398,7 +399,7 @@ public class JsonMap implements Map<@NotNull String, @Nullable Object>, Iterable
     if (!(key instanceof CharSequence)) {
       return alternative;
     }
-    final CharSequence name = StringCache.toCharSequence(key);
+    final CharSequence name = StringHelper.toCharSequence(key);
     if (root == EMPTY) {
       return alternative;
     }

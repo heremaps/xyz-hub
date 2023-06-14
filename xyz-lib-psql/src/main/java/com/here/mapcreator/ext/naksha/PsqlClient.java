@@ -219,7 +219,7 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
           final int major = rs.getInt(1);
           final int minor = rs.getInt(2);
           final int rev = rs.getInt(3);
-          // TODO: For upgrading from x to y, how do we do this, when functions are deleted?
+          // TODO: For upgrading from x to y, how do we do this, when functions are deleted, for example when a function name is changed?
           // TODO: For now, add some way to drop all existing functions and reinstall fresh!
         }
 

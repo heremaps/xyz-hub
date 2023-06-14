@@ -2,7 +2,7 @@ package com.here.xyz.util.json;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.xyz.util.StringCache;
+import com.here.xyz.util.StringHelper;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -163,7 +163,7 @@ public final class JsonClass<CLASS> {
    * @return the JSON field; {@code null} if no such field exists.
    */
   public @Nullable JsonField<CLASS, ?> getField(@Nullable CharSequence name) {
-    return name != null ? fieldsMap.get(StringCache.toString(name)) : null;
+    return name != null ? fieldsMap.get(StringHelper.toString(name)) : null;
   }
 
   /**
@@ -178,7 +178,7 @@ public final class JsonClass<CLASS> {
     if (name == null) {
       return null;
     }
-    final JsonField<CLASS, ?> field = fieldsMap.get(StringCache.toString(name));
+    final JsonField<CLASS, ?> field = fieldsMap.get(StringHelper.toString(name));
     if (field == null) {
       return null;
     }
