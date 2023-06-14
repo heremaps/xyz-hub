@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 161
+ select 163
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3319,9 +3319,9 @@ begin
     hkey = htiles_convert_qk_to_longk(qk);
 
     /** Remove first level bit and convert to x */
-    colX = htiles_utils_modify_bits(hkey & ((1 << lev * 2) - 1),'extract');
+    colX = htiles_utils_modify_bits(hkey & ((1::bigint << lev * 2) - 1),'extract');
     /** Remove first level bit and convert to y */
-    rowY = htiles_utils_modify_bits(hkey & ((1 << lev * 2) - 1) >> 1, 'extract');
+    rowY = htiles_utils_modify_bits(hkey & ((1::bigint << lev * 2) - 1) >> 1, 'extract');
 
 	RETURN next;
 end
@@ -3332,7 +3332,7 @@ CREATE OR REPLACE FUNCTION htile(x integer, y integer, level integer) RETURNS bi
     LANGUAGE plpgsql
     AS $$
 begin
-    return htiles_convert_xy_to_long_key(x, y) | (1 << (level * 2));
+    return htiles_convert_xy_to_long_key(x, y) | (1::bigint << (level * 2));
 end
 $$;
 ------------------------------------------------
@@ -3405,9 +3405,9 @@ begin
     FOR i IN 1 .. level
 	LOOP
 		-- RAISE NOTICE '% %',i,substring(qk,level-(i-1),1)::integer;
-		hkey = hkey+ (substring(qk,level-(i-1),1)::integer << (i-1) * 2);
+		hkey = hkey+ (substring(qk,level-(i-1),1)::bigint << (i-1) * 2);
     END LOOP;
-    RETURN hkey | (1 << (level * 2));
+    RETURN hkey | (1::bigint << (level * 2));
 end
 $$;
 ------------------------------------------------
