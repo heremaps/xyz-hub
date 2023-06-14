@@ -8,6 +8,7 @@ import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.NanoTime;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;

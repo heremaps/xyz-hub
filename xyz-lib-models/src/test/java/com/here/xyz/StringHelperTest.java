@@ -4,6 +4,7 @@ package com.here.xyz;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.xyz.util.StringHelper;
 import org.junit.jupiter.api.Test;
 
 public class StringHelperTest {

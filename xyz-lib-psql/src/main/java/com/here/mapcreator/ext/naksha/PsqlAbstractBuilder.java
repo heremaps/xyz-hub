@@ -1,5 +1,9 @@
 package com.here.mapcreator.ext.naksha;
 
+import com.here.xyz.events.QueryParameterList;
+import com.here.xyz.exceptions.ParameterError;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,6 +32,60 @@ abstract class PsqlAbstractBuilder<TARGET, SELF extends PsqlAbstractBuilder<TARG
   int minPoolSize;
   int maxPoolSize;
   long idleTimeout;
+
+  /**
+   * Parse the given <a href="https://jdbc.postgresql.org/documentation/use/>PostgresQL URL</a> to set up the builder.
+   *
+   * @param postgresUrl the PostgresQL URL.
+   * @return this.
+   * @throws URISyntaxException if the given URL is invalid.
+   * @throws ParameterError     if the given parameters are invalid.
+   */
+  public @NotNull SELF parseUrl(@NotNull String postgresUrl) throws URISyntaxException, ParameterError {
+    // Syntax: jdbc:postgresql://host[:port]/db
+    final URI root = new URI(postgresUrl);
+    if (!"jdbc".equalsIgnoreCase(root.getScheme())) {
+      throw new URISyntaxException(postgresUrl, "Expect scheme to be 'jdbc', but found: '" + root.getScheme() + "'");
+    }
+    final URI uri = new URI(root.getSchemeSpecificPart());
+    if (!"postgresql".equalsIgnoreCase(uri.getScheme())) {
+      throw new URISyntaxException(postgresUrl, "Expect scheme of specific part to be 'postgresql', but found: '" + uri.getScheme() + "'");
+    }
+    String path = uri.getPath();
+    while (path != null && path.length() > 0 && path.charAt(0) == '/') {
+      path = path.substring(1);
+    }
+    if (path == null || path.length() == 0) {
+      throw new URISyntaxException(postgresUrl, "Missing database name as path");
+    }
+    if (path.contains("/")) {
+      throw new URISyntaxException(postgresUrl, "Invalid database name: " + path);
+    }
+
+    if (uri.getHost() != null) {
+      this.host = uri.getHost();
+    }
+    if (uri.getPort() >= 0) {
+      this.port = uri.getPort();
+    }
+    this.db = path;
+
+    final String query = uri.getQuery();
+    if (query != null && query.length() > 0) {
+      setFromUrlParams(new QueryParameterList(query));
+    }
+    return self();
+  }
+
+  @SuppressWarnings("PatternVariableHidesField")
+  protected void setFromUrlParams(final @NotNull QueryParameterList params) {
+    if (params.getValue("user") instanceof String user) {
+      this.user = user;
+    }
+    if (params.getValue("password") instanceof String password) {
+      this.password = password;
+    }
+  }
 
   public String getDriverClass() {
     return driverClass;

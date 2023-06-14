@@ -1,7 +1,6 @@
-package com.here.xyz;
+package com.here.xyz.util;
 
 
-import com.here.xyz.util.StringCache;
 import java.util.Objects;
 import org.jetbrains.annotations.Nullable;
 
@@ -32,7 +31,7 @@ public interface ILike {
       return true;
     }
     if (a instanceof CharSequence a_chars && b instanceof CharSequence b_chars) {
-      return StringCache.equals(a_chars, b_chars);
+      return StringHelper.equals(a_chars, b_chars);
     }
     return Objects.equals(a, b);
   }

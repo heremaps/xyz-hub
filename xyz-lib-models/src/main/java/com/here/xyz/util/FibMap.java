@@ -3,7 +3,6 @@ package com.here.xyz.util;
 import static java.lang.invoke.VarHandle.loadLoadFence;
 import static java.lang.invoke.VarHandle.storeStoreFence;
 
-import com.here.xyz.ILike;
 import com.here.xyz.lambdas.F1;
 import com.here.xyz.lambdas.F4;
 import java.lang.invoke.MethodHandles;

@@ -22,7 +22,7 @@ package com.here.xyz.responses;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.xyz.Payload;
-import com.here.xyz.StringHelper;
+import com.here.xyz.util.StringHelper;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;

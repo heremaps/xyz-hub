@@ -33,7 +33,7 @@ import com.here.xyz.EventPipeline;
 import com.here.xyz.IEventContext;
 import com.here.xyz.IEventHandler;
 import com.here.xyz.INaksha;
-import com.here.xyz.NanoTime;
+import com.here.xyz.util.NanoTime;
 import com.here.xyz.Payload;
 import com.here.xyz.NakshaLogger;
 import com.here.xyz.events.admin.ModifySubscriptionEvent;

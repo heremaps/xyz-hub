@@ -1,5 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
+import com.here.xyz.events.QueryParameterList;
 import org.jetbrains.annotations.NotNull;
 
 /**

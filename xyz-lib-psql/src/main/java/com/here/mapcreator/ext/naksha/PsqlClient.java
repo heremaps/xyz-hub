@@ -1,9 +1,7 @@
 package com.here.mapcreator.ext.naksha;
 
-import com.here.mapcreator.ext.naksha.sql.MaintenanceSQL;
 import com.here.xyz.util.IoHelp;
 import com.here.xyz.INaksha;
-import com.here.xyz.util.IoHelp;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -19,17 +17,37 @@ import org.jetbrains.annotations.NotNull;
 public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 
   /**
+   * The latest version of the naksha-extension stored in the resources.
+   */
+  public static final PsqlExtVersion latest = new PsqlExtVersion(1,0,0);
+
+  /**
    * Create a new Naksha client instance. You can register this as the main instance by simply setting the {@link INaksha#instance} atomic
    * reference.
    *
-   * @param datasource The data-source to be used to create new connections.
-   * @param clientId   The client identification number to use. Except for the main database, normally this number is given by the
-   *                   Naksha-Hub as connector number.
+   * @param config          the PSQL configuration to use.
+   * @param connectorNumber the connector identification number to use. Except for the main database (which always has the number 0),
+   *                        normally this number is given by the Naksha-Hub, when creating a connector.
    */
-  public PsqlClient(@NotNull DATASOURCE datasource, long clientId) {
+  public static PsqlClient<PsqlDataSource> create(@NotNull PsqlConfig config, long connectorNumber) {
+    return new PsqlClient<>(new PsqlDataSource(config), config.schema, connectorNumber);
+  }
+
+  /**
+   * Create a new Naksha client instance. You can register this as the main instance by simply setting the {@link INaksha#instance} atomic
+   * reference.
+   *
+   * @param datasource      the data-source to be used to create new connections.
+   * @param schema          the schema to operate on.
+   * @param connectorNumber the connector identification number to use. Except for the main database (which always has the number 0),
+   *                        normally this number is given by the Naksha-Hub, when creating a connector.
+   */
+  public PsqlClient(@NotNull DATASOURCE datasource, @NotNull String schema, long connectorNumber) {
     this.dataSource = datasource;
     this.pool = datasource.pool;
-    this.clientId = clientId;
+    this.connectorNumber = connectorNumber;
+    this.schema = schema;
+    this.dataSource.schema = schema;
   }
 
   /**
@@ -58,17 +76,23 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
   protected final @NotNull DATASOURCE dataSource;
 
   /**
-   * The unique numeric client identifier.
+   * The main schema to operate on.
    */
-  protected final long clientId;
+  protected final @NotNull String schema;
 
   /**
-   * Returns the numeric client identifier.
-   *
-   * @return the numeric client identifier.
+   * The connector identification number to use. Except for the main database (which always has the number 0), normally this number is given
+   * by the Naksha-Hub, when creating a connector.
    */
-  public long getClientId() {
-    return clientId;
+  protected final long connectorNumber;
+
+  /**
+   * Returns the connector identification number.
+   *
+   * @return the connector identification number.
+   */
+  public long getConnectorNumber() {
+    return connectorNumber;
   }
 
   private static final boolean[] ESCAPE = new boolean[128];
@@ -187,14 +211,23 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
 //      }
 //
     try (final Connection conn = dataSource.getConnection()) {
-      conn.setAutoCommit(true); // It should already be set by default, but we have it here for clarity
       try (final Statement stmt = conn.createStatement()) {
+        // TODO: Check if the schema exists, if not, create it.
+        // TODO: Check if the naksha extension is installed in the latest version.
+        ResultSet rs = stmt.executeQuery("SELECT major, minor, revision FROM naksha_version_extract(naksha_version());");
+        if (rs.next()) {
+          final int major = rs.getInt(1);
+          final int minor = rs.getInt(2);
+          final int rev = rs.getInt(3);
+          // TODO: For upgrading from x to y, how do we do this, when functions are deleted?
+          // TODO: For now, add some way to drop all existing functions and reinstall fresh!
+        }
+
         // Install extensions
         SQL = IoHelp.readResource("naksha_ext.sql");
         stmt.execute(SQL);
-        stmt.execute("""
-        SELECT naksha_init();
-        """);
+        stmt.execute("SELECT naksha_init();");
+        // Review in database if everything is available.
 
 //        stmt.execute(MaintenanceSQL.createIDXTableSQL);
 //        stmt.execute(MaintenanceSQL.createDbStatusTable);

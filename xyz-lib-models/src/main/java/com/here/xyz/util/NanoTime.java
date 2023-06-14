@@ -1,4 +1,4 @@
-package com.here.xyz;
+package com.here.xyz.util;
 
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;

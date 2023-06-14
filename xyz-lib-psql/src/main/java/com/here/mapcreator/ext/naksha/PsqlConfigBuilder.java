@@ -1,8 +1,24 @@
 package com.here.mapcreator.ext.naksha;
 
+import com.here.xyz.events.QueryParameterList;
 import org.jetbrains.annotations.NotNull;
 
 public final class PsqlConfigBuilder extends PsqlAbstractBuilder<PsqlConfig, PsqlConfigBuilder> {
+
+  @SuppressWarnings("PatternVariableHidesField")
+  @Override
+  protected void setFromUrlParams(@NotNull QueryParameterList params) {
+    super.setFromUrlParams(params);
+    if (params.getValue("schema") instanceof String schema) {
+      this.schema = schema;
+    }
+    if (params.getValue("app") instanceof String app) {
+      this.appName = app;
+    }
+    if (params.getValue("appName") instanceof String appName) {
+      this.appName = appName;
+    }
+  }
 
   public String getSchema() {
     return schema;

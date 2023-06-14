@@ -30,6 +30,7 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
 
   /**
    * Returns the default search path, the constructor calls this method ones to initialize the search-path.
+   *
    * @return The default search path.
    */
   protected @NotNull String defaultSearchPath() {
@@ -38,6 +39,7 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
 
   /**
    * Returns the default schema, the constructor calls this method ones to initialize the search-path.
+   *
    * @return the default schema.
    */
   protected abstract @NotNull String defaultSchema();
@@ -153,6 +155,14 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
     return self();
   }
 
+  /**
+   * Returns an initialized connection. This means the connection will have auto-commit being off, the current schema will be at the root of
+   * the search path, and the correct role pre-selected. Note that these settings can be modified overridding the
+   * {@link #initConnection(Connection)} or {@link #initSession(StringBuilder)} methods.
+   *
+   * @return the initialized connection.
+   * @throws SQLException if any error happened while initializing the connection.
+   */
   @Override
   public Connection getConnection() throws SQLException {
     return initConnection(pool.dataSource.getConnection());

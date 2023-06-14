@@ -1041,7 +1041,7 @@ EXCEPTION WHEN OTHERS THEN
 END
 $BODY$;
 
-CREATE OR REPLACE FUNCTION naksha_init() --mgnt_schema TEXT, admin_schema TEXT, spaces_schema TEXT, connector_id int8)
+CREATE OR REPLACE FUNCTION naksha_init()
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
@@ -1077,37 +1077,37 @@ BEGIN
 
     -- unique index: id DESC, schema ASC, table ASC
     EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS transactions_id_idx '
-                || 'ON transactions USING btree (id DESC, "schema" ASC, "table" ASC)'
+        || 'ON transactions USING btree (id DESC, "schema" ASC, "table" ASC)'
         || 'INCLUDE (i)';
 
     -- index: ts DESC
     EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_ts_idx '
-                || 'ON transactions USING btree (ts DESC)'
+        || 'ON transactions USING btree (ts DESC)'
         || 'INCLUDE (i)';
 
     -- unique index: txn DESC, schema ASC, table ASC
     EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS transactions_txn_idx '
-                || 'ON transactions USING btree (txn DESC, "schema" ASC, "table" ASC) '
+        || 'ON transactions USING btree (txn DESC, "schema" ASC, "table" ASC) '
         || 'INCLUDE (i)';
 
     -- index: txid DESC, schema ASC, table ASC
     EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_txid_idx '
-                || 'ON transactions USING btree (txid DESC, "schema" ASC, "table" ASC)'
+        || 'ON transactions USING btree (txid DESC, "schema" ASC, "table" ASC)'
         || 'INCLUDE (i)';
 
     -- index: txcid DESC, schema ASC, table ASC
     EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_txcid_idx '
-                || 'ON transactions USING btree (txcid DESC, "schema" ASC, "table" ASC)'
+        || 'ON transactions USING btree (txcid DESC, "schema" ASC, "table" ASC)'
         || 'INCLUDE (i)';
 
     -- index: txts DESC, txn DESC
     EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_txts_idx '
-                || 'ON transactions USING btree (txts DESC, txn DESC) '
+        || 'ON transactions USING btree (txts DESC, txn DESC) '
         || 'INCLUDE (i)';
 
     -- index: space ASC, txn DESC, schema ASC, table ASC
     EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_space_idx '
-                || 'ON transactions USING btree (space ASC, txn DESC, "schema" ASC, "table" ASC) '
+        || 'ON transactions USING btree (space ASC, txn DESC, "schema" ASC, "table" ASC) '
         || 'INCLUDE (i)';
 
 

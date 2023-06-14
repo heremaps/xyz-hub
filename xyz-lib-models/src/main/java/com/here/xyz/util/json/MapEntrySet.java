@@ -3,7 +3,7 @@ package com.here.xyz.util.json;
 import static com.here.xyz.util.FibMap.EMPTY;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.here.xyz.ILike;
+import com.here.xyz.util.ILike;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
