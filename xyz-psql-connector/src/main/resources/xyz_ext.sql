@@ -3823,7 +3823,7 @@ begin
     end if;
 
     if base64enc then
-         plainjs = 'replace( encode( replace(' || plainjs || ',''\'',''\\'')::bytea, ''base64'' ),chr(10),'''')';
+         plainjs = 'replace( encode( replace(' || plainjs || ',''\\'',''\'')::bytea, ''base64'' ),chr(10),'''')';
     end if;
 
     foreach tile in array tile_list
