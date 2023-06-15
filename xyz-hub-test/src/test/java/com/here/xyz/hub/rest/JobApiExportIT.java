@@ -324,7 +324,7 @@ public class JobApiExportIT extends JobApiIT {
         }};
 
         /** Expect 10 features instead of 11 because feature without geometry is not included in result */
-        downloadAndCheckFC(urls, 5441, 10, csvMustContains, 1);
+        downloadAndCheckFC(urls, 5429, 10, csvMustContains, 1);
     }
 
     /**
@@ -348,11 +348,11 @@ public class JobApiExportIT extends JobApiIT {
         ArrayList<String> csvMustContains = new ArrayList<String>(){{
             add("23600780");
             add("23600794");
-            add("wgImZlYXR1cmVzIjogW");
+            add("W9uIiwgImZlYXR1cmV");
         }};
 
         /** Expect 39 features because the geometry of some features is intersecting multiple tiles */
-        downloadAndCheckFC(urls, 22234, 39, csvMustContains, 17);
+        downloadAndCheckFC(urls, 22174, 39, csvMustContains, 17);
     }
 
     /**
@@ -384,7 +384,7 @@ public class JobApiExportIT extends JobApiIT {
             add("eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwg");
         }};
 
-        downloadAndCheckFC(urls, 4153, 5, mustContains, 1);
+        downloadAndCheckFC(urls, 4149, 5, mustContains, 1);
     }
 
     @Test
@@ -407,10 +407,10 @@ public class JobApiExportIT extends JobApiIT {
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
             add("360");
-            add("IFs4LjYyNzcwMDgsID");
+            add("VzIjpbeyJpZC");
         }};
 
-        downloadAndCheckFC(urls, 2805, 5, mustContains, 1);
+        downloadAndCheckFC(urls, 2801, 5, mustContains, 1);
     }
 
     @Test
@@ -433,7 +433,7 @@ public class JobApiExportIT extends JobApiIT {
             add("Onh5eiI6IHsidGFncyI6IF");
         }};
 
-        downloadAndCheckFC(urls, 1273, 3, mustContains, 1);
+        downloadAndCheckFC(urls, 1269, 3, mustContains, 1);
     }
 
     @Test
@@ -459,10 +459,10 @@ public class JobApiExportIT extends JobApiIT {
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
             add("360");
-            add("gtcHNxbC1q");
+            add("aW9uIiwgImZlYXR");
         }};
 
-        downloadAndCheckFC(urls, 505, 1, mustContains, 1 );
+        downloadAndCheckFC(urls, 501, 1, mustContains, 1 );
     }
 
     /**
@@ -485,11 +485,11 @@ public class JobApiExportIT extends JobApiIT {
         ArrayList<String> mustContains = new ArrayList<String>(){{
             add("280");
             add("306");
-            add("xsZWN0aW9uIiwgImZlYXR1cmVzIjogW");
+            add("IkZlYXR1cmU");
         }};
 
         // 252 + 10 (-feature w/o geometry) = 262mh o
-        downloadAndCheckFC(urls, 138317, 262, mustContains, 37);
+        downloadAndCheckFC(urls, 137973, 262, mustContains, 37);
     }
 
     @Test
@@ -507,12 +507,11 @@ public class JobApiExportIT extends JobApiIT {
         ArrayList<String> mustContains = new ArrayList<String>(){{
             add("374");
             add("352");
-            add("10ZXN0Mi1leHQiLCAiY3J");
-            add("yZTp4eXoiOiB7In");
+            add("HVyZSIsICJnZW9");
             add("374");
         }};
         // 252 + 10 (-feature w/o geometry) + 1 = 263
-        downloadAndCheckFC(urls, 138673, 263, mustContains, 37);
+        downloadAndCheckFC(urls, 138329, 263, mustContains, 37);
     }
 
     @Test
@@ -534,10 +533,10 @@ public class JobApiExportIT extends JobApiIT {
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
             add("360");
-            add("YW1lIjogIkhhdXB0c3RhZGl");
+            add("RyeSI6IHsidHlwZSI6I");
         }};
 
-        downloadAndCheckFC(urls, 15541, 30, mustContains, 1 );
+        downloadAndCheckFC(urls, 15501, 30, mustContains, 1 );
     }
 
     @Test
@@ -563,10 +562,10 @@ public class JobApiExportIT extends JobApiIT {
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
             add("360");
-            add("Zm9vX3BvbHlnb24iLCAidHlwZSI6");
+            add("ZXMiOiBbOC42MTk5NjE1");
         }};
 
-        downloadAndCheckFC(urls, 477, 1, mustContains, 1);
+        downloadAndCheckFC(urls, 473, 1, mustContains, 1);
     }
 
     @Test
@@ -594,7 +593,7 @@ public class JobApiExportIT extends JobApiIT {
             add("ZXh0IiwgImNyZWF0ZWRBdCI6IDE2O");
         }};
 
-        downloadAndCheckFC(urls, 15901, 31, mustContains, 1);
+        downloadAndCheckFC(urls, 15861, 31, mustContains, 1);
     }
 
     /** ------------------- only for local testing with big spaces  -------------------- */
