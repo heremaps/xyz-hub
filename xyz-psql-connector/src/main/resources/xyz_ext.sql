@@ -3612,7 +3612,7 @@ begin
             execute format(
                         'SELECT %2$L,' || plainjs || ', count(1) as cnt'
                         ||' from( '
-                        ||' select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||')::jsonb) as feature'
+                        ||' select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||',8)::jsonb) as feature'
                         ||'	 from %1$s '
                         ||'  where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
                         ||' ) A', _tbl, tile)
@@ -3651,7 +3651,7 @@ begin
          format(
               ' select qk,' || plainjs
            || ' from'
-           || ' ( select qk, jsonb_agg( jsonb_set(jsondata,''{geometry}'',ST_AsGeojson( geo )::jsonb ) ) as features'
+           || ' ( select qk, jsonb_agg( jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(geo,8)::jsonb ) ) as features'
            || '   from'
            || '   ( select qk, d.jsondata,' || plaingeo
            || '     from'
@@ -3834,7 +3834,7 @@ begin
                 ||' from( '
                 ||'   select replace(replace(array_agg(feature)::text, ''\"'',''"''), ''","'','','') as fc '
                 ||'   from( '
-                ||'    select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||')::jsonb) as feature'
+                ||'    select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||', 8)::jsonb) as feature'
                 ||'	     from ( %1$s ) o '
                 ||'    where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
                 ||'   ) oo '
@@ -3874,7 +3874,7 @@ begin
          format(
               ' select qk,' || plainjs
            || ' from'
-           || ' ( select qk, jsonb_agg( jsonb_set(jsondata,''{geometry}'',ST_AsGeojson( geo )::jsonb ) ) as features'
+           || ' ( select qk, jsonb_agg( jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(geo,8)::jsonb ) ) as features'
            || '   from'
            || '   ( select qk, d.jsondata,' || plaingeo
            || '     from'
