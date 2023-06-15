@@ -57,13 +57,13 @@ import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
-import com.here.xyz.psql.query.helpers.TableExists;
-import com.here.xyz.psql.query.helpers.TableExists.Table;
-import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
 import com.here.xyz.psql.query.helpers.GetTablesWithComment;
 import com.here.xyz.psql.query.helpers.GetTablesWithComment.GetTablesWithCommentInput;
+import com.here.xyz.psql.query.helpers.TableExists;
+import com.here.xyz.psql.query.helpers.TableExists.Table;
+import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.psql.query.helpers.versioning.SetVersion;
 import com.here.xyz.psql.query.helpers.versioning.SetVersion.SetVersionInput;
 import com.here.xyz.psql.tools.DhString;
@@ -1092,22 +1092,22 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     private void alterColumnStorage(Statement stmt, String schema, String tableName) throws SQLException {
-        List<SQLQuery> storageOptions  = Arrays.asList(
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET STORAGE MAIN;"),
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET STORAGE MAIN;"),
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET STORAGE MAIN;"),
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN operation SET STORAGE PLAIN;"),
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN next_version SET STORAGE PLAIN;"),
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN version SET STORAGE PLAIN;"),
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN i SET STORAGE PLAIN;"),
+        stmt.addBatch(new SQLQuery("ALTER TABLE ${schema}.${table} "
+            + "ALTER COLUMN id SET STORAGE MAIN, "
+            + "ALTER COLUMN jsondata SET STORAGE MAIN, "
+            + "ALTER COLUMN geo SET STORAGE MAIN, "
+            + "ALTER COLUMN operation SET STORAGE PLAIN, "
+            + "ALTER COLUMN next_version SET STORAGE PLAIN, "
+            + "ALTER COLUMN version SET STORAGE PLAIN, "
+            + "ALTER COLUMN i SET STORAGE PLAIN, "
 
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN id SET COMPRESSION lz4;"),
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN jsondata SET COMPRESSION lz4;"),
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN geo SET COMPRESSION lz4;")
-        );
-
-        for (SQLQuery query : storageOptions)
-            stmt.addBatch(query.withVariable("schema", schema).withVariable("table", tableName).substitute().text());
+            + "ALTER COLUMN id SET COMPRESSION lz4, "
+            + "ALTER COLUMN jsondata SET COMPRESSION lz4, "
+            + "ALTER COLUMN geo SET COMPRESSION lz4;")
+            .withVariable("schema", schema)
+            .withVariable("table", tableName)
+            .substitute()
+            .text());
     }
 
     private static void setupOneTimeActionFillNewColumns(String phase, Connection connection) throws SQLException {
