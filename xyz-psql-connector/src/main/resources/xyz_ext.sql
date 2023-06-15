@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 163
+ select 164
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3797,16 +3797,22 @@ end
 $_$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v1(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE plpgsql
-    AS $_$
+CREATE OR REPLACE FUNCTION public.qk_s_get_fc_of_tiles_txt_v1(
+	here_tile_qk boolean,
+	tile_list text[],
+	sql_with_jsondata_geo text,
+	base64enc boolean,
+	clipped boolean)
+    RETURNS TABLE(tile_id text, tile_content text)
+    LANGUAGE 'plpgsql'
+AS $BODY$
 declare
     result record;
     tile text;
     fkt_qk2box text := 'xyz_qk_qk2bbox';
-    plainjs text    := 'jsonb_build_object(''type'',''FeatureCollection'',''features'', jsonb_agg(feature) )::text';
+	plainjs text 	:= 'replace(''{"type": "FeatureCollection", "features":['' ||	substring(xx.fc, 3, (xx.fc).length - 4) || '']}'',''\'',''\\'')';
+
     plaingeo text   := 'geo';
-    feature_count bigint := 0;
 begin
     if here_tile_qk then
         fkt_qk2box = 'htile_bbox';
@@ -3817,28 +3823,31 @@ begin
     end if;
 
     if base64enc then
-         plainjs = 'regexp_replace( encode( replace(' || plainjs || ',''\'',''\\'')::bytea, ''base64'' ),''\n'','''',''g'')';
+         plainjs = 'replace( encode( replace(' || plainjs || ',''\'',''\\'')::bytea, ''base64'' ),chr(10),'''')';
     end if;
 
     foreach tile in array tile_list
     loop
         begin
             execute format(
-                    'SELECT %2$L,' || plainjs || ', count(1) as cnt'
-                    ||' from( '
-                    ||' select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||')::jsonb) as feature'
-                    ||'	 from ( %1$s ) o '
-                    ||'  where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
-                    ||' ) oo', sql_with_jsondata_geo, tile)
-            INTO tile_id, tile_content, feature_count;
+                'SELECT %2$L,' || plainjs
+                ||' from( '
+                ||'   select replace(replace(array_agg(feature)::text, ''\"'',''"''), ''","'','','') as fc '
+                ||'   from( '
+                ||'    select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||')::jsonb) as feature'
+                ||'	     from ( %1$s ) o '
+                ||'    where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
+                ||'   ) oo '
+                ||')xx ', sql_with_jsondata_geo, tile)
+            INTO tile_id, tile_content;
 
-            if feature_count > 0 then
+            if tile_content IS NOT null then
                 return next;
             end if;
         end;
     end loop;
 end
-$_$;
+$BODY$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v2(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
@@ -3858,7 +3867,7 @@ begin
     end if;
 
     if base64enc then
-         plainjs = 'regexp_replace( encode( replace(' || plainjs || ',''\'',''\\'')::bytea, ''base64'' ),''\n'','''',''g'')';
+         plainjs = 'replace( encode( replace(' || plainjs || ',''\'',''\\'')::bytea, ''base64'' ),chr(10),'''')';
     end if;
 
     return query execute
