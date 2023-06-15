@@ -25,8 +25,8 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 
 public class ExportValidator extends Validator{
     protected static int VML_EXPORT_MIN_TARGET_LEVEL = 4;
-    protected static int VML_EXPORT_MAX_TARGET_LEVEL = 12;
-    protected static int VML_EXPORT_MAX_TILES_PER_FILE = 32784;
+    protected static int VML_EXPORT_MAX_TARGET_LEVEL = 13;
+    protected static int VML_EXPORT_MAX_TILES_PER_FILE = 8192;
 
     public static void setExportDefaults(Export job){
         setJobDefaults(job);
