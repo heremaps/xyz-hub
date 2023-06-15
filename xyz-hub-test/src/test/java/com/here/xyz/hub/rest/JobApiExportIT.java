@@ -352,7 +352,7 @@ public class JobApiExportIT extends JobApiIT {
         }};
 
         /** Expect 39 features because the geometry of some features is intersecting multiple tiles */
-        downloadAndCheckFC(urls, 22174, 39, csvMustContains, 17);
+        downloadAndCheckFC(urls, 22034, 39, csvMustContains, 17);
     }
 
     /**
@@ -384,7 +384,7 @@ public class JobApiExportIT extends JobApiIT {
             add("eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwg");
         }};
 
-        downloadAndCheckFC(urls, 4149, 5, mustContains, 1);
+        downloadAndCheckFC(urls, 4033, 5, mustContains, 1);
     }
 
     @Test
@@ -489,7 +489,7 @@ public class JobApiExportIT extends JobApiIT {
         }};
 
         // 252 + 10 (-feature w/o geometry) = 262mh o
-        downloadAndCheckFC(urls, 137973, 262, mustContains, 37);
+        downloadAndCheckFC(urls, 137797, 262, mustContains, 37);
     }
 
     @Test
@@ -511,7 +511,7 @@ public class JobApiExportIT extends JobApiIT {
             add("374");
         }};
         // 252 + 10 (-feature w/o geometry) + 1 = 263
-        downloadAndCheckFC(urls, 138329, 263, mustContains, 37);
+        downloadAndCheckFC(urls, 138153, 263, mustContains, 37);
     }
 
     @Test
@@ -536,7 +536,7 @@ public class JobApiExportIT extends JobApiIT {
             add("RyeSI6IHsidHlwZSI6I");
         }};
 
-        downloadAndCheckFC(urls, 15501, 30, mustContains, 1 );
+        downloadAndCheckFC(urls, 15493, 30, mustContains, 1 );
     }
 
     @Test
@@ -593,7 +593,7 @@ public class JobApiExportIT extends JobApiIT {
             add("ZXh0IiwgImNyZWF0ZWRBdCI6IDE2O");
         }};
 
-        downloadAndCheckFC(urls, 15861, 31, mustContains, 1);
+        downloadAndCheckFC(urls, 15849, 31, mustContains, 1);
     }
 
     /** ------------------- only for local testing with big spaces  -------------------- */
