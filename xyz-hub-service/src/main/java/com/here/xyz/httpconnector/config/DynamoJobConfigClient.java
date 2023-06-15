@@ -58,7 +58,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
     private final DynamoClient dynamoClient;
     private Long expiration;
 
-    private static final String IO_ATTR_NAME = "importObjects";
+    private static final String IO_IMPORT_ATTR_NAME = "importObjects";
+    private static final String IO_EXPORT_ATTR_NAME = "exportObjects";
 
     public DynamoJobConfigClient(String tableArn) {
         dynamoClient = new DynamoClient(tableArn, null);
@@ -103,7 +104,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 }
                 else {
                     logger.info(marker, "Loaded Job width ID: {}", jobId);
-                    p.complete(converItemToJob(jobItem));
+                    p.complete(convertItemToJob(jobItem));
                 }
             }
             catch (Exception e) {
@@ -128,7 +129,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
                 jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(j -> j.forEach(i -> {
                     try{
-                        final Job job = converItemToJob(i);
+                        final Job job = convertItemToJob(i);
                         result.add(job);
                     }catch (DecodeException e){
                         logger.warn("Cant decode Job-Item - skip",e);
@@ -152,7 +153,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
                 jobs.scan(filterList.toArray(new ScanFilter[0])).pages().forEach(j -> j.forEach(i -> {
                     try{
-                        final Job job = converItemToJob(i);
+                        final Job job = convertItemToJob(i);
 
                         switch (job.getStatus()){
                             case waiting:
@@ -185,7 +186,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
             DeleteItemOutcome response = jobs.deleteItem(deleteItemSpec);
 
             if (response.getItem() != null)
-                p.complete(converItemToJob(response.getItem()));
+                p.complete(convertItemToJob(response.getItem()));
             else {
                 p.complete();
             }
@@ -208,28 +209,39 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     private static Item convertJobToItem(Job job) {
         JsonObject json = JsonObject.mapFrom(job);
-        if( !json.containsKey(IO_ATTR_NAME) )
-            return Item.fromJSON(json.toString());
-
-        String str = json.getJsonObject(IO_ATTR_NAME).encode();
-        json.remove(IO_ATTR_NAME);
-        Item item = Item.fromJSON(json.toString());
-        return item.withBinary(IO_ATTR_NAME, compressString(str));
+        if( json.containsKey(IO_IMPORT_ATTR_NAME) )
+            return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
+        if( json.containsKey(IO_EXPORT_ATTR_NAME) )
+            return convertJobToItem(json, IO_EXPORT_ATTR_NAME);
+        return Item.fromJSON(json.toString());
     }
 
-    private static Job converItemToJob(Item item){
-        JsonObject importObjects = null;
-        if(item.isPresent(IO_ATTR_NAME)) {
+    private static Job convertItemToJob(Item item){
+        if(item.isPresent(IO_IMPORT_ATTR_NAME))
+            return convertItemToJob(item, IO_IMPORT_ATTR_NAME);
+        return convertItemToJob(item, IO_EXPORT_ATTR_NAME);
+    }
+
+    private static Item convertJobToItem(JsonObject json, String attrName) {
+        String str = json.getJsonObject(attrName).encode();
+        json.remove(attrName);
+        Item item = Item.fromJSON(json.toString());
+        return item.withBinary(attrName, compressString(str));
+    }
+
+    private static Job convertItemToJob(Item item, String attrName){
+        JsonObject ioObjects = null;
+        if(item.isPresent(attrName)) {
             try{
-                importObjects = new JsonObject(Objects.requireNonNull(uncompressString(item.getBinary(IO_ATTR_NAME))));
+                ioObjects = new JsonObject(Objects.requireNonNull(uncompressString(item.getBinary(attrName))));
             }
             catch(Exception e){
-                importObjects = new JsonObject(item.getJSON(IO_ATTR_NAME));
+                ioObjects = new JsonObject(item.getJSON(attrName));
             }
         }
 
-        JsonObject json = new JsonObject(item.removeAttribute(IO_ATTR_NAME).toJSON())
-                .put(IO_ATTR_NAME, importObjects);
+        JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
+                .put(attrName, ioObjects);
         return Json.decodeValue(json.toString(), Job.class);
     }
 
