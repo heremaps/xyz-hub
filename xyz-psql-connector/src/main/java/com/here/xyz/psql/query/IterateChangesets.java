@@ -82,6 +82,9 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
   }
 
   public SQLQuery buildIterateChangesets(IterateChangesetsEvent event){
+    
+    String geo = "replace(ST_AsGeojson(geo, " + GetFeaturesByBBox.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')::jsonb";
+
     SQLQuery query =new SQLQuery(
         "SELECT " +
                 " version||'_'||id as vid,"+
@@ -89,7 +92,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
                 " version,"+
                 " author,"+
                 " operation,"+
-                " jsonb_set(jsondata,'{properties, @ns:com:here:xyz, version}',to_jsonb(version)) || jsonb_strip_nulls(jsonb_build_object('geometry',ST_AsGeoJSON(geo)::jsonb)) As feature "+
+                " jsonb_set(jsondata,'{properties, @ns:com:here:xyz, version}',to_jsonb(version)) || jsonb_strip_nulls(jsonb_build_object('geometry',"+ geo +")) As feature "+
                 "   from  ${schema}.${table} "+
                 " WHERE 1=1"+
                 "      ${{page}}"+
