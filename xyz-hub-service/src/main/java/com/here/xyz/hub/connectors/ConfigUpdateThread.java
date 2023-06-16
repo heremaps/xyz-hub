@@ -23,6 +23,7 @@ import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.settings.EnvironmentVariableOverrides;
 import com.here.xyz.hub.config.settings.EnvironmentVariableOverrides.VariableOverrideException;
+import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthCheck;
@@ -90,7 +91,18 @@ public class ConfigUpdateThread extends Thread {
         logger.error(MARKER, "Error during override of environment settings.", e);
       }
       catch (Exception e) {
-        logger.error(MARKER, "Unexpected error during settings update.", e);
+        logger.error(MARKER, "Unexpected error during EnvironmentVariableOverrides update.", e);
+      }
+    });
+
+    Service.settingsConfigClient.get(MARKER, SpaceStorageMatchingMap.class.getSimpleName()).onSuccess(settings -> {
+      if (settings == null)
+        logger.info("No space connector matching map existing. Skipping settings update.");
+      else try {
+        ((SpaceStorageMatchingMap) settings).updatePatterns();
+      }
+      catch (Exception e) {
+        logger.error(MARKER, "Unexpected error during SpaceIdConnectorIdMatching update.", e);
       }
     });
   }
