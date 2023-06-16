@@ -36,6 +36,7 @@ import com.here.xyz.hub.auth.AttributeMap;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.TagConfigClient;
+import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.SpaceWithRights;
@@ -179,13 +180,22 @@ public class SpaceTaskHandler {
       String cid = task.getJwt().cid;
       task.template = getSpaceTemplate(owner, cid);
 
-      String inputRegion = input.getString("region");
-      if (inputRegion != null) {
-        String regionalStorageId = Service.configuration.getDefaultStorageId(inputRegion);
-        if (regionalStorageId == null)
+      String storageId = task.template.getStorage().getId();
+      if (input.getString("region") != null) {
+        storageId = Service.configuration.getDefaultStorageId(input.getString("region"));
+        if (storageId == null) {
           callback.exception(new HttpException(BAD_REQUEST, "No storage is available for the specified region."));
-        task.template.setStorage(new ConnectorRef().withId(regionalStorageId));
+          return;
+        }
       }
+
+      if (input.getString("id") != null) {
+        // FIXME need to also take the region in consideration when loading the storage id using the space id pattern matching
+        String matchedStorageId = SpaceStorageMatchingMap.getIfMatches(input.getString("id"));
+        if (matchedStorageId != null) storageId = matchedStorageId;
+      }
+
+      task.template.setStorage(new ConnectorRef().withId(storageId));
 
       //When the input explicitly contains {"owner": null}
       if (input.getString("owner") == null) {
