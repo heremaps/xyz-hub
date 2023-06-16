@@ -1,9 +1,11 @@
 package com.here.xyz.util.json;
 
+import static com.fasterxml.jackson.databind.MapperFeature.DEFAULT_VIEW_INCLUSION;
 import static com.here.xyz.NakshaLogger.currentLogger;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -47,8 +49,12 @@ public final class Json implements AutoCloseable {
   Json() {
     this.weakRef = new JsonWeakRef(this);
     this.mapper = JsonMapper.builder()
-        .enable(MapperFeature.DEFAULT_VIEW_INCLUSION)
+        .enable(DEFAULT_VIEW_INCLUSION) // , SORT_PROPERTIES_ALPHABETICALLY
         .serializationInclusion(Include.NON_NULL)
+        .visibility(PropertyAccessor.SETTER, Visibility.ANY)
+        .visibility(PropertyAccessor.GETTER, Visibility.PUBLIC_ONLY)
+        .visibility(PropertyAccessor.IS_GETTER, Visibility.NONE)
+        .visibility(PropertyAccessor.CREATOR, Visibility.ANY)
         .addModule(new JsonModule())
         .build();
     this.serialize = Serialize.Any.class;
@@ -73,7 +79,7 @@ public final class Json implements AutoCloseable {
   /**
    * The Jackson mapper.
    */
-  private final @NotNull ObjectMapper mapper;
+  final @NotNull ObjectMapper mapper;
 
   /**
    * The serialization view to use.
@@ -90,7 +96,7 @@ public final class Json implements AutoCloseable {
    *
    * @return The Json instance.
    */
-  public static @NotNull Json useNew() {
+  public static @NotNull Json open() {
     final JsonWeakRef weakRef = idleCache.get();
     Json json = null;
     if (weakRef != null) {
@@ -113,13 +119,13 @@ public final class Json implements AutoCloseable {
    *
    * @return a Json instance.
    */
-  public static @NotNull Json useParentOrNew() {
+  public static @NotNull Json reuse() {
     Json json = current.get();
     if (json != null) {
       json.openCount++;
       return json;
     }
-    return useNew();
+    return open();
   }
 
   /**
@@ -166,6 +172,7 @@ public final class Json implements AutoCloseable {
 
   private final HashMap<@NotNull Class<? extends Deserialize>, @NotNull ObjectReader> readers = new HashMap<>();
   private final HashMap<@NotNull Class<? extends Serialize>, @NotNull ObjectWriter> writers = new HashMap<>();
+  private final HashMap<@NotNull Class<? extends Serialize>, @NotNull ObjectWriter> pretty_writers = new HashMap<>();
 
   // ------------------------------------------------------------------------------------------------------------------------------------
   // Standard API
@@ -200,14 +207,24 @@ public final class Json implements AutoCloseable {
   /**
    * Returns the writer for the given view.
    *
-   * @param view The view to write.
-   * @return The writer for this view.
+   * @param view the view to write.
+   * @param pretty {@code true} if the writer should pretty print (human-readable); {@code false} otherwise (compact machine optimized).
+   * @return the writer for this view.
    */
-  public @NotNull ObjectWriter writer(@NotNull Class<? extends Serialize> view) {
-    ObjectWriter writer = writers.get(view);
-    if (writer == null) {
-      writer = mapper.writerWithView(view);
-      writers.put(view, writer);
+  public @NotNull ObjectWriter writer(@NotNull Class<? extends Serialize> view, boolean pretty) {
+    ObjectWriter writer;
+    if (pretty) {
+      writer = pretty_writers.get(view);
+      if (writer == null) {
+        writer = mapper.writerWithView(view).withDefaultPrettyPrinter();
+        pretty_writers.put(view, writer);
+      }
+    } else {
+      writer = writers.get(view);
+      if (writer == null) {
+        writer = mapper.writerWithView(view);
+        writers.put(view, writer);
+      }
     }
     return writer;
   }

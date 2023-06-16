@@ -3,7 +3,7 @@ package com.here.mapcreator.ext.naksha;
 import com.here.xyz.events.QueryParameterList;
 import org.jetbrains.annotations.NotNull;
 
-public final class PsqlConfigBuilder extends PsqlAbstractBuilder<PsqlConfig, PsqlConfigBuilder> {
+public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfig, PsqlConfigBuilder> {
 
   @SuppressWarnings("PatternVariableHidesField")
   @Override

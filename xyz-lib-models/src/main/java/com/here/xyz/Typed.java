@@ -29,6 +29,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.util.json.JsonSerializable;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({
@@ -41,6 +42,6 @@ import com.here.xyz.models.hub.Subscription;
     @JsonSubTypes.Type(value = Connector.class, name = "Connector"),
     @JsonSubTypes.Type(value = Subscription.class, name = "Subscription")
 })
-public interface Typed extends XyzSerializable {
+public interface Typed extends JsonSerializable {
 
 }

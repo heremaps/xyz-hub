@@ -22,17 +22,6 @@ Naksha features are:
 
 Naksha uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospatial data exchange format. Tiled data can also be provided as [MVT](https://github.com/mapbox/vector-tile-spec/blob/master/2.1/README.md).
 
-# Terminology
-Naksha uses the following terms:
-- **Feature**: An object that is compatible to the [GeoJSON](https://tools.ietf.org/html/rfc79460) format.
-- **Collection**: A physical storage for features.
-- **Connector**: A configuration that binds a named event handler (some server side code) with an arbitrary secret configuration. The event handlers implements event processing logic, for example they send requests to foreign hosts, store or read features from a storage or perform validation and verification.
-- **Space**: The public name to access a set of features. A space can be bound to a collection, but does not need to be. There are for example virtual spaces, which combine features of other spaces. A space on its own is a feature that can be modified. All spaces need at least one connector, but can chain multiple.
-- **Subscription**: A subscription is a configuration, defining, which connector should be invoked when the content of a space changes. The listener can have multiple connectors the same way a space has. They will be executed for all events and guaranteed to be called at least ones. That means if an error occurs, they are called again. All subscriptions are independent of each other. Naksha calls individual subscriptions parallel, but each subscription receive all events in order. A subscription is guaranteed to be called at least ones at one Naksha instance at a time, but it can be moved between instances.
-- **AID/AppId**: The identifier of the acting application, read from the JWT token.
-- **Author**: A user or application identifier read from the JWT token.
-- **Owner**: An named entity that owns an object and always has full access to the object, being either a user or application. When creating an object, the owner from the JWT token is read, becoming the owner of the new object. Without an owner in the JWT token, no objects other than features in spaces can be created. In this special case and when no owner is in the JWT token, the owner of the space becomes the owner of the feature. 
-
 # Prerequisites
 
 * Java 8+

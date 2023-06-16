@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.util.EnvName;
 import com.here.xyz.util.FileOrResource;
 import com.here.xyz.util.IoHelp;
@@ -116,7 +115,7 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends 
     LoadedBytes loaded = null;
     try {
       loaded = IoHelp.readBytesFromHomeOrResource(filename(), false, appName(), searchPath());
-      configValues = XyzSerializable.DEFAULT_MAPPER.get().readValue(loaded.bytes(), MAP_TYPE);
+      configValues = JsonSerializable.deserialize(loaded.bytes(), MAP_TYPE);
     } catch (Throwable t) {
       logger.error("Failed to load configuration file: {} (path={})", filename, loaded != null ? loaded.path() : "", t);
       loaded = null;

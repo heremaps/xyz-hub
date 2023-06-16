@@ -17,7 +17,7 @@ public record PsqlExtVersion(int major, int minor, int revision) implements Comp
   }
 
   public long toLong() {
-    return (major & 0xffffL << 32) | ((minor & 0xffffL) << 16) | (revision & 0xffffL);
+    return ((major & 0xffffL) << 32) | ((minor & 0xffffL) << 16) | (revision & 0xffffL);
   }
 
   @Override
@@ -40,5 +40,10 @@ public record PsqlExtVersion(int major, int minor, int revision) implements Comp
       return this.toLong() == o.toLong();
     }
     return false;
+  }
+
+  @Override
+  public @NotNull String toString() {
+    return "" + major + '.' + minor + '.' + revision;
   }
 }

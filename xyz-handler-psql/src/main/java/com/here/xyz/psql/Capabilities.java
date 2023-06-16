@@ -20,7 +20,7 @@
 package com.here.xyz.psql;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.PropertyQueryOr;
 import com.here.xyz.events.PropertyQuery;
 import java.sql.ResultSet;
@@ -150,7 +150,7 @@ public class Capabilities {
 
       String result = rs.getString("idx_available");
       List<Map<String, Object>> raw =
-          XyzSerializable.deserialize(result, new TypeReference<List<Map<String, Object>>>() {});
+          JsonSerializable.deserialize(result, new TypeReference<List<Map<String, Object>>>() {});
       for (Map<String, Object> one : raw) {
         /*
          * Indices are marked as:

@@ -11,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
  * Configuration builder.
  */
 @SuppressWarnings("unused")
-abstract class PsqlAbstractBuilder<TARGET, SELF extends PsqlAbstractBuilder<TARGET, SELF>> {
+abstract class PsqlAbstractConfigBuilder<TARGET, SELF extends PsqlAbstractConfigBuilder<TARGET, SELF>> {
 
   @SuppressWarnings("unchecked")
   protected final @NotNull SELF self() {

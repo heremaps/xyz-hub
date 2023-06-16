@@ -26,7 +26,7 @@ import com.here.mapcreator.ext.naksha.PsqlPool;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.Payload;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.info.HealthCheckEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
@@ -93,7 +93,7 @@ public abstract class PSQLAbstractIT extends Helper {
     event.setOperation(ModifySpaceEvent.Operation.CREATE);
     //event.setConnectorParams(connectorParameters);
     event.setSpaceDefinition(space);
-    SuccessResponse response = XyzSerializable.deserialize(invokeLambda(event.serialize()));
+    SuccessResponse response = JsonSerializable.deserialize(invokeLambda(event.serialize()));
     assertEquals("OK", response.getStatus());
   }
 

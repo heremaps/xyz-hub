@@ -29,6 +29,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.util.json.Json;
+import com.here.xyz.util.json.JsonSerializable;
+import com.here.xyz.view.Deserialize;
+import com.here.xyz.view.View;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
@@ -47,15 +51,17 @@ public class JsonMappingTest {
 
   @Test
   public void testSerializeFeature() throws Exception {
-    final String json = "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}}";
-    final Feature obj = new ObjectMapper().readValue(json, Feature.class);
-    assertNotNull(obj);
+    try (final Json json = Json.open()) {
+      final String raw = "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}}";
+      final Feature obj = json.reader(Deserialize.Any.class).readValue(raw, Feature.class);
+      assertNotNull(obj);
 
-    obj.getProperties().put("y", 7);
-    String result = obj.serialize();
+      obj.getProperties().put("y", 7);
+      String result = obj.serialize();
 
-    final String string1 = "{\"type\":\"Feature\",\"id\":\"xyz123\",\"properties\":{\"@ns:com:here:xyz\":{\"createdAt\":0,\"updatedAt\":0,\"version\":0,\"deleted\":false},\"x\":5,\"y\":7}}";
-    assertTrue(jsonCompare(string1, result));
+      final String expected = "{\"type\":\"Feature\",\"id\":\"xyz123\",\"properties\":{\"@ns:com:here:xyz\":{},\"x\":5,\"y\":7}}";
+      assertTrue(jsonCompare(expected, result));
+    }
   }
 
   private boolean jsonCompare(@SuppressWarnings("SameParameterValue") String string1, String string2) throws IOException {
@@ -80,7 +86,7 @@ public class JsonMappingTest {
     ErrorResponse obj = new ErrorResponse();
     obj = new ObjectMapper().readerForUpdating(obj).readValue(json);
     assertNotNull(obj);
-    obj = XyzSerializable.fixAWSLambdaResponse(obj);
+    obj = JsonSerializable.fixAWSLambdaResponse(obj);
     assertSame(XyzError.TIMEOUT, obj.getError());
     assertEquals("2018-09-15T07:12:25.013Z a368c0ea-b8b6-11e8-b894-eb5a7755e998 Task timed out after 25.01 seconds",
         obj.getErrorMessage());

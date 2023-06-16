@@ -22,7 +22,7 @@ public class TxEvent {
 
   /**
    * The unique identifier of this transaction item; zero for not persisted transaction items. Except for the
-   * {@link TxAction#COMMIT_MESSAGE}, this normally is the same as {@link #collection}.
+   * {@link TxAction#INFO}, this normally is the same as {@link #collection}.
    */
   @JsonProperty
   public final @NotNull String id;
@@ -66,14 +66,14 @@ public class TxEvent {
   public long startTs;
 
   /**
-   * An optional message added to this item; only used for the action {@link TxAction#COMMIT_MESSAGE}.
+   * An optional message added to this item; only used for the action {@link TxAction#INFO}.
    */
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
   public String message;
 
   /**
-   * An optional JSON attachment added to this item; only used for the action {@link TxAction#COMMIT_MESSAGE}.
+   * An optional JSON attachment added to this item; only used for the action {@link TxAction#INFO}.
    */
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)

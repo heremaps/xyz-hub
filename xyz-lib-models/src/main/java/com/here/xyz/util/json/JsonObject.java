@@ -16,9 +16,11 @@ import com.here.xyz.util.diff.Patcher;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Collection;
+import java.util.Enumeration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -156,7 +158,7 @@ public class JsonObject implements Map<@NotNull String, @Nullable Object>, Itera
    * @return the additional properties not being JAVA fields.
    */
   @JsonAnyGetter
-  public @NotNull JsonMap additionalProperties() {
+  public @NotNull Map<@NotNull String, @Nullable Object> additionalProperties() {
     return additionalProperties;
   }
 
@@ -279,6 +281,12 @@ public class JsonObject implements Map<@NotNull String, @Nullable Object>, Itera
   public @Nullable String findValue(@Nullable String startKey, @Nullable Object value) {
     final JsonClass<?> jsonClass = jsonClass();
     for (final @NotNull JsonField<?, ?> field : jsonClass.fields) {
+      if (startKey != null) {
+        if (startKey.equals(field.jsonName)) {
+          startKey = null;
+        }
+        continue;
+      }
       final Object fieldValue = getFieldValue(field);
       if (fieldValue != UNDEFINED && Objects.equals(value, fieldValue)) {
         return field.jsonName;

@@ -1,6 +1,6 @@
 package com.here.xyz.util;
 
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -206,7 +206,7 @@ public final class IoHelp {
       @NotNull Class<CONFIG> configClass,
       @Nullable String... searchPaths) throws IOException {
     final LoadedBytes loadedBytes = readBytesFromHomeOrResource(filename, tryWorkingDirectory, appName, searchPaths);
-    final CONFIG config = XyzSerializable.deserialize(loadedBytes.bytes, configClass);
+    final CONFIG config = JsonSerializable.deserialize(loadedBytes.bytes, configClass);
     return new LoadedConfig<>(loadedBytes.path, config);
   }
 

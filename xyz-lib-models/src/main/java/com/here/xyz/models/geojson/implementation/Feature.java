@@ -21,6 +21,7 @@ package com.here.xyz.models.geojson.implementation;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
@@ -100,14 +101,17 @@ public class Feature extends JsonObject implements Typed {
   @JsonView({Export.Private.class, Import.Public.class})
   protected @Nullable ConflictResolution onMergeConflict;
 
+  @JsonIgnore
   public @NotNull String getId() {
     return id;
   }
 
+  @JsonSetter
   public void setId(@NotNull String id) {
     this.id = id;
   }
 
+  @JsonIgnore
   public @Nullable BBox getBbox() {
     return bbox;
   }
@@ -116,6 +120,7 @@ public class Feature extends JsonObject implements Typed {
     this.bbox = bbox;
   }
 
+  @JsonIgnore
   public @Nullable Geometry getGeometry() {
     return geometry;
   }
@@ -189,10 +194,5 @@ public class Feature extends JsonObject implements Typed {
     }
 
     geometry.validate();
-  }
-
-  @Deprecated
-  public static void finalizeFeature(@NotNull Feature feature, String spaceId, boolean addUUID) {
-
   }
 }

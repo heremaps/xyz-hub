@@ -28,8 +28,8 @@ import org.jetbrains.annotations.Nullable;
  * consumption properties.
  *
  * <p>The main idea behind this implementation is to be memory efficient with fair performance. There is no fill-factor, because the map
- * automatically expands when a hash collision happens. As long as only some part of the hash-code collides this is solved with just a
- * small amount of memory, but for a full hash collision a rather big amount of memory is used.
+ * automatically expands when a hash collision happens. As long as only some part of the hash-code collides this is solved with just a small
+ * amount of memory, but for a full hash collision a rather big amount of memory is used.
  */
 @SuppressWarnings({"unused", "StringOperationCanBeSimplified"})
 public final class FibMap {
@@ -627,9 +627,9 @@ public final class FibMap {
           // Race condition, another thread modifies concurrently.
           continue;
         }
-        // We need to create a new sub-array and split.
+        // We need to create a new sub-array that must be initialized with the existing key, so we can add the given key.
         final Object[] sub_array = new Object[1 << SEGMENT_bits];
-        final int sub_ki = keyIndex(key_hash, capacityBitsOf(sub_array), depth);
+        final int sub_ki = keyIndex(existing_key.hashCode(), capacityBitsOf(sub_array), depth + 1);
         final int sub_vi = sub_ki + 1;
         assert sub_ki >= 0 && sub_vi < sub_array.length;
         sub_array[sub_ki] = existing_key;

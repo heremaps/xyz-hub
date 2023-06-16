@@ -1,13 +1,12 @@
 package com.here.mapcreator.ext.naksha;
 
-import com.here.xyz.events.QueryParameterList;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Configuration builder.
  */
 @SuppressWarnings("unused")
-public final class PsqlPoolConfigBuilder extends PsqlAbstractBuilder<PsqlPoolConfig, PsqlPoolConfigBuilder> {
+public final class PsqlPoolConfigBuilder extends PsqlAbstractConfigBuilder<PsqlPoolConfig, PsqlPoolConfigBuilder> {
 
   public PsqlPoolConfigBuilder() {
   }

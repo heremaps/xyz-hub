@@ -1,5 +1,7 @@
 package com.here.mapcreator.ext.naksha;
 
+import static com.here.xyz.NakshaLogger.currentLogger;
+
 import com.here.xyz.util.IoHelp;
 import com.here.xyz.INaksha;
 import java.io.IOException;
@@ -9,45 +11,30 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
 import org.jetbrains.annotations.NotNull;
+import org.postgresql.util.PSQLException;
 
 /**
  * The Naksha PostgresQL client. This client does implement low level access to manage collections and the features within these
  * collections. It as well grants access to transactions.
  */
-public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
+public class PsqlClient {
 
   /**
    * The latest version of the naksha-extension stored in the resources.
    */
-  public static final PsqlExtVersion latest = new PsqlExtVersion(1,0,0);
+  public static final PsqlExtVersion latest = new PsqlExtVersion(1, 0, 0);
 
   /**
    * Create a new Naksha client instance. You can register this as the main instance by simply setting the {@link INaksha#instance} atomic
    * reference.
    *
-   * @param config          the PSQL configuration to use.
+   * @param config          the PSQL configuration to use for this client.
    * @param connectorNumber the connector identification number to use. Except for the main database (which always has the number 0),
    *                        normally this number is given by the Naksha-Hub, when creating a connector.
    */
-  public static PsqlClient<PsqlDataSource> create(@NotNull PsqlConfig config, long connectorNumber) {
-    return new PsqlClient<>(new PsqlDataSource(config), config.schema, connectorNumber);
-  }
-
-  /**
-   * Create a new Naksha client instance. You can register this as the main instance by simply setting the {@link INaksha#instance} atomic
-   * reference.
-   *
-   * @param datasource      the data-source to be used to create new connections.
-   * @param schema          the schema to operate on.
-   * @param connectorNumber the connector identification number to use. Except for the main database (which always has the number 0),
-   *                        normally this number is given by the Naksha-Hub, when creating a connector.
-   */
-  public PsqlClient(@NotNull DATASOURCE datasource, @NotNull String schema, long connectorNumber) {
-    this.dataSource = datasource;
-    this.pool = datasource.pool;
+  public PsqlClient(@NotNull PsqlConfig config, long connectorNumber) {
+    this.dataSource = new PsqlDataSource(config);
     this.connectorNumber = connectorNumber;
-    this.schema = schema;
-    this.dataSource.schema = schema;
   }
 
   /**
@@ -66,19 +53,36 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
   public static final @NotNull String DEFAULT_COLLECTIONS_TABLE = "naksha:collections";
 
   /**
-   * The PostgresQL connection pool.
+   * Returns the PostgresQL connection pool.
+   *
+   * @return the PostgresQL connection pool.
    */
-  protected final @NotNull PsqlPool pool;
+  public final @NotNull PsqlPool getPsqlPool() {
+    return dataSource.pool;
+  }
 
   /**
    * The data source.
    */
-  protected final @NotNull DATASOURCE dataSource;
+  protected final @NotNull PsqlDataSource dataSource;
 
   /**
-   * The main schema to operate on.
+   * Returns the PSQL data source.
+   *
+   * @return the PSQL data source.
    */
-  protected final @NotNull String schema;
+  public final @NotNull PsqlDataSource getDataSource() {
+    return dataSource;
+  }
+
+  /**
+   * Returns the main schema to operate on.
+   *
+   * @return the main schema to operate on.
+   */
+  public final @NotNull String getSchema() {
+    return dataSource.schema;
+  }
 
   /**
    * The connector identification number to use. Except for the main database (which always has the number 0), normally this number is given
@@ -91,7 +95,7 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
    *
    * @return the connector identification number.
    */
-  public long getConnectorNumber() {
+  public final long getConnectorNumber() {
     return connectorNumber;
   }
 
@@ -160,7 +164,11 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
   }
 
   /**
-   * Escape all given identifiers
+   * Escape all given identifiers together, not individually, for example: <pre>{@code
+   * String prefix = "hello";
+   * String postfix = "world";
+   * escapeId(prefix, "_", postfix);
+   * }</pre> will result in the code generated being: {@code "hello_world"}.
    *
    * @param sb  The string builder into which to write the escaped identifiers.
    * @param ids The identifiers to escape.
@@ -188,51 +196,52 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
   /**
    * Ensure that the administration tables exists, and the scripts are in the latest version in the database.
    *
-   * @throws SQLException If any error occurred.
+   * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
   public void init() throws SQLException, IOException {
-//    final StringBuilder sb = new StringBuilder();
     String SQL;
-
-//    final PsqlStorageParams connectorParams = dataSource.connectorParams;
-//    sb.setLength(0);
-//    final String ADMIN_SCHEMA = escapeId(connectorParams.getAdminSchema(), sb).toString();
-//    sb.setLength(0);
-//    final String SPACE_SCHEMA = escapeId(connectorParams.getSpaceSchema(), sb).toString();
-
-//      sb.setLength(0);
-//      sb.append("CREATE SCHEMA IF NOT EXISTS ").append(ADMIN_SCHEMA).append(";\n");
-//      sb.append("CREATE SCHEMA IF NOT EXISTS ").append(SPACE_SCHEMA).append(";\n");
-//      SQL = sb.toString();
-//      try (final Statement stmt = conn.createStatement()) {
-//        stmt.execute(SQL);
-//        conn.commit();
-//      }
-//
+    final StringBuilder sb = new StringBuilder();
     try (final Connection conn = dataSource.getConnection()) {
       try (final Statement stmt = conn.createStatement()) {
-        // TODO: Check if the schema exists, if not, create it.
-        // TODO: Check if the naksha extension is installed in the latest version.
-        ResultSet rs = stmt.executeQuery("SELECT major, minor, revision FROM naksha_version_extract(naksha_version());");
-        if (rs.next()) {
-          final int major = rs.getInt(1);
-          final int minor = rs.getInt(2);
-          final int rev = rs.getInt(3);
-          // TODO: For upgrading from x to y, how do we do this, when functions are deleted, for example when a function name is changed?
-          // TODO: For now, add some way to drop all existing functions and reinstall fresh!
+        // Create the SCHEMA if it does not yet exist, this must succeed.
+        sb.append("CREATE SCHEMA IF NOT EXISTS ");
+        escapeId(sb, getSchema());
+        stmt.execute(sb.toString());
+        conn.commit();
+
+        // Re-Initialize the connection.
+        // This ensures that we really have the schema at the end of the search path and therefore selected.
+        dataSource.initConnection(conn);
+
+        long version = 0L;
+        try {
+          ResultSet rs = stmt.executeQuery("SELECT naksha_version();");
+          if (rs.next()) {
+            version = rs.getLong(1);
+          }
+        } catch (PSQLException e) {
+          if (EPsqlState.UNDEFINED_FUNCTION != EPsqlState.of(e)) {
+            throw e;
+          }
+          conn.rollback();
+          currentLogger().info("Naksha extension missing");
         }
+        if (latest.toLong() != version) {
+          if (version == 0L) {
+            currentLogger().info("Install and initialize Naksha extension v{}", latest);
+          } else {
+            currentLogger().info("Upgrade Naksha extension from v{} to v{}", new PsqlExtVersion(version), latest);
+          }
+          SQL = IoHelp.readResource("naksha_ext.sql");
+          stmt.execute(SQL);
+          conn.commit();
 
-        // Install extensions
-        SQL = IoHelp.readResource("naksha_ext.sql");
-        stmt.execute(SQL);
-        stmt.execute("SELECT naksha_init();");
-        // Review in database if everything is available.
-
-//        stmt.execute(MaintenanceSQL.createIDXTableSQL);
-//        stmt.execute(MaintenanceSQL.createDbStatusTable);
-//        stmt.execute(MaintenanceSQL.createSpaceMetaTable);
-//        stmt.execute(MaintenanceSQL.createTxnPubTableSQL);
+          if (version == 0L) {
+            stmt.execute("SELECT naksha_init();");
+          }
+          conn.commit();
+        }
       }
 //      setupH3();
     }
@@ -254,8 +263,8 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
    * @return The new transaction.
    * @throws SQLException If any error occurred.
    */
-  public @NotNull PsqlReadTransaction<DATASOURCE> startRead() throws SQLException {
-    return new PsqlTransaction<>(this);
+  public @NotNull PsqlClientReadTransaction startRead() throws SQLException {
+    return new PsqlClientTransaction(this);
   }
 
   /**
@@ -264,8 +273,8 @@ public class PsqlClient<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> {
    * @return The new transaction.
    * @throws SQLException If any error occurred.
    */
-  public @NotNull PsqlTransaction<DATASOURCE> startMutation() throws SQLException {
-    return new PsqlTransaction<>(this);
+  public @NotNull PsqlClientTransaction startMutation() throws SQLException {
+    return new PsqlClientTransaction(this);
   }
 
   // Add listener for change events like create/update/delete collection and for the features in it.

@@ -157,15 +157,15 @@ class JsonObjectTest {
   void test_serialization() throws JsonProcessingException {
     final TestObject map = new TestObject();
     map.put("newKey", "newValue");
-    try (var json = Json.useNew()) {
-      final String s = json.writer(Serialize.Public.class).writeValueAsString(map);
+    try (var json = Json.open()) {
+      final String s = json.writer(Serialize.Public.class, false).writeValueAsString(map);
       assertEquals(SERIALIZED, s);
     }
   }
 
   @Test
   void test_deserialization() throws IOException {
-    try (var json = Json.useNew()) {
+    try (var json = Json.open()) {
       final TestObject map = json.reader(Public.class).readValue(SERIALIZED, TestObject.class);
       assertEquals(3, map.size());
       Object foo = map.get("foo");

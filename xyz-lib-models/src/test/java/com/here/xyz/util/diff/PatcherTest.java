@@ -3,7 +3,7 @@ package com.here.xyz.util.diff;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.util.IoHelp;
@@ -18,10 +18,10 @@ class PatcherTest {
 
   @Test
   void basic() throws IOException {
-    final Feature f1 = XyzSerializable.deserialize(IoHelp.readResource("patcher/feature_1.json"), Feature.class);
+    final Feature f1 = JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_1.json"), Feature.class);
     assertNotNull(f1);
 
-    final Feature f2 = XyzSerializable.deserialize(IoHelp.readResource("patcher/feature_2.json"), Feature.class);
+    final Feature f2 = JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_2.json"), Feature.class);
     assertNotNull(f2);
 
     final Difference diff = Patcher.getDifference(f1, f2);
@@ -40,10 +40,10 @@ class PatcherTest {
 
   @Test
   void testIgnoreAll() throws IOException {
-    final Feature f1 = XyzSerializable.deserialize(IoHelp.readResource("patcher/feature_1.json"), Feature.class);
+    final Feature f1 = JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_1.json"), Feature.class);
     assertNotNull(f1);
 
-    final Feature f2 = XyzSerializable.deserialize(IoHelp.readResource("patcher/feature_2.json"), Feature.class);
+    final Feature f2 = JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_2.json"), Feature.class);
     assertNotNull(f2);
 
     final Difference diff = Patcher.getDifference(f1, f2, PatcherTest::ignoreAll);
@@ -65,10 +65,10 @@ class PatcherTest {
 
   @Test
   void testXyzNamespace() throws IOException {
-    final Feature f1 = XyzSerializable.deserialize(IoHelp.readResource("patcher/feature_1.json"), Feature.class);
+    final Feature f1 = JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_1.json"), Feature.class);
     assertNotNull(f1);
 
-    final Feature f2 = XyzSerializable.deserialize(IoHelp.readResource("patcher/feature_2.json"), Feature.class);
+    final Feature f2 = JsonSerializable.deserialize(IoHelp.readResource("patcher/feature_2.json"), Feature.class);
     assertNotNull(f2);
 
     final Difference rawDiff = Patcher.getDifference(f1, f2, PatcherTest::ignoreXyzProps);

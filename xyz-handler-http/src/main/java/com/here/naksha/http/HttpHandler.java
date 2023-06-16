@@ -3,9 +3,8 @@ package com.here.naksha.http;
 import com.here.xyz.EventHandler;
 import com.here.xyz.IEventContext;
 import com.here.xyz.Payload;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.Event;
-import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.ErrorResponse;
@@ -25,7 +24,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public class HttpHandler extends EventHandler {
 
-  public static final String ID = "naksha:http";
+  public static final String ID = "naksha:http"; // com.here.naksha.http.HttpHandler
 
   /**
    * Creates a new HTTP handler.
@@ -73,7 +72,7 @@ public class HttpHandler extends EventHandler {
       }
       // conn.getResponseCode() == 200
       //noinspection RedundantClassCall
-      return Objects.requireNonNull(XyzResponse.class.cast(XyzSerializable.deserialize(rawEvent)));
+      return Objects.requireNonNull(XyzResponse.class.cast(JsonSerializable.deserialize(rawEvent)));
     } catch (Exception e) {
       return new ErrorResponse()
           .withStreamId(event.getStreamId())

@@ -1,0 +1,164 @@
+# Naksha-Hub
+
+This document describes the basic concepts of the Naksha-Hub with a concrete [reference implementation](./PSQL.md) based upon [PostgresQL database](https://www.postgresql.org/docs/).
+
+## Terminology
+
+Naksha uses the following terms:
+
+- **EventHandler**: A class (code) integrated into the Naksha-Hub or loaded as **extension** to it. Naksha-Hub will create instances of event-handler classes, providing context oriented configuration to them, and add these instances into event-pipelines to process events.
+- **Feature**: An object that is compatible to the [GeoJSON](https://tools.ietf.org/html/rfc79460) format.
+- **Collection**: A set of features with history and transaction log.
+- **Storage**: A physical storage to persist collections. 
+- **Connector**: A configuration that binds an event handler (server side code) with an arbitrary JSON configuration. The event-handler implements some event processing logic, for example they send requests to foreign hosts, store or read features from a storage or perform validation and verification.
+- **Space**: The public name to create event-pipelines for REST API triggered event processing. There are for example virtual spaces, which combine other spaces logically.
+- **Subscription**: A configuration to react upon content changes of a **storage**. The subscription can have multiple connectors the same way a space has. They will be executed for all change-events and guaranteed to be called at least ones. That means if an error occurs, they are called again. All subscriptions are independent of each other. Naksha calls individual subscriptions parallel, but each subscription receive all events in order. A subscription is guaranteed to be called at least ones at one Naksha instance at a time, but it can be moved between instances on demand.
+- **Job**: A configuration executed in the background, either only ones (one-time job) or regularly (cron-job). A job has as well connectors the same way that a space and subscription do.
+- **AID/AppId**: The identifier of the acting application, read from the JWT token.
+- **Author**: A user or application identifier read from the JWT token.
+- **Owner**: An named entity that owns an object and always has full access to the object, being either a user or application. When creating an object, the owner is read from the JWT token, becoming the owner of the new object. Without an owner in the JWT token, no objects other than features in spaces can be created. In this case, and when no owner is in the JWT token, the owner of the space becomes the owner of the feature.
+
+## Spaces
+
+A space is an external identifier used to create event-pipelines to process events created through the REST API. The relation between a **space** and a **collection** is transparent and an `n:m`, therefore multiple spaces can refer to a single collection or one space can refer to multiple collections.
+
+Examples:
+
+- A space does not need to be backed by any storage at all, it can as well just implement business logic, for example posting features to the space may only perform a transformation and then just return the modified features (`n:0`).
+- A space can be created to enable read-only access to a collection, while another space allows read-write access to the same collection. This helps with making the read-only space publicly accessible for anyone, while preventing arbitrary write access (`n:1`).
+- A space can refer to multiple collections using the [view](./VIEW.md). A view combines multiple spaces into one logical space, therefore any query to this view effectively distributed the query across multiple spaces and thereby optionally as well across multiple collections (`n:m`).
+- A space can use a connector that internally splits features by type into different collections and then stores them in multiple collections (`1:n`).
+
+## Storage
+
+A storage will physically persist features. All storages backing should logically operate the same way. The PostgresQL reference implementation can be used as a starting point, when doing own implementations. All storages of Naksha should have two basic elements:
+
+- Transaction logs.
+- Feature collections.
+
+A storage is an abstract entity that has a 40-bit unsigned integer as unique identifier. A storage can be used by connectors, subscriptions or jobs.
+
+## Collections
+
+A collection is a logical set of features including their history, as reflected through the transaction log. Every collection **must** have a HEAD state. The HEAD state represents the live features stored in this collection.
+
+Every collection does have two sub-sets, the historic feature states and the deleted features. The deleted features are used in some special cases, for example the [view concept](./VIEWS.md).
+
+A collection can be exposed through multiple ways and must be concurrency safe. So changes done through multiple different ways must not harm each other. In other words, multiple spaces can refer to the same storage, even using different connectors with different implementations.
+
+Every collection does have the following meta-data that the storage somehow need to support:
+
+- `maxAge`: The maximum age of features in the history of this collection, given in days. A value
+            between `0` and `9,223,372,036,854,775,807` (`2^63-1`).
+- `history`: A boolean to enable or disable writing of the history (default: `true`). This can be
+             used to temporally disable history writing, for example for bulk-loads.
+- `deleteAt`: An UNIX Epoch timestamp in milliseconds when to delete this collection. A value of 
+              zero means "do not delete". If set, then the storage can (but does not need to) drop
+              all data (HEAD, history, deletions, transactions ...) after this time. Normally,
+              a deletion of a collection is done soft, so that it can be un-done within a
+              certain timeframe (which is why a `deleteAt` is normally set into the future).
+
+### @ns:com:here:xyz
+
+Every feature has at least one property within `properties`, being a map with the key `@ns:com:here:xyz`. The map stored under this key must have the following layout:
+
+- **action**: The operation has been performed being `CREATE`, `UPDATE`, `DELETE` or `PURGE`.
+- **version**: The version of the features, a sequentially consistent numbering.
+- **author**: The author of the feature.
+- **appId**: The application-id of the application that created the state.
+- **uuid**: The unique state identifier, stored as UUID (must not be `null`).
+- **puuid**: The UUID of the previous state, `null` if `CREATE`.
+- **muuid**: When this feature state is the result of an automatic merge, then the UUID of merged state, `null` if `CREATE`.
+- **txn**: The transaction UUID (must not be `null`).
+- **createdAt**: The unix epoch timestamp in millis of when the feature has been created.
+- **updatedAt**: The unix epoch timestamp in millis of when this state has been created.
+- **rtcts**: The real-time unix epoch timestamp in millis of when the feature has been created.
+- **rtuts**: The real-time unix epoch timestamp in millis of when this state has been updated.
+- **tags**: An array of strings representing searchable tags. They are used to limit operations.
+- ~~space~~: This property is dynamically added by the Naksha-Hub and must not be part of the storage. The storage **must** remove this property.
+
+The difference between **createdAt**/**updatedAt** and **rtcts**/**rtuts** is that the former reflect the transaction start time (so when the transaction started). This time is searchable and reflects in which partition the feature is stored, while the latter reflects the clock time, when the update was really been performed. Therefore, all creations and updates in the same transaction have the same **createdAt** and **updatedAt** time, while their **rtcts**/**rtuts** can differ drastically, when looking at long-running transactions.
+
+Naksha-Hub does not support searching for the real-time, therefore storages do not need to support this either, it is informative only. The reason is the data partitioning by the transaction time (reflected in **createdAt**/**updatedAt**).
+
+## Transaction Logs
+
+All transactions are sets of transaction events. Each transaction event is either related to a collection, or it is a comment. The following event actions do exist:
+
+- `COMMIT_MESSAGE`: An arbitrary comment added to a transaction.
+- `MODIFY_FEATURES`: An event to signal that the features within a collection have been modified.
+- `CREATE_COLLECTION`: An event to signal that a collection has been created.
+- `UPDATE_COLLECTION`: An event to signal that a collection has been modified.
+- `DELETE_COLLECTION`: An event to signal that a collection has been flagged for deletion.
+- `RESTORE_COLLECTION`: An event to signal that the deletion of a collection has been un-done.
+
+Each transaction event must have the following properties:
+
+- `txn`: The transaction **UUID**, all events with the same transaction **UUID** should be merged into a single transaction-set.
+- `id`: The event identifier within a given transaction-set, unique within the set only.
+- `action`: The action that the event represents (see above).
+- `col`: The collection effected; if any (null for comments).
+- `cn`: The connector-number of the connector that caused the event.
+
+All transactions in a set must have the same transaction **UUID** (`txn`).
+
+## UUIDs
+
+Naksha uses `UUID`s to uniquely identify every state of a feature stored in a collection and to uniquely identify transactions. Within the PostgresQL implementation they are generated using triggers to ensure that even queries executed in the database directly update the `UUID`s of the features and transactions.
+
+The **UUID** will be in the format of a [random UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier), so being version 4, variant 1 (big endian encoded). However, they are not random, but reflect a guaranteed unique identifier. The format chosen matches perfectly well with how PostgresQL [compares UUIDs](https://doxygen.postgresql.org/uuid_8c.html#aae2aef5e86c79c563f02a5cee13d1708).
+
+As seen in the source code, the compare of **UUID**s is done as:
+
+```C
+return memcmp(arg1->data, arg2->data, UUID_LEN);
+```
+
+[memcp](https://cplusplus.com/reference/cstring/memcmp/) does compare simply the bytes in order (so basically using big-endian order). Note that can be done the same in all other programming languages and implementations.
+
+### UUID Encoding
+
+All **UUID**s encode the following values:
+
+```
+   1   2     3    e    4    5    6    7 -   e    8    9    b-   4    2    d    3  -   a    4    5     6-   4    2    6    6     1    4    1    7    4    0    0    0
+|          time low                   |  |    time mid     | |ve| | time high  |    va|  clock_seq     |              node                                         |
+7654_3210-7654_3210-7654_3210-7654_3210--7654_3210-7654_3210-7654_3210-7654_3210----7654_3210-7654_3210-7654_3210-7654_3210--7654_3210-7654_3210-7654_3210-7654_3210
+iiii_iiii-iiii_iiii-iiii_iiii-iiii_iiii--iiii_iiii-iiii_iiii-1000_iiii-iiii_iiii----10YY_YYYY-YYYY_mmmm-DDDD_Dttt-SSSS_SSSS--SSSS_SSSS-SSSS_SSSS-SSSS_SSSS-SSSS_SSSS
+[                   object-id                              ] ver  [    id      ]    va[   year   ][mon ][day ][t] [               storage-id                       ] 
+                                                             =4                     =1
+
+object-id ::60 = The object identifier.
+ver       ::4  = The fixed UUID version, 4-bit binary value 4 (binary 1000).
+va        ::2  = The fixed variant, 2-bit binary value 2 (binary 10).
+year      ::10 = The biased year (year - 2000), resulting in possible years 2000 to 3023.
+month     ::4  = The month of the year (1 to 12).
+day       ::5  = The day of the month (1 to 31).
+t         ::3  = The object type. 
+storage-id::40 = The storage identifier.
+```
+
+**Note**:
+- The version (`ver`) is always 4 (binary `1000`).
+- The variant (`va`) is always variant one (big endian) with value being decimal 2 (binary `10`).
+
+Therefore, every Naksha **UUID** refers to an object of a specific type and additionally encodes the storage identifier that was used to create the state. The storage-id is important when for example the transaction **UUID** is given to Naksha, with the request to fetch the transaction. In this case Naksha needs to know where the transaction logs are located, and it will be able to do so using the storage-id encoded in the transaction **UUID**. If no such storage exists anymore, Naksha will be unable to fulfill the request.
+
+The objects that can be a target are currently only two:
+
+- `0`: Transaction
+- `1`: Feature
+
+The values `2` and `3` are reserved for future use.
+
+### Date (day,month,year)
+
+The date encoded in the **UUID** is used to partition data and when searching within a certain time window.
+
+### Transaction UUID
+
+All changes being part of the same transaction need to have the same unique transaction number. Transaction numbers are globally unique.
+
+### Feature UUID
+
+Every state of every feature stored in a collection will have a globally unique feature **UUID**.

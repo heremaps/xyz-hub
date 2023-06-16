@@ -50,7 +50,7 @@ import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
 import com.here.xyz.util.NanoTime;
 import com.here.mapcreator.ext.naksha.PsqlCollection;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
@@ -755,9 +755,6 @@ public class PsqlHandler extends ExtendedEventHandler {
           .forEach(feature -> feature.setId(RandomStringUtils.randomAlphanumeric(16)));
 
       // Call finalize feature
-      Stream.of(inserts, updates, upserts)
-          .flatMap(Collection::stream)
-          .forEach(feature -> Feature.finalizeFeature(feature, event.getSpaceId(), addUUID));
       return executeModifyFeatures(event);
     } catch (SQLException e) {
       return checkSQLException(e);
@@ -2275,20 +2272,20 @@ public class PsqlHandler extends ExtendedEventHandler {
     try {
       rs.next();
       StatisticsResponse.Value<Long> tablesize =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("tablesize"), new TypeReference<Value<Long>>() {
               });
       StatisticsResponse.Value<Long> count =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {
               });
       StatisticsResponse.Value<Integer> maxversion =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("maxversion"),
               new TypeReference<StatisticsResponse.Value<Integer>>() {
               });
       StatisticsResponse.Value<Integer> minversion =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("minversion"),
               new TypeReference<StatisticsResponse.Value<Integer>>() {
               });
@@ -2318,29 +2315,29 @@ public class PsqlHandler extends ExtendedEventHandler {
       rs.next();
 
       StatisticsResponse.Value<Long> tablesize =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("tablesize"), new TypeReference<StatisticsResponse.Value<Long>>() {
               });
       StatisticsResponse.Value<List<String>> geometryTypes =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("geometryTypes"),
               new TypeReference<StatisticsResponse.Value<List<String>>>() {
               });
       StatisticsResponse.Value<List<StatisticsResponse.PropertyStatistics>> tags =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("tags"),
               new TypeReference<
                   StatisticsResponse.Value<List<StatisticsResponse.PropertyStatistics>>>() {
               });
       StatisticsResponse.PropertiesStatistics properties =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("properties"), StatisticsResponse.PropertiesStatistics.class);
       StatisticsResponse.Value<Long> count =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {
               });
       Map<String, Object> bboxMap =
-          XyzSerializable.deserialize(
+          JsonSerializable.deserialize(
               rs.getString("bbox"), new TypeReference<Map<String, Object>>() {
               });
 

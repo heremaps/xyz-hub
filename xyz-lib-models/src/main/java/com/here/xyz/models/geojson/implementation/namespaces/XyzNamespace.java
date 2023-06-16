@@ -19,12 +19,14 @@
 
 package com.here.xyz.models.geojson.implementation.namespaces;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.models.geojson.implementation.Action;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.util.json.JsonMap;
+import com.here.xyz.util.json.JsonObject;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.util.ArrayList;
@@ -36,12 +38,13 @@ import org.jetbrains.annotations.Nullable;
  * The properties stored as value for the {@link Properties#XYZ_NAMESPACE @ns:com:here:xyz} key in the {@link Properties}.
  */
 @SuppressWarnings("unused")
-public class XyzNamespace extends JsonMap {
+public class XyzNamespace extends JsonObject {
 
   public static final String SPACE = "space";
   public static final String COLLECTION = "collection";
   public static final String CREATED_AT = "createdAt";
   public static final String UPDATED_AT = "updatedAt";
+  public static final String RT_CTS = "rtcts";
   public static final String RT_UTS = "rtuts";
   public static final String TXN = "txn";
   public static final String UUID = "uuid";
@@ -55,40 +58,45 @@ public class XyzNamespace extends JsonMap {
   public static final String OWNER = "owner";
 
   /**
-   * The space ID the feature belongs to.
-   */
-  @JsonProperty(SPACE)
-  private String space;
-
-  /**
    * The collection the feature belongs to.
    */
   @JsonProperty(COLLECTION)
+  @JsonInclude(Include.NON_EMPTY)
   private String collection;
 
   /**
    * The timestamp in Epoch-Millis, when the feature was created.
    */
   @JsonProperty(CREATED_AT)
+  @JsonInclude(Include.NON_DEFAULT)
   private long createdAt;
 
   /**
    * The transaction start timestamp in Epoch-Millis, when the feature was updated.
    */
   @JsonProperty(UPDATED_AT)
+  @JsonInclude(Include.NON_DEFAULT)
   private long updatedAt;
+
+  /**
+   * The realtime timestamp in Epoch-Millis, when the feature was created.
+   */
+  @JsonProperty(RT_CTS)
+  @JsonInclude(Include.NON_DEFAULT)
+  private long rtcts;
 
   /**
    * The realtime timestamp in Epoch-Millis, when the feature was updated.
    */
   @JsonProperty(RT_UTS)
-  @JsonInclude(Include.NON_EMPTY)
+  @JsonInclude(Include.NON_DEFAULT)
   private long rtuts;
 
   /**
    * The transaction number of this feature state.
    */
   @JsonProperty(TXN)
+  @JsonInclude(Include.NON_EMPTY)
   private String txn;
 
   /**
@@ -102,14 +110,14 @@ public class XyzNamespace extends JsonMap {
    * The uuid of the previous feature state; {@code null} if this feature is new and has no previous state.
    */
   @JsonProperty(PUUID)
-  @JsonInclude(Include.NON_NULL)
+  @JsonInclude(Include.NON_EMPTY)
   private String puuid;
 
   /**
    * The uuid of the feature state merged; {@code null} if the state is not the result of an auto-merge operation.
    */
   @JsonProperty(MUUID)
-  @JsonInclude(Include.NON_NULL)
+  @JsonInclude(Include.NON_EMPTY)
   private String muuid;
 
   /**
@@ -123,34 +131,29 @@ public class XyzNamespace extends JsonMap {
    * The operation that lead to the current state of the namespace. Should be a value from {@link Action}.
    */
   @JsonProperty(ACTION)
+  @JsonInclude(Include.NON_EMPTY)
   private String action;
 
   /**
    * The version of the feature, the first version (1) will always be in the state CREATED.
    */
   @JsonProperty(VERSION)
+  @JsonInclude(Include.NON_DEFAULT)
   private long version;
 
   /**
    * The author (user or application) that created the current revision of the feature.
    */
   @JsonProperty(AUTHOR)
-  @JsonInclude(Include.NON_NULL)
+  @JsonInclude(Include.NON_EMPTY)
   private String author;
 
   /**
    * The application that create the current revision of the feature.
    */
   @JsonProperty(APP_ID)
-  @JsonInclude(Include.NON_NULL)
+  @JsonInclude(Include.NON_EMPTY)
   private String appId;
-
-  /**
-   * The identifier of the owner of this connector.
-   */
-  @JsonProperty(OWNER)
-  @JsonInclude(Include.NON_NULL)
-  private String owner;
 
   private static final char[] TO_LOWER;
   private static final char[] AS_IS;
@@ -277,19 +280,7 @@ public class XyzNamespace extends JsonMap {
     }
   }
 
-  public @Nullable String getSpace() {
-    return space;
-  }
-
-  public void setSpace(@Nullable String space) {
-    this.space = space;
-  }
-
-  public @NotNull XyzNamespace withSpace(@Nullable String space) {
-    setSpace(space);
-    return this;
-  }
-
+  @JsonIgnore
   public @Nullable String getCollection() {
     return collection;
   }
@@ -307,6 +298,7 @@ public class XyzNamespace extends JsonMap {
     return action;
   }
 
+  @JsonIgnore
   public @Nullable Action getAction() {
     return Action.get(action);
   }
@@ -329,10 +321,10 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
+  @JsonIgnore
   public long getCreatedAt() {
     return createdAt;
   }
-
 
   public void setCreatedAt(long createdAt) {
     this.createdAt = createdAt;
@@ -343,7 +335,7 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
-
+  @JsonIgnore
   public long getUpdatedAt() {
     return updatedAt;
   }
@@ -357,6 +349,7 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
+  @JsonIgnore
   public long getRealTimeUpdatedAt() {
     return rtuts;
   }
@@ -370,10 +363,24 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
+  @JsonIgnore
+  public long getRealTimeCreateAt() {
+    return rtcts;
+  }
+
+  public void setRealTimeCreatedAt(long createdAt) {
+    this.rtcts = createdAt;
+  }
+
+  public @NotNull XyzNamespace withRealTimeCreatedAt(long createdAt) {
+    setRealTimeCreatedAt(createdAt);
+    return this;
+  }
+
+  @JsonIgnore
   public @Nullable String getTxn() {
     return txn;
   }
-
 
   public void setTxn(@Nullable String txn) {
     this.txn = txn;
@@ -384,6 +391,7 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
+  @JsonIgnore
   public @Nullable String getUuid() {
     return uuid;
   }
@@ -397,6 +405,7 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
+  @JsonIgnore
   public @Nullable String getPuuid() {
     return puuid;
   }
@@ -410,11 +419,10 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
-
+  @JsonIgnore
   public @Nullable String getMuuid() {
     return muuid;
   }
-
 
   public void setMuuid(@Nullable String muuid) {
     this.muuid = muuid;
@@ -425,6 +433,7 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
+  @JsonIgnore
   public @Nullable List<@NotNull String> getTags() {
     return tags;
   }
@@ -566,6 +575,7 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
+  @JsonIgnore
   public boolean isDeleted() {
     return Action.DELETE.equals(getAction());
   }
@@ -581,6 +591,7 @@ public class XyzNamespace extends JsonMap {
     return this;
   }
 
+  @JsonIgnore
   public long getVersion() {
     return version;
   }
@@ -618,19 +629,4 @@ public class XyzNamespace extends JsonMap {
   public @NotNull XyzNamespace withAppId(@Nullable String app_id) {
     setAppId(app_id);
     return this;
-  }
-
-  public @Nullable String getOwner() {
-    return owner;
-  }
-
-  public void setOwner(@Nullable String owner) {
-    this.owner = owner;
-  }
-
-
-  public @NotNull XyzNamespace withOwner(@Nullable String owner) {
-    setOwner(owner);
-    return this;
-  }
-}
+  }}

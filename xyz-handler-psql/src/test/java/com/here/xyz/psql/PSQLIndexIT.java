@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.info.GetStatisticsEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
@@ -75,7 +75,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.CREATE);
     //modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space("foo"));
-    ErrorResponse error = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+    ErrorResponse error = JsonSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals(XyzError.ILLEGAL_ARGUMENT, error.getError());
     assertEquals("On-Demand-Indexing - Maximum permissible: 4 searchable properties per space!", error.getErrorMessage());
 
@@ -89,7 +89,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     /** Table gets created also without features */
     modifySpaceEvent.setSpaceDefinition(new Space("foo")); //.withEnableHistory(true)
 
-    SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+    SuccessResponse response = JsonSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals("OK", response.getStatus());
 
     /** Increase to 5 allowed Indices */
@@ -105,7 +105,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     //modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space("foo"));
 
-    response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+    response = JsonSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals("OK", response.getStatus());
 
     try (final Connection connection = dataSource().getConnection()) {
@@ -160,7 +160,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     /** Table gets created also without features */
     modifySpaceEvent.setSpaceDefinition(new Space("foo")); //.withEnableHistory(true)
 
-    SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+    SuccessResponse response = JsonSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals("OK", response.getStatus());
 
     try (final Connection connection = dataSource().getConnection()) {
@@ -204,7 +204,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     //statisticsEvent.setSpaceId("foo");
     //statisticsEvent.setConnectorParams(connectorParams);
     // =========== Invoke GetStatisticsEvent ==========
-    StatisticsResponse resp = XyzSerializable.deserialize(invokeLambda(statisticsEvent.serialize()));
+    StatisticsResponse resp = JsonSerializable.deserialize(invokeLambda(statisticsEvent.serialize()));
     assertEquals(StatisticsResponse.PropertiesStatistics.Searchable.ALL, resp.getProperties().getSearchable());
 
     List<StatisticsResponse.PropertyStatistics> propStatistics = resp.getProperties().getValue();
@@ -235,7 +235,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     /** Table gets created also without features */
     modifySpaceEvent.withSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
 
-    SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+    SuccessResponse response = JsonSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals("OK", response.getStatus());
 
     try (final Connection connection = dataSource().getConnection()) {
@@ -324,7 +324,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     //statisticsEvent.setConnectorParams(connectorParams);
     // =========== Invoke GetStatisticsEvent ==========
     String stringResponse = invokeLambda(statisticsEvent.serialize());
-    StatisticsResponse response = XyzSerializable.deserialize(stringResponse);
+    StatisticsResponse response = JsonSerializable.deserialize(stringResponse);
 
     assertNotNull(response);
     assertEquals(Long.valueOf(11000L), response.getCount().getValue());
@@ -360,7 +360,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
     invokeLambdaFromFile("/events/HealthCheckEventWithAutoIndexing.json");
 
     stringResponse = invokeLambda(statisticsEvent.serialize());
-    response = XyzSerializable.deserialize(stringResponse);
+    response = JsonSerializable.deserialize(stringResponse);
     assertNotNull(response);
 
     propStatistics = response.getProperties().getValue();

@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  * not be used to query data from a foreign storage, it only holds administrative spaces. Normally this is only created and used by the
  * Naksha-Hub itself and exposed to all other parts of the Naksha-Hub via the {@link INaksha#get()} method.
  */
-public abstract class AbstractNakshaHub extends PsqlClient<PsqlDataSource> implements INaksha {
+public abstract class AbstractNakshaHub extends PsqlClient implements INaksha {
 
   /**
    * The collection for spaces.
@@ -37,13 +37,10 @@ public abstract class AbstractNakshaHub extends PsqlClient<PsqlDataSource> imple
   /**
    * Create a new Naksha client instance.
    *
-   * @param config     The configuration of the database to connect to.
-   * @param clientName The name of the Naksha client to be used when opening connections to the Postgres database.
-   * @param clientId   The client identification number to use. Except for the main database, normally this number is given by the
-   *                   Naksha-Hub as connector number.
+   * @param config the configuration of the admin-database to connect to.
    */
-  protected AbstractNakshaHub(@NotNull PsqlPoolConfig config, @NotNull String clientName, long clientId) {
-    super(new PsqlDataSource(PsqlPool.get(config), clientName), clientId);
+  protected AbstractNakshaHub(@NotNull PsqlConfig config) {
+    super(config, 0L);
   }
 
   /**

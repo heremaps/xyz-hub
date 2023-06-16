@@ -21,7 +21,7 @@ package com.here.xyz.psql;
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.*;
 import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.feature.GetFeaturesByTileEvent;
@@ -81,7 +81,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     String queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
     assertNotNull(queryResponse);
-    FeatureCollection featureCollection = XyzSerializable.deserialize(queryResponse);
+    FeatureCollection featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     List<Feature> features = featureCollection.getFeatures();
     assertNotNull(features);
@@ -98,7 +98,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
     assertNotNull(queryResponse);
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     features = featureCollection.getFeatures();
     assertNotNull(features);
@@ -121,7 +121,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
     assertNotNull(queryResponse);
-    XyzResponse response = XyzSerializable.deserialize(queryResponse);
+    XyzResponse response = JsonSerializable.deserialize(queryResponse);
     if (response instanceof ErrorResponse) {
       failWithError((ErrorResponse) response);
     }
@@ -150,7 +150,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
     assertNotNull(queryResponse);
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     features = featureCollection.getFeatures();
     assertNotNull(features);
@@ -172,7 +172,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
     assertNotNull(queryResponse);
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     features = featureCollection.getFeatures();
     assertNotNull(features);
@@ -190,7 +190,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
     assertNotNull(queryResponse);
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     features = featureCollection.getFeatures();
     assertNotNull(features);
@@ -297,7 +297,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     geometryEvent.setGeometry(geo);
 
     String queryResponse = invokeLambda(geometryEvent.serialize());
-    FeatureCollection featureCollection = XyzSerializable.deserialize(queryResponse);
+    FeatureCollection featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     assertEquals(124, featureCollection.getFeatures().size());
     LOGGER.info("Area Query with POLYGON tested successfully");
@@ -317,7 +317,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     geometryEvent.setGeometry(geo);
 
     queryResponse = invokeLambda(geometryEvent.serialize());
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     for (Feature feature : featureCollection.getFeatures()) {
       /* try to find polygon inside the hole  */
@@ -348,7 +348,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     geometryEvent.setGeometry(geo);
 
     queryResponse = invokeLambda(geometryEvent.serialize());
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     int cnt = 0;
     for (Feature feature : featureCollection.getFeatures()) {
@@ -377,7 +377,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     geometryEvent.setPropertiesQuery(pq);
 
     queryResponse = invokeLambda(geometryEvent.serialize());
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     assertEquals(121, featureCollection.getFeatures().size());
     LOGGER.info("Area Query with MULTIPOLYGON + PROPERTIES_SEARCH tested successfully");
@@ -390,11 +390,11 @@ public class PSQLReadIT extends PSQLAbstractIT {
     geometryEvent.setSelection(new ArrayList<>(Collections.singletonList("properties.foo2")));
 
     queryResponse = invokeLambda(geometryEvent.serialize());
-    XyzResponse response = XyzSerializable.deserialize(queryResponse);
+    XyzResponse response = JsonSerializable.deserialize(queryResponse);
     if (response instanceof ErrorResponse) {
       failWithError((ErrorResponse) response);
     }
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     assertEquals(213, featureCollection.getFeatures().size());
 
@@ -411,7 +411,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     geometryEvent.setH3Index("821fa7fffffffff");
 
     queryResponse = invokeLambda(geometryEvent.serialize());
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     assertEquals(404, featureCollection.getFeatures().size());
     LOGGER.info("Hexbin Query (large) tested successfully");
@@ -423,7 +423,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     geometryEvent.setH3Index("861fa3a07ffffff");
 
     queryResponse = invokeLambda(geometryEvent.serialize());
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     assertEquals(42, featureCollection.getFeatures().size());
     LOGGER.info("H3Index Query (small) tested successfully");
@@ -444,7 +444,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     geometryEvent.setH3Index("861fa3a07ffffff");
 
     queryResponse = invokeLambda(geometryEvent.serialize());
-    featureCollection = XyzSerializable.deserialize(queryResponse);
+    featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     assertEquals(1, featureCollection.getFeatures().size());
     LOGGER.info("H3Index Query (small) with property query tested successfully");
@@ -468,7 +468,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     String eventJson = event.serialize();
     String statisticsJson = invokeLambda(eventJson);
-    StatisticsResponse response = XyzSerializable.deserialize(statisticsJson);
+    StatisticsResponse response = JsonSerializable.deserialize(statisticsJson);
 
     assertNotNull(response);
 
@@ -526,7 +526,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     statisticsJson = invokeLambda(eventJson);
     // =========== GetStatistics ==========
-    response = XyzSerializable.deserialize(statisticsJson);
+    response = JsonSerializable.deserialize(statisticsJson);
 
     assertEquals(Long.valueOf(11003L), response.getCount().getValue());
 
@@ -699,7 +699,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     addPropertiesQueryToSearchObject(test14, false, properties14_1);
 
     String response = invokeLambda(mapper.writeValueAsString(test14));
-    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+    FeatureCollection responseCollection = JsonSerializable.deserialize(response);
     List<Feature> responseFeatures = responseCollection.getFeatures();
     String id = responseFeatures.get(0).getId();
     assertEquals(4, responseFeatures.size());
@@ -713,7 +713,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     addPropertiesQueryToSearchObject(test15, true, properties15_1);
 
     response = invokeLambda(mapper.writeValueAsString(test15));
-    responseCollection = XyzSerializable.deserialize(response);
+    responseCollection = JsonSerializable.deserialize(response);
     responseFeatures = responseCollection.getFeatures();
     assertEquals(1, responseFeatures.size());
 
@@ -727,7 +727,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
   @Test
   public void testIterate() throws Exception {
     final String response = invokeLambdaFromFile("/events/IterateMySpace.json");
-    final FeatureCollection features = XyzSerializable.deserialize(response);
+    final FeatureCollection features = JsonSerializable.deserialize(response);
     features.serialize(true);
   }
 
@@ -768,7 +768,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
   protected void invokeAndAssert(Map<String, Object> json, int size, String... names) throws Exception {
     String response = invokeLambda(new ObjectMapper().writeValueAsString(json));
 
-    final FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+    final FeatureCollection responseCollection = JsonSerializable.deserialize(response);
     final List<Feature> responseFeatures = responseCollection.getFeatures();
     assertEquals(size, responseFeatures.size());
 

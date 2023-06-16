@@ -9,6 +9,7 @@ import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.NanoTime;
+import com.here.xyz.util.json.JsonSerializable;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -69,7 +70,7 @@ public class IoEventPipeline extends EventPipeline {
           new Scanner(new InputStreamReader(input, StandardCharsets.UTF_8))) {
         rawEvent = scanner.useDelimiter("\\A").next();
       }
-      typed = XyzSerializable.deserialize(rawEvent);
+      typed = JsonSerializable.deserialize(rawEvent);
       if (typed == null) {
         throw new NullPointerException();
       }

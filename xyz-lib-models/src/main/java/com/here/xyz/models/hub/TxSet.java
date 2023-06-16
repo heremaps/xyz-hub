@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TxEventList implements Iterable<TxEvent> {
+public class TxSet implements Iterable<TxEvent> {
   // TODO: Serialize and deserialize all. Maybe we have to extend a array list and just override get setters!
   //       Or we can teach Jackson to serialize as array from all?
   //       ??? -> @JsonFormat(shape=JsonFormat.Shape.ARRAY)

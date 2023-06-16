@@ -2,8 +2,8 @@ package com.here.xyz.events.clustering;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.xyz.XyzSerializable;
-import static com.here.xyz.XyzSerializable.format;
+
+import static com.here.xyz.util.json.JsonSerializable.format;
 import com.here.xyz.events.Sampling;
 import com.here.xyz.exceptions.ParameterError;
 import org.jetbrains.annotations.NotNull;

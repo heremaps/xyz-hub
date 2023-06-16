@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -121,7 +121,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
       // Check if 5 last versions are available in history table
       while (resultSet.next()) {
-        Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+        Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
 
         rowCount++;
         if (rowCount == 6) {

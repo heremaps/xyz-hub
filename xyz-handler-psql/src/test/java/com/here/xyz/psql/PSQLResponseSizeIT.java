@@ -20,7 +20,7 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.Typed;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.feature.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
@@ -58,21 +58,21 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
     //iter.setConnectorParams(connectorParams);
 
     //connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1024);
-    Typed result = XyzSerializable.deserialize(invokeLambda(iter.serialize()));
+    Typed result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
     assertTrue(result instanceof FeatureCollection);
 
     //connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 512);
-    result = XyzSerializable.deserialize(invokeLambda(iter.serialize()));
+    result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
     assertTrue(result instanceof ErrorResponse);
     assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
 
     //connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1);
-    result = XyzSerializable.deserialize(invokeLambda(iter.serialize()));
+    result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
     assertTrue(result instanceof ErrorResponse);
     assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
 
     //connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 0);
-    result = XyzSerializable.deserialize(invokeLambda(iter.serialize()));
+    result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
     assertTrue(result instanceof FeatureCollection);
   }
 }

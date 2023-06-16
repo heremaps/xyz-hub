@@ -15,3 +15,5 @@ release.properties
 /xyz-handler-http/src/test/resources/endpoint
 *.log
 *.jfr
+/vault/
+!/vault/README.md

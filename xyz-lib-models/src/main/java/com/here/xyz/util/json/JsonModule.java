@@ -11,6 +11,8 @@ import com.fasterxml.jackson.databind.KeyDeserializer;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.here.xyz.util.StringCache;
@@ -75,13 +77,17 @@ public class JsonModule extends SimpleModule {
     @Override
     public String deserialize(@NotNull JsonParser p, @NotNull DeserializationContext ctx) throws IOException, JacksonException {
       final TreeNode node = p.getCodec().readTree(p);
-      if (node instanceof TextNode textNode) {
-        final String s = textNode.asText();
-        if (s != null) {
-          return intern(s);
-        }
+      final String s;
+      if (node instanceof NumericNode numericNode) {
+        s = numericNode.asText();
+      } else if (node instanceof BooleanNode booleanNode) {
+        s = booleanNode.toString();
+      } else if (node instanceof TextNode textNode) {
+        s = textNode.asText();
+      } else {
+        s = null;
       }
-      return null;
+      return s != null ? intern(s) : null;
     }
   }
 }

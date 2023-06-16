@@ -19,12 +19,11 @@
 package com.here.xyz.psql;
 
 import com.amazonaws.util.IOUtils;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
@@ -62,7 +61,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     LOGGER.info("Insert feature tested successfully");
 
     // =========== UPDATE With wrong UUID ==========
-    FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
     for (Feature feature : featureCollection.getFeatures()) {
       feature.getProperties().put("foo", "bar");
     }
@@ -89,7 +88,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     mfevent.setInsertFeatures(insertFeatureList);
 
     String response = invokeLambda(mfevent.serialize());
-    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+    FeatureCollection responseCollection = JsonSerializable.deserialize(response);
 
     assertEquals(3, responseCollection.getFeatures().size());
     assertEquals(1, responseCollection.getFailed().size());
@@ -108,7 +107,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     String eventJson = searchEvent.serialize();
     String searchResponse = invokeLambda(eventJson);
-    responseCollection = XyzSerializable.deserialize(searchResponse);
+    responseCollection = JsonSerializable.deserialize(searchResponse);
 
     for (Feature feature : responseCollection.getFeatures()) {
       // The new Feature and the failed updated one should not have the property foo
@@ -131,7 +130,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     mfevent.setInsertFeatures(new ArrayList<>());
 
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
+    responseCollection = JsonSerializable.deserialize(response);
     assertEquals(4, responseCollection.getFeatures().size());
     assertEquals(4, responseCollection.getUpdated().size());
     assertNull(responseCollection.getFailed());
@@ -154,7 +153,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     mfevent.setDeleteFeatures(idUUIDMap);
 
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
+    responseCollection = JsonSerializable.deserialize(response);
 
     assertEquals(0, responseCollection.getFeatures().size());
     assertEquals(3, responseCollection.getDeleted().size());
@@ -167,20 +166,20 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     // Check if deletes are got performed
     searchResponse = invokeLambda(eventJson);
-    responseCollection = XyzSerializable.deserialize(searchResponse);
+    responseCollection = JsonSerializable.deserialize(searchResponse);
     assertEquals(1, responseCollection.getFeatures().size());
 
     // =========== Delete without UUID ==========
     mfevent.setDeleteFeatures(idMap);
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
+    responseCollection = JsonSerializable.deserialize(response);
 
     assertEquals(0, responseCollection.getFeatures().size());
     assertEquals(1, responseCollection.getDeleted().size());
     assertEquals(modifiedFeatureId, (responseCollection.getDeleted().get(0)));
     // Check if deletes are got performed
     searchResponse = invokeLambda(eventJson);
-    responseCollection = XyzSerializable.deserialize(searchResponse);
+    responseCollection = JsonSerializable.deserialize(searchResponse);
     assertEquals(0, responseCollection.getFeatures().size());
   }
 
@@ -206,7 +205,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     LOGGER.info("Insert feature tested successfully");
 
     // =========== UPDATE With wrong UUID ==========
-    FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
+    FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
     for (Feature feature : featureCollection.getFeatures()) {
       feature.getProperties().put("foo", "bar");
     }
@@ -235,7 +234,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     String response = invokeLambda(mfevent.serialize());
 
     // Transaction should have failed
-    ErrorResponse errorResponse = XyzSerializable.deserialize(response);
+    ErrorResponse errorResponse = JsonSerializable.deserialize(response);
     assertEquals(XyzError.CONFLICT, errorResponse.getError());
     ArrayList failedList = ((ArrayList) errorResponse.getErrorDetails().get("FailedList"));
     assertEquals(1, failedList.size());
@@ -251,7 +250,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     String eventJson = searchEvent.serialize();
     String searchResponse = invokeLambda(eventJson);
-    FeatureCollection responseCollection = XyzSerializable.deserialize(searchResponse);
+    FeatureCollection responseCollection = JsonSerializable.deserialize(searchResponse);
 
     for (Feature feature : responseCollection.getFeatures()) {
       assertNull(feature.getProperties().get("foo"));
@@ -268,7 +267,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     mfevent.setInsertFeatures(new ArrayList<>());
 
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
+    responseCollection = JsonSerializable.deserialize(response);
     assertEquals(3, responseCollection.getFeatures().size());
     assertEquals(3, responseCollection.getUpdated().size());
     assertNull(responseCollection.getFailed());
@@ -280,7 +279,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     // Check if updates got performed
     searchResponse = invokeLambda(eventJson);
-    responseCollection = XyzSerializable.deserialize(searchResponse);
+    responseCollection = JsonSerializable.deserialize(searchResponse);
     assertEquals(3, responseCollection.getFeatures().size());
 
     for (Feature feature : responseCollection.getFeatures()) {
@@ -302,7 +301,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     response = invokeLambda(mfevent.serialize());
     // Transaction should have failed
-    errorResponse = XyzSerializable.deserialize(response);
+    errorResponse = JsonSerializable.deserialize(response);
     assertEquals(XyzError.CONFLICT, errorResponse.getError());
     failedList = ((ArrayList) errorResponse.getErrorDetails().get("FailedList"));
     assertEquals(1, failedList.size());
@@ -313,20 +312,20 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     // Check if deletes has failed
     searchResponse = invokeLambda(eventJson);
-    responseCollection = XyzSerializable.deserialize(searchResponse);
+    responseCollection = JsonSerializable.deserialize(searchResponse);
     assertEquals(3, responseCollection.getFeatures().size());
 
     // =========== Delete without UUID ==========
     mfevent.setDeleteFeatures(idMap);
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
+    responseCollection = JsonSerializable.deserialize(response);
 
     assertEquals(0, responseCollection.getFeatures().size());
     assertNull(responseCollection.getFailed());
 
     // Check if deletes are got performed
     searchResponse = invokeLambda(eventJson);
-    responseCollection = XyzSerializable.deserialize(searchResponse);
+    responseCollection = JsonSerializable.deserialize(searchResponse);
     assertEquals(0, responseCollection.getFeatures().size());
   }
 
@@ -335,7 +334,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     String insertJsonFile = withUUID ? "/events/InsertFeaturesEventTransactional.json" : "/events/InsertFeaturesEvent.json";
     final String insertResponse = invokeLambdaFromFile(insertJsonFile);
     final String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
-    final FeatureCollection insertRequestCollection = XyzSerializable.deserialize(insertResponse);
+    final FeatureCollection insertRequestCollection = JsonSerializable.deserialize(insertResponse);
     assertRead(insertRequest, insertResponse, withUUID);
     LOGGER.info("Insert feature tested successfully");
 
@@ -351,7 +350,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     }
 
     String response = invokeLambda(mfevent.serialize());
-    FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+    FeatureCollection responseCollection = JsonSerializable.deserialize(response);
     assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
     assertEquals(0, responseCollection.getFeatures().size());
     assertNull(responseCollection.getUpdated());
@@ -369,7 +368,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     response = invokeLambda(mfevent.serialize());
 
     // Transaction should have failed
-    ErrorResponse errorResponse = XyzSerializable.deserialize(response);
+    ErrorResponse errorResponse = JsonSerializable.deserialize(response);
     assertEquals(XyzError.CONFLICT, errorResponse.getError());
     ArrayList failedList = ((ArrayList) errorResponse.getErrorDetails().get("FailedList"));
     assertEquals(1, failedList.size());
@@ -394,7 +393,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     mfevent.setDeleteFeatures(new HashMap<>());
     mfevent.setTransaction(false);
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
+    responseCollection = JsonSerializable.deserialize(response);
     assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
     assertEquals(DatabaseWriter.INSERT_ERROR_GENERAL, responseCollection.getFailed().get(0).getMessage());
     assertEquals(0, responseCollection.getFeatures().size());
@@ -406,7 +405,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     mfevent.setTransaction(true);
     response = invokeLambda(mfevent.serialize());
 
-    errorResponse = XyzSerializable.deserialize(response);
+    errorResponse = JsonSerializable.deserialize(response);
     assertEquals(XyzError.CONFLICT, errorResponse.getError());
     failedList = ((ArrayList) errorResponse.getErrorDetails().get("FailedList"));
     assertEquals(0, failedList.size());
@@ -423,7 +422,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     mfevent.setTransaction(false);
 
     response = invokeLambda(mfevent.serialize());
-    responseCollection = XyzSerializable.deserialize(response);
+    responseCollection = JsonSerializable.deserialize(response);
     assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
     assertEquals(0, responseCollection.getFeatures().size());
     assertNull(responseCollection.getUpdated());
@@ -440,7 +439,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     mfevent.setTransaction(true);
     response = invokeLambda(mfevent.serialize());
 
-    errorResponse = XyzSerializable.deserialize(response);
+    errorResponse = JsonSerializable.deserialize(response);
     assertEquals(XyzError.CONFLICT, errorResponse.getError());
     failedList = ((ArrayList) errorResponse.getErrorDetails().get("FailedList"));
     assertEquals(1, failedList.size());

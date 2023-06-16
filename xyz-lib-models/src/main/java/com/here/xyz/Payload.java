@@ -26,6 +26,7 @@ import com.google.common.io.ByteStreams;
 import com.here.xyz.events.Event;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.json.JsonSerializable;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -158,16 +159,9 @@ public class Payload implements Typed {
 
   @SuppressWarnings("WeakerAccess")
   @JsonIgnore
+  @Deprecated
   public String getCacheString() throws JsonProcessingException {
-    return SORTED_MAPPER
-        .get()
-        // Adding .writerWithView(Object.class) will serialize all properties, which do not have a
-        // view annotation. Any properties, which
-        // are not used as an input to generate the response(e.g. the request log stream Id) and do
-        // not result in a change of the response
-        // must be annotated with a view ( e.g. @JsonView(ExcludeFromHash.class) )
-        .writerWithView(Object.class)
-        .writeValueAsString(this);
+    return JsonSerializable.serialize(this);
   }
 
   @Override

@@ -35,6 +35,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.util.json.JsonSerializable;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
@@ -71,7 +72,7 @@ public class LazyParsableFeatureList {
     if (valueString != null) {
       // TODO: Make generic
       try {
-        value = XyzSerializable.DEFAULT_MAPPER.get().readValue(valueString, FEATURE_LIST);
+        value = JsonSerializable.deserialize(valueString, FEATURE_LIST);
       } catch (JsonProcessingException e) {
         throw new RuntimeException(e);
       }

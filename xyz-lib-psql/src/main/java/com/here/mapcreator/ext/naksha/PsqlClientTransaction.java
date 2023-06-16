@@ -8,18 +8,16 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * A Naksha PostgresQL database transaction that can be used to read and mutate data.
- *
- * @param <DATASOURCE> The data-source to read from.
  */
-public class PsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> extends PsqlReadTransaction<DATASOURCE> {
+public class PsqlClientTransaction extends PsqlClientReadTransaction {
 
   /**
    * Creates a new transaction for the given PostgresQL client.
    *
-   * @param nakshaPsqlClient The PostgresQL client for which to create a new transaction.
+   * @param psqlClient the PostgresQL client for which to create a new transaction.
    */
-  PsqlTransaction(@NotNull PsqlClient<DATASOURCE> nakshaPsqlClient) {
-    super(nakshaPsqlClient);
+  PsqlClientTransaction(@NotNull PsqlClient psqlClient) {
+    super(psqlClient);
   }
 
   /**
@@ -72,9 +70,11 @@ public class PsqlTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURC
    * @throws SQLException If any error occurred.
    */
   public @NotNull PsqlCollection createCollection(@NotNull String id, boolean enableHistory) throws SQLException {
-    final PsqlCollection collection = new PsqlCollection("Naksha-default","default-table");
+    final PsqlCollection collection = new PsqlCollection("Naksha-default", "default-table");
 
-    if (enableHistory) enableHistory(collection,Long.MAX_VALUE);
+    if (enableHistory) {
+      enableHistory(collection, Long.MAX_VALUE);
+    }
     return collection;
   }
 

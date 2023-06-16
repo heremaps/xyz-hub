@@ -23,14 +23,14 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.xyz.util.json.JsonMap;
+import com.here.xyz.util.json.JsonObject;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * The standard properties of the standard feature store in the Naksha-Hub.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Original extends JsonMap {
+public class Original extends JsonObject {
 
   public static final String CREATED_AT = "createdAt";
   public static final String PUUID = "puuid";

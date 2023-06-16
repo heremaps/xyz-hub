@@ -20,7 +20,7 @@ package com.here.xyz.psql;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -139,7 +139,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
       // Check if 5 last versions are available in history table
       while (resultSet.next()) {
-        Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+        Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
         assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
         rowCount++;
       }
@@ -174,7 +174,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
       // Check if all versions are available
       while (resultSet.next()) {
-        Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+        Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
         assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
         rowCount++;
       }
@@ -207,7 +207,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
       // Check if only two versions are left in the history
       while (resultSet.next()) {
-        Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+        Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
         assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
         rowCount++;
       }
@@ -264,7 +264,7 @@ public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
       ResultSet resultSet = stmt.executeQuery(sql);
       resultSet.next();
-      Feature feature = XyzSerializable.deserialize(resultSet.getString("jsondata"));
+      Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
       assertTrue(feature.getProperties().getXyzNamespace().isDeleted());
     }
   }

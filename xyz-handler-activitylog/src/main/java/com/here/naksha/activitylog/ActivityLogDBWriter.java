@@ -1,7 +1,7 @@
 package com.here.naksha.activitylog;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.mapcreator.ext.naksha.PsqlDataSource;
 import java.sql.Connection;
@@ -63,7 +63,7 @@ public class ActivityLogDBWriter {
                         if(result!=null) {
                             while (result.next()) {
                                 try {
-                                    Feature activityLogFeature = XyzSerializable.deserialize(result.getString(1), Feature.class);
+                                    Feature activityLogFeature = JsonSerializable.deserialize(result.getString(1), Feature.class);
                                     geoList.add(result.getString(2));
                                     iList.add(result.getInt(3));
                                     ActivityLogHandler.fromActivityLogFormat(activityLogFeature);

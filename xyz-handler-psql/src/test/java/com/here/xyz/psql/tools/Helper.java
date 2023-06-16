@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -53,10 +53,10 @@ public class Helper {
   }
 
   protected void assertRead(String insertRequest, String response, boolean checkGuid) throws Exception {
-    final FeatureCollection responseCollection = XyzSerializable.deserialize(response);
+    final FeatureCollection responseCollection = JsonSerializable.deserialize(response);
     final List<Feature> responseFeatures = responseCollection.getFeatures();
 
-    final ModifyFeaturesEvent gsModifyFeaturesEvent = XyzSerializable.deserialize(insertRequest);
+    final ModifyFeaturesEvent gsModifyFeaturesEvent = JsonSerializable.deserialize(insertRequest);
     List<Feature> modifiedFeatures;
 
     modifiedFeatures = gsModifyFeaturesEvent.getInsertFeatures();

@@ -2,11 +2,9 @@ package com.here.naksha.activitylog;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.here.mapcreator.ext.naksha.PsqlConfig;
-import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
 import com.here.xyz.EventHandler;
 import com.here.xyz.IEventContext;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -15,7 +13,6 @@ import com.here.xyz.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.xyz.models.geojson.implementation.namespaces.Original;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.flipkart.zjsonpatch.JsonDiff;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.models.hub.Connector;
 import com.here.xyz.responses.XyzError;
@@ -23,7 +20,6 @@ import com.here.xyz.responses.XyzResponse;
 import java.util.List;
 import java.util.Map;
 
-import com.here.xyz.util.IoHelp;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -74,8 +70,8 @@ public class ActivityLogHandler extends EventHandler {
     }
     if(feature.getProperties() != null && feature.getProperties().getXyzActivityLog() != null){
       try {
-        jsonNodeFeature = mapper.readTree(XyzSerializable.serialize(feature));
-        jsonNodeOldFeature = mapper.readTree(XyzSerializable.serialize(oldFeature));
+        jsonNodeFeature = mapper.readTree(JsonSerializable.serialize(feature));
+        jsonNodeOldFeature = mapper.readTree(JsonSerializable.serialize(oldFeature));
       } catch (JsonProcessingException e) {
         e.printStackTrace();
       }

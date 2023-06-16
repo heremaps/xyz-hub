@@ -9,24 +9,31 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * A Naksha PostgresQL transaction that can be used to read data, optionally using a read-replica, if opened as read-only transaction.
- *
- * @param <DATASOURCE> The data-source to read from.
  */
-public class PsqlReadTransaction<DATASOURCE extends AbstractPsqlDataSource<DATASOURCE>> implements AutoCloseable {
+public class PsqlClientReadTransaction implements AutoCloseable {
 
   /**
    * Creates a new transaction for the given PostgresQL client.
    *
-   * @param nakshaPsqlClient The PostgresQL client for which to create a new transaction.
+   * @param psqlClient the PostgresQL client for which to create a new transaction.
    */
-  PsqlReadTransaction(@NotNull PsqlClient<DATASOURCE> nakshaPsqlClient) {
-    this.nakshaPsqlClient = nakshaPsqlClient;
+  PsqlClientReadTransaction(@NotNull PsqlClient psqlClient) {
+    this.psqlClient = psqlClient;
   }
 
   /**
    * The PostgresQL client to which this transaction is bound.
    */
-  protected final @NotNull PsqlClient<DATASOURCE> nakshaPsqlClient;
+  protected final @NotNull PsqlClient psqlClient;
+
+  /**
+   * Returns the client to which the transaction is bound.
+   *
+   * @return the client to which the transaction is bound.
+   */
+  public @NotNull PsqlClient getPsqlClient() {
+    return psqlClient;
+  }
 
   /**
    * Returns the transaction identifier of this transaction.

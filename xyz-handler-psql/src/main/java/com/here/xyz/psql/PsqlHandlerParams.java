@@ -20,7 +20,7 @@
 package com.here.xyz.psql;
 
 import com.here.mapcreator.ext.naksha.PsqlConfig;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.EventHandlerParams;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,7 +75,7 @@ public class PsqlHandlerParams extends EventHandlerParams {
   public PsqlHandlerParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams) throws NullPointerException {
     Object raw = connectorParams.get(DB_CONFIG);
     if (raw instanceof Map params) {
-      this.dbConfig = XyzSerializable.fromAnyMap(params, PsqlConfig.class);
+      this.dbConfig = JsonSerializable.fromAnyMap(params, PsqlConfig.class);
     } else {
       throw new IllegalArgumentException(DB_CONFIG);
     }
@@ -86,7 +86,7 @@ public class PsqlHandlerParams extends EventHandlerParams {
       replicas = new ArrayList<>(SIZE);
       for (final Object o : list) {
         if (o instanceof Map m) {
-          replicas.add(XyzSerializable.fromAnyMap(m, PsqlConfig.class));
+          replicas.add(JsonSerializable.fromAnyMap(m, PsqlConfig.class));
         }
       }
     } else {

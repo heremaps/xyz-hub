@@ -36,14 +36,14 @@
 -- Returns the version: 16 bit reserved, 16 bit major, 16 bit minor, 16 bit revision
 CREATE OR REPLACE FUNCTION naksha_version() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
-    --     major           minor           revision
-    return 1::int8 << 32 | 0::int8 << 16 | 0::int8;
+    --        major               minor               revision
+    return (  1::int8 << 32) | (  0::int8 << 16) | (  0::int8);
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION naksha_version_of(major int, minor int, revision int) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
     return ((major::int8 & x'ffff'::int8) << 32)
-               | ((minor::int8 & x'ffff'::int8) << 16)
+        | ((minor::int8 & x'ffff'::int8) << 16)
         | (revision::int8 & x'ffff'::int8);
 END $BODY$;
 
@@ -104,7 +104,7 @@ $BODY$;
 
 -- Create a UUID from the given transaction number and the given identifier.
 -- Review here: https://realityripple.com/Tools/UnUUID/
-CREATE OR REPLACE FUNCTION naksha_uuid_of(object_id int8, ts timestamptz, type int, connector_id int8)
+CREATE OR REPLACE FUNCTION naksha_uuid_of(object_id int8, ts timestamptz, type int, storage_id int8)
     RETURNS uuid
     LANGUAGE 'plpgsql' IMMUTABLE
 AS
@@ -121,7 +121,7 @@ BEGIN
     month := EXTRACT(month FROM ts)::int8;
     day := EXTRACT(day FROM ts)::int8;
     t := type::int8 & x'0000000000000007'::int8; -- 3 bit
-    connector_id := connector_id & x'0000000fffffffff'::int8; -- 40 bit
+    storage_id := storage_id & x'0000000fffffffff'::int8; -- 40 bit
     raw_uuid := set_byte('\x00000000000000000000000000000000'::bytea, 0, 0);
     -- 48 high bit of object_id in big endian order (6 byte)
     raw_uuid := set_byte(raw_uuid, 0, ((object_id >> 52) & x'ff'::int8)::int);
@@ -141,11 +141,11 @@ BEGIN
     -- 5 bit day, 3 bit object type
     raw_uuid := set_byte(raw_uuid, 10, ((day << 3) | t)::int);
     -- 40 bit connector_id (5 byte)
-    raw_uuid := set_byte(raw_uuid, 11, ((connector_id >> 32) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 12, ((connector_id >> 24) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 13, ((connector_id >> 16) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 14, ((connector_id >> 8) & x'ff'::int8)::int);
-    raw_uuid := set_byte(raw_uuid, 15, (connector_id & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 11, ((storage_id >> 32) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 12, ((storage_id >> 24) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 13, ((storage_id >> 16) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 14, ((storage_id >> 8) & x'ff'::int8)::int);
+    raw_uuid := set_byte(raw_uuid, 15, (storage_id & x'ff'::int8)::int);
     RETURN CAST(ENCODE(raw_uuid, 'hex') AS UUID);
 END
 $BODY$;
@@ -157,13 +157,13 @@ AS
 $BODY$
 BEGIN
     return ((get_byte(raw_uuid, 0)::int8) << 52)
-               | ((get_byte(raw_uuid, 1)::int8) << 44)
-               | ((get_byte(raw_uuid, 2)::int8) << 36)
-               | ((get_byte(raw_uuid, 3)::int8) << 28)
-               | ((get_byte(raw_uuid, 4)::int8) << 20)
-               | ((get_byte(raw_uuid, 5)::int8) << 12)
-               | ((get_byte(raw_uuid, 6)::int8 & x'0f'::int8) << 8)
-        | ((get_byte(raw_uuid, 7)::int8));
+         | ((get_byte(raw_uuid, 1)::int8) << 44)
+         | ((get_byte(raw_uuid, 2)::int8) << 36)
+         | ((get_byte(raw_uuid, 3)::int8) << 28)
+         | ((get_byte(raw_uuid, 4)::int8) << 20)
+         | ((get_byte(raw_uuid, 5)::int8) << 12)
+         | ((get_byte(raw_uuid, 6)::int8 & x'0f'::int8) << 8)
+         | ((get_byte(raw_uuid, 7)::int8));
 END
 $BODY$;
 
@@ -197,7 +197,7 @@ BEGIN
 END
 $BODY$;
 
-CREATE OR REPLACE FUNCTION naksha_uuid_connector_id(raw_uuid bytea)
+CREATE OR REPLACE FUNCTION naksha_uuid_storage_id(raw_uuid bytea)
     RETURNS int8
     LANGUAGE 'plpgsql' IMMUTABLE
 AS
@@ -975,7 +975,7 @@ BEGIN
         return value::uuid;
     END IF;
 
-    txi := nextval('transactions_txi_seq');
+    txi := nextval('transactions_id_seq');
     txn := naksha_uuid_tx_number(txi, current_timestamp);
     sql := format('SELECT SET_CONFIG(%L, %L::text, true)', 'naksha.txn', txn, true);
     -- RAISE NOTICE 'create value via sql = %', sql;
@@ -1057,28 +1057,29 @@ BEGIN
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
 
     EXECUTE 'CREATE TABLE IF NOT EXISTS transactions ('
-                || 'i           BIGSERIAL PRIMARY KEY NOT NULL, '
-                || 'txid        int8 NOT NULL, '
-                || 'txi         int8 NOT NULL, '
-                || 'txcid       int8 NOT NULL, '
-                || 'txts        timestamptz NOT NULL, '
-                || 'txn         uuid NOT NULL, '
-                || '"schema"    text COLLATE "C" NOT NULL, '
-                || '"table"     text COLLATE "C" NOT NULL, '
-                || 'commit_msg  text COLLATE "C", '
-                || 'commit_json jsonb, '
-                || 'space       text COLLATE "C", '
-                || 'id          int8, '
-                || 'ts          timestamptz'
+        || '"i"                  BIGSERIAL PRIMARY KEY NOT NULL, '
+        || '"action"             text COLLATE "C" NOT NULL, '
+        || '"id"                 int8 NOT NULL, '
+        || '"name"               text COLLATE "C" NOT NULL, '
+        || '"collection"         text COLLATE "C", '
+        || '"appId"              text COLLATE "C" NOT NULL, '
+        || '"author"             text COLLATE "C" NOT NULL, '
+        || '"tx_uuid"            uuid NOT NULL, '
+        || '"tx_psql_id"         int8 NOT NULL, '
+        || '"tx_storage_id"      int8 NOT NULL, '
+        || '"tx_ts"              timestamptz NOT NULL, '
+        || '"commit_msg"         text COLLATE "C", '
+        || '"commit_json"        jsonb, '
+        || '"commit_attachment"  bytea, '
+        || '"seq_id"             int8, '
+        || '"seq_ts"             timestamptz'
         || ')';
 
-    EXECUTE 'CREATE SEQUENCE IF NOT EXISTS transactions_txi_seq AS int8';
     EXECUTE 'CREATE SEQUENCE IF NOT EXISTS transactions_id_seq AS int8';
 
-    -- unique index: id DESC, schema ASC, table ASC
+    -- unique index: id ASC, name ASC
     EXECUTE 'CREATE UNIQUE INDEX IF NOT EXISTS transactions_id_idx '
-        || 'ON transactions USING btree (id DESC, "schema" ASC, "table" ASC)'
-        || 'INCLUDE (i)';
+        || 'ON transactions USING btree ("id" ASC, "name" ASC)';
 
     -- index: ts DESC
     EXECUTE 'CREATE INDEX IF NOT EXISTS transactions_ts_idx '

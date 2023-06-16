@@ -20,7 +20,7 @@ package com.here.xyz.psql;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.events.space.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -89,7 +89,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
     //modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space(BASE1));
-    SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+    SuccessResponse response = JsonSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals("OK", response.getStatus());
 
     /** Check if IDX-Table reflects this changes */
@@ -104,7 +104,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.UPDATE);
     //modifySpaceEvent.setConnectorParams(connectorParams);
     modifySpaceEvent.setSpaceDefinition(new Space(DELTA1));
-    response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+    response = JsonSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
     assertEquals("OK", response.getStatus());
 
     /** Check if IDX-Table reflects this changes */
@@ -147,7 +147,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
       modifySpaceEvent.setOperation(ModifySpaceEvent.Operation.CREATE);
       //modifySpaceEvent.setConnectorParams(connectorParams);
       modifySpaceEvent.setSpaceDefinition(new Space(space));
-      SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+      SuccessResponse response = JsonSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
       assertEquals("OK", response.getStatus());
 
       final List<Feature> features = new ArrayList<Feature>() {{

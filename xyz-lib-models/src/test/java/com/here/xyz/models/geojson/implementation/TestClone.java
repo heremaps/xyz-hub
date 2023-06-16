@@ -64,7 +64,7 @@ public class TestClone {
   public void testClone() throws JsonProcessingException {
     FeatureCollection collection = generateRandomFeatures(1, 1);
     Feature feature = collection.getFeatures().get(0);
-    feature.getProperties().setXyzNamespace(new XyzNamespace().withSpace("test").setTags(Arrays.asList("a", "b", "c"), false));
+    feature.getProperties().setXyzNamespace(new XyzNamespace().setTags(Arrays.asList("a", "b", "c"), false));
     Feature copy = feature.copy();
     copy.setId("changed");
     assertNotEquals(copy.getId(), feature.getId());

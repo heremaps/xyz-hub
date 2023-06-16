@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.here.naksha.test.mock.MockHttpServer;
 import com.here.xyz.IoEventPipeline;
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.events.info.HealthCheckEvent;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -74,7 +74,7 @@ class HttpHandlerTest {
     event.setIds(ids);
     final ByteArrayOutputStream out = new ByteArrayOutputStream();
     eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray()), out);
-    final XyzResponse response = XyzSerializable.deserialize(out.toByteArray(), XyzResponse.class);
+    final XyzResponse response = JsonSerializable.deserialize(out.toByteArray(), XyzResponse.class);
     assertNotNull(response);
     final ErrorResponse errorResponse = assertInstanceOf(ErrorResponse.class, response);
     assertSame(XyzError.NOT_IMPLEMENTED, errorResponse.getError());
@@ -87,7 +87,7 @@ class HttpHandlerTest {
     final ByteArrayOutputStream out = new ByteArrayOutputStream();
     eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray()), out);
     //    eventPipeline.sendEvent(IoHelp.openResource("testevent.json"), out);
-    final XyzResponse response = XyzSerializable.deserialize(out.toByteArray(), XyzResponse.class);
+    final XyzResponse response = JsonSerializable.deserialize(out.toByteArray(), XyzResponse.class);
     assertNotNull(response);
     assertInstanceOf(HealthStatus.class, response);
   }

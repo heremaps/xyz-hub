@@ -3,7 +3,6 @@ package com.here.mapcreator.ext.naksha;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.xyz.lambdas.P;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

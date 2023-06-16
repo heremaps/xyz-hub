@@ -18,7 +18,7 @@
  */
 package com.here.xyz.psql;
 
-import static com.here.xyz.XyzSerializable.format;
+import static com.here.xyz.util.json.JsonSerializable.format;
 import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.GEO_JSON;
 
 import com.here.mapcreator.ext.naksha.sql.H3SQL;

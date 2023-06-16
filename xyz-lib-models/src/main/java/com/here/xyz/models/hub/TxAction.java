@@ -7,6 +7,11 @@ import org.jetbrains.annotations.NotNull;
  */
 public enum TxAction {
   /**
+   * The transaction item represents only a commit message.
+   */
+  COMMIT_MESSAGE,
+
+  /**
    * The transaction item notifies about that the content of a collection modified.
    */
   MODIFY_FEATURES,
@@ -27,9 +32,9 @@ public enum TxAction {
   DELETE_COLLECTION,
 
   /**
-   * The transaction item represents only a commit message.
+   * The transaction item notifies about that a deleted collection has been restored successfully.
    */
-  COMMIT_MESSAGE;
+  RESTORE_COLLECTION;
 
   @Override
   public @NotNull String toString() {

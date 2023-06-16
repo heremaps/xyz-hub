@@ -4,7 +4,7 @@ import static com.here.xyz.NakshaLogger.currentLogger;
 import static com.here.xyz.util.diff.Patcher.calculateDifferenceOfPartialUpdate;
 import static com.here.xyz.util.modify.IfExists.REPLACE;
 
-import com.here.xyz.XyzSerializable;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.geojson.implementation.Action;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
@@ -228,7 +228,7 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
     if (diff == null) {
       return null;
     }
-    final FEATURE result = XyzSerializable.copy(head);
+    final FEATURE result = JsonSerializable.copy(head);
     Patcher.patch(result, diff);
     return result;
   }
@@ -258,7 +258,7 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
       return null;
     }
     final Difference mergedDiff = Patcher.mergeDifferences(baseToHeadDiff, baseToInputDiff, cr);
-    final FEATURE result = XyzSerializable.copy(base);
+    final FEATURE result = JsonSerializable.copy(base);
     Patcher.patch(result, mergedDiff);
     return result;
   }
