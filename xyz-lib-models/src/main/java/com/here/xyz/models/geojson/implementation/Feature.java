@@ -28,6 +28,8 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Typed;
+import com.here.xyz.models.hub.StorageCollection;
+import com.here.xyz.models.hub.Storage;
 import com.here.xyz.util.json.JsonObject;
 import com.here.xyz.view.View.Export;
 import com.here.xyz.view.View.Import;
@@ -51,7 +53,9 @@ import org.jetbrains.annotations.Nullable;
 @JsonSubTypes({ // Note: These types need to be added as well into Typed!
     @JsonSubTypes.Type(value = Space.class, name = "Space"),
     @JsonSubTypes.Type(value = Connector.class, name = "Connector"),
-    @JsonSubTypes.Type(value = Subscription.class, name = "Subscription")
+    @JsonSubTypes.Type(value = Subscription.class, name = "Subscription"),
+    @JsonSubTypes.Type(value = Storage.class, name = "Storage"),
+    @JsonSubTypes.Type(value = StorageCollection.class, name = "StorageCollection")
 })
 public class Feature extends JsonObject implements Typed {
 
