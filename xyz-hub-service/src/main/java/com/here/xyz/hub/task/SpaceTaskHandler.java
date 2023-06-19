@@ -181,18 +181,16 @@ public class SpaceTaskHandler {
       task.template = getSpaceTemplate(owner, cid);
 
       String storageId = task.template.getStorage().getId();
-      if (input.getString("region") != null) {
+      if (input.getString("id") != null && input.getString("region") != null) {
+        String matchedStorageId = SpaceStorageMatchingMap.getIfMatches(input.getString("id"), input.getString("region"));
+        if (matchedStorageId != null) storageId = matchedStorageId;
+      }
+      else if (input.getString("region") != null) {
         storageId = Service.configuration.getDefaultStorageId(input.getString("region"));
         if (storageId == null) {
           callback.exception(new HttpException(BAD_REQUEST, "No storage is available for the specified region."));
           return;
         }
-      }
-
-      if (input.getString("id") != null) {
-        // FIXME need to also take the region in consideration when loading the storage id using the space id pattern matching
-        String matchedStorageId = SpaceStorageMatchingMap.getIfMatches(input.getString("id"));
-        if (matchedStorageId != null) storageId = matchedStorageId;
       }
 
       task.template.setStorage(new ConnectorRef().withId(storageId));

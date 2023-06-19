@@ -29,8 +29,23 @@ import org.apache.logging.log4j.Logger;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import software.amazon.awssdk.utils.StringUtils;
 
-public class SpaceStorageMatchingMap extends SingletonSetting<Map<String, String>> {
+/**
+ * Holds the mapping between space ids regular expressions and region/connector ids.
+ * The value can be represented as follows:
+ * {
+ *   "^.*topology$": {
+ *     "eu-west-1": "topology-psql-db1-eu-west-1-sit",
+ *     "ap-northeast-2": "topology-psql-db1-ap-northeast-2-sit"
+ *   },
+ *   "^.*address$": {
+ *     "eu-west-1": "address-psql-db1-eu-west-1-sit",
+ *     "ap-northeast-2": "dh-psql-db1-ap-northeast-2-sit"
+ *   }
+ * }
+ */
+public class SpaceStorageMatchingMap extends SingletonSetting<Map<String, Map<String, String>>> {
 
   private static final Logger logger = LogManager.getLogger();
 
@@ -40,13 +55,15 @@ public class SpaceStorageMatchingMap extends SingletonSetting<Map<String, String
   public void updatePatterns() {
 
     Optional.of(data).orElse(Collections.emptyMap())
-        .forEach((key, value) -> {
-          try {
-            Pattern pattern = Pattern.compile(key);
-            compiledPatternsMap.put(key, new PatternConnectorId(pattern, value));
-          } catch (PatternSyntaxException ex) {
-            logger.warn("Unable to compile pattern: " + key, ex);
-          }
+        .forEach((regex, regionConnectorMap) -> {
+          regionConnectorMap.forEach((region, connectorId) -> {
+            try {
+              Pattern pattern = Pattern.compile(regex);
+              compiledPatternsMap.put(regex, new PatternConnectorId(pattern, region, connectorId));
+            } catch (PatternSyntaxException ex) {
+              logger.warn("Unable to compile pattern: " + regex, ex);
+            }
+          });
         });
 
     Set<String> currentKeys = Optional.of(data).orElse(Collections.emptyMap()).keySet();
@@ -56,13 +73,14 @@ public class SpaceStorageMatchingMap extends SingletonSetting<Map<String, String
   /**
    * Otherwise null
    * @param spaceId the space id to match with one of the existing patterns
+   * @param region the connector region to be matched
    * @return connector id
    */
-  public static String getIfMatches(String spaceId) {
+  public static String getIfMatches(String spaceId, String region) {
     return compiledPatternsMap
         .values()
         .stream()
-        .filter(p -> p.pattern.matcher(spaceId).matches())
+        .filter(p -> p.pattern.matcher(spaceId).matches() && StringUtils.equals(region, p.region))
         .findFirst()
         .map(p -> p.connectorId)
         .orElse(null);
@@ -71,10 +89,12 @@ public class SpaceStorageMatchingMap extends SingletonSetting<Map<String, String
   static class PatternConnectorId {
 
     Pattern pattern;
+    String region;
     String connectorId;
 
-    public PatternConnectorId(Pattern pattern, String connectorId) {
+    public PatternConnectorId(Pattern pattern, String region, String connectorId) {
       this.pattern = pattern;
+      this.region = region;
       this.connectorId = connectorId;
     }
   }
