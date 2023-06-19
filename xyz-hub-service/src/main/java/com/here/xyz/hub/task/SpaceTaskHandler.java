@@ -25,7 +25,11 @@ import static com.here.xyz.hub.auth.XyzHubActionMatrix.DELETE_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.MANAGE_SPACES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.READ_FEATURES;
 import static com.here.xyz.hub.auth.XyzHubActionMatrix.UPDATE_FEATURES;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
@@ -52,8 +56,8 @@ import com.here.xyz.hub.task.TaskPipeline.C1;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
-import com.here.xyz.models.hub.Tag;
 import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.xyz.models.hub.Tag;
 import io.vertx.core.Future;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
@@ -181,12 +185,18 @@ public class SpaceTaskHandler {
       task.template = getSpaceTemplate(owner, cid);
 
       String storageId = task.template.getStorage().getId();
-      if (input.getString("id") != null && input.getString("region") != null) {
-        String matchedStorageId = SpaceStorageMatchingMap.getIfMatches(input.getString("id"), input.getString("region"));
-        if (matchedStorageId != null) storageId = matchedStorageId;
-      }
-      else if (input.getString("region") != null) {
+      logger.info(task.getMarker(), "storageId from space template: " + storageId);
+
+      if (input.getString("region") != null) {
         storageId = Service.configuration.getDefaultStorageId(input.getString("region"));
+        logger.info(task.getMarker(), "default storageId from region " + input.getString("region") + ": " + storageId);
+
+        if (input.getString("id") != null) {
+          String matchedStorageId = SpaceStorageMatchingMap.getIfMatches(input.getString("id"), input.getString("region"));
+          logger.info(task.getMarker(), "storageId from space/region/storage mapping: " + matchedStorageId);
+          if (matchedStorageId != null) storageId = matchedStorageId;
+        }
+
         if (storageId == null) {
           callback.exception(new HttpException(BAD_REQUEST, "No storage is available for the specified region."));
           return;

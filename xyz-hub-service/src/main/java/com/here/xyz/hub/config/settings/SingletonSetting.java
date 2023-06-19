@@ -26,7 +26,8 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
  * The ID of a SingletonSetting is always its class name.
  */
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = EnvironmentVariableOverrides.class)
+    @JsonSubTypes.Type(value = EnvironmentVariableOverrides.class),
+    @JsonSubTypes.Type(value = SpaceStorageMatchingMap.class)
 })
 public abstract class SingletonSetting<T> extends Setting<T> {
 
