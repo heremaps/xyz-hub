@@ -35,6 +35,7 @@ import com.here.xyz.httpconnector.util.jobs.validate.ImportValidator;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.ExportObject;
+import com.here.xyz.util.Hasher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import java.io.BufferedReader;
@@ -59,6 +60,7 @@ public class JobS3Client extends AwsS3Client{
     protected static final String IMPORT_MANUAL_UPLOAD_FOLDER = "manual";
     protected static final String IMPORT_UPLOAD_FOLDER = "imports";
     public static final String EXPORT_DOWNLOAD_FOLDER = "exports";
+    public static final String EXPORT_PERSIST_FOLDER = "persistent";
 
     public URL generateUploadURL(String key) throws IOException {
         return generateUploadURL(CService.configuration.JOBS_S3_BUCKET, key);
@@ -247,7 +249,7 @@ public class JobS3Client extends AwsS3Client{
 
     public Map<String, ExportObject> scanExportPath(Job job, boolean createDownloadUrl){
         /** if we cant find a upload url read from IMPORT_MANUAL_UPLOAD_FOLDER */
-        String path = EXPORT_DOWNLOAD_FOLDER +"/"+ job.getId();
+        String path = getS3Path(job);
 
         return scanExportPath(path, CService.configuration.JOBS_S3_BUCKET, createDownloadUrl);
     }
@@ -289,7 +291,7 @@ public class JobS3Client extends AwsS3Client{
     public void writeMetaFile(Export job, String bucketName){
         try {
 
-            String path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER+"/"+job.getId()+"/manifest.json";
+            String path = getS3Path(job) + "/manifest.json";
 
             byte[] meta = new ObjectMapper().writeValueAsBytes(job);
 
@@ -301,6 +303,33 @@ public class JobS3Client extends AwsS3Client{
         } catch (AmazonServiceException | IOException e) {
             logger.error("[{}] Cant write Metafile {}", job.getId(), e);
         }
+    }
+
+    public Export readMetaFile(Export job) {
+        String bucketName = CService.configuration.JOBS_S3_BUCKET;
+        String path = getS3Path(job) + "/manifest.json";
+        try {
+            S3Object s3Object = client.getObject(bucketName, path);
+            if(s3Object != null)
+                return new ObjectMapper().readValue(s3Object.getObjectContent(), Export.class);
+        } catch (Exception e) {
+            logger.error("[{}] Cant read Metafile {}", job.getId(), e);
+        }
+        return null;
+    }
+
+    public String getS3Path(Job job) {
+        boolean persistExport = job.getParams().containsKey("persistExport") ? (boolean) job.getParam("persistExport") : false;
+        String s3Path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER + "/" + job.getId();
+
+        if(job instanceof Export && persistExport) {
+            Export exportJob = (Export) job;
+            if(exportJob.getExportTarget().getType() == Export.ExportTarget.Type.VML && exportJob.getFilters() == null) {
+                String hashedSpaceId = Hasher.getHash(job.getTargetSpaceId());
+                s3Path = CService.jobS3Client.EXPORT_PERSIST_FOLDER + "/" + hashedSpaceId + "/" + exportJob.getTargetLevel();
+            }
+        }
+        return s3Path;
     }
 
     public void cleanJobData(String jobId){

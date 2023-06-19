@@ -85,6 +85,8 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   private String region;
 
+  private boolean persistExport;
+
   public static Future<Space> resolveSpace(Marker marker, String spaceId) {
     return Service.spaceConfigClient.get(marker, spaceId);
   }
@@ -272,6 +274,19 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   public Space withRegion(String region) {
     setRegion(region);
+    return this;
+  }
+
+  public boolean isPersistExport() {
+    return persistExport;
+  }
+
+  public void setPersistExport(boolean persistExport) {
+    this.persistExport = persistExport;
+  }
+
+  public Space withPersistExport(boolean persistExport) {
+    setPersistExport(persistExport);
     return this;
   }
 
