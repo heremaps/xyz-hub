@@ -19,16 +19,15 @@
 
 package com.here.xyz.hub.config.settings;
 
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Hashtable;
-import java.util.Optional;
-import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import software.amazon.awssdk.utils.StringUtils;
 
 /**
@@ -49,25 +48,25 @@ public class SpaceStorageMatchingMap extends SingletonSetting<Map<String, Map<St
 
   private static final Logger logger = LogManager.getLogger();
 
-  private static final Hashtable<String, PatternConnectorId> compiledPatternsMap = new Hashtable<>();
+  private static final List<PatternConnectorId> compiledPatterns = Collections.synchronizedList(new ArrayList<>());
 
 
   public void updatePatterns() {
+    int initialSize = compiledPatterns.size();
 
     Optional.of(data).orElse(Collections.emptyMap())
         .forEach((regex, regionConnectorMap) -> {
           regionConnectorMap.forEach((region, connectorId) -> {
             try {
               Pattern pattern = Pattern.compile(regex);
-              compiledPatternsMap.put(regex, new PatternConnectorId(pattern, region, connectorId));
+              compiledPatterns.add(new PatternConnectorId(regex, pattern, region, connectorId));
             } catch (PatternSyntaxException ex) {
               logger.warn("Unable to compile pattern: " + regex, ex);
             }
           });
         });
 
-    Set<String> currentKeys = Optional.of(data).orElse(Collections.emptyMap()).keySet();
-    compiledPatternsMap.keySet().removeIf(s -> !currentKeys.contains(s));
+    while (initialSize-- > 0) compiledPatterns.remove(0);
   }
 
   /**
@@ -77,10 +76,9 @@ public class SpaceStorageMatchingMap extends SingletonSetting<Map<String, Map<St
    * @return connector id
    */
   public static String getIfMatches(String spaceId, String region) {
-    return compiledPatternsMap
-        .values()
+    return compiledPatterns
         .stream()
-        .filter(p -> p.pattern.matcher(spaceId).matches() && StringUtils.equals(region, p.region))
+        .filter(p -> p.compiledPattern.matcher(spaceId).matches() && StringUtils.equals(region, p.region))
         .findFirst()
         .map(p -> p.connectorId)
         .orElse(null);
@@ -88,12 +86,14 @@ public class SpaceStorageMatchingMap extends SingletonSetting<Map<String, Map<St
 
   static class PatternConnectorId {
 
-    Pattern pattern;
+    String pattern;
+    Pattern compiledPattern;
     String region;
     String connectorId;
 
-    public PatternConnectorId(Pattern pattern, String region, String connectorId) {
+    public PatternConnectorId(String pattern, Pattern compiledPattern, String region, String connectorId) {
       this.pattern = pattern;
+      this.compiledPattern = compiledPattern;
       this.region = region;
       this.connectorId = connectorId;
     }
