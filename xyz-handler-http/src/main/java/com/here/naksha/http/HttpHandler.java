@@ -3,6 +3,8 @@ package com.here.naksha.http;
 import com.here.xyz.EventHandler;
 import com.here.xyz.IEventContext;
 import com.here.xyz.Payload;
+import com.here.xyz.Typed;
+import com.here.xyz.responses.ModifiedEventResponse;
 import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.events.Event;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -21,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The HTTP handler that sends events to a foreign host.
+ * This handler can also act as a gateway to a bootstrap server running handler code that is non-compatible with Naksha.
  */
 public class HttpHandler extends EventHandler {
 
@@ -72,11 +75,18 @@ public class HttpHandler extends EventHandler {
       }
       // conn.getResponseCode() == 200
       //noinspection RedundantClassCall
-      return Objects.requireNonNull(XyzResponse.class.cast(JsonSerializable.deserialize(rawEvent)));
+      final Typed deserialized = JsonSerializable.deserialize(rawEvent);
+      try {
+        return Objects.requireNonNull((XyzResponse) deserialized);
+      } catch (ClassCastException e) {
+        final Event castedEvent = Objects.requireNonNull((Event) deserialized);
+        eventContext.sendUpstream(castedEvent);
+        return new ModifiedEventResponse().withEvent(castedEvent);
+      }
     } catch (Exception e) {
       return new ErrorResponse()
           .withStreamId(event.getStreamId())
-          .withError(XyzError.BAD_GATEWAY)
+          .withError(XyzError.ILLEGAL_ARGUMENT)
           .withErrorMessage(e.toString());
     }
   }
