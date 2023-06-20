@@ -5,6 +5,7 @@ plugins {
     `java-library`
     `maven-publish`
     // https://github.com/diffplug/spotless
+    // gradle spotlessApply
     id("com.diffplug.spotless").version("6.11.0")
     // https://github.com/johnrengelman/shadow
     id("com.github.johnrengelman.shadow") version "7.1.2"
@@ -99,8 +100,10 @@ allprojects {
     // https://github.com/diffplug/spotless/tree/main/plugin-gradle#google-java-format
     spotless {
         java {
-            //googleJavaFormat("1.15.0")
+            encoding("UTF-8")
             // TODO: licenseHeader()
+            // Allow "spotless:off" / "spotless:on" comments to toggle spotless auto-format.
+            toggleOffOn()
             palantirJavaFormat()
             removeUnusedImports()
             importOrder()
@@ -118,6 +121,10 @@ allprojects {
             isZip64 = true
         }
 
+        build {
+            finalizedBy(spotlessApply)
+        }
+
 // TODO: Add to service
 //        shadowJar {
 //            archiveClassifier.set("all")
@@ -129,6 +136,7 @@ allprojects {
 //            }
 //        }
     }
+
     java {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

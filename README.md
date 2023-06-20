@@ -3,33 +3,31 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-[Naksha](https://en.wikipedia.org/wiki/Naksha) [(नक्शा)](https://www.shabdkosh.com/search-dictionary?lc=hi&sl=en&tl=hi&e=%E0%A4%A8%E0%A4%95%E0%A5%8D%E0%A4%B6%E0%A4%BE) is the name of this fork of the [XYZ-Hub](https://github.com/heremaps/xyz-hub) (pronounced **nakshaa** or **nakśā**). It stays a web service for the access and management of geospatial data. This spin-off was done to independently realize needed new features, not planned to be supported in the original [XYZ-Hub](https://github.com/heremaps/xyz-hub) project.
+[Naksha](https://en.wikipedia.org/wiki/Naksha) [(नक्शा)](https://www.shabdkosh.com/search-dictionary?lc=hi&sl=en&tl=hi&e=%E0%A4%A8%E0%A4%95%E0%A5%8D%E0%A4%B6%E0%A4%BE) is the name of this fork of the [XYZ-Hub](https://github.com/heremaps/xyz-hub) (pronounced **nakshaa** or **nakśā**). It stays a web service for the access and management of geospatial data. This spin-off was done to independently realize needed new features, not planned to be supported in the original [XYZ-Hub](https://github.com/heremaps/xyz-hub) project. The architecture was modified to allow extensions and plug-ins.
 
 The meaning of [Naksha](https://en.wikipedia.org/wiki/Naksha)-Hub is “Map-Hub”.
 
 # Overview
 Naksha features are:
-* Organize geo datasets in _spaces_.
+* Organize geo datasets in _collections_.
+* Organize access to your data via _spaces_.
+* Listen to changes done to your data via _subscriptions_.
 * Store and manipulate individual geo features (points, line-strings, polygons).
 * Retrieve geo features as vector tiles, with or without clipped geometries.
 * Search for geo features spatially using a bounding box, radius, or any custom geometry.
+* Implement own customer data processing logic as embedded handler or external extension handler.
 * Explore geo features by filtering property values.
-* Retrieve statistics for your _spaces_.
-* Analytical representation of geo data as hex-bins with statistical information.
-* Connect with different data sources.
+* Connect with your own data sources.
+* Use default PostgresQL implementation with your own database.
 * Build a real-time geo-data pipeline with processors.
-* Attach listeners to react on events.
 
 Naksha uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospatial data exchange format. Tiled data can also be provided as [MVT](https://github.com/mapbox/vector-tile-spec/blob/master/2.1/README.md).
 
 # Prerequisites
 
-* Java 8+
-* Maven 3.6+
+* Java 17+
+* Gradle 7.2+
 * Postgres 10+ with PostGIS 2.5+
-* Redis 5+ (optional)
-* Docker 18+ (optional)
-* Docker Compose 1.24+ (optional)
 
 # Getting started
 Clone and install the project using:
