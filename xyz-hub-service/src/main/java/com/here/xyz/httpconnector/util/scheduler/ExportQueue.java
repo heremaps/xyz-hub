@@ -126,9 +126,15 @@ public class ExportQueue extends JobQueue{
         if(persistExport && ((Export) j).getExportTarget().getType() == Export.ExportTarget.Type.VML && ((Export) j).getFilters() == null ) {
             Export existingJob = CService.jobS3Client.readMetaFile((Export) j);
             if(existingJob != null) {
-                String message = String.format("Persistent export already exists for %s and targetLevel %s with status %s",
-                        existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
-                failJob(j, message, Job.ERROR_TYPE_EXECUTION_FAILED);
+                if(existingJob.getExportObjects() == null || existingJob.getExportObjects().isEmpty()) {
+                    String message = String.format("Another job already started for %s and targetLevel %s with status %s",
+                            existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
+                    failJob(j, message, Job.ERROR_TYPE_EXECUTION_FAILED);
+                } else {
+                     addFileData(existingJob);
+                     ((Export) j).setExportObjects(existingJob.getExportObjects());
+                     updateJobStatus(j, Job.Status.executed);
+                }
                 return;
             } else {
                 addFileData(j);
