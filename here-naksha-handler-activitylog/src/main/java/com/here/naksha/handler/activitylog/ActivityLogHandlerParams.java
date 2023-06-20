@@ -1,4 +1,4 @@
-package com.here.naksha.activitylog;
+package com.here.naksha.handler.activitylog;
 
 
 import com.here.xyz.EventHandlerParams;

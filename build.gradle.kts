@@ -12,7 +12,7 @@ plugins {
 }
 
 group = "com.here.naksha"
-version = "2.0.1"
+version = rootProject.properties["version"] as String
 
 allprojects {
     apply(plugin = "java")
@@ -30,7 +30,7 @@ allprojects {
     }
 
     dependencies {
-        implementation("org.jetbrains:annotations:23.0.0")
+        implementation("org.jetbrains:annotations:24.0.1")
 
         implementation("io.vertx:vertx-core:4.4.0")
         implementation("io.vertx:vertx-web:4.4.0")

@@ -1,4 +1,4 @@
-package com.here.naksha.activitylog;
+package com.here.naksha.handler.activitylog;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.here.mapcreator.ext.naksha.PsqlConfig;
 import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
 import com.here.mapcreator.ext.naksha.PsqlDataSource;
+import com.here.naksha.handler.activitylog.ActivityLogDBWriter;
+import com.here.naksha.handler.activitylog.ActivityLogHandler;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.models.Typed;
 import com.here.xyz.models.geojson.implementation.Feature;
