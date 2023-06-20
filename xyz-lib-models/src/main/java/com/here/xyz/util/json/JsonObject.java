@@ -40,7 +40,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @AvailableSince("2.0.0")
 @JsonFormat(shape = JsonFormat.Shape.OBJECT)
-public class JsonObject implements Map<@NotNull String, @Nullable Object>, Iterable<Map.Entry<@NotNull String, @Nullable Object>> {
+public class JsonObject implements Map<@NotNull String, @Nullable Object>, Iterable<Map.Entry<@NotNull String, @Nullable Object>>, JsonSerializable {
 
   /**
    * Create a new empty object.

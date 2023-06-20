@@ -11,6 +11,7 @@ import com.here.xyz.util.diff.ConflictResolution;
 import com.here.xyz.util.diff.Difference;
 import com.here.xyz.util.diff.MergeConflictException;
 import com.here.xyz.util.diff.Patcher;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.util.json.JsonUtils;
 import java.util.HashMap;
 import java.util.Objects;
@@ -228,8 +229,7 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
     if (diff == null) {
       return null;
     }
-    final FEATURE result = JsonUtils.deepCopy(head);
-    assert result != null;
+    final FEATURE result = JsonSerializable.deepClone(head);
     Patcher.patch(result, diff);
     return result;
   }
@@ -259,8 +259,7 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
       return null;
     }
     final Difference mergedDiff = Patcher.mergeDifferences(baseToHeadDiff, baseToInputDiff, cr);
-    final FEATURE result = JsonUtils.deepCopy(base);
-    assert result != null;
+    final FEATURE result = JsonSerializable.deepClone(base);
     Patcher.patch(result, mergedDiff);
     return result;
   }

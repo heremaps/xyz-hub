@@ -71,7 +71,7 @@ public class EventTest {
   public void testDeepCopy() throws Exception {
     try (final Json json = Json.open()) {
       final Event event = json.reader(Deserialize.Public.class).readValue(eventJson, Event.class);
-      final Event clone = JsonUtils.deepCopy(event);
+      final Event clone = JsonSerializable.deepClone(event);
 
       assertNotSame(event, clone);
       assertTrue(event instanceof IterateFeaturesEvent);

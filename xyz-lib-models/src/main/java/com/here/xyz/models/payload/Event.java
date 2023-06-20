@@ -52,7 +52,9 @@ import com.here.xyz.models.payload.events.space.ModifySpaceEvent;
 import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.models.hub.pipelines.Space;
 import com.here.xyz.AbstractTask;
+import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.util.json.JsonUtils;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -158,7 +160,7 @@ public class Event extends Payload {
   private Boolean preferPrimaryDataSource;
 
   @JsonView(ExcludeFromHash.class)
-  private Map<String, Object> params;
+  private @Nullable Map<@NotNull String, @Nullable Object> params;
 
   /**
    * The unique space identifier.
@@ -238,7 +240,7 @@ public class Event extends Payload {
   public void setSpace(@NotNull Space space) {
     this.spaceId = space.getId();
     this.collection = space.getCollection();
-    this.params = JsonUtils.deepCopy(space.getProperties());
+    this.params = JsonSerializable.deepClone(space.getProperties());
     this.space = space;
   }
 
@@ -262,7 +264,10 @@ public class Event extends Payload {
    * The space parameter from {@link Space#getProperties() properties}.
    */
   public @NotNull Map<@NotNull String, @Nullable Object> getParams() {
-    return this.params;
+    if (params == null) {
+      params = new HashMap<>();
+    }
+    return params;
   }
 
   /**

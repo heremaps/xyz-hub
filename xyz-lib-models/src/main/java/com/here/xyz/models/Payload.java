@@ -26,6 +26,7 @@ import com.google.common.io.ByteStreams;
 import com.here.xyz.models.payload.Event;
 import com.here.xyz.models.payload.XyzResponse;
 import com.here.xyz.util.Hasher;
+import com.here.xyz.util.json.JsonObject;
 import com.here.xyz.util.json.JsonSerializable;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
