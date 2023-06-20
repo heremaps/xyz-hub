@@ -1,4 +1,4 @@
-package com.here.naksha.test.mock;
+package com.here.naksha.lib.httpserver;
 
 
 import com.sun.net.httpserver.HttpExchange;

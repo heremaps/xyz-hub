@@ -5,7 +5,7 @@ dependencies {
     implementation("org.apache.logging.log4j:log4j-api:2.17.1")
     implementation("org.apache.logging.log4j:log4j-jcl:2.17.1")
     implementation("com.vividsolutions:jts-core:1.14.0")
-    testImplementation(project(":xyz-mock"))
+    testImplementation(project(":here-naksha-lib-httpserver"))
     testImplementation("com.jayway.jsonpath:json-path:2.7.0")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:5.9.2")
 }

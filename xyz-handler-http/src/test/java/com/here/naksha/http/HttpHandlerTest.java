@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import com.here.naksha.test.mock.MockHttpServer;
+import com.here.naksha.lib.httpserver.MockHttpServer;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.hub.pipelines.Space;
