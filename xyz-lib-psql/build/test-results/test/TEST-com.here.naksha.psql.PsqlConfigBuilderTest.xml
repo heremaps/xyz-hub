@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.here.naksha.psql.PsqlConfigBuilderTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2023-06-20T09:56:36" hostname="xerosv" time="0.011">
-  <properties/>
-  <testcase name="withUrl()" classname="com.here.naksha.psql.PsqlConfigBuilderTest" time="0.011"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>

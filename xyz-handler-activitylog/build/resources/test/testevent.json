@@ -1,4 +1,0 @@
-{
-  "type": "GetFeaturesByIdEvent",
-  "ids": ["a", "b"]
-}

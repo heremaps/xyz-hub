@@ -6,6 +6,8 @@ plugins {
     `maven-publish`
     // https://github.com/diffplug/spotless
     id("com.diffplug.spotless").version("6.11.0")
+    // https://github.com/johnrengelman/shadow
+    id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
 group = "com.here.naksha"
@@ -15,6 +17,7 @@ allprojects {
     apply(plugin = "java")
     apply(plugin = "maven-publish")
     apply(plugin = "com.diffplug.spotless")
+    apply(plugin = "com.github.johnrengelman.shadow")
 
     val mavenUrl = rootProject.properties["mavenUrl"] as String
     val mavenUser = rootProject.properties["mavenUser"] as String
@@ -96,7 +99,9 @@ allprojects {
     // https://github.com/diffplug/spotless/tree/main/plugin-gradle#google-java-format
     spotless {
         java {
-            googleJavaFormat("1.15.0")
+            //googleJavaFormat("1.15.0")
+            // TODO: licenseHeader()
+            palantirJavaFormat()
             removeUnusedImports()
             importOrder()
             formatAnnotations()
@@ -108,6 +113,21 @@ allprojects {
         test {
             useJUnitPlatform()
         }
+
+        shadowJar {
+            isZip64 = true
+        }
+
+// TODO: Add to service
+//        shadowJar {
+//            archiveClassifier.set("all")
+//            mergeServiceFiles()
+//            isZip64 = true
+//            manifest {
+//                attributes["Implementation-Title"] = "Wikvaya-Service-Core"
+//                attributes["Main-Class"] = "com.here.wikvaya.core.WikvayaService"
+//            }
+//        }
     }
     java {
         sourceCompatibility = JavaVersion.VERSION_17

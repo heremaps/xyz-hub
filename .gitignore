@@ -1,6 +1,7 @@
 gradlew
 gradlew.bat
 gradle
+gradle/
 .gradle
 *.iml
 *.iws
@@ -9,6 +10,7 @@ gradle
 .xyz-hub/
 .idea/
 target/
+build/
 file-uploads/
 /static/
 release.properties

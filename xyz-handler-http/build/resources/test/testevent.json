@@ -1,5 +1,0 @@
-{
-  "type": "HealthCheckEvent",
-  "minResponseTime": 1000,
-  "space": "RohitTest"
-}

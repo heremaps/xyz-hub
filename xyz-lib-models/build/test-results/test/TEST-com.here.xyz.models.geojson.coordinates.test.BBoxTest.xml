@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="com.here.xyz.models.geojson.coordinates.test.BBoxTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2023-06-20T09:56:35" hostname="xerosv" time="0.011">
-  <properties/>
-  <testcase name="multipolygonCoordinates()" classname="com.here.xyz.models.geojson.coordinates.test.BBoxTest" time="0.006"/>
-  <testcase name="pointCoordinates()" classname="com.here.xyz.models.geojson.coordinates.test.BBoxTest" time="0.005"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>
