@@ -20,7 +20,7 @@
 package com.here.xyz.psql.query;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByGeometryEvent;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.psql.PsqlHandler;
 import java.sql.SQLException;

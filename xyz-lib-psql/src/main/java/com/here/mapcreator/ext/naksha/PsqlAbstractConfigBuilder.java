@@ -1,6 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
-import com.here.xyz.events.QueryParameterList;
+import com.here.xyz.models.payload.events.QueryParameterList;
 import com.here.xyz.exceptions.ParameterError;
 import java.net.URI;
 import java.net.URISyntaxException;

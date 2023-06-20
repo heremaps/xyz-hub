@@ -2,12 +2,14 @@ package com.here.xyz;
 
 import static com.here.xyz.NakshaLogger.currentLogger;
 
-import com.here.xyz.events.Event;
-import com.here.xyz.responses.BinaryResponse;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.NotModifiedResponse;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.models.Payload;
+import com.here.xyz.models.Typed;
+import com.here.xyz.models.payload.Event;
+import com.here.xyz.models.payload.responses.BinaryResponse;
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.NotModifiedResponse;
+import com.here.xyz.models.payload.responses.XyzError;
+import com.here.xyz.models.payload.XyzResponse;
 import com.here.xyz.util.NanoTime;
 import com.here.xyz.util.json.JsonSerializable;
 import java.io.ByteArrayOutputStream;

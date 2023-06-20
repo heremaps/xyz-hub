@@ -65,7 +65,7 @@ public class TestClone {
     FeatureCollection collection = generateRandomFeatures(1, 1);
     Feature feature = collection.getFeatures().get(0);
     feature.getProperties().setXyzNamespace(new XyzNamespace().setTags(Arrays.asList("a", "b", "c"), false));
-    Feature copy = feature.copy();
+    Feature copy = feature.deepClone();
     copy.setId("changed");
     assertNotEquals(copy.getId(), feature.getId());
   }

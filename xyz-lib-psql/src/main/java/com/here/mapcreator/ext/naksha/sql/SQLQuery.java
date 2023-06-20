@@ -19,17 +19,16 @@
 
 package com.here.mapcreator.ext.naksha.sql;
 
-import static com.here.xyz.events.QueryOperation.CONTAINS;
-import static com.here.xyz.events.QueryOperation.EQUALS;
-import static com.here.xyz.events.QueryOperation.GREATER_THAN;
-import static com.here.xyz.events.QueryOperation.GREATER_THAN_OR_EQUALS;
-import static com.here.xyz.events.QueryOperation.IN;
-import static com.here.xyz.events.QueryOperation.LESS_THAN;
-import static com.here.xyz.events.QueryOperation.LESS_THAN_OR_EQUALS;
-import static com.here.xyz.events.QueryOperation.NONE;
-import static com.here.xyz.events.QueryOperation.NOT_EQUALS;
+import static com.here.xyz.models.payload.events.QueryOperation.CONTAINS;
+import static com.here.xyz.models.payload.events.QueryOperation.EQUALS;
+import static com.here.xyz.models.payload.events.QueryOperation.GREATER_THAN;
+import static com.here.xyz.models.payload.events.QueryOperation.GREATER_THAN_OR_EQUALS;
+import static com.here.xyz.models.payload.events.QueryOperation.IN;
+import static com.here.xyz.models.payload.events.QueryOperation.LESS_THAN;
+import static com.here.xyz.models.payload.events.QueryOperation.LESS_THAN_OR_EQUALS;
+import static com.here.xyz.models.payload.events.QueryOperation.NOT_EQUALS;
 
-import com.here.xyz.events.QueryOperation;
+import com.here.xyz.models.payload.events.QueryOperation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;

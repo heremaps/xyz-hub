@@ -1,13 +1,13 @@
 package com.here.xyz;
 
-import com.here.xyz.events.Event;
-import com.here.xyz.events.feature.LoadFeaturesEvent;
-import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.models.payload.Event;
+import com.here.xyz.models.payload.events.feature.LoadFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.exceptions.ParameterError;
 import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.XyzError;
+import com.here.xyz.models.payload.XyzResponse;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.ArrayList;
 import java.util.List;

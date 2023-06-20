@@ -1,11 +1,12 @@
 package com.here.xyz;
 
-import com.here.xyz.events.Event;
+import com.here.xyz.models.hub.plugins.EventHandler;
+import com.here.xyz.models.hub.plugins.Storage;
+import com.here.xyz.models.payload.Event;
 import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.Subscription;
-import java.util.List;
+import com.here.xyz.models.hub.plugins.Connector;
+import com.here.xyz.models.hub.pipelines.Space;
+import com.here.xyz.models.hub.pipelines.Subscription;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -17,6 +18,16 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 public interface INaksha {
+
+  /**
+   * Protocol version constant. The last version compatible with XYZ-Hub.
+   */
+  String v0_6 = "0.6.0";
+
+  /**
+   * Protocol version constant. The first version being incompatible with XYZ-Hub.
+   */
+  String v2_0 = "2.0.0";
 
   /**
    * The reference to the Naksha implementation provided by the host. Rather use the {@link #get()} method to get the instance.
@@ -43,14 +54,6 @@ public interface INaksha {
   <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newTask(@NotNull Class<EVENT> eventClass) throws XyzErrorException;
 
   /**
-   * Returns a list of all spaces that are directly mapped to the given collection.
-   *
-   * @param collection The collection identifier to query for.
-   * @return The spaces that are mapped to the collection; may be empty.
-   */
-  @NotNull List<@NotNull Space> getSpacesByCollection(@NotNull String collection);
-
-  /**
    * Returns the space with the given identifier or {@code null}, if no such space exists.
    *
    * @param id The space identifier.
@@ -67,19 +70,28 @@ public interface INaksha {
   @Nullable Connector getConnectorById(@NotNull String id);
 
   /**
-   * Returns the connector with the given number or {@code null}, if no such connector exists.
+   * Returns the storage with the given identifier or {@code null}, if no such storage exists.
    *
-   * @param number The connector number.
-   * @return The connector or {@code null}, if no such connector exists.
+   * @param id the storage identifier.
+   * @return the storage or {@code null}, if no such storage exists.
    */
-  @Nullable Connector getConnectorByNumber(long number);
+  @Nullable Storage getStorageById(@NotNull String id);
 
   /**
-   * Return an iterable about all connectors.
+   * Returns the storage with the given storage identifier or {@code null}, if no such storage exists.
    *
-   * @return An iterable about all connectors.
+   * @param number the storage number.
+   * @return the storage or {@code null}, if no such storage exists.
    */
-  @NotNull Iterable<Connector> getAllConnectors();
+  @Nullable Storage getStorageByNumber(long number);
+
+  /**
+   * Returns the extension with the given identifier.
+   *
+   * @param id the identifier.
+   * @return the the or {@code null}; if no such the exists.
+   */
+  @Nullable EventHandler getExtensionById(@NotNull String id);
 
   /**
    * Returns the subscription with the given identifier.
@@ -88,5 +100,40 @@ public interface INaksha {
    * @return The subscription or {@code null}; if no such subscription exists.
    */
   @Nullable Subscription getSubscriptionById(@NotNull String id);
+
+  /**
+   * Return an iterable about all spaces.
+   *
+   * @return An iterable about all spaces.
+   */
+  @NotNull Iterable<Space> iterateSpaces();
+
+  /**
+   * Return an iterable about all connectors.
+   *
+   * @return An iterable about all connectors.
+   */
+  @NotNull Iterable<Connector> iterateConnectors();
+
+  /**
+   * Return an iterable about all storages.
+   *
+   * @return An iterable about all storages.
+   */
+  @NotNull Iterable<Storage> iterateStorages();
+
+  /**
+   * Return an iterable about all extensions.
+   *
+   * @return An iterable about all extensions.
+   */
+  @NotNull Iterable<EventHandler> iterateExtensions();
+
+  /**
+   * Return an iterable about all subscriptions.
+   *
+   * @return An iterable about all subscriptions.
+   */
+  @NotNull Iterable<Subscription> iterateSubscriptions();
 
 }

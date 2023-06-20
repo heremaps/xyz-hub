@@ -20,12 +20,12 @@
 package com.here.xyz.models.geojson.implementation.namespaces;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.xyz.models.geojson.implementation.Action;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.hub.pipelines.Space;
 import com.here.xyz.util.json.JsonObject;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
@@ -154,6 +154,13 @@ public class XyzNamespace extends JsonObject {
   @JsonProperty(APP_ID)
   @JsonInclude(Include.NON_EMPTY)
   private String appId;
+
+  /**
+   * The space, normally added dynamically by Naksha.
+   */
+  @JsonProperty(SPACE)
+  @JsonInclude(Include.NON_EMPTY)
+  private String space;
 
   private static final char[] TO_LOWER;
   private static final char[] AS_IS;
@@ -629,4 +636,24 @@ public class XyzNamespace extends JsonObject {
   public @NotNull XyzNamespace withAppId(@Nullable String app_id) {
     setAppId(app_id);
     return this;
-  }}
+  }
+
+  @JsonIgnore
+  public @Nullable String getSpace() {
+    return space;
+  }
+
+  public void setSpace(@Nullable String space) {
+    this.space = space;
+  }
+
+  public void setSpace(@Nullable Space space) {
+    this.space = space != null ? space.getId() : null;
+  }
+
+  public @NotNull XyzNamespace withSpace(@Nullable String space) {
+    setSpace(space);
+    return this;
+  }
+
+}

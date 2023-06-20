@@ -22,26 +22,33 @@ package com.here.xyz.models.geojson.implementation;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.Typed;
+import com.here.xyz.INaksha;
+import com.here.xyz.models.Typed;
+import com.here.xyz.models.hub.plugins.EventHandler;
 import com.here.xyz.models.hub.StorageCollection;
-import com.here.xyz.models.hub.Storage;
+import com.here.xyz.models.hub.plugins.Storage;
+import com.here.xyz.models.hub.transactions.TxEvent;
 import com.here.xyz.util.json.JsonObject;
 import com.here.xyz.view.View.Export;
 import com.here.xyz.view.View.Import;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
-import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.Subscription;
+import com.here.xyz.models.hub.pipelines.Space;
+import com.here.xyz.models.hub.pipelines.Subscription;
 import com.here.xyz.util.diff.ConflictResolution;
 import com.here.xyz.util.modify.IfExists;
 import com.here.xyz.util.modify.IfNotExists;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -50,12 +57,15 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings({"unused", "WeakerAccess"})
 @JsonTypeName(value = "Feature")
-@JsonSubTypes({ // Note: These types need to be added as well into Typed!
-    @JsonSubTypes.Type(value = Space.class, name = "Space"),
-    @JsonSubTypes.Type(value = Connector.class, name = "Connector"),
-    @JsonSubTypes.Type(value = Subscription.class, name = "Subscription"),
-    @JsonSubTypes.Type(value = Storage.class, name = "Storage"),
-    @JsonSubTypes.Type(value = StorageCollection.class, name = "StorageCollection")
+@JsonSubTypes({
+    // Pipelined:
+    @JsonSubTypes.Type(value = Space.class),
+    @JsonSubTypes.Type(value = Subscription.class),
+    // Others:
+    @JsonSubTypes.Type(value = EventHandler.class),
+    @JsonSubTypes.Type(value = Storage.class),
+    @JsonSubTypes.Type(value = StorageCollection.class),
+    @JsonSubTypes.Type(value = TxEvent.class)
 })
 public class Feature extends JsonObject implements Typed {
 
@@ -66,6 +76,8 @@ public class Feature extends JsonObject implements Typed {
   public static final String ON_FEATURE_NOT_EXISTS = "onFeatureNotExists";
   public static final String ON_FEATURE_EXISTS = "onFeatureExists";
   public static final String ON_MERGE_CONFLICT = "onMergeConflict";
+  @AvailableSince(INaksha.v2_0)
+  public static final String PACKAGES = "packages";
 
   /**
    * Create a new empty feature.
@@ -104,6 +116,48 @@ public class Feature extends JsonObject implements Typed {
   @JsonProperty(ON_MERGE_CONFLICT)
   @JsonView({Export.Private.class, Import.Public.class})
   protected @Nullable ConflictResolution onMergeConflict;
+
+  /**
+   * List of packages to which this feature belongs to; if any.
+   */
+  @AvailableSince(INaksha.v2_0)
+  @JsonProperty(PACKAGES)
+  @JsonInclude(Include.NON_EMPTY)
+  private @Nullable List<@NotNull String> packages;
+
+  /**
+   * Replace the packages this feature is part of.
+   *
+   * @param packages the new package list.
+   */
+  @AvailableSince(INaksha.v2_0)
+  public void setPackages(@Nullable List<@NotNull String> packages) {
+    this.packages = packages;
+  }
+
+  /**
+   * Returns the packages.
+   *
+   * @return the packages this features is part of.
+   */
+  @AvailableSince(INaksha.v2_0)
+  public @NotNull List<@NotNull String> usePackages() {
+    List<@NotNull String> packages = this.packages;
+    if (packages ==null) {
+      this.packages = packages = new ArrayList<>();
+    }
+    return packages;
+  }
+
+  /**
+   * Returns the packages.
+   *
+   * @return the packages this features is part of.
+   */
+  @AvailableSince(INaksha.v2_0)
+  public @Nullable List<@NotNull String> getPackages() {
+    return packages;
+  }
 
   @JsonIgnore
   public @NotNull String getId() {

@@ -20,11 +20,11 @@
 package com.here.xyz.psql.query;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.events.PropertyQueryOr;
-import com.here.xyz.events.QueryOperation;
-import com.here.xyz.events.feature.QueryEvent;
-import com.here.xyz.events.feature.SearchForFeaturesEvent;
-import com.here.xyz.events.TagsQuery;
+import com.here.xyz.models.payload.events.PropertyQueryOr;
+import com.here.xyz.models.payload.events.QueryOperation;
+import com.here.xyz.models.payload.events.feature.QueryEvent;
+import com.here.xyz.models.payload.events.feature.SearchForFeaturesEvent;
+import com.here.xyz.models.payload.events.TagsQuery;
 import com.here.xyz.psql.PsqlHandler;
 import java.sql.SQLException;
 import java.util.ArrayList;

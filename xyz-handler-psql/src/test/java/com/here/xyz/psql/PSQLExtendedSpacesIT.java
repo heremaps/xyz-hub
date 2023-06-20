@@ -21,14 +21,14 @@ package com.here.xyz.psql;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.feature.ModifyFeaturesEvent;
-import com.here.xyz.events.space.ModifySpaceEvent;
+import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.models.payload.events.space.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.hub.pipelines.Space;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.tools.FeatureGenerator;
-import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.models.payload.responses.SuccessResponse;
 import org.json.JSONObject;
 
 import java.sql.Connection;

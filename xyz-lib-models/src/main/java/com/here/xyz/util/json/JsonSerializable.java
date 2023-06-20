@@ -19,23 +19,23 @@
 
 package com.here.xyz.util.json;
 
-import static com.here.xyz.responses.XyzError.EXCEPTION;
-import static com.here.xyz.responses.XyzError.TIMEOUT;
+import static com.here.xyz.models.payload.responses.XyzError.EXCEPTION;
+import static com.here.xyz.models.payload.responses.XyzError.TIMEOUT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.LazyParsableFeatureList.ProxyStringReader;
-import com.here.xyz.Typed;
-import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.models.Typed;
+import com.here.xyz.models.payload.responses.ErrorResponse;
 import com.here.xyz.view.Deserialize;
 import com.here.xyz.view.Serialize;
+import com.here.xyz.view.Serialize.Any;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Formatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Scanner;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -90,7 +90,7 @@ public interface JsonSerializable {
     }
   }
 
-  static <T> T deserialize(byte @NotNull[] bytes, @NotNull TypeReference<T> type) throws IOException {
+  static <T> T deserialize(byte @NotNull [] bytes, @NotNull TypeReference<T> type) throws IOException {
     try (final Json json = Json.open()) {
       return json.reader(Deserialize.Public.class).forType(type).readValue(bytes);
     }
@@ -137,10 +137,24 @@ public interface JsonSerializable {
         .withError(timeout ? TIMEOUT : EXCEPTION);
   }
 
-  static <T extends JsonSerializable> @NotNull T copy(@NotNull T serializable) {
-    try {
-      return (T) Objects.requireNonNull(JsonSerializable.deserialize(serializable.serialize(), serializable.getClass()));
-    } catch (JsonProcessingException e) {
+  /**
+   * Creates a deep clone of the given object by serialization and then deserialization. A faster and better method may be
+   * {@link JsonUtils#deepCopy(Object)}.
+   *
+   * @param object   the object to clone.
+   * @param <OBJECT> the object-type.
+   * @return the clone.
+   */
+  static <OBJECT extends JsonSerializable> @NotNull OBJECT deepClone(@NotNull OBJECT object) {
+    //noinspection ConstantConditions
+    if (object == null) {
+      return null;
+    }
+    try (final Json json = Json.open()) {
+      final byte[] bytes = json.writer(Any.class, false).forType(object.getClass()).writeValueAsBytes(object);
+      final Object clone = json.reader(Deserialize.Any.class).forType(object.getClass()).readValue(bytes);
+      return (OBJECT) clone;
+    } catch (IOException e) {
       throw new RuntimeException(e);
     }
   }
@@ -174,8 +188,14 @@ public interface JsonSerializable {
     }
   }
 
-  default <T extends JsonSerializable> @NotNull T copy() {
-    return (T) JsonSerializable.copy(this);
+  /**
+   * Create a deep (recursive) clone of this object.
+   *
+   * @param <SELF> the own-type of this.
+   * @return a clone of this object.
+   */
+  default <SELF extends JsonSerializable> @NotNull SELF deepClone() {
+    return (SELF) JsonSerializable.deepClone(this);
   }
 
   default Map<String, Object> asMap() {
@@ -187,6 +207,23 @@ public interface JsonSerializable {
   default List<Object> asList() {
     try (final Json json = Json.open()) {
       return json.mapper.convertValue(this, List.class);
+    }
+  }
+
+  /**
+   * Convert the given object into the target object. This normally returns a copy, but there is no guarantee how much is copied.
+   *
+   * @param object      the object to convert.
+   * @param targetClass the class of the target-type.
+   * @param <TARGET>    the target-type.
+   * @return the new instance converted.
+   */
+  static <TARGET extends JsonObject, OBJECT extends JsonObject> @NotNull TARGET convert(
+      @NotNull OBJECT object,
+      @NotNull Class<TARGET> targetClass
+  ) {
+    try (final Json json = Json.open()) {
+      return json.mapper.convertValue(object, targetClass);
     }
   }
 }

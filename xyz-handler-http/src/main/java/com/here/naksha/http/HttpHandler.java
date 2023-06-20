@@ -1,17 +1,15 @@
 package com.here.naksha.http;
 
-import com.here.xyz.EventHandler;
+import com.here.xyz.OldEventHandler;
 import com.here.xyz.IEventContext;
-import com.here.xyz.Payload;
-import com.here.xyz.Typed;
-import com.here.xyz.responses.ModifiedEventResponse;
+import com.here.xyz.models.Payload;
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.Event;
+import com.here.xyz.models.payload.Event;
 import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.hub.Connector;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.models.hub.plugins.Connector;
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.XyzError;
+import com.here.xyz.models.payload.XyzResponse;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -23,9 +21,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * The HTTP handler that sends events to a foreign host.
- * This handler can also act as a gateway to a bootstrap server running handler code that is non-compatible with Naksha.
  */
-public class HttpHandler extends EventHandler {
+public class HttpHandler extends OldEventHandler {
 
   public static final String ID = "naksha:http"; // com.here.naksha.http.HttpHandler
 
@@ -86,7 +83,7 @@ public class HttpHandler extends EventHandler {
     } catch (Exception e) {
       return new ErrorResponse()
           .withStreamId(event.getStreamId())
-          .withError(XyzError.ILLEGAL_ARGUMENT)
+          .withError(XyzError.BAD_GATEWAY)
           .withErrorMessage(e.toString());
     }
   }

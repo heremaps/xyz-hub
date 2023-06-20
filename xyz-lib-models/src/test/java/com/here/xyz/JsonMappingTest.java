@@ -27,12 +27,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.XyzError;
+import com.here.xyz.models.payload.responses.ErrorResponse;
 import com.here.xyz.util.json.Json;
 import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.view.Deserialize;
-import com.here.xyz.view.View;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 

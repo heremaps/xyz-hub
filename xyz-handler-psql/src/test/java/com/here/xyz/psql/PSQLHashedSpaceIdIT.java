@@ -22,7 +22,7 @@ package com.here.xyz.psql;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.xyz.psql.tools.FeatureGenerator;

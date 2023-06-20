@@ -34,7 +34,12 @@ public class JsonUtils {
       return (T) deepCopyList((List<Object>) object);
     }
     if (object.getClass().isArray()) {
-      return (T) deepCopyArray((Object[]) object);
+      final Class<?> componentClass = object.getClass().getComponentType();
+      if (componentClass.isPrimitive()) {
+        // TODO: Fix me!
+        throw new UnsupportedOperationException("deepCopy of primitive array");
+      }
+      return (T) deepCopyObjectArray((T[]) object, (Class<T>) componentClass);
     }
     // These objects are immutable anyway, we can stick with the references!
     if (object instanceof String || object instanceof Number || object instanceof Boolean) {
@@ -51,7 +56,6 @@ public class JsonUtils {
    * @return the copy.
    * @throws IllegalArgumentException if the given map contains a value that can't be cloned.
    */
-  @SuppressWarnings("unchecked")
   public static @NotNull Map<@NotNull String, Object> deepCopyMap(@NotNull Map<@NotNull String, Object> original) {
     final HashMap<String, Object> clone = new HashMap<>();
     for (final Map.Entry<String, Object> entry : original.entrySet()) {
@@ -81,11 +85,13 @@ public class JsonUtils {
   /**
    * Clone the given JSON like array.
    *
-   * @param original the array to clone.
+   * @param original       the array to clone.
+   * @param componentClass the class of the component.
+   * @param <T>            the array component-type.
    * @return the deep clone.
    * @throws IllegalArgumentException if the given array contains a value that can't be cloned.
    */
-  public static <T> @Nullable T @NotNull [] deepCopyArray(@Nullable T @NotNull [] original) {
+  public static <T> @Nullable T @NotNull [] deepCopyObjectArray(@Nullable T @NotNull [] original, @NotNull Class<T> componentClass) {
     final @Nullable T @NotNull [] clone = Arrays.copyOf(original, original.length);
     for (int i = 0; i < clone.length; i++) {
       clone[i] = deepCopy(clone[i]);

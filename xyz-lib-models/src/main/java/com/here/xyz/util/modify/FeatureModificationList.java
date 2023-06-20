@@ -19,25 +19,16 @@
 
 package com.here.xyz.util.modify;
 
-import static com.here.xyz.util.modify.IfExists.DELETE;
 import static com.here.xyz.util.modify.IfExists.MERGE;
-import static com.here.xyz.util.modify.IfExists.PATCH;
-import static com.here.xyz.util.modify.IfExists.REPLACE;
-import static com.here.xyz.util.modify.IfExists.RETAIN;
 import static com.here.xyz.util.modify.IfNotExists.CREATE;
 
-import com.here.xyz.events.feature.LoadFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.LoadFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Action;
 import com.here.xyz.models.geojson.implementation.Feature;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import javax.annotation.Nonnull;
-import org.checkerframework.checker.units.qual.A;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

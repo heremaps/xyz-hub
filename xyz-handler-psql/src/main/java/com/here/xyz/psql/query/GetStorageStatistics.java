@@ -22,12 +22,12 @@ package com.here.xyz.psql.query;
 import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.here.mapcreator.ext.naksha.PsqlCollection;
-import com.here.xyz.events.info.GetStorageStatisticsEvent;
+import com.here.xyz.models.payload.events.info.GetStorageStatisticsEvent;
 import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.SQLQueryExt;
-import com.here.xyz.responses.StatisticsResponse.Value;
-import com.here.xyz.responses.StorageStatistics;
-import com.here.xyz.responses.StorageStatistics.SpaceByteSizes;
+import com.here.xyz.models.payload.responses.StatisticsResponse.Value;
+import com.here.xyz.models.payload.responses.StorageStatistics;
+import com.here.xyz.models.payload.responses.StorageStatistics.SpaceByteSizes;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;

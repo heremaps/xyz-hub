@@ -19,8 +19,8 @@
 
 package com.here.xyz.exceptions;
 
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.XyzError;
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.XyzError;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

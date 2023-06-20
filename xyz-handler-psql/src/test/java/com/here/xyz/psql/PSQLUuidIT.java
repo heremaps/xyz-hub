@@ -20,13 +20,13 @@ package com.here.xyz.psql;
 
 import com.amazonaws.util.IOUtils;
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.feature.ModifyFeaturesEvent;
-import com.here.xyz.events.feature.SearchForFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.XyzError;
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.XyzError;
 
 import java.util.*;
 import java.util.stream.Collectors;

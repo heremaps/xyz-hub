@@ -21,7 +21,7 @@ package com.here.xyz.psql;
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.jayway.jsonpath.DocumentContext;

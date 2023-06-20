@@ -1,11 +1,11 @@
 package com.here.xyz.events;
 
-import static com.here.xyz.events.QueryDelimiter.AMPERSAND;
-import static com.here.xyz.events.QueryDelimiter.COLON;
-import static com.here.xyz.events.QueryDelimiter.END;
-import static com.here.xyz.events.QueryDelimiter.EXCLAMATION_MARK;
-import static com.here.xyz.events.QueryDelimiter.PLUS;
-import static com.here.xyz.events.QueryParameterType.STRING;
+import static com.here.xyz.models.payload.events.QueryDelimiter.AMPERSAND;
+import static com.here.xyz.models.payload.events.QueryDelimiter.COLON;
+import static com.here.xyz.models.payload.events.QueryDelimiter.END;
+import static com.here.xyz.models.payload.events.QueryDelimiter.EXCLAMATION_MARK;
+import static com.here.xyz.models.payload.events.QueryDelimiter.PLUS;
+import static com.here.xyz.models.payload.events.QueryParameterType.STRING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -14,6 +14,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.xyz.exceptions.ParameterError;
+import com.here.xyz.models.payload.events.QueryDelimiter;
+import com.here.xyz.models.payload.events.QueryOperation;
+import com.here.xyz.models.payload.events.QueryParameter;
+import com.here.xyz.models.payload.events.QueryParameterDecoder;
+import com.here.xyz.models.payload.events.QueryParameterList;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 

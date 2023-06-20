@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS ${table}
 CREATE SEQUENCE IF NOT EXISTS "${table}_i_seq" AS int8 OWNED BY "${table}".i;
 ```
 
-The XYZ-Hub later added a new column `deleted` as `BOOLEAN DEFAULT FALSE`, what is no longer supported and simply ignored by Naksha-Hub.
+The XYZ-Hub later added a new column `deleted` as `BOOLEAN DEFAULT FALSE`, this is no longer supported and simply ignored by Naksha-Hub.
 
 So, for new tables the only minor change is that `i` becomes a primary key and is no `BIGSERIAL` any longer, because the triggers we add now increment `i` by them self. It will not harm, if it is till an auto-sequence, just this will consume one additional number here and there, not needed otherwise. Another changes implied is how `i` is used, it will be incremented with any change done to a row, so it no longer uniquely identifies a row, but a state. This is a major semantic difference that implies, you can move existing tables into Naksha and back to XYZ-Hub, but you can't possibly use Naksha and XYZ-Hub in parallel with the same table, because they have different semantics for `i`.
 
@@ -68,10 +68,10 @@ CREATE TABLE IF NOT EXISTS transactions
     commit_json          jsonb,
     -- The binary attachment for commit messages.
     commit_attachment    bytea,
-    -- The unique sequential identifier, set by the transaction fix job as soon as the transaction becomes visible.
-    seq_id               int8,
-    -- The timestamp of when the transaction became visible for the transaction fix job.
-    seq_ts               timestamptz
+    -- The unique publishing identifier, set by the transaction fix job as soon as the transaction becomes visible.
+    publish_id           int8,
+    -- The publishing timestamp of when the transaction became visible.
+    publish_ts           timestamptz
 );
 ```
 

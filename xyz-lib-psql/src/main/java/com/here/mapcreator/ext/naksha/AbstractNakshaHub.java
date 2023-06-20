@@ -1,15 +1,15 @@
 package com.here.mapcreator.ext.naksha;
 
 import com.here.xyz.INaksha;
-import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.Subscription;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
+import com.here.xyz.models.hub.plugins.Connector;
+import com.here.xyz.models.hub.pipelines.Space;
+import com.here.xyz.models.hub.pipelines.Subscription;
+import com.here.xyz.models.hub.plugins.EventHandler;
+import com.here.xyz.models.hub.plugins.Storage;
+import com.here.xyz.storage.CollectionCache;
+import java.io.IOException;
+import java.sql.SQLException;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * The abstract Naksha-Hub is the base class for the Naksha-Hub implementation, granting access to the administration PostgresQL database.
@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  * not be used to query data from a foreign storage, it only holds administrative spaces. Normally this is only created and used by the
  * Naksha-Hub itself and exposed to all other parts of the Naksha-Hub via the {@link INaksha#get()} method.
  */
-public abstract class AbstractNakshaHub extends PsqlClient implements INaksha {
+public abstract class AbstractNakshaHub extends PsqlStorage implements INaksha {
 
   /**
    * The collection for spaces.
@@ -35,67 +35,39 @@ public abstract class AbstractNakshaHub extends PsqlClient implements INaksha {
   public static final @NotNull String DEFAULT_SUBSCRIPTIONS_COLLECTION = "naksha:subscriptions";
 
   /**
-   * Create a new Naksha client instance.
+   * Create a new Naksha client instance and register as default Naksha client.
    *
    * @param config the configuration of the admin-database to connect to.
+   * @throws SQLException if any error occurred while accessing the database.
+   * @throws IOException  if reading the SQL extensions from the resources fail.
    */
-  protected AbstractNakshaHub(@NotNull PsqlConfig config) {
+  protected AbstractNakshaHub(@NotNull PsqlConfig config) throws SQLException, IOException {
     super(config, 0L);
+    instance.getAndSet(this);
   }
 
   /**
-   * Register this Naksha client as global singleton.
-   *
-   * @return The previously registered client; if any.
+   * Cache.
    */
-  protected @Nullable INaksha register() {
-    return instance.getAndSet(this);
-  }
+  public final @NotNull CollectionCache<Space> spaces = null;
 
-  // TODO: Create a cache-client for each of the managed collections: spaces, connectors and subscriptions!
-  //       This allows us to use the cache client in the future as well for normal feature spaces!
+  /**
+   * Cache.
+   */
+  public final @NotNull CollectionCache<Connector> connectors = null;
 
-  private final ConcurrentHashMap<@NotNull String, @NotNull Space> allSpacesById = new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<@NotNull String, @NotNull Connector> allConnectorsById = new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<@NotNull Long, @NotNull Connector> allConnectorsByNumber = new ConcurrentHashMap<>();
-  private final ConcurrentHashMap<@NotNull String, @NotNull Subscription> allSubscriptionsById = new ConcurrentHashMap<>();
+  /**
+   * Cache.
+   */
+  public final @NotNull CollectionCache<Subscription> subscriptions = null;
 
-  @Override
-  public @NotNull List<@NotNull Space> getSpacesByCollection(@NotNull String collection) {
-    final Enumeration<@NotNull String> keys = allSpacesById.keys();
-    final ArrayList<@NotNull Space> spaces = new ArrayList<>();
-    while (keys.hasMoreElements()) {
-      final String id = keys.nextElement();
-      final Space space = allSpacesById.get(id);
-      if (space != null && collection.equals(space.getCollection())) {
-        spaces.add(space);
-      }
-    }
-    return spaces;
-  }
+  /**
+   * Cache.
+   */
+  public final @NotNull CollectionCache<EventHandler> eventHandlers = null;
 
-  @Override
-  public @Nullable Space getSpaceById(@NotNull String id) {
-    return allSpacesById.get(id);
-  }
-
-  @Override
-  public @Nullable Connector getConnectorById(@NotNull String id) {
-    return allConnectorsById.get(id);
-  }
-
-  @Override
-  public @Nullable Connector getConnectorByNumber(long number) {
-    return allConnectorsByNumber.get(number);
-  }
-
-  @Override
-  public @NotNull Iterable<Connector> getAllConnectors() {
-    return allConnectorsById.values();
-  }
-
-  @Override
-  public @Nullable Subscription getSubscriptionById(@NotNull String id) {
-    return allSubscriptionsById.get(id);
-  }
+  /**
+   * Cache.
+   */
+  public final @NotNull CollectionCache<Storage> storages = null;
 }

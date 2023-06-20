@@ -21,19 +21,19 @@ package com.here.xyz.events;
 
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.xyz.models.payload.Event;
 import com.here.xyz.util.json.Json;
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.feature.GetFeaturesByTileEvent;
-import com.here.xyz.events.feature.IterateFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.models.payload.events.feature.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.LazyParsedFeatureCollectionTest;
+import com.here.xyz.util.json.JsonUtils;
 import com.here.xyz.view.Deserialize;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -56,7 +56,22 @@ public class EventTest {
   public void testClone() throws Exception {
     try (final Json json = Json.open()) {
       final Event event = json.reader(Deserialize.Public.class).readValue(eventJson, Event.class);
-      final Event clone = JsonSerializable.copy(event);
+      final Event clone = JsonSerializable.deepClone(event);
+
+      assertNotSame(event, clone);
+      assertTrue(event instanceof IterateFeaturesEvent);
+      assertTrue(clone instanceof IterateFeaturesEvent);
+      assertEquals(event.getSpaceId(), clone.getSpaceId());
+      assertEquals(event.getParams(), clone.getParams());
+      assertEquals(((IterateFeaturesEvent) event).getLimit(), ((IterateFeaturesEvent) clone).getLimit());
+    }
+  }
+
+  @Test
+  public void testDeepCopy() throws Exception {
+    try (final Json json = Json.open()) {
+      final Event event = json.reader(Deserialize.Public.class).readValue(eventJson, Event.class);
+      final Event clone = JsonUtils.deepCopy(event);
 
       assertNotSame(event, clone);
       assertTrue(event instanceof IterateFeaturesEvent);
@@ -90,33 +105,5 @@ public class EventTest {
 
     assertEquals(event1.getHash(), event2.getHash());
     assertNotEquals(event1.getHash(), event3.getHash());
-  }
-
-  @Test
-  public void checkTrustedParams() throws Exception {
-    final ObjectMapper om = new ObjectMapper();
-    IterateFeaturesEvent event = om.readValue(eventJson, IterateFeaturesEvent.class);
-    assertNull(event.getTrustedParams());
-
-    event.setTrustedParams(new TrustedParams());
-    assertTrue(event.getTrustedParams().isEmpty());
-
-    event.getTrustedParams().putCookie("a", "a1");
-    event.getTrustedParams().putHeader("b", "b1");
-    event.getTrustedParams().putQueryParam("c", "c1");
-    event.getTrustedParams().put("customKey", "customValue");
-
-    assertEquals("a1", event.getTrustedParams().getCookie("a"));
-    assertEquals("b1", event.getTrustedParams().getHeader("b"));
-    assertEquals("c1", event.getTrustedParams().getQueryParam("c"));
-    assertEquals("customValue", event.getTrustedParams().get("customKey"));
-    assertFalse(event.getTrustedParams().isEmpty());
-
-    String json = JsonSerializable.serialize(event);
-    event = om.readValue(json, IterateFeaturesEvent.class);
-
-    assertNotNull(event.getTrustedParams());
-    assertFalse(event.getTrustedParams().isEmpty());
-    assertTrue(event.getTrustedParams().keySet().containsAll(Arrays.asList("cookies", "headers", "queryParams", "customKey")));
   }
 }

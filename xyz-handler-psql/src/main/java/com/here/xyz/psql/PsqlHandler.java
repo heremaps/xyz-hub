@@ -23,52 +23,52 @@ import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_MIXED;
 import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_REAL;
 import static com.here.xyz.NakshaLogger.currentLogger;
-import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT;
-import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
-import static com.here.xyz.events.space.ModifySpaceEvent.Operation.CREATE;
-import static com.here.xyz.events.space.ModifySpaceEvent.Operation.UPDATE;
-import static com.here.xyz.responses.XyzError.EXCEPTION;
+import static com.here.xyz.models.payload.events.feature.GetFeaturesByTileResponseType.MVT;
+import static com.here.xyz.models.payload.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
+import static com.here.xyz.models.payload.events.space.ModifySpaceEvent.Operation.CREATE;
+import static com.here.xyz.models.payload.events.space.ModifySpaceEvent.Operation.UPDATE;
+import static com.here.xyz.models.payload.responses.XyzError.EXCEPTION;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.mapcreator.ext.naksha.PsqlDataSource;
-import com.here.xyz.EventHandler;
 import com.here.xyz.ExtendedEventHandler;
 import com.here.xyz.IEventContext;
-import com.here.xyz.events.clustering.Clustering;
-import com.here.xyz.events.clustering.ClusteringHexBin;
-import com.here.xyz.events.clustering.ClusteringQuadBin;
-import com.here.xyz.events.clustering.ClusteringQuadBin.CountMode;
-import com.here.xyz.events.tweaks.Tweaks;
-import com.here.xyz.events.tweaks.TweaksEnsure;
-import com.here.xyz.events.tweaks.TweaksSampling;
-import com.here.xyz.events.tweaks.TweaksSimplification;
+import com.here.xyz.models.hub.plugins.EventHandler;
+import com.here.xyz.models.payload.events.clustering.Clustering;
+import com.here.xyz.models.payload.events.clustering.ClusteringHexBin;
+import com.here.xyz.models.payload.events.clustering.ClusteringQuadBin;
+import com.here.xyz.models.payload.events.clustering.ClusteringQuadBin.CountMode;
+import com.here.xyz.models.payload.events.tweaks.Tweaks;
+import com.here.xyz.models.payload.events.tweaks.TweaksEnsure;
+import com.here.xyz.models.payload.events.tweaks.TweaksSampling;
+import com.here.xyz.models.payload.events.tweaks.TweaksSimplification;
 import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.hub.Connector;
+import com.here.xyz.models.hub.plugins.Connector;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
 import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
 import com.here.xyz.util.NanoTime;
 import com.here.mapcreator.ext.naksha.PsqlCollection;
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
-import com.here.xyz.events.Event;
-import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.feature.GetFeaturesByIdEvent;
-import com.here.xyz.events.feature.GetFeaturesByTileEvent;
-import com.here.xyz.events.feature.GetFeaturesByTileResponseType;
-import com.here.xyz.events.info.GetHistoryStatisticsEvent;
-import com.here.xyz.events.info.GetStatisticsEvent;
-import com.here.xyz.events.info.GetStorageStatisticsEvent;
-import com.here.xyz.events.info.HealthCheckEvent;
-import com.here.xyz.events.feature.IterateFeaturesEvent;
-import com.here.xyz.events.feature.history.IterateHistoryEvent;
-import com.here.xyz.events.feature.LoadFeaturesEvent;
-import com.here.xyz.events.feature.ModifyFeaturesEvent;
-import com.here.xyz.events.space.ModifySpaceEvent;
-import com.here.xyz.events.admin.ModifySubscriptionEvent;
-import com.here.xyz.events.feature.SearchForFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.DeleteFeaturesByTagEvent;
+import com.here.xyz.models.payload.Event;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByGeometryEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByTileResponseType;
+import com.here.xyz.models.payload.events.info.GetHistoryStatisticsEvent;
+import com.here.xyz.models.payload.events.info.GetStatisticsEvent;
+import com.here.xyz.models.payload.events.info.GetStorageStatisticsEvent;
+import com.here.xyz.models.payload.events.info.HealthCheckEvent;
+import com.here.xyz.models.payload.events.feature.IterateFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.history.IterateHistoryEvent;
+import com.here.xyz.models.payload.events.feature.LoadFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.models.payload.events.space.ModifySpaceEvent;
+import com.here.xyz.models.payload.events.admin.ModifySubscriptionEvent;
+import com.here.xyz.models.payload.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.HQuad;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
@@ -85,18 +85,18 @@ import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.mapcreator.ext.naksha.sql.DhString;
-import com.here.xyz.responses.BinaryResponse;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.HealthStatus;
-import com.here.xyz.responses.HistoryStatisticsResponse;
-import com.here.xyz.responses.StatisticsResponse;
-import com.here.xyz.responses.StatisticsResponse.Value;
-import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
-import com.here.xyz.responses.changesets.Changeset;
-import com.here.xyz.responses.changesets.ChangesetCollection;
-import com.here.xyz.responses.changesets.CompactChangeset;
+import com.here.xyz.models.payload.responses.BinaryResponse;
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.HealthStatus;
+import com.here.xyz.models.payload.responses.HistoryStatisticsResponse;
+import com.here.xyz.models.payload.responses.StatisticsResponse;
+import com.here.xyz.models.payload.responses.StatisticsResponse.Value;
+import com.here.xyz.models.payload.responses.SuccessResponse;
+import com.here.xyz.models.payload.responses.XyzError;
+import com.here.xyz.models.payload.XyzResponse;
+import com.here.xyz.models.payload.responses.changesets.Changeset;
+import com.here.xyz.models.payload.responses.changesets.ChangesetCollection;
+import com.here.xyz.models.payload.responses.changesets.CompactChangeset;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
@@ -129,21 +129,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlHandler extends ExtendedEventHandler {
+public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
 
-  /**
-   * The
-   */
-  public static final String ID = "naksha:psql";
-
-  public static void register() {
-    EventHandler.register(PsqlHandler.ID, PsqlHandler.class);
-  }
-
-
-  public PsqlHandler(@NotNull Connector connector) throws XyzErrorException {
-    super(connector);
-    connectorParams = new PsqlHandlerParams(connector.getParams());
+  public PsqlHandler(@NotNull EventHandler eventHandler) throws XyzErrorException {
+    super(eventHandler);
+    connectorParams = new PsqlHandlerParams(eventHandler.getProperties());
   }
 
   private static final Logger logger = LoggerFactory.getLogger(PsqlHandler.class);
@@ -161,11 +151,7 @@ public class PsqlHandler extends ExtendedEventHandler {
   public void initialize(@NotNull IEventContext ctx) {
     this.event = ctx.getEvent();
     this.retryAttempted = false;
-    Map<@NotNull String, @Nullable Object> raw = event.getConnectorParams();
-    if (raw == null) {
-      throw new NullPointerException("connectorParams");
-    }
-    applicationName = event.getConnectorId() + ":" + event.getStreamId();
+    applicationName = eventHandler.getId() + ":" + event.getStreamId();
     assert event.getSpaceId() != null;
     spaceId = event.getSpaceId();
     table = event.getCollection(spaceId);
@@ -399,8 +385,7 @@ public class PsqlHandler extends ExtendedEventHandler {
       }
 
       if (bMvtRequested) {
-        if (event.getConnectorParams() == null
-            || event.getConnectorParams().get("mvtSupport") != Boolean.TRUE) {
+        if (eventHandler.getProperties().get("mvtSupport") != Boolean.TRUE) {
           throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "mvt format is not supported");
         }
 

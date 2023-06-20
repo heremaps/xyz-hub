@@ -22,6 +22,7 @@ package com.here.xyz.responses;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.here.xyz.models.payload.responses.BinaryResponse;
 import org.junit.jupiter.api.Test;
 
 public class TestBinaryResponse {

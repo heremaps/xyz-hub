@@ -1,7 +1,6 @@
 package com.here.naksha.http;
 
 import com.here.xyz.EventHandlerParams;
-import com.sun.net.httpserver.HttpContext;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Map;

@@ -4,7 +4,6 @@ import static com.here.xyz.NakshaLogger.currentLogger;
 import static com.here.xyz.util.diff.Patcher.calculateDifferenceOfPartialUpdate;
 import static com.here.xyz.util.modify.IfExists.REPLACE;
 
-import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.geojson.implementation.Action;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
@@ -12,6 +11,7 @@ import com.here.xyz.util.diff.ConflictResolution;
 import com.here.xyz.util.diff.Difference;
 import com.here.xyz.util.diff.MergeConflictException;
 import com.here.xyz.util.diff.Patcher;
+import com.here.xyz.util.json.JsonUtils;
 import java.util.HashMap;
 import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
@@ -228,7 +228,8 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
     if (diff == null) {
       return null;
     }
-    final FEATURE result = JsonSerializable.copy(head);
+    final FEATURE result = JsonUtils.deepCopy(head);
+    assert result != null;
     Patcher.patch(result, diff);
     return result;
   }
@@ -258,7 +259,8 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
       return null;
     }
     final Difference mergedDiff = Patcher.mergeDifferences(baseToHeadDiff, baseToInputDiff, cr);
-    final FEATURE result = JsonSerializable.copy(base);
+    final FEATURE result = JsonUtils.deepCopy(base);
+    assert result != null;
     Patcher.patch(result, mergedDiff);
     return result;
   }

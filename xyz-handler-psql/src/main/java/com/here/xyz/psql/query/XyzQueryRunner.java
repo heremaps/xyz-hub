@@ -1,10 +1,10 @@
 package com.here.xyz.psql.query;
 
-import com.here.xyz.events.Event;
+import com.here.xyz.models.payload.Event;
 import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQueryExt;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.models.payload.XyzResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.jetbrains.annotations.NotNull;

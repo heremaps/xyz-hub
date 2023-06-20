@@ -2,13 +2,13 @@ package com.here.xyz;
 
 import static com.here.xyz.NakshaLogger.currentLogger;
 
-import com.here.xyz.events.Event;
+import com.here.xyz.models.payload.Event;
 import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.Space;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.models.hub.plugins.Connector;
+import com.here.xyz.models.hub.pipelines.Space;
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.XyzError;
+import com.here.xyz.models.payload.XyzResponse;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -108,13 +108,13 @@ public class EventPipeline implements IEventContext {
    * @throws XyzErrorException If any error occurred.
    */
   public @NotNull EventPipeline addSpaceHandler(@NotNull Space space) throws XyzErrorException {
-    final @Nullable List<@NotNull String> connectorIds = space.getConnectorIds();
+    final @Nullable List<@NotNull String> connectorIds = space.getEventHandlers();
     final int SIZE;
     if (connectorIds == null || (SIZE = connectorIds.size()) == 0) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT,
           "The configuration of space " + space.getId() + " is missing the 'connectors'");
     }
-    final @NotNull EventHandler @NotNull [] handlers = new EventHandler[SIZE];
+    final @NotNull OldEventHandler @NotNull [] handlers = new OldEventHandler[SIZE];
     for (int i = 0; i < SIZE; i++) {
       final String connectorId = connectorIds.get(i);
       //noinspection ConstantConditions
@@ -127,7 +127,7 @@ public class EventPipeline implements IEventContext {
             "The connector[" + i + "] with id " + connectorId + " does not exists");
       }
       try {
-        handlers[i] = EventHandler.newInstance(connector);
+        handlers[i] = OldEventHandler.newInstance(connector);
       } catch (XyzErrorException e) {
         throw new XyzErrorException(XyzError.EXCEPTION,
             "Failed to create an instance of the connector[" + i + "]: " + connectorIds, e);
@@ -135,7 +135,7 @@ public class EventPipeline implements IEventContext {
     }
 
     // Add the handlers and done.
-    for (final EventHandler handler : handlers) {
+    for (final OldEventHandler handler : handlers) {
       addEventHandler(handler);
     }
     return this;
@@ -150,7 +150,7 @@ public class EventPipeline implements IEventContext {
    *                           this method.
    */
   public @NotNull EventPipeline addConnectorHandler(@NotNull Connector connector) throws XyzErrorException {
-    addEventHandler(EventHandler.newInstance(connector));
+    addEventHandler(OldEventHandler.newInstance(connector));
     return this;
   }
 

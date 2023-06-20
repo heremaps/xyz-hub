@@ -1,8 +1,8 @@
 package com.here.xyz;
 
-import com.here.xyz.events.Event;
+import com.here.xyz.models.payload.Event;
 import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.models.payload.XyzResponse;
 import org.jetbrains.annotations.NotNull;
 
 /**

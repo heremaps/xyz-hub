@@ -1,27 +1,27 @@
 package com.here.xyz;
 
-import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
-import com.here.xyz.events.Event;
-import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.feature.GetFeaturesByGeometryEvent;
-import com.here.xyz.events.feature.GetFeaturesByIdEvent;
-import com.here.xyz.events.feature.GetFeaturesByTileEvent;
-import com.here.xyz.events.info.GetHistoryStatisticsEvent;
-import com.here.xyz.events.info.GetStatisticsEvent;
-import com.here.xyz.events.info.GetStorageStatisticsEvent;
-import com.here.xyz.events.info.HealthCheckEvent;
-import com.here.xyz.events.feature.IterateFeaturesEvent;
-import com.here.xyz.events.feature.history.IterateHistoryEvent;
-import com.here.xyz.events.feature.LoadFeaturesEvent;
-import com.here.xyz.events.feature.ModifyFeaturesEvent;
-import com.here.xyz.events.space.ModifySpaceEvent;
-import com.here.xyz.events.admin.ModifySubscriptionEvent;
-import com.here.xyz.events.feature.SearchForFeaturesEvent;
+import com.here.xyz.models.hub.plugins.EventHandler;
+import com.here.xyz.models.payload.events.feature.DeleteFeaturesByTagEvent;
+import com.here.xyz.models.payload.Event;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByGeometryEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByIdEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByTileEvent;
+import com.here.xyz.models.payload.events.info.GetHistoryStatisticsEvent;
+import com.here.xyz.models.payload.events.info.GetStatisticsEvent;
+import com.here.xyz.models.payload.events.info.GetStorageStatisticsEvent;
+import com.here.xyz.models.payload.events.info.HealthCheckEvent;
+import com.here.xyz.models.payload.events.feature.IterateFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.history.IterateHistoryEvent;
+import com.here.xyz.models.payload.events.feature.LoadFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.models.payload.events.space.ModifySpaceEvent;
+import com.here.xyz.models.payload.events.admin.ModifySubscriptionEvent;
+import com.here.xyz.models.payload.events.feature.SearchForFeaturesEvent;
 import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.hub.Connector;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.XyzError;
+import com.here.xyz.models.payload.XyzResponse;
 import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,10 +29,10 @@ import org.jetbrains.annotations.NotNull;
  * Default implementation of an extended event handler that allows to only implement handling for supported events, and optionally of some
  * post-processing.
  */
-public class ExtendedEventHandler extends EventHandler implements IExtendedEventHandler {
+public class ExtendedEventHandler<HANDLER extends EventHandler> implements IExtendedEventHandler {
 
-  public ExtendedEventHandler(@NotNull Connector connector) throws XyzErrorException {
-    super(connector);
+  public ExtendedEventHandler(@NotNull HANDLER eventHandler) throws XyzErrorException {
+    this.eventHandler = eventHandler;
   }
 
   @Override
@@ -46,6 +46,7 @@ public class ExtendedEventHandler extends EventHandler implements IExtendedEvent
     this.event = ctx.getEvent();
   }
 
+  protected final @NotNull HANDLER eventHandler;
   protected Event event;
   protected IEventContext ctx;
 

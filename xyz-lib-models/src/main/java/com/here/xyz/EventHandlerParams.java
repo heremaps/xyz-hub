@@ -11,7 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Base class recommended to implement processor parameters.
+ * Helper class parse event handler parameters.
  */
 @SuppressWarnings({"SameParameterValue", "unchecked"})
 public abstract class EventHandlerParams {
@@ -24,20 +24,20 @@ public abstract class EventHandlerParams {
   /**
    * Parses the given value from the connector parameters using the default value, if the given value is of an invalid type or not given.
    *
-   * @param connectorParams The connector params.
-   * @param name            The name of the parameter.
-   * @param expectedType    The type that is expected.
-   * @param <T>             The value-type.
+   * @param properties   the properties of the event handler.
+   * @param name         The name of the parameter.
+   * @param expectedType The type that is expected.
+   * @param <T>          The value-type.
    * @return the value.
    * @throws NullPointerException     If the parameter not given.
    * @throws IllegalArgumentException If the parameter given, but not of the expected type.
    */
   protected <T> @NotNull T parseValue(
-      @NotNull Map<@NotNull String, @Nullable Object> connectorParams,
+      @NotNull Map<@NotNull String, @Nullable Object> properties,
       @NotNull String name,
       @NotNull Class<T> expectedType
   ) {
-    return parseValueWithNullableDefault(connectorParams, name, expectedType, null);
+    return parseValueWithNullableDefault(properties, name, expectedType, null);
   }
 
   /**

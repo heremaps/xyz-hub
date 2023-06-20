@@ -18,11 +18,15 @@
  */
 package com.here.xyz.psql;
 
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.StatisticsResponse;
+import com.here.xyz.models.payload.responses.SuccessResponse;
+import com.here.xyz.models.payload.responses.XyzError;
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.info.GetStatisticsEvent;
-import com.here.xyz.events.feature.ModifyFeaturesEvent;
-import com.here.xyz.events.space.ModifySpaceEvent;
-import com.here.xyz.models.hub.Space;
+import com.here.xyz.models.payload.events.info.GetStatisticsEvent;
+import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
+import com.here.xyz.models.payload.events.space.ModifySpaceEvent;
+import com.here.xyz.models.hub.pipelines.Space;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.*;
 import com.here.mapcreator.ext.naksha.sql.DhString;

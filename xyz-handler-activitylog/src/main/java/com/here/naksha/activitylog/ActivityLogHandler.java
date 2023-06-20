@@ -2,10 +2,10 @@ package com.here.naksha.activitylog;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.here.xyz.EventHandler;
+import com.here.xyz.IEventHandler;
 import com.here.xyz.IEventContext;
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.Event;
+import com.here.xyz.models.payload.Event;
 import com.here.xyz.exceptions.XyzErrorException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -14,9 +14,9 @@ import com.here.xyz.models.geojson.implementation.namespaces.Original;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
 import com.flipkart.zjsonpatch.JsonDiff;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.models.hub.Connector;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.models.hub.plugins.Connector;
+import com.here.xyz.models.payload.responses.XyzError;
+import com.here.xyz.models.payload.XyzResponse;
 import java.util.List;
 import java.util.Map;
 
@@ -26,8 +26,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The activity log compatibility handler. Can be used as pre- and post-processor.
  */
-public class ActivityLogHandler extends EventHandler {
-  public static final String ID = "xyz-hub:activity-log";
+public class ActivityLogHandler implements IEventHandler {
 
   /**
    * Creates a new activity log handler.
@@ -36,9 +35,8 @@ public class ActivityLogHandler extends EventHandler {
    * @throws XyzErrorException If any error occurred.
    */
   public ActivityLogHandler(@NotNull Connector connector) throws XyzErrorException {
-    super(connector);
     try {
-      this.params = new ActivityLogHandlerParams(connector.getParams());
+      this.params = new ActivityLogHandlerParams(connector.getProperties());
     } catch (Exception e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
     }

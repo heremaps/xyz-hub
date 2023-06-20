@@ -21,15 +21,13 @@ import org.jetbrains.annotations.Nullable;
  * good hash algorithms.
  *
  * <p><b>Note</b>: This implementation compares the key and values using {@link ILike#equals(Object, Object)}, therefore, when using own
- * keys, implementing the {@link ILike} interface will be helpful to get better matches and even allows to add weak-keys, which are
+ * key, implementing the {@link ILike} interface will be helpful to get better matches and even allows to add weak-keys, which are
  * automatically reclaimed, when another key with the same hash-code is added (this is what the {@link StringCache} implementation does).
  *
  * <p>If there is a hash collision, this implementation will perform a linear probing, resulting in rather bad performance and memory
- * consumption properties.
- *
- * <p>The main idea behind this implementation is to be memory efficient with fair performance. There is no fill-factor, because the map
- * automatically expands when a hash collision happens. As long as only some part of the hash-code collides this is solved with just a small
- * amount of memory, but for a full hash collision a rather big amount of memory is used.
+ * consumption. The main idea behind this implementation is to be memory efficient with fair performance. There is no fill-factor, because
+ * the map automatically expands when a hash collision happens. As long as only some part of the hash-code collides this is solved with just
+ * a small amount of memory, but for a full hash collision a rather big amount of memory is used.
  */
 @SuppressWarnings({"unused", "StringOperationCanBeSimplified"})
 public final class FibMap {

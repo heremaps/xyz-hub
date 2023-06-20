@@ -19,12 +19,12 @@
 
 package com.here.xyz.psql;
 
-import com.here.xyz.Typed;
+import com.here.xyz.models.Typed;
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.feature.IterateFeaturesEvent;
+import com.here.xyz.models.payload.events.feature.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.XyzError;
+import com.here.xyz.models.payload.responses.ErrorResponse;
+import com.here.xyz.models.payload.responses.XyzError;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;

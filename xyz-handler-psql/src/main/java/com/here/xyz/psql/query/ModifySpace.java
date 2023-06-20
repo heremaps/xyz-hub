@@ -19,16 +19,16 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.space.ModifySpaceEvent.Operation.CREATE;
-import static com.here.xyz.events.space.ModifySpaceEvent.Operation.DELETE;
-import static com.here.xyz.events.space.ModifySpaceEvent.Operation.UPDATE;
+import static com.here.xyz.models.payload.events.space.ModifySpaceEvent.Operation.CREATE;
+import static com.here.xyz.models.payload.events.space.ModifySpaceEvent.Operation.DELETE;
+import static com.here.xyz.models.payload.events.space.ModifySpaceEvent.Operation.UPDATE;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.events.space.ModifySpaceEvent;
-import com.here.xyz.events.space.ModifySpaceEvent.Operation;
+import com.here.xyz.models.payload.events.space.ModifySpaceEvent;
+import com.here.xyz.models.payload.events.space.ModifySpaceEvent.Operation;
 import com.here.xyz.psql.PsqlHandler;
-import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.models.payload.responses.SuccessResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;

@@ -19,10 +19,10 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.feature.GetFeaturesByTileResponseType.GEO_JSON;
+import static com.here.xyz.models.payload.events.feature.GetFeaturesByTileResponseType.GEO_JSON;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.events.feature.GetFeaturesByBBoxEvent;
+import com.here.xyz.models.payload.events.feature.GetFeaturesByBBoxEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.SQLQueryBuilder;

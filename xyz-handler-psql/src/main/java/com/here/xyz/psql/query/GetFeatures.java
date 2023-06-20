@@ -20,9 +20,9 @@
 package com.here.xyz.psql.query;
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.events.Event;
-import com.here.xyz.events.feature.QueryEvent;
-import com.here.xyz.events.FeatureEvent;
+import com.here.xyz.models.payload.Event;
+import com.here.xyz.models.payload.events.feature.QueryEvent;
+import com.here.xyz.models.payload.events.FeatureEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.SQLQueryBuilder;

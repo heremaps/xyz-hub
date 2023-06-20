@@ -19,9 +19,9 @@
 
 package com.here.xyz.psql.query;
 
-import com.here.xyz.events.Event;
+import com.here.xyz.models.payload.Event;
 import com.here.xyz.psql.PsqlHandler;
-import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.models.payload.XyzResponse;
 import java.sql.SQLException;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;

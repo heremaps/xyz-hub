@@ -6,17 +6,17 @@ This document describes the basic concepts of the Naksha-Hub with a concrete [re
 
 Naksha uses the following terms:
 
-- **EventHandler**: A class (code) integrated into the Naksha-Hub or loaded as **extension** to it. Naksha-Hub will create instances of event-handler classes, providing context oriented configuration to them, and add these instances into event-pipelines to process events.
 - **Feature**: An object that is compatible to the [GeoJSON](https://tools.ietf.org/html/rfc79460) format.
 - **Collection**: A set of features with history and transaction log.
-- **Storage**: A physical storage to persist collections. 
-- **Connector**: A configuration that binds an event handler (server side code) with an arbitrary JSON configuration. The event-handler implements some event processing logic, for example they send requests to foreign hosts, store or read features from a storage or perform validation and verification.
-- **Space**: The public name to create event-pipelines for REST API triggered event processing. There are for example virtual spaces, which combine other spaces logically.
-- **Subscription**: A configuration to react upon content changes of a **storage**. The subscription can have multiple connectors the same way a space has. They will be executed for all change-events and guaranteed to be called at least ones. That means if an error occurs, they are called again. All subscriptions are independent of each other. Naksha calls individual subscriptions parallel, but each subscription receive all events in order. A subscription is guaranteed to be called at least ones at one Naksha instance at a time, but it can be moved between instances on demand.
-- **Job**: A configuration executed in the background, either only ones (one-time job) or regularly (cron-job). A job has as well connectors the same way that a space and subscription do.
+- **Storage**: A physical storage to persist collections. Naksha accesses storages directly, therefore storage drivers need to be open source and part of the Naksha repository, implementing the IStorage interface.
+- **EventHandler**: A configuration declaring, which class implements the IEventHandler interface. An event handler normally implements some business logic.
+- **RemoteEventHandler**: An configuration declaring that a remote service implements an event handler. This causes a proxy class to be instantiated, which will forward the event to the remote host.
+- **Connector**: A special form of event handler, that uses a local storage. A connector must not be a remote function, because the storages are integrative part of Naksha-Hub.
+- **PipelineComponent**: A component processing events via an event-pipeline. The event-pipeline is part of the configuration of the pipeline-component.
+- **Space**: A pipeline-component with some configuration and a public name. It receives an event from a REST API, sending this event through the attached event-pipeline. A space can be used for any purpose, mostly used to store and modify features in a storage.
+- **Subscription**: A component configuration to react upon content changes of a **storage**. When a storage driver creates a new event to inform Naksha-Hub about a change of the underlying storage, then Naksha will review all subscription to this storage and process these events in the corresponding event-pipelines. A subscription will be executed for all change-events and guaranteed to be called at least ones. That means if an error occurs while processing an event, the subscription pipeline receives the event again. All subscriptions are independent of each other. Naksha calls individual subscriptions in parallel, but each subscription receive all events in order. A subscription is guaranteed to be called at least ones at one Naksha instance at a time, but it can be moved between instances on demand.
 - **AID/AppId**: The identifier of the acting application, read from the JWT token.
 - **Author**: A user or application identifier read from the JWT token.
-- **Owner**: An named entity that owns an object and always has full access to the object, being either a user or application. When creating an object, the owner is read from the JWT token, becoming the owner of the new object. Without an owner in the JWT token, no objects other than features in spaces can be created. In this case, and when no owner is in the JWT token, the owner of the space becomes the owner of the feature.
 
 ## Spaces
 
@@ -85,22 +85,11 @@ Naksha-Hub does not support searching for the real-time, therefore storages do n
 
 All transactions are sets of transaction events. Each transaction event is either related to a collection, or it is a comment. The following event actions do exist:
 
-- `COMMIT_MESSAGE`: An arbitrary comment added to a transaction.
-- `MODIFY_FEATURES`: An event to signal that the features within a collection have been modified.
-- `CREATE_COLLECTION`: An event to signal that a collection has been created.
-- `UPDATE_COLLECTION`: An event to signal that a collection has been modified.
-- `DELETE_COLLECTION`: An event to signal that a collection has been flagged for deletion.
-- `RESTORE_COLLECTION`: An event to signal that the deletion of a collection has been un-done.
+- `TxComment`: An arbitrary comment added to a transaction.
+- `TxModifyFeatures`: An event to signal that the features within a collection have been modified.
+- `TxModifyCollection`: An event to signal that a collection has been modified.
 
-Each transaction event must have the following properties:
-
-- `txn`: The transaction **UUID**, all events with the same transaction **UUID** should be merged into a single transaction-set.
-- `id`: The event identifier within a given transaction-set, unique within the set only.
-- `action`: The action that the event represents (see above).
-- `col`: The collection effected; if any (null for comments).
-- `cn`: The connector-number of the connector that caused the event.
-
-All transactions in a set must have the same transaction **UUID** (`txn`).
+All transaction events are groups in transaction-sets in which all events must have the same transaction number (`txn`).
 
 ## UUIDs
 
