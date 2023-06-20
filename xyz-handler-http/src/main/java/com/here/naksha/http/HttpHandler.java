@@ -1,14 +1,14 @@
 package com.here.naksha.http;
 
 import com.here.xyz.IEventHandler;
-import com.here.xyz.OldEventHandler;
 import com.here.xyz.IEventContext;
 import com.here.xyz.models.Payload;
+import com.here.xyz.models.Typed;
 import com.here.xyz.models.hub.plugins.EventHandler;
+import com.here.xyz.models.payload.responses.ModifiedEventResponse;
 import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.payload.Event;
 import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.hub.plugins.Connector;
 import com.here.xyz.models.payload.responses.ErrorResponse;
 import com.here.xyz.models.payload.responses.XyzError;
 import com.here.xyz.models.payload.XyzResponse;
@@ -84,7 +84,7 @@ public class HttpHandler implements IEventHandler {
     } catch (Exception e) {
       return new ErrorResponse()
           .withStreamId(event.getStreamId())
-          .withError(XyzError.BAD_GATEWAY)
+          .withError(XyzError.ILLEGAL_ARGUMENT)
           .withErrorMessage(e.toString());
     }
   }
