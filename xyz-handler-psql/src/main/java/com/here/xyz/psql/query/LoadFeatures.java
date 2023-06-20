@@ -20,7 +20,7 @@
 package com.here.xyz.psql.query;
 
 
-import com.here.mapcreator.ext.naksha.sql.SQLQuery;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.core.models.payload.events.feature.LoadFeaturesEvent;
 import com.here.xyz.psql.PsqlHandler;
 import java.sql.SQLException;

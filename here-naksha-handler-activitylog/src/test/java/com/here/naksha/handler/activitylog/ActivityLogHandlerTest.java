@@ -3,9 +3,9 @@ package com.here.naksha.handler.activitylog;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.here.mapcreator.ext.naksha.PsqlConfig;
-import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
-import com.here.mapcreator.ext.naksha.PsqlDataSource;
+import com.here.naksha.lib.psql.PsqlConfig;
+import com.here.naksha.lib.psql.PsqlConfigBuilder;
+import com.here.naksha.lib.psql.PsqlDataSource;
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;

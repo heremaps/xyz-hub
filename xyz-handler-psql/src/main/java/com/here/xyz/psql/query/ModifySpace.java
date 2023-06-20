@@ -24,7 +24,7 @@ import static com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEv
 import static com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent.Operation.UPDATE;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.here.mapcreator.ext.naksha.sql.SQLQuery;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent.Operation;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;

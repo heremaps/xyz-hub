@@ -1,10 +1,10 @@
 package com.here.xyz.psql;
 
 
-import com.here.mapcreator.ext.naksha.AbstractPsqlDataSource;
-import com.here.mapcreator.ext.naksha.PsqlConfig;
-import com.here.mapcreator.ext.naksha.PsqlPool;
-import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
+import com.here.naksha.lib.psql.AbstractPsqlDataSource;
+import com.here.naksha.lib.psql.PsqlConfig;
+import com.here.naksha.lib.psql.PsqlPool;
+import com.here.naksha.lib.psql.PsqlPoolConfig;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.jetbrains.annotations.NotNull;

@@ -21,7 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
-import com.here.mapcreator.ext.naksha.PsqlCollection;
+import com.here.naksha.lib.psql.PsqlCollection;
 import com.here.naksha.lib.core.models.payload.events.info.GetStorageStatisticsEvent;
 import com.here.naksha.lib.core.models.payload.responses.StatisticsResponse.Value;
 import com.here.naksha.lib.core.models.payload.responses.StorageStatistics;

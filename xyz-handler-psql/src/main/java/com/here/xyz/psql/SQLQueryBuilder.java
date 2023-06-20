@@ -21,11 +21,11 @@ package com.here.xyz.psql;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.GEO_JSON;
 import static com.here.naksha.lib.core.util.json.JsonSerializable.format;
 
-import com.here.mapcreator.ext.naksha.sql.DhString;
-import com.here.mapcreator.ext.naksha.sql.H3SQL;
-import com.here.mapcreator.ext.naksha.sql.QuadbinSQL;
-import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
+import com.here.naksha.lib.psql.sql.DhString;
+import com.here.naksha.lib.psql.sql.H3SQL;
+import com.here.naksha.lib.psql.sql.QuadbinSQL;
+import com.here.naksha.lib.psql.sql.SQLQuery;
+import com.here.naksha.lib.psql.sql.TweaksSQL;
 import com.here.naksha.lib.core.models.geojson.HQuad;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;

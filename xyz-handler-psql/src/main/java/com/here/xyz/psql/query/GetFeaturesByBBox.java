@@ -21,7 +21,7 @@ package com.here.xyz.psql.query;
 
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.GEO_JSON;
 
-import com.here.mapcreator.ext.naksha.sql.SQLQuery;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByBBoxEvent;
 import com.here.xyz.psql.PsqlHandler;

@@ -1,6 +1,6 @@
 dependencies {
     implementation(project(":here-naksha-lib-core"))
-    implementation(project(":xyz-lib-psql"))
+    implementation(project(":here-naksha-lib-psql"))
 
     implementation("com.flipkart.zjsonpatch:zjsonpatch:0.4.13")
     testImplementation("com.jayway.jsonpath:json-path:2.7.0")

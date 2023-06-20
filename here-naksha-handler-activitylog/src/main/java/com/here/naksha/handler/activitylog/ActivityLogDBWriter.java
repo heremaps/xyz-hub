@@ -2,7 +2,7 @@ package com.here.naksha.handler.activitylog;
 
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.mapcreator.ext.naksha.PsqlDataSource;
+import com.here.naksha.lib.psql.PsqlDataSource;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.sql.Connection;

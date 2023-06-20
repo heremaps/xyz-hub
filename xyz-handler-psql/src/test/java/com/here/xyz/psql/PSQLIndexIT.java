@@ -20,7 +20,7 @@ package com.here.xyz.psql;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.here.mapcreator.ext.naksha.sql.DhString;
+import com.here.naksha.lib.psql.sql.DhString;
 import com.here.naksha.lib.core.models.hub.pipelines.Space;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.events.info.GetStatisticsEvent;

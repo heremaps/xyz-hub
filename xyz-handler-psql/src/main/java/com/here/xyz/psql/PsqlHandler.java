@@ -19,9 +19,9 @@
 
 package com.here.xyz.psql;
 
-import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
-import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_MIXED;
-import static com.here.mapcreator.ext.naksha.sql.QuadbinSQL.COUNTMODE_REAL;
+import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
+import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_MIXED;
+import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_REAL;
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
@@ -32,11 +32,11 @@ import static com.here.naksha.lib.core.models.payload.responses.XyzError.EXCEPTI
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.mapcreator.ext.naksha.PsqlCollection;
-import com.here.mapcreator.ext.naksha.PsqlDataSource;
-import com.here.mapcreator.ext.naksha.sql.DhString;
-import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.mapcreator.ext.naksha.sql.TweaksSQL;
+import com.here.naksha.lib.psql.PsqlCollection;
+import com.here.naksha.lib.psql.PsqlDataSource;
+import com.here.naksha.lib.psql.sql.DhString;
+import com.here.naksha.lib.psql.sql.SQLQuery;
+import com.here.naksha.lib.psql.sql.TweaksSQL;
 import com.here.naksha.lib.core.ExtendedEventHandler;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;

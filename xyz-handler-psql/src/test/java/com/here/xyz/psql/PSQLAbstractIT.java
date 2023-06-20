@@ -22,8 +22,8 @@ package com.here.xyz.psql;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.amazonaws.util.IOUtils;
-import com.here.mapcreator.ext.naksha.PsqlPool;
-import com.here.mapcreator.ext.naksha.PsqlStorage;
+import com.here.naksha.lib.psql.PsqlPool;
+import com.here.naksha.lib.psql.PsqlStorage;
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.models.Payload;
 import com.here.naksha.lib.core.models.hub.pipelines.Space;

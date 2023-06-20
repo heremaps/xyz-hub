@@ -20,7 +20,7 @@
 package com.here.xyz.psql;
 
 
-import com.here.mapcreator.ext.naksha.sql.SQLQuery;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
