@@ -21,6 +21,7 @@ dependencies {
     testImplementation("com.jayway.jsonpath:json-path:2.7.0")
 }
 
+group = "com.here.naksha"
 description = "XYZ Handler - PSQL"
 
 tasks {

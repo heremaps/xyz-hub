@@ -24,6 +24,8 @@ allprojects {
     val mavenUser = rootProject.properties["mavenUser"] as String
     val mavenPassword = rootProject.properties["mavenPassword"] as String
 
+    project.group = rootProject.group
+
     repositories {
         maven(uri("https://repo.osgeo.org/repository/release/"))
         mavenCentral()
