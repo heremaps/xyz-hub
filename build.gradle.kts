@@ -8,7 +8,7 @@ plugins {
     // gradle spotlessApply
     id("com.diffplug.spotless").version("6.11.0")
     // https://github.com/johnrengelman/shadow
-    id("com.github.johnrengelman.shadow") version "7.1.2"
+    //id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
 group = "com.here.naksha"
@@ -18,7 +18,7 @@ allprojects {
     apply(plugin = "java")
     apply(plugin = "maven-publish")
     apply(plugin = "com.diffplug.spotless")
-    apply(plugin = "com.github.johnrengelman.shadow")
+    //apply(plugin = "com.github.johnrengelman.shadow")
 
     val mavenUrl = rootProject.properties["mavenUrl"] as String
     val mavenUser = rootProject.properties["mavenUser"] as String
@@ -117,9 +117,9 @@ allprojects {
             useJUnitPlatform()
         }
 
-        shadowJar {
-            isZip64 = true
-        }
+//        shadowJar {
+//            isZip64 = true
+//        }
 
         build {
             finalizedBy(spotlessApply)
@@ -141,6 +141,7 @@ allprojects {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
     publishing {
         repositories {
             maven {
