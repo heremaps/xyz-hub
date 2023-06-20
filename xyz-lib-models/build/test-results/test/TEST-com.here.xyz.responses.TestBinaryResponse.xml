@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.here.xyz.responses.TestBinaryResponse" tests="3" skipped="0" failures="0" errors="0" timestamp="2023-06-20T09:56:35" hostname="xerosv" time="0.002">
+  <properties/>
+  <testcase name="testSerialize()" classname="com.here.xyz.responses.TestBinaryResponse" time="0.001"/>
+  <testcase name="testDeserialize()" classname="com.here.xyz.responses.TestBinaryResponse" time="0.0"/>
+  <testcase name="testOverrideEtag()" classname="com.here.xyz.responses.TestBinaryResponse" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

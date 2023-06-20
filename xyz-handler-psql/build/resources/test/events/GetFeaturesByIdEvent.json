@@ -1,0 +1,10 @@
+{
+  "type": "GetFeaturesByIdEvent",
+  "streamId": "xIou1GnJDwpb0000009C",
+  "space": "foo",
+  "ids": ["1","2" ],
+  "connectorParams": {
+    "propertySearch": true,
+    "connectorId": "test-connector"
+  }
+}

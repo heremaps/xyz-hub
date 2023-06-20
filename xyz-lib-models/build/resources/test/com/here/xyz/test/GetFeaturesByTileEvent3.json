@@ -1,0 +1,32 @@
+{
+  "type": "GetFeaturesByTileEvent",
+  "connectorParams": {
+    "propertySearch": true
+  },
+  "streamId": "mJHEpcMfYPUW00000004",
+  "ifNoneMatch": "def",
+  "preferPrimaryDataSource": null,
+  "params": null,
+  "space": "x-psql-tes",
+  "metadata": null,
+  "tid": "456",
+  "aid": "456",
+  "tags": [],
+  "propertiesQuery": null,
+  "selection": null,
+  "limit": 30000,
+  "clip": false,
+  "bbox": [
+    -77.080078125,
+    -12.060809058367298,
+    -77.0745849609375,
+    -12.05543709446954
+  ],
+  "clusteringType": null,
+  "clusteringParams": null,
+  "level": 16,
+  "x": 18736,
+  "y": 34979,
+  "quadkey": "2100300120310022",
+  "margin": 0
+}

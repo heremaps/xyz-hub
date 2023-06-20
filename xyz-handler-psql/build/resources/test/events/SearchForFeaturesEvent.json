@@ -1,0 +1,14 @@
+{
+  "type": "SearchForFeaturesEvent",
+  "space": "foo",
+  "params": {},
+  "connectorParams": {
+    "propertySearch": true,
+    "connectorId": "test-connector"
+  },
+  "tags": [
+    ["yellow"],
+    ["red"]
+  ],
+  "limit": 400
+}

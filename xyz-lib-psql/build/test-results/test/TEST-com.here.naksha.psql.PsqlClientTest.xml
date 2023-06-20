@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.here.naksha.psql.PsqlClientTest" tests="1" skipped="1" failures="0" errors="0" timestamp="2023-06-20T09:56:35" hostname="xerosv" time="0.001">
+  <properties/>
+  <testcase name="testInit()" classname="com.here.naksha.psql.PsqlClientTest" time="0.001">
+    <skipped/>
+  </testcase>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

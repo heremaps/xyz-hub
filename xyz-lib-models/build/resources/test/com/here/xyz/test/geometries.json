@@ -1,0 +1,52 @@
+{
+  "type": "Feature",
+  "id": "A1",
+  "geometry": {
+    "type": "GeometryCollection",
+    "geometries": [
+      {
+        "type": "Point",
+        "coordinates": [
+          -2.960827777,
+          53.430819444
+        ]
+      },
+      {
+        "type": "Point",
+        "coordinates": [
+          -2.960827777,
+          53.430819444,
+          0
+        ]
+      },
+      {
+        "type": "MultiPoint",
+        "coordinates": [
+          [
+            -2.960827777,
+            53.430819443
+          ],
+          [
+            -2.960827777,
+            53.430819444,
+            0.3
+          ]
+        ]
+      },
+      {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -2.960827777,
+            53.430819443
+          ],
+          [
+            -2.960827777,
+            53.430819444,
+            0
+          ]
+        ]
+      }
+    ]
+  }
+}

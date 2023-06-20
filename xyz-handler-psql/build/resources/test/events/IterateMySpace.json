@@ -1,0 +1,11 @@
+{
+	"type": "IterateFeaturesEvent",
+	"space": "foo",
+	"params": {},
+	"connectorParams": {
+		"propertySearch": true,
+		"connectorId": "test-connector"
+	},
+	"limit": 5,
+	"propertiesQuery": [[]]
+}

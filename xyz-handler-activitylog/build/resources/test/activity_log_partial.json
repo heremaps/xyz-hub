@@ -1,0 +1,19 @@
+{
+  "id": "b06f191f-6aec-412e-b1f4-0793b041b893",
+  "type": "Feature",
+  "properties": {
+    "@ns:com:here:xyz": {
+      "tags": [],
+      "space": "RnxiONGZ",
+      "createdAt": 1599184953994,
+      "updatedAt": 1599184953994
+    },
+    "@ns:com:here:xyz:log": {
+      "id": "7763334",
+      "action": "DELETE",
+      "original": {
+        "updatedAt": 1599184936032
+      }
+    }
+  }
+}

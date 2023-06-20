@@ -1,0 +1,11 @@
+{
+  "type": "ModifySpaceEvent",
+  "params": {},
+  "space": "foo",
+  "operation":  "DELETE",
+  "tags": null,
+  "connectorParams": {
+    "propertySearch": true,
+    "connectorId": "test-connector"
+  }
+}

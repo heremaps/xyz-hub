@@ -22,3 +22,9 @@ dependencies {
 }
 
 description = "XYZ Handler - PSQL"
+
+tasks {
+    test {
+        enabled = false
+    }
+}

@@ -1,0 +1,11 @@
+{
+	"type": "HealthCheckEvent",
+	"minResponseTime": 100,
+	"connectorParams": {
+		"propertySearch": true,
+		"connectorId": "test-connector"
+	},
+	"params": {
+		"propertySearch": true
+	}
+}
