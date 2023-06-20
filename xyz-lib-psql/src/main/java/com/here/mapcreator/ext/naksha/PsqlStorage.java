@@ -4,7 +4,7 @@ import static com.here.xyz.NakshaLogger.currentLogger;
 
 import com.here.xyz.lambdas.Pe1;
 import com.here.xyz.models.hub.plugins.Storage;
-import com.here.xyz.models.hub.transactions.TxSet;
+import com.here.xyz.models.hub.transactions.TxSignalSet;
 import com.here.xyz.storage.IStorage;
 import com.here.xyz.util.IoHelp;
 import com.here.xyz.INaksha;
@@ -291,12 +291,12 @@ public class PsqlStorage implements IStorage {
   }
 
   @Override
-  public void addListener(@NotNull Pe1<@NotNull TxSet> listener) {
+  public void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
     throw new UnsupportedOperationException("addListener");
   }
 
   @Override
-  public boolean removeListener(@NotNull Pe1<@NotNull TxSet> listener) {
+  public boolean removeListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
     throw new UnsupportedOperationException("removeListener");
   }
 

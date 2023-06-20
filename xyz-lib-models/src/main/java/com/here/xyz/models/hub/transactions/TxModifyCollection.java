@@ -10,17 +10,17 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A transaction log event to signal that a collection was modified.
+ * A signal, that a collection itself was modified.
  */
 @AvailableSince(INaksha.v2_0)
 @JsonTypeName(value = "TxModifyCollection")
-public class TxModifyCollection extends TxEvent {
+public class TxModifyCollection extends TxSignal {
 
   @AvailableSince(INaksha.v2_0)
   public static final String ACTION = "action";
 
   /**
-   * Create a new transaction event.
+   * Create a new collection modification signal.
    *
    * @param id         the local identifier of the event.
    * @param storageId  the storage identifier.

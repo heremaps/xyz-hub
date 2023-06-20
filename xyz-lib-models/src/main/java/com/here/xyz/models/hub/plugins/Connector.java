@@ -42,6 +42,23 @@ public final class Connector extends EventHandler {
   /**
    * Create a new connector.
    *
+   * @param id      the identifier of the connector.
+   * @param cla$$   the class, that implements the event handler.
+   * @param storage the storage to which to attach the connector.
+   */
+  @AvailableSince(INaksha.v2_0)
+  public Connector(
+      @NotNull String id,
+      @NotNull Class<? extends IEventHandler> cla$$,
+      @NotNull Storage storage
+  ) {
+    super(id, cla$$);
+    this.storageId = storage.getId();
+  }
+
+  /**
+   * Create a new connector.
+   *
    * @param id        the identifier of the connector.
    * @param className the full qualified name of the class to load.
    * @param storageId the identifier of the storage to use.

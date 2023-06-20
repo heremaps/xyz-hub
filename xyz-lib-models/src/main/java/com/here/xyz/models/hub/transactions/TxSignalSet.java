@@ -17,7 +17,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TxSet implements Iterable<TxEvent> {
+public class TxSignalSet implements Iterable<TxSignal> {
   // TODO: Serialize and deserialize all. Maybe we have to extend a array list and just override get setters!
   //       Or we can teach Jackson to serialize as array from all?
   //       ??? -> @JsonFormat(shape=JsonFormat.Shape.ARRAY)
@@ -25,10 +25,10 @@ public class TxSet implements Iterable<TxEvent> {
   /**
    * All transaction items as read from the transaction table. They all need to have the same transaction number.
    */
-  private final ArrayList<@NotNull TxEvent> all = new ArrayList<>();
+  private final ArrayList<@NotNull TxSignal> all = new ArrayList<>();
 
   @JsonIgnore
-  private final HashMap<@NotNull String, @NotNull TxEvent> allById = new HashMap<>();
+  private final HashMap<@NotNull String, @NotNull TxSignal> allById = new HashMap<>();
 
   /**
    * The transaction number, which all events being part of the transaction list share.
@@ -61,9 +61,9 @@ public class TxSet implements Iterable<TxEvent> {
    * @param filter The filter to apply.
    * @return The amount of transaction events that fulfill the given filter.
    */
-  public int count(@NotNull Function<@NotNull TxEvent, @NotNull Boolean> filter) {
+  public int count(@NotNull Function<@NotNull TxSignal, @NotNull Boolean> filter) {
     int size = 0;
-    for (final @NotNull TxEvent item : all) {
+    for (final @NotNull TxSignal item : all) {
       if (filter.apply(item)) {
         size++;
       }
@@ -77,9 +77,9 @@ public class TxSet implements Iterable<TxEvent> {
    * @param filter the filter to apply.
    * @return a list of all transaction events that match the given filter.
    */
-  public @NotNull List<@NotNull TxEvent> get(@NotNull Function<@NotNull TxEvent, @NotNull Boolean> filter) {
-    final ArrayList<@NotNull TxEvent> items = new ArrayList<>(4);
-    for (final @NotNull TxEvent item : all) {
+  public @NotNull List<@NotNull TxSignal> get(@NotNull Function<@NotNull TxSignal, @NotNull Boolean> filter) {
+    final ArrayList<@NotNull TxSignal> items = new ArrayList<>(4);
+    for (final @NotNull TxSignal item : all) {
       if (filter.apply(item)) {
         items.add(item);
       }
@@ -93,7 +93,7 @@ public class TxSet implements Iterable<TxEvent> {
    * @param id the identifier to query.
    * @return the transaction event with the given identifier; {@code null} if no such transaction event exists.
    */
-  public @Nullable TxEvent get(@NotNull String id) {
+  public @Nullable TxSignal get(@NotNull String id) {
     return allById.get(id);
   }
 
@@ -102,10 +102,10 @@ public class TxSet implements Iterable<TxEvent> {
    *
    * @param event the event to add.
    * @return The overridden event, if any.
-   * @throws NullPointerException     If the given event is null or the {@link TxEvent#txn txn} of the event is {@code null}.
+   * @throws NullPointerException     If the given event is null or the {@link TxSignal#txn txn} of the event is {@code null}.
    * @throws IllegalArgumentException If the given event does not have the same transaction number like existing ones.
    */
-  public @Nullable TxEvent put(@NotNull TxEvent event) {
+  public @Nullable TxSignal put(@NotNull TxSignal event) {
     if (txn == null) {
       if (event.txn.isEmpty()) {
         throw new IllegalArgumentException("The transaction item does have an empty txn");
@@ -115,7 +115,7 @@ public class TxSet implements Iterable<TxEvent> {
       throw new IllegalArgumentException(
           "Failed to add transaction item, the given item has txn: '" + event.txn + "', but '" + txn + "' is required!");
     }
-    final TxEvent existing = allById.get(event.getId());
+    final TxSignal existing = allById.get(event.getId());
     if (existing != null) {
       if (existing == event) {
         return existing;
@@ -124,14 +124,14 @@ public class TxSet implements Iterable<TxEvent> {
       assert removed;
     }
     all.add(event);
-    final TxEvent removed = allById.put(event.getId(), event);
+    final TxSignal removed = allById.put(event.getId(), event);
     assert removed == null;
     return existing;
   }
 
   @Nonnull
   @Override
-  public Iterator<TxEvent> iterator() {
+  public Iterator<TxSignal> iterator() {
     return all.iterator();
   }
 
@@ -145,7 +145,7 @@ public class TxSet implements Iterable<TxEvent> {
    * @param event The event to filter.
    * @return true if the event represents a matching transaction event; false otherwise.
    */
-  public boolean returnFeatureModification(@NotNull TxEvent event) {
+  public boolean returnFeatureModification(@NotNull TxSignal event) {
     return event instanceof TxModifyFeatures;
   }
 
@@ -155,7 +155,7 @@ public class TxSet implements Iterable<TxEvent> {
    * @param event The event to filter.
    * @return true if the item represents a matching transaction item; false otherwise.
    */
-  public boolean returnCommitMessage(@NotNull TxEvent event) {
+  public boolean returnCommitMessage(@NotNull TxSignal event) {
     return event instanceof TxComment;
   }
 
@@ -165,7 +165,7 @@ public class TxSet implements Iterable<TxEvent> {
    * @param event The event to filter.
    * @return true if the item represents a matching transaction event; false otherwise.
    */
-  public boolean returnCollectionModification(@NotNull TxEvent event) {
+  public boolean returnCollectionModification(@NotNull TxSignal event) {
     return event instanceof TxModifyCollection;
   }
 }

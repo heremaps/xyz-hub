@@ -9,15 +9,15 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A transaction log event to signal that the features of a collection have been modified. For the features the action is not part of the
- * event, because normally all changes will only create a single entry.
+ * A transaction signal, that the features of a collection have been modified. The individual change done to a features is not part of the
+ * signal, because normally all changes done to the same collection only create one signal in the transaction log.
  */
 @AvailableSince(INaksha.v2_0)
 @JsonTypeName(value = "TxModifyFeatures")
-public class TxModifyFeatures extends TxEvent {
+public class TxModifyFeatures extends TxSignal {
 
   /**
-   * Create a new transaction event. For this event the “id” must be the same as the “collection”.
+   * Create a new transaction signal. For this event the “id” must be the same as the “collection”.
    *
    * @param id         the local identifier of the event.
    * @param storageId  the storage identifier.

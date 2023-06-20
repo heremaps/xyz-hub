@@ -12,15 +12,7 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Configuration of an event handler. There are two types of event handler: Local and Remote.
- *
- * <p>A local event handlers are embedded in Naksha-Hub and only have a {@link #className}, but no {@link #remote} property. Local
- * guarantees optimal performance, but has the disadvantage that it can't be deployed independently, and the handler can't use individual or
- * proprietary libraries, all code of the handler must be open source, maintained within the Naksha repository.
- *
- * <p>
- *
- * <p>The {@link EventHandler#properties} can be used as custom event handler configuration, if necessary.
+ * Configuration of an event handler.
  */
 @AvailableSince(INaksha.v2_0)
 @JsonTypeName(value = "EventHandler")
@@ -34,10 +26,22 @@ public class EventHandler extends Feature implements IPlugin<IEventHandler> {
   public static final String CLASS_NAME = "className";
 
   /**
-   * Create a new local extension.
+   * Create a new local event-handler.
+   *
+   * @param id    the identifier of the event handler.
+   * @param cla$$ the class, that implements this event handler.
+   */
+  @AvailableSince(INaksha.v2_0)
+  public EventHandler(@NotNull String id, @NotNull Class<? extends IEventHandler> cla$$) {
+    super(id);
+    this.className = cla$$.getName();
+  }
+
+  /**
+   * Create a new local event-handler.
    *
    * @param id        the identifier of the event handler.
-   * @param className the full qualified name of the class to load.
+   * @param className the full qualified name of the class, that implements this handler.
    */
   @AvailableSince(INaksha.v2_0)
   @JsonCreator

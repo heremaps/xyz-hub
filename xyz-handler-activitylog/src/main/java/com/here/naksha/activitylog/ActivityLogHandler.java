@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.here.xyz.IEventHandler;
 import com.here.xyz.IEventContext;
+import com.here.xyz.models.hub.plugins.EventHandler;
 import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.payload.Event;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -31,12 +32,12 @@ public class ActivityLogHandler implements IEventHandler {
   /**
    * Creates a new activity log handler.
    *
-   * @param connector The connector configuration.
+   * @param eventHandler the event-handler configuration.
    * @throws XyzErrorException If any error occurred.
    */
-  public ActivityLogHandler(@NotNull Connector connector) throws XyzErrorException {
+  public ActivityLogHandler(@NotNull EventHandler eventHandler) throws XyzErrorException {
     try {
-      this.params = new ActivityLogHandlerParams(connector.getProperties());
+      this.params = new ActivityLogHandlerParams(eventHandler.getProperties());
     } catch (Exception e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
     }
@@ -45,7 +46,7 @@ public class ActivityLogHandler implements IEventHandler {
   final @NotNull ActivityLogHandlerParams params;
 
 
-  protected void toActivityLogFormat(@NotNull Feature feature, @Nullable Feature oldFeature) {
+  protected static void toActivityLogFormat(@NotNull Feature feature, @Nullable Feature oldFeature) {
     final XyzActivityLog xyzActivityLog = new XyzActivityLog();
     final Original original = new Original();
     final ObjectMapper mapper = new ObjectMapper();

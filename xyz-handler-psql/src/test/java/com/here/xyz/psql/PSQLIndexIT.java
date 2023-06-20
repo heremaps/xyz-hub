@@ -28,7 +28,6 @@ import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.models.payload.events.space.ModifySpaceEvent;
 import com.here.xyz.models.hub.pipelines.Space;
 import com.here.xyz.psql.tools.FeatureGenerator;
-import com.here.xyz.responses.*;
 import com.here.mapcreator.ext.naksha.sql.DhString;
 
 import java.sql.Connection;

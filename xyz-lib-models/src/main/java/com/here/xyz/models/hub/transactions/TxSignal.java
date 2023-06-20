@@ -2,8 +2,6 @@ package com.here.xyz.models.hub.transactions;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
@@ -16,19 +14,18 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A transaction persists out of multiple transaction events. Each event represents something that has happened in a
- * {@link Storage storage}.
+ * A transaction persists out of multiple signals. Each signal represents something that has happened in a {@link Storage storage}.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
 @AvailableSince(INaksha.v2_0)
-@JsonTypeName(value = "TxEvent")
+@JsonTypeName(value = "TxSignal")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = TxComment.class),
     @JsonSubTypes.Type(value = TxModifyFeatures.class),
     @JsonSubTypes.Type(value = TxModifyCollection.class)
 })
-public class TxEvent extends Feature {
+public class TxSignal extends Feature {
 
   @AvailableSince(INaksha.v2_0)
   public static final String STORAGE_ID = "storageId";
@@ -42,7 +39,7 @@ public class TxEvent extends Feature {
   public static final String PUBLISH_TS = "publishTs";
 
   /**
-   * Create a new transaction event.
+   * Create a new transaction signal.
    *
    * @param id         the local identifier of the event.
    * @param storageId  the storage identifier.
@@ -51,7 +48,7 @@ public class TxEvent extends Feature {
    */
   @AvailableSince(INaksha.v2_0)
   @JsonCreator
-  public TxEvent(
+  public TxSignal(
       @JsonProperty(ID) @NotNull String id,
       @JsonProperty(STORAGE_ID) @NotNull String storageId,
       @JsonProperty(COLLECTION) @NotNull String collection,

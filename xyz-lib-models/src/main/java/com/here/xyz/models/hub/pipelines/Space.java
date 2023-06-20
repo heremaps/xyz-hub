@@ -48,6 +48,16 @@ public final class Space extends PipelineComponent implements Typed {
    * Create new space initialized with the given identifier.
    *
    * @param id            the identifier.
+   */
+  @JsonCreator
+  public Space(@JsonProperty(ID) @NotNull String id) {
+    super(id, new ArrayList<>(), null);
+  }
+
+  /**
+   * Create new space initialized with the given identifier.
+   *
+   * @param id            the identifier.
    * @param eventHandlers the list of event handler identifiers to form the event-pipeline.
    */
   @JsonCreator

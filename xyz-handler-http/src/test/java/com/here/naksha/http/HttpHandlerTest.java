@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.here.naksha.test.mock.MockHttpServer;
 import com.here.xyz.IoEventPipeline;
+import com.here.xyz.models.hub.plugins.EventHandler;
 import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.models.payload.events.info.HealthCheckEvent;
@@ -30,13 +31,13 @@ import org.junit.jupiter.api.Test;
 
 class HttpHandlerTest {
 
-  static Connector connector;
+  static EventHandler eventHandler;
   static IoEventPipeline eventPipeline;
   static HttpHandler httpHandler;
 
   @BeforeAll
   static void setup() throws XyzErrorException, IOException {
-    connector = new Connector("test:http", Math.abs(RandomUtils.nextLong()));
+    eventHandler = new EventHandler("test:http", HttpHandler.class);
     String url = "http://localhost:9999/";
     try {
       // Set the env var below if you want to run the test against a specific endpoint
@@ -45,12 +46,10 @@ class HttpHandlerTest {
       url = goodURL.toString();
     } catch (Exception ignore) {
     }
-    connector.setParams(new Params()
-        .with(HttpHandlerParams.URL, url)
-        .with(HttpHandlerParams.HTTP_METHOD, HttpHandlerParams.HTTP_GET)
-    );
+    eventHandler.getProperties().put(HttpHandlerParams.URL, url);
+    eventHandler.getProperties().put(HttpHandlerParams.HTTP_METHOD, HttpHandlerParams.HTTP_GET);
     eventPipeline = new IoEventPipeline();
-    httpHandler = new HttpHandler(connector);
+    httpHandler = new HttpHandler(eventHandler);
     eventPipeline.addEventHandler(httpHandler);
     fakeWebserver = new MockHttpServer(9999);
   }

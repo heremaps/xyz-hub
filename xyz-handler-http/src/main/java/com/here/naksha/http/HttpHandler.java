@@ -1,8 +1,10 @@
 package com.here.naksha.http;
 
+import com.here.xyz.IEventHandler;
 import com.here.xyz.OldEventHandler;
 import com.here.xyz.IEventContext;
 import com.here.xyz.models.Payload;
+import com.here.xyz.models.hub.plugins.EventHandler;
 import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.payload.Event;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -22,20 +24,19 @@ import org.jetbrains.annotations.NotNull;
 /**
  * The HTTP handler that sends events to a foreign host.
  */
-public class HttpHandler extends OldEventHandler {
+public class HttpHandler implements IEventHandler {
 
   public static final String ID = "naksha:http"; // com.here.naksha.http.HttpHandler
 
   /**
    * Creates a new HTTP handler.
    *
-   * @param connector The connector configuration.
+   * @param eventHandler The connector configuration.
    * @throws XyzErrorException If any error occurred.
    */
-  public HttpHandler(@NotNull Connector connector) throws XyzErrorException {
-    super(connector);
+  public HttpHandler(@NotNull EventHandler eventHandler) throws XyzErrorException {
     try {
-      this.params = new HttpHandlerParams(connector.getParams());
+      this.params = new HttpHandlerParams(eventHandler.getProperties());
     } catch (Exception e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
     }

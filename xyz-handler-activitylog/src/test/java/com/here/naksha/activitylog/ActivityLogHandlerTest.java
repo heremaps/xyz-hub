@@ -2,9 +2,11 @@ package com.here.naksha.activitylog;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.here.mapcreator.ext.naksha.PsqlConfig;
+import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
 import com.here.mapcreator.ext.naksha.PsqlDataSource;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.models.Typed;
+import com.here.xyz.models.hub.plugins.EventHandler;
 import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.exceptions.XyzErrorException;
@@ -12,13 +14,11 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.namespaces.Original;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.xyz.models.hub.plugins.Connector;
 import com.here.xyz.models.payload.responses.ErrorResponse;
 import com.here.xyz.models.payload.responses.XyzError;
 import com.here.xyz.models.payload.XyzResponse;
 import com.here.xyz.util.IoHelp;
 import com.here.xyz.util.IoHelp.LoadedConfig;
-import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +26,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.condition.EnabledIf;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,16 +35,14 @@ class ActivityLogHandlerTest {
   private static final String CONFIG_FILENAME_LOCALHOST = "activity_log_localhost_db_config.json";
   private static final String CONFIG_FILENAME_ACTIVITY_LOG = "activity_log_DB_config.json";
 
-  static Connector connector;
+  static EventHandler eventHandler;
   static IoEventPipeline eventPipeline;
-  static ActivityLogHandler activityLogHandler;
 
   @BeforeAll
-  static void setup() throws XyzErrorException {
-    connector = new Connector("test:activity-log", Math.abs(RandomUtils.nextLong()));
+  static void setup() throws Exception {
+    eventHandler = new EventHandler("test:activity-log", ActivityLogHandler.class);
     eventPipeline = new IoEventPipeline();
-    activityLogHandler = new ActivityLogHandler(connector);
-    eventPipeline.addEventHandler(activityLogHandler);
+    eventPipeline.addEventHandler(eventHandler.newInstance());
   }
 
   @Test
@@ -72,7 +71,7 @@ class ActivityLogHandlerTest {
     final String xyzNamespaceSpace = feature.getProperties().getXyzActivityLog().getOriginal().getSpace();
     final long xyzNamespaceCreatedAt = feature.getProperties().getXyzActivityLog().getOriginal().getCreatedAt();
     final long xyzNamespaceUpdatedAt = feature.getProperties().getXyzActivityLog().getOriginal().getUpdatedAt();
-    activityLogHandler.fromActivityLogFormat(feature);
+    ActivityLogHandler.fromActivityLogFormat(feature);
     assertSame(xyzNamespacePuuid, feature.getProperties().getXyzNamespace().getPuuid());
     assertSame(xyzNamespaceMuuid, feature.getProperties().getXyzNamespace().getMuuid());
     assertSame(xyzNamespaceSpace, feature.getProperties().getXyzNamespace().getSpace());
@@ -94,7 +93,7 @@ class ActivityLogHandlerTest {
     final String xyzNamespaceSpace = feature.getProperties().getXyzActivityLog().getOriginal().getSpace();
     final long xyzNamespaceCreatedAt = feature.getProperties().getXyzActivityLog().getOriginal().getCreatedAt();
     final long xyzNamespaceUpdatedAt = feature.getProperties().getXyzActivityLog().getOriginal().getUpdatedAt();
-    activityLogHandler.fromActivityLogFormat(feature);
+    ActivityLogHandler.fromActivityLogFormat(feature);
     assertSame(xyzNamespacePuuid, feature.getProperties().getXyzNamespace().getPuuid());
     assertSame(xyzNamespaceMuuid, feature.getProperties().getXyzNamespace().getMuuid());
     assertSame(xyzNamespaceSpace, feature.getProperties().getXyzNamespace().getSpace());
@@ -109,7 +108,7 @@ class ActivityLogHandlerTest {
     final Feature oldFeature = JsonSerializable.deserialize(IoHelp.openResource("naksha_feature_2.json"), Feature.class);
     assertNotNull(feature);
     assertNotNull(oldFeature);
-    activityLogHandler.toActivityLogFormat(feature,oldFeature);
+    ActivityLogHandler.toActivityLogFormat(feature,oldFeature);
     final Original original = feature.getProperties().getXyzActivityLog().getOriginal();
     final XyzNamespace xyzNameSpace = feature.getProperties().getXyzNamespace();
     final XyzActivityLog xyzActivityLog = feature.getProperties().getXyzActivityLog();
@@ -122,15 +121,27 @@ class ActivityLogHandlerTest {
     assertSame(original.getSpace(), xyzNameSpace.getSpace());
     assertSame(original.getSpace(), xyzNameSpace.getSpace());
     assertEquals(original.getCreatedAt(), xyzNameSpace.getCreatedAt());
-    assertEquals(xyzActivityLog.getAction(), xyzNameSpace.getAction());
+    assertEquals(xyzActivityLog.getAction(), xyzNameSpace.rawAction());
+  }
+
+  private boolean isAllTestEnvVarsSet() {
+    return System.getenv("REMOTE_ACTIVITY_LOG_DB") != null && System.getenv("REMOTE_ACTIVITY_LOG_DB").length() > 0
+        && System.getenv("LOCAL_ACTIVITY_LOG_DB") != null && System.getenv("LOCAL_ACTIVITY_LOG_DB").length() > 0;
   }
 
   @Test
-  void test_connectToDb() throws IOException{
-    final LoadedConfig<PsqlConfig> loadedLocalhost = IoHelp.readConfigFromHomeOrResource(CONFIG_FILENAME_LOCALHOST, false, APP_NAME, PsqlConfig.class);
-    final LoadedConfig<PsqlConfig> loadedActivityLog = IoHelp.readConfigFromHomeOrResource(CONFIG_FILENAME_ACTIVITY_LOG, false, APP_NAME, PsqlConfig.class);
-    final PsqlDataSource dataSourceLocalhost = new PsqlDataSource(loadedLocalhost.config());
-    final PsqlDataSource dataSourceActivityLog = new PsqlDataSource(loadedActivityLog.config());
+  @EnabledIf("isAllTestEnvVarsSet")
+  void test_connectToDb() throws Exception {
+    final PsqlConfig remoteActivityLogDbConfig = new PsqlConfigBuilder()
+        .withAppName("Naksha-Psql-Test")
+        .parseUrl(System.getenv("REMOTE_ACTIVITY_LOG_DB"))
+        .build();
+    final PsqlConfig localActivityLogDbConfig = new PsqlConfigBuilder()
+        .withAppName("Naksha-Psql-Test")
+        .parseUrl(System.getenv("LOCAL_ACTIVITY_LOG_DB"))
+        .build();
+    final PsqlDataSource dataSourceLocalhost = new PsqlDataSource(localActivityLogDbConfig);
+    final PsqlDataSource dataSourceActivityLog = new PsqlDataSource(remoteActivityLogDbConfig);
     ActivityLogDBWriter.fromActicityLogDBToFeature(dataSourceLocalhost,dataSourceActivityLog,"RnxiONGZ",10);
   }
 

@@ -52,6 +52,7 @@ public final class PluginCache {
         if (!apiClass.isAssignableFrom(theClass)) {
           raw = API_NOT_SUPPORTED;
         } else {
+          // TODO: We can use any constructor that uses directly paramClass or any of its super classes!
           raw = theClass.getConstructor(paramClass);
         }
       } catch (ClassNotFoundException e) {

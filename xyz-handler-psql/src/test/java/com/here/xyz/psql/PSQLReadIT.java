@@ -27,7 +27,6 @@ import com.here.xyz.models.payload.events.PropertyQueryOr;
 import com.here.xyz.models.payload.events.QueryOperation;
 import com.here.xyz.models.payload.events.TagsQuery;
 import com.here.xyz.util.json.JsonSerializable;
-import com.here.xyz.events.*;
 import com.here.xyz.models.payload.events.feature.GetFeaturesByGeometryEvent;
 import com.here.xyz.models.payload.events.feature.GetFeaturesByTileEvent;
 import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;

@@ -34,7 +34,7 @@ import com.here.xyz.models.Typed;
 import com.here.xyz.models.hub.plugins.EventHandler;
 import com.here.xyz.models.hub.StorageCollection;
 import com.here.xyz.models.hub.plugins.Storage;
-import com.here.xyz.models.hub.transactions.TxEvent;
+import com.here.xyz.models.hub.transactions.TxSignal;
 import com.here.xyz.util.json.JsonObject;
 import com.here.xyz.view.View.Export;
 import com.here.xyz.view.View.Import;
@@ -65,7 +65,7 @@ import org.jetbrains.annotations.Nullable;
     @JsonSubTypes.Type(value = EventHandler.class),
     @JsonSubTypes.Type(value = Storage.class),
     @JsonSubTypes.Type(value = StorageCollection.class),
-    @JsonSubTypes.Type(value = TxEvent.class)
+    @JsonSubTypes.Type(value = TxSignal.class)
 })
 public class Feature extends JsonObject implements Typed {
 

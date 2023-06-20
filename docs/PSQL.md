@@ -88,7 +88,7 @@ The history can be enabled and disabled for every space using the following meth
 
 ## Transaction Fix Job
 
-The last step is a background job added into Naksha-Hub that will “fix” the transaction table. It will set the `seq_id` and `seq_ts` to signal the visibility of a transaction and to generate a sequential numeric identifier, that has no holes and is unique for every transaction. Note that the `seq_id` itself is not unique, multiple events in the transaction table can belong to the same `seq_id`, but it is guaranteed that the lowest `seq_id`. 
+The last step is a background job added into Naksha-Hub that will “fix” the transaction table. It will set the `publish_id` and `publish_ts` to signal the visibility of a transaction and to generate a sequential numeric identifier, that has no holes and is unique for every transaction. Note that the `publish_id` itself is not unique, multiple events in the transaction table can belong to the same `publish_id`, but it is guaranteed that the lowest `publish_id`. 
 
 The author and application identifier must be set by the client before starting any transaction via `SELECT naksha_tx_start('{appId}', '{author}');`. Note that the **author** is optional and can be `null`, but the application identifier **must not** be `null` or an empty string. If the author is `null`, then the current author stays the author for all updates or deletes. New objects in this case, are set to the application identifier, so that the application gains authorship.
 

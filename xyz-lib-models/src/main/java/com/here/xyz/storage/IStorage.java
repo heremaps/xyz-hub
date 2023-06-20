@@ -2,7 +2,7 @@ package com.here.xyz.storage;
 
 import com.here.xyz.lambdas.Pe1;
 import com.here.xyz.models.hub.StorageCollection;
-import com.here.xyz.models.hub.transactions.TxSet;
+import com.here.xyz.models.hub.transactions.TxSignalSet;
 import java.io.Closeable;
 import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
@@ -45,7 +45,7 @@ public interface IStorage extends Closeable {
    * @param listener the change listener to invoke, receiving the transaction set. If the listener throws an exception, it should be called
    *                 again after some time.
    */
-  void addListener(@NotNull Pe1<@NotNull TxSet> listener);
+  void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener);
 
   /**
    * Remove the given lisener.
@@ -53,7 +53,7 @@ public interface IStorage extends Closeable {
    * @param listener the change listener to remove.
    * @return {@code true} if the listener was removed; {@code false} otherwise.
    */
-  boolean removeListener(@NotNull Pe1<@NotNull TxSet> listener);
+  boolean removeListener(@NotNull Pe1<@NotNull TxSignalSet> listener);
 
   /**
    * Closes the storage, may block for cleanup work.

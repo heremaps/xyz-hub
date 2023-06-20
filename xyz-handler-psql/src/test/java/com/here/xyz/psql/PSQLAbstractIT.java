@@ -23,9 +23,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.amazonaws.util.IOUtils;
 import com.here.mapcreator.ext.naksha.PsqlPool;
+import com.here.mapcreator.ext.naksha.PsqlStorage;
 import com.here.xyz.models.hub.plugins.Connector;
 import com.here.xyz.IoEventPipeline;
 import com.here.xyz.models.Payload;
+import com.here.xyz.models.hub.plugins.EventHandler;
+import com.here.xyz.models.hub.plugins.Storage;
 import com.here.xyz.util.json.JsonSerializable;
 import com.here.xyz.models.payload.events.info.HealthCheckEvent;
 import com.here.xyz.models.payload.events.space.ModifySpaceEvent;
@@ -134,7 +137,7 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlHandler(new Connector(RandomStringUtils.randomAlphabetic(12), RandomUtils.nextInt())));
+    pipeline.addEventHandler(new PsqlHandler(new EventHandler(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class.getName())));
     assert jsonStream != null;
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
@@ -148,7 +151,8 @@ public abstract class PSQLAbstractIT extends Helper {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
     final IoEventPipeline pipeline = new IoEventPipeline();
     // TODO: We need to create a pre-configured connector for the test, because the connector is the PSQL storage for a specific db!
-    pipeline.addEventHandler(new PsqlHandler(new Connector(RandomStringUtils.randomAlphabetic(12), RandomUtils.nextInt())));
+    pipeline.addEventHandler(new PsqlHandler(new Connector(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class, new Storage("psql",0,
+        PsqlStorage.class))));
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     LOGGER.info("Response from lambda - {}", response);
