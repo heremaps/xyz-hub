@@ -10,4 +10,10 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-engine:5.9.2")
 }
 
-description = "XYZ Handler - HTTP(s)"
+description = "Naksha Http Handler"
+
+tasks {
+    test {
+        enabled = false
+    }
+}

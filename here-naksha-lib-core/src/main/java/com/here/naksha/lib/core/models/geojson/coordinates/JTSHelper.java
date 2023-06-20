@@ -160,35 +160,40 @@ public class JTSHelper {
 
     /** Creates a JTS Geometry from the provided GeoJSON geometry. */
     @SuppressWarnings("unchecked")
-    public static <X extends Geometry> X toGeometry(com.here.naksha.lib.core.models.geojson.implementation.Geometry geometry) {
+    public static <X extends Geometry> X toGeometry(
+            com.here.naksha.lib.core.models.geojson.implementation.Geometry geometry) {
         if (geometry == null) {
             return null;
         }
 
         if (geometry instanceof com.here.naksha.lib.core.models.geojson.implementation.Point) {
-            return (X) toPoint(((com.here.naksha.lib.core.models.geojson.implementation.Point) geometry).getCoordinates());
+            return (X)
+                    toPoint(((com.here.naksha.lib.core.models.geojson.implementation.Point) geometry).getCoordinates());
         }
         if (geometry instanceof com.here.naksha.lib.core.models.geojson.implementation.MultiPoint) {
-            return (X)
-                    toMultiPoint(((com.here.naksha.lib.core.models.geojson.implementation.MultiPoint) geometry).getCoordinates());
+            return (X) toMultiPoint(
+                    ((com.here.naksha.lib.core.models.geojson.implementation.MultiPoint) geometry).getCoordinates());
         }
         if (geometry instanceof com.here.naksha.lib.core.models.geojson.implementation.LineString) {
-            return (X)
-                    toLineString(((com.here.naksha.lib.core.models.geojson.implementation.LineString) geometry).getCoordinates());
+            return (X) toLineString(
+                    ((com.here.naksha.lib.core.models.geojson.implementation.LineString) geometry).getCoordinates());
         }
         if (geometry instanceof com.here.naksha.lib.core.models.geojson.implementation.MultiLineString) {
             return (X) toMultiLineString(
-                    ((com.here.naksha.lib.core.models.geojson.implementation.MultiLineString) geometry).getCoordinates());
+                    ((com.here.naksha.lib.core.models.geojson.implementation.MultiLineString) geometry)
+                            .getCoordinates());
         }
         if (geometry instanceof com.here.naksha.lib.core.models.geojson.implementation.Polygon) {
-            return (X) toPolygon(((com.here.naksha.lib.core.models.geojson.implementation.Polygon) geometry).getCoordinates());
+            return (X) toPolygon(
+                    ((com.here.naksha.lib.core.models.geojson.implementation.Polygon) geometry).getCoordinates());
         }
         if (geometry instanceof com.here.naksha.lib.core.models.geojson.implementation.MultiPolygon) {
             return (X) toMultiPolygon(
                     ((com.here.naksha.lib.core.models.geojson.implementation.MultiPolygon) geometry).getCoordinates());
         }
         if (geometry instanceof com.here.naksha.lib.core.models.geojson.implementation.GeometryCollection) {
-            return (X) toGeometryCollection(((com.here.naksha.lib.core.models.geojson.implementation.GeometryCollection) geometry));
+            return (X) toGeometryCollection(
+                    ((com.here.naksha.lib.core.models.geojson.implementation.GeometryCollection) geometry));
         }
         return null;
     }
@@ -329,7 +334,8 @@ public class JTSHelper {
     }
 
     @SuppressWarnings("unchecked")
-    public static <X extends com.here.naksha.lib.core.models.geojson.implementation.Geometry> X fromGeometry(Geometry jtsGeometry) {
+    public static <X extends com.here.naksha.lib.core.models.geojson.implementation.Geometry> X fromGeometry(
+            Geometry jtsGeometry) {
         if (jtsGeometry == null) {
             return null;
         }

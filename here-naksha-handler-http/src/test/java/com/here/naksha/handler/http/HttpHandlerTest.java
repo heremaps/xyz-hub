@@ -1,10 +1,9 @@
-package com.here.naksha.http;
+package com.here.naksha.handler.http;
 
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import com.here.naksha.lib.httpserver.MockHttpServer;
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.hub.pipelines.Space;
@@ -16,6 +15,7 @@ import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
+import com.here.naksha.lib.httpserver.MockHttpServer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

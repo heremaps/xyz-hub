@@ -1,7 +1,5 @@
 package com.here.naksha.lib.core;
 
-import static com.here.naksha.lib.core.util.IoHelp.asString;
-import static com.here.naksha.lib.core.util.IoHelp.format;
 
 import com.here.naksha.lib.core.util.IoHelp;
 import java.util.Map;
@@ -92,7 +90,8 @@ public abstract class EventHandlerParams {
             return result;
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(IoHelp.format(
-                    "Cannot set value %s=%s. Load default '%s'", parameter, IoHelp.asString(value), IoHelp.asString(defaultValue)));
+                    "Cannot set value %s=%s. Load default '%s'",
+                    parameter, IoHelp.asString(value), IoHelp.asString(defaultValue)));
         }
     }
 }

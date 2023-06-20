@@ -1,4 +1,4 @@
-package com.here.naksha.http;
+package com.here.naksha.handler.http;
 
 
 import com.here.naksha.lib.core.EventHandlerParams;
