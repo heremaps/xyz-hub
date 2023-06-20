@@ -1,8 +1,8 @@
 package com.here.xyz.psql.query;
 
 
-import com.here.xyz.models.payload.Event;
-import com.here.xyz.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.payload.Event;
+import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQueryExt;

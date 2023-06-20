@@ -28,10 +28,10 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.Point;
+import com.here.naksha.lib.core.models.geojson.implementation.Properties;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Test;
 

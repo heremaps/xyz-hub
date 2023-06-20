@@ -21,9 +21,9 @@ package com.here.xyz.psql;
 
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.models.payload.events.PropertyQuery;
-import com.here.xyz.models.payload.events.PropertyQueryOr;
-import com.here.xyz.util.json.JsonSerializable;
+import com.here.naksha.lib.core.models.payload.events.PropertyQuery;
+import com.here.naksha.lib.core.models.payload.events.PropertyQueryOr;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;

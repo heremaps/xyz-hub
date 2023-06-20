@@ -31,7 +31,7 @@ import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.util.diff.Patcher.ConflictResolution;
-import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import io.vertx.core.json.JsonObject;
 import java.io.IOException;
 import java.io.InputStream;

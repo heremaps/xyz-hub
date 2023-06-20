@@ -20,8 +20,8 @@
 package com.here.xyz.hub;
 
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.util.IoHelp;
-import com.here.xyz.util.IoHelp.LoadedBytes;
+import com.here.naksha.lib.core.util.IoHelp;
+import com.here.naksha.lib.core.util.IoHelp.LoadedBytes;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;

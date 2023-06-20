@@ -1,5 +1,5 @@
 dependencies {
-    implementation(project(":xyz-lib-models"))
+    implementation(project(":here-naksha-lib-core"))
     implementation(project(":xyz-lib-psql"))
 
     implementation("com.flipkart.zjsonpatch:zjsonpatch:0.4.13")

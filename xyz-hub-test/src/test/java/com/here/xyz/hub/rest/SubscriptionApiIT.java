@@ -1,7 +1,7 @@
 package com.here.xyz.hub.rest;
 
-import com.here.xyz.models.hub.Subscription;
-import com.here.xyz.models.hub.SubscriptionStatus;
+import com.here.naksha.lib.core.models.hub.Subscription;
+import com.here.naksha.lib.core.models.hub.SubscriptionStatus;
 import com.jayway.restassured.response.ValidatableResponse;
 import org.junit.After;
 import org.junit.Before;

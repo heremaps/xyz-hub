@@ -22,10 +22,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
-import com.here.xyz.util.json.JsonSerializable;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.jayway.jsonpath.DocumentContext;
 import com.jayway.jsonpath.JsonPath;
 import java.util.Collections;

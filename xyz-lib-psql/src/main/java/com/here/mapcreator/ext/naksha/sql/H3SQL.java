@@ -20,7 +20,7 @@
 package com.here.mapcreator.ext.naksha.sql;
 
 
-import com.here.xyz.models.geojson.coordinates.BBox;
+import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 
 public class H3SQL {
     public static final String HEXBIN = "hexbin";

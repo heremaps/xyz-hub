@@ -1,7 +1,7 @@
 package com.here.naksha.handler.activitylog;
 
 
-import com.here.xyz.EventHandlerParams;
+import com.here.naksha.lib.core.EventHandlerParams;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

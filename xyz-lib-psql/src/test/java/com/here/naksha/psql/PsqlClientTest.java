@@ -5,7 +5,7 @@ import com.here.mapcreator.ext.naksha.PsqlConfig;
 import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
 import com.here.mapcreator.ext.naksha.PsqlStorage;
 import com.here.mapcreator.ext.naksha.PsqlTxWriter;
-import com.here.xyz.models.hub.StorageCollection;
+import com.here.naksha.lib.core.models.hub.StorageCollection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 

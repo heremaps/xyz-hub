@@ -1,6 +1,6 @@
 package com.here.mapcreator.ext.naksha;
 
-import static com.here.xyz.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.zaxxer.hikari.HikariConfig;

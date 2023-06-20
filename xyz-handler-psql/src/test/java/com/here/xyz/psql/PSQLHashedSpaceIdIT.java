@@ -21,11 +21,11 @@ package com.here.xyz.psql;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
+import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.xyz.psql.tools.FeatureGenerator;
-import com.here.xyz.util.Hasher;
+import com.here.naksha.lib.core.util.Hasher;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;

@@ -21,8 +21,8 @@ package com.here.xyz.psql;
 
 
 import com.here.mapcreator.ext.naksha.PsqlConfig;
-import com.here.xyz.EventHandlerParams;
-import com.here.xyz.util.json.JsonSerializable;
+import com.here.naksha.lib.core.EventHandlerParams;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

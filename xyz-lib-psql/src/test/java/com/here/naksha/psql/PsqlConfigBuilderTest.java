@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.mapcreator.ext.naksha.PsqlConfigBuilder;
-import com.here.xyz.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.ParameterError;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;

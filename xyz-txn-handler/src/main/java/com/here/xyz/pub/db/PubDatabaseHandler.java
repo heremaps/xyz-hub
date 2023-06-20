@@ -1,10 +1,10 @@
 package com.here.xyz.pub.db;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.models.hub.SubscriptionConfig;
+import com.here.naksha.lib.core.models.hub.SubscriptionConfig;
 import com.here.mapcreator.ext.naksha.PsqlPoolConfig;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.models.hub.Subscription;
+import com.here.naksha.lib.core.models.hub.Subscription;
 import com.here.xyz.psql.PsqlStorageParams;
 import com.here.xyz.pub.models.*;
 import io.vertx.core.json.Json;

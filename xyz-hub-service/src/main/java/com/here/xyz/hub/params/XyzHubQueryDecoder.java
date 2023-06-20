@@ -16,7 +16,7 @@ import com.here.xyz.events.QueryDelimiter;
 import com.here.xyz.events.QueryParameter;
 import com.here.xyz.events.QueryParameterDecoder;
 import com.here.xyz.events.QueryParameterType;
-import com.here.xyz.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.ParameterError;
 import java.util.HashMap;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;

@@ -1,5 +1,5 @@
 dependencies {
-    implementation(project(":xyz-lib-models"))
+    implementation(project(":here-naksha-lib-core"))
 }
 
 description = "xyz-mock"

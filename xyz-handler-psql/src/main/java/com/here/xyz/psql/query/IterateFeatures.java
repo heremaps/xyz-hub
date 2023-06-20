@@ -19,22 +19,22 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.mapcreator.ext.naksha.sql.DhString;
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.payload.events.PropertyQuery;
-import com.here.xyz.models.payload.events.PropertyQueryAnd;
-import com.here.xyz.models.payload.events.PropertyQueryOr;
-import com.here.xyz.models.payload.events.QueryOperation;
-import com.here.xyz.models.payload.events.TagsQuery;
-import com.here.xyz.models.payload.events.feature.IterateFeaturesEvent;
-import com.here.xyz.models.payload.responses.XyzError;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.payload.events.PropertyQuery;
+import com.here.naksha.lib.core.models.payload.events.PropertyQueryAnd;
+import com.here.naksha.lib.core.models.payload.events.PropertyQueryOr;
+import com.here.naksha.lib.core.models.payload.events.QueryOperation;
+import com.here.naksha.lib.core.models.payload.events.TagsQuery;
+import com.here.naksha.lib.core.models.payload.events.feature.IterateFeaturesEvent;
+import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.Capabilities.IndexList;
 import com.here.xyz.psql.PsqlHandler;

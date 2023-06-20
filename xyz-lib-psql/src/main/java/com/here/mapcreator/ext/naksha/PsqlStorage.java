@@ -1,14 +1,14 @@
 package com.here.mapcreator.ext.naksha;
 
-import static com.here.xyz.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
-import com.here.xyz.INaksha;
-import com.here.xyz.lambdas.Pe1;
-import com.here.xyz.models.hub.plugins.Storage;
-import com.here.xyz.models.hub.transactions.TxSignalSet;
-import com.here.xyz.storage.IStorage;
-import com.here.xyz.util.IoHelp;
-import com.here.xyz.util.json.JsonSerializable;
+import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.lambdas.Pe1;
+import com.here.naksha.lib.core.models.hub.plugins.Storage;
+import com.here.naksha.lib.core.models.hub.transactions.TxSignalSet;
+import com.here.naksha.lib.core.storage.IStorage;
+import com.here.naksha.lib.core.util.IoHelp;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.ResultSet;

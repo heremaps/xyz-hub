@@ -1,6 +1,6 @@
 package com.here.xyz.pub.util;
 
-import com.here.xyz.models.hub.Subscription;
+import com.here.naksha.lib.core.models.hub.Subscription;
 import com.here.xyz.pub.impl.DefaultSNSPublisher;
 import com.here.xyz.pub.impl.IPublisher;
 import org.apache.logging.log4j.LogManager;

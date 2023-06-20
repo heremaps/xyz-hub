@@ -4,13 +4,13 @@ import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_VND_MAPBOX_VECTOR_T
 
 import com.here.xyz.events.feature.GetFeaturesByTileEvent;
 import com.here.xyz.events.feature.GetFeaturesByTileResponseType;
-import com.here.xyz.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.models.geojson.HQuad;
-import com.here.xyz.models.geojson.WebMercatorTile;
-import com.here.xyz.models.geojson.coordinates.BBox;
+import com.here.naksha.lib.core.models.geojson.HQuad;
+import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
+import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import io.vertx.ext.web.MIMEHeader;
 import io.vertx.ext.web.ParsedHeaderValue;
 import io.vertx.ext.web.RoutingContext;

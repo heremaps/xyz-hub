@@ -20,9 +20,9 @@
 package com.here.mapcreator.ext.naksha.sql;
 
 
-import com.here.xyz.models.geojson.WebMercatorTile;
-import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.models.payload.events.clustering.ClusteringQuadBin.CountMode;
+import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
+import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
+import com.here.naksha.lib.core.models.payload.events.clustering.ClusteringQuadBin.CountMode;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

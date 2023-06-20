@@ -31,11 +31,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.Point;
+import com.here.naksha.lib.core.models.geojson.implementation.Properties;
 import com.jayway.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;

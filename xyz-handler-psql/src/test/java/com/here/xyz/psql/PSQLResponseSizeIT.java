@@ -21,12 +21,12 @@ package com.here.xyz.psql;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.here.xyz.models.Typed;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.payload.events.feature.IterateFeaturesEvent;
-import com.here.xyz.models.payload.responses.ErrorResponse;
-import com.here.xyz.models.payload.responses.XyzError;
-import com.here.xyz.util.json.JsonSerializable;
+import com.here.naksha.lib.core.models.Typed;
+import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.payload.events.feature.IterateFeaturesEvent;
+import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
+import com.here.naksha.lib.core.models.payload.responses.XyzError;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;

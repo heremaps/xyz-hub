@@ -1,16 +1,17 @@
 package com.here.mapcreator.ext.naksha;
 
 
-import com.here.xyz.INaksha;
-import com.here.xyz.models.hub.pipelines.Space;
-import com.here.xyz.models.hub.pipelines.Subscription;
-import com.here.xyz.models.hub.plugins.Connector;
-import com.here.xyz.models.hub.plugins.EventHandler;
-import com.here.xyz.models.hub.plugins.Storage;
-import com.here.xyz.storage.CollectionCache;
+import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.models.hub.pipelines.Space;
+import com.here.naksha.lib.core.models.hub.pipelines.Subscription;
+import com.here.naksha.lib.core.models.hub.plugins.Connector;
+import com.here.naksha.lib.core.models.hub.plugins.EventHandler;
+import com.here.naksha.lib.core.models.hub.plugins.Storage;
+import com.here.naksha.lib.core.storage.CollectionCache;
 import java.io.IOException;
 import java.sql.SQLException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The abstract Naksha-Hub is the base class for the Naksha-Hub implementation, granting access to
@@ -57,4 +58,59 @@ public abstract class AbstractNakshaHub extends PsqlStorage implements INaksha {
 
     /** Cache. */
     public final @NotNull CollectionCache<Storage> storages = null;
+
+    @Override
+    public @Nullable Space getSpaceById(@NotNull String id) {
+        return null;
+    }
+
+    @Override
+    public @Nullable Connector getConnectorById(@NotNull String id) {
+        return null;
+    }
+
+    @Override
+    public @Nullable Storage getStorageById(@NotNull String id) {
+        return null;
+    }
+
+    @Override
+    public @Nullable Storage getStorageByNumber(long number) {
+        return null;
+    }
+
+    @Override
+    public @Nullable EventHandler getExtensionById(@NotNull String id) {
+        return null;
+    }
+
+    @Override
+    public @Nullable Subscription getSubscriptionById(@NotNull String id) {
+        return null;
+    }
+
+    @Override
+    public @NotNull Iterable<Space> iterateSpaces() {
+        return null;
+    }
+
+    @Override
+    public @NotNull Iterable<Connector> iterateConnectors() {
+        return null;
+    }
+
+    @Override
+    public @NotNull Iterable<Storage> iterateStorages() {
+        return null;
+    }
+
+    @Override
+    public @NotNull Iterable<EventHandler> iterateExtensions() {
+        return null;
+    }
+
+    @Override
+    public @NotNull Iterable<Subscription> iterateSubscriptions() {
+        return null;
+    }
 }

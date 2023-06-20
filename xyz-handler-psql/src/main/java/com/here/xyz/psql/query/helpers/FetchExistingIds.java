@@ -20,7 +20,7 @@
 package com.here.xyz.psql.query.helpers;
 
 
-import com.here.xyz.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQueryExt;

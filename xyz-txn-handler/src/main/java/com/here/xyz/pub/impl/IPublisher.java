@@ -1,6 +1,6 @@
 package com.here.xyz.pub.impl;
 
-import com.here.xyz.models.hub.Subscription;
+import com.here.naksha.lib.core.models.hub.Subscription;
 import com.here.xyz.pub.models.PubConfig;
 import com.here.xyz.pub.models.PubTransactionData;
 import com.here.xyz.pub.models.PublishEntryDTO;

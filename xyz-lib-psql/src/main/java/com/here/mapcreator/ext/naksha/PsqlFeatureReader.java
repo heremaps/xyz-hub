@@ -1,9 +1,9 @@
 package com.here.mapcreator.ext.naksha;
 
 
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.hub.StorageCollection;
-import com.here.xyz.storage.IFeatureReader;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.hub.StorageCollection;
+import com.here.naksha.lib.core.storage.IFeatureReader;
 import java.sql.SQLException;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;

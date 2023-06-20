@@ -2,13 +2,13 @@ package com.here.xyz.hub.task.feature;
 
 import com.here.xyz.Typed;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
-import com.here.xyz.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.lambdas.P;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.hub.Space;
+import com.here.naksha.lib.core.lambdas.P;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.hub.Space;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;

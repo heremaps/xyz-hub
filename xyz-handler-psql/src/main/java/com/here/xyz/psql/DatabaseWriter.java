@@ -19,12 +19,12 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import java.sql.Connection;
 import java.sql.PreparedStatement;

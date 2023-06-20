@@ -20,13 +20,13 @@ package com.here.xyz.psql;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.*;
-import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.xyz.models.hub.pipelines.Space;
-import com.here.xyz.models.payload.events.feature.ModifyFeaturesEvent;
-import com.here.xyz.models.payload.events.space.ModifySpaceEvent;
-import com.here.xyz.util.json.JsonSerializable;
+import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
+import com.here.naksha.lib.core.models.geojson.implementation.*;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
+import com.here.naksha.lib.core.models.hub.pipelines.Space;
+import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
+import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;

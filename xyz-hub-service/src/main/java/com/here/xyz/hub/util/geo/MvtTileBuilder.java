@@ -23,10 +23,10 @@ package com.here.xyz.hub.util.geo;
 import static com.here.xyz.hub.util.geo.GeoTools.WEB_MERCATOR_EPSG;
 import static com.here.xyz.hub.util.geo.GeoTools.WGS84_EPSG;
 
-import com.here.xyz.models.geojson.WebMercatorTile;
-import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
+import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
 import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.PrecisionModel;

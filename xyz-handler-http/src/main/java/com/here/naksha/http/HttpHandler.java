@@ -1,18 +1,18 @@
 package com.here.naksha.http;
 
 
-import com.here.xyz.IEventContext;
-import com.here.xyz.IEventHandler;
-import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.Payload;
-import com.here.xyz.models.Typed;
-import com.here.xyz.models.hub.plugins.EventHandler;
-import com.here.xyz.models.payload.Event;
-import com.here.xyz.models.payload.XyzResponse;
-import com.here.xyz.models.payload.responses.ErrorResponse;
-import com.here.xyz.models.payload.responses.ModifiedEventResponse;
-import com.here.xyz.models.payload.responses.XyzError;
-import com.here.xyz.util.json.JsonSerializable;
+import com.here.naksha.lib.core.IEventContext;
+import com.here.naksha.lib.core.IEventHandler;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.Payload;
+import com.here.naksha.lib.core.models.Typed;
+import com.here.naksha.lib.core.models.hub.plugins.EventHandler;
+import com.here.naksha.lib.core.models.payload.Event;
+import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
+import com.here.naksha.lib.core.models.payload.responses.ModifiedEventResponse;
+import com.here.naksha.lib.core.models.payload.responses.XyzError;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;

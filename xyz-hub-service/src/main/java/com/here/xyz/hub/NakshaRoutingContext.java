@@ -9,12 +9,12 @@ import static io.vertx.core.http.HttpHeaders.ETAG;
 
 import com.here.xyz.NakshaLogger;
 import com.here.xyz.NanoTime;
-import com.here.xyz.exceptions.ParameterError;
-import com.here.xyz.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.NakshaTask;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.NotModifiedResponse;

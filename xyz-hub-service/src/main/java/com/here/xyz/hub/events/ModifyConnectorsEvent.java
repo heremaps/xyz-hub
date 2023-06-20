@@ -1,6 +1,6 @@
 package com.here.xyz.hub.events;
 
-import com.here.xyz.models.hub.Connector;
+import com.here.naksha.lib.core.models.hub.Connector;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

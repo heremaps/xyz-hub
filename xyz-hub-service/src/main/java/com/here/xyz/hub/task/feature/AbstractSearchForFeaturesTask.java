@@ -1,7 +1,7 @@
 package com.here.xyz.hub.task.feature;
 
 import com.here.xyz.events.feature.SearchForFeaturesEvent;
-import com.here.xyz.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.xyz.hub.rest.ApiResponseType;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;

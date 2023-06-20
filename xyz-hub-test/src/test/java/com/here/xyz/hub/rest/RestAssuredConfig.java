@@ -20,9 +20,9 @@
 package com.here.xyz.hub.rest;
 
 
-import com.here.xyz.util.EnvName;
-import com.here.xyz.util.JsonConfigFile;
-import com.here.xyz.util.JsonName;
+import com.here.naksha.lib.core.util.EnvName;
+import com.here.naksha.lib.core.util.JsonConfigFile;
+import com.here.naksha.lib.core.util.JsonName;
 import java.io.IOException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

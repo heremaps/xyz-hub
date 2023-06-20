@@ -28,11 +28,11 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.geojson.implementation.Point;
-import com.here.xyz.models.hub.Space;
-import com.here.xyz.models.hub.Space.ConnectorRef;
+import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.Point;
+import com.here.naksha.lib.core.models.hub.Space;
+import com.here.naksha.lib.core.models.hub.Space.ConnectorRef;
 import io.vertx.core.json.Json;
 import org.junit.After;
 import org.junit.Test;

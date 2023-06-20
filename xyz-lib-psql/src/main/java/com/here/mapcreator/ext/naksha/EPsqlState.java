@@ -1,8 +1,8 @@
 package com.here.mapcreator.ext.naksha;
 
 
-import com.here.xyz.util.ILike;
-import com.here.xyz.util.StringHelper;
+import com.here.naksha.lib.core.util.ILike;
+import com.here.naksha.lib.core.util.StringHelper;
 import java.sql.SQLException;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;

@@ -20,10 +20,10 @@
 package com.here.xyz.hub.auth;
 
 import com.here.xyz.INaksha;
-import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.Space;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.hub.Connector;
+import com.here.naksha.lib.core.models.hub.Space;
 import com.here.xyz.responses.XyzError;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;

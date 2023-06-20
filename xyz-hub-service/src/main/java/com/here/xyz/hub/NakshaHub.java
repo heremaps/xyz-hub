@@ -1,39 +1,20 @@
 package com.here.xyz.hub;
 
 import static com.here.xyz.NakshaLogger.currentLogger;
-import static com.here.xyz.util.IoHelp.openResource;
-import static com.here.xyz.util.IoHelp.parseValue;
+import static com.here.naksha.lib.core.util.IoHelp.openResource;
+import static com.here.naksha.lib.core.util.IoHelp.parseValue;
 
 import com.here.mapcreator.ext.naksha.AbstractNakshaHub;
-import com.here.naksha.activitylog.ActivityLogHandler;
-import com.here.naksha.http.HttpHandler;
 import com.here.xyz.AbstractTask;
-import com.here.xyz.EventHandler;
-import com.here.xyz.events.Event;
-import com.here.xyz.events.feature.GetFeaturesByIdEvent;
-import com.here.xyz.events.feature.ModifyFeaturesEvent;
-import com.here.xyz.exceptions.XyzErrorException;
-import com.here.xyz.hub.auth.NakshaAuthProvider;
-import com.here.xyz.hub.task.feature.GetFeaturesByIdTask;
-import com.here.xyz.hub.task.feature.ModifyFeaturesTask;
-import com.here.xyz.hub.util.metrics.GcDurationMetric;
-import com.here.xyz.hub.util.metrics.GlobalInflightRequestMemory;
-import com.here.xyz.hub.util.metrics.GlobalUsedRfcConnections;
-import com.here.xyz.hub.util.metrics.MajorGcCountMetric;
-import com.here.xyz.hub.util.metrics.MemoryMetric;
-import com.here.xyz.hub.util.metrics.base.CWBareValueMetricPublisher;
-import com.here.xyz.hub.util.metrics.base.MetricPublisher;
-import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
-import com.here.xyz.hub.util.metrics.net.NakshaHubMetricsFactory;
-import com.here.xyz.lambdas.F0;
-import com.here.xyz.models.hub.Connector;
-import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.PsqlHandler;
-import com.here.xyz.psql.PsqlHandlerParams;
-import com.here.xyz.responses.XyzError;
-import com.here.xyz.util.IoHelp;
-import com.here.xyz.util.IoHelp.LoadedBytes;
-import com.here.xyz.util.Params;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.lambdas.F0;
+import com.here.naksha.lib.core.models.payload.Event;
+import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
+import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
+import com.here.naksha.lib.core.models.payload.responses.XyzError;
+import com.here.naksha.lib.core.util.IoHelp;
+import com.here.naksha.lib.core.util.IoHelp.LoadedBytes;
+import com.here.naksha.lib.core.util.Params;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.metrics.MetricsOptions;
@@ -245,9 +226,9 @@ public class NakshaHub extends AbstractNakshaHub {
    * Register all handlers.
    */
   private void initHandlers() {
-    EventHandler.register(PsqlHandler.ID, PsqlHandler.class);
-    EventHandler.register(HttpHandler.ID, HttpHandler.class);
-    EventHandler.register(ActivityLogHandler.ID, ActivityLogHandler.class);
+//    EventHandler.register(PsqlHandler.ID, PsqlHandler.class);
+//    EventHandler.register(HttpHandler.ID, HttpHandler.class);
+//    EventHandler.register(ActivityLogHandler.ID, ActivityLogHandler.class);
   }
 
   @SuppressWarnings("unchecked")

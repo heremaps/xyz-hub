@@ -20,9 +20,9 @@
 package com.here.xyz.psql.tools;
 
 
-import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.*;
-import com.here.xyz.models.geojson.implementation.namespaces.XyzNamespace;
+import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
+import com.here.naksha.lib.core.models.geojson.implementation.*;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

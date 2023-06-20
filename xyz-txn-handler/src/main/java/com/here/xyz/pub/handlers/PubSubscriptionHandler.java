@@ -1,6 +1,6 @@
 package com.here.xyz.pub.handlers;
 
-import com.here.xyz.models.hub.Subscription;
+import com.here.naksha.lib.core.models.hub.Subscription;
 import com.here.xyz.pub.db.PubDatabaseHandler;
 import com.here.xyz.pub.db.PubJdbcConnectionPool;
 import com.here.xyz.pub.models.JdbcConnectionParams;

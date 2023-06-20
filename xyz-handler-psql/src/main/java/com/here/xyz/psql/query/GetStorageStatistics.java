@@ -19,13 +19,13 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.here.mapcreator.ext.naksha.PsqlCollection;
-import com.here.xyz.models.payload.events.info.GetStorageStatisticsEvent;
-import com.here.xyz.models.payload.responses.StatisticsResponse.Value;
-import com.here.xyz.models.payload.responses.StorageStatistics;
-import com.here.xyz.models.payload.responses.StorageStatistics.SpaceByteSizes;
+import com.here.naksha.lib.core.models.payload.events.info.GetStorageStatisticsEvent;
+import com.here.naksha.lib.core.models.payload.responses.StatisticsResponse.Value;
+import com.here.naksha.lib.core.models.payload.responses.StorageStatistics;
+import com.here.naksha.lib.core.models.payload.responses.StorageStatistics.SpaceByteSizes;
 import com.here.xyz.psql.PsqlHandler;
 import com.here.xyz.psql.SQLQueryExt;
 import java.sql.ResultSet;

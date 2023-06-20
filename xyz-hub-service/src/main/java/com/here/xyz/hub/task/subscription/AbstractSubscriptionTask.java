@@ -19,7 +19,7 @@
 
 package com.here.xyz.hub.task.subscription;
 
-import com.here.xyz.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.xyz.hub.events.AbstractSubscriptionEvent;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.task.NakshaTask;

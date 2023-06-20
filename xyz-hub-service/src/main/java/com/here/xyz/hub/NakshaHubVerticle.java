@@ -44,7 +44,7 @@ import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.wikvaya.util.http.MIMEType;
 import com.here.xyz.AbstractTask;
-import com.here.xyz.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.xyz.hub.auth.NakshaJwtAuthHandler;
 import com.here.xyz.hub.auth.NakshaAuthProvider;
 import com.here.xyz.hub.rest.ConnectorApi;
@@ -57,7 +57,7 @@ import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.task.NakshaTask;
 import com.here.xyz.hub.util.logging.LogUtil;
 import com.here.xyz.responses.XyzError;
-import com.here.xyz.util.IoHelp;
+import com.here.naksha.lib.core.util.IoHelp;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;

@@ -1,13 +1,13 @@
 package com.here.xyz.hub.task.connector;
 
 import com.here.xyz.INaksha;
-import com.here.xyz.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.events.GetConnectorsByIdEvent;
 import com.here.xyz.hub.rest.ApiResponseType;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.hub.Connector;
+import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.hub.Connector;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.ext.web.RoutingContext;

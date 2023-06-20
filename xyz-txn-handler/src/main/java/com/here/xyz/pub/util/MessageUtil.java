@@ -2,7 +2,7 @@ package com.here.xyz.pub.util;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.models.hub.Subscription;
+import com.here.naksha.lib.core.models.hub.Subscription;
 import com.here.xyz.pub.mapper.DefaultPubMsgMapper;
 import com.here.xyz.pub.mapper.IPubMsgMapper;
 import com.jayway.jsonpath.Configuration;

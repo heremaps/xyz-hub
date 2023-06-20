@@ -1,7 +1,7 @@
 package com.here.mapcreator.ext.naksha;
 
 
-import com.here.xyz.models.payload.events.QueryParameterList;
+import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import org.jetbrains.annotations.NotNull;
 
 public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfig, PsqlConfigBuilder> {

@@ -2,8 +2,8 @@ package com.here.mapcreator.ext.naksha;
 
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.here.xyz.INaksha;
-import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.models.geojson.implementation.Properties;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 

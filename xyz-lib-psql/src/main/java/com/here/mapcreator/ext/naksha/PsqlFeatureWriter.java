@@ -1,11 +1,11 @@
 package com.here.mapcreator.ext.naksha;
 
 
-import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.models.hub.StorageCollection;
-import com.here.xyz.storage.IFeatureWriter;
-import com.here.xyz.storage.ModifyFeaturesReq;
-import com.here.xyz.storage.ModifyFeaturesResp;
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.hub.StorageCollection;
+import com.here.naksha.lib.core.storage.IFeatureWriter;
+import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
+import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import java.sql.SQLException;
 import org.jetbrains.annotations.NotNull;
 

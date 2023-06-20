@@ -1,5 +1,5 @@
 dependencies {
-    implementation(project(":xyz-lib-models"))
+    implementation(project(":here-naksha-lib-core"))
     implementation("org.postgresql:postgresql:42.4.3")
     implementation("com.zaxxer:HikariCP:4.0.3")
     implementation("commons-dbutils:commons-dbutils:1.7")

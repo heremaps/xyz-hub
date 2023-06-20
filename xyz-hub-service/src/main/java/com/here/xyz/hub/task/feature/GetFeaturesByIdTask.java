@@ -1,8 +1,9 @@
 package com.here.xyz.hub.task.feature;
 
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
-import com.here.xyz.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.xyz.hub.rest.ApiResponseType;
+import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;

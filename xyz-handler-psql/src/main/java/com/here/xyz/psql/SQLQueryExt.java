@@ -21,7 +21,7 @@ package com.here.xyz.psql;
 
 
 import com.here.mapcreator.ext.naksha.sql.SQLQuery;
-import com.here.xyz.models.payload.events.feature.QueryEvent;
+import com.here.naksha.lib.core.models.payload.events.feature.QueryEvent;
 import com.here.xyz.psql.query.GetFeatures;
 
 /**
