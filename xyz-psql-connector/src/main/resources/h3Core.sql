@@ -30,7 +30,7 @@ create schema if not exists h3;
 create or replace function h3_version() 
 returns integer as
 $body$
- select 107
+ select 108
 $body$ 
 language sql immutable;
 
@@ -2857,13 +2857,14 @@ $body$
 $body$
 language sql immutable;
 
+/* (rm cache)
 create table if not exists h3cache ( h3 h3index not null, res integer not null,  geo geometry not null );
 create index if not exists idx_h3cache_geo on h3cache using gist (geo);
 create index if not exists idx_h3cache_res on h3cache ( res );
 
 alter table h3cache drop constraint if exists pk_h3;
 create index if not exists idx_h3cache_h3 on h3cache ( h3 );
-
+*/
 
 create or replace function geoToH3Deg( c geometry, res integer)
  returns h3index as
@@ -2872,17 +2873,17 @@ declare
  h H3Index;
  hg geometry;
 begin
-
+/* (rm cache)
  select t.h3 into h from h3cache t where t.geo && c and st_intersects(t.geo,c) and t.res = geoToH3Deg.res limit 1;
 
  if( h notnull ) then
   return h;
  end if;
-
+*/
  h = geoToH3Deg_p(c,res);
- hg = ST_MakeValid( h3ToGeoBoundaryDeg_p( h ) );
+ -- (rm cache) hg = ST_MakeValid( h3ToGeoBoundaryDeg_p( h ) );
  
- insert into h3cache ( h3, res, geo ) values( h,res, hg );
+ -- (rm cache) insert into h3cache ( h3, res, geo ) values( h,res, hg );
 
  return h; 
  
@@ -3361,16 +3362,16 @@ $body$
 declare
  hg geometry;
 begin
-
+/* (rm cache)
  select t.geo into hg from h3cache t where t.h3 = h3ToGeoBoundaryDeg.h3 limit 1;
 
  if( hg notnull ) then
   return hg;
  end if;
-
+*/
  hg = ST_MakeValid( h3ToGeoBoundaryDeg_p( h3 ) );
  
- insert into h3cache ( h3, res, geo ) values( h3, H3_GET_RESOLUTION(h3), hg );
+ -- (rm cache) insert into h3cache ( h3, res, geo ) values( h3, H3_GET_RESOLUTION(h3), hg );
 
  return hg; 
  

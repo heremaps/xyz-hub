@@ -59,7 +59,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
     SQLQuery query;
     switch(event.getClusteringType().toLowerCase()) {
       case H3SQL.HEXBIN: {
-        setUseReadReplica(false); // -> insert into h3cache
+        setUseReadReplica(true); // => set to 'false' for use of h3cache ( insert into h3cache ) 
         query = buildHexbinClusteringQuery(event);
 
         if (isMvtRequested)
