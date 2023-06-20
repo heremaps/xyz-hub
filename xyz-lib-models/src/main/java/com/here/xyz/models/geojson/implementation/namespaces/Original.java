@@ -31,71 +31,71 @@ import org.jetbrains.annotations.Nullable;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Original extends JsonObject {
 
-  public static final String CREATED_AT = "createdAt";
-  public static final String PUUID = "puuid";
-  public static final String MUUID = "muuid";
-  public static final String SPACE = "space";
-  public static final String UPDATED_AT = "updatedAt";
+    public static final String CREATED_AT = "createdAt";
+    public static final String PUUID = "puuid";
+    public static final String MUUID = "muuid";
+    public static final String SPACE = "space";
+    public static final String UPDATED_AT = "updatedAt";
 
-  /** The space ID the feature belongs to. */
-  @JsonProperty(SPACE)
-  private String space;
+    /** The space ID the feature belongs to. */
+    @JsonProperty(SPACE)
+    private String space;
 
-  /** The timestamp, when a feature was created. */
-  @JsonProperty(CREATED_AT)
-  private long createdAt;
+    /** The timestamp, when a feature was created. */
+    @JsonProperty(CREATED_AT)
+    private long createdAt;
 
-  /** The timestamp, when a feature was last updated. */
-  @JsonProperty(UPDATED_AT)
-  private long updatedAt;
+    /** The timestamp, when a feature was last updated. */
+    @JsonProperty(UPDATED_AT)
+    private long updatedAt;
 
-  /** The previous uuid of the feature. */
-  @JsonProperty(PUUID)
-  @JsonInclude(Include.NON_NULL)
-  private String puuid;
+    /** The previous uuid of the feature. */
+    @JsonProperty(PUUID)
+    @JsonInclude(Include.NON_NULL)
+    private String puuid;
 
-  /** The merge muuid of the feature. */
-  @JsonProperty(MUUID)
-  @JsonInclude(Include.NON_NULL)
-  private String muuid;
+    /** The merge muuid of the feature. */
+    @JsonProperty(MUUID)
+    @JsonInclude(Include.NON_NULL)
+    private String muuid;
 
-  public @Nullable String getSpace() {
-    return space;
-  }
+    public @Nullable String getSpace() {
+        return space;
+    }
 
-  public void setSpace(@Nullable String space) {
-    this.space = space;
-  }
+    public void setSpace(@Nullable String space) {
+        this.space = space;
+    }
 
-  public long getCreatedAt() {
-    return createdAt;
-  }
+    public long getCreatedAt() {
+        return createdAt;
+    }
 
-  public void setCreatedAt(long createdAt) {
-    this.createdAt = createdAt;
-  }
+    public void setCreatedAt(long createdAt) {
+        this.createdAt = createdAt;
+    }
 
-  public long getUpdatedAt() {
-    return updatedAt;
-  }
+    public long getUpdatedAt() {
+        return updatedAt;
+    }
 
-  public void setUpdatedAt(long updatedAt) {
-    this.updatedAt = updatedAt;
-  }
+    public void setUpdatedAt(long updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 
-  public @Nullable String getPuuid() {
-    return puuid;
-  }
+    public @Nullable String getPuuid() {
+        return puuid;
+    }
 
-  public void setPuuid(@Nullable String puuid) {
-    this.puuid = puuid;
-  }
+    public void setPuuid(@Nullable String puuid) {
+        this.puuid = puuid;
+    }
 
-  public @Nullable String getMuuid() {
-    return muuid;
-  }
+    public @Nullable String getMuuid() {
+        return muuid;
+    }
 
-  public void setMuuid(@Nullable String muuid) {
-    this.muuid = muuid;
-  }
+    public void setMuuid(@Nullable String muuid) {
+        this.muuid = muuid;
+    }
 }

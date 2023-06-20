@@ -31,40 +31,40 @@ import com.fasterxml.jackson.annotation.JsonView;
 @SuppressWarnings("unused")
 public interface View {
 
-  /** The property is public (for read and write) and persisted. */
-  interface Public extends Export.Public, Import.Public, Store {}
+    /** The property is public (for read and write) and persisted. */
+    interface Public extends Export.Public, Import.Public, Store {}
 
-  /** The property is protected (for read and write) and persisted. */
-  interface Protected extends Export.Protected, Import.Protected, Store {}
+    /** The property is protected (for read and write) and persisted. */
+    interface Protected extends Export.Protected, Import.Protected, Store {}
 
-  /** The property is private (for read and write) and persisted. */
-  interface Private extends Export.Private, Import.Private, Store {}
+    /** The property is private (for read and write) and persisted. */
+    interface Private extends Export.Private, Import.Private, Store {}
 
-  /** Defines the visibility of a property. */
-  interface Export {
+    /** Defines the visibility of a property. */
+    interface Export {
 
-    /** The property is visible to everybody authenticated. */
-    interface Public extends Export {}
+        /** The property is visible to everybody authenticated. */
+        interface Public extends Export {}
 
-    /** The property is only visible with special access rights. */
-    interface Protected extends Export {}
+        /** The property is only visible with special access rights. */
+        interface Protected extends Export {}
 
-    /** The property is only visible to trusted components. */
-    interface Private extends Export {}
-  }
+        /** The property is only visible to trusted components. */
+        interface Private extends Export {}
+    }
 
-  interface Import {
+    interface Import {
 
-    /** The property can be modified normally. */
-    interface Public extends Import {}
+        /** The property can be modified normally. */
+        interface Public extends Import {}
 
-    /** The property can be modified only with special rights. */
-    interface Protected extends Import {}
+        /** The property can be modified only with special rights. */
+        interface Protected extends Import {}
 
-    /** The property can be modified only by trusted components. */
-    interface Private extends Import {}
-  }
+        /** The property can be modified only by trusted components. */
+        interface Private extends Import {}
+    }
 
-  /** If the member is persisted in the storage. */
-  interface Store {}
+    /** If the member is persisted in the storage. */
+    interface Store {}
 }

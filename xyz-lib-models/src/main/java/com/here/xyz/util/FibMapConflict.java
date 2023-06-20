@@ -18,7 +18,4 @@ import org.jetbrains.annotations.Nullable;
  * @param value The value found (will not the expected).
  */
 public record FibMapConflict(
-    @NotNull Object key,
-    @Nullable Object expected_value,
-    @Nullable Object new_value,
-    @Nullable Object value) {}
+        @NotNull Object key, @Nullable Object expected_value, @Nullable Object new_value, @Nullable Object value) {}

@@ -22,31 +22,31 @@ package com.here.xyz.models.geojson.declaration;
 /** Abstract interface that represents a mutable latitude / longitude value. */
 public interface ILonLat {
 
-  /**
-   * Returns the latitude value.
-   *
-   * @return the latitude value.
-   */
-  double latitude();
+    /**
+     * Returns the latitude value.
+     *
+     * @return the latitude value.
+     */
+    double latitude();
 
-  /**
-   * Sets the latitude value.
-   *
-   * @param lat The latitude value to be set.
-   */
-  void setLatitude(double lat);
+    /**
+     * Sets the latitude value.
+     *
+     * @param lat The latitude value to be set.
+     */
+    void setLatitude(double lat);
 
-  /**
-   * Returns the longitude value.
-   *
-   * @return the longitude value.
-   */
-  double longitude();
+    /**
+     * Returns the longitude value.
+     *
+     * @return the longitude value.
+     */
+    double longitude();
 
-  /**
-   * Sets the longitude value.
-   *
-   * @param lon The longitude value to be set.
-   */
-  void setLongitude(double lon);
+    /**
+     * Sets the longitude value.
+     *
+     * @param lon The longitude value to be set.
+     */
+    void setLongitude(double lon);
 }

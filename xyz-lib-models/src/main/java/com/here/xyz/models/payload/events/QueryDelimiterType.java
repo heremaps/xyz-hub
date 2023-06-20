@@ -9,13 +9,13 @@ package com.here.xyz.models.payload.events;
  * work as intended.
  */
 public enum QueryDelimiterType {
-  /** A general delimiter that is being used as delimiters of the generic URI components. */
-  GENERAL,
-  /** A sub-delimiter. */
-  SUB,
-  /**
-   * An unsafe delimiter, characters not being unreserved, but neither reserved for the delimiter
-   * purpose, for example ">".
-   */
-  UNSAFE;
+    /** A general delimiter that is being used as delimiters of the generic URI components. */
+    GENERAL,
+    /** A sub-delimiter. */
+    SUB,
+    /**
+     * An unsafe delimiter, characters not being unreserved, but neither reserved for the delimiter
+     * purpose, for example ">".
+     */
+    UNSAFE;
 }

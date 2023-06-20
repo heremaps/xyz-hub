@@ -9,6 +9,6 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonTypeName(value = "ensure")
 public class TweaksEnsure extends TweaksSampling {
 
-  /** Use a standard selection of feature properties. */
-  public boolean defaultSelection;
+    /** Use a standard selection of feature properties. */
+    public boolean defaultSelection;
 }

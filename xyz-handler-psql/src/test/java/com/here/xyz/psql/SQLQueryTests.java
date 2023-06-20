@@ -25,33 +25,33 @@ import org.junit.jupiter.api.Test;
 
 public class SQLQueryTests {
 
-  @Test
-  public void testVariableInheritance() {
-    SQLQueryExt q = new SQLQueryExt("${{someFragment}} ${someVariable}");
-    q.setVariable("someVariable", "someValue");
-    q.setQueryFragment("someFragment", "${someVariable} ==");
-    q.substitute();
-    assertEquals("\"someValue\" == \"someValue\"", q.text());
-  }
+    @Test
+    public void testVariableInheritance() {
+        SQLQueryExt q = new SQLQueryExt("${{someFragment}} ${someVariable}");
+        q.setVariable("someVariable", "someValue");
+        q.setQueryFragment("someFragment", "${someVariable} ==");
+        q.substitute();
+        assertEquals("\"someValue\" == \"someValue\"", q.text());
+    }
 
-  @Test
-  public void testParameterInheritance() {
-    SQLQueryExt q = new SQLQueryExt("${{someFragment}} #{someParameter}");
-    q.setNamedParameter("someParameter", "someValue");
-    q.setQueryFragment("someFragment", "#{someParameter} ==");
-    q.substitute();
-    assertEquals("? == ?", q.text());
-    assertEquals(2, q.parameters().size());
-    assertEquals("someValue", q.parameters().get(0));
-    assertEquals("someValue", q.parameters().get(1));
-  }
+    @Test
+    public void testParameterInheritance() {
+        SQLQueryExt q = new SQLQueryExt("${{someFragment}} #{someParameter}");
+        q.setNamedParameter("someParameter", "someValue");
+        q.setQueryFragment("someFragment", "#{someParameter} ==");
+        q.substitute();
+        assertEquals("? == ?", q.text());
+        assertEquals(2, q.parameters().size());
+        assertEquals("someValue", q.parameters().get(0));
+        assertEquals("someValue", q.parameters().get(1));
+    }
 
-  @Test
-  public void testFragmentInheritance() {
-    SQLQueryExt q = new SQLQueryExt("${{someInnerFragment}} ${{abc}}");
-    q.setQueryFragment("abc", "someValue");
-    q.setQueryFragment("someInnerFragment", new SQLQueryExt("${{abc}} =="));
-    q.substitute();
-    assertEquals("someValue == someValue", q.text());
-  }
+    @Test
+    public void testFragmentInheritance() {
+        SQLQueryExt q = new SQLQueryExt("${{someInnerFragment}} ${{abc}}");
+        q.setQueryFragment("abc", "someValue");
+        q.setQueryFragment("someInnerFragment", new SQLQueryExt("${{abc}} =="));
+        q.substitute();
+        assertEquals("someValue == someValue", q.text());
+    }
 }

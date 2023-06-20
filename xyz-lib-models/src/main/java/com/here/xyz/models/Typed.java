@@ -31,10 +31,10 @@ import com.here.xyz.util.json.JsonSerializable;
 
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({
-  @JsonSubTypes.Type(value = Payload.class),
-  @JsonSubTypes.Type(value = Geometry.class),
-  @JsonSubTypes.Type(value = Clustering.class),
-  @JsonSubTypes.Type(value = Tweaks.class),
-  @JsonSubTypes.Type(value = Feature.class)
+    @JsonSubTypes.Type(value = Payload.class),
+    @JsonSubTypes.Type(value = Geometry.class),
+    @JsonSubTypes.Type(value = Clustering.class),
+    @JsonSubTypes.Type(value = Tweaks.class),
+    @JsonSubTypes.Type(value = Feature.class)
 })
 public interface Typed extends JsonSerializable {}

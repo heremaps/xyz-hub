@@ -11,6 +11,7 @@ import org.jetbrains.annotations.NotNull;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ConstraintAll {
 
-  /** The constraints that all need to hold true (AND). */
-  @JsonProperty public List<@NotNull Constraint> of;
+    /** The constraints that all need to hold true (AND). */
+    @JsonProperty
+    public List<@NotNull Constraint> of;
 }

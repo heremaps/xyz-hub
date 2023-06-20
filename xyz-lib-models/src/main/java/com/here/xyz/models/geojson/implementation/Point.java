@@ -31,29 +31,29 @@ import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 @JsonTypeName(value = "Point")
 public class Point extends GeometryItem {
 
-  private PointCoordinates coordinates = new PointCoordinates();
+    private PointCoordinates coordinates = new PointCoordinates();
 
-  @Override
-  public PointCoordinates getCoordinates() {
-    return this.coordinates;
-  }
+    @Override
+    public PointCoordinates getCoordinates() {
+        return this.coordinates;
+    }
 
-  public void setCoordinates(PointCoordinates coordinates) {
-    this.coordinates = coordinates;
-  }
+    public void setCoordinates(PointCoordinates coordinates) {
+        this.coordinates = coordinates;
+    }
 
-  public Point withCoordinates(PointCoordinates coordinates) {
-    setCoordinates(coordinates);
-    return this;
-  }
+    public Point withCoordinates(PointCoordinates coordinates) {
+        setCoordinates(coordinates);
+        return this;
+    }
 
-  @JsonIgnore
-  public com.vividsolutions.jts.geom.Point convertToJTSGeometry() {
-    return JTSHelper.toPoint(this.coordinates);
-  }
+    @JsonIgnore
+    public com.vividsolutions.jts.geom.Point convertToJTSGeometry() {
+        return JTSHelper.toPoint(this.coordinates);
+    }
 
-  @Override
-  public void validate() throws InvalidGeometryException {
-    validatePointCoordinates(this.coordinates);
-  }
+    @Override
+    public void validate() throws InvalidGeometryException {
+        validatePointCoordinates(this.coordinates);
+    }
 }

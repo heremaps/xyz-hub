@@ -22,7 +22,7 @@ package com.here.xyz.models.geojson.exceptions;
 /** An exception that is thrown when the geometry of a feature is invalid. */
 public class InvalidGeometryException extends Exception {
 
-  public InvalidGeometryException(String message) {
-    super(message);
-  }
+    public InvalidGeometryException(String message) {
+        super(message);
+    }
 }

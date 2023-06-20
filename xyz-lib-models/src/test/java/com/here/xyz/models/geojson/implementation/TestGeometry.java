@@ -26,51 +26,50 @@ import org.junit.jupiter.api.Test;
 
 public class TestGeometry {
 
-  @Test
-  public void test_geometryOf() throws Exception {
-    final ObjectMapper mp = new ObjectMapper();
+    @Test
+    public void test_geometryOf() throws Exception {
+        final ObjectMapper mp = new ObjectMapper();
 
-    Geometry geometry = mp.readValue("{\"type\":\"Point\"}", Geometry.class);
-    assertTrue(geometry instanceof Point);
+        Geometry geometry = mp.readValue("{\"type\":\"Point\"}", Geometry.class);
+        assertTrue(geometry instanceof Point);
 
-    geometry = mp.readValue("{\"type\":\"MultiPoint\"}", Geometry.class);
-    assertTrue(geometry instanceof MultiPoint);
+        geometry = mp.readValue("{\"type\":\"MultiPoint\"}", Geometry.class);
+        assertTrue(geometry instanceof MultiPoint);
 
-    geometry = mp.readValue("{\"type\":\"LineString\"}", Geometry.class);
-    assertTrue(geometry instanceof LineString);
+        geometry = mp.readValue("{\"type\":\"LineString\"}", Geometry.class);
+        assertTrue(geometry instanceof LineString);
 
-    geometry = mp.readValue("{\"type\":\"MultiLineString\"}", Geometry.class);
-    assertTrue(geometry instanceof MultiLineString);
+        geometry = mp.readValue("{\"type\":\"MultiLineString\"}", Geometry.class);
+        assertTrue(geometry instanceof MultiLineString);
 
-    geometry = mp.readValue("{\"type\":\"Polygon\"}", Geometry.class);
-    assertTrue(geometry instanceof Polygon);
+        geometry = mp.readValue("{\"type\":\"Polygon\"}", Geometry.class);
+        assertTrue(geometry instanceof Polygon);
 
-    geometry = mp.readValue("{\"type\":\"MultiPolygon\"}", Geometry.class);
-    assertTrue(geometry instanceof MultiPolygon);
+        geometry = mp.readValue("{\"type\":\"MultiPolygon\"}", Geometry.class);
+        assertTrue(geometry instanceof MultiPolygon);
 
-    geometry = mp.readValue("{\"type\":\"GeometryCollection\"}", Geometry.class);
-    assertTrue(geometry instanceof GeometryCollection);
-  }
+        geometry = mp.readValue("{\"type\":\"GeometryCollection\"}", Geometry.class);
+        assertTrue(geometry instanceof GeometryCollection);
+    }
 
-  @Test
-  public void test_validate() throws Exception {
-    final ObjectMapper mp = new ObjectMapper();
+    @Test
+    public void test_validate() throws Exception {
+        final ObjectMapper mp = new ObjectMapper();
 
-    String json = "{\"type\":\"GeometryCollection\",\"geometries\":[]}";
-    GeometryCollection geometryCollection = mp.readValue(json, GeometryCollection.class);
-    geometryCollection.validate();
+        String json = "{\"type\":\"GeometryCollection\",\"geometries\":[]}";
+        GeometryCollection geometryCollection = mp.readValue(json, GeometryCollection.class);
+        geometryCollection.validate();
 
-    json =
-        "{\"type\":\"GeometryCollection\",\"geometries\":["
-            + //
-            "{\"type\":\"Point\",\"coordinates\":[0,0,0]},"
-            + //
-            "{\"type\":\"MultiPoint\",\"coordinates\":[]},"
-            + //
-            "{\"type\":\"MultiPoint\",\"coordinates\":[[0,0,0], [1,1,1]]}"
-            + //
-            "]}";
-    geometryCollection = mp.readValue(json, GeometryCollection.class);
-    geometryCollection.validate();
-  }
+        json = "{\"type\":\"GeometryCollection\",\"geometries\":["
+                + //
+                "{\"type\":\"Point\",\"coordinates\":[0,0,0]},"
+                + //
+                "{\"type\":\"MultiPoint\",\"coordinates\":[]},"
+                + //
+                "{\"type\":\"MultiPoint\",\"coordinates\":[[0,0,0], [1,1,1]]}"
+                + //
+                "]}";
+        geometryCollection = mp.readValue(json, GeometryCollection.class);
+        geometryCollection.validate();
+    }
 }

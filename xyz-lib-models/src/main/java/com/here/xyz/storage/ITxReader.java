@@ -12,46 +12,46 @@ import org.jetbrains.annotations.Nullable;
 /** Interface to grant read-access to a storage. */
 @AvailableSince(INaksha.v2_0)
 public interface ITxReader extends AutoCloseable {
-  /**
-   * Returns the current transaction number, if none has been created yet, creating a new one.
-   *
-   * @throws Exception if access to the storage failed or any other error occurred.
-   */
-  @AvailableSince(INaksha.v2_0)
-  @NotNull String getTransactionNumber() throws Exception;
+    /**
+     * Returns the current transaction number, if none has been created yet, creating a new one.
+     *
+     * @throws Exception if access to the storage failed or any other error occurred.
+     */
+    @AvailableSince(INaksha.v2_0)
+    @NotNull String getTransactionNumber() throws Exception;
 
-  @AvailableSince(INaksha.v2_0)
-  @Override
-  void close();
+    @AvailableSince(INaksha.v2_0)
+    @Override
+    void close();
 
-  /**
-   * Returns all collections from the storage.
-   *
-   * @return all collections from the storage.
-   * @throws Exception if access to the storage failed or any other error occurred.
-   */
-  @AvailableSince(INaksha.v2_0)
-  @NotNull List<@NotNull StorageCollection> getAllCollections() throws Exception;
+    /**
+     * Returns all collections from the storage.
+     *
+     * @return all collections from the storage.
+     * @throws Exception if access to the storage failed or any other error occurred.
+     */
+    @AvailableSince(INaksha.v2_0)
+    @NotNull List<@NotNull StorageCollection> getAllCollections() throws Exception;
 
-  /**
-   * Returns the collection with the given id.
-   *
-   * @param id the identifier of the collection to return.
-   * @return the collection or {@code null}, if no such collection exists.
-   * @throws Exception if access to the storage failed or any other error occurred.
-   */
-  @AvailableSince(INaksha.v2_0)
-  @Nullable StorageCollection getCollectionById(@NotNull String id) throws Exception;
+    /**
+     * Returns the collection with the given id.
+     *
+     * @param id the identifier of the collection to return.
+     * @return the collection or {@code null}, if no such collection exists.
+     * @throws Exception if access to the storage failed or any other error occurred.
+     */
+    @AvailableSince(INaksha.v2_0)
+    @Nullable StorageCollection getCollectionById(@NotNull String id) throws Exception;
 
-  /**
-   * Returns the reader for the given feature-type and collection.
-   *
-   * @param featureClass the class of the feature-type to read.
-   * @param collection the collection to read.
-   * @param <F> the feature-type.
-   * @return the feature reader.
-   * @throws Exception if access to the storage failed or any other error occurred.
-   */
-  <F extends Feature> @NotNull IFeatureReader<F> readFeatures(
-      @NotNull Class<F> featureClass, @NotNull StorageCollection collection) throws Exception;
+    /**
+     * Returns the reader for the given feature-type and collection.
+     *
+     * @param featureClass the class of the feature-type to read.
+     * @param collection the collection to read.
+     * @param <F> the feature-type.
+     * @return the feature reader.
+     * @throws Exception if access to the storage failed or any other error occurred.
+     */
+    <F extends Feature> @NotNull IFeatureReader<F> readFeatures(
+            @NotNull Class<F> featureClass, @NotNull StorageCollection collection) throws Exception;
 }

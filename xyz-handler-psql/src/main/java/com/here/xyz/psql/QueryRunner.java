@@ -37,43 +37,43 @@ import org.jetbrains.annotations.NotNull;
  */
 public abstract class QueryRunner<E, R> implements ResultSetHandler<R> {
 
-  // TODO: Make protected again after refactoring is complete
-  public static final String SCHEMA = "schema";
-  public static final String TABLE = "table";
+    // TODO: Make protected again after refactoring is complete
+    public static final String SCHEMA = "schema";
+    public static final String TABLE = "table";
 
-  private final @NotNull SQLQuery query;
-  private boolean useReadReplica;
-  protected final @NotNull PsqlHandler processor;
+    private final @NotNull SQLQuery query;
+    private boolean useReadReplica;
+    protected final @NotNull PsqlHandler processor;
 
-  public QueryRunner(@NotNull E input, final @NotNull PsqlHandler processor) throws SQLException {
-    this.processor = processor;
-    query = buildQuery(input);
-  }
+    public QueryRunner(@NotNull E input, final @NotNull PsqlHandler processor) throws SQLException {
+        this.processor = processor;
+        query = buildQuery(input);
+    }
 
-  public R run() throws SQLException {
-    prepareQuery();
-    return processor.executeQueryWithRetry(query, this, useReadReplica);
-  }
+    public R run() throws SQLException {
+        prepareQuery();
+        return processor.executeQueryWithRetry(query, this, useReadReplica);
+    }
 
-  public void write() throws SQLException {
-    prepareQuery();
-    processor.executeUpdateWithRetry(query);
-  }
+    public void write() throws SQLException {
+        prepareQuery();
+        processor.executeUpdateWithRetry(query);
+    }
 
-  private void prepareQuery() {
-    query.substitute();
-  }
+    private void prepareQuery() {
+        query.substitute();
+    }
 
-  protected abstract @NotNull SQLQuery buildQuery(@NotNull E input) throws SQLException;
+    protected abstract @NotNull SQLQuery buildQuery(@NotNull E input) throws SQLException;
 
-  @Override
-  public abstract @NotNull R handle(@NotNull ResultSet rs) throws SQLException;
+    @Override
+    public abstract @NotNull R handle(@NotNull ResultSet rs) throws SQLException;
 
-  public boolean isUseReadReplica() {
-    return useReadReplica;
-  }
+    public boolean isUseReadReplica() {
+        return useReadReplica;
+    }
 
-  public void setUseReadReplica(boolean useReadReplica) {
-    this.useReadReplica = useReadReplica;
-  }
+    public void setUseReadReplica(boolean useReadReplica) {
+        this.useReadReplica = useReadReplica;
+    }
 }

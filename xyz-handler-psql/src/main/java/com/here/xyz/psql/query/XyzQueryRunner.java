@@ -19,10 +19,9 @@ import org.jetbrains.annotations.NotNull;
  * @param <E> The event type
  * @param <R> The response type
  */
-public abstract class XyzQueryRunner<E extends Event, R extends XyzResponse>
-    extends QueryRunner<E, R> {
+public abstract class XyzQueryRunner<E extends Event, R extends XyzResponse> extends QueryRunner<E, R> {
 
-  public XyzQueryRunner(E event, final @NotNull PsqlHandler psqlConnector) throws SQLException {
-    super(event, psqlConnector);
-  }
+    public XyzQueryRunner(E event, final @NotNull PsqlHandler psqlConnector) throws SQLException {
+        super(event, psqlConnector);
+    }
 }

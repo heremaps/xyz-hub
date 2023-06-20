@@ -21,15 +21,15 @@ package com.here.xyz.models.geojson.coordinates;
 
 public class PointCoordinates extends Position {
 
-  public PointCoordinates() {
-    super();
-  }
+    public PointCoordinates() {
+        super();
+    }
 
-  public PointCoordinates(double x, double y) {
-    super(x, y);
-  }
+    public PointCoordinates(double x, double y) {
+        super(x, y);
+    }
 
-  public PointCoordinates(double x, double y, double z) {
-    super(x, y, z);
-  }
+    public PointCoordinates(double x, double y, double z) {
+        super(x, y, z);
+    }
 }

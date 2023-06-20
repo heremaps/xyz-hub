@@ -33,25 +33,25 @@ import com.here.xyz.models.payload.events.info.HealthCheckEvent;
 @JsonTypeName(value = "HealthStatus")
 public class HealthStatus extends XyzResponse {
 
-  private String status;
+    private String status;
 
-  public HealthStatus() {
-    super();
-    this.status = "OK";
-  }
+    public HealthStatus() {
+        super();
+        this.status = "OK";
+    }
 
-  public String getStatus() {
-    return this.status;
-  }
+    public String getStatus() {
+        return this.status;
+    }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setStatus(String status) {
-    this.status = status;
-  }
+    @SuppressWarnings("WeakerAccess")
+    public void setStatus(String status) {
+        this.status = status;
+    }
 
-  @SuppressWarnings("unused")
-  public HealthStatus withStatus(String status) {
-    setStatus(status);
-    return this;
-  }
+    @SuppressWarnings("unused")
+    public HealthStatus withStatus(String status) {
+        setStatus(status);
+        return this;
+    }
 }

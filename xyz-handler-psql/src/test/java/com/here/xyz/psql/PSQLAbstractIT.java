@@ -51,127 +51,120 @@ import org.apache.logging.log4j.Logger;
 
 public abstract class PSQLAbstractIT extends Helper {
 
-  protected static final Logger LOGGER = LogManager.getLogger();
+    protected static final Logger LOGGER = LogManager.getLogger();
 
-  protected static Random RANDOM = new Random();
-  protected static String TEST_SPACE_ID = "foo";
+    protected static Random RANDOM = new Random();
+    protected static String TEST_SPACE_ID = "foo";
 
-  protected static Map<String, Object> defaultTestConnectorParams =
-      new HashMap<String, Object>() {
+    protected static Map<String, Object> defaultTestConnectorParams = new HashMap<String, Object>() {
         {
-          put("connectorId", "test-connector");
-          put("propertySearch", true);
+            put("connectorId", "test-connector");
+            put("propertySearch", true);
         }
-      };
+    };
 
-  protected static PsqlHandlerParams connectorParams;
+    protected static PsqlHandlerParams connectorParams;
 
-  protected static DataSource dataSource() {
-    assert connectorParams != null;
-    return PsqlPool.get(connectorParams.getDbConfig()).dataSource;
-  }
-
-  protected static void initEnv(Map<String, Object> connectorParameters) throws Exception {
-    LOGGER.info("Setup environment...");
-    connectorParameters =
-        connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    connectorParams = new PsqlHandlerParams(connectorParameters);
-
-    final HealthCheckEvent event = new HealthCheckEvent();
-    event.setMinResponseTime(100);
-    // event.setConnectorParams(connectorParameters);
-
-    invokeLambda(event.serialize());
-    LOGGER.info("Setup environment Completed.");
-  }
-
-  protected static void invokeCreateTestSpace(
-      Map<String, Object> connectorParameters, String spaceId) throws Exception {
-    LOGGER.info("Creat Test space..");
-
-    connectorParameters =
-        connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    final Space space = new Space(RandomStringUtils.randomAlphabetic(12));
-    space.setId(spaceId);
-    final ModifySpaceEvent event = new ModifySpaceEvent();
-    // event.setSpaceId(spaceId);
-    event.setOperation(ModifySpaceEvent.Operation.CREATE);
-    // event.setConnectorParams(connectorParameters);
-    event.setSpaceDefinition(space);
-    SuccessResponse response = JsonSerializable.deserialize(invokeLambda(event.serialize()));
-    assertEquals("OK", response.getStatus());
-  }
-
-  protected static void invokeDeleteTestSpace(Map<String, Object> connectorParameters)
-      throws Exception {
-    LOGGER.info("Cleanup spaces..");
-
-    connectorParameters =
-        connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-    final ModifySpaceEvent event = new ModifySpaceEvent();
-    // event.setSpaceId(TEST_SPACE_ID);
-    event.setOperation(ModifySpaceEvent.Operation.DELETE);
-    // event.setConnectorParams(connectorParameters);
-    String response = invokeLambda(event.serialize());
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
-
-    LOGGER.info("Cleanup space Completed.");
-  }
-
-  protected static void invokeDeleteTestSpaces(
-      Map<String, Object> connectorParameters, List<String> spaces) throws Exception {
-    LOGGER.info("Cleanup spaces...");
-
-    connectorParameters =
-        connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
-
-    for (String space : spaces) {
-      final ModifySpaceEvent event = new ModifySpaceEvent();
-      // event.setSpaceId(space);
-      event.setOperation(ModifySpaceEvent.Operation.DELETE);
-      // event.setConnectorParams(connectorParameters);
-
-      String response = invokeLambda(event.serialize());
-      assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+    protected static DataSource dataSource() {
+        assert connectorParams != null;
+        return PsqlPool.get(connectorParams.getDbConfig()).dataSource;
     }
 
-    LOGGER.info("Cleanup spaces Completed.");
-  }
+    protected static void initEnv(Map<String, Object> connectorParameters) throws Exception {
+        LOGGER.info("Setup environment...");
+        connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
+        connectorParams = new PsqlHandlerParams(connectorParameters);
 
-  protected String invokeLambdaFromFile(String file) throws Exception {
-    InputStream jsonStream = PSQLAbstractIT.class.getResourceAsStream(file);
-    ByteArrayOutputStream os = new ByteArrayOutputStream();
-    final IoEventPipeline pipeline = new IoEventPipeline();
-    // TODO: We need to create a pre-configured connector for the test, because the connector is the
-    // PSQL storage for a specific db!
-    pipeline.addEventHandler(
-        new PsqlHandler(
-            new EventHandler(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class.getName())));
-    assert jsonStream != null;
-    pipeline.sendEvent(jsonStream, os);
-    String response =
-        IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
-    LOGGER.info("Response from lambda - {}", response);
-    return response;
-  }
+        final HealthCheckEvent event = new HealthCheckEvent();
+        event.setMinResponseTime(100);
+        // event.setConnectorParams(connectorParameters);
 
-  protected static String invokeLambda(String request) throws Exception {
-    LOGGER.info("Request to lambda - {}", request);
-    InputStream jsonStream = new ByteArrayInputStream(request.getBytes(StandardCharsets.UTF_8));
-    ByteArrayOutputStream os = new ByteArrayOutputStream();
-    final IoEventPipeline pipeline = new IoEventPipeline();
-    // TODO: We need to create a pre-configured connector for the test, because the connector is the
-    // PSQL storage for a specific db!
-    pipeline.addEventHandler(
-        new PsqlHandler(
-            new Connector(
-                RandomStringUtils.randomAlphabetic(12),
-                PsqlHandler.class,
-                new Storage("psql", 0, PsqlStorage.class))));
-    pipeline.sendEvent(jsonStream, os);
-    String response =
-        IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
-    LOGGER.info("Response from lambda - {}", response);
-    return response;
-  }
+        invokeLambda(event.serialize());
+        LOGGER.info("Setup environment Completed.");
+    }
+
+    protected static void invokeCreateTestSpace(Map<String, Object> connectorParameters, String spaceId)
+            throws Exception {
+        LOGGER.info("Creat Test space..");
+
+        connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
+        final Space space = new Space(RandomStringUtils.randomAlphabetic(12));
+        space.setId(spaceId);
+        final ModifySpaceEvent event = new ModifySpaceEvent();
+        // event.setSpaceId(spaceId);
+        event.setOperation(ModifySpaceEvent.Operation.CREATE);
+        // event.setConnectorParams(connectorParameters);
+        event.setSpaceDefinition(space);
+        SuccessResponse response = JsonSerializable.deserialize(invokeLambda(event.serialize()));
+        assertEquals("OK", response.getStatus());
+    }
+
+    protected static void invokeDeleteTestSpace(Map<String, Object> connectorParameters) throws Exception {
+        LOGGER.info("Cleanup spaces..");
+
+        connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
+        final ModifySpaceEvent event = new ModifySpaceEvent();
+        // event.setSpaceId(TEST_SPACE_ID);
+        event.setOperation(ModifySpaceEvent.Operation.DELETE);
+        // event.setConnectorParams(connectorParameters);
+        String response = invokeLambda(event.serialize());
+        assertEquals(
+                "Check response status",
+                "OK",
+                JsonPath.read(response, "$.status").toString());
+
+        LOGGER.info("Cleanup space Completed.");
+    }
+
+    protected static void invokeDeleteTestSpaces(Map<String, Object> connectorParameters, List<String> spaces)
+            throws Exception {
+        LOGGER.info("Cleanup spaces...");
+
+        connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
+
+        for (String space : spaces) {
+            final ModifySpaceEvent event = new ModifySpaceEvent();
+            // event.setSpaceId(space);
+            event.setOperation(ModifySpaceEvent.Operation.DELETE);
+            // event.setConnectorParams(connectorParameters);
+
+            String response = invokeLambda(event.serialize());
+            assertEquals(
+                    "Check response status",
+                    "OK",
+                    JsonPath.read(response, "$.status").toString());
+        }
+
+        LOGGER.info("Cleanup spaces Completed.");
+    }
+
+    protected String invokeLambdaFromFile(String file) throws Exception {
+        InputStream jsonStream = PSQLAbstractIT.class.getResourceAsStream(file);
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        final IoEventPipeline pipeline = new IoEventPipeline();
+        // TODO: We need to create a pre-configured connector for the test, because the connector is the
+        // PSQL storage for a specific db!
+        pipeline.addEventHandler(
+                new PsqlHandler(new EventHandler(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class.getName())));
+        assert jsonStream != null;
+        pipeline.sendEvent(jsonStream, os);
+        String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
+        LOGGER.info("Response from lambda - {}", response);
+        return response;
+    }
+
+    protected static String invokeLambda(String request) throws Exception {
+        LOGGER.info("Request to lambda - {}", request);
+        InputStream jsonStream = new ByteArrayInputStream(request.getBytes(StandardCharsets.UTF_8));
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        final IoEventPipeline pipeline = new IoEventPipeline();
+        // TODO: We need to create a pre-configured connector for the test, because the connector is the
+        // PSQL storage for a specific db!
+        pipeline.addEventHandler(new PsqlHandler(new Connector(
+                RandomStringUtils.randomAlphabetic(12), PsqlHandler.class, new Storage("psql", 0, PsqlStorage.class))));
+        pipeline.sendEvent(jsonStream, os);
+        String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
+        LOGGER.info("Response from lambda - {}", response);
+        return response;
+    }
 }

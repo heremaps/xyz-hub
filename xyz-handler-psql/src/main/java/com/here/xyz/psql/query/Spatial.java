@@ -28,13 +28,13 @@ import org.jetbrains.annotations.NotNull;
 
 public abstract class Spatial<E extends SpatialQueryEvent> extends SearchForFeatures<E> {
 
-  public Spatial(@NotNull E event, @NotNull PsqlHandler psqlConnector) throws SQLException {
-    super(event, psqlConnector);
-  }
+    public Spatial(@NotNull E event, @NotNull PsqlHandler psqlConnector) throws SQLException {
+        super(event, psqlConnector);
+    }
 
-  /**
-   * Returns a geo-fragment, which will return the geometry objects clipped by the provided
-   * geoFilter depending on whether clipping is active or not.
-   */
-  protected abstract SQLQuery buildClippedGeoFragment(final E event, SQLQuery geoFilter);
+    /**
+     * Returns a geo-fragment, which will return the geometry objects clipped by the provided
+     * geoFilter depending on whether clipping is active or not.
+     */
+    protected abstract SQLQuery buildClippedGeoFragment(final E event, SQLQuery geoFilter);
 }

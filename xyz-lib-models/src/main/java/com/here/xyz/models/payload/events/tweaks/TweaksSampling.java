@@ -14,49 +14,50 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "sampling")
 public class TweaksSampling extends Tweaks {
 
-  /** The algorithm. */
-  @JsonProperty public Algorithm algorithm;
+    /** The algorithm. */
+    @JsonProperty
+    public Algorithm algorithm;
 
-  public @NotNull Algorithm algorithm() {
-    return algorithm != null ? algorithm : Algorithm.GEOMETRY_SIZE;
-  }
-
-  public enum Algorithm {
-    GEOMETRY_SIZE("geometrysize", false, false),
-    DISTRIBUTION("distribution", true, false),
-    DISTRIBUTION2("distribution2", true, true);
-
-    Algorithm(@NotNull String text, boolean distribution, boolean distribution2) {
-      this.text = text;
-      this.distribution = distribution;
-      this.distribution2 = distribution;
+    public @NotNull Algorithm algorithm() {
+        return algorithm != null ? algorithm : Algorithm.GEOMETRY_SIZE;
     }
 
-    @JsonCreator
-    public static @Nullable Algorithm forText(@Nullable String text) {
-      if (text != null) {
-        for (final @NotNull Algorithm algorithm : values()) {
-          if (algorithm.text.equalsIgnoreCase(text)) {
-            return algorithm;
-          }
+    public enum Algorithm {
+        GEOMETRY_SIZE("geometrysize", false, false),
+        DISTRIBUTION("distribution", true, false),
+        DISTRIBUTION2("distribution2", true, true);
+
+        Algorithm(@NotNull String text, boolean distribution, boolean distribution2) {
+            this.text = text;
+            this.distribution = distribution;
+            this.distribution2 = distribution;
         }
-      }
-      return null;
+
+        @JsonCreator
+        public static @Nullable Algorithm forText(@Nullable String text) {
+            if (text != null) {
+                for (final @NotNull Algorithm algorithm : values()) {
+                    if (algorithm.text.equalsIgnoreCase(text)) {
+                        return algorithm;
+                    }
+                }
+            }
+            return null;
+        }
+
+        /** The textual representation. */
+        public final @NotNull String text;
+
+        /** If the algorithm implies distribution. */
+        public final boolean distribution;
+
+        /** If the algorithm implies distribution version 2. */
+        public final boolean distribution2;
+
+        @JsonValue
+        @Override
+        public @NotNull String toString() {
+            return text;
+        }
     }
-
-    /** The textual representation. */
-    public final @NotNull String text;
-
-    /** If the algorithm implies distribution. */
-    public final boolean distribution;
-
-    /** If the algorithm implies distribution version 2. */
-    public final boolean distribution2;
-
-    @JsonValue
-    @Override
-    public @NotNull String toString() {
-      return text;
-    }
-  }
 }

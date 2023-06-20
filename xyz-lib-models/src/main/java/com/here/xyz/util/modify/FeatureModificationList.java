@@ -33,101 +33,99 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** A list of features that should be modified. */
-public class FeatureModificationList<
-        FEATURE extends Feature, ENTRY extends FeatureModificationEntry<FEATURE>>
-    implements Iterable<ENTRY> {
+public class FeatureModificationList<FEATURE extends Feature, ENTRY extends FeatureModificationEntry<FEATURE>>
+        implements Iterable<ENTRY> {
 
-  /**
-   * All features by action. Filled after {@link FeatureModificationEntry#apply()} has been invoked.
-   */
-  private final HashMap<@NotNull Action, @NotNull List<@NotNull ENTRY>> usedActions =
-      new HashMap<>();
+    /**
+     * All features by action. Filled after {@link FeatureModificationEntry#apply()} has been invoked.
+     */
+    private final HashMap<@NotNull Action, @NotNull List<@NotNull ENTRY>> usedActions = new HashMap<>();
 
-  /** All features, wrapped into an entry. */
-  private final ArrayList<@NotNull ENTRY> entries = new ArrayList<>();
+    /** All features, wrapped into an entry. */
+    private final ArrayList<@NotNull ENTRY> entries = new ArrayList<>();
 
-  /** The action to take, when a feature does exist. */
-  private @NotNull IfExists ifExistsDefault;
+    /** The action to take, when a feature does exist. */
+    private @NotNull IfExists ifExistsDefault;
 
-  /** The action to take, when a feature does not exist. */
-  private @NotNull IfNotExists ifNotExistsDefault;
+    /** The action to take, when a feature does not exist. */
+    private @NotNull IfNotExists ifNotExistsDefault;
 
-  /** Create an empty feature modification list */
-  public FeatureModificationList() {
-    ifExistsDefault = MERGE;
-    ifNotExistsDefault = CREATE;
-  }
-
-  /**
-   * Add the given feature.
-   *
-   * @param feature The feature to add.
-   * @return this.
-   */
-  public @NotNull FeatureModificationList<FEATURE, ENTRY> add(@NotNull FEATURE feature) {
-    // TODO: Implement me!
-    return this;
-  }
-
-  /**
-   * Add all given features.
-   *
-   * @param features The features to add.
-   * @return this.
-   */
-  public @NotNull FeatureModificationList<FEATURE, ENTRY> addAll(
-      @Nullable List<@NotNull FEATURE> features) {
-    if (features != null) {
-      for (final var feature : features) {
-        add(feature);
-      }
+    /** Create an empty feature modification list */
+    public FeatureModificationList() {
+        ifExistsDefault = MERGE;
+        ifNotExistsDefault = CREATE;
     }
-    return this;
-  }
 
-  public IfExists getIfExistsDefault() {
-    return ifExistsDefault;
-  }
-
-  public void setIfExistsDefault(IfExists ifExistsDefault) {
-    this.ifExistsDefault = ifExistsDefault;
-  }
-
-  public IfNotExists getIfNotExistsDefault() {
-    return ifNotExistsDefault;
-  }
-
-  public void setIfNotExistsDefault(IfNotExists ifNotExistsDefault) {
-    this.ifNotExistsDefault = ifNotExistsDefault;
-  }
-
-  /**
-   * The method will iterate the collection of modifications and generate an event to load all
-   * needed feature states to perform the modification.
-   *
-   * @param allowUpsert {@code true} if upserts are supported, which means no state need to be
-   *     loaded; {@code false} otherwise.
-   * @return The event needed to load the feature states needed; {@code null} if nothing is
-   *     necessary.
-   */
-  public @Nullable LoadFeaturesEvent createLoadFeaturesEvent(boolean allowUpsert) {
-    if (entries.size() == 0) {
-      return null;
+    /**
+     * Add the given feature.
+     *
+     * @param feature The feature to add.
+     * @return this.
+     */
+    public @NotNull FeatureModificationList<FEATURE, ENTRY> add(@NotNull FEATURE feature) {
+        // TODO: Implement me!
+        return this;
     }
-    final LoadFeaturesEvent event = new LoadFeaturesEvent();
-    for (final @NotNull ENTRY entry : this) {
-      if (!allowUpsert || !entry.isUpsert()) {
-        event
-            .getIdsMap()
-            .put(entry.input.getId(), entry.input.getProperties().getXyzNamespace().getUuid());
-      }
-    }
-    return event.getIdsMap().size() > 0 ? event : null;
-  }
 
-  @Override
-  public @NotNull Iterator<@NotNull ENTRY> iterator() {
-    // TODO: Implement me!
-    return null;
-  }
+    /**
+     * Add all given features.
+     *
+     * @param features The features to add.
+     * @return this.
+     */
+    public @NotNull FeatureModificationList<FEATURE, ENTRY> addAll(@Nullable List<@NotNull FEATURE> features) {
+        if (features != null) {
+            for (final var feature : features) {
+                add(feature);
+            }
+        }
+        return this;
+    }
+
+    public IfExists getIfExistsDefault() {
+        return ifExistsDefault;
+    }
+
+    public void setIfExistsDefault(IfExists ifExistsDefault) {
+        this.ifExistsDefault = ifExistsDefault;
+    }
+
+    public IfNotExists getIfNotExistsDefault() {
+        return ifNotExistsDefault;
+    }
+
+    public void setIfNotExistsDefault(IfNotExists ifNotExistsDefault) {
+        this.ifNotExistsDefault = ifNotExistsDefault;
+    }
+
+    /**
+     * The method will iterate the collection of modifications and generate an event to load all
+     * needed feature states to perform the modification.
+     *
+     * @param allowUpsert {@code true} if upserts are supported, which means no state need to be
+     *     loaded; {@code false} otherwise.
+     * @return The event needed to load the feature states needed; {@code null} if nothing is
+     *     necessary.
+     */
+    public @Nullable LoadFeaturesEvent createLoadFeaturesEvent(boolean allowUpsert) {
+        if (entries.size() == 0) {
+            return null;
+        }
+        final LoadFeaturesEvent event = new LoadFeaturesEvent();
+        for (final @NotNull ENTRY entry : this) {
+            if (!allowUpsert || !entry.isUpsert()) {
+                event.getIdsMap()
+                        .put(
+                                entry.input.getId(),
+                                entry.input.getProperties().getXyzNamespace().getUuid());
+            }
+        }
+        return event.getIdsMap().size() > 0 ? event : null;
+    }
+
+    @Override
+    public @NotNull Iterator<@NotNull ENTRY> iterator() {
+        // TODO: Implement me!
+        return null;
+    }
 }

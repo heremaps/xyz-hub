@@ -30,18 +30,18 @@ import java.util.List;
 @SuppressWarnings({"WeakerAccess", "unused"})
 public final class GetFeaturesByIdEvent extends FeatureEvent {
 
-  private List<String> ids;
+    private List<String> ids;
 
-  public List<String> getIds() {
-    return this.ids;
-  }
+    public List<String> getIds() {
+        return this.ids;
+    }
 
-  public void setIds(List<String> ids) {
-    this.ids = ids;
-  }
+    public void setIds(List<String> ids) {
+        this.ids = ids;
+    }
 
-  public GetFeaturesByIdEvent withIds(List<String> ids) {
-    setIds(ids);
-    return this;
-  }
+    public GetFeaturesByIdEvent withIds(List<String> ids) {
+        setIds(ids);
+        return this;
+    }
 }

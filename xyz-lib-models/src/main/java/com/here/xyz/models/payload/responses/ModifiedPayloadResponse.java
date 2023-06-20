@@ -24,15 +24,15 @@ import com.here.xyz.models.payload.XyzResponse;
 
 public abstract class ModifiedPayloadResponse extends XyzResponse {
 
-  private String eventType;
+    private String eventType;
 
-  @SuppressWarnings("unused")
-  public String getEventType() {
-    return this.eventType;
-  }
+    @SuppressWarnings("unused")
+    public String getEventType() {
+        return this.eventType;
+    }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setEventType(String eventType) {
-    this.eventType = eventType;
-  }
+    @SuppressWarnings("WeakerAccess")
+    public void setEventType(String eventType) {
+        this.eventType = eventType;
+    }
 }

@@ -5,33 +5,32 @@ import org.jetbrains.annotations.NotNull;
 
 /** Configuration builder. */
 @SuppressWarnings("unused")
-public final class PsqlPoolConfigBuilder
-    extends PsqlAbstractConfigBuilder<PsqlPoolConfig, PsqlPoolConfigBuilder> {
+public final class PsqlPoolConfigBuilder extends PsqlAbstractConfigBuilder<PsqlPoolConfig, PsqlPoolConfigBuilder> {
 
-  public PsqlPoolConfigBuilder() {}
+    public PsqlPoolConfigBuilder() {}
 
-  @Override
-  public @NotNull PsqlPoolConfig build() throws NullPointerException {
-    if (db == null) {
-      throw new NullPointerException("db");
+    @Override
+    public @NotNull PsqlPoolConfig build() throws NullPointerException {
+        if (db == null) {
+            throw new NullPointerException("db");
+        }
+        if (user == null) {
+            throw new NullPointerException("user");
+        }
+        if (password == null) {
+            throw new NullPointerException("password");
+        }
+        return new PsqlPoolConfig(
+                host,
+                port,
+                db,
+                user,
+                password,
+                connTimeout,
+                stmtTimeout,
+                lockTimeout,
+                minPoolSize,
+                maxPoolSize,
+                idleTimeout);
     }
-    if (user == null) {
-      throw new NullPointerException("user");
-    }
-    if (password == null) {
-      throw new NullPointerException("password");
-    }
-    return new PsqlPoolConfig(
-        host,
-        port,
-        db,
-        user,
-        password,
-        connTimeout,
-        stmtTimeout,
-        lockTimeout,
-        minPoolSize,
-        maxPoolSize,
-        idleTimeout);
-  }
 }

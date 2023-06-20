@@ -10,39 +10,39 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Copyright {
 
-  /** The copyright label to be displayed by the client. */
-  @JsonProperty
-  @JsonInclude(Include.NON_NULL)
-  private String label;
+    /** The copyright label to be displayed by the client. */
+    @JsonProperty
+    @JsonInclude(Include.NON_NULL)
+    private String label;
 
-  /** The description text for the label to be displayed by the client. */
-  @JsonProperty
-  @JsonInclude(Include.NON_NULL)
-  private String alt;
+    /** The description text for the label to be displayed by the client. */
+    @JsonProperty
+    @JsonInclude(Include.NON_NULL)
+    private String alt;
 
-  public String getLabel() {
-    return label;
-  }
+    public String getLabel() {
+        return label;
+    }
 
-  public void setLabel(final String label) {
-    this.label = label;
-  }
+    public void setLabel(final String label) {
+        this.label = label;
+    }
 
-  public Copyright withLabel(final String label) {
-    setLabel(label);
-    return this;
-  }
+    public Copyright withLabel(final String label) {
+        setLabel(label);
+        return this;
+    }
 
-  public String getAlt() {
-    return alt;
-  }
+    public String getAlt() {
+        return alt;
+    }
 
-  public void setAlt(final String alt) {
-    this.alt = alt;
-  }
+    public void setAlt(final String alt) {
+        this.alt = alt;
+    }
 
-  public Copyright withAlt(final String alt) {
-    setAlt(alt);
-    return this;
-  }
+    public Copyright withAlt(final String alt) {
+        setAlt(alt);
+        return this;
+    }
 }

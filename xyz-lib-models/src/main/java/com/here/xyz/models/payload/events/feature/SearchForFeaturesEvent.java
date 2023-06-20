@@ -27,17 +27,17 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonTypeName(value = "SearchForFeaturesEvent")
 public class SearchForFeaturesEvent extends QueryEvent {
 
-  private static final long DEFAULT_LIMIT = 1_000L;
-  private static final long MAX_LIMIT = 100_000L;
+    private static final long DEFAULT_LIMIT = 1_000L;
+    private static final long MAX_LIMIT = 100_000L;
 
-  private long limit = DEFAULT_LIMIT;
+    private long limit = DEFAULT_LIMIT;
 
-  public long getLimit() {
-    return limit;
-  }
+    public long getLimit() {
+        return limit;
+    }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setLimit(long limit) {
-    this.limit = Math.max(1L, Math.min(limit, MAX_LIMIT));
-  }
+    @SuppressWarnings("WeakerAccess")
+    public void setLimit(long limit) {
+        this.limit = Math.max(1L, Math.min(limit, MAX_LIMIT));
+    }
 }

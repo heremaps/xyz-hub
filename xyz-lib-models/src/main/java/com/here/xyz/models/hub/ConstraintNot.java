@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ConstraintNot {
 
-  /** The constraints that should be negated. */
-  @JsonProperty public Constraint of;
+    /** The constraints that should be negated. */
+    @JsonProperty
+    public Constraint of;
 }

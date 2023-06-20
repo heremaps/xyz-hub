@@ -26,74 +26,71 @@ import org.jetbrains.annotations.NotNull;
  */
 public class JsonModule extends SimpleModule {
 
-  public JsonModule() {
-    addKeySerializer(String.class, new StringKeySerializer());
-    addKeyDeserializer(String.class, new StringKeyDeserializer());
-    addSerializer(String.class, new StringSerializer());
-    addDeserializer(String.class, new StringDeserializer());
-  }
-
-  private static final class StringKeyDeserializer extends KeyDeserializer {
-
-    @Override
-    public Object deserializeKey(String key, @NotNull DeserializationContext ctxt)
-        throws IOException {
-      return key != null ? intern(key) : null;
-    }
-  }
-
-  private static final class StringKeySerializer extends StdSerializer<String> {
-
-    private StringKeySerializer() {
-      super(String.class);
+    public JsonModule() {
+        addKeySerializer(String.class, new StringKeySerializer());
+        addKeyDeserializer(String.class, new StringKeyDeserializer());
+        addSerializer(String.class, new StringSerializer());
+        addDeserializer(String.class, new StringDeserializer());
     }
 
-    @Override
-    public void serialize(
-        @NotNull String value, @NotNull JsonGenerator g, @NotNull SerializerProvider provider)
-        throws IOException {
-      g.writeFieldName(value);
-    }
-  }
+    private static final class StringKeyDeserializer extends KeyDeserializer {
 
-  private static final class StringSerializer extends StdSerializer<String> {
-
-    private StringSerializer() {
-      super(String.class);
+        @Override
+        public Object deserializeKey(String key, @NotNull DeserializationContext ctxt) throws IOException {
+            return key != null ? intern(key) : null;
+        }
     }
 
-    @Override
-    public void serialize(String value, JsonGenerator g, SerializerProvider serializers)
-        throws IOException {
-      if (value == null) {
-        g.writeNull();
-      } else {
-        g.writeString(value);
-      }
-    }
-  }
+    private static final class StringKeySerializer extends StdSerializer<String> {
 
-  private static final class StringDeserializer extends StdDeserializer<String> {
+        private StringKeySerializer() {
+            super(String.class);
+        }
 
-    private StringDeserializer() {
-      super(String.class);
+        @Override
+        public void serialize(@NotNull String value, @NotNull JsonGenerator g, @NotNull SerializerProvider provider)
+                throws IOException {
+            g.writeFieldName(value);
+        }
     }
 
-    @Override
-    public String deserialize(@NotNull JsonParser p, @NotNull DeserializationContext ctx)
-        throws IOException, JacksonException {
-      final TreeNode node = p.getCodec().readTree(p);
-      final String s;
-      if (node instanceof NumericNode numericNode) {
-        s = numericNode.asText();
-      } else if (node instanceof BooleanNode booleanNode) {
-        s = booleanNode.toString();
-      } else if (node instanceof TextNode textNode) {
-        s = textNode.asText();
-      } else {
-        s = null;
-      }
-      return s != null ? intern(s) : null;
+    private static final class StringSerializer extends StdSerializer<String> {
+
+        private StringSerializer() {
+            super(String.class);
+        }
+
+        @Override
+        public void serialize(String value, JsonGenerator g, SerializerProvider serializers) throws IOException {
+            if (value == null) {
+                g.writeNull();
+            } else {
+                g.writeString(value);
+            }
+        }
     }
-  }
+
+    private static final class StringDeserializer extends StdDeserializer<String> {
+
+        private StringDeserializer() {
+            super(String.class);
+        }
+
+        @Override
+        public String deserialize(@NotNull JsonParser p, @NotNull DeserializationContext ctx)
+                throws IOException, JacksonException {
+            final TreeNode node = p.getCodec().readTree(p);
+            final String s;
+            if (node instanceof NumericNode numericNode) {
+                s = numericNode.asText();
+            } else if (node instanceof BooleanNode booleanNode) {
+                s = booleanNode.toString();
+            } else if (node instanceof TextNode textNode) {
+                s = textNode.asText();
+            } else {
+                s = null;
+            }
+            return s != null ? intern(s) : null;
+        }
+    }
 }

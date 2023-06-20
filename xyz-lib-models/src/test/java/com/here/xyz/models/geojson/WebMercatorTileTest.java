@@ -31,88 +31,88 @@ import org.junit.jupiter.api.Test;
 
 public class WebMercatorTileTest {
 
-  @Test
-  public void test_pixel() {
-    long pixel = xy(0, 1);
-    assertEquals(0, x(pixel));
-    assertEquals(1, y(pixel));
+    @Test
+    public void test_pixel() {
+        long pixel = xy(0, 1);
+        assertEquals(0, x(pixel));
+        assertEquals(1, y(pixel));
 
-    pixel = xy(Integer.MIN_VALUE, Integer.MIN_VALUE);
-    assertEquals(Integer.MIN_VALUE, x(pixel));
-    assertEquals(Integer.MIN_VALUE, y(pixel));
+        pixel = xy(Integer.MIN_VALUE, Integer.MIN_VALUE);
+        assertEquals(Integer.MIN_VALUE, x(pixel));
+        assertEquals(Integer.MIN_VALUE, y(pixel));
 
-    pixel = xy(Integer.MAX_VALUE, Integer.MAX_VALUE);
-    assertEquals(Integer.MAX_VALUE, x(pixel));
-    assertEquals(Integer.MAX_VALUE, y(pixel));
-  }
+        pixel = xy(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        assertEquals(Integer.MAX_VALUE, x(pixel));
+        assertEquals(Integer.MAX_VALUE, y(pixel));
+    }
 
-  @Test
-  public void positiveExamples() {
-    forQuadkey("012301230123");
-    forQuadkey("10000");
-    forQuadkey("0");
-    forQuadkey("123");
-    forWeb("0_0_0");
-    forWeb("1_1_1");
-    forWeb("2_3_1");
-    forWeb("5_27_10");
-    forWeb("10_800_800");
-  }
+    @Test
+    public void positiveExamples() {
+        forQuadkey("012301230123");
+        forQuadkey("10000");
+        forQuadkey("0");
+        forQuadkey("123");
+        forWeb("0_0_0");
+        forWeb("1_1_1");
+        forWeb("2_3_1");
+        forWeb("5_27_10");
+        forWeb("10_800_800");
+    }
 
-  @Test
-  public void invalidQuadIdentifier1() {
-    assertThrows(IllegalArgumentException.class, () -> forQuadkey("052301230123"));
-  }
+    @Test
+    public void invalidQuadIdentifier1() {
+        assertThrows(IllegalArgumentException.class, () -> forQuadkey("052301230123"));
+    }
 
-  @Test
-  public void invalidQuadIdentifier2() {
-    assertThrows(IllegalArgumentException.class, () -> forQuadkey("1A000"));
-  }
+    @Test
+    public void invalidQuadIdentifier2() {
+        assertThrows(IllegalArgumentException.class, () -> forQuadkey("1A000"));
+    }
 
-  @Test
-  public void invalidQuadIdentifier3() {
-    assertThrows(IllegalArgumentException.class, () -> forQuadkey("-9"));
-  }
+    @Test
+    public void invalidQuadIdentifier3() {
+        assertThrows(IllegalArgumentException.class, () -> forQuadkey("-9"));
+    }
 
-  @Test
-  public void invalidQuadIdentifier4() {
-    assertThrows(IllegalArgumentException.class, () -> forQuadkey("1234"));
-  }
+    @Test
+    public void invalidQuadIdentifier4() {
+        assertThrows(IllegalArgumentException.class, () -> forQuadkey("1234"));
+    }
 
-  @Test
-  public void invalidQuadIdentifier5() {
-    assertThrows(IllegalArgumentException.class, () -> forQuadkey("052301230123"));
-  }
+    @Test
+    public void invalidQuadIdentifier5() {
+        assertThrows(IllegalArgumentException.class, () -> forQuadkey("052301230123"));
+    }
 
-  @Test
-  public void invalidQuadIdentifier6() {
-    assertThrows(IllegalArgumentException.class, () -> forWeb("0_0_1"));
-  }
+    @Test
+    public void invalidQuadIdentifier6() {
+        assertThrows(IllegalArgumentException.class, () -> forWeb("0_0_1"));
+    }
 
-  @Test
-  public void invalidQuadIdentifier7() {
-    assertThrows(IllegalArgumentException.class, () -> forWeb("0_0_1"));
-  }
+    @Test
+    public void invalidQuadIdentifier7() {
+        assertThrows(IllegalArgumentException.class, () -> forWeb("0_0_1"));
+    }
 
-  @Test
-  public void invalidQuadIdentifier8() {
-    assertThrows(IllegalArgumentException.class, () -> forWeb("2_4_4"));
-  }
+    @Test
+    public void invalidQuadIdentifier8() {
+        assertThrows(IllegalArgumentException.class, () -> forWeb("2_4_4"));
+    }
 
-  @Test
-  public void invalidQuadIdentifier9() {
-    assertThrows(IllegalArgumentException.class, () -> forWeb("5_10"));
-  }
+    @Test
+    public void invalidQuadIdentifier9() {
+        assertThrows(IllegalArgumentException.class, () -> forWeb("5_10"));
+    }
 
-  @Test
-  public void invalidQuadIdentifier10() {
-    assertThrows(IllegalArgumentException.class, () -> forWeb("\"10_-1_10"));
-  }
+    @Test
+    public void invalidQuadIdentifier10() {
+        assertThrows(IllegalArgumentException.class, () -> forWeb("\"10_-1_10"));
+    }
 
-  @Test
-  public void toQuadkey() {
-    String quadkey = "120203302133";
-    WebMercatorTile qp = forQuadkey(quadkey);
-    assertEquals(quadkey, qp.asQuadkey());
-  }
+    @Test
+    public void toQuadkey() {
+        String quadkey = "120203302133";
+        WebMercatorTile qp = forQuadkey(quadkey);
+        assertEquals(quadkey, qp.asQuadkey());
+    }
 }

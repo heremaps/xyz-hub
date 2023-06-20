@@ -30,61 +30,61 @@ import com.here.xyz.models.payload.XyzResponse;
 @Deprecated
 public class CountResponse extends XyzResponse {
 
-  private Long count;
-  private Boolean estimated;
+    private Long count;
+    private Boolean estimated;
 
-  /**
-   * Returns the proprietary count property that is used by Space count requests to return the
-   * number of features found.
-   *
-   * @return the amount of features that are matching the query.
-   */
-  @SuppressWarnings("unused")
-  public Long getCount() {
-    return this.count;
-  }
+    /**
+     * Returns the proprietary count property that is used by Space count requests to return the
+     * number of features found.
+     *
+     * @return the amount of features that are matching the query.
+     */
+    @SuppressWarnings("unused")
+    public Long getCount() {
+        return this.count;
+    }
 
-  /**
-   * Sets the amount of features that where matching a query, without returning the features (so
-   * features will be null or an empty array).
-   *
-   * @param count the amount of features that where matching a query, if null, then the property is
-   *     removed.
-   */
-  @SuppressWarnings("WeakerAccess")
-  public void setCount(final Long count) {
-    this.count = count;
-  }
+    /**
+     * Sets the amount of features that where matching a query, without returning the features (so
+     * features will be null or an empty array).
+     *
+     * @param count the amount of features that where matching a query, if null, then the property is
+     *     removed.
+     */
+    @SuppressWarnings("WeakerAccess")
+    public void setCount(final Long count) {
+        this.count = count;
+    }
 
-  @SuppressWarnings("unused")
-  public CountResponse withCount(final Long count) {
-    setCount(count);
-    return this;
-  }
+    @SuppressWarnings("unused")
+    public CountResponse withCount(final Long count) {
+        setCount(count);
+        return this;
+    }
 
-  /**
-   * Returns the estimated flag that defines, if the value of the count property is an estimation.
-   *
-   * @return true, if the value of the count property is an estimation.
-   */
-  @SuppressWarnings("unused")
-  public Boolean getEstimated() {
-    return this.estimated;
-  }
+    /**
+     * Returns the estimated flag that defines, if the value of the count property is an estimation.
+     *
+     * @return true, if the value of the count property is an estimation.
+     */
+    @SuppressWarnings("unused")
+    public Boolean getEstimated() {
+        return this.estimated;
+    }
 
-  /**
-   * Sets the estimated flag that defines, if the count property is an estimation.
-   *
-   * @param estimated the estimated flag that defines, if the count property is an estimation.
-   */
-  @SuppressWarnings("WeakerAccess")
-  public void setEstimated(Boolean estimated) {
-    this.estimated = estimated;
-  }
+    /**
+     * Sets the estimated flag that defines, if the count property is an estimation.
+     *
+     * @param estimated the estimated flag that defines, if the count property is an estimation.
+     */
+    @SuppressWarnings("WeakerAccess")
+    public void setEstimated(Boolean estimated) {
+        this.estimated = estimated;
+    }
 
-  @SuppressWarnings("unused")
-  public CountResponse withEstimated(Boolean estimated) {
-    setEstimated(estimated);
-    return this;
-  }
+    @SuppressWarnings("unused")
+    public CountResponse withEstimated(Boolean estimated) {
+        setEstimated(estimated);
+        return this;
+    }
 }

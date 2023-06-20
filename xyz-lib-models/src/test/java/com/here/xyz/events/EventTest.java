@@ -39,79 +39,72 @@ import org.junit.jupiter.api.Test;
 
 public class EventTest {
 
-  private String eventJson =
-      "{\"type\":\"IterateFeaturesEvent\",\"space\":\"my-space\",\"params\":{},\"limit\":5}";
+    private String eventJson = "{\"type\":\"IterateFeaturesEvent\",\"space\":\"my-space\",\"params\":{},\"limit\":5}";
 
-  @Test
-  public void fromJson() throws Exception {
-    final InputStream is = new ByteArrayInputStream(eventJson.getBytes());
-    final Event event = new ObjectMapper().readValue(is, Event.class);
-    assertNotNull(event);
-    assertTrue(event instanceof IterateFeaturesEvent);
-  }
-
-  @Test
-  public void testClone() throws Exception {
-    try (final Json json = Json.open()) {
-      final Event event = json.reader(Deserialize.Public.class).readValue(eventJson, Event.class);
-      final Event clone = JsonSerializable.deepClone(event);
-
-      assertNotSame(event, clone);
-      assertTrue(event instanceof IterateFeaturesEvent);
-      assertTrue(clone instanceof IterateFeaturesEvent);
-      assertEquals(event.getSpaceId(), clone.getSpaceId());
-      assertEquals(event.getParams(), clone.getParams());
-      assertEquals(
-          ((IterateFeaturesEvent) event).getLimit(), ((IterateFeaturesEvent) clone).getLimit());
+    @Test
+    public void fromJson() throws Exception {
+        final InputStream is = new ByteArrayInputStream(eventJson.getBytes());
+        final Event event = new ObjectMapper().readValue(is, Event.class);
+        assertNotNull(event);
+        assertTrue(event instanceof IterateFeaturesEvent);
     }
-  }
 
-  @Test
-  public void testDeepCopy() throws Exception {
-    try (final Json json = Json.open()) {
-      final Event event = json.reader(Deserialize.Public.class).readValue(eventJson, Event.class);
-      final Event clone = JsonSerializable.deepClone(event);
+    @Test
+    public void testClone() throws Exception {
+        try (final Json json = Json.open()) {
+            final Event event = json.reader(Deserialize.Public.class).readValue(eventJson, Event.class);
+            final Event clone = JsonSerializable.deepClone(event);
 
-      assertNotSame(event, clone);
-      assertTrue(event instanceof IterateFeaturesEvent);
-      assertTrue(clone instanceof IterateFeaturesEvent);
-      assertEquals(event.getSpaceId(), clone.getSpaceId());
-      assertEquals(event.getParams(), clone.getParams());
-      assertEquals(
-          ((IterateFeaturesEvent) event).getLimit(), ((IterateFeaturesEvent) clone).getLimit());
+            assertNotSame(event, clone);
+            assertTrue(event instanceof IterateFeaturesEvent);
+            assertTrue(clone instanceof IterateFeaturesEvent);
+            assertEquals(event.getSpaceId(), clone.getSpaceId());
+            assertEquals(event.getParams(), clone.getParams());
+            assertEquals(((IterateFeaturesEvent) event).getLimit(), ((IterateFeaturesEvent) clone).getLimit());
+        }
     }
-  }
 
-  @Test
-  public void getFeaturesByTileEventTest() throws Exception {
-    final InputStream is =
-        LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-            "/com/here/xyz/test/GetFeaturesByTileEvent.json");
+    @Test
+    public void testDeepCopy() throws Exception {
+        try (final Json json = Json.open()) {
+            final Event event = json.reader(Deserialize.Public.class).readValue(eventJson, Event.class);
+            final Event clone = JsonSerializable.deepClone(event);
 
-    GetFeaturesByTileEvent event = JsonSerializable.deserialize(is);
-    assertNotNull(event.getBbox());
-    assertEquals(-12.05543709446954D, event.getBbox().getNorth(), 0);
-    assertEquals(-77.0745849609375D, event.getBbox().getEast(), 0);
-    assertEquals(-12.060809058367298D, event.getBbox().getSouth(), 0);
-    assertEquals(-77.080078125D, event.getBbox().getWest(), 0);
-  }
+            assertNotSame(event, clone);
+            assertTrue(event instanceof IterateFeaturesEvent);
+            assertTrue(clone instanceof IterateFeaturesEvent);
+            assertEquals(event.getSpaceId(), clone.getSpaceId());
+            assertEquals(event.getParams(), clone.getParams());
+            assertEquals(((IterateFeaturesEvent) event).getLimit(), ((IterateFeaturesEvent) clone).getLimit());
+        }
+    }
 
-  @Test
-  public void checkHash() throws Exception {
-    GetFeaturesByTileEvent event1 =
-        JsonSerializable.deserialize(
-            LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-                "/com/here/xyz/test/GetFeaturesByTileEvent.json"));
-    GetFeaturesByTileEvent event2 =
-        JsonSerializable.deserialize(
-            LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-                "/com/here/xyz/test/GetFeaturesByTileEvent2.json"));
-    GetFeaturesByTileEvent event3 =
-        JsonSerializable.deserialize(
-            LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-                "/com/here/xyz/test/GetFeaturesByTileEvent3.json"));
+    @Test
+    public void getFeaturesByTileEventTest() throws Exception {
+        final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
+                "/com/here/xyz/test/GetFeaturesByTileEvent.json");
 
-    assertEquals(event1.getHash(), event2.getHash());
-    assertNotEquals(event1.getHash(), event3.getHash());
-  }
+        GetFeaturesByTileEvent event = JsonSerializable.deserialize(is);
+        assertNotNull(event.getBbox());
+        assertEquals(-12.05543709446954D, event.getBbox().getNorth(), 0);
+        assertEquals(-77.0745849609375D, event.getBbox().getEast(), 0);
+        assertEquals(-12.060809058367298D, event.getBbox().getSouth(), 0);
+        assertEquals(-77.080078125D, event.getBbox().getWest(), 0);
+    }
+
+    @Test
+    public void checkHash() throws Exception {
+        GetFeaturesByTileEvent event1 =
+                JsonSerializable.deserialize(LazyParsedFeatureCollectionTest.class.getResourceAsStream(
+                        "/com/here/xyz/test/GetFeaturesByTileEvent.json"));
+        GetFeaturesByTileEvent event2 =
+                JsonSerializable.deserialize(LazyParsedFeatureCollectionTest.class.getResourceAsStream(
+                        "/com/here/xyz/test/GetFeaturesByTileEvent2.json"));
+        GetFeaturesByTileEvent event3 =
+                JsonSerializable.deserialize(LazyParsedFeatureCollectionTest.class.getResourceAsStream(
+                        "/com/here/xyz/test/GetFeaturesByTileEvent3.json"));
+
+        assertEquals(event1.getHash(), event2.getHash());
+        assertNotEquals(event1.getHash(), event3.getHash());
+    }
 }

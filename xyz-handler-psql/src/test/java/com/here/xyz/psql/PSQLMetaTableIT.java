@@ -30,48 +30,47 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 public class PSQLMetaTableIT extends PSQLAbstractIT {
-  protected static Map<String, Object> connectorParams =
-      new HashMap<String, Object>() {
+    protected static Map<String, Object> connectorParams = new HashMap<String, Object>() {
         {
-          put(PsqlHandlerParams.ENABLE_HASHED_SPACEID, true);
+            put(PsqlHandlerParams.ENABLE_HASHED_SPACEID, true);
         }
-      };
+    };
 
-  @BeforeAll
-  public static void init() throws Exception {
-    initEnv(connectorParams);
-  }
-
-  @AfterAll
-  public void shutdown() throws Exception {
-    invokeDeleteTestSpace(connectorParams);
-  }
-
-  @Test
-  public void testMetaTableEntry() throws Exception {
-    String q = "SELECT * FROM xyz_config.space_meta WHERE id='" + TEST_SPACE_ID + "';";
-
-    invokeCreateTestSpace(connectorParams, TEST_SPACE_ID);
-
-    try (final Connection connection = dataSource().getConnection()) {
-      Statement stmt = connection.createStatement();
-      ResultSet resultSet = stmt.executeQuery(q);
-
-      /** Check Meta record */
-      assertTrue(resultSet.next());
-      assertEquals(TEST_SPACE_ID, resultSet.getString("id"));
-      assertEquals("public", resultSet.getString("schem"));
-      assertNotEquals(TEST_SPACE_ID, resultSet.getString("h_id"));
-      assertEquals("{}", resultSet.getString("meta"));
+    @BeforeAll
+    public static void init() throws Exception {
+        initEnv(connectorParams);
     }
-    // Delete Space
-    invokeDeleteTestSpace(connectorParams);
 
-    try (final Connection connection = dataSource().getConnection()) {
-      Statement stmt = connection.createStatement();
-      /** Check Meta if record is deleted */
-      ResultSet resultSet = stmt.executeQuery(q);
-      assertFalse(resultSet.next());
+    @AfterAll
+    public void shutdown() throws Exception {
+        invokeDeleteTestSpace(connectorParams);
     }
-  }
+
+    @Test
+    public void testMetaTableEntry() throws Exception {
+        String q = "SELECT * FROM xyz_config.space_meta WHERE id='" + TEST_SPACE_ID + "';";
+
+        invokeCreateTestSpace(connectorParams, TEST_SPACE_ID);
+
+        try (final Connection connection = dataSource().getConnection()) {
+            Statement stmt = connection.createStatement();
+            ResultSet resultSet = stmt.executeQuery(q);
+
+            /** Check Meta record */
+            assertTrue(resultSet.next());
+            assertEquals(TEST_SPACE_ID, resultSet.getString("id"));
+            assertEquals("public", resultSet.getString("schem"));
+            assertNotEquals(TEST_SPACE_ID, resultSet.getString("h_id"));
+            assertEquals("{}", resultSet.getString("meta"));
+        }
+        // Delete Space
+        invokeDeleteTestSpace(connectorParams);
+
+        try (final Connection connection = dataSource().getConnection()) {
+            Statement stmt = connection.createStatement();
+            /** Check Meta if record is deleted */
+            ResultSet resultSet = stmt.executeQuery(q);
+            assertFalse(resultSet.next());
+        }
+    }
 }

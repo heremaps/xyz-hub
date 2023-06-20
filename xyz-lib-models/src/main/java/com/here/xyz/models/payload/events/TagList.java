@@ -26,33 +26,33 @@ import org.jetbrains.annotations.NotNull;
 
 public class TagList extends ArrayList<String> {
 
-  public TagList() {
-    super();
-  }
-
-  public TagList(@NotNull String @NotNull [] tags, boolean normalize) throws NullPointerException {
-    super(tags.length);
-    if (tags.length > 0) {
-      if (normalize) {
-        final StringBuilder sb = new StringBuilder(tags[0].length());
-        for (final @NotNull String tag : tags) {
-          add(XyzNamespace.normalizeTag(tag, sb));
-        }
-      } else {
-        for (final @NotNull String tag : tags) {
-          //noinspection UseBulkOperation
-          add(tag);
-        }
-      }
+    public TagList() {
+        super();
     }
-  }
 
-  /**
-   * Same as {@link #add(Object)}, just for better code readability.
-   *
-   * @param value The value to add.
-   */
-  public void addOr(@NotNull String value) {
-    add(value);
-  }
+    public TagList(@NotNull String @NotNull [] tags, boolean normalize) throws NullPointerException {
+        super(tags.length);
+        if (tags.length > 0) {
+            if (normalize) {
+                final StringBuilder sb = new StringBuilder(tags[0].length());
+                for (final @NotNull String tag : tags) {
+                    add(XyzNamespace.normalizeTag(tag, sb));
+                }
+            } else {
+                for (final @NotNull String tag : tags) {
+                    //noinspection UseBulkOperation
+                    add(tag);
+                }
+            }
+        }
+    }
+
+    /**
+     * Same as {@link #add(Object)}, just for better code readability.
+     *
+     * @param value The value to add.
+     */
+    public void addOr(@NotNull String value) {
+        add(value);
+    }
 }

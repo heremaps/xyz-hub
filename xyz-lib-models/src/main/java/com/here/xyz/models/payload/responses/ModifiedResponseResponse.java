@@ -28,19 +28,19 @@ import com.here.xyz.models.Payload;
 @JsonTypeName(value = "ModifiedResponseResponse")
 public class ModifiedResponseResponse extends ModifiedPayloadResponse {
 
-  private Payload response;
+    private Payload response;
 
-  public Payload getResponse() {
-    return this.response;
-  }
+    public Payload getResponse() {
+        return this.response;
+    }
 
-  public void setResponse(Payload response) {
-    this.response = response;
-  }
+    public void setResponse(Payload response) {
+        this.response = response;
+    }
 
-  @SuppressWarnings("unused")
-  public ModifiedResponseResponse withResponse(Payload response) {
-    setResponse(response);
-    return this;
-  }
+    @SuppressWarnings("unused")
+    public ModifiedResponseResponse withResponse(Payload response) {
+        setResponse(response);
+        return this;
+    }
 }

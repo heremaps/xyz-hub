@@ -29,63 +29,63 @@ import org.jetbrains.annotations.Nullable;
 
 public class FeatureEvent extends Event {
 
-  /**
-   * An optional list of fields to be returned (basically, a white list). If {@code null} or empty,
-   * then full features are requested.
-   *
-   * @since 0.6.0
-   */
-  @JsonInclude(Include.NON_EMPTY)
-  private @Nullable List<@NotNull String> selection;
+    /**
+     * An optional list of fields to be returned (basically, a white list). If {@code null} or empty,
+     * then full features are requested.
+     *
+     * @since 0.6.0
+     */
+    @JsonInclude(Include.NON_EMPTY)
+    private @Nullable List<@NotNull String> selection;
 
-  /**
-   * If 2D coordinates should be enforced.
-   *
-   * @since 0.6.0
-   */
-  @JsonInclude(Include.NON_DEFAULT)
-  private boolean force2D;
+    /**
+     * If 2D coordinates should be enforced.
+     *
+     * @since 0.6.0
+     */
+    @JsonInclude(Include.NON_DEFAULT)
+    private boolean force2D;
 
-  private String ref;
+    private String ref;
 
-  private String author;
+    private String author;
 
-  /**
-   * The selection of properties to return.
-   *
-   * @return The list of properties to return; {@code null} if all properties should be returned.
-   */
-  public @Nullable List<@NotNull String> getSelection() {
-    return this.selection;
-  }
+    /**
+     * The selection of properties to return.
+     *
+     * @return The list of properties to return; {@code null} if all properties should be returned.
+     */
+    public @Nullable List<@NotNull String> getSelection() {
+        return this.selection;
+    }
 
-  public void setSelection(@Nullable List<@NotNull String> selection) {
-    this.selection = selection;
-  }
+    public void setSelection(@Nullable List<@NotNull String> selection) {
+        this.selection = selection;
+    }
 
-  public String getRef() {
-    return ref;
-  }
+    public String getRef() {
+        return ref;
+    }
 
-  public void setRef(String ref) {
-    this.ref = ref;
-  }
+    public void setRef(String ref) {
+        this.ref = ref;
+    }
 
-  public String getAuthor() {
-    return author;
-  }
+    public String getAuthor() {
+        return author;
+    }
 
-  public void setAuthor(String author) {
-    this.author = author;
-  }
+    public void setAuthor(String author) {
+        this.author = author;
+    }
 
-  @SuppressWarnings("WeakerAccess")
-  public boolean isForce2D() {
-    return force2D;
-  }
+    @SuppressWarnings("WeakerAccess")
+    public boolean isForce2D() {
+        return force2D;
+    }
 
-  @SuppressWarnings("WeakerAccess")
-  public void setForce2D(boolean force2D) {
-    this.force2D = force2D;
-  }
+    @SuppressWarnings("WeakerAccess")
+    public void setForce2D(boolean force2D) {
+        this.force2D = force2D;
+    }
 }

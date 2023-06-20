@@ -19,10 +19,10 @@ import java.lang.annotation.Target;
 @Repeatable(JsonNames.class)
 public @interface JsonName {
 
-  /**
-   * The name of the property in the JSON.
-   *
-   * @return name of the property in the JSON.
-   */
-  String value() default "";
+    /**
+     * The name of the property in the JSON.
+     *
+     * @return name of the property in the JSON.
+     */
+    String value() default "";
 }

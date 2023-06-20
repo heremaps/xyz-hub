@@ -31,59 +31,51 @@ import org.jetbrains.annotations.NotNull;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
 
-  public LoadFeatures(@NotNull LoadFeaturesEvent event, @NotNull PsqlHandler psqlConnector)
-      throws SQLException {
-    super(event, psqlConnector);
-  }
-
-  @Override
-  protected @NotNull SQLQuery buildQuery(@Nonnull LoadFeaturesEvent event) throws SQLException {
-    final Map<String, String> idMap = event.getIdsMap();
-
-    SQLQuery filterWhereClause =
-        new SQLQuery("jsondata->>'id' = ANY(#{ids})")
-            .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
-
-    SQLQuery headQuery =
-        super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClause);
-
-    SQLQuery query = headQuery;
-    if (
-    /*event.getEnableHistory() &&*/ (!isExtendedSpace(event))) {
-      final boolean compactHistory = /*!event.getEnableGlobalVersioning() &&*/
-          processor.connectorParams().isCompactHistory();
-      if (compactHistory)
-        // History does not contain Inserts
-        query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
-      else
-        // History does contain Inserts
-        query =
-            new SQLQuery(
-                "SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM("
-                    + "    ${{headQuery}} UNION ${{historyQuery}}"
-                    + ")A");
-
-      query
-          .withQueryFragment("headQuery", headQuery)
-          .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
+    public LoadFeatures(@NotNull LoadFeaturesEvent event, @NotNull PsqlHandler psqlConnector) throws SQLException {
+        super(event, psqlConnector);
     }
 
-    return query;
-  }
+    @Override
+    protected @NotNull SQLQuery buildQuery(@Nonnull LoadFeaturesEvent event) throws SQLException {
+        final Map<String, String> idMap = event.getIdsMap();
 
-  private SQLQuery buildHistoryQuery(LoadFeaturesEvent event, Collection<String> uuids) {
-    SQLQuery historyQuery =
-        new SQLQuery(
-            "SELECT jsondata, ${{geo}} "
+        SQLQuery filterWhereClause = new SQLQuery("jsondata->>'id' = ANY(#{ids})")
+                .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
+
+        SQLQuery headQuery = super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClause);
+
+        SQLQuery query = headQuery;
+        if (
+        /*event.getEnableHistory() &&*/ (!isExtendedSpace(event))) {
+            final boolean compactHistory = /*!event.getEnableGlobalVersioning() &&*/
+                    processor.connectorParams().isCompactHistory();
+            if (compactHistory)
+                // History does not contain Inserts
+                query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
+            else
+                // History does contain Inserts
+                query = new SQLQuery("SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM("
+                        + "    ${{headQuery}} UNION ${{historyQuery}}"
+                        + ")A");
+
+            query.withQueryFragment("headQuery", headQuery)
+                    .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
+        }
+
+        return query;
+    }
+
+    private SQLQuery buildHistoryQuery(LoadFeaturesEvent event, Collection<String> uuids) {
+        SQLQuery historyQuery = new SQLQuery("SELECT jsondata, ${{geo}} "
                 + "FROM ${schema}.${hsttable} h "
                 + "WHERE uuid = ANY(#{uuids}) AND EXISTS("
                 + "    SELECT 1"
                 + "    FROM ${schema}.${table} t"
                 + "    WHERE t.jsondata->>'id' =  h.jsondata->>'id'"
                 + ")");
-    historyQuery.setQueryFragment("geo", buildGeoFragment(event));
-    historyQuery.setNamedParameter("uuids", uuids.toArray(new String[0]));
-    historyQuery.setVariable("hsttable", processor.spaceHistoryTable());
-    return historyQuery;
-  }
+        historyQuery.setQueryFragment("geo", buildGeoFragment(event));
+        historyQuery.setNamedParameter("uuids", uuids.toArray(new String[0]));
+        historyQuery.setVariable("hsttable", processor.spaceHistoryTable());
+        return historyQuery;
+    }
 }

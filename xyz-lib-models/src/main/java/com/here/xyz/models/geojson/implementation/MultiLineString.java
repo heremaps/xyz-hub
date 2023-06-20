@@ -30,29 +30,29 @@ import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 @JsonTypeName(value = "MultiLineString")
 public class MultiLineString extends GeometryItem {
 
-  private MultiLineStringCoordinates coordinates = new MultiLineStringCoordinates();
+    private MultiLineStringCoordinates coordinates = new MultiLineStringCoordinates();
 
-  @Override
-  public MultiLineStringCoordinates getCoordinates() {
-    return this.coordinates;
-  }
+    @Override
+    public MultiLineStringCoordinates getCoordinates() {
+        return this.coordinates;
+    }
 
-  public void setCoordinates(MultiLineStringCoordinates coordinates) {
-    this.coordinates = coordinates;
-  }
+    public void setCoordinates(MultiLineStringCoordinates coordinates) {
+        this.coordinates = coordinates;
+    }
 
-  public MultiLineString withCoordinates(MultiLineStringCoordinates coordinates) {
-    setCoordinates(coordinates);
-    return this;
-  }
+    public MultiLineString withCoordinates(MultiLineStringCoordinates coordinates) {
+        setCoordinates(coordinates);
+        return this;
+    }
 
-  @Override
-  protected com.vividsolutions.jts.geom.MultiLineString convertToJTSGeometry() {
-    return JTSHelper.toMultiLineString(getCoordinates());
-  }
+    @Override
+    protected com.vividsolutions.jts.geom.MultiLineString convertToJTSGeometry() {
+        return JTSHelper.toMultiLineString(getCoordinates());
+    }
 
-  @Override
-  public void validate() throws InvalidGeometryException {
-    validateMultiLineStringCoordinates(this.coordinates);
-  }
+    @Override
+    public void validate() throws InvalidGeometryException {
+        validateMultiLineStringCoordinates(this.coordinates);
+    }
 }

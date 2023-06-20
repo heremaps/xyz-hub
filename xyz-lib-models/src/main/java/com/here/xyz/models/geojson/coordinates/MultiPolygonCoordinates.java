@@ -23,18 +23,17 @@ package com.here.xyz.models.geojson.coordinates;
 import com.here.xyz.models.geojson.declaration.IBoundedCoordinates;
 import java.util.ArrayList;
 
-public class MultiPolygonCoordinates extends ArrayList<PolygonCoordinates>
-    implements IBoundedCoordinates {
+public class MultiPolygonCoordinates extends ArrayList<PolygonCoordinates> implements IBoundedCoordinates {
 
-  public MultiPolygonCoordinates() {
-    super();
-  }
+    public MultiPolygonCoordinates() {
+        super();
+    }
 
-  public MultiPolygonCoordinates(int size) {
-    super(size);
-  }
+    public MultiPolygonCoordinates(int size) {
+        super(size);
+    }
 
-  public BBox calculateBBox() {
-    return IBoundedCoordinates.calculate(this);
-  }
+    public BBox calculateBBox() {
+        return IBoundedCoordinates.calculate(this);
+    }
 }

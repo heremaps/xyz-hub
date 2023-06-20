@@ -35,37 +35,36 @@ import org.jetbrains.annotations.NotNull;
 
 public class FetchExistingIds extends QueryRunner<FetchIdsInput, List<String>> {
 
-  public FetchExistingIds(@Nonnull FetchIdsInput input, @NotNull PsqlHandler processor)
-      throws SQLException, XyzErrorException {
-    super(input, processor);
-  }
-
-  @Override
-  protected @NotNull SQLQueryExt buildQuery(@Nonnull FetchIdsInput input) throws SQLException {
-    SQLQueryExt query =
-        new SQLQueryExt(
-            "SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(#{ids})");
-    query.setVariable(SCHEMA, processor.spaceSchema());
-    query.setVariable(TABLE, input.targetTable);
-    query.setNamedParameter("ids", input.idsToFetch.toArray(new String[0]));
-    return query;
-  }
-
-  @Nonnull
-  @Override
-  public List<String> handle(@Nonnull ResultSet rs) throws SQLException {
-    final ArrayList<String> result = new ArrayList<>();
-    while (rs.next()) result.add(rs.getString("id"));
-    return result;
-  }
-
-  public static class FetchIdsInput {
-    public FetchIdsInput(String targetTable, Collection<String> idsToFetch) {
-      this.targetTable = targetTable;
-      this.idsToFetch = idsToFetch;
+    public FetchExistingIds(@Nonnull FetchIdsInput input, @NotNull PsqlHandler processor)
+            throws SQLException, XyzErrorException {
+        super(input, processor);
     }
 
-    String targetTable;
-    Collection<String> idsToFetch;
-  }
+    @Override
+    protected @NotNull SQLQueryExt buildQuery(@Nonnull FetchIdsInput input) throws SQLException {
+        SQLQueryExt query = new SQLQueryExt(
+                "SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(#{ids})");
+        query.setVariable(SCHEMA, processor.spaceSchema());
+        query.setVariable(TABLE, input.targetTable);
+        query.setNamedParameter("ids", input.idsToFetch.toArray(new String[0]));
+        return query;
+    }
+
+    @Nonnull
+    @Override
+    public List<String> handle(@Nonnull ResultSet rs) throws SQLException {
+        final ArrayList<String> result = new ArrayList<>();
+        while (rs.next()) result.add(rs.getString("id"));
+        return result;
+    }
+
+    public static class FetchIdsInput {
+        public FetchIdsInput(String targetTable, Collection<String> idsToFetch) {
+            this.targetTable = targetTable;
+            this.idsToFetch = idsToFetch;
+        }
+
+        String targetTable;
+        Collection<String> idsToFetch;
+    }
 }

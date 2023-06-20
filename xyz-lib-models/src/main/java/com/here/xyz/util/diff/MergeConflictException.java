@@ -6,7 +6,7 @@ package com.here.xyz.util.diff;
  */
 public class MergeConflictException extends Exception {
 
-  MergeConflictException(String msg) {
-    super(msg);
-  }
+    MergeConflictException(String msg) {
+        super(msg);
+    }
 }

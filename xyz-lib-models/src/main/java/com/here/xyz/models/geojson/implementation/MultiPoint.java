@@ -30,28 +30,28 @@ import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 @JsonTypeName(value = "MultiPoint")
 public class MultiPoint extends GeometryItem {
 
-  private MultiPointCoordinates coordinates = new MultiPointCoordinates();
+    private MultiPointCoordinates coordinates = new MultiPointCoordinates();
 
-  @Override
-  public MultiPointCoordinates getCoordinates() {
-    return this.coordinates;
-  }
+    @Override
+    public MultiPointCoordinates getCoordinates() {
+        return this.coordinates;
+    }
 
-  public void setCoordinates(MultiPointCoordinates coordinates) {
-    this.coordinates = coordinates;
-  }
+    public void setCoordinates(MultiPointCoordinates coordinates) {
+        this.coordinates = coordinates;
+    }
 
-  public MultiPoint withCoordinates(MultiPointCoordinates coordinates) {
-    setCoordinates(coordinates);
-    return this;
-  }
+    public MultiPoint withCoordinates(MultiPointCoordinates coordinates) {
+        setCoordinates(coordinates);
+        return this;
+    }
 
-  public com.vividsolutions.jts.geom.MultiPoint convertToJTSGeometry() {
-    return JTSHelper.toMultiPoint(this.coordinates);
-  }
+    public com.vividsolutions.jts.geom.MultiPoint convertToJTSGeometry() {
+        return JTSHelper.toMultiPoint(this.coordinates);
+    }
 
-  @Override
-  public void validate() throws InvalidGeometryException {
-    validateMultiPointCoordinates(this.coordinates);
-  }
+    @Override
+    public void validate() throws InvalidGeometryException {
+        validateMultiPointCoordinates(this.coordinates);
+    }
 }

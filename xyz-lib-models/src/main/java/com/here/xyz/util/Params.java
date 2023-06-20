@@ -7,8 +7,8 @@ import org.jetbrains.annotations.Nullable;
 
 public class Params extends HashMap<@NotNull String, @Nullable Object> {
 
-  public @NotNull Params with(@NotNull String key, @Nullable Object value) {
-    put(key, value);
-    return this;
-  }
+    public @NotNull Params with(@NotNull String key, @Nullable Object value) {
+        put(key, value);
+        return this;
+    }
 }

@@ -40,270 +40,264 @@ import org.junit.jupiter.api.Test;
 
 public class PSQLHistoryCompactIT extends PSQLAbstractIT {
 
-  static Map<String, Object> connectorParams =
-      new HashMap<String, Object>() {
+    static Map<String, Object> connectorParams = new HashMap<String, Object>() {
         {
-          put(PsqlHandlerParams.COMPACT_HISTORY, true);
-          put(PsqlHandlerParams.PROPERTY_SEARCH, true);
+            put(PsqlHandlerParams.COMPACT_HISTORY, true);
+            put(PsqlHandlerParams.PROPERTY_SEARCH, true);
         }
-      };
+    };
 
-  @BeforeAll
-  public static void init() throws Exception {
-    initEnv(connectorParams);
-  }
-
-  @AfterAll
-  public void shutdown() throws Exception {
-    invokeDeleteTestSpace(connectorParams);
-  }
-
-  @Test
-  public void testHistoryTableCreation() throws Exception {
-    // =========== CREATE SPACE with UUID support ==========
-    ModifySpaceEvent mse = new ModifySpaceEvent();
-    // mse.setSpaceId("foo");
-    mse.setOperation(ModifySpaceEvent.Operation.CREATE);
-    // mse.setConnectorParams(connectorParams);
-    mse.setSpaceDefinition(new Space("foo"));
-    // mse.setEnableHistory(true);
-
-    invokeLambda(mse.serialize());
-
-    try (final Connection connection = dataSource().getConnection()) {
-      Statement stmt = connection.createStatement();
-      String sql =
-          "SELECT pg_get_triggerdef(oid),"
-              + "(SELECT (to_regclass('\"foo\"') IS NOT NULL) as hst_table_exists) "
-              + "FROM pg_trigger "
-              + "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
-
-      ResultSet resultSet = stmt.executeQuery(sql);
-      if (!resultSet.next()) {
-        throw new Exception("History Trigger/Table is missing!");
-      } else {
-        assertTrue(resultSet.getBoolean("hst_table_exists"));
-      }
-    }
-  }
-
-  @Test
-  public void testHistoryTableWriting() throws Exception {
-    int maxVersionCount = 5;
-    // =========== CREATE SPACE with UUID support ==========
-    ModifySpaceEvent mse = new ModifySpaceEvent();
-    // mse.setSpaceId("foo");
-    mse.setOperation(ModifySpaceEvent.Operation.CREATE);
-    // mse.setConnectorParams(connectorParams);
-    mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
-
-    invokeLambda(mse.serialize());
-
-    // ============= INSERT ======================
-    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
-    FeatureCollection collection = new FeatureCollection();
-    List<Feature> featureList = new ArrayList<>();
-
-    Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-    Feature f = new Feature("1234");
-    f.setGeometry(point);
-    f.getProperties().put("foo", 0);
-    featureList.add(f);
-    collection.setLazyParsableFeatureList(featureList);
-
-    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    // mfevent.setConnectorParams(connectorParams);
-    // mfevent.setSpaceId("foo");
-    mfevent.setTransaction(true);
-    mfevent.setEnableUUID(true);
-
-    setPUUID(collection);
-    mfevent.setInsertFeatures(collection.getFeatures());
-    invokeLambda(mfevent.serialize());
-
-    // ============= UPDATE FEATURE 10 Times ======================
-    mfevent.setInsertFeatures(null);
-    for (int i = 1; i <= 10; i++) {
-      f.getProperties().put("foo", i);
-      mfevent.setUpdateFeatures(collection.getFeatures());
-      setPUUID(collection);
-      invokeLambda(mfevent.serialize());
+    @BeforeAll
+    public static void init() throws Exception {
+        initEnv(connectorParams);
     }
 
-    try (final Connection connection = dataSource().getConnection()) {
-      Statement stmt = connection.createStatement();
-      String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
-
-      ResultSet resultSet = stmt.executeQuery(sql);
-      int oldestFooValue = 5;
-      int rowCount = 0;
-
-      // Check if 5 last versions are available in history table
-      while (resultSet.next()) {
-        Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
-        assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
-        rowCount++;
-      }
-      // Check if history table has only 5 entries
-      assertEquals(5, rowCount);
+    @AfterAll
+    public void shutdown() throws Exception {
+        invokeDeleteTestSpace(connectorParams);
     }
 
-    // set history to infinite
-    mse = new ModifySpaceEvent();
-    // mse.setSpaceId("foo");
-    // mse.setConnectorParams(connectorParams);
-    mse.setOperation(ModifySpaceEvent.Operation.UPDATE);
-    mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
-    invokeLambda(mse.serialize());
+    @Test
+    public void testHistoryTableCreation() throws Exception {
+        // =========== CREATE SPACE with UUID support ==========
+        ModifySpaceEvent mse = new ModifySpaceEvent();
+        // mse.setSpaceId("foo");
+        mse.setOperation(ModifySpaceEvent.Operation.CREATE);
+        // mse.setConnectorParams(connectorParams);
+        mse.setSpaceDefinition(new Space("foo"));
+        // mse.setEnableHistory(true);
 
-    // ============= UPDATE FEATURE 10 Times ======================
-    for (int i = 11; i <= 20; i++) {
-      f.getProperties()
-          .put("foo", i); // (new Properties().with("foo", i).withXyzNamespace(xyzNamespace));
-      mfevent.setUpdateFeatures(collection.getFeatures());
-      setPUUID(collection);
-      invokeLambda(mfevent.serialize());
+        invokeLambda(mse.serialize());
+
+        try (final Connection connection = dataSource().getConnection()) {
+            Statement stmt = connection.createStatement();
+            String sql = "SELECT pg_get_triggerdef(oid),"
+                    + "(SELECT (to_regclass('\"foo\"') IS NOT NULL) as hst_table_exists) "
+                    + "FROM pg_trigger "
+                    + "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
+
+            ResultSet resultSet = stmt.executeQuery(sql);
+            if (!resultSet.next()) {
+                throw new Exception("History Trigger/Table is missing!");
+            } else {
+                assertTrue(resultSet.getBoolean("hst_table_exists"));
+            }
+        }
     }
 
-    try (final Connection connection = dataSource().getConnection()) {
-      Statement stmt = connection.createStatement();
-      String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
+    @Test
+    public void testHistoryTableWriting() throws Exception {
+        int maxVersionCount = 5;
+        // =========== CREATE SPACE with UUID support ==========
+        ModifySpaceEvent mse = new ModifySpaceEvent();
+        // mse.setSpaceId("foo");
+        mse.setOperation(ModifySpaceEvent.Operation.CREATE);
+        // mse.setConnectorParams(connectorParams);
+        mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
 
-      ResultSet resultSet = stmt.executeQuery(sql);
-      // Oldes history item has foo=9
-      int oldestFooValue = 5;
-      int rowCount = 0;
+        invokeLambda(mse.serialize());
 
-      // Check if all versions are available
-      while (resultSet.next()) {
-        Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
-        assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
-        rowCount++;
-      }
-      // Check if history table has 15 entries
-      assertEquals(15, rowCount);
+        // ============= INSERT ======================
+        XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+        FeatureCollection collection = new FeatureCollection();
+        List<Feature> featureList = new ArrayList<>();
+
+        Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
+        Feature f = new Feature("1234");
+        f.setGeometry(point);
+        f.getProperties().put("foo", 0);
+        featureList.add(f);
+        collection.setLazyParsableFeatureList(featureList);
+
+        ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+        // mfevent.setConnectorParams(connectorParams);
+        // mfevent.setSpaceId("foo");
+        mfevent.setTransaction(true);
+        mfevent.setEnableUUID(true);
+
+        setPUUID(collection);
+        mfevent.setInsertFeatures(collection.getFeatures());
+        invokeLambda(mfevent.serialize());
+
+        // ============= UPDATE FEATURE 10 Times ======================
+        mfevent.setInsertFeatures(null);
+        for (int i = 1; i <= 10; i++) {
+            f.getProperties().put("foo", i);
+            mfevent.setUpdateFeatures(collection.getFeatures());
+            setPUUID(collection);
+            invokeLambda(mfevent.serialize());
+        }
+
+        try (final Connection connection = dataSource().getConnection()) {
+            Statement stmt = connection.createStatement();
+            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
+
+            ResultSet resultSet = stmt.executeQuery(sql);
+            int oldestFooValue = 5;
+            int rowCount = 0;
+
+            // Check if 5 last versions are available in history table
+            while (resultSet.next()) {
+                Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
+                assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
+                rowCount++;
+            }
+            // Check if history table has only 5 entries
+            assertEquals(5, rowCount);
+        }
+
+        // set history to infinite
+        mse = new ModifySpaceEvent();
+        // mse.setSpaceId("foo");
+        // mse.setConnectorParams(connectorParams);
+        mse.setOperation(ModifySpaceEvent.Operation.UPDATE);
+        mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
+        invokeLambda(mse.serialize());
+
+        // ============= UPDATE FEATURE 10 Times ======================
+        for (int i = 11; i <= 20; i++) {
+            f.getProperties().put("foo", i); // (new Properties().with("foo", i).withXyzNamespace(xyzNamespace));
+            mfevent.setUpdateFeatures(collection.getFeatures());
+            setPUUID(collection);
+            invokeLambda(mfevent.serialize());
+        }
+
+        try (final Connection connection = dataSource().getConnection()) {
+            Statement stmt = connection.createStatement();
+            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
+
+            ResultSet resultSet = stmt.executeQuery(sql);
+            // Oldes history item has foo=9
+            int oldestFooValue = 5;
+            int rowCount = 0;
+
+            // Check if all versions are available
+            while (resultSet.next()) {
+                Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
+                assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
+                rowCount++;
+            }
+            // Check if history table has 15 entries
+            assertEquals(15, rowCount);
+        }
+
+        // set withMaxVersionCount to 2
+        mse = new ModifySpaceEvent();
+        // mse.setSpaceId("foo");
+        // mse.setConnectorParams(connectorParams);
+        mse.setOperation(ModifySpaceEvent.Operation.UPDATE);
+        mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
+        invokeLambda(mse.serialize());
+
+        // Do one Update to fire the updated trigger
+        f.getProperties().put("foo", 21);
+        mfevent.setUpdateFeatures(collection.getFeatures());
+        setPUUID(collection);
+        invokeLambda(mfevent.serialize());
+
+        try (final Connection connection = dataSource().getConnection()) {
+            Statement stmt = connection.createStatement();
+            String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
+
+            ResultSet resultSet = stmt.executeQuery(sql);
+            // Oldest history item has foo=19 - all other should be deleted related to maxVersionCount=2
+            // update
+            int oldestFooValue = 19;
+            int rowCount = 0;
+
+            // Check if only two versions are left in the history
+            while (resultSet.next()) {
+                Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
+                assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
+                rowCount++;
+            }
+            // Check if history table has 2 entries
+            assertEquals(2, rowCount);
+        }
     }
 
-    // set withMaxVersionCount to 2
-    mse = new ModifySpaceEvent();
-    // mse.setSpaceId("foo");
-    // mse.setConnectorParams(connectorParams);
-    mse.setOperation(ModifySpaceEvent.Operation.UPDATE);
-    mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
-    invokeLambda(mse.serialize());
+    @Test
+    public void testHistoryTableDeletedFlag() throws Exception {
+        int maxVersionCount = 5;
+        // =========== CREATE SPACE with UUID support ==========
+        ModifySpaceEvent mse = new ModifySpaceEvent();
+        // mse.setSpaceId("foo");
+        // mse.setParams(Collections.singletonMap("maxVersionCount", maxVersionCount));
+        mse.setOperation(ModifySpaceEvent.Operation.CREATE);
+        // mse.setConnectorParams(connectorParams);
+        mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
 
-    // Do one Update to fire the updated trigger
-    f.getProperties().put("foo", 21);
-    mfevent.setUpdateFeatures(collection.getFeatures());
-    setPUUID(collection);
-    invokeLambda(mfevent.serialize());
+        String response = invokeLambda(mse.serialize());
 
-    try (final Connection connection = dataSource().getConnection()) {
-      Statement stmt = connection.createStatement();
-      String sql = "SELECT * from foo_hst ORDER BY jsondata->'properties'->'foo'";
+        // ============= INSERT ======================
+        XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
+        FeatureCollection collection = new FeatureCollection();
+        List<Feature> featureList = new ArrayList<>();
 
-      ResultSet resultSet = stmt.executeQuery(sql);
-      // Oldest history item has foo=19 - all other should be deleted related to maxVersionCount=2
-      // update
-      int oldestFooValue = 19;
-      int rowCount = 0;
+        Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
+        Feature f = new Feature("1234");
+        f.setGeometry(point);
+        f.getProperties().put("foo", 0);
+        featureList.add(f);
+        collection.setLazyParsableFeatureList(featureList);
 
-      // Check if only two versions are left in the history
-      while (resultSet.next()) {
-        Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
-        assertEquals(oldestFooValue++, (int) feature.getProperties().get("foo"));
-        rowCount++;
-      }
-      // Check if history table has 2 entries
-      assertEquals(2, rowCount);
-    }
-  }
+        ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
+        // mfevent.setConnectorParams(connectorParams);
+        // mfevent.setSpaceId("foo");
+        mfevent.setTransaction(true);
+        mfevent.setEnableUUID(true);
 
-  @Test
-  public void testHistoryTableDeletedFlag() throws Exception {
-    int maxVersionCount = 5;
-    // =========== CREATE SPACE with UUID support ==========
-    ModifySpaceEvent mse = new ModifySpaceEvent();
-    // mse.setSpaceId("foo");
-    // mse.setParams(Collections.singletonMap("maxVersionCount", maxVersionCount));
-    mse.setOperation(ModifySpaceEvent.Operation.CREATE);
-    // mse.setConnectorParams(connectorParams);
-    mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
+        setPUUID(collection);
+        mfevent.setInsertFeatures(collection.getFeatures());
+        invokeLambda(mfevent.serialize());
 
-    String response = invokeLambda(mse.serialize());
-
-    // ============= INSERT ======================
-    XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
-    FeatureCollection collection = new FeatureCollection();
-    List<Feature> featureList = new ArrayList<>();
-
-    Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-    Feature f = new Feature("1234");
-    f.setGeometry(point);
-    f.getProperties().put("foo", 0);
-    featureList.add(f);
-    collection.setLazyParsableFeatureList(featureList);
-
-    ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
-    // mfevent.setConnectorParams(connectorParams);
-    // mfevent.setSpaceId("foo");
-    mfevent.setTransaction(true);
-    mfevent.setEnableUUID(true);
-
-    setPUUID(collection);
-    mfevent.setInsertFeatures(collection.getFeatures());
-    invokeLambda(mfevent.serialize());
-
-    // DELETE feature
-    mfevent.setUpdateFeatures(null);
-    mfevent.setDeleteFeatures(
-        new HashMap<String, String>() {
-          {
-            put("1234", null);
-          }
+        // DELETE feature
+        mfevent.setUpdateFeatures(null);
+        mfevent.setDeleteFeatures(new HashMap<String, String>() {
+            {
+                put("1234", null);
+            }
         });
-    invokeLambda(mfevent.serialize());
+        invokeLambda(mfevent.serialize());
 
-    try (final Connection connection = dataSource().getConnection()) {
-      Statement stmt = connection.createStatement();
-      String sql =
-          "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC LIMIT 1;";
+        try (final Connection connection = dataSource().getConnection()) {
+            Statement stmt = connection.createStatement();
+            String sql =
+                    "SELECT * from foo_hst ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt' DESC LIMIT 1;";
 
-      ResultSet resultSet = stmt.executeQuery(sql);
-      resultSet.next();
-      Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
-      assertTrue(feature.getProperties().getXyzNamespace().isDeleted());
+            ResultSet resultSet = stmt.executeQuery(sql);
+            resultSet.next();
+            Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
+            assertTrue(feature.getProperties().getXyzNamespace().isDeleted());
+        }
     }
-  }
 
-  @Test
-  public void testHistoryTableTrigger() throws Exception {
-    int maxVersionCount = 8;
-    // =========== CREATE SPACE with UUID support ==========
-    ModifySpaceEvent mse = new ModifySpaceEvent();
-    // mse.setSpaceId("foo");
-    mse.setOperation(ModifySpaceEvent.Operation.CREATE);
-    // mse.setConnectorParams(connectorParams);
-    mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
+    @Test
+    public void testHistoryTableTrigger() throws Exception {
+        int maxVersionCount = 8;
+        // =========== CREATE SPACE with UUID support ==========
+        ModifySpaceEvent mse = new ModifySpaceEvent();
+        // mse.setSpaceId("foo");
+        mse.setOperation(ModifySpaceEvent.Operation.CREATE);
+        // mse.setConnectorParams(connectorParams);
+        mse.setSpaceDefinition(new Space("foo")); // .withEnableHistory(true)
 
-    invokeLambda(mse.serialize());
+        invokeLambda(mse.serialize());
 
-    try (final Connection connection = dataSource().getConnection()) {
-      Statement stmt = connection.createStatement();
-      String sql =
-          "SELECT pg_get_triggerdef(oid) as trigger_def "
-              + "FROM pg_trigger "
-              + "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
+        try (final Connection connection = dataSource().getConnection()) {
+            Statement stmt = connection.createStatement();
+            String sql = "SELECT pg_get_triggerdef(oid) as trigger_def "
+                    + "FROM pg_trigger "
+                    + "WHERE tgname = 'TR_foo_HISTORY_WRITER';";
 
-      ResultSet resultSet = stmt.executeQuery(sql);
-      if (!resultSet.next()) {
-        throw new Exception("History Trigger/Table is missing!");
-      } else {
-        assertTrue(
-            resultSet
-                .getString("trigger_def")
-                .contains("xyz_trigger_historywriter('" + maxVersionCount + "')"));
-      }
+            ResultSet resultSet = stmt.executeQuery(sql);
+            if (!resultSet.next()) {
+                throw new Exception("History Trigger/Table is missing!");
+            } else {
+                assertTrue(resultSet
+                        .getString("trigger_def")
+                        .contains("xyz_trigger_historywriter('" + maxVersionCount + "')"));
+            }
+        }
     }
-  }
 }

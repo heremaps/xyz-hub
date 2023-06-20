@@ -8,17 +8,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PsqlNotification {
 
-  public static final String TXN = "txn";
-  public static final String TXI = "txi";
+    public static final String TXN = "txn";
+    public static final String TXI = "txi";
 
-  /** The channel on which notifications are send. */
-  public static final String CHANNEL = "naksha:notifications";
+    /** The channel on which notifications are send. */
+    public static final String CHANNEL = "naksha:notifications";
 
-  /** The transaction that happened. */
-  @JsonProperty(TXN)
-  public String txn;
+    /** The transaction that happened. */
+    @JsonProperty(TXN)
+    public String txn;
 
-  /** Unique transaction identifier. */
-  @JsonProperty(TXI)
-  public String txi;
+    /** Unique transaction identifier. */
+    @JsonProperty(TXI)
+    public String txi;
 }

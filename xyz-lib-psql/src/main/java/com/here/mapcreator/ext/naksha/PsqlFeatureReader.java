@@ -10,22 +10,21 @@ import org.jetbrains.annotations.NotNull;
 
 public class PsqlFeatureReader<FEATURE extends Feature> implements IFeatureReader<FEATURE> {
 
-  PsqlFeatureReader(
-      @NotNull PsqlTxReader storageReader,
-      @NotNull Class<FEATURE> featureClass,
-      @NotNull StorageCollection collection) {
-    this.storageReader = storageReader;
-    this.featureClass = featureClass;
-    this.collection = collection;
-  }
+    PsqlFeatureReader(
+            @NotNull PsqlTxReader storageReader,
+            @NotNull Class<FEATURE> featureClass,
+            @NotNull StorageCollection collection) {
+        this.storageReader = storageReader;
+        this.featureClass = featureClass;
+        this.collection = collection;
+    }
 
-  final @NotNull PsqlTxReader storageReader;
-  final @NotNull Class<FEATURE> featureClass;
-  final @NotNull StorageCollection collection;
+    final @NotNull PsqlTxReader storageReader;
+    final @NotNull Class<FEATURE> featureClass;
+    final @NotNull StorageCollection collection;
 
-  @Override
-  public @NotNull List<@NotNull FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids)
-      throws SQLException {
-    throw new UnsupportedOperationException("getFeaturesById");
-  }
+    @Override
+    public @NotNull List<@NotNull FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids) throws SQLException {
+        throw new UnsupportedOperationException("getFeaturesById");
+    }
 }

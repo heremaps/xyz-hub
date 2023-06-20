@@ -40,64 +40,60 @@ import org.json.JSONObject;
 
 public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse> {
 
-  public static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
-  private static final String SPACE_META_TABLE = "xyz_config.space_meta";
+    public static final String IDX_STATUS_TABLE = "xyz_config.xyz_idxs_status";
+    private static final String SPACE_META_TABLE = "xyz_config.space_meta";
 
-  public ModifySpace(@NotNull ModifySpaceEvent event, @NotNull PsqlHandler psqlConnector)
-      throws SQLException {
-    super(event, psqlConnector);
-    setUseReadReplica(false);
-  }
-
-  @Override
-  protected @NotNull SQLQuery buildQuery(@NotNull ModifySpaceEvent event) throws SQLException {
-    final Operation op = event.getOperation();
-    if (op == CREATE || op == UPDATE) {
-      final SQLQuery q = new SQLQuery("${{searchableUpsert}} ${{spaceMetaUpsert}}");
-
-      // Write idx related data
-      final SQLQuery searchableUpsertQuery = buildSearchablePropertiesUpsertQuery(event);
-      q.setQueryFragment("searchableUpsert", searchableUpsertQuery);
-
-      // Write metadata
-      final SQLQuery spaceMetaUpsertQuery = buildSpaceMetaUpsertQuery(event);
-      q.setQueryFragment("spaceMetaUpsert", spaceMetaUpsertQuery);
-
-      return q;
+    public ModifySpace(@NotNull ModifySpaceEvent event, @NotNull PsqlHandler psqlConnector) throws SQLException {
+        super(event, psqlConnector);
+        setUseReadReplica(false);
     }
-    if (op == DELETE) {
-      return buildCleanUpQuery(event);
+
+    @Override
+    protected @NotNull SQLQuery buildQuery(@NotNull ModifySpaceEvent event) throws SQLException {
+        final Operation op = event.getOperation();
+        if (op == CREATE || op == UPDATE) {
+            final SQLQuery q = new SQLQuery("${{searchableUpsert}} ${{spaceMetaUpsert}}");
+
+            // Write idx related data
+            final SQLQuery searchableUpsertQuery = buildSearchablePropertiesUpsertQuery(event);
+            q.setQueryFragment("searchableUpsert", searchableUpsertQuery);
+
+            // Write metadata
+            final SQLQuery spaceMetaUpsertQuery = buildSpaceMetaUpsertQuery(event);
+            q.setQueryFragment("spaceMetaUpsert", spaceMetaUpsertQuery);
+
+            return q;
+        }
+        if (op == DELETE) {
+            return buildCleanUpQuery(event);
+        }
+        throw new IllegalArgumentException("Invalid operation: " + op.name());
     }
-    throw new IllegalArgumentException("Invalid operation: " + op.name());
-  }
 
-  @Nonnull
-  @Override
-  public SuccessResponse handle(@Nonnull ResultSet rs) throws SQLException {
-    return new SuccessResponse();
-  }
+    @Nonnull
+    @Override
+    public SuccessResponse handle(@Nonnull ResultSet rs) throws SQLException {
+        return new SuccessResponse();
+    }
 
-  private static final String INTERMEDIATE_TABLE = "intermediateTable";
-  private static final String EXTENDED_TABLE = "extendedTable";
+    private static final String INTERMEDIATE_TABLE = "intermediateTable";
+    private static final String EXTENDED_TABLE = "extendedTable";
 
-  @Deprecated
-  private JSONObject buildExtendedTablesJSON(ModifySpaceEvent event) {
-    if (!isExtendedSpace(event)) return new JSONObject().put("extends", (Object) null);
+    @Deprecated
+    private JSONObject buildExtendedTablesJSON(ModifySpaceEvent event) {
+        if (!isExtendedSpace(event)) return new JSONObject().put("extends", (Object) null);
 
-    Map<String, String> extendedTables =
-        new HashMap<String, String>() {
-          {
-            put(EXTENDED_TABLE, getExtendedTable(event));
-            if (is2LevelExtendedSpace(event)) put(INTERMEDIATE_TABLE, getIntermediateTable(event));
-          }
+        Map<String, String> extendedTables = new HashMap<String, String>() {
+            {
+                put(EXTENDED_TABLE, getExtendedTable(event));
+                if (is2LevelExtendedSpace(event)) put(INTERMEDIATE_TABLE, getIntermediateTable(event));
+            }
         };
-    return new JSONObject().put("extends", extendedTables);
-  }
+        return new JSONObject().put("extends", extendedTables);
+    }
 
-  public SQLQuery buildSpaceMetaUpsertQuery(ModifySpaceEvent event) throws SQLException {
-    SQLQuery q =
-        new SQLQuery(
-            "INSERT INTO "
+    public SQLQuery buildSpaceMetaUpsertQuery(ModifySpaceEvent event) throws SQLException {
+        SQLQuery q = new SQLQuery("INSERT INTO "
                 + SPACE_META_TABLE
                 + " as s_m VALUES (#{spaceid},#{schema},#{table},(#{extend})::json)"
                 + "  ON CONFLICT (id,schem)"
@@ -108,27 +104,28 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 + "     AND s_m.id = #{spaceid}"
                 + "     AND s_m.schem = #{schema};");
 
-    q.setNamedParameter(
-        "spaceid", event.getSpaceDefinition() == null ? "" : event.getSpaceDefinition().getId());
-    q.setNamedParameter("schema", processor.spaceSchema());
-    q.setNamedParameter(
-        "extend",
-        buildExtendedTablesJSON(event)
-            .toString()); // TODO: Only use one field here for the most down base space instead
-    q.setNamedParameter("table", processor.spaceTable());
+        q.setNamedParameter(
+                "spaceid",
+                event.getSpaceDefinition() == null
+                        ? ""
+                        : event.getSpaceDefinition().getId());
+        q.setNamedParameter("schema", processor.spaceSchema());
+        q.setNamedParameter(
+                "extend",
+                buildExtendedTablesJSON(event)
+                        .toString()); // TODO: Only use one field here for the most down base space instead
+        q.setNamedParameter("table", processor.spaceTable());
 
-    return q;
-  }
+        return q;
+    }
 
-  public SQLQuery buildSearchablePropertiesUpsertQuery(ModifySpaceEvent event) throws SQLException {
-    SQLQuery q = new SQLQuery("${{updateReferencedTables}}");
-    SQLQuery idx_ext_q;
+    public SQLQuery buildSearchablePropertiesUpsertQuery(ModifySpaceEvent event) throws SQLException {
+        SQLQuery q = new SQLQuery("${{updateReferencedTables}}");
+        SQLQuery idx_ext_q;
 
-    String sourceTable = isExtendedSpace(event) ? getExtendedTable(event) : processor.spaceTable();
+        String sourceTable = isExtendedSpace(event) ? getExtendedTable(event) : processor.spaceTable();
 
-    idx_ext_q =
-        new SQLQuery(
-            "SELECT jsonb_set(idx_manual,'{searchableProperties}',"
+        idx_ext_q = new SQLQuery("SELECT jsonb_set(idx_manual,'{searchableProperties}',"
                 + "         idx_manual->'searchableProperties' ||"
                 +
                 // Copy possible existing auto-indices into searchableProperties Config of extended
@@ -140,77 +137,72 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
                 + IDX_STATUS_TABLE
                 + "    WHERE spaceid=#{extended_table} ");
 
-    idx_ext_q.setNamedParameter("extended_table", sourceTable);
+        idx_ext_q.setNamedParameter("extended_table", sourceTable);
 
-    SQLQuery updateReferencedTables = new SQLQuery();
-    if (event.getOperation() == UPDATE) {
-      /* update possible existing delta tables */
-      updateReferencedTables =
-          new SQLQuery(
-              "UPDATE "
-                  + IDX_STATUS_TABLE
-                  + " "
-                  + "             SET schem=#{schema}, "
-                  + "    			idx_manual = (${{idx_manual_sub2}}), "
-                  + "				idx_creation_finished = false"
-                  + "		WHERE "
-                  + "           array_position("
-                  + "               (SELECT ARRAY_AGG(h_id) "
-                  + "                   FROM "
-                  + SPACE_META_TABLE
-                  + " as b "
-                  + "               WHERE 1=1"
-                  + "                   AND b.meta->'extends'->>'extendedTable' = #{table}"
-                  + "                   AND b.schem = #{schema}"
-                  + "               ), spaceid"
-                  + "           ) > 0"
-                  + "           AND schem = #{schema};");
+        SQLQuery updateReferencedTables = new SQLQuery();
+        if (event.getOperation() == UPDATE) {
+            /* update possible existing delta tables */
+            updateReferencedTables = new SQLQuery("UPDATE "
+                    + IDX_STATUS_TABLE
+                    + " "
+                    + "             SET schem=#{schema}, "
+                    + "    			idx_manual = (${{idx_manual_sub2}}), "
+                    + "				idx_creation_finished = false"
+                    + "		WHERE "
+                    + "           array_position("
+                    + "               (SELECT ARRAY_AGG(h_id) "
+                    + "                   FROM "
+                    + SPACE_META_TABLE
+                    + " as b "
+                    + "               WHERE 1=1"
+                    + "                   AND b.meta->'extends'->>'extendedTable' = #{table}"
+                    + "                   AND b.schem = #{schema}"
+                    + "               ), spaceid"
+                    + "           ) > 0"
+                    + "           AND schem = #{schema};");
 
-      updateReferencedTables.setQueryFragment("idx_manual_sub2", idx_ext_q);
-    }
-
-    q.setQueryFragment("updateReferencedTables", updateReferencedTables);
-
-    return q;
-  }
-
-  public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
-    SQLQuery q =
-        new SQLQuery(
-            "DELETE FROM " + SPACE_META_TABLE + " WHERE h_id=#{table} AND schem=#{schema};");
-    q.append("DELETE FROM " + IDX_STATUS_TABLE + " WHERE spaceid=#{table} AND schem=#{schema};");
-    q.append("DROP TABLE IF EXISTS ${schema}.${table};");
-    q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
-    q.append("DROP SEQUENCE IF EXISTS ${schema}.${hsttable_seq};");
-    q.append("DROP SEQUENCE IF EXISTS ${schema}.${table_seq};");
-
-    q.setNamedParameter("table", processor.spaceTable());
-    q.setNamedParameter("schema", processor.spaceSchema());
-    return q;
-  }
-
-  private static class IdxManual {
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public Map<String, Boolean> searchableProperties;
-
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
-    public List<List<Object>> sortableProperties;
-
-    IdxManual(Map<String, Boolean> searchableProperties, List<List<Object>> sortableProperties) {
-      this.searchableProperties = searchableProperties;
-      this.sortableProperties = sortableProperties;
-      if (this.searchableProperties != null) {
-        // Remove entries with null values
-        Map<String, Boolean> clearedSearchableProperties = new HashMap<>(searchableProperties);
-        for (String property : searchableProperties.keySet()) {
-          if (searchableProperties.get(property) == null)
-            clearedSearchableProperties.remove(property);
+            updateReferencedTables.setQueryFragment("idx_manual_sub2", idx_ext_q);
         }
-        this.searchableProperties = clearedSearchableProperties;
-      }
-      if (this.sortableProperties != null && this.searchableProperties == null) {
-        this.searchableProperties = new HashMap<>();
-      }
+
+        q.setQueryFragment("updateReferencedTables", updateReferencedTables);
+
+        return q;
     }
-  }
+
+    public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
+        SQLQuery q = new SQLQuery("DELETE FROM " + SPACE_META_TABLE + " WHERE h_id=#{table} AND schem=#{schema};");
+        q.append("DELETE FROM " + IDX_STATUS_TABLE + " WHERE spaceid=#{table} AND schem=#{schema};");
+        q.append("DROP TABLE IF EXISTS ${schema}.${table};");
+        q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
+        q.append("DROP SEQUENCE IF EXISTS ${schema}.${hsttable_seq};");
+        q.append("DROP SEQUENCE IF EXISTS ${schema}.${table_seq};");
+
+        q.setNamedParameter("table", processor.spaceTable());
+        q.setNamedParameter("schema", processor.spaceSchema());
+        return q;
+    }
+
+    private static class IdxManual {
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        public Map<String, Boolean> searchableProperties;
+
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        public List<List<Object>> sortableProperties;
+
+        IdxManual(Map<String, Boolean> searchableProperties, List<List<Object>> sortableProperties) {
+            this.searchableProperties = searchableProperties;
+            this.sortableProperties = sortableProperties;
+            if (this.searchableProperties != null) {
+                // Remove entries with null values
+                Map<String, Boolean> clearedSearchableProperties = new HashMap<>(searchableProperties);
+                for (String property : searchableProperties.keySet()) {
+                    if (searchableProperties.get(property) == null) clearedSearchableProperties.remove(property);
+                }
+                this.searchableProperties = clearedSearchableProperties;
+            }
+            if (this.sortableProperties != null && this.searchableProperties == null) {
+                this.searchableProperties = new HashMap<>();
+            }
+        }
+    }
 }

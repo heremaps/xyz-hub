@@ -31,195 +31,195 @@ import java.util.Map;
 @JsonTypeName(value = "SpaceStatus")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class SpaceStatus extends XyzResponse {
-  private long runts;
+    private long runts;
 
-  private long count;
+    private long count;
 
-  private String spaceId;
+    private String spaceId;
 
-  private Boolean idxCreationFinished;
+    private Boolean idxCreationFinished;
 
-  private Boolean autoIndexing;
+    private Boolean autoIndexing;
 
-  private List<IDXAvailable> idxAvailable;
+    private List<IDXAvailable> idxAvailable;
 
-  private List<IDXProposals> idxProposals;
+    private List<IDXProposals> idxProposals;
 
-  private List<PropStat> propStats;
+    private List<PropStat> propStats;
 
-  private IDXManual idxManual;
+    private IDXManual idxManual;
 
-  public long getRunts() {
-    return runts;
-  }
-
-  public void setRunTs(long runTs) {
-    this.runts = runts;
-  }
-
-  public String getSpaceId() {
-    return spaceId;
-  }
-
-  public void setSpaceId(String spaceId) {
-    this.spaceId = spaceId;
-  }
-
-  public Boolean isIdxCreationFinished() {
-    return idxCreationFinished;
-  }
-
-  public void setIdxCreationFinished(Boolean idxCreationFinished) {
-    this.idxCreationFinished = idxCreationFinished;
-  }
-
-  public Boolean isAutoIndexing() {
-    return autoIndexing;
-  }
-
-  public void setAutoIndexing(Boolean autoIndexing) {
-    this.autoIndexing = autoIndexing;
-  }
-
-  public long getCount() {
-    return count;
-  }
-
-  public void setCount(long count) {
-    this.count = count;
-  }
-
-  public List<IDXAvailable> getIdxAvailable() {
-    return idxAvailable;
-  }
-
-  public void setIdxAvailable(List<IDXAvailable> idxAvailable) {
-    this.idxAvailable = idxAvailable;
-  }
-
-  public IDXManual getIdxManual() {
-    return idxManual;
-  }
-
-  public void setIdxManual(IDXManual idxManual) {
-    this.idxManual = idxManual;
-  }
-
-  public List<IDXProposals> getIdxProposals() {
-    return idxProposals;
-  }
-
-  public void setIdxProposals(List<IDXProposals> idxProposals) {
-    this.idxProposals = idxProposals;
-  }
-
-  public List<PropStat> getPropStats() {
-    return propStats;
-  }
-
-  public void setPropStats(List<PropStat> propStats) {
-    this.propStats = propStats;
-  }
-
-  public static class IDXAvailable {
-    private String src;
-    private String property;
-
-    public String getSrc() {
-      return src;
+    public long getRunts() {
+        return runts;
     }
 
-    public void setSrc(String src) {
-      this.src = src;
+    public void setRunTs(long runTs) {
+        this.runts = runts;
     }
 
-    public String getProperty() {
-      return property;
+    public String getSpaceId() {
+        return spaceId;
     }
 
-    public void setProperty(String property) {
-      this.property = property;
-    }
-  }
-
-  public static class IDXManual {
-    private Map<String, Boolean> searchableProperties;
-    private List<List<Object>> sortableProperties;
-
-    public Map<String, Boolean> getSearchableProperties() {
-      return searchableProperties;
+    public void setSpaceId(String spaceId) {
+        this.spaceId = spaceId;
     }
 
-    public void setSearchableProperties(Map<String, Boolean> searchableProperties) {
-      this.searchableProperties = searchableProperties;
+    public Boolean isIdxCreationFinished() {
+        return idxCreationFinished;
     }
 
-    public List<List<Object>> getSortableProperties() {
-      return sortableProperties;
+    public void setIdxCreationFinished(Boolean idxCreationFinished) {
+        this.idxCreationFinished = idxCreationFinished;
     }
 
-    public void setSortableProperties(List<List<Object>> sortableProperties) {
-      this.sortableProperties = sortableProperties;
-    }
-  }
-
-  public static class PropStat {
-    private String key;
-    private String datatype;
-    private Long count;
-    private Boolean searchable;
-
-    public String getKey() {
-      return key;
+    public Boolean isAutoIndexing() {
+        return autoIndexing;
     }
 
-    public void setKey(String key) {
-      this.key = key;
+    public void setAutoIndexing(Boolean autoIndexing) {
+        this.autoIndexing = autoIndexing;
     }
 
-    public String getDatatype() {
-      return datatype;
+    public long getCount() {
+        return count;
     }
 
-    public void setDatatype(String datatype) {
-      this.datatype = datatype;
+    public void setCount(long count) {
+        this.count = count;
     }
 
-    public Long getCount() {
-      return count;
+    public List<IDXAvailable> getIdxAvailable() {
+        return idxAvailable;
     }
 
-    public void setCount(Long count) {
-      this.count = count;
+    public void setIdxAvailable(List<IDXAvailable> idxAvailable) {
+        this.idxAvailable = idxAvailable;
     }
 
-    public Boolean getSearchable() {
-      return searchable;
+    public IDXManual getIdxManual() {
+        return idxManual;
     }
 
-    public void setSearchable(Boolean searchable) {
-      this.searchable = searchable;
-    }
-  }
-
-  public static class IDXProposals {
-    private String type;
-    private String property;
-
-    public String getType() {
-      return type;
+    public void setIdxManual(IDXManual idxManual) {
+        this.idxManual = idxManual;
     }
 
-    public void setType(String type) {
-      this.type = type;
+    public List<IDXProposals> getIdxProposals() {
+        return idxProposals;
     }
 
-    public String getProperty() {
-      return property;
+    public void setIdxProposals(List<IDXProposals> idxProposals) {
+        this.idxProposals = idxProposals;
     }
 
-    public void setProperty(String property) {
-      this.property = property;
+    public List<PropStat> getPropStats() {
+        return propStats;
     }
-  }
+
+    public void setPropStats(List<PropStat> propStats) {
+        this.propStats = propStats;
+    }
+
+    public static class IDXAvailable {
+        private String src;
+        private String property;
+
+        public String getSrc() {
+            return src;
+        }
+
+        public void setSrc(String src) {
+            this.src = src;
+        }
+
+        public String getProperty() {
+            return property;
+        }
+
+        public void setProperty(String property) {
+            this.property = property;
+        }
+    }
+
+    public static class IDXManual {
+        private Map<String, Boolean> searchableProperties;
+        private List<List<Object>> sortableProperties;
+
+        public Map<String, Boolean> getSearchableProperties() {
+            return searchableProperties;
+        }
+
+        public void setSearchableProperties(Map<String, Boolean> searchableProperties) {
+            this.searchableProperties = searchableProperties;
+        }
+
+        public List<List<Object>> getSortableProperties() {
+            return sortableProperties;
+        }
+
+        public void setSortableProperties(List<List<Object>> sortableProperties) {
+            this.sortableProperties = sortableProperties;
+        }
+    }
+
+    public static class PropStat {
+        private String key;
+        private String datatype;
+        private Long count;
+        private Boolean searchable;
+
+        public String getKey() {
+            return key;
+        }
+
+        public void setKey(String key) {
+            this.key = key;
+        }
+
+        public String getDatatype() {
+            return datatype;
+        }
+
+        public void setDatatype(String datatype) {
+            this.datatype = datatype;
+        }
+
+        public Long getCount() {
+            return count;
+        }
+
+        public void setCount(Long count) {
+            this.count = count;
+        }
+
+        public Boolean getSearchable() {
+            return searchable;
+        }
+
+        public void setSearchable(Boolean searchable) {
+            this.searchable = searchable;
+        }
+    }
+
+    public static class IDXProposals {
+        private String type;
+        private String property;
+
+        public String getType() {
+            return type;
+        }
+
+        public void setType(String type) {
+            this.type = type;
+        }
+
+        public String getProperty() {
+            return property;
+        }
+
+        public void setProperty(String property) {
+            this.property = property;
+        }
+    }
 }

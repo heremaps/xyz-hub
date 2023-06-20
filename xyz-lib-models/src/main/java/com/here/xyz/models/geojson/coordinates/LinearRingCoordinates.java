@@ -21,13 +21,13 @@ package com.here.xyz.models.geojson.coordinates;
 
 public class LinearRingCoordinates extends PositionList {
 
-  // Min length 4. First and last positions are the same. At least 3 non-identical positions.
+    // Min length 4. First and last positions are the same. At least 3 non-identical positions.
 
-  public LinearRingCoordinates() {
-    super();
-  }
+    public LinearRingCoordinates() {
+        super();
+    }
 
-  public LinearRingCoordinates(int size) {
-    super(size);
-  }
+    public LinearRingCoordinates(int size) {
+        super(size);
+    }
 }

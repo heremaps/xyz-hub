@@ -18,22 +18,22 @@ import org.jetbrains.annotations.NotNull;
 @JsonTypeName(value = "TxModifyFeatures")
 public class TxModifyFeatures extends TxSignal {
 
-  /**
-   * Create a new transaction signal. For this event the “id” must be the same as the “collection”.
-   *
-   * @param id the local identifier of the event.
-   * @param storageId the storage identifier.
-   * @param collection the collection impacted.
-   * @param txn the transaction number.
-   */
-  @AvailableSince(INaksha.v2_0)
-  @JsonCreator
-  public TxModifyFeatures(
-      @JsonProperty(ID) @NotNull String id,
-      @JsonProperty(STORAGE_ID) @NotNull String storageId,
-      @JsonProperty(COLLECTION) @NotNull String collection,
-      @JsonProperty(XyzNamespace.TXN) @NotNull String txn) {
-    super(id, storageId, collection, txn);
-    assert id.equals(collection);
-  }
+    /**
+     * Create a new transaction signal. For this event the “id” must be the same as the “collection”.
+     *
+     * @param id the local identifier of the event.
+     * @param storageId the storage identifier.
+     * @param collection the collection impacted.
+     * @param txn the transaction number.
+     */
+    @AvailableSince(INaksha.v2_0)
+    @JsonCreator
+    public TxModifyFeatures(
+            @JsonProperty(ID) @NotNull String id,
+            @JsonProperty(STORAGE_ID) @NotNull String storageId,
+            @JsonProperty(COLLECTION) @NotNull String collection,
+            @JsonProperty(XyzNamespace.TXN) @NotNull String txn) {
+        super(id, storageId, collection, txn);
+        assert id.equals(collection);
+    }
 }

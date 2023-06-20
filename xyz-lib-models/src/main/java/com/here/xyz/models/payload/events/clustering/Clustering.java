@@ -12,8 +12,5 @@ import com.here.xyz.models.Typed;
  * clustering algorithm, there could be different mandatory and/or optional parameters to specify
  * the behavior of the algorithm.
  */
-@JsonSubTypes({
-  @JsonSubTypes.Type(value = ClusteringQuadBin.class),
-  @JsonSubTypes.Type(value = ClusteringHexBin.class)
-})
+@JsonSubTypes({@JsonSubTypes.Type(value = ClusteringQuadBin.class), @JsonSubTypes.Type(value = ClusteringHexBin.class)})
 public abstract class Clustering implements Typed {}
