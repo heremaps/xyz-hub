@@ -48,12 +48,12 @@ public class HttpHandler implements IEventHandler {
         final Event event = eventContext.getEvent();
         try {
             byte @NotNull [] bytes = event.toByteArray();
-            final HttpURLConnection conn = (HttpURLConnection) params.url.openConnection();
-            conn.setConnectTimeout((int) params.connTimeout);
-            conn.setReadTimeout((int) params.readTimeout);
-            conn.setRequestMethod(params.httpMethod);
+            final HttpURLConnection conn = (HttpURLConnection) params.getUrl().openConnection();
+            conn.setConnectTimeout((int) params.getConnTimeout());
+            conn.setReadTimeout((int) params.getReadTimeout());
+            conn.setRequestMethod(params.getHttpMethod());
             conn.setRequestProperty("Content-type", "application/json");
-            if (Boolean.TRUE.equals(params.gzip) || params.gzip == null && bytes.length >= 16384) {
+            if (Boolean.TRUE.equals(params.getGzip()) || params.getGzip() == null && bytes.length >= 16384) {
                 bytes = Payload.compress(event.toByteArray());
                 conn.setRequestProperty("Content-encoding", "gzip");
             }

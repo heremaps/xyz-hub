@@ -11,6 +11,7 @@ plugins {
     id("com.diffplug.spotless").version("6.11.0")
     // https://github.com/johnrengelman/shadow
     id("com.github.johnrengelman.shadow") version "7.1.2"
+    kotlin("jvm") version "1.8.21"
 }
 
 group = "com.here.naksha"
@@ -98,6 +99,7 @@ subprojects {
     apply(plugin = "java")
     apply(plugin = "com.diffplug.spotless")
     apply(plugin = "java-library")
+    apply(plugin = "kotlin")
 
     repositories {
         maven(uri("https://repo.osgeo.org/repository/release/"))
@@ -132,6 +134,10 @@ subprojects {
     java {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+        kotlinOptions.jvmTarget = "1.8"
     }
 }
 
