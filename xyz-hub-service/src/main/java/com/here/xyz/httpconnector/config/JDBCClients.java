@@ -89,8 +89,8 @@ public class JDBCClients {
                 .setReconnectInterval(1000)
                 /** Disable Pipelining */
                 .setPipeliningLimit(1)
-                .setProperties(props)
-                .setIdleTimeout(100);
+                .setProperties(props);
+//                .setIdleTimeout(100);
 
         PoolOptions poolOptions = new PoolOptions()
                 .setMaxSize(getDBPoolSize(clientId));
