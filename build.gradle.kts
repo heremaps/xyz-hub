@@ -184,6 +184,13 @@ project(":here-naksha-lib-psql") {
     }
 }
 
+project(":here-naksha-lib-extension") {
+    description = "Naksha Extension Library"
+    dependencies {
+        api(project(":here-naksha-lib-core"))
+    }
+}
+
 project(":here-naksha-handler-activitylog") {
     description = "Naksha Activity Log Handler"
     dependencies {
@@ -195,18 +202,11 @@ project(":here-naksha-handler-activitylog") {
     }
 }
 
-project(":here-naksha-lib-httpserver") {
-    description = "Naksha HTTP Server Library"
-    dependencies {
-        implementation(project(":here-naksha-lib-core"))
-    }
-}
-
 project(":here-naksha-handler-http") {
     description = "Naksha Http Handler"
     dependencies {
         implementation(project(":here-naksha-lib-core"))
-        testImplementation(project(":here-naksha-lib-httpserver"))
+        testImplementation(project(":here-naksha-lib-extension"))
 
         implementation(vividsolutions_jts_core)
 
