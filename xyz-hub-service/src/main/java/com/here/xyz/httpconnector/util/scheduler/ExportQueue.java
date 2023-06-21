@@ -125,17 +125,10 @@ public class ExportQueue extends JobQueue{
         JDBCExporter.executeExport(((Export) j), defaultSchema, CService.configuration.JOBS_S3_BUCKET, s3Path,
                         CService.configuration.JOBS_REGION)
                 .onSuccess(statistic -> {
-                            if(((Export) j).getProcessingList() == null){
-                                /** All tiles are processed */
-                                logger.info("JOB[{}] Export of '{}' completely succeeded!", j.getId(), j.getTargetSpaceId());
-                                ((Export)j).addStatistic(statistic);
-                                updateJobStatus(j, Job.Status.executed);
-                            }else{
-                                /** Not everything is exported - requeue the job */
-                                logger.info("JOB[{}] Export of '{}' partly succeeded!", j.getId(), j.getTargetSpaceId());
-                                ((Export)j).addStatistic(statistic);
-                                updateJobStatus(j, Job.Status.queued);
-                            }
+                            /** Everything is processed */
+                            logger.info("JOB[{}] Export of '{}' completely succeeded!", j.getId(), j.getTargetSpaceId());
+                            ((Export)j).addStatistic(statistic);
+                            updateJobStatus(j, Job.Status.executed);
                         }
                 )
                 .onFailure(f -> {

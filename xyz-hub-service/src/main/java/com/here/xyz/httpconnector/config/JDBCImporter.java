@@ -23,9 +23,6 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
-import com.here.xyz.httpconnector.util.status.RDSStatus;
-import com.here.xyz.httpconnector.util.status.RunningQueryStatistic;
-import com.here.xyz.httpconnector.util.status.RunningQueryStatistics;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.ModifySpace;
 import io.vertx.core.CompositeFuture;
@@ -34,7 +31,6 @@ import io.vertx.core.Promise;
 import io.vertx.sqlclient.impl.ArrayTuple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,7 +86,7 @@ public class JDBCImporter extends JDBCClients{
                                 logger.info("Start deletion of IDX-List: {}", idxList);
                                 return dropIndices(job.getTargetConnector(), schema, job.getTargetTable(), idxList)
                                         .compose(f2 -> {
-                                            logger.info("Start creation of Import-Trigger {}", getViewName(job.getTargetTable()));
+                                            logger.info("Start creation of Import-Trigger {}", job.getTargetTable());
                                             return createTriggerOnTargetTable(job, schema)
                                                     .compose(f3 -> Future.succeededFuture());
                                         });
@@ -284,19 +280,6 @@ public class JDBCImporter extends JDBCClients{
             p.fail("Table cleanup has failed");
         });
         return p.future();
-    }
-
-    public static Future<Void> deleteView(String clientID, String schema, String tableName){
-        SQLQuery q = new SQLQuery("DROP VIEW IF EXISTS ${schema}.${viewname};");
-
-        q.setVariable("schema",schema);
-        q.setVariable("viewname", getViewName(tableName));
-
-        logger.info("Delete view {}",getViewName(tableName));
-
-        return getClient(clientID).query(q.substitute().text())
-                .execute()
-                .map(f -> null);
     }
 
     public static Future<Void> deleteImportTrigger(String clientID, String schema, String tableName){
