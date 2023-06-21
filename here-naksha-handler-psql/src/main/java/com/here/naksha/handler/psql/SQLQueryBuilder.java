@@ -22,11 +22,8 @@ import static com.here.naksha.lib.core.models.payload.events.feature.GetFeatures
 import static com.here.naksha.lib.core.util.json.JsonSerializable.format;
 
 import com.here.naksha.handler.psql.query.GetFeaturesByBBox;
-import com.here.naksha.lib.psql.sql.DhString;
-import com.here.naksha.lib.psql.sql.H3SQL;
-import com.here.naksha.lib.psql.sql.QuadbinSQL;
-import com.here.naksha.lib.psql.sql.SQLQuery;
-import com.here.naksha.lib.psql.sql.TweaksSQL;
+import com.here.naksha.handler.psql.query.ModifySpace;
+import com.here.naksha.handler.psql.query.SearchForFeatures;
 import com.here.naksha.lib.core.models.geojson.HQuad;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
@@ -46,8 +43,11 @@ import com.here.naksha.lib.core.models.payload.events.tweaks.TweaksEnsure;
 import com.here.naksha.lib.core.models.payload.events.tweaks.TweaksSampling;
 import com.here.naksha.lib.core.models.payload.events.tweaks.TweaksSampling.Algorithm;
 import com.here.naksha.lib.core.models.payload.events.tweaks.TweaksSimplification;
-import com.here.naksha.handler.psql.query.ModifySpace;
-import com.here.naksha.handler.psql.query.SearchForFeatures;
+import com.here.naksha.lib.psql.sql.DhString;
+import com.here.naksha.lib.psql.sql.H3SQL;
+import com.here.naksha.lib.psql.sql.QuadbinSQL;
+import com.here.naksha.lib.psql.sql.SQLQuery;
+import com.here.naksha.lib.psql.sql.TweaksSQL;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;

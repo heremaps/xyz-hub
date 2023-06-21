@@ -21,18 +21,17 @@ package com.here.naksha.handler.psql.query;
 
 
 import com.here.naksha.handler.psql.PsqlHandler;
-import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.core.models.payload.events.PropertyQueryOr;
 import com.here.naksha.lib.core.models.payload.events.QueryOperation;
 import com.here.naksha.lib.core.models.payload.events.TagsQuery;
 import com.here.naksha.lib.core.models.payload.events.feature.QueryEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.SearchForFeaturesEvent;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
 /*
@@ -49,7 +48,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent> extends GetFeat
     }
 
     @Override
-    protected @NotNull SQLQuery buildQuery(@Nonnull E event) throws SQLException {
+    protected @NotNull SQLQuery buildQuery(@NotNull E event) throws SQLException {
         SQLQuery query = super.buildQuery(event);
 
         SQLQuery searchQuery = buildSearchFragment(event);

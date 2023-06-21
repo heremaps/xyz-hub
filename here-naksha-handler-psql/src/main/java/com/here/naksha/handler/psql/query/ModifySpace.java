@@ -25,16 +25,15 @@ import static com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEv
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.here.naksha.handler.psql.PsqlHandler;
-import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent.Operation;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONObject;
 
@@ -70,9 +69,8 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, SuccessResponse
         throw new IllegalArgumentException("Invalid operation: " + op.name());
     }
 
-    @Nonnull
     @Override
-    public SuccessResponse handle(@Nonnull ResultSet rs) throws SQLException {
+    public @NotNull SuccessResponse handle(@NotNull ResultSet rs) throws SQLException {
         return new SuccessResponse();
     }
 

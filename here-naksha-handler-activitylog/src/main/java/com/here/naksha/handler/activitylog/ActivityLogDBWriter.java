@@ -1,26 +1,23 @@
 package com.here.naksha.handler.activitylog;
 
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.naksha.lib.psql.PsqlDataSource;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
+import com.here.naksha.lib.psql.PsqlDataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class ActivityLogDBWriter {
-    private static final Logger logger = LogManager.getLogger();
-
     public static void fromActicityLogDBToFeature(
             PsqlDataSource dataSourceLocalHost, PsqlDataSource dataSourceActivityLog, String tableName, Integer limit) {
         long startTime = System.currentTimeMillis();
-        logger.info("Activity Log table is " + tableName + " and value of limit is " + limit);
+        currentLogger().info("Activity Log table is " + tableName + " and value of limit is " + limit);
         String schema = dataSourceActivityLog.getSchema();
         List<String> featureList = new ArrayList<>();
         List<String> geoList = new ArrayList<>();
@@ -34,13 +31,13 @@ public class ActivityLogDBWriter {
                 if (result != null && result.next()) {
                     intMaxIActivityTable = result.getInt(1);
                 } else {
-                    logger.error("Make sure that source table Activity Log is not empty.");
+                    currentLogger().error("Make sure that source table Activity Log is not empty.");
                 }
             } catch (SQLException throwables) {
-                logger.info("Unable to get max I value from an activity table.");
+                currentLogger().info("Unable to get max I value from an activity table.");
                 throwables.printStackTrace();
             }
-            logger.info("Maximum I value present in Activity table is " + intMaxIActivityTable);
+            currentLogger().info("Maximum I value present in Activity table is " + intMaxIActivityTable);
             // Assigning this value for testing purpose
             intMaxIActivityTable = 100;
             try (Connection connLocalHost = dataSourceLocalHost.getConnection()) {
@@ -53,10 +50,10 @@ public class ActivityLogDBWriter {
                         intMaxIFeaturesTable = result.getInt(1);
                     }
                 } catch (SQLException throwables) {
-                    logger.info("Unable to get max I value from an features table.");
+                    currentLogger().info("Unable to get max I value from an features table.");
                     throwables.printStackTrace();
                 }
-                logger.info("Maximum I value present in Features table is " + intMaxIFeaturesTable);
+                currentLogger().info("Maximum I value present in Features table is " + intMaxIFeaturesTable);
                 Integer batchNumber = intMaxIFeaturesTable + limit;
                 while (batchNumber < (intMaxIActivityTable + limit)) {
                     String SQLSelectActiLog = sqlQuerySelectFromActivityLog(schema, tableName, batchNumber, limit);
@@ -72,19 +69,19 @@ public class ActivityLogDBWriter {
                                     ActivityLogHandler.fromActivityLogFormat(activityLogFeature);
                                     featureList.add(activityLogFeature.serialize());
                                 } catch (JsonProcessingException e) {
-                                    logger.info("Error while processing/converting activity log json.");
+                                    currentLogger().info("Error while processing/converting activity log json.");
                                     e.printStackTrace();
                                 }
                             }
                         }
                     } catch (SQLException throwables) {
-                        logger.info("Error while selecting activity log records from activity table.");
+                        currentLogger().info("Error while selecting activity log records from activity table.");
                         throwables.printStackTrace();
                     }
                     if (featureList.size() != 0) {
                         String sqlBulkInsertQuery =
                                 sqlQueryInsertConvertedFeatures(featureList, schema, geoList, iList);
-                        logger.info("Inserting " + iList.size() + " records with ids " + iList);
+                        currentLogger().info("Inserting " + iList.size() + " records with ids " + iList);
                         sqlExecute(connLocalHost, sqlBulkInsertQuery);
                     }
                     connLocalHost.commit();
@@ -93,13 +90,13 @@ public class ActivityLogDBWriter {
                     iList.clear();
                     featureList.clear();
                 }
-                logger.info("Total Time to process : " + (System.currentTimeMillis() - startTime));
+                currentLogger().info("Total Time to process : " + (System.currentTimeMillis() - startTime));
             } catch (SQLException throwables) {
-                logger.info("Error while connecting to destination database.");
+                currentLogger().info("Error while connecting to destination database.");
                 throwables.printStackTrace();
             }
         } catch (SQLException throwables) {
-            logger.info("Error while connecting to source database.");
+            currentLogger().info("Error while connecting to source database.");
             throwables.printStackTrace();
         }
     }

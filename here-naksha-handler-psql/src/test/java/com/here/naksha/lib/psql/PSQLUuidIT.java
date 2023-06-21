@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.amazonaws.util.IOUtils;
@@ -60,7 +61,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        LOGGER.info("Insert feature tested successfully");
+        currentLogger().info("Insert feature tested successfully");
 
         // =========== UPDATE With wrong UUID ==========
         FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
@@ -208,7 +209,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        LOGGER.info("Insert feature tested successfully");
+        currentLogger().info("Insert feature tested successfully");
 
         // =========== UPDATE With wrong UUID ==========
         FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
@@ -345,7 +346,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         final String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         final FeatureCollection insertRequestCollection = JsonSerializable.deserialize(insertResponse);
         assertRead(insertRequest, insertResponse, withUUID);
-        LOGGER.info("Insert feature tested successfully");
+        currentLogger().info("Insert feature tested successfully");
 
         // =========== DELETE NOT EXISTING FEATURE ==========
         // Stream
@@ -428,7 +429,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         assertEquals(XyzError.CONFLICT, errorResponse.getError());
         failedList = ((ArrayList) errorResponse.getErrorDetails().get("FailedList"));
         assertEquals(0, failedList.size());
-//        assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorResponse.getErrorMessage());
+        //        assertEquals(DatabaseWriter.TRANSACTION_ERROR_GENERAL, errorResponse.getErrorMessage());
 
         // =========== UPDATE NOT EXISTING FEATURE ==========
         // Stream

@@ -19,27 +19,29 @@
 
 package com.here.naksha.handler.psql;
 
-import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
-import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_MIXED;
-import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_REAL;
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
 import static com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent.Operation.CREATE;
 import static com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent.Operation.UPDATE;
 import static com.here.naksha.lib.core.models.payload.responses.XyzError.EXCEPTION;
+import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
+import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_MIXED;
+import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_REAL;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.here.naksha.handler.psql.query.ExtendedSpace;
+import com.here.naksha.handler.psql.query.GetFeaturesByGeometry;
+import com.here.naksha.handler.psql.query.GetFeaturesById;
 import com.here.naksha.handler.psql.query.GetStorageStatistics;
 import com.here.naksha.handler.psql.query.IterateFeatures;
 import com.here.naksha.handler.psql.query.LoadFeatures;
-import com.here.naksha.lib.psql.PsqlCollection;
-import com.here.naksha.lib.psql.PsqlDataSource;
-import com.here.naksha.lib.psql.sql.DhString;
-import com.here.naksha.lib.psql.sql.SQLQuery;
-import com.here.naksha.lib.psql.sql.TweaksSQL;
+import com.here.naksha.handler.psql.query.ModifySpace;
+import com.here.naksha.handler.psql.query.SearchForFeatures;
+import com.here.naksha.handler.psql.query.helpers.FetchExistingIds;
+import com.here.naksha.handler.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.naksha.lib.core.ExtendedEventHandler;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
@@ -89,13 +91,11 @@ import com.here.naksha.lib.core.models.payload.responses.changesets.ChangesetCol
 import com.here.naksha.lib.core.models.payload.responses.changesets.CompactChangeset;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.handler.psql.query.ExtendedSpace;
-import com.here.naksha.handler.psql.query.GetFeaturesByGeometry;
-import com.here.naksha.handler.psql.query.GetFeaturesById;
-import com.here.naksha.handler.psql.query.ModifySpace;
-import com.here.naksha.handler.psql.query.SearchForFeatures;
-import com.here.naksha.handler.psql.query.helpers.FetchExistingIds;
-import com.here.naksha.handler.psql.query.helpers.FetchExistingIds.FetchIdsInput;
+import com.here.naksha.lib.psql.PsqlCollection;
+import com.here.naksha.lib.psql.PsqlDataSource;
+import com.here.naksha.lib.psql.sql.DhString;
+import com.here.naksha.lib.psql.sql.SQLQuery;
+import com.here.naksha.lib.psql.sql.TweaksSQL;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;

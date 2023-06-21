@@ -21,8 +21,8 @@ package com.here.naksha.handler.psql.query;
 
 
 import com.here.naksha.handler.psql.PsqlHandler;
-import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.SQLException;
 import org.jetbrains.annotations.NotNull;
 

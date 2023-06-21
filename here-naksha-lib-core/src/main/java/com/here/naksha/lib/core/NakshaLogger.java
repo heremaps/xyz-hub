@@ -37,13 +37,12 @@ public class NakshaLogger implements Logger {
         final NakshaLogger logger = instance.get();
         final AbstractTask<?> task = AbstractTask.currentTask();
         if (task != null) {
-            logger.with(task.streamId(), task.startNanos());
-        } else {
-            final String threadName = Thread.currentThread().getName();
-            //noinspection StringEquality
-            if (logger.streamId() != threadName) {
-                logger.with(threadName, NanoTime.now());
-            }
+            return logger.with(task.streamId(), task.startNanos());
+        }
+        final String threadName = Thread.currentThread().getName();
+        //noinspection StringEquality
+        if (logger.streamId() != threadName) {
+            logger.with(threadName, NanoTime.now());
         }
         return logger;
     }

@@ -19,6 +19,7 @@
 
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.amazonaws.util.IOUtils;
@@ -46,12 +47,8 @@ import java.util.Map;
 import java.util.Random;
 import javax.sql.DataSource;
 import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public abstract class PSQLAbstractIT extends Helper {
-
-    protected static final Logger LOGGER = LogManager.getLogger();
 
     protected static Random RANDOM = new Random();
     protected static String TEST_SPACE_ID = "foo";
@@ -71,7 +68,7 @@ public abstract class PSQLAbstractIT extends Helper {
     }
 
     protected static void initEnv(Map<String, Object> connectorParameters) throws Exception {
-        LOGGER.info("Setup environment...");
+        currentLogger().info("Setup environment...");
         connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
         connectorParams = new PsqlHandlerParams(connectorParameters);
 
@@ -80,12 +77,12 @@ public abstract class PSQLAbstractIT extends Helper {
         // event.setConnectorParams(connectorParameters);
 
         invokeLambda(event.serialize());
-        LOGGER.info("Setup environment Completed.");
+        currentLogger().info("Setup environment Completed.");
     }
 
     protected static void invokeCreateTestSpace(Map<String, Object> connectorParameters, String spaceId)
             throws Exception {
-        LOGGER.info("Creat Test space..");
+        currentLogger().info("Creat Test space..");
 
         connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
         final Space space = new Space(RandomStringUtils.randomAlphabetic(12));
@@ -100,7 +97,7 @@ public abstract class PSQLAbstractIT extends Helper {
     }
 
     protected static void invokeDeleteTestSpace(Map<String, Object> connectorParameters) throws Exception {
-        LOGGER.info("Cleanup spaces..");
+        currentLogger().info("Cleanup spaces..");
 
         connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
         final ModifySpaceEvent event = new ModifySpaceEvent();
@@ -113,12 +110,12 @@ public abstract class PSQLAbstractIT extends Helper {
                 "OK",
                 JsonPath.read(response, "$.status").toString());
 
-        LOGGER.info("Cleanup space Completed.");
+        currentLogger().info("Cleanup space Completed.");
     }
 
     protected static void invokeDeleteTestSpaces(Map<String, Object> connectorParameters, List<String> spaces)
             throws Exception {
-        LOGGER.info("Cleanup spaces...");
+        currentLogger().info("Cleanup spaces...");
 
         connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
 
@@ -135,7 +132,7 @@ public abstract class PSQLAbstractIT extends Helper {
                     JsonPath.read(response, "$.status").toString());
         }
 
-        LOGGER.info("Cleanup spaces Completed.");
+        currentLogger().info("Cleanup spaces Completed.");
     }
 
     protected String invokeLambdaFromFile(String file) throws Exception {
@@ -149,12 +146,12 @@ public abstract class PSQLAbstractIT extends Helper {
         assert jsonStream != null;
         pipeline.sendEvent(jsonStream, os);
         String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
-        LOGGER.info("Response from lambda - {}", response);
+        currentLogger().info("Response from lambda - {}", response);
         return response;
     }
 
     protected static String invokeLambda(String request) throws Exception {
-        LOGGER.info("Request to lambda - {}", request);
+        currentLogger().info("Request to lambda - {}", request);
         InputStream jsonStream = new ByteArrayInputStream(request.getBytes(StandardCharsets.UTF_8));
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         final IoEventPipeline pipeline = new IoEventPipeline();
@@ -164,7 +161,7 @@ public abstract class PSQLAbstractIT extends Helper {
                 RandomStringUtils.randomAlphabetic(12), PsqlHandler.class, new Storage("psql", 0, PsqlStorage.class))));
         pipeline.sendEvent(jsonStream, os);
         String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
-        LOGGER.info("Response from lambda - {}", response);
+        currentLogger().info("Response from lambda - {}", response);
         return response;
     }
 }

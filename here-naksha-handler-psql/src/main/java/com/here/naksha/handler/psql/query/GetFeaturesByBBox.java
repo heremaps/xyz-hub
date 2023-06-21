@@ -21,13 +21,12 @@ package com.here.naksha.handler.psql.query;
 
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.GEO_JSON;
 
-import com.here.naksha.lib.psql.sql.SQLQuery;
-import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
-import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByBBoxEvent;
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.handler.psql.SQLQueryBuilder;
+import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
+import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByBBoxEvent;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.SQLException;
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
 public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial<E> {
@@ -37,7 +36,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent> extends Spatial
     }
 
     @Override
-    protected @NotNull SQLQuery buildQuery(@Nonnull E event) throws SQLException {
+    protected @NotNull SQLQuery buildQuery(@NotNull E event) throws SQLException {
         // NOTE: So far this query runner only handles queries regarding extended spaces
         if (isExtendedSpace(event)) {
             SQLQuery geoQuery = new SQLQuery(

@@ -20,9 +20,9 @@
 package com.here.naksha.handler.psql;
 
 
-import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.core.EventHandlerParams;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
+import com.here.naksha.lib.psql.PsqlConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

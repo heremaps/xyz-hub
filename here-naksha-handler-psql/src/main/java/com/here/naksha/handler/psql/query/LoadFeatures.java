@@ -20,13 +20,12 @@
 package com.here.naksha.handler.psql.query;
 
 
-import com.here.naksha.lib.psql.sql.SQLQuery;
-import com.here.naksha.lib.core.models.payload.events.feature.LoadFeaturesEvent;
 import com.here.naksha.handler.psql.PsqlHandler;
+import com.here.naksha.lib.core.models.payload.events.feature.LoadFeaturesEvent;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
@@ -36,7 +35,7 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent> {
     }
 
     @Override
-    protected @NotNull SQLQuery buildQuery(@Nonnull LoadFeaturesEvent event) throws SQLException {
+    protected @NotNull SQLQuery buildQuery(@NotNull LoadFeaturesEvent event) throws SQLException {
         final Map<String, String> idMap = event.getIdsMap();
 
         SQLQuery filterWhereClause = new SQLQuery("jsondata->>'id' = ANY(#{ids})")

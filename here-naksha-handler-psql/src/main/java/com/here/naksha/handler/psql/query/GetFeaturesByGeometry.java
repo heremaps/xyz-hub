@@ -21,11 +21,10 @@ package com.here.naksha.handler.psql.query;
 
 
 import com.here.naksha.handler.psql.PsqlHandler;
-import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.core.models.geojson.coordinates.WKTHelper;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByGeometryEvent;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.SQLException;
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
 public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent> {
@@ -36,7 +35,7 @@ public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent> {
     }
 
     @Override
-    protected @NotNull SQLQuery buildQuery(@Nonnull GetFeaturesByGeometryEvent event) throws SQLException {
+    protected @NotNull SQLQuery buildQuery(@NotNull GetFeaturesByGeometryEvent event) throws SQLException {
         final int radius = event.getRadius();
 
         SQLQuery geoFilter = event.getH3Index() != null

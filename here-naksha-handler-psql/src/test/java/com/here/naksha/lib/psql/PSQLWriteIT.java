@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.amazonaws.util.IOUtils;
@@ -62,10 +63,10 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== UPSERT ==========
         String jsonFile = "/events/UpsertFeaturesEvent.json";
         String response = invokeLambdaFromFile(jsonFile);
-        LOGGER.info("RAW RESPONSE: " + response);
+        currentLogger().info("RAW RESPONSE: " + response);
         String request = IOUtils.toString(this.getClass().getResourceAsStream(jsonFile));
         assertRead(request, response, false);
-        LOGGER.info("Upsert feature tested successfully");
+        currentLogger().info("Upsert feature tested successfully");
     }
 
     @Test
@@ -75,7 +76,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        LOGGER.info("Insert feature tested successfully");
+        currentLogger().info("Insert feature tested successfully");
 
         // =========== UPDATE ==========
         FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
@@ -97,7 +98,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
         assertUpdate(updateRequest, updateResponse, true);
         assertUpdate(updateRequest, updateResponse, true);
-        LOGGER.info("Update feature tested successfully");
+        currentLogger().info("Update feature tested successfully");
     }
 
     @Test
@@ -107,7 +108,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        LOGGER.info("Insert feature tested successfully");
+        currentLogger().info("Insert feature tested successfully");
 
         // =========== UPDATE ==========
         FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
@@ -123,7 +124,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         String updateResponse = invokeLambda(mfevent.serialize());
 
         assertUpdate(mfevent.serialize(), updateResponse, true);
-        LOGGER.info("Update feature tested successfully");
+        currentLogger().info("Update feature tested successfully");
 
         // =========== LoadFeaturesEvent ==========
         String loadFeaturesEvent = "/events/LoadFeaturesEvent.json";
@@ -159,25 +160,25 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEvent.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        LOGGER.info("RAW RESPONSE: " + insertResponse);
+        currentLogger().info("RAW RESPONSE: " + insertResponse);
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, false);
-        LOGGER.info("Insert feature tested successfully");
+        currentLogger().info("Insert feature tested successfully");
 
         // =========== COUNT ==========
         String statsResponse = invokeLambdaFromFile("/events/GetStatisticsEvent.json");
         assertCount(insertRequest, statsResponse);
-        LOGGER.info("Count feature tested successfully");
+        currentLogger().info("Count feature tested successfully");
 
         // =========== SEARCH ==========
         String searchResponse = invokeLambdaFromFile("/events/SearchForFeaturesEvent.json");
         assertRead(insertRequest, searchResponse, false);
-        LOGGER.info("Search feature tested successfully");
+        currentLogger().info("Search feature tested successfully");
 
         // =========== SEARCH WITH PROPERTIES ========
         String searchPropertiesResponse = invokeLambdaFromFile("/events/SearchForFeaturesByPropertiesEvent.json");
         assertRead(insertRequest, searchPropertiesResponse, false);
-        LOGGER.info("Search Properties feature tested successfully");
+        currentLogger().info("Search Properties feature tested successfully");
 
         // =========== UPDATE ==========
         FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
@@ -194,11 +195,11 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         String updateResponse = invokeLambda(updateRequest);
 
         assertUpdate(updateRequest, updateResponse, false);
-        LOGGER.info("Update feature tested successfully");
+        currentLogger().info("Update feature tested successfully");
 
         // =========== DELETE FEATURES ==========
         invokeLambdaFromFile("/events/DeleteFeaturesByTagEvent.json");
-        LOGGER.info("Delete feature tested successfully");
+        currentLogger().info("Delete feature tested successfully");
     }
 
     @Test
@@ -207,10 +208,10 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertNullGeometry.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        LOGGER.info("RAW RESPONSE: " + insertResponse);
+        currentLogger().info("RAW RESPONSE: " + insertResponse);
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, false);
-        LOGGER.info("Preparation: Insert features");
+        currentLogger().info("Preparation: Insert features");
 
         // =========== Validate that "geometry":null is serialized ==========
         String response = invokeLambdaFromFile("/events/GetFeaturesByIdEvent.json");
@@ -268,7 +269,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEvent.json";
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
-        LOGGER.info("RAW RESPONSE: " + insertResponse);
+        currentLogger().info("RAW RESPONSE: " + insertResponse);
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, false);
         final JsonPath jsonPathFeatures = JsonPath.compile("$.features");
@@ -276,10 +277,10 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
         final JsonPath jsonPathFeatureIds = JsonPath.compile("$.features..id");
         List<String> ids = jsonPathFeatureIds.read(insertResponse, jsonPathConf);
-        LOGGER.info("Preparation: Inserted features {}", ids);
+        currentLogger().info("Preparation: Inserted features {}", ids);
 
         // =========== UPDATE ==========
-        LOGGER.info("Modify features");
+        currentLogger().info("Modify features");
         final DocumentContext updateFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
         updateFeaturesEventDoc.put("$", "params", Collections.singletonMap("includeOldStates", includeOldStates));
 
@@ -330,6 +331,6 @@ public class PSQLWriteIT extends PSQLAbstractIT {
             assertEquals(0, oldFeatures.size(), "unexpected oldFeatures in ModifyFeaturesResponse");
         }
 
-        LOGGER.info("Modify features tested successfully");
+        currentLogger().info("Modify features tested successfully");
     }
 }

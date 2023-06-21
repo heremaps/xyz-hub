@@ -31,15 +31,11 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.postgresql.util.PGobject;
 
 public class DatabaseWriter {
-    private static final Logger logger = LogManager.getLogger();
-
     public static final String UPDATE_ERROR_GENERAL = "Update has failed";
     public static final String UPDATE_ERROR_NOT_EXISTS = UPDATE_ERROR_GENERAL + " - Object does not exist";
     public static final String UPDATE_ERROR_UUID = UPDATE_ERROR_GENERAL + " - Object does not exist or UUID mismatch";

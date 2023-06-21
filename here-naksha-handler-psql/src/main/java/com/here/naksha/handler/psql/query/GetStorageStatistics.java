@@ -21,13 +21,13 @@ package com.here.naksha.handler.psql.query;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
-import com.here.naksha.lib.psql.PsqlCollection;
+import com.here.naksha.handler.psql.PsqlHandler;
+import com.here.naksha.handler.psql.SQLQueryExt;
 import com.here.naksha.lib.core.models.payload.events.info.GetStorageStatisticsEvent;
 import com.here.naksha.lib.core.models.payload.responses.StatisticsResponse.Value;
 import com.here.naksha.lib.core.models.payload.responses.StorageStatistics;
 import com.here.naksha.lib.core.models.payload.responses.StorageStatistics.SpaceByteSizes;
-import com.here.naksha.handler.psql.PsqlHandler;
-import com.here.naksha.handler.psql.SQLQueryExt;
+import com.here.naksha.lib.psql.PsqlCollection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -36,7 +36,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
 public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEvent, StorageStatistics> {
@@ -56,7 +55,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
     }
 
     @Override
-    protected @NotNull SQLQueryExt buildQuery(@Nonnull GetStorageStatisticsEvent event) {
+    protected @NotNull SQLQueryExt buildQuery(@NotNull GetStorageStatisticsEvent event) {
         final List<@NotNull String> tableNames =
                 new ArrayList<>(event.getSpaceIds().size() * 2);
         final String schema = processor.spaceSchema();

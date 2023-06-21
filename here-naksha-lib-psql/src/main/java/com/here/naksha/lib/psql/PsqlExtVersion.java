@@ -1,8 +1,8 @@
 package com.here.naksha.lib.psql;
 
 
-import javax.annotation.Nullable;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Just an abstraction for PSQL extension versioning.

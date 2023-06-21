@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.amazonaws.util.IOUtils;
@@ -70,7 +71,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         final String insertResponse = invokeLambdaFromFile(insertJsonFile);
         final String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        LOGGER.info("Insert feature tested successfully");
+        currentLogger().info("Insert feature tested successfully");
 
         String queryEvent;
         // =========== QUERY BBOX ==========
@@ -310,7 +311,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         mfevent.setInsertFeatures(collection.getFeatures());
 
         invokeLambda(mfevent.serialize());
-        LOGGER.info("Insert feature tested successfully");
+        currentLogger().info("Insert feature tested successfully");
         // =========== QUERY WITH POLYGON ==========
         PolygonCoordinates polyCoords = new PolygonCoordinates();
         LinearRingCoordinates ringCords = new LinearRingCoordinates();
@@ -332,7 +333,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         FeatureCollection featureCollection = JsonSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(124, featureCollection.getFeatures().size());
-        LOGGER.info("Area Query with POLYGON tested successfully");
+        currentLogger().info("Area Query with POLYGON tested successfully");
         // =========== QUERY WITH POLYGON WITH HOLE ==========
         LinearRingCoordinates holeCords = new LinearRingCoordinates();
         holeCords.add(new Position(7.05, 50.05));
@@ -358,7 +359,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
             }
         }
         assertEquals(114, featureCollection.getFeatures().size());
-        LOGGER.info("Area Query with POLYGON incl. hole tested successfully");
+        currentLogger().info("Area Query with POLYGON incl. hole tested successfully");
         // =========== QUERY WITH MULTIPOLYGON ==========
         PolygonCoordinates polyCoords2 = new PolygonCoordinates();
         LinearRingCoordinates ringCords2 = new LinearRingCoordinates();
@@ -391,7 +392,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         }
         assertEquals(213, featureCollection.getFeatures().size());
         assertEquals(2, cnt);
-        LOGGER.info("Area Query with MULTIPOLYGON tested successfully");
+        currentLogger().info("Area Query with MULTIPOLYGON tested successfully");
         // =========== QUERY WITH MULTIPOLYGON + PROPERTIES_SEARCH ==========
         PropertyQueryOr pq = new PropertyQueryOr();
         PropertyQueryAnd pql = new PropertyQueryAnd();
@@ -412,7 +413,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         featureCollection = JsonSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(121, featureCollection.getFeatures().size());
-        LOGGER.info("Area Query with MULTIPOLYGON + PROPERTIES_SEARCH tested successfully");
+        currentLogger().info("Area Query with MULTIPOLYGON + PROPERTIES_SEARCH tested successfully");
         // =========== QUERY WITH MULTIPOLYGON + SELECTION ==========
         geo = new MultiPolygon().withCoordinates(multiCords);
         geometryEvent = new GetFeaturesByGeometryEvent();
@@ -433,7 +434,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         Properties properties = featureCollection.getFeatures().get(0).getProperties();
         assertEquals(Integer.valueOf(1), properties.get("foo2"));
         assertNull(properties.get("foo"));
-        LOGGER.info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
+        currentLogger().info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
 
         // =========== QUERY WITH H3Index ==========
         geometryEvent = new GetFeaturesByGeometryEvent();
@@ -446,7 +447,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         featureCollection = JsonSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(404, featureCollection.getFeatures().size());
-        LOGGER.info("Hexbin Query (large) tested successfully");
+        currentLogger().info("Hexbin Query (large) tested successfully");
 
         geometryEvent = new GetFeaturesByGeometryEvent();
         // geometryEvent.setConnectorParams(defaultTestConnectorParams);
@@ -458,7 +459,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         featureCollection = JsonSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(42, featureCollection.getFeatures().size());
-        LOGGER.info("H3Index Query (small) tested successfully");
+        currentLogger().info("H3Index Query (small) tested successfully");
 
         pq = new PropertyQueryOr();
         pql = new PropertyQueryAnd();
@@ -479,7 +480,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         featureCollection = JsonSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(1, featureCollection.getFeatures().size());
-        LOGGER.info("H3Index Query (small) with property query tested successfully");
+        currentLogger().info("H3Index Query (small) with property query tested successfully");
     }
 
     @Test
@@ -491,7 +492,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         String insertResponse = invokeLambdaFromFile(insertJsonFile);
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, true);
-        LOGGER.info("Insert feature tested successfully");
+        currentLogger().info("Insert feature tested successfully");
 
         // =========== GetStatistics ==========
         GetStatisticsEvent event = new GetStatisticsEvent();

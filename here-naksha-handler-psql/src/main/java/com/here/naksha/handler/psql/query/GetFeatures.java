@@ -22,16 +22,15 @@ package com.here.naksha.handler.psql.query;
 
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.handler.psql.SQLQueryBuilder;
-import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.events.FeatureEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.QueryEvent;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
 public abstract class GetFeatures<E extends Event> extends ExtendedSpace<E, FeatureCollection> {
@@ -42,7 +41,7 @@ public abstract class GetFeatures<E extends Event> extends ExtendedSpace<E, Feat
     }
 
     @Override
-    protected @NotNull SQLQuery buildQuery(@Nonnull E event) throws SQLException {
+    protected @NotNull SQLQuery buildQuery(@NotNull E event) throws SQLException {
         boolean isExtended = isExtendedSpace(event);
         SQLQuery query;
         if (isExtended) {
@@ -124,9 +123,8 @@ public abstract class GetFeatures<E extends Event> extends ExtendedSpace<E, Feat
         return query;
     }
 
-    @Nonnull
     @Override
-    public FeatureCollection handle(@Nonnull ResultSet rs) throws SQLException {
+    public @NotNull FeatureCollection handle(@NotNull ResultSet rs) throws SQLException {
         return processor.defaultFeatureResultSetHandler(rs);
     }
 

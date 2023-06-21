@@ -33,13 +33,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PGobject;
 
 public class DatabaseTransactionalWriter extends DatabaseWriter {
-    private static final Logger logger = LogManager.getLogger();
 
     private static final int TYPE_INSERT = 1;
     private static final int TYPE_UPDATE = 2;

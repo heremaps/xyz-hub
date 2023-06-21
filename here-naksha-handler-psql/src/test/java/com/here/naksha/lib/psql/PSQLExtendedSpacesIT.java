@@ -21,6 +21,7 @@ package com.here.naksha.lib.psql;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.handler.psql.PsqlHandlerParams;
+import com.here.naksha.handler.psql.query.ModifySpace;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.hub.pipelines.Space;
@@ -28,7 +29,6 @@ import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEven
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.handler.psql.query.ModifySpace;
 import com.here.naksha.lib.psql.tools.FeatureGenerator;
 import java.sql.Connection;
 import java.sql.ResultSet;

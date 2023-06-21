@@ -24,8 +24,10 @@ import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.naksha.lib.psql.sql.DhString;
-import com.here.naksha.lib.psql.sql.SQLQuery;
+import com.here.naksha.handler.psql.Capabilities;
+import com.here.naksha.handler.psql.Capabilities.IndexList;
+import com.here.naksha.handler.psql.PsqlHandler;
+import com.here.naksha.handler.psql.SQLQueryExt;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.here.naksha.lib.core.models.payload.events.PropertyQuery;
@@ -35,10 +37,8 @@ import com.here.naksha.lib.core.models.payload.events.QueryOperation;
 import com.here.naksha.lib.core.models.payload.events.TagsQuery;
 import com.here.naksha.lib.core.models.payload.events.feature.IterateFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
-import com.here.naksha.handler.psql.Capabilities;
-import com.here.naksha.handler.psql.Capabilities.IndexList;
-import com.here.naksha.handler.psql.PsqlHandler;
-import com.here.naksha.handler.psql.SQLQueryExt;
+import com.here.naksha.lib.psql.sql.DhString;
+import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -46,7 +46,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONArray;
@@ -73,7 +72,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     }
 
     @Override
-    protected @NotNull SQLQuery buildQuery(@Nonnull IterateFeaturesEvent event) throws SQLException {
+    protected @NotNull SQLQuery buildQuery(@NotNull IterateFeaturesEvent event) throws SQLException {
         if (isExtendedSpace(event)) {
 
             SQLQuery extensionQuery = super.buildQuery(event);
@@ -176,9 +175,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
         return Integer.parseInt(event.getHandle().split("_")[1]);
     }
 
-    @Nonnull
     @Override
-    public FeatureCollection handle(@Nonnull ResultSet rs) throws SQLException {
+    public @NotNull FeatureCollection handle(@NotNull ResultSet rs) throws SQLException {
         FeatureCollection fc = super.handle(rs);
         if (isOrderByEvent) {
             if (fc.getHandle() != null) {
@@ -639,7 +637,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     }
 
     private static @NotNull FeatureCollection requestIterationHandles(
-            @Nonnull IterateFeaturesEvent event, int nrHandles, @NotNull PsqlHandler psqlConnector) throws Exception {
+            @NotNull IterateFeaturesEvent event, int nrHandles, @NotNull PsqlHandler psqlConnector) throws Exception {
         event.setPart(null);
         event.setTags(null);
 

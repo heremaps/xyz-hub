@@ -23,25 +23,24 @@ package com.here.naksha.handler.psql.query.helpers;
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.handler.psql.QueryRunner;
 import com.here.naksha.handler.psql.SQLQueryExt;
-import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.handler.psql.query.helpers.FetchExistingIds.FetchIdsInput;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import javax.annotation.Nonnull;
 import org.jetbrains.annotations.NotNull;
 
 public class FetchExistingIds extends QueryRunner<FetchIdsInput, List<String>> {
 
-    public FetchExistingIds(@Nonnull FetchIdsInput input, @NotNull PsqlHandler processor)
+    public FetchExistingIds(@NotNull FetchIdsInput input, @NotNull PsqlHandler processor)
             throws SQLException, XyzErrorException {
         super(input, processor);
     }
 
     @Override
-    protected @NotNull SQLQueryExt buildQuery(@Nonnull FetchIdsInput input) throws SQLException {
+    protected @NotNull SQLQueryExt buildQuery(@NotNull FetchIdsInput input) throws SQLException {
         SQLQueryExt query = new SQLQueryExt(
                 "SELECT jsondata->>'id' id FROM ${schema}.${table} WHERE jsondata->>'id' = ANY(#{ids})");
         query.setVariable(SCHEMA, processor.spaceSchema());
@@ -50,9 +49,8 @@ public class FetchExistingIds extends QueryRunner<FetchIdsInput, List<String>> {
         return query;
     }
 
-    @Nonnull
     @Override
-    public List<String> handle(@Nonnull ResultSet rs) throws SQLException {
+    public @NotNull List<@NotNull String> handle(@NotNull ResultSet rs) throws SQLException {
         final ArrayList<String> result = new ArrayList<>();
         while (rs.next()) result.add(rs.getString("id"));
         return result;
