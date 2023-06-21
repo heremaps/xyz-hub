@@ -52,7 +52,6 @@ import java.util.stream.Collectors;
  */
 public class JDBCExporter extends JDBCClients{
     private static final Logger logger = LogManager.getLogger();
-    private static final int MAX_PARALLEL_EXPORT_QUERIES = 10;
 
     public static Future<Export.ExportStatistic> executeExport(Export j, String schema, String s3Bucket, String s3Path, String s3Region){
         try{
@@ -69,8 +68,6 @@ public class JDBCExporter extends JDBCClients{
                                     Promise<Export.ExportStatistic> promise = Promise.promise();
                                     List<Future> exportFutures = new ArrayList<>();
 
-                                    threads = threads > MAX_PARALLEL_EXPORT_QUERIES ? MAX_PARALLEL_EXPORT_QUERIES : threads;
-
                                     for (int i = 0; i < threads; i++) {
                                         String s3Prefix = i + "_";
                                         SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region,
@@ -78,7 +75,7 @@ public class JDBCExporter extends JDBCClients{
                                         exportFutures.add( exportTypeDownload(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
-                                    return executeParallelExportAndCollectStatistics(null, j, promise, exportFutures);
+                                    return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
                                 }catch (SQLException e){
                                     logger.warn(e);
                                     return Future.failedFuture(e);
@@ -89,21 +86,16 @@ public class JDBCExporter extends JDBCClients{
                     return calculateTileListForVMLExport(j, schema, exportQuery)
                             .compose(tileList-> {
                                 try{
-                                    /** Store list of tiles which we want to process in parallel. If tiles are exported they are
-                                     * getting removed from this list */
-                                    j.setProcessingList(tileList);
-
                                     Promise<Export.ExportStatistic> promise = Promise.promise();
                                     List<Future> exportFutures = new ArrayList<>();
-                                    List<String> processingList = new ArrayList<>();
+                                    j.setProcessingList(tileList);
 
-                                    for (int i = 0; i < (tileList.size() > MAX_PARALLEL_EXPORT_QUERIES ? MAX_PARALLEL_EXPORT_QUERIES : tileList.size()) ; i++) {
-                                        processingList.add(tileList.get(i));
+                                    for (int i = 0; i < tileList.size() ; i++) {
                                         SQLQuery q2 = buildVMLExportQuery(j, schema, s3Bucket, s3Path, s3Region, null, tileList.get(i));
                                         exportFutures.add(exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
-                                    return executeParallelExportAndCollectStatistics(processingList, j, promise, exportFutures);
+                                    return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
                                 }catch (SQLException e){
                                     logger.warn(e);
                                     return Future.failedFuture(e);
@@ -115,24 +107,15 @@ public class JDBCExporter extends JDBCClients{
         }
     }
 
-    private static Future<Export.ExportStatistic> executeParallelExportAndCollectStatistics(List<String> processingList, Export j, Promise<Export.ExportStatistic> promise, List<Future> exportFutures) {
+    private static Future<Export.ExportStatistic> executeParallelExportAndCollectStatistics(Export j, Promise<Export.ExportStatistic> promise, List<Future> exportFutures) {
         CompositeFuture
-                .join(exportFutures)
+                .all(exportFutures)
                 .onComplete(
                         t -> {
                             if(t.succeeded()){
                                 long overallRowsUploaded = 0;
                                 long overallFilesUploaded = 0;
                                 long overallBytesUploaded = 0;
-
-                                if(processingList != null) {
-                                    //Remove processed chunks from list
-                                    j.getProcessingList().removeAll(processingList);
-
-                                    //If all chunks are exported remove value from job config
-                                    if(j.getProcessingList().size() == 0)
-                                        j.setProcessingList(null);
-                                }
 
                                 // Collect all results of future and summarize them into ExportStatistics
                                 for (Future fut : exportFutures) {
@@ -155,7 +138,7 @@ public class JDBCExporter extends JDBCClients{
         return promise.future();
     }
 
-    private static Future<Long> calculateThreadCountForDownload(Export j, String schema, SQLQuery exportQuery) throws SQLException {
+    private static Future<Integer> calculateThreadCountForDownload(Export j, String schema, SQLQuery exportQuery) throws SQLException {
         /**
          * Currently we are ignoring filters and count only all features
          **/
@@ -168,7 +151,7 @@ public class JDBCExporter extends JDBCClients{
                 .map(row -> {
                     Row res = row.iterator().next();
                     if (res != null) {
-                        return res.getLong("thread_cnt");
+                        return res.getInteger("thread_cnt");
                     }
                     return null;
                 });

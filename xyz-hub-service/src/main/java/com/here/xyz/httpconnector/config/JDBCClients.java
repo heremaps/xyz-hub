@@ -46,10 +46,140 @@ import java.util.Map;
 import java.util.Set;
 
 public class JDBCClients {
-    private static final Logger logger = LogManager.getLogger();
-    private static final String APPLICATION_NAME_PREFIX = "job_engine_";
+    /**
+     * We are using JDBCClients for import and export tasks.
+     *
+     * In total there a multiple clients in use:
+     *
+     * CONFIG_CLIENT: is getting used if we are using the JDBCJobConfigClient
+     * CONNECTOR_CLIENT: per connector we have one client for fulfilling tasks (export/import/idx/trigger..)
+     * STATUS_CLIENTS: per connector we have a second client which is getting used for status queries (how much job-related queries are currently running..)
+     *
+     * Each client has its on ConnectionPool with a different configuration of maxConnections.
+     * */
+
     public static final String CONFIG_CLIENT_ID = "config_client";
+
+    private static final Logger logger = LogManager.getLogger();
+    private static final int STATUS_AND_CONFIG_CLIENTS_MAX_POOL_SIZE = 4;
+    private static final String APPLICATION_NAME_PREFIX = "job_engine_";
+    private static final String STATUS_CLIENT_SUFFIX = "_status";
     private static volatile Map<String, DBClient> clients = new HashMap<>();
+
+    private static void addClients(String id, DatabaseSettings settings){
+        addClient(id, settings);
+        if(!id.equalsIgnoreCase(CONFIG_CLIENT_ID))
+            addClient(getStatusClientId(id), settings);;
+    }
+
+    private static void addClient(String clientId, DatabaseSettings settings){
+        Map<String, String> props = new HashMap<>();
+        props.put("application_name", getApplicationName(clientId));
+        props.put("search_path", settings.getSchema()+",h3,public,topology");
+        props.put("options", "-c statement_timeout="+CService.configuration.DB_STATEMENT_TIMEOUT_IN_S * 1000);
+
+        PgConnectOptions connectOptions = new PgConnectOptions()
+                .setPort(settings.getPort())
+                .setHost(settings.getHost())
+                .setDatabase(settings.getDb())
+                .setUser(settings.getUser())
+                .setPassword(settings.getPassword())
+                .setConnectTimeout(CService.configuration.DB_CHECKOUT_TIMEOUT  * 1000)
+                .setReconnectAttempts(CService.configuration.DB_ACQUIRE_RETRY_ATTEMPTS)
+                .setReconnectInterval(1000)
+                /** Disable Pipelining */
+                .setPipeliningLimit(1)
+                .setProperties(props)
+                .setIdleTimeout(100);
+
+        PoolOptions poolOptions = new PoolOptions()
+                .setMaxSize(getDBPoolSize(clientId));
+
+        SqlClient client = PgPool.client(CService.vertx, connectOptions, poolOptions);
+        logger.info("Add new SQL-Client [{}]",clientId);
+        clients.put(clientId, new DBClient(client,settings,clientId));
+    }
+
+    private static DatabaseSettings getDBSettings(String id){
+        if(clients == null || clients.get(id) == null)
+            return null;
+        return clients.get(id).getDbSettings();
+    }
+
+    private static void removeClient(String id){
+        if(clients == null || clients.get(id) == null)
+            return;
+        logger.info("Remove SQL-Client [{}]", id);
+        clients.get(id).getClient().close();
+        clients.remove(id);
+    }
+
+    private static void removeClients(String id){
+        removeClient(id);
+        removeClient(getStatusClientId(id));
+    }
+
+    public static Set<String> getClientList(){
+        if(clients == null)
+            return new HashSet<>();
+        return clients.keySet();
+    }
+
+    private static String getApplicationName(String clientId){
+        String applicationName = APPLICATION_NAME_PREFIX + clientId + "_"+Core.START_TIME;
+        if(applicationName.length() > 63)
+            return applicationName.substring(0, 63);
+        return applicationName;
+    }
+
+    private static String getStatusClientId(String clientId){
+        return clientId + STATUS_CLIENT_SUFFIX;
+    }
+
+    private static boolean isStatusClientId(String clientId){
+        return clientId.endsWith(STATUS_CLIENT_SUFFIX);
+    }
+
+    private static int getDBPoolSize(String clientId){
+        if(isStatusClientId(clientId) || clientId.equalsIgnoreCase(CONFIG_CLIENT_ID))
+            return STATUS_AND_CONFIG_CLIENTS_MAX_POOL_SIZE;
+        return CService.configuration.JOB_DB_POOL_SIZE_PER_CLIENT != null ? CService.configuration.JOB_DB_POOL_SIZE_PER_CLIENT : 10;
+    }
+
+    private static Future<RunningQueryStatistics> collectRunningQueries(String clientID){
+        SQLQuery q = new SQLQuery(
+                "select '!ignore!' as ignore, datname,pid,state,backend_type,query_start,state_change,application_name,query from pg_stat_activity "
+                        +"WHERE 1=1 "
+                        +"AND application_name=#{applicationName} "
+                        +"AND datname='postgres' "
+                        +"AND state='active' "
+                        +"AND backend_type='client backend' "
+                        +"AND POSITION('!ignore!' in query) = 0"
+        );
+
+        q.setNamedParameter("applicationName", getApplicationName(clientID));
+        q = q.substituteAndUseDollarSyntax(q);
+
+        return getClient(getStatusClientId(clientID))
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .onFailure(f -> logger.warn(f))
+                .map(rows -> {
+                    RunningQueryStatistics statistics = new RunningQueryStatistics();
+                    rows.forEach(
+                            row -> statistics.addRunningQueryStatistic(new RunningQueryStatistic(
+                                    row.getInteger("pid"),
+                                    row.getString("state"),
+                                    row.getLocalDateTime("query_start"),
+                                    row.getLocalDateTime("state_change"),
+                                    row.getString("query"),
+                                    row.getString("application_name")
+                            ))
+                    );
+
+                    return statistics;
+                });
+    }
 
     public static void addClientIfRequired(String id, String ecps, String passphrase) throws CannotDecodeException, UnsupportedOperationException {
         DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, passphrase);
@@ -58,18 +188,13 @@ public class JDBCClients {
             throw new UnsupportedOperationException();
 
         if(JDBCImporter.getClient(id) == null){
-            addClient(id, settings);
+            addClients(id, settings);
         }else{
             if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
-                removeClient(id);
-                addClient(id, settings);
+                removeClients(id);
+                addClients(id, settings);
             }
         }
-    }
-
-    public static void addClient(String id, String ecps, String passphrase) throws CannotDecodeException {
-        DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, passphrase);
-        addClient(id, settings);
     }
 
     public static void addConfigClient(){
@@ -93,39 +218,6 @@ public class JDBCClients {
         addClient(CONFIG_CLIENT_ID, settings);
     }
 
-    static void addClient(String id, DatabaseSettings settings){
-        Map<String, String> props = new HashMap<>();
-        props.put("application_name", getApplicationName(id));
-        props.put("search_path", settings.getSchema()+",h3,public,topology");
-        props.put("options", "-c statement_timeout="+CService.configuration.DB_STATEMENT_TIMEOUT_IN_S * 1000);
-
-        PgConnectOptions connectOptions = new PgConnectOptions()
-                .setPort(settings.getPort())
-                .setHost(settings.getHost())
-                .setDatabase(settings.getDb())
-                .setUser(settings.getUser())
-                .setPassword(settings.getPassword())
-                .setConnectTimeout(CService.configuration.DB_CHECKOUT_TIMEOUT  * 1000)
-                .setReconnectAttempts(CService.configuration.DB_ACQUIRE_RETRY_ATTEMPTS)
-                .setReconnectInterval(1000)
-                /** Disable Pipelining */
-                .setPipeliningLimit(1)
-                .setProperties(props);
-
-        PoolOptions poolOptions = new PoolOptions()
-                .setMaxSize(CService.configuration.DB_MAX_POOL_SIZE);
-
-        SqlClient client = PgPool.client(CService.vertx, connectOptions, poolOptions);
-        logger.info("Add new SQL-Client [{}]",id);
-        clients.put(id, new DBClient(client,settings,id));
-    }
-
-    public static DatabaseSettings getDBSettings(String id){
-        if(clients == null || clients.get(id) == null)
-            return null;
-        return clients.get(id).getDbSettings();
-    }
-
     public static String getDefaultSchema(String id){
         if(getDBSettings(id) != null)
             return getDBSettings(id).getSchema();
@@ -138,75 +230,15 @@ public class JDBCClients {
         return clients.get(id).getClient();
     }
 
-    public static void removeClient(String id){
-        if(clients == null || clients.get(id) == null)
-            return;
-        logger.info("Remove SQL-Client [{}]", id);
-        clients.get(id).getClient().close();
-        clients.remove(id);
-    }
-
-    public static Set<String> getClientList(){
-        if(clients == null)
-            return new HashSet<>();
-        return clients.keySet();
-    }
-
-    public static String getApplicationName(String clientId){
-        String applicationName = APPLICATION_NAME_PREFIX+clientId+"_"+Core.START_TIME;
-        if(applicationName.length() > 63)
-            return applicationName.substring(0, 63);
-        return applicationName;
-    }
-
-    public static String getViewName(String tablename){
-        return tablename+"_view";
-    }
-
-    public static Future<RunningQueryStatistics> collectRunningQueries(String clientID){
-        SQLQuery q = new SQLQuery(
-                "select '!ignore!' as ignore, datname,pid,state,backend_type,query_start,state_change,application_name,query from pg_stat_activity "
-                        +"WHERE 1=1 "
-                        +"AND application_name=#{applicationName} "
-                        +"AND datname='postgres' "
-                        +"AND state='active' "
-                        +"AND backend_type='client backend' "
-                        +"AND POSITION('!ignore!' in query) = 0"
-        );
-
-        q.setNamedParameter("applicationName", getApplicationName(clientID));
-        q = q.substituteAndUseDollarSyntax(q);
-
-        return getClient(clientID)
-                .preparedQuery(q.text())
-                .execute(new ArrayTuple(q.parameters()))
-                .onFailure(f -> logger.warn(f))
-                .map(rows -> {
-                    RunningQueryStatistics statistics = new RunningQueryStatistics();
-                    rows.forEach(
-                            row -> statistics.addRunningQueryStatistic(new RunningQueryStatistic(
-                                    row.getInteger("pid"),
-                                    row.getString("state"),
-                                    row.getLocalDateTime("query_start"),
-                                    row.getLocalDateTime("state_change"),
-                                    row.getString("query"),
-                                    row.getString("application_name")
-                            ))
-                    );
-
-                    return statistics;
-                });
-    }
-
     public static Future<RDSStatus> getRDSStatus(String clientId) {
         Promise<RDSStatus> p = Promise.promise();
         /** Collection current metrics from Cloudwatch */
 
-        if(JDBCImporter.getClient(clientId) == null){
+        if(JDBCImporter.getClient(getStatusClientId(clientId)) == null){
             logger.info("DB-Client not Ready!");
             p.complete(null);
         }else{
-            JDBCImporter.collectRunningQueries(clientId)
+            collectRunningQueries(clientId)
                     .onSuccess(runningQueryStatistics -> {
                         /** Collect metrics from Cloudwatch */
                         JSONObject avg5MinRDSMetrics = CService.jobCWClient.getAvg5MinRDSMetrics(CService.rdsLookupDatabaseIdentifier.get(clientId));
@@ -221,7 +253,7 @@ public class JDBCClients {
     }
 
     /** Vertex SQL-Client */
-    public static class DBClient{
+    private static class DBClient{
         private String connectorId;
         private SqlClient client;
         private DatabaseSettings dbSettings;

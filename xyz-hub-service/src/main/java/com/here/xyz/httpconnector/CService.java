@@ -243,7 +243,10 @@ public class CService extends Core {
      * RDS maximum allowed imports in parallel
      */
     public Long JOB_DYNAMO_EXP_IN_DAYS;
-
+    /**
+     *  DB Pool size per client
+     */
+    public Integer JOB_DB_POOL_SIZE_PER_CLIENT;
     /**
      * Temporary needed for migration phase
      */
