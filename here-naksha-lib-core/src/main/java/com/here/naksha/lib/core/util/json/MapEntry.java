@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.json;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;

@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.storage;
 
-
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.hub.StorageCollection;
 import com.here.naksha.lib.core.models.hub.transactions.TxSignalSet;
@@ -29,7 +28,8 @@ public interface IStorage extends Closeable {
      * @return the reader.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @NotNull ITxReader startRead() throws Exception;
+    @NotNull
+    ITxReader startRead() throws Exception;
 
     /**
      * Opens a storage mutator.
@@ -37,7 +37,8 @@ public interface IStorage extends Closeable {
      * @return the mutator.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @NotNull ITxWriter startWrite() throws Exception;
+    @NotNull
+    ITxWriter startWrite() throws Exception;
 
     /**
      * Add a listener to be called, when something changes in the storage.

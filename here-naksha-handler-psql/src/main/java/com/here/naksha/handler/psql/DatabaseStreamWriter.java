@@ -19,7 +19,6 @@
 
 package com.here.naksha.handler.psql;
 
-
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.vividsolutions.jts.geom.Geometry;

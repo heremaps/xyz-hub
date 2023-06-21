@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.events;
 
-
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import java.util.ArrayList;
 import org.jetbrains.annotations.NotNull;

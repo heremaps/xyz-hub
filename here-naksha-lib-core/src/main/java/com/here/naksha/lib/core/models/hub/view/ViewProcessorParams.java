@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.hub.view;
 
-
 import com.here.naksha.lib.core.EventHandlerParams;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;

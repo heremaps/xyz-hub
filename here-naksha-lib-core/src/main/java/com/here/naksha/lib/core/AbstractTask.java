@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core;
 
-
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.payload.Event;
@@ -246,12 +245,15 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
     }
 
     /** The thread to which this context is currently bound; if any. */
-    @Nullable Thread thread;
+    @Nullable
+    Thread thread;
 
     /** The previously set uncaught exception handler. */
-    @Nullable Thread.UncaughtExceptionHandler oldUncaughtExceptionHandler;
+    @Nullable
+    Thread.UncaughtExceptionHandler oldUncaughtExceptionHandler;
 
-    @Nullable String oldName;
+    @Nullable
+    String oldName;
 
     /**
      * Returns the task attached to the current thread; if any.

@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.storage;
 
-
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
@@ -16,5 +15,6 @@ public interface IFeatureReader<FEATURE extends Feature> {
      *     are simply not part of the result-set.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @NotNull List<@NotNull FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids) throws Exception;
+    @NotNull
+    List<@NotNull FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids) throws Exception;
 }

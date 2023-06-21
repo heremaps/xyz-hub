@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.responses;
 
-
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonValue;
 import org.jetbrains.annotations.NotNull;

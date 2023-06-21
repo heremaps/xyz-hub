@@ -1,6 +1,5 @@
 package com.here.naksha.lib.psql.sql;
 
-
 import java.util.Locale;
 
 public class DhString {

@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -20,10 +19,12 @@ public final class FibMapEntry implements Map.Entry<Object, Object> {
     }
 
     /** The key we refer to. */
-    @NotNull Object key;
+    @NotNull
+    Object key;
 
     /** The value we refer to. */
-    @Nullable Object value;
+    @Nullable
+    Object value;
 
     @Override
     public @NotNull Object getKey() {

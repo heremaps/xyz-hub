@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 

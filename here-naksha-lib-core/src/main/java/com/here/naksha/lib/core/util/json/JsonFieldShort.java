@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.json;
 
-
 import com.here.naksha.lib.core.util.Unsafe;
 import java.lang.reflect.Field;
 import java.nio.ByteOrder;

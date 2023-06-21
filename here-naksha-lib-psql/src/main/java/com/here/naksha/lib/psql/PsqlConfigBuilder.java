@@ -1,6 +1,5 @@
 package com.here.naksha.lib.psql;
 
-
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import org.jetbrains.annotations.NotNull;
 

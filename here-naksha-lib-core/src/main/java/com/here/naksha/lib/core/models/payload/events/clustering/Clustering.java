@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.payload.events.clustering;
 
-
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.naksha.lib.core.models.Typed;
 

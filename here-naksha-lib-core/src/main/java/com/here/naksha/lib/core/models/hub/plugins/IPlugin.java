@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.hub.plugins;
 
-
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -16,5 +15,6 @@ public interface IPlugin<API> {
      * @return the API.
      * @throws Exception if creating the instance failed.
      */
-    @NotNull API newInstance() throws Exception;
+    @NotNull
+    API newInstance() throws Exception;
 }

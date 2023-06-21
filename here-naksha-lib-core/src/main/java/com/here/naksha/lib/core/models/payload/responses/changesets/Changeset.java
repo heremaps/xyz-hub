@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.responses.changesets;
 
-
 import com.fasterxml.jackson.annotation.*;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.here.naksha.lib.core.models.payload.XyzResponse;

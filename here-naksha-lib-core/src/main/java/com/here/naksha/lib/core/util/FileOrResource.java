@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.io.ByteArrayOutputStream;

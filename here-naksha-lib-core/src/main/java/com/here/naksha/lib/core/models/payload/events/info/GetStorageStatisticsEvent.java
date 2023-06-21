@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.events.info;
 
-
 import com.here.naksha.lib.core.models.payload.events.InfoEvent;
 import java.util.List;
 

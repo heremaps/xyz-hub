@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.storage;
 
-
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;

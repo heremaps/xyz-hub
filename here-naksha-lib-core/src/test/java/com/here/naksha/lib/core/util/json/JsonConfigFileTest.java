@@ -28,7 +28,8 @@ public class JsonConfigFileTest {
             super(filename);
         }
 
-        @Nullable @Override
+        @Nullable
+        @Override
         protected String envPrefix() {
             return "TEST_";
         }
@@ -87,7 +88,8 @@ public class JsonConfigFileTest {
         assertEquals("env", testConfig.env);
     }
 
-    @Nullable private static String test_withMapAndEnv_getEnv(String key) {
+    @Nullable
+    private static String test_withMapAndEnv_getEnv(String key) {
         if ("TEST_ENV".equals(key)) {
             return "env-overridden";
         }
@@ -112,7 +114,8 @@ public class JsonConfigFileTest {
         assertEquals("env-overridden", testConfig.env);
     }
 
-    @Nullable private static String test_config_file_getEnv(String key) {
+    @Nullable
+    private static String test_config_file_getEnv(String key) {
         return null;
     }
 
@@ -126,7 +129,8 @@ public class JsonConfigFileTest {
         assertEquals("default", testConfig.env);
     }
 
-    @Nullable private static String test_env_getEnv(String key) {
+    @Nullable
+    private static String test_env_getEnv(String key) {
         if ("TEST_ENV".equals(key)) {
             return "noDefault";
         }
@@ -152,7 +156,8 @@ public class JsonConfigFileTest {
         assertEquals("noDefault", testConfig.env);
     }
 
-    @Nullable private static String test_config_file2_getEnv(String key) {
+    @Nullable
+    private static String test_config_file2_getEnv(String key) {
         if ("TEST_CONFIG_PATH".equals(key)) {
             return "/";
         }
@@ -169,7 +174,8 @@ public class JsonConfigFileTest {
         assertEquals("default", testConfig.env);
     }
 
-    @Nullable private static String test_nullable_getEnv(String key) {
+    @Nullable
+    private static String test_nullable_getEnv(String key) {
         if ("TEST_THESTRING".equals(key)) {
             return "null";
         }
@@ -186,7 +192,8 @@ public class JsonConfigFileTest {
         assertEquals("default", testConfig.env);
     }
 
-    @Nullable private static String test_annotationWithPrefix_getEnv(String key) {
+    @Nullable
+    private static String test_annotationWithPrefix_getEnv(String key) {
         if ("TEST_BAR".equals(key)) {
             return "bar";
         }
@@ -200,7 +207,8 @@ public class JsonConfigFileTest {
         assertEquals("bar", testConfig.testAnnotation);
     }
 
-    @Nullable private static String test_annotationWithoutPrefix_getEnv(String key) {
+    @Nullable
+    private static String test_annotationWithoutPrefix_getEnv(String key) {
         if ("BAR".equals(key)) {
             return "bar";
         }

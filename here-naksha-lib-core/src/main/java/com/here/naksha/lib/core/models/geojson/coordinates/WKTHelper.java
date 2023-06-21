@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson.coordinates;
 
-
 import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
 import com.here.naksha.lib.core.models.geojson.implementation.LineString;
 import com.here.naksha.lib.core.models.geojson.implementation.MultiLineString;

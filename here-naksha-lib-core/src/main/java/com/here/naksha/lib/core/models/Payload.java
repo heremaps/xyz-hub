@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -27,6 +26,7 @@ import com.google.common.io.ByteStreams;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.util.Hasher;
+import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -41,12 +41,8 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@JsonSubTypes({
-    @JsonSubTypes.Type(value = Event.class),
-    @JsonSubTypes.Type(value = XyzResponse.class),
-    @JsonSubTypes.Type(value = RemoteInvocation.class)
-})
-public class Payload implements Typed {
+@JsonSubTypes({@JsonSubTypes.Type(value = Event.class), @JsonSubTypes.Type(value = XyzResponse.class)})
+public class Payload extends JsonObject implements Typed {
 
     protected static final Logger logger = LoggerFactory.getLogger(Payload.class);
 

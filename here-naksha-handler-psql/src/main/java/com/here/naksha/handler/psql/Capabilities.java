@@ -19,7 +19,6 @@
 
 package com.here.naksha.handler.psql;
 
-
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.naksha.lib.core.models.payload.events.PropertyQuery;
 import com.here.naksha.lib.core.models.payload.events.PropertyQueryOr;

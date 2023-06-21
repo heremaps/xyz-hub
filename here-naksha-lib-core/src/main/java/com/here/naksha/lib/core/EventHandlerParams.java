@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core;
 
-
 import com.here.naksha.lib.core.util.IoHelp;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;

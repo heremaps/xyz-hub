@@ -1,6 +1,5 @@
 package com.here.naksha.lib.psql;
 
-
 import com.here.naksha.lib.core.util.ILike;
 import com.here.naksha.lib.core.util.StringHelper;
 import java.sql.SQLException;

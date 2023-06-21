@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 

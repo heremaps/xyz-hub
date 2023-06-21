@@ -1,6 +1,5 @@
 package com.here.naksha.handler.psql.query;
 
-
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.handler.psql.QueryRunner;
 import com.here.naksha.handler.psql.SQLQueryExt;

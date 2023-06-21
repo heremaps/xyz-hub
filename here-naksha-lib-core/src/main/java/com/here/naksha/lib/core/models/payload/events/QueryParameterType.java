@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.payload.events;
 
-
 import org.jetbrains.annotations.NotNull;
 
 public enum QueryParameterType {

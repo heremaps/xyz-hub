@@ -1,6 +1,5 @@
 package com.here.naksha.handler.activitylog;
 
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,7 +12,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.naksha.lib.core.models.hub.plugins.EventHandler;
+import com.here.naksha.lib.core.models.hub.plugins.Connector;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
@@ -32,7 +31,7 @@ public class ActivityLogHandler implements IEventHandler {
      * @param eventHandler the event-handler configuration.
      * @throws XyzErrorException If any error occurred.
      */
-    public ActivityLogHandler(@NotNull EventHandler eventHandler) throws XyzErrorException {
+    public ActivityLogHandler(@NotNull Connector eventHandler) throws XyzErrorException {
         try {
             this.params = new ActivityLogHandlerParams(eventHandler.getProperties());
         } catch (Exception e) {

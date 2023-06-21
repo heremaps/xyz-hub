@@ -1,6 +1,5 @@
 package com.here.naksha.lib.psql;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 

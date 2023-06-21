@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.payload.responses;
 
-
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.StatisticsResponse.Value;
 import java.util.Map;

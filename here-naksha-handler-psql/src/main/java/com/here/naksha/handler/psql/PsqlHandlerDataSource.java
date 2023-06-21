@@ -1,6 +1,5 @@
 package com.here.naksha.handler.psql;
 
-
 import com.here.naksha.lib.psql.AbstractPsqlDataSource;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlPool;

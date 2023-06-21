@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core;
 
-
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import org.jetbrains.annotations.NotNull;
@@ -14,7 +13,8 @@ public interface IEventContext {
      *
      * @return the current event of the underlying pipeline.
      */
-    @NotNull Event getEvent();
+    @NotNull
+    Event getEvent();
 
     /**
      * Replace the event in the pipeline, returning the old even.
@@ -22,7 +22,8 @@ public interface IEventContext {
      * @param event The new event.
      * @return The previous event.
      */
-    @NotNull Event setEvent(@NotNull Event event);
+    @NotNull
+    Event setEvent(@NotNull Event event);
 
     /**
      * Send the event upstream to the next event handler. If no further handler is available, the
@@ -31,7 +32,8 @@ public interface IEventContext {
      *
      * @return the generated response.
      */
-    @NotNull XyzResponse sendUpstream();
+    @NotNull
+    XyzResponse sendUpstream();
 
     /**
      * Change the event and send it upstream to the next event handler. If no further handler is

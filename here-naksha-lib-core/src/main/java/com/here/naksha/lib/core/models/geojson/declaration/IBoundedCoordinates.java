@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson.declaration;
 
-
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import java.util.List;
 

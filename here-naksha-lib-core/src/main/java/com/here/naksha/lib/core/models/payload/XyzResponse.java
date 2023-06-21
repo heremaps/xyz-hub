@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.naksha.lib.core.models.Payload;

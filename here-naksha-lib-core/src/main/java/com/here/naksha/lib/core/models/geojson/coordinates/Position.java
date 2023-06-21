@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson.coordinates;
 
-
 import com.here.naksha.lib.core.models.geojson.declaration.IBoundedCoordinates;
 import java.util.ArrayList;
 import java.util.List;

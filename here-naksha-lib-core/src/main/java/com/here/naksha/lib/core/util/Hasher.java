@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.util;
 
-
 import com.google.common.hash.Hashing;
 import java.nio.charset.Charset;
 

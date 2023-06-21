@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson.implementation;
 
-
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.geojson.declaration.IBoundedCoordinates;

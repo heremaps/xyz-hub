@@ -1,15 +1,14 @@
-package com.here.naksha.handler.http;
+package com.here.naksha.lib.core.models.hub.plugins;
 
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
+import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.Payload;
 import com.here.naksha.lib.core.models.Typed;
-import com.here.naksha.lib.core.models.hub.plugins.Connector;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.models.payload.responses.ModifiedEventResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.InputStream;
@@ -17,42 +16,47 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 import java.util.Scanner;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
-/** The HTTP handler that sends events to a foreign host. */
-public class HttpHandler implements IEventHandler {
-
-    public static final String ID = "naksha:http"; // com.here.naksha.http.HttpHandler
+/**
+ * A special handler that is internally.
+ */
+@AvailableSince(INaksha.v2_0_3)
+public class ExtensionHandler implements IEventHandler {
 
     /**
-     * Creates a new HTTP handler.
+     * Creates a new extension handler.
      *
-     * @param connector The connector configuration.
-     * @throws XyzErrorException If any error occurred.
+     * @param connector the connector that must have a valid extension number.
      */
-    public HttpHandler(@NotNull Connector connector) throws XyzErrorException {
-        try {
-            this.params = new HttpHandlerParams(connector.getProperties());
-        } catch (Exception e) {
-            throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
+    @AvailableSince(INaksha.v2_0_3)
+    public ExtensionHandler(@NotNull Connector connector) {
+        final ExtensionConfig config = INaksha.get().getExtensionById(connector.getExtension());
+        if (config == null) {
+            throw new IllegalArgumentException("No such extension exists: " + connector.getId());
         }
+        this.config = config;
     }
 
-    final @NotNull HttpHandlerParams params;
+    @AvailableSince(INaksha.v2_0_3)
+    final @NotNull ExtensionConfig config;
 
+    @AvailableSince(INaksha.v2_0_3)
     @Override
     public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
         final Event event = eventContext.getEvent();
         try {
+            // TODO: Add the connector, extension number and the class-name into the event.
+            // TODO: The here-naksha-lib-extension should then use the received class-name to execute this.
             byte @NotNull [] bytes = event.toByteArray();
-            final HttpURLConnection conn = (HttpURLConnection) params.getUrl().openConnection();
-            conn.setConnectTimeout((int) params.getConnTimeout());
-            conn.setReadTimeout((int) params.getReadTimeout());
-            conn.setRequestMethod(params.getHttpMethod());
+            final HttpURLConnection conn = (HttpURLConnection) config.url().openConnection();
+            conn.setConnectTimeout((int) config.connTimeout());
+            conn.setReadTimeout((int) config.readTimeout());
+            conn.setRequestMethod(config.httpMethod());
             conn.setRequestProperty("Content-type", "application/json");
-            if (Boolean.TRUE.equals(params.getGzip()) || params.getGzip() == null && bytes.length >= 16384) {
+            if ((config.gzip() == null && bytes.length >= 16384) || Boolean.TRUE.equals(config.gzip())) {
                 bytes = Payload.compress(event.toByteArray());
                 conn.setRequestProperty("Content-encoding", "gzip");
             }
@@ -70,14 +74,19 @@ public class HttpHandler implements IEventHandler {
                 rawEvent = scanner.useDelimiter("\\A").next();
             }
             // conn.getResponseCode() == 200
-            //noinspection RedundantClassCall
             final Typed deserialized = JsonSerializable.deserialize(rawEvent);
             try {
-                return Objects.requireNonNull((XyzResponse) deserialized);
+                if (deserialized instanceof Event modifiedEvent) {
+                    eventContext.sendUpstream(modifiedEvent);
+                } else if (deserialized instanceof XyzResponse response) {
+                    return response;
+                }
+                // Illegal response.
+                throw new ClassCastException();
             } catch (ClassCastException e) {
-                final Event castedEvent = Objects.requireNonNull((Event) deserialized);
-                eventContext.sendUpstream(castedEvent);
-                return new ModifiedEventResponse().withEvent(castedEvent);
+                return new ErrorResponse()
+                        .withError(XyzError.BAD_GATEWAY)
+                        .withErrorMessage("The extension returned neither an event nor a valid XYZ Response.");
             }
         } catch (Exception e) {
             return new ErrorResponse()

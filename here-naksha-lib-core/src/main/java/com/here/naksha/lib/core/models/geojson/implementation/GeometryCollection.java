@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson.implementation;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;

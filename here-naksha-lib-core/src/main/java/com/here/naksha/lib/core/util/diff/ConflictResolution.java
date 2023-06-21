@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.diff;
 
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import org.jetbrains.annotations.Nullable;
 

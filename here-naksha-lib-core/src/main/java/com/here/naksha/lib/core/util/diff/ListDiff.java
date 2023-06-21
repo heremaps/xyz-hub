@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.diff;
 
-
 import java.util.ArrayList;
 
 /** Represents a difference between two lists. */

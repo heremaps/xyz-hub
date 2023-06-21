@@ -19,7 +19,6 @@
 
 package com.here.naksha.handler.psql;
 
-
 import com.here.naksha.lib.psql.sql.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;

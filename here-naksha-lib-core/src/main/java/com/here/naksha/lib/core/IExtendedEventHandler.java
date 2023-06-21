@@ -137,49 +137,65 @@ public interface IExtendedEventHandler extends IEventHandler {
      * used to perform maintenance work. One important task is for example to ensure that all
      * partitions of tables with history exist.
      */
-    @NotNull XyzResponse processHealthCheckEvent(@NotNull HealthCheckEvent event);
+    @NotNull
+    XyzResponse processHealthCheckEvent(@NotNull HealthCheckEvent event);
 
     /** Processes a GetStatistics event. */
-    @NotNull XyzResponse processGetStatistics(@NotNull GetStatisticsEvent event) throws Exception;
+    @NotNull
+    XyzResponse processGetStatistics(@NotNull GetStatisticsEvent event) throws Exception;
 
     /** Processes a GetStatistics event. */
-    @NotNull XyzResponse processGetHistoryStatisticsEvent(@NotNull GetHistoryStatisticsEvent event) throws Exception;
+    @NotNull
+    XyzResponse processGetHistoryStatisticsEvent(@NotNull GetHistoryStatisticsEvent event) throws Exception;
 
     /** Processes a GetFeaturesById event. */
-    @NotNull XyzResponse processGetFeaturesByIdEvent(@NotNull GetFeaturesByIdEvent event) throws Exception;
+    @NotNull
+    XyzResponse processGetFeaturesByIdEvent(@NotNull GetFeaturesByIdEvent event) throws Exception;
 
     /** Processes a GetFeaturesByGeometryEvent event. */
-    @NotNull XyzResponse processGetFeaturesByGeometryEvent(@NotNull GetFeaturesByGeometryEvent event) throws Exception;
+    @NotNull
+    XyzResponse processGetFeaturesByGeometryEvent(@NotNull GetFeaturesByGeometryEvent event) throws Exception;
 
     /** Processes a GetFeaturesByBBox event. */
-    @NotNull XyzResponse processGetFeaturesByBBoxEvent(@Nonnull GetFeaturesByBBoxEvent event) throws Exception;
+    @NotNull
+    XyzResponse processGetFeaturesByBBoxEvent(@Nonnull GetFeaturesByBBoxEvent event) throws Exception;
 
     /** Processes a GetFeaturesByTile event. */
-    @NotNull XyzResponse processGetFeaturesByTileEvent(@NotNull GetFeaturesByTileEvent event) throws Exception;
+    @NotNull
+    XyzResponse processGetFeaturesByTileEvent(@NotNull GetFeaturesByTileEvent event) throws Exception;
 
     /** Processes a IterateFeatures event. */
-    @NotNull XyzResponse processIterateFeaturesEvent(@NotNull IterateFeaturesEvent event) throws Exception;
+    @NotNull
+    XyzResponse processIterateFeaturesEvent(@NotNull IterateFeaturesEvent event) throws Exception;
 
     /** Processes a SearchForFeatures event. */
-    @NotNull XyzResponse processSearchForFeaturesEvent(@NotNull SearchForFeaturesEvent event) throws Exception;
+    @NotNull
+    XyzResponse processSearchForFeaturesEvent(@NotNull SearchForFeaturesEvent event) throws Exception;
 
     /** Processes a DeleteFeaturesEvent event. */
-    @NotNull XyzResponse processDeleteFeaturesByTagEvent(@NotNull DeleteFeaturesByTagEvent event) throws Exception;
+    @NotNull
+    XyzResponse processDeleteFeaturesByTagEvent(@NotNull DeleteFeaturesByTagEvent event) throws Exception;
 
     /** Processes a LoadFeaturesEvent event. */
-    @NotNull XyzResponse processLoadFeaturesEvent(@NotNull LoadFeaturesEvent event) throws Exception;
+    @NotNull
+    XyzResponse processLoadFeaturesEvent(@NotNull LoadFeaturesEvent event) throws Exception;
 
     /** Processes a ModifyFeaturesEvent event. */
-    @NotNull XyzResponse processModifyFeaturesEvent(@NotNull ModifyFeaturesEvent event) throws Exception;
+    @NotNull
+    XyzResponse processModifyFeaturesEvent(@NotNull ModifyFeaturesEvent event) throws Exception;
 
     /** Processes a DeleteSpaceEvent event. */
-    @NotNull XyzResponse processModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception;
+    @NotNull
+    XyzResponse processModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception;
 
     /** Processes a ModifySubscriptionEvent event. */
-    @NotNull XyzResponse processModifySubscriptionEvent(@NotNull ModifySubscriptionEvent event) throws Exception;
+    @NotNull
+    XyzResponse processModifySubscriptionEvent(@NotNull ModifySubscriptionEvent event) throws Exception;
 
     /** Processes a IterateFeatures event. */
-    @NotNull XyzResponse processIterateHistoryEvent(@NotNull IterateHistoryEvent event) throws Exception;
+    @NotNull
+    XyzResponse processIterateHistoryEvent(@NotNull IterateHistoryEvent event) throws Exception;
 
-    @NotNull XyzResponse processGetStorageStatisticsEvent(@NotNull GetStorageStatisticsEvent event) throws Exception;
+    @NotNull
+    XyzResponse processGetStorageStatisticsEvent(@NotNull GetStorageStatisticsEvent event) throws Exception;
 }

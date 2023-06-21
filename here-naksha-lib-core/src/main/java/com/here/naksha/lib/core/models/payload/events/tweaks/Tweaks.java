@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.payload.events.tweaks;
 
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.naksha.lib.core.models.Typed;

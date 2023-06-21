@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.responses;
 
-
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 
 public abstract class ModifiedPayloadResponse extends XyzResponse {

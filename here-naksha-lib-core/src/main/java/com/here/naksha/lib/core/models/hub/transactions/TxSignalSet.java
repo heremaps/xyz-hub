@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.hub.transactions;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.ArrayList;

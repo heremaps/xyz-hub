@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson;
 
-
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 
 public class HQuad {

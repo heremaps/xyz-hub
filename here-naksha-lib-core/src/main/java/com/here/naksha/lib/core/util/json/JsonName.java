@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.json;
 
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Repeatable;

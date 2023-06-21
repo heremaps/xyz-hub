@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.hub.plugins;
 
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
@@ -15,14 +14,14 @@ import org.jetbrains.annotations.NotNull;
  * The configuration of a storage. Storages are internally used to access and modify features and
  * collection.
  */
-@AvailableSince(INaksha.v2_0)
+@AvailableSince(INaksha.v2_0_0)
 @JsonTypeName(value = "Storage")
 public class Storage extends Feature implements IPlugin<IStorage> {
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String NUMBER = "number";
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String CLASS_NAME = "className";
 
     /**
@@ -33,7 +32,7 @@ public class Storage extends Feature implements IPlugin<IStorage> {
      *     Naksha-Hub.
      * @param cla$$ the class, that implement the {@link IStorage} API.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public Storage(@NotNull String id, long number, @NotNull Class<? extends IStorage> cla$$) {
         super(id);
         this.number = number;
@@ -49,7 +48,7 @@ public class Storage extends Feature implements IPlugin<IStorage> {
      * @param className the full qualified name of the class to load for this storage. The class need
      *     to implement the {@link IStorage} API.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonCreator
     public Storage(
             @JsonProperty(ID) @NotNull String id,
@@ -61,12 +60,12 @@ public class Storage extends Feature implements IPlugin<IStorage> {
     }
 
     /** The unique storage number, being a 40-bit unsigned integer. */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonProperty(NUMBER)
     public long number;
 
     /** The classname to load. */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonProperty(CLASS_NAME)
     public @NotNull String className;
 

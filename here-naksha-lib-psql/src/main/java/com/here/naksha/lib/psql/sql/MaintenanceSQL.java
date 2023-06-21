@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.psql.sql;
 
-
 import org.jetbrains.annotations.NotNull;
 
 public class MaintenanceSQL {

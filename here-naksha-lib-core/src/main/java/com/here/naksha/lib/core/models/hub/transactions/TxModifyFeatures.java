@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.hub.transactions;
 
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
@@ -14,7 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * done to a features is not part of the signal, because normally all changes done to the same
  * collection only create one signal in the transaction log.
  */
-@AvailableSince(INaksha.v2_0)
+@AvailableSince(INaksha.v2_0_0)
 @JsonTypeName(value = "TxModifyFeatures")
 public class TxModifyFeatures extends TxSignal {
 
@@ -26,7 +25,7 @@ public class TxModifyFeatures extends TxSignal {
      * @param collection the collection impacted.
      * @param txn the transaction number.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonCreator
     public TxModifyFeatures(
             @JsonProperty(ID) @NotNull String id,

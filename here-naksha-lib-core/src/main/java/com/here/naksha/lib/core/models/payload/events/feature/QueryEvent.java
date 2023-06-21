@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.events.feature;
 
-
 import com.here.naksha.lib.core.models.payload.events.FeatureEvent;
 import com.here.naksha.lib.core.models.payload.events.PropertyQueryOr;
 import com.here.naksha.lib.core.models.payload.events.TagsQuery;

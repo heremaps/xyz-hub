@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.psql.tools;
 
-
 import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
 import com.here.naksha.lib.core.models.geojson.implementation.*;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;

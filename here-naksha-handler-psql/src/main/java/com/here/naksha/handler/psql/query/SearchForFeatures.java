@@ -19,7 +19,6 @@
 
 package com.here.naksha.handler.psql.query;
 
-
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.lib.core.models.payload.events.PropertyQueryOr;
 import com.here.naksha.lib.core.models.payload.events.QueryOperation;

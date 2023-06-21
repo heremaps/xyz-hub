@@ -29,8 +29,6 @@ import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.models.Payload;
 import com.here.naksha.lib.core.models.hub.pipelines.Space;
 import com.here.naksha.lib.core.models.hub.plugins.Connector;
-import com.here.naksha.lib.core.models.hub.plugins.EventHandler;
-import com.here.naksha.lib.core.models.hub.plugins.Storage;
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
@@ -142,7 +140,7 @@ public abstract class PSQLAbstractIT extends Helper {
         // TODO: We need to create a pre-configured connector for the test, because the connector is the
         // PSQL storage for a specific db!
         pipeline.addEventHandler(
-                new PsqlHandler(new EventHandler(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class.getName())));
+                new PsqlHandler(new Connector(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class.getName())));
         assert jsonStream != null;
         pipeline.sendEvent(jsonStream, os);
         String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
@@ -157,8 +155,8 @@ public abstract class PSQLAbstractIT extends Helper {
         final IoEventPipeline pipeline = new IoEventPipeline();
         // TODO: We need to create a pre-configured connector for the test, because the connector is the
         // PSQL storage for a specific db!
-        pipeline.addEventHandler(new PsqlHandler(new Connector(
-                RandomStringUtils.randomAlphabetic(12), PsqlHandler.class, new Storage("psql", 0, PsqlStorage.class))));
+        pipeline.addEventHandler(
+                new PsqlHandler(new Connector(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class)));
         pipeline.sendEvent(jsonStream, os);
         String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
         currentLogger().info("Response from lambda - {}", response);

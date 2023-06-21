@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.util.diff;
 
-
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;

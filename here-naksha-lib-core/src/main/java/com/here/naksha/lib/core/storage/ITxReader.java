@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.storage;
 
-
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.hub.StorageCollection;
@@ -10,17 +9,18 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** Interface to grant read-access to a storage. */
-@AvailableSince(INaksha.v2_0)
+@AvailableSince(INaksha.v2_0_0)
 public interface ITxReader extends AutoCloseable {
     /**
      * Returns the current transaction number, if none has been created yet, creating a new one.
      *
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
-    @NotNull String getTransactionNumber() throws Exception;
+    @AvailableSince(INaksha.v2_0_0)
+    @NotNull
+    String getTransactionNumber() throws Exception;
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @Override
     void close();
 
@@ -30,8 +30,9 @@ public interface ITxReader extends AutoCloseable {
      * @return all collections from the storage.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
-    @NotNull List<@NotNull StorageCollection> getAllCollections() throws Exception;
+    @AvailableSince(INaksha.v2_0_0)
+    @NotNull
+    List<@NotNull StorageCollection> getAllCollections() throws Exception;
 
     /**
      * Returns the collection with the given id.
@@ -40,8 +41,9 @@ public interface ITxReader extends AutoCloseable {
      * @return the collection or {@code null}, if no such collection exists.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
-    @Nullable StorageCollection getCollectionById(@NotNull String id) throws Exception;
+    @AvailableSince(INaksha.v2_0_0)
+    @Nullable
+    StorageCollection getCollectionById(@NotNull String id) throws Exception;
 
     /**
      * Returns the reader for the given feature-type and collection.

@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.payload.events.tweaks;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 

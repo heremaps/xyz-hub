@@ -1,6 +1,5 @@
 package com.here.naksha.handler.psql;
 
-
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

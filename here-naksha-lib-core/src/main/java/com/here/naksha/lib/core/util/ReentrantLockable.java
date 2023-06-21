@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.concurrent.TimeUnit;

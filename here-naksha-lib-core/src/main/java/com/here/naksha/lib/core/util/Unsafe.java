@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import java.lang.reflect.Field;
 import org.jetbrains.annotations.NotNull;
 

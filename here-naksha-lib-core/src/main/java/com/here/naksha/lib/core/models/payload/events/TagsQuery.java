@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.events;
 
-
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.util.ArrayList;

@@ -72,7 +72,7 @@ public class JsonObject
     protected final long @NotNull [] removed() {
         long[] removed = this.removed;
         if (removed == null) {
-            final int bits = jsonClass().size();
+            final int bits = getJsonClass().size();
             if (bits == 0) {
                 // This is idempotent, we do not care how often this is executed concurrently.
                 return this.removed = EMPTY_REMOVED;
@@ -132,11 +132,12 @@ public class JsonObject
     private @Nullable JsonClass<?> jsonClass;
 
     /**
-     * Returns the JSON class of this class.
+     * Returns the JSON class of this object.
      *
-     * @return the JSON class of this class.
+     * @return the JSON class of this object.
      */
-    public final @NotNull JsonClass<?> jsonClass() {
+    @JsonIgnore
+    public final @NotNull JsonClass<?> getJsonClass() {
         final JsonClass<?> jsonClass = this.jsonClass;
         if (jsonClass == null) {
             // Note: This operation is idempotent, so we don't care about concurrency.
@@ -161,7 +162,7 @@ public class JsonObject
 
     @Override
     public int size() {
-        int fieldCount = jsonClass().size();
+        int fieldCount = getJsonClass().size();
         final long[] removed = removed();
         for (final long bits : removed) {
             fieldCount -= Long.bitCount(bits);
@@ -279,7 +280,7 @@ public class JsonObject
      * @return The next key found; if any.
      */
     public @Nullable String findValue(@Nullable String startKey, @Nullable Object value) {
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         for (final @NotNull JsonField<?, ?> field : jsonClass.fields) {
             if (startKey != null) {
                 if (startKey.equals(field.jsonName)) {
@@ -306,7 +307,7 @@ public class JsonObject
             return false;
         }
         final CharSequence name = StringHelper.toCharSequence(key);
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         final JsonField<?, ?> field = jsonClass.getField(name);
         if (field != null) {
             return getFieldValue(field) != UNDEFINED;
@@ -330,7 +331,7 @@ public class JsonObject
     @Override
     public @Nullable Object getOrDefault(@Nullable Object key, @Nullable Object alternative) {
         if (key instanceof CharSequence name) {
-            final JsonClass<?> jsonClass = jsonClass();
+            final JsonClass<?> jsonClass = getJsonClass();
             final JsonField<?, ?> field = jsonClass.getField(name);
             if (field != null) {
                 final Object oldValue = getFieldValue(field);
@@ -353,7 +354,7 @@ public class JsonObject
         if (value == UNDEFINED) {
             return remove(key);
         }
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         final JsonField<?, ?> field = jsonClass.getField(key);
         if (field != null) {
             final Object oldValue = setFieldValue(field, ANY, value, true);
@@ -374,7 +375,7 @@ public class JsonObject
     }
 
     public @Nullable Object putIfAbsent(@NotNull CharSequence key, @Nullable Object value) {
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         final JsonField<?, ?> field = jsonClass.getField(key);
         if (field != null) {
             final Object oldValue = getFieldValue(field);
@@ -389,7 +390,7 @@ public class JsonObject
 
     @Override
     public @Nullable Object computeIfAbsent(@NotNull String key, @NotNull Function<? super String, ?> fn) {
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         final JsonField<?, ?> field = jsonClass.getField(key);
         if (field != null) {
             Object oldValue = getFieldValue(field);
@@ -409,7 +410,7 @@ public class JsonObject
     @Override
     public @Nullable Object computeIfPresent(
             @NotNull String key, @NotNull BiFunction<? super String, ? super Object, ?> fn) {
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         final JsonField<?, ?> field = jsonClass.getField(key);
         if (field != null) {
             Object oldValue = getFieldValue(field);
@@ -429,7 +430,7 @@ public class JsonObject
 
     @Override
     public @Nullable Object compute(@NotNull String key, @NotNull BiFunction<? super String, ? super Object, ?> fn) {
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         final JsonField<?, ?> field = jsonClass.getField(key);
         if (field != null) {
             final Object oldValue = getFieldValue(field);
@@ -449,7 +450,7 @@ public class JsonObject
             final @NotNull String key,
             final @Nullable Object value,
             final @NotNull BiFunction<? super Object, ? super Object, ?> fn) {
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         final JsonField<?, ?> field = jsonClass.getField(key);
         if (field != null) {
             final Object oldValue = getFieldValue(field);
@@ -487,7 +488,7 @@ public class JsonObject
         if (newValue == ANY) {
             throw new IllegalArgumentException("newValue must not be ANY");
         }
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         final JsonField<?, ?> field = jsonClass.getField(key);
         if (field != null) {
             return setFieldValue(field, expectedValue == null ? VOID : expectedValue, newValue, true) != CONFLICT;
@@ -531,7 +532,7 @@ public class JsonObject
             return alternative;
         }
         final CharSequence name = StringHelper.toCharSequence(key);
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         final JsonField<?, ?> field = jsonClass.getField(name);
         if (field != null) {
             final Object value = setFieldValue(field, ANY, UNDEFINED, false);
@@ -555,7 +556,7 @@ public class JsonObject
     @Override
     public void clear() {
         additionalProperties.clear();
-        final JsonClass<?> jsonClass = jsonClass();
+        final JsonClass<?> jsonClass = getJsonClass();
         for (final JsonField<?, ?> field : jsonClass.fields) {
             field.set(this, null);
             undefineField(field);
@@ -567,6 +568,7 @@ public class JsonObject
         return new JsonObjectEntryIterator(this);
     }
 
+    @JsonIgnore
     private MapKeySet<@NotNull String, Object> keySet;
 
     @Override
@@ -578,6 +580,7 @@ public class JsonObject
         return keySet;
     }
 
+    @JsonIgnore
     private MapValueCollection<@NotNull String, Object> valCol;
 
     @Override

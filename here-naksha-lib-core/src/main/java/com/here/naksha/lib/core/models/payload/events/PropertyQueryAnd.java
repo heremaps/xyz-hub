@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.events;
 
-
 import java.util.ArrayList;
 
 /**

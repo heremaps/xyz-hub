@@ -9,7 +9,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.naksha.lib.core.models.hub.plugins.EventHandler;
+import com.here.naksha.lib.core.models.hub.plugins.Connector;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
@@ -32,12 +32,12 @@ class ActivityLogHandlerTest {
     private static final String CONFIG_FILENAME_LOCALHOST = "activity_log_localhost_db_config.json";
     private static final String CONFIG_FILENAME_ACTIVITY_LOG = "activity_log_DB_config.json";
 
-    static EventHandler eventHandler;
+    static Connector eventHandler;
     static IoEventPipeline eventPipeline;
 
     @BeforeAll
     static void setup() throws Exception {
-        eventHandler = new EventHandler("test:activity-log", ActivityLogHandler.class);
+        eventHandler = new Connector("test:activity-log", ActivityLogHandler.class);
         eventPipeline = new IoEventPipeline();
         eventPipeline.addEventHandler(eventHandler.newInstance());
     }

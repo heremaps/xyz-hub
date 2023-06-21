@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
 /**

@@ -43,7 +43,8 @@ public abstract class JsonField<OBJECT, VALUE> implements CharSequence {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <OBJECT, VALUE> void register(
             Class<VALUE> valueType,
-            @NotNull F5<? extends JsonField<OBJECT, VALUE>, JsonClass<OBJECT>, Field, Integer, String, String>
+            @NotNull
+                    F5<? extends JsonField<OBJECT, VALUE>, JsonClass<OBJECT>, Field, Integer, String, String>
                             constructor) {
         constructors.put(valueType, (F5<JsonField, JsonClass, Field, Integer, String, String>) (F5) constructor);
     }

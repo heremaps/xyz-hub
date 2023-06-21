@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import com.here.naksha.lib.core.lambdas.F1;
 import com.here.naksha.lib.core.lambdas.F4;
 import org.jetbrains.annotations.NotNull;

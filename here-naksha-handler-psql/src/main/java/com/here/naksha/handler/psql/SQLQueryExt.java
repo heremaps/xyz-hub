@@ -19,7 +19,6 @@
 
 package com.here.naksha.handler.psql;
 
-
 import com.here.naksha.handler.psql.query.GetFeatures;
 import com.here.naksha.lib.core.models.payload.events.feature.QueryEvent;
 import com.here.naksha.lib.psql.sql.SQLQuery;

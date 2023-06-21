@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.json;
 
-
 import com.here.naksha.lib.core.util.FibMapIterator;
 import java.util.Iterator;
 import java.util.Map.Entry;
@@ -19,7 +18,8 @@ class JsonMapEntryIterator implements Iterator<Entry<@NotNull String, @Nullable 
     private final @NotNull FibMapIterator it;
     private @Nullable MapEntry<@NotNull String, @Nullable Object> entry;
 
-    @NotNull MapEntry<@NotNull String, @Nullable Object> entry(@NotNull String key, @Nullable Object value) {
+    @NotNull
+    MapEntry<@NotNull String, @Nullable Object> entry(@NotNull String key, @Nullable Object value) {
         MapEntry<@NotNull String, @Nullable Object> entry = this.entry;
         if (entry == null) {
             return this.entry = new MapEntry<>(map, key, value);

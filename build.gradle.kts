@@ -113,11 +113,11 @@ subprojects {
             // TODO: licenseHeader()
             // Allow "spotless:off" / "spotless:on" comments to toggle spotless auto-format.
             toggleOffOn()
-            palantirJavaFormat()
             removeUnusedImports()
             importOrder()
             formatAnnotations()
             indentWithSpaces(3)
+            palantirJavaFormat()
         }
     }
 

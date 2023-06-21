@@ -25,10 +25,12 @@ import org.jetbrains.annotations.Nullable;
 public class FeatureModificationEntry<FEATURE extends Feature> {
 
     /** The input state of the caller. */
-    @NotNull FEATURE input;
+    @NotNull
+    FEATURE input;
 
     /** The latest state the feature currently has in the data storage. */
-    @Nullable FEATURE head;
+    @Nullable
+    FEATURE head;
 
     /** The latest state the feature currently has in the data storage. */
     public @Nullable FEATURE head() {
@@ -39,7 +41,8 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
      * The state onto which the caller made the modifications. This is the state against which we may
      * perform a three-way merge, if the current head state has base is a common ancestor.
      */
-    @Nullable FEATURE base;
+    @Nullable
+    FEATURE base;
 
     /**
      * The state onto which the caller made the modifications. This is the state against which we may
@@ -53,7 +56,8 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
      * The resulting target state, which should go to the data storage. May be {@code null}, either if
      * the feature should be deleted or if the no change needed.
      */
-    @Nullable FEATURE result;
+    @Nullable
+    FEATURE result;
 
     /**
      * The resulting target state, which should go to the data storage. May be {@code null}, either if
@@ -67,7 +71,8 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
      * The action to perform; {@code null} if nothing is need to be done, for example an existing
      * feature should simply be retained.
      */
-    @Nullable Action action;
+    @Nullable
+    Action action;
 
     /**
      * The action to perform; {@code null} if nothing is need to be done, for example an existing

@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import java.util.Arrays;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

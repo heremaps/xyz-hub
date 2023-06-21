@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.payload.events;
 
-
 import com.here.naksha.lib.core.util.ValueList;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,10 +49,12 @@ public class QueryParameter {
     private final @NotNull String key;
 
     /** The delimiter that splits the name, key and arguments from the values. */
-    @Nullable QueryOperation op;
+    @Nullable
+    QueryOperation op;
 
     /** The next query parameter with the same key. */
-    @Nullable QueryParameter next;
+    @Nullable
+    QueryParameter next;
 
     /**
      * Returns the query parameter list to which this parameter belongs.

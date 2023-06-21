@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.exceptions;
 
-
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

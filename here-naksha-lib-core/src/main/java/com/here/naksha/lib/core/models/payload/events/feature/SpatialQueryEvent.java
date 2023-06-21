@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.events.feature;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)

@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.hub.pipelines;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;

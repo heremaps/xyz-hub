@@ -1,6 +1,5 @@
 package com.here.naksha.lib.psql;
 
-
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.hub.StorageCollection;
@@ -31,7 +30,7 @@ public class PsqlTxWriter extends PsqlTxReader implements ITxWriter {
         throw new UnsupportedOperationException("updateCollection");
     }
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public @NotNull StorageCollection upsertCollection(@NotNull StorageCollection collection) throws SQLException {
         throw new UnsupportedOperationException("updateCollection");
     }

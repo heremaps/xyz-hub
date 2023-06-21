@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.geojson.implementation;
 
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.NotNull;

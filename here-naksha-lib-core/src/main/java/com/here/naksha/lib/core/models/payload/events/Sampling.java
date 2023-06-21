@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.payload.events;
 
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.concurrent.ConcurrentHashMap;

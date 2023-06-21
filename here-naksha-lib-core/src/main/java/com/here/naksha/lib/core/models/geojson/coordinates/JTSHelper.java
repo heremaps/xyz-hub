@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson.coordinates;
 
-
 import com.here.naksha.lib.core.models.geojson.implementation.GeometryItem;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;

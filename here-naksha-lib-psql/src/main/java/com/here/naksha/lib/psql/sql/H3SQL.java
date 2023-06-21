@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.psql.sql;
 
-
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 
 public class H3SQL {

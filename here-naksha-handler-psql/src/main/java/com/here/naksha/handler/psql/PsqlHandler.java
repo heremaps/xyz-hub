@@ -50,7 +50,7 @@ import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
-import com.here.naksha.lib.core.models.hub.plugins.EventHandler;
+import com.here.naksha.lib.core.models.hub.plugins.Connector;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.admin.ModifySubscriptionEvent;
@@ -128,9 +128,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
+public class PsqlHandler extends ExtendedEventHandler<Connector> {
 
-    public PsqlHandler(@NotNull EventHandler eventHandler) throws XyzErrorException {
+    public PsqlHandler(@NotNull Connector eventHandler) throws XyzErrorException {
         super(eventHandler);
         connectorParams = new PsqlHandlerParams(eventHandler.getProperties());
     }

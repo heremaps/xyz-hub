@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.storage;
 
-
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.hub.StorageCollection;
@@ -16,15 +15,15 @@ public interface ITxWriter extends ITxReader {
      *
      * @throws SQLException If any error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     void commit() throws Exception;
 
     /** Abort the transaction, revert all pending changes. */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     void rollback();
 
     /** Rollback everything that is still pending and close the writer. */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @Override
     void close();
 
@@ -35,8 +34,9 @@ public interface ITxWriter extends ITxReader {
      * @return the created collection.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
-    @NotNull StorageCollection createCollection(@NotNull StorageCollection collection) throws Exception;
+    @AvailableSince(INaksha.v2_0_0)
+    @NotNull
+    StorageCollection createCollection(@NotNull StorageCollection collection) throws Exception;
 
     /**
      * Update the collection.
@@ -45,8 +45,9 @@ public interface ITxWriter extends ITxReader {
      * @return the updated collection.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
-    @NotNull StorageCollection updateCollection(@NotNull StorageCollection collection) throws Exception;
+    @AvailableSince(INaksha.v2_0_0)
+    @NotNull
+    StorageCollection updateCollection(@NotNull StorageCollection collection) throws Exception;
 
     /**
      * Update or insert the collection.
@@ -55,8 +56,9 @@ public interface ITxWriter extends ITxReader {
      * @return the updated or inserted collection.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
-    @NotNull StorageCollection upsertCollection(@NotNull StorageCollection collection) throws Exception;
+    @AvailableSince(INaksha.v2_0_0)
+    @NotNull
+    StorageCollection upsertCollection(@NotNull StorageCollection collection) throws Exception;
 
     /**
      * Deletes the collection including the history.
@@ -67,8 +69,9 @@ public interface ITxWriter extends ITxReader {
      * @return the dropped collection.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
-    @NotNull StorageCollection dropCollection(@NotNull StorageCollection collection, long deleteAt) throws Exception;
+    @AvailableSince(INaksha.v2_0_0)
+    @NotNull
+    StorageCollection dropCollection(@NotNull StorageCollection collection, long deleteAt) throws Exception;
 
     /**
      * Enable the history for the given collection.
@@ -77,8 +80,9 @@ public interface ITxWriter extends ITxReader {
      * @return the modified collection.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
-    @NotNull StorageCollection enableHistory(@NotNull StorageCollection collection) throws Exception;
+    @AvailableSince(INaksha.v2_0_0)
+    @NotNull
+    StorageCollection enableHistory(@NotNull StorageCollection collection) throws Exception;
 
     /**
      * Disable the history for the given collection.
@@ -87,8 +91,9 @@ public interface ITxWriter extends ITxReader {
      * @return the modified collection.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @AvailableSince(INaksha.v2_0)
-    @NotNull StorageCollection disableHistory(@NotNull StorageCollection collection) throws Exception;
+    @AvailableSince(INaksha.v2_0_0)
+    @NotNull
+    StorageCollection disableHistory(@NotNull StorageCollection collection) throws Exception;
 
     /**
      * Returns the writer for the given feature-type and collection.

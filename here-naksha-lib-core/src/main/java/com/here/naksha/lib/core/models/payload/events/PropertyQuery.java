@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.payload.events;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import java.util.ArrayList;

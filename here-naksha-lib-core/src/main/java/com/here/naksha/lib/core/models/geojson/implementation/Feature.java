@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson.implementation;
 
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -37,7 +36,7 @@ import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryExcepti
 import com.here.naksha.lib.core.models.hub.StorageCollection;
 import com.here.naksha.lib.core.models.hub.pipelines.Space;
 import com.here.naksha.lib.core.models.hub.pipelines.Subscription;
-import com.here.naksha.lib.core.models.hub.plugins.EventHandler;
+import com.here.naksha.lib.core.models.hub.plugins.Connector;
 import com.here.naksha.lib.core.models.hub.plugins.Storage;
 import com.here.naksha.lib.core.models.hub.transactions.TxSignal;
 import com.here.naksha.lib.core.util.diff.ConflictResolution;
@@ -61,7 +60,7 @@ import org.jetbrains.annotations.Nullable;
     @JsonSubTypes.Type(value = Space.class),
     @JsonSubTypes.Type(value = Subscription.class),
     // Others:
-    @JsonSubTypes.Type(value = EventHandler.class),
+    @JsonSubTypes.Type(value = Connector.class),
     @JsonSubTypes.Type(value = Storage.class),
     @JsonSubTypes.Type(value = StorageCollection.class),
     @JsonSubTypes.Type(value = TxSignal.class)
@@ -76,7 +75,7 @@ public class Feature extends JsonObject implements Typed {
     public static final String ON_FEATURE_EXISTS = "onFeatureExists";
     public static final String ON_MERGE_CONFLICT = "onMergeConflict";
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String PACKAGES = "packages";
 
     /**
@@ -118,7 +117,7 @@ public class Feature extends JsonObject implements Typed {
     protected @Nullable ConflictResolution onMergeConflict;
 
     /** List of packages to which this feature belongs to; if any. */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonProperty(PACKAGES)
     @JsonInclude(Include.NON_EMPTY)
     private @Nullable List<@NotNull String> packages;
@@ -128,7 +127,7 @@ public class Feature extends JsonObject implements Typed {
      *
      * @param packages the new package list.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public void setPackages(@Nullable List<@NotNull String> packages) {
         this.packages = packages;
     }
@@ -138,7 +137,7 @@ public class Feature extends JsonObject implements Typed {
      *
      * @return the packages this features is part of.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public @NotNull List<@NotNull String> usePackages() {
         List<@NotNull String> packages = this.packages;
         if (packages == null) {
@@ -152,7 +151,7 @@ public class Feature extends JsonObject implements Typed {
      *
      * @return the packages this features is part of.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public @Nullable List<@NotNull String> getPackages() {
         return packages;
     }

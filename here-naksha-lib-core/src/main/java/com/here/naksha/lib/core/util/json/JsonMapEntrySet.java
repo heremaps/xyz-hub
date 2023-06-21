@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.json;
 
-
 import java.util.Iterator;
 import java.util.Map.Entry;
 import org.jetbrains.annotations.NotNull;

@@ -2,7 +2,6 @@
 
 package com.here.naksha.lib.core.bin;
 
-
 import com.google.flatbuffers.*;
 import java.nio.*;
 

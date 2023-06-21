@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import java.lang.ref.Reference;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;

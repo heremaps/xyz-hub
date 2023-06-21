@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.json;
 
-
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.jetbrains.annotations.NotNull;

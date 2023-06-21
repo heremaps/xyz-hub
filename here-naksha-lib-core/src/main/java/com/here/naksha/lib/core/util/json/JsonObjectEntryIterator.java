@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.json;
 
-
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
@@ -11,7 +10,7 @@ public class JsonObjectEntryIterator implements Iterator<@NotNull Entry<@NotNull
 
     JsonObjectEntryIterator(@NotNull JsonObject object) {
         this.object = object;
-        this.fields = object.jsonClass().fields;
+        this.fields = object.getJsonClass().fields;
     }
 
     private final @NotNull JsonObject object;
@@ -20,7 +19,8 @@ public class JsonObjectEntryIterator implements Iterator<@NotNull Entry<@NotNull
     private @Nullable MapEntry<@NotNull String, @Nullable Object> entry;
     private @Nullable Iterator<@NotNull Entry<@NotNull String, @Nullable Object>> additionalPropertiesIt;
 
-    @NotNull MapEntry<@NotNull String, @Nullable Object> entry(@NotNull String key, @Nullable Object value) {
+    @NotNull
+    MapEntry<@NotNull String, @Nullable Object> entry(@NotNull String key, @Nullable Object value) {
         MapEntry<@NotNull String, @Nullable Object> entry = this.entry;
         if (entry == null) {
             return this.entry = new MapEntry<>(object, key, value);

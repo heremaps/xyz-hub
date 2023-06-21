@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.hub.pipelines;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.INaksha;
@@ -17,10 +16,10 @@ import org.jetbrains.annotations.Nullable;
  * component is a component, that acts on events send through an event-pipeline.
  */
 @SuppressWarnings("unused")
-@AvailableSince(INaksha.v2_0)
+@AvailableSince(INaksha.v2_0_0)
 public abstract class PipelineComponent extends Feature {
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String EVENT_HANDLERS = "eventHandlers";
 
     /**
@@ -29,7 +28,7 @@ public abstract class PipelineComponent extends Feature {
      * @param id the identifier of this component.
      * @param eventHandlers the list of event handler identifiers to form the event-pipeline.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public PipelineComponent(@NotNull String id, @NotNull List<@NotNull String> eventHandlers) {
         super(id);
         this.eventHandlers = eventHandlers;
@@ -43,7 +42,7 @@ public abstract class PipelineComponent extends Feature {
      *     event-pipeline.
      * @param packages the packages this feature is part of.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public PipelineComponent(
             @NotNull String id,
             @NotNull List<@NotNull String> eventHandlers,
@@ -54,7 +53,7 @@ public abstract class PipelineComponent extends Feature {
     }
 
     /** The list of event-handler identifiers to be added to the event pipeline, in order. */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonProperty(EVENT_HANDLERS)
     public @NotNull List<@NotNull String> eventHandlers;
 
@@ -63,7 +62,7 @@ public abstract class PipelineComponent extends Feature {
      *
      * @return all event-handler identifiers.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonIgnore
     public @NotNull List<@NotNull String> getEventHandlers() {
         return eventHandlers;
@@ -74,7 +73,7 @@ public abstract class PipelineComponent extends Feature {
      *
      * @param eventHandlers the event-handler identifiers.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public void setEventHandlers(@NotNull List<@NotNull String> eventHandlers) {
         this.eventHandlers = eventHandlers;
     }
@@ -84,7 +83,7 @@ public abstract class PipelineComponent extends Feature {
      *
      * @param eventHandlerIds the new event-handler identifiers.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public void setEventHandlerIds(@NotNull String... eventHandlerIds) {
         this.eventHandlers = new ArrayList<>(eventHandlerIds.length);
         Collections.addAll(this.eventHandlers, eventHandlerIds);

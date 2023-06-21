@@ -1,6 +1,5 @@
 package com.here.naksha.lib.psql;
 
-
 import org.jetbrains.annotations.NotNull;
 
 /** Configuration builder. */

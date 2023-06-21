@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson.coordinates;
 
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.ArrayList;
 

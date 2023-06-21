@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.payload.events;
 
-
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import java.util.ArrayList;
 import java.util.HashMap;

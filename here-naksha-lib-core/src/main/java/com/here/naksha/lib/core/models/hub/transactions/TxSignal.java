@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.models.hub.transactions;
 
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -20,7 +19,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
-@AvailableSince(INaksha.v2_0)
+@AvailableSince(INaksha.v2_0_0)
 @JsonTypeName(value = "TxSignal")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = TxComment.class),
@@ -29,19 +28,19 @@ import org.jetbrains.annotations.Nullable;
 })
 public class TxSignal extends Feature {
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String STORAGE_ID = "storageId";
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String COLLECTION = "collection";
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String TS = "ts";
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String PUBLISH_ID = "publishId";
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String PUBLISH_TS = "publishTs";
 
     /**
@@ -52,7 +51,7 @@ public class TxSignal extends Feature {
      * @param collection the collection impacted.
      * @param txn the transaction number.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonCreator
     public TxSignal(
             @JsonProperty(ID) @NotNull String id,
@@ -69,7 +68,7 @@ public class TxSignal extends Feature {
      * The unique transaction number, as stored within the XYZ namespace {@link XyzNamespace#getTxn()
      * txn}. All items of a transaction have the same transaction number.
      */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonProperty(XyzNamespace.TXN)
     public @NotNull String txn;
 

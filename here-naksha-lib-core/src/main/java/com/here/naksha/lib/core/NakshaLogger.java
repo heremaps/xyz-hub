@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core;
 
-
 import com.here.naksha.lib.core.lambdas.F0;
 import com.here.naksha.lib.core.util.NanoTime;
 import java.util.concurrent.TimeUnit;

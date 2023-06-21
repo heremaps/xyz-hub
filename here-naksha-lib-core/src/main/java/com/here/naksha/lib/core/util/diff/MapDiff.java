@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util.diff;
 
-
 import java.util.HashMap;
 
 /** Represents a difference between maps. */

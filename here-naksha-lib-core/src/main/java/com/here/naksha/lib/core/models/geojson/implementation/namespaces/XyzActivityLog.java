@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.geojson.implementation.namespaces;
 
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

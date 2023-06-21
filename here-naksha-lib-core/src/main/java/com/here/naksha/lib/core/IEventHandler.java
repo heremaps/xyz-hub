@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core;
 
-
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
@@ -25,5 +24,6 @@ public interface IEventHandler {
      * @return the response to send.
      * @throws XyzErrorException if any error occurred.
      */
-    @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException;
+    @NotNull
+    XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException;
 }

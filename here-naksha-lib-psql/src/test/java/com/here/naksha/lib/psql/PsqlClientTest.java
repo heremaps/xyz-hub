@@ -1,6 +1,5 @@
 package com.here.naksha.lib.psql;
 
-
 import com.here.naksha.lib.core.models.hub.StorageCollection;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;

@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.util;
 
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;

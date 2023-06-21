@@ -187,7 +187,7 @@ public class Event extends Payload {
     private @Nullable String aid;
 
     @JsonView(ExcludeFromHash.class)
-    private String version = INaksha.v2_0;
+    private String version = INaksha.v2_0_0;
 
     @JsonProperty
     private @Nullable String author;

@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core.models.hub.pipelines;
 
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -38,10 +37,10 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 @JsonTypeName(value = "Subscription")
-@AvailableSince(INaksha.v2_0)
+@AvailableSince(INaksha.v2_0_0)
 public final class Subscription extends PipelineComponent {
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public static final String STORAGE_ID = "storageId";
 
     /**
@@ -52,7 +51,7 @@ public final class Subscription extends PipelineComponent {
      * @param storageId the identifier of the storage to observe.
      */
     @JsonCreator
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public Subscription(
             @JsonProperty(ID) @NotNull String id,
             @JsonProperty(EVENT_HANDLERS) @NotNull List<@NotNull String> eventHandlers,
@@ -70,7 +69,7 @@ public final class Subscription extends PipelineComponent {
      * @param packages the packages this feature is part of.
      */
     @JsonCreator
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     public Subscription(
             @JsonProperty(ID) @NotNull String id,
             @JsonProperty(EVENT_HANDLERS) @NotNull List<@NotNull String> eventHandlers,
@@ -81,21 +80,21 @@ public final class Subscription extends PipelineComponent {
     }
 
     /** The {@link Storage#id identifier of the storage} to observe. */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonProperty(STORAGE_ID)
     public @NotNull String storageId;
 
     /** The destination of the subscribe notification. */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonProperty
     private @Nullable String destination;
 
     /** The configuration of the subscription. */
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonProperty
     private @Nullable SubscriptionConfig config;
 
-    @AvailableSince(INaksha.v2_0)
+    @AvailableSince(INaksha.v2_0_0)
     @JsonProperty
     @JsonInclude(Include.NON_NULL)
     private @Nullable SubscriptionStatus status;

@@ -1,6 +1,5 @@
 package com.here.naksha.lib.core.storage;
 
-
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import org.jetbrains.annotations.NotNull;
 
@@ -18,5 +17,6 @@ public interface IFeatureWriter<FEATURE extends Feature> extends IFeatureReader<
      * @return the modification result with the features that have been inserted, update and deleted.
      * @throws Exception if access to the storage failed or any other error occurred.
      */
-    @NotNull ModifyFeaturesResp<FEATURE> modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req) throws Exception;
+    @NotNull
+    ModifyFeaturesResp<FEATURE> modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req) throws Exception;
 }

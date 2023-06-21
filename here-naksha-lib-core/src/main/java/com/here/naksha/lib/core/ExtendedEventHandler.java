@@ -1,8 +1,7 @@
 package com.here.naksha.lib.core;
 
-
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.models.hub.plugins.EventHandler;
+import com.here.naksha.lib.core.models.hub.plugins.Connector;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.admin.ModifySubscriptionEvent;
@@ -30,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
  * Default implementation of an extended event handler that allows to only implement handling for
  * supported events, and optionally of some post-processing.
  */
-public class ExtendedEventHandler<HANDLER extends EventHandler> implements IExtendedEventHandler {
+public class ExtendedEventHandler<HANDLER extends Connector> implements IExtendedEventHandler {
 
     public ExtendedEventHandler(@NotNull HANDLER eventHandler) throws XyzErrorException {
         this.eventHandler = eventHandler;

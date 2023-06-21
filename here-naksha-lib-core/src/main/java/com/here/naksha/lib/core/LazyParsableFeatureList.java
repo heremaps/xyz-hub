@@ -19,7 +19,6 @@
 
 package com.here.naksha.lib.core;
 
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonCreator.Mode;
 import com.fasterxml.jackson.annotation.JsonValue;

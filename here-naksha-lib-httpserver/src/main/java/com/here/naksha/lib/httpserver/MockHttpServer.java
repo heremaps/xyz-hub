@@ -1,6 +1,5 @@
 package com.here.naksha.lib.httpserver;
 
-
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
