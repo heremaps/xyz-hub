@@ -118,7 +118,10 @@ public class DatabaseWriter {
         if (event.getVersionsToKeep() > 1) {
             Feature deletedFeature = new Feature()
                 .withId(deletion.getKey())
-                .withProperties(new Properties().withXyzNamespace(new XyzNamespace().withDeleted(true).withVersion(Long.parseLong(deletion.getValue()))));
+                .withProperties(new Properties().withXyzNamespace(new XyzNamespace()
+                    .withDeleted(true)
+                    .withVersion(Long.parseLong(deletion.getValue())) //TODO: This is a workaround for legacy history
+                    .withUpdatedAt(System.currentTimeMillis())));
             fillInsertQueryFromFeature(query, DELETE, deletedFeature, event, version);
         }
         else {
@@ -159,12 +162,15 @@ public class DatabaseWriter {
     }
 
     private static void fillInsertQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, long version) throws SQLException {
+        //TODO: The following is a backwards compatibility workaround for the legacy history in combination with new history being activated
+        long baseVersion = feature.getProperties().getXyzNamespace().getVersion();
         query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("version", version)
             .withNamedParameter("operation", (action == DELETE || !getDeletedFlagFromFeature(feature) ? action
                 : action == INSERT ? INSERT_HIDE_COMPOSITE : UPDATE_HIDE_COMPOSITE).shortValue)
-            .withNamedParameter("jsondata", featureToPGobject(event, feature, version));
+            .withNamedParameter("jsondata", featureToPGobject(event, feature, version))
+            .withNamedParameter("baseVersion", baseVersion);
 
         Geometry geo = feature.getGeometry();
         if (geo != null) {

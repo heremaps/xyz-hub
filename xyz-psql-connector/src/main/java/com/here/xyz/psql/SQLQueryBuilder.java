@@ -201,7 +201,7 @@ public class SQLQueryBuilder {
 
   protected static SQLQuery buildMultiModalInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
       return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
-          + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw})")
+          + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion})")
           .withNamedParameter("schema", dbHandler.config.getDatabaseSettings().getSchema())
           .withNamedParameter("table", dbHandler.config.readTableFromEvent(event))
           .withNamedParameter("concurrencyCheck", event.getEnableUUID())

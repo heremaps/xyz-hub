@@ -84,26 +84,26 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
         .body("storage.id", equalTo("psql"));
 
     /** Check Empty History */
-    given().
-            accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
-            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-            when().
-            get(getSpacesPath() + "/x-psql-test/history").
-            then().
-            statusCode(OK.code()).
-            body("startVersion", equalTo(0)).
-            body("endVersion", equalTo(0)).
-            body("versions", equalTo(new HashMap()));
+    given()
+        .accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/history")
+        .then()
+        .statusCode(OK.code())
+        .body("startVersion", equalTo(0))
+        .body("endVersion", equalTo(0))
+        .body("versions", equalTo(new HashMap()));
 
-    given().
-            accept(APPLICATION_JSON).
-            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-            when().
-            get(getSpacesPath() + "/x-psql-test/history/statistics").
-            then().
-            statusCode(OK.code()).
-            body("count.value", equalTo(0)).
-            body("maxVersion.value", equalTo(0));
+    given()
+        .accept(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/history/statistics")
+        .then()
+        .statusCode(OK.code())
+        .body("count.value", equalTo(0))
+        .body("maxVersion.value", equalTo(0));
 
     /**
      * Perform:
@@ -133,60 +133,60 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
   }
 
   public void modifyFeatures(){
-    given().
-            accept(APPLICATION_GEO_JSON).
-            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
-            when().
-            get(getSpacesPath() + "/x-psql-test/features/5000").
-            then().
-            statusCode(OK.code()).
-            body("properties.@ns:com:here:xyz.version", equalTo(10));
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/features/5000")
+        .then()
+        .statusCode(OK.code())
+        .body("properties.@ns:com:here:xyz.version", equalTo(10));
 
     /** Write two new versions (11,12) each with 50 objects*/
     writeFeatures(100,50,100,false);
 
-    given().
-            accept(APPLICATION_GEO_JSON).
-            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
-            when().
-            get(getSpacesPath() + "/x-psql-test/features/100").
-            then().
-            statusCode(OK.code()).
-            body("properties.@ns:com:here:xyz.version", equalTo(11));
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/features/100")
+        .then()
+        .statusCode(OK.code())
+        .body("properties.@ns:com:here:xyz.version", equalTo(11));
 
-    given().
-            accept(APPLICATION_GEO_JSON).
-            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
-            when().
-            get(getSpacesPath() + "/x-psql-test/features/150").
-            then().
-            statusCode(OK.code()).
-            body("properties.@ns:com:here:xyz.version", equalTo(12));
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/features/150")
+        .then()
+        .statusCode(OK.code())
+        .body("properties.@ns:com:here:xyz.version", equalTo(12));
 
     /** Write to new versions (13) with 100 objects*/
     writeFeatures(100,100,100,true);
 
-    given().
-            accept(APPLICATION_GEO_JSON).
-            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
-            when().
-            get(getSpacesPath() + "/x-psql-test/features/150").
-            then().
-            statusCode(OK.code()).
-            body("properties.@ns:com:here:xyz.version", equalTo(13));
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/features/150")
+        .then()
+        .statusCode(OK.code())
+        .body("properties.@ns:com:here:xyz.version", equalTo(13));
 
     /** Delete some Features (14) */
     String idList = "id=100&id=150&id=200&id=300";
     deleteFeatures(idList);
 
-    given().
-            accept(APPLICATION_GEO_JSON).
-            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
-            when().
-            get(getSpacesPath() + "/x-psql-test/features?"+idList).
-            then().
-            statusCode(OK.code()).
-            body("features.size()", equalTo(0));
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get(getSpacesPath() + "/x-psql-test/features?" + idList)
+        .then()
+        .statusCode(OK.code())
+        .body("features.size()", equalTo(0));
   }
 
   @Test
@@ -197,12 +197,12 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
      * 500 inserted objects v2
      * */
     String body =
-        given().
-            accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
-            headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
-            when().
-            get(getSpacesPath() + "/x-psql-test/history?startVersion=1&endVersion=2").
-            getBody().asString();
+        given()
+            .accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION)
+            .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+            .when()
+            .get(getSpacesPath() + "/x-psql-test/history?startVersion=1&endVersion=2")
+            .getBody().asString();
 
     ChangesetCollection ccol = XyzSerializable.deserialize(body);
     assertEquals(1, ccol.getStartVersion());
@@ -227,12 +227,12 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
      * 4 deleted objects v14
      * */
     body =
-            given().
-                    accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION).
-                    headers(getAuthHeaders(AuthProfile.ACCESS_ALL)).
-                    when().
-                    get(getSpacesPath() + "/x-psql-test/history?startVersion=13&endVersion=14").
-                    getBody().asString();
+            given()
+                .accept(APPLICATION_VND_HERE_CHANGESET_COLLECTION)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .when()
+                .get(getSpacesPath() + "/x-psql-test/history?startVersion=13&endVersion=14")
+                .getBody().asString();
 
     ccol = XyzSerializable.deserialize(body);
     assertEquals(13, ccol.getStartVersion());
@@ -612,24 +612,24 @@ public class ReadHistoryApiIT extends TestSpaceWithFeature {
   }
 
   private void uploadData(FeatureCollection featureCollection) {
-    given().
-            accept(APPLICATION_GEO_JSON).
-            contentType(APPLICATION_GEO_JSON).
-            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-            body(featureCollection.serialize()).
-            when().
-            post(getSpacesPath() + "/x-psql-test/features").
-            then().
-            statusCode(OK.code());
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .contentType(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body(featureCollection.serialize())
+        .when()
+        .post(getSpacesPath() + "/x-psql-test/features")
+        .then()
+        .statusCode(OK.code());
   }
 
   private void deleteFeatures(String idList) {
     given()
-            .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-            .when()
-            .delete(getSpacesPath() + "/x-psql-test/features?"+idList)
-            .then()
-            .statusCode(NO_CONTENT.code());
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete(getSpacesPath() + "/x-psql-test/features?" + idList)
+        .then()
+        .statusCode(NO_CONTENT.code());
   }
 
   private void checkChangesetCollection(ChangesetCollection ccol, int version, int expectedInserted, int expectedUpdated, int expectedDeleted, Boolean isFree)

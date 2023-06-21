@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 164
+ select 165
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -333,12 +333,32 @@ $BODY$
 $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_legacy_history_create_vid(id TEXT, version TEXT) RETURNS TEXT AS
+$BODY$
+BEGIN
+    RETURN substring('0000000000'::TEXT, 0, 10 - length(version)) || version || '_' || id;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_legacy_history_get_previous_uuid(schema TEXT, tableName TEXT, id TEXT, newVersion TEXT) RETURNS TEXT AS
+$BODY$
+DECLARE
+    uuid TEXT;
+    prevVersion TEXT := (newVersion::BIGINT - 1)::TEXT;
+BEGIN
+    EXECUTE format('SELECT uuid FROM %I.%I WHERE vid = %L', schema, tableName || '_hst', xyz_legacy_history_create_vid(id, prevVersion)) INTO uuid;
+    RETURN uuid;
+END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_versioned()
   RETURNS trigger AS
 $BODY$
 	DECLARE
-	    v text := (NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version');
+	    v TEXT := (NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version');
+	    uuidValue TEXT := '%L';
 	BEGIN
 	    IF TG_OP = 'DELETE' OR TG_OP = 'TRUNCATE' THEN
 	        -- Ignore.
@@ -354,12 +374,18 @@ $BODY$
             END IF;
         END IF;
 
+	    IF TG_OP = 'INSERT' AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb THEN
+	        -- NOTE: This is for backwards compatibility of deletions in the legacy history in combination with new history being activated
+            uuidValue := 'CASE WHEN %3$L IS NULL THEN xyz_legacy_history_get_previous_uuid(%1$L, %2$L, %7$L, %6$L) || ''_deleted'' ELSE %3$L END';
+        END IF;
+
+	    v = CASE WHEN v IS NULL THEN NEW.version::TEXT ELSE v END;
+
         EXECUTE
             format('INSERT INTO'
                        || ' %s."%s_hst" (uuid, jsondata, geo, vid)'
-                       || ' VALUES(%L, %L, %L, %L)', TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo,
-                substring('0000000000'::text, 0, 10 - length(v))
-                       || v || '_' || (NEW.jsondata->>'id'));
+                       || ' VALUES(' || uuidValue || ', %L, %L, xyz_legacy_history_create_vid(%7$L, %6$L))',
+                        TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo, v, NEW.jsondata->>'id');
 
 		IF TG_OP = 'UPDATE' THEN
 		    -- NOTE: Kept for backwards compatibility. For TG_OP == 'INSERT' AND op == 'D' we don't want to delete any row from the main table anymore!
@@ -3035,11 +3061,10 @@ $BODY$
 LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT)
+CREATE OR REPLACE FUNCTION xyz_write_versioned_modification_operation(id TEXT, version BIGINT, operation CHAR, jsondata JSONB, geo GEOMETRY, schema TEXT, tableName TEXT, concurrencyCheck BOOLEAN, partitionSize BIGINT, versionsToKeep INT, pw TEXT, baseVersion BIGINT)
     RETURNS INTEGER AS
 $BODY$
     DECLARE
-        base_version BIGINT := (jsondata->'properties'->'@ns:com:here:xyz'->>'version')::BIGINT;
         author TEXT := (jsondata->'properties'->'@ns:com:here:xyz'->>'author')::TEXT;
         updated_rows INTEGER;
         minVersion BIGINT;
@@ -3051,19 +3076,19 @@ $BODY$
 
         IF operation != 'I' AND operation != 'H' THEN
             IF concurrencyCheck THEN
-                IF base_version IS NULL THEN
+                IF baseVersion IS NULL THEN
                     RAISE EXCEPTION 'Error while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
                         USING HINT = 'Base version is missing. Concurrency check can not be performed.';
                 END IF;
 
                 EXECUTE
                     format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version = %L',
-                           schema, tableName, version, id, max_bigint(), base_version);
+                           schema, tableName, version, id, max_bigint(), baseVersion);
 
                 GET DIAGNOSTICS updated_rows = ROW_COUNT;
                 IF updated_rows != 1 THEN
                     RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
-                        USING HINT = 'Base version ' || base_version::TEXT || ' is not matching the current HEAD version.';
+                        USING HINT = 'Base version ' || baseVersion::TEXT || ' is not matching the current HEAD version.';
                 END IF;
             ELSE
                 EXECUTE
