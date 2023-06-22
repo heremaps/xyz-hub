@@ -32,7 +32,7 @@ import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileE
 import com.here.naksha.lib.core.models.payload.events.feature.IterateFeaturesEvent;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.core.view.Deserialize;
+import com.here.naksha.lib.core.view.DeserializeView.User;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import org.junit.jupiter.api.Test;
@@ -52,7 +52,7 @@ public class EventTest {
     @Test
     public void testClone() throws Exception {
         try (final Json json = Json.open()) {
-            final Event event = json.reader(Deserialize.Public.class).readValue(eventJson, Event.class);
+            final Event event = json.reader(User.class).readValue(eventJson, Event.class);
             final Event clone = JsonSerializable.deepClone(event);
 
             assertNotSame(event, clone);
@@ -67,7 +67,7 @@ public class EventTest {
     @Test
     public void testDeepCopy() throws Exception {
         try (final Json json = Json.open()) {
-            final Event event = json.reader(Deserialize.Public.class).readValue(eventJson, Event.class);
+            final Event event = json.reader(User.class).readValue(eventJson, Event.class);
             final Event clone = JsonSerializable.deepClone(event);
 
             assertNotSame(event, clone);

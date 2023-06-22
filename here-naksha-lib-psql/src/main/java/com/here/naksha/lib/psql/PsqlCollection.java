@@ -5,7 +5,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.naksha.lib.core.view.View;
+import com.here.naksha.lib.core.view.Member.Export;
+import com.here.naksha.lib.core.view.Member.Import.User;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -47,13 +48,13 @@ public class PsqlCollection {
 
     /** The schema of the collection. */
     @JsonProperty(SCHEMA)
-    @JsonView({View.Export.Public.class, View.Import.Public.class
+    @JsonView({Export.User.class, User.class
     }) // We do not import/export to storage, so to comment of table!
     public final @NotNull String schema;
 
     /** The table name, being the collection identifier. */
     @JsonProperty(TABLE)
-    @JsonView({View.Export.Public.class, View.Import.Public.class
+    @JsonView({Export.User.class, User.class
     }) // We do not import/export to storage, so to comment of table!
     public final @NotNull String table;
 

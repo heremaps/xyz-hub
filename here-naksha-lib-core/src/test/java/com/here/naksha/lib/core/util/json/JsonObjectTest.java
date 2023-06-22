@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.naksha.lib.core.view.Deserialize.Public;
-import com.here.naksha.lib.core.view.Serialize;
+import com.here.naksha.lib.core.view.DeserializeView.User;
+import com.here.naksha.lib.core.view.SerializeView;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
@@ -161,7 +161,7 @@ class JsonObjectTest {
         final TestObject map = new TestObject();
         map.put("newKey", "newValue");
         try (var json = Json.open()) {
-            final String s = json.writer(Serialize.Public.class, false).writeValueAsString(map);
+            final String s = json.writer(SerializeView.User.class, false).writeValueAsString(map);
             assertEquals(SERIALIZED, s);
         }
     }
@@ -169,7 +169,7 @@ class JsonObjectTest {
     @Test
     void test_deserialization() throws IOException {
         try (var json = Json.open()) {
-            final TestObject map = json.reader(Public.class).readValue(SERIALIZED, TestObject.class);
+            final TestObject map = json.reader(User.class).readValue(SERIALIZED, TestObject.class);
             assertEquals(3, map.size());
             Object foo = map.get("foo");
             assertEquals("test", foo);
@@ -181,7 +181,7 @@ class JsonObjectTest {
             assertEquals(newValue, "newValue");
 
             // Test String interning, all strings need to be the same instance!
-            final TestObject map2 = json.reader(Public.class).readValue(SERIALIZED, TestObject.class);
+            final TestObject map2 = json.reader(User.class).readValue(SERIALIZED, TestObject.class);
             assertSame(map.get("foo"), map2.get("foo"));
             assertSame(map.get("bar"), map2.get("bar"));
             assertSame(map.get("newKey"), map2.get("newKey"));

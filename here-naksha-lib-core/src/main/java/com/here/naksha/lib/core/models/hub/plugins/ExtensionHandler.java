@@ -21,10 +21,10 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A special handler that is internally.
+ * A special internal proxy-handler that is internally used to forward events to a handler running in lib-extension component.
  */
 @AvailableSince(INaksha.v2_0_3)
-public class ExtensionHandler implements IEventHandler {
+class ExtensionHandler implements IEventHandler {
 
     /**
      * Creates a new extension handler.
@@ -32,7 +32,7 @@ public class ExtensionHandler implements IEventHandler {
      * @param connector the connector that must have a valid extension number.
      */
     @AvailableSince(INaksha.v2_0_3)
-    public ExtensionHandler(@NotNull Connector connector) {
+    ExtensionHandler(@NotNull Connector connector) {
         final ExtensionConfig config = INaksha.get().getExtensionById(connector.getExtension());
         if (config == null) {
             throw new IllegalArgumentException("No such extension exists: " + connector.getId());

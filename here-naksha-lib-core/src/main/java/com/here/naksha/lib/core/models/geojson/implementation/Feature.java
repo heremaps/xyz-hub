@@ -43,8 +43,9 @@ import com.here.naksha.lib.core.util.diff.ConflictResolution;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.modify.IfExists;
 import com.here.naksha.lib.core.util.modify.IfNotExists;
-import com.here.naksha.lib.core.view.View.Export;
-import com.here.naksha.lib.core.view.View.Import;
+import com.here.naksha.lib.core.view.Member;
+import com.here.naksha.lib.core.view.Member.Export.Internal;
+import com.here.naksha.lib.core.view.Member.Import.User;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -101,19 +102,16 @@ public class Feature extends JsonObject implements Typed {
     @JsonProperty(PROPERTIES)
     protected @NotNull Properties properties;
 
-    // Serialize and deserialize internally, do not store in the database, but accept from external.
+    // These members can be set by the client (user or manager) and we internally serialize and deserialized them, but we do not
+    // export them for users or managers. Basically they are for internal purpose and write-only for the end-user.
     @JsonProperty(ON_FEATURE_NOT_EXISTS)
-    @JsonView({Export.Private.class, Import.Public.class})
+    @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
     protected @Nullable IfNotExists onFeatureNotExists;
-
-    // Serialize and deserialize internally, do not store in the database, but accept from external.
     @JsonProperty(ON_FEATURE_EXISTS)
-    @JsonView({Export.Private.class, Import.Public.class})
+    @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
     protected @Nullable IfExists onFeatureExists;
-
-    // Serialize and deserialize internally, do not store in the database, but accept from external.
     @JsonProperty(ON_MERGE_CONFLICT)
-    @JsonView({Export.Private.class, Import.Public.class})
+    @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
     protected @Nullable ConflictResolution onMergeConflict;
 
     /** List of packages to which this feature belongs to; if any. */
@@ -194,6 +192,7 @@ public class Feature extends JsonObject implements Typed {
         this.properties = properties;
     }
 
+    @JsonIgnore
     public @Nullable IfNotExists getOnFeatureNotExists() {
         return onFeatureNotExists;
     }
@@ -202,6 +201,7 @@ public class Feature extends JsonObject implements Typed {
         this.onFeatureNotExists = onFeatureNotExists;
     }
 
+    @JsonIgnore
     public @Nullable IfExists getOnFeatureExists() {
         return onFeatureExists;
     }
@@ -210,6 +210,7 @@ public class Feature extends JsonObject implements Typed {
         this.onFeatureExists = onFeatureExists;
     }
 
+    @JsonIgnore
     public @Nullable ConflictResolution getOnMergeConflict() {
         return onMergeConflict;
     }

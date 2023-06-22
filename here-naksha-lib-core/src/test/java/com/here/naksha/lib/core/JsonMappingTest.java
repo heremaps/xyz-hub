@@ -31,7 +31,7 @@ import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.core.view.Deserialize;
+import com.here.naksha.lib.core.view.DeserializeView.All;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +53,7 @@ public class JsonMappingTest {
     public void testSerializeFeature() throws Exception {
         try (final Json json = Json.open()) {
             final String raw = "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}}";
-            final Feature obj = json.reader(Deserialize.Any.class).readValue(raw, Feature.class);
+            final Feature obj = json.reader(All.class).readValue(raw, Feature.class);
             assertNotNull(obj);
 
             obj.getProperties().put("y", 7);

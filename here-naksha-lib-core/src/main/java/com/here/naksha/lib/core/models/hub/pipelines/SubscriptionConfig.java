@@ -3,7 +3,7 @@ package com.here.naksha.lib.core.models.hub.pipelines;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.naksha.lib.core.view.View;
+import com.here.naksha.lib.core.view.Member.Manager;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -16,7 +16,7 @@ public class SubscriptionConfig {
     private SubscriptionType type;
 
     @JsonProperty
-    @JsonView(View.Protected.class)
+    @JsonView(Manager.class)
     private Map<@NotNull String, @Nullable Object> params;
 
     public SubscriptionType getType() {

@@ -35,6 +35,7 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.models.Payload;
 import com.here.naksha.lib.core.models.hub.pipelines.Space;
+import com.here.naksha.lib.core.models.hub.plugins.Connector;
 import com.here.naksha.lib.core.models.payload.events.admin.ModifySubscriptionEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.DeleteFeaturesByTagEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByBBoxEvent;
@@ -53,6 +54,7 @@ import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
+import com.here.naksha.lib.core.view.SerializeView.Internal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -160,6 +162,7 @@ public class Event extends Payload {
     private Boolean preferPrimaryDataSource;
 
     @JsonView(ExcludeFromHash.class)
+    @JsonProperty
     private @Nullable Map<@NotNull String, @Nullable Object> params;
 
     /** The unique space identifier. */
@@ -170,24 +173,33 @@ public class Event extends Payload {
     @JsonIgnore
     private @Nullable Space space;
 
+    @JsonView(Internal.class)
+    @JsonProperty
+    private @Nullable Connector connector;
+
     /** The collection; if any. */
     @JsonProperty
     private @Nullable String collection;
 
+    @JsonProperty
     private Map<String, Object> metadata;
 
+    @JsonProperty
     @JsonView(ExcludeFromHash.class)
     private String tid;
 
+    @JsonProperty
     @JsonView(ExcludeFromHash.class)
     private String jwt;
 
     /** The application-id of the application sending the event. */
+    @JsonProperty
     @JsonView(ExcludeFromHash.class)
     private @Nullable String aid;
 
+    @JsonProperty
     @JsonView(ExcludeFromHash.class)
-    private String version = INaksha.v2_0_0;
+    private String version = INaksha.v2_0_3;
 
     @JsonProperty
     private @Nullable String author;

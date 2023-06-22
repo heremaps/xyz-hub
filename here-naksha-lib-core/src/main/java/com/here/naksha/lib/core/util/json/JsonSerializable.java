@@ -27,9 +27,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.naksha.lib.core.LazyParsableFeatureList.ProxyStringReader;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.view.Deserialize;
-import com.here.naksha.lib.core.view.Serialize;
-import com.here.naksha.lib.core.view.Serialize.Any;
+import com.here.naksha.lib.core.view.DeserializeView.All;
+import com.here.naksha.lib.core.view.DeserializeView.User;
+import com.here.naksha.lib.core.view.SerializeView;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Formatter;
@@ -58,7 +58,7 @@ public interface JsonSerializable {
 
     static <T extends Typed> String serialize(T object) {
         try (final Json json = Json.open()) {
-            return json.writer(Serialize.Public.class, false).writeValueAsString(object);
+            return json.writer(SerializeView.User.class, false).writeValueAsString(object);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -66,7 +66,7 @@ public interface JsonSerializable {
 
     static @NotNull String serialize(@Nullable Object object, @NotNull TypeReference<?> typeReference) {
         try (final Json json = Json.open()) {
-            return json.writer(Serialize.Public.class, false)
+            return json.writer(SerializeView.User.class, false)
                     .forType(typeReference)
                     .writeValueAsString(object);
         } catch (JsonProcessingException e) {
@@ -87,13 +87,13 @@ public interface JsonSerializable {
 
     static <T> T deserialize(@NotNull InputStream is, @NotNull TypeReference<T> type) throws IOException {
         try (final Json json = Json.open()) {
-            return json.reader(Deserialize.Public.class).forType(type).readValue(is);
+            return json.reader(User.class).forType(type).readValue(is);
         }
     }
 
     static <T> T deserialize(byte @NotNull [] bytes, @NotNull TypeReference<T> type) throws IOException {
         try (final Json json = Json.open()) {
-            return json.reader(Deserialize.Public.class).forType(type).readValue(bytes);
+            return json.reader(User.class).forType(type).readValue(bytes);
         }
     }
 
@@ -107,7 +107,7 @@ public interface JsonSerializable {
         // To circumvent that wrap the source string with a custom string reader, which provides access
         // to the input string.
         try (final Json json = Json.open()) {
-            return json.reader(Deserialize.Public.class).readValue(new ProxyStringReader(string), klass);
+            return json.reader(User.class).readValue(new ProxyStringReader(string), klass);
         } catch (IOException e) {
             throw new JsonProcessingIoException(e);
         }
@@ -116,7 +116,7 @@ public interface JsonSerializable {
     @SuppressWarnings("unused")
     static <T> T deserialize(String string, TypeReference<T> type) throws JsonProcessingException {
         try (final Json json = Json.open()) {
-            return json.reader(Deserialize.Public.class).forType(type).readValue(string);
+            return json.reader(User.class).forType(type).readValue(string);
         }
     }
 
@@ -153,8 +153,8 @@ public interface JsonSerializable {
         }
         try (final Json json = Json.open()) {
             final byte[] bytes =
-                    json.writer(Any.class, false).forType(object.getClass()).writeValueAsBytes(object);
-            final Object clone = json.reader(Deserialize.Any.class)
+                    json.writer(SerializeView.All.class, false).forType(object.getClass()).writeValueAsBytes(object);
+            final Object clone = json.reader(All.class)
                     .forType(object.getClass())
                     .readValue(bytes);
             return (OBJECT) clone;
@@ -186,7 +186,7 @@ public interface JsonSerializable {
 
     default @NotNull String serialize(boolean pretty) {
         try (final Json json = Json.open()) {
-            return json.writer(Serialize.Public.class, pretty).writeValueAsString(this);
+            return json.writer(SerializeView.User.class, pretty).writeValueAsString(this);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
