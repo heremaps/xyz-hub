@@ -34,10 +34,13 @@ public class ErrorResponse extends XyzResponse {
 
     @JsonProperty
     private XyzError error;
+
     @JsonProperty
     private String errorMessage;
+
     @JsonProperty
     private String streamId;
+
     @JsonProperty
     private @Nullable Map<@NotNull String, @Nullable Object> errorDetails;
 

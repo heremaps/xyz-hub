@@ -10,21 +10,21 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 
-/** A class implementing the logger interface, bound to a thread. */
-public class NakshaLogger implements Logger {
-
-    // TODO: Add the args as supported by Wikvaya/SFW and make a new package to allow binding the
-    // Wikvaya/SFW logger.
+/**
+ * A class implementing the logger interface that is thread local and exposes all kind of context information.
+ */
+public class NakshaContext implements Logger {
 
     /**
-     * A supplied that can be modified by an extending class, all instances of the logger then will be
-     * turned into the application class. This can be used to redirect all logging. The default
-     * implementation will redirect all logging to SLF4j.
+     * A supplied that can be modified by an extending class, all instances of the logger then will be turned into the application class. This
+     * can be used to redirect all logging. The default implementation will redirect all logging to SLF4j.
      */
-    protected static final AtomicReference<F0<NakshaLogger>> constructor = new AtomicReference<>(NakshaLogger::new);
+    protected static final AtomicReference<F0<NakshaContext>> constructor = new AtomicReference<>(NakshaContext::new);
 
-    /** The thread local instance. */
-    protected static final ThreadLocal<NakshaLogger> instance =
+    /**
+     * The thread local instance.
+     */
+    protected static final ThreadLocal<NakshaContext> instance =
             ThreadLocal.withInitial(() -> constructor.get().call());
 
     /**
@@ -32,8 +32,17 @@ public class NakshaLogger implements Logger {
      *
      * @return The current thread local logger.
      */
-    public static @NotNull NakshaLogger currentLogger() {
-        final NakshaLogger logger = instance.get();
+    public static @NotNull NakshaContext currentLogger() {
+        return currentContext();
+    }
+
+    /**
+     * Returns the current thread local context.
+     *
+     * @return The current thread local context.
+     */
+    public static @NotNull NakshaContext currentContext() {
+        final NakshaContext logger = instance.get();
         final AbstractTask<?> task = AbstractTask.currentTask();
         if (task != null) {
             return logger.with(task.streamId(), task.startNanos());
@@ -47,13 +56,14 @@ public class NakshaLogger implements Logger {
     }
 
     /**
-     * A special string that, when used as stream-id by the constructor, is replaced by the getter
-     * with a random string.
+     * A special string that, when used as stream-id by the constructor, is replaced by the getter with a random string.
      */
     protected static final String CREATE_STREAM_ID = "";
 
-    /** Create a new thread local logger. */
-    protected NakshaLogger() {
+    /**
+     * Create a new thread local logger.
+     */
+    protected NakshaContext() {
         streamId = CREATE_STREAM_ID;
         startNanos = NanoTime.now();
     }
@@ -61,18 +71,22 @@ public class NakshaLogger implements Logger {
     /**
      * Create a new thread local logger.
      *
-     * @param streamId The initial stream-id.
+     * @param streamId   The initial stream-id.
      * @param startNanos The start nanos to use.
      */
-    protected NakshaLogger(@NotNull String streamId, long startNanos) {
+    protected NakshaContext(@NotNull String streamId, long startNanos) {
         this.streamId = streamId;
         this.startNanos = startNanos;
     }
 
-    /** The stream-id. */
+    /**
+     * The stream-id.
+     */
     private @NotNull String streamId;
 
-    /** The start nano time for time measurements. */
+    /**
+     * The start nano time for time measurements.
+     */
     private long startNanos;
 
     /**
@@ -104,17 +118,19 @@ public class NakshaLogger implements Logger {
     /**
      * Binds the thread local logger to the given stream and start time.
      *
-     * @param streamId The stream.
+     * @param streamId   The stream.
      * @param startNanos The start-time.
      * @return this.
      */
-    public @NotNull NakshaLogger with(@NotNull String streamId, long startNanos) {
+    public @NotNull NakshaContext with(@NotNull String streamId, long startNanos) {
         this.streamId = streamId;
         this.startNanos = startNanos;
         return this;
     }
 
-    /** The string builder used by this thread local logger. */
+    /**
+     * The string builder used by this thread local logger.
+     */
     protected final @NotNull StringBuilder sb = new StringBuilder();
 
     private @NotNull String prefix(@NotNull String message) {

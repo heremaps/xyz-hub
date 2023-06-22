@@ -1,12 +1,12 @@
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.extension.ExtensionConfig;
 import com.here.naksha.lib.core.models.hub.pipelines.Space;
 import com.here.naksha.lib.core.models.hub.pipelines.Subscription;
 import com.here.naksha.lib.core.models.hub.plugins.Connector;
-import com.here.naksha.lib.core.models.hub.plugins.ExtensionConfig;
 import com.here.naksha.lib.core.models.hub.plugins.Storage;
 import com.here.naksha.lib.core.storage.CollectionCache;
 import java.io.IOException;

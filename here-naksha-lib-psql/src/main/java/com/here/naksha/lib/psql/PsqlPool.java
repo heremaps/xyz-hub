@@ -1,6 +1,6 @@
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.zaxxer.hikari.HikariConfig;

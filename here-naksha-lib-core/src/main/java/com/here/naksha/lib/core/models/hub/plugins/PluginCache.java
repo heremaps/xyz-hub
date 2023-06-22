@@ -1,6 +1,6 @@
 package com.here.naksha.lib.core.models.hub.plugins;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;

@@ -19,7 +19,7 @@
 
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.amazonaws.util.IOUtils;

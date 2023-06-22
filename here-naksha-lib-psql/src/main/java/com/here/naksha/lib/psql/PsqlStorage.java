@@ -1,6 +1,6 @@
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.lambdas.Pe1;

@@ -1,6 +1,6 @@
 package com.here.naksha.lib.core.util;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 import static com.here.naksha.lib.core.util.FibMap.CONFLICT;
 import static com.here.naksha.lib.core.util.FibMap.VOID;
 

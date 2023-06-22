@@ -48,14 +48,12 @@ public class PsqlCollection {
 
     /** The schema of the collection. */
     @JsonProperty(SCHEMA)
-    @JsonView({Export.User.class, User.class
-    }) // We do not import/export to storage, so to comment of table!
+    @JsonView({Export.User.class, User.class}) // We do not import/export to storage, so to comment of table!
     public final @NotNull String schema;
 
     /** The table name, being the collection identifier. */
     @JsonProperty(TABLE)
-    @JsonView({Export.User.class, User.class
-    }) // We do not import/export to storage, so to comment of table!
+    @JsonView({Export.User.class, User.class}) // We do not import/export to storage, so to comment of table!
     public final @NotNull String table;
 
     /**

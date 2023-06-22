@@ -96,10 +96,10 @@ public class BinaryResponse extends XyzResponse {
     public byte @NotNull [] toByteArray() {
         FlatBufferBuilder builder = new FlatBufferBuilder();
         int payload = ConnectorPayload.createConnectorPayload(
-            builder,
-            builder.createString(getMimeType()),
-            builder.createString(getEtag()),
-            builder.createByteVector(getBytes()));
+                builder,
+                builder.createString(getMimeType()),
+                builder.createString(getEtag()),
+                builder.createByteVector(getBytes()));
         builder.finish(payload);
         return buffer2ByteArray(builder.dataBuffer());
     }

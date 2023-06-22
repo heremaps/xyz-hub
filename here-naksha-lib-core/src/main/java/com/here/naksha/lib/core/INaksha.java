@@ -1,10 +1,10 @@
 package com.here.naksha.lib.core;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.extension.ExtensionConfig;
 import com.here.naksha.lib.core.models.hub.pipelines.Space;
 import com.here.naksha.lib.core.models.hub.pipelines.Subscription;
 import com.here.naksha.lib.core.models.hub.plugins.Connector;
-import com.here.naksha.lib.core.models.hub.plugins.ExtensionConfig;
 import com.here.naksha.lib.core.models.hub.plugins.Storage;
 import com.here.naksha.lib.core.models.payload.Event;
 import java.util.concurrent.atomic.AtomicReference;

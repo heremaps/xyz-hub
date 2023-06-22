@@ -22,6 +22,7 @@ package com.here.naksha.lib.core.models;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
+import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
 import com.here.naksha.lib.core.models.payload.events.clustering.Clustering;
@@ -34,6 +35,7 @@ import com.here.naksha.lib.core.util.json.JsonSerializable;
     @JsonSubTypes.Type(value = Geometry.class),
     @JsonSubTypes.Type(value = Clustering.class),
     @JsonSubTypes.Type(value = Tweaks.class),
-    @JsonSubTypes.Type(value = Feature.class)
+    @JsonSubTypes.Type(value = Feature.class),
+    @JsonSubTypes.Type(value = ExtensionMessage.class)
 })
 public interface Typed extends JsonSerializable {}

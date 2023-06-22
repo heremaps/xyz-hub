@@ -44,8 +44,6 @@ import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.modify.IfExists;
 import com.here.naksha.lib.core.util.modify.IfNotExists;
 import com.here.naksha.lib.core.view.Member;
-import com.here.naksha.lib.core.view.Member.Export.Internal;
-import com.here.naksha.lib.core.view.Member.Import.User;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -102,14 +100,17 @@ public class Feature extends JsonObject implements Typed {
     @JsonProperty(PROPERTIES)
     protected @NotNull Properties properties;
 
-    // These members can be set by the client (user or manager) and we internally serialize and deserialized them, but we do not
+    // These members can be set by the client (user or manager) and we internally serialize and deserialized them, but
+    // we do not
     // export them for users or managers. Basically they are for internal purpose and write-only for the end-user.
     @JsonProperty(ON_FEATURE_NOT_EXISTS)
     @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
     protected @Nullable IfNotExists onFeatureNotExists;
+
     @JsonProperty(ON_FEATURE_EXISTS)
     @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
     protected @Nullable IfExists onFeatureExists;
+
     @JsonProperty(ON_MERGE_CONFLICT)
     @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
     protected @Nullable ConflictResolution onMergeConflict;

@@ -1,14 +1,18 @@
 package com.here.naksha.lib.core.util.json;
 
 import static com.fasterxml.jackson.databind.MapperFeature.DEFAULT_VIEW_INCLUSION;
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.here.naksha.lib.core.view.Deserialize;
 import com.here.naksha.lib.core.view.Deserialize.All;
@@ -57,13 +61,17 @@ public final class Json implements AutoCloseable {
     /** Create a new Json instance. */
     Json() {
         this.weakRef = new JsonWeakRef(this);
-        this.mapper = JsonMapper.builder()
+        final JsonFactory jsonFactory = new JsonFactory();
+        jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
+        jsonFactory.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false);
+        this.mapper = JsonMapper.builder(jsonFactory)
                 .enable(DEFAULT_VIEW_INCLUSION) // , SORT_PROPERTIES_ALPHABETICALLY
                 .serializationInclusion(Include.NON_NULL)
                 .visibility(PropertyAccessor.SETTER, Visibility.ANY)
                 .visibility(PropertyAccessor.GETTER, Visibility.PUBLIC_ONLY)
                 .visibility(PropertyAccessor.IS_GETTER, Visibility.NONE)
                 .visibility(PropertyAccessor.CREATOR, Visibility.ANY)
+                .configure(SerializationFeature.CLOSE_CLOSEABLE, false)
                 .addModule(new JsonModule())
                 .build();
         this.serialize = Serialize.All.class;

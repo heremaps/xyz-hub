@@ -30,5 +30,11 @@ public interface Serialize {
 
     /** Serialize all members with no exception. */
     @AvailableSince(INaksha.v2_0_3)
-    interface All extends Serialize, Member.Export.User, Member.Export.Manager, Member.Export.Internal, Member.Storage, Member.Hashing {}
+    interface All
+            extends Serialize,
+                    Member.Export.User,
+                    Member.Export.Manager,
+                    Member.Export.Internal,
+                    Member.Storage,
+                    Member.Hashing {}
 }

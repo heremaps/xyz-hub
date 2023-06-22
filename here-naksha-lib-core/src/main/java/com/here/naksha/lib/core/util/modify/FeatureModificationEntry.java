@@ -1,6 +1,6 @@
 package com.here.naksha.lib.core.util.modify;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 import static com.here.naksha.lib.core.util.diff.Patcher.calculateDifferenceOfPartialUpdate;
 import static com.here.naksha.lib.core.util.modify.IfExists.REPLACE;
 

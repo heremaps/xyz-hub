@@ -151,11 +151,11 @@ public interface JsonSerializable {
             return null;
         }
         try (final Json json = Json.open()) {
-            final byte[] bytes =
-                    json.writer(Serialize.All.class, false).forType(object.getClass()).writeValueAsBytes(object);
-            final Object clone = json.reader(All.class)
+            final byte[] bytes = json.writer(Serialize.All.class, false)
                     .forType(object.getClass())
-                    .readValue(bytes);
+                    .writeValueAsBytes(object);
+            final Object clone =
+                    json.reader(All.class).forType(object.getClass()).readValue(bytes);
             return (OBJECT) clone;
         } catch (IOException e) {
             throw new JsonProcessingFailed(e);

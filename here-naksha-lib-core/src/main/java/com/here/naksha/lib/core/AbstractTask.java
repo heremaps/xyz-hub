@@ -67,8 +67,8 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
      *
      * @return the thread local logger configured to this task.
      */
-    public @NotNull NakshaLogger logger() {
-        return NakshaLogger.currentLogger().with(streamId, startNanos);
+    public @NotNull NakshaContext logger() {
+        return NakshaContext.currentLogger().with(streamId, startNanos);
     }
 
     /**
