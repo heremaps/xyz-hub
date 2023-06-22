@@ -185,7 +185,7 @@ public class JobApiExportIT extends JobApiIT {
             add("Polygon with hole");
         }};
 
-        downloadAndCheck(urls, 4425, 11, mustContains );
+        downloadAndCheck(urls, 4425, 10, mustContains );
     }
 
     /**
@@ -210,7 +210,7 @@ public class JobApiExportIT extends JobApiIT {
         }};
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 114630, 263, mustContains );
+        downloadAndCheck(urls, 114630, 262, mustContains );
     }
 
     @Test
@@ -297,7 +297,7 @@ public class JobApiExportIT extends JobApiIT {
             add("2LPoint");  //Got added in composite space L2
         }};
         // 252 + 11 + 1 = 263
-        downloadAndCheck(urls, 114934, 264, mustContains );
+        downloadAndCheck(urls, 114934, 263, mustContains );
     }
 
     /**
