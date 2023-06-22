@@ -4,8 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.naksha.lib.core.view.DeserializeView.User;
-import com.here.naksha.lib.core.view.SerializeView;
+import com.here.naksha.lib.core.view.Deserialize.User;
+import com.here.naksha.lib.core.view.Serialize;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Iterator;
@@ -161,7 +161,7 @@ class JsonObjectTest {
         final TestObject map = new TestObject();
         map.put("newKey", "newValue");
         try (var json = Json.open()) {
-            final String s = json.writer(SerializeView.User.class, false).writeValueAsString(map);
+            final String s = json.writer(Serialize.User.class, false).writeValueAsString(map);
             assertEquals(SERIALIZED, s);
         }
     }

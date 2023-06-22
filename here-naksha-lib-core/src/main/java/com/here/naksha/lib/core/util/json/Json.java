@@ -10,9 +10,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.here.naksha.lib.core.view.DeserializeView;
-import com.here.naksha.lib.core.view.DeserializeView.All;
-import com.here.naksha.lib.core.view.SerializeView;
+import com.here.naksha.lib.core.view.Deserialize;
+import com.here.naksha.lib.core.view.Deserialize.All;
+import com.here.naksha.lib.core.view.Serialize;
 import java.lang.ref.WeakReference;
 import java.util.Formatter;
 import java.util.HashMap;
@@ -42,6 +42,11 @@ import org.jetbrains.annotations.Nullable;
 @SuppressWarnings("unused")
 public final class Json implements AutoCloseable {
 
+    /**
+     * If this property set to {@code true}, then all serialization will be done in pretty-print.
+     */
+    public static boolean DEBUG = false;
+
     private static class JsonWeakRef extends WeakReference<Json> {
 
         private JsonWeakRef(@NotNull Json json) {
@@ -61,7 +66,7 @@ public final class Json implements AutoCloseable {
                 .visibility(PropertyAccessor.CREATOR, Visibility.ANY)
                 .addModule(new JsonModule())
                 .build();
-        this.serialize = SerializeView.All.class;
+        this.serialize = Serialize.All.class;
         this.deserialize = All.class;
     }
 
@@ -78,10 +83,10 @@ public final class Json implements AutoCloseable {
     final @NotNull ObjectMapper mapper;
 
     /** The serialization view to use. */
-    private @NotNull Class<? extends SerializeView> serialize;
+    private @NotNull Class<? extends Serialize> serialize;
 
     /** The deserialization view to use. */
-    private @NotNull Class<? extends DeserializeView> deserialize;
+    private @NotNull Class<? extends Deserialize> deserialize;
 
     /**
      * Return a new dedicated thread local Json parser instance. Can be used recursive.
@@ -159,9 +164,9 @@ public final class Json implements AutoCloseable {
     /** The currently used Json instance; if any. */
     private static final ThreadLocal<@Nullable Json> current = new ThreadLocal<>();
 
-    private final HashMap<@NotNull Class<? extends DeserializeView>, @NotNull ObjectReader> readers = new HashMap<>();
-    private final HashMap<@NotNull Class<? extends SerializeView>, @NotNull ObjectWriter> writers = new HashMap<>();
-    private final HashMap<@NotNull Class<? extends SerializeView>, @NotNull ObjectWriter> pretty_writers = new HashMap<>();
+    private final HashMap<@NotNull Class<? extends Deserialize>, @NotNull ObjectReader> readers = new HashMap<>();
+    private final HashMap<@NotNull Class<? extends Serialize>, @NotNull ObjectWriter> writers = new HashMap<>();
+    private final HashMap<@NotNull Class<? extends Serialize>, @NotNull ObjectWriter> pretty_writers = new HashMap<>();
 
     // ------------------------------------------------------------------------------------------------------------------------------------
     // Standard API
@@ -184,7 +189,7 @@ public final class Json implements AutoCloseable {
      * @param view The view to read.
      * @return The reader for this view.
      */
-    public @NotNull ObjectReader reader(@NotNull Class<? extends DeserializeView> view) {
+    public @NotNull ObjectReader reader(@NotNull Class<? extends Deserialize> view) {
         ObjectReader reader = readers.get(view);
         if (reader == null) {
             reader = mapper.readerWithView(view);
@@ -197,13 +202,23 @@ public final class Json implements AutoCloseable {
      * Returns the writer for the given view.
      *
      * @param view the view to write.
+     * @return the writer for this view.
+     */
+    public @NotNull ObjectWriter writer(@NotNull Class<? extends Serialize> view) {
+        return writer(view, false);
+    }
+
+    /**
+     * Returns the writer for the given view.
+     *
+     * @param view the view to write.
      * @param pretty {@code true} if the writer should pretty print (human-readable); {@code false}
      *     otherwise (compact machine optimized).
      * @return the writer for this view.
      */
-    public @NotNull ObjectWriter writer(@NotNull Class<? extends SerializeView> view, boolean pretty) {
+    public @NotNull ObjectWriter writer(@NotNull Class<? extends Serialize> view, boolean pretty) {
         ObjectWriter writer;
-        if (pretty) {
+        if (DEBUG || pretty) {
             writer = pretty_writers.get(view);
             if (writer == null) {
                 writer = mapper.writerWithView(view).withDefaultPrettyPrinter();

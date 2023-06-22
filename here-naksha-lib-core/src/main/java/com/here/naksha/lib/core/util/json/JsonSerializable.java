@@ -25,15 +25,15 @@ import static com.here.naksha.lib.core.models.payload.responses.XyzError.TIMEOUT
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.naksha.lib.core.LazyParsableFeatureList.ProxyStringReader;
+import com.here.naksha.lib.core.exceptions.JsonProcessingFailed;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.view.DeserializeView.All;
-import com.here.naksha.lib.core.view.DeserializeView.User;
-import com.here.naksha.lib.core.view.SerializeView;
+import com.here.naksha.lib.core.view.Deserialize.All;
+import com.here.naksha.lib.core.view.Deserialize.User;
+import com.here.naksha.lib.core.view.Serialize;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Formatter;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Scanner;
@@ -58,7 +58,7 @@ public interface JsonSerializable {
 
     static <T extends Typed> String serialize(T object) {
         try (final Json json = Json.open()) {
-            return json.writer(SerializeView.User.class, false).writeValueAsString(object);
+            return json.writer(Serialize.User.class, false).writeValueAsString(object);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
@@ -66,7 +66,7 @@ public interface JsonSerializable {
 
     static @NotNull String serialize(@Nullable Object object, @NotNull TypeReference<?> typeReference) {
         try (final Json json = Json.open()) {
-            return json.writer(SerializeView.User.class, false)
+            return json.writer(Serialize.User.class, false)
                     .forType(typeReference)
                     .writeValueAsString(object);
         } catch (JsonProcessingException e) {
@@ -139,8 +139,7 @@ public interface JsonSerializable {
     }
 
     /**
-     * Creates a deep clone of the given object by serialization and then deserialization. A faster
-     * and better method may be {@link JsonUtils#deepCopy(Object)}.
+     * Creates a deep clone of the given object by serialization and then deserialization.
      *
      * @param object the object to clone.
      * @param <OBJECT> the object-type.
@@ -153,13 +152,13 @@ public interface JsonSerializable {
         }
         try (final Json json = Json.open()) {
             final byte[] bytes =
-                    json.writer(SerializeView.All.class, false).forType(object.getClass()).writeValueAsBytes(object);
+                    json.writer(Serialize.All.class, false).forType(object.getClass()).writeValueAsBytes(object);
             final Object clone = json.reader(All.class)
                     .forType(object.getClass())
                     .readValue(bytes);
             return (OBJECT) clone;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new JsonProcessingFailed(e);
         }
     }
 
@@ -176,8 +175,12 @@ public interface JsonSerializable {
         }
     }
 
-    default byte @NotNull [] toByteArray() {
-        return serialize().getBytes();
+    default byte @NotNull [] toByteArray(@NotNull Class<? extends Serialize> viewClass) {
+        try (final Json json = Json.open()) {
+            return json.writer(viewClass).writeValueAsBytes(this);
+        } catch (JsonProcessingException e) {
+            throw new JsonProcessingFailed(e);
+        }
     }
 
     default @NotNull String serialize() {
@@ -186,9 +189,9 @@ public interface JsonSerializable {
 
     default @NotNull String serialize(boolean pretty) {
         try (final Json json = Json.open()) {
-            return json.writer(SerializeView.User.class, pretty).writeValueAsString(this);
+            return json.writer(Serialize.User.class, pretty).writeValueAsString(this);
         } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+            throw new JsonProcessingFailed(e);
         }
     }
 
@@ -205,12 +208,6 @@ public interface JsonSerializable {
     default Map<String, Object> asMap() {
         try (final Json json = Json.open()) {
             return json.mapper.convertValue(this, Map.class);
-        }
-    }
-
-    default List<Object> asList() {
-        try (final Json json = Json.open()) {
-            return json.mapper.convertValue(this, List.class);
         }
     }
 

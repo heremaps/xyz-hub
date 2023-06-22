@@ -12,6 +12,7 @@ import com.here.naksha.lib.core.models.payload.responses.NotModifiedResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
+import com.here.naksha.lib.core.view.Serialize;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -130,7 +131,7 @@ public class IoEventPipeline extends EventPipeline {
             // TODO: We need to fix this, because a weak e-tag is perfect here. For example the order of
             //       the JSON document is not significant, therefore we should implement weak e-tags,
             //       because {"a":1,"b":2} is semantically equals to {"b":2,"a":1} !
-            byte @NotNull [] bytes = dataOut.toByteArray();
+            byte @NotNull [] bytes = dataOut.toByteArray(Serialize.Internal.class);
             currentLogger()
                     .info(
                             "Write data out for response with type: {}",
@@ -144,7 +145,7 @@ public class IoEventPipeline extends EventPipeline {
                     if (XyzResponse.etagMatches(ifNoneMatch, etag)) {
                         final NotModifiedResponse resp = new NotModifiedResponse();
                         resp.setEtag(etag);
-                        bytes = resp.toByteArray();
+                        bytes = resp.toByteArray(Serialize.Internal.class);
                     } else if (bytes.length > GZIP_THRESHOLD_SIZE) {
                         bytes = Payload.compress(bytes);
                     }
@@ -153,7 +154,7 @@ public class IoEventPipeline extends EventPipeline {
                     if (XyzResponse.etagMatches(ifNoneMatch, etag)) {
                         final NotModifiedResponse resp = new NotModifiedResponse();
                         resp.setEtag(etag);
-                        bytes = resp.toByteArray();
+                        bytes = resp.toByteArray(Serialize.Internal.class);
                     } else {
                         //noinspection StringBufferReplaceableByString
                         final StringBuilder sb = new StringBuilder();

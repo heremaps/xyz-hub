@@ -12,6 +12,7 @@ import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.ModifiedEventResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
+import com.here.naksha.lib.core.view.Serialize;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -46,14 +47,14 @@ public class HttpHandler implements IEventHandler {
     public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
         final Event event = eventContext.getEvent();
         try {
-            byte @NotNull [] bytes = event.toByteArray();
+            byte @NotNull [] bytes = event.toByteArray(Serialize.Internal.class);
             final HttpURLConnection conn = (HttpURLConnection) params.getUrl().openConnection();
             conn.setConnectTimeout((int) params.getConnTimeout());
             conn.setReadTimeout((int) params.getReadTimeout());
             conn.setRequestMethod(params.getHttpMethod());
             conn.setRequestProperty("Content-type", "application/json");
             if (Boolean.TRUE.equals(params.getGzip()) || params.getGzip() == null && bytes.length >= 16384) {
-                bytes = Payload.compress(event.toByteArray());
+                bytes = Payload.compress(bytes);
                 conn.setRequestProperty("Content-encoding", "gzip");
             }
             conn.setFixedLengthStreamingMode(bytes.length);

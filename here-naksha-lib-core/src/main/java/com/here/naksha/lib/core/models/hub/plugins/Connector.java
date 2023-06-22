@@ -35,10 +35,7 @@ public class Connector extends Feature implements IPlugin<IEventHandler> {
    * @param cla$$ the class, that implements this event handler.
    */
   @AvailableSince(INaksha.v2_0_3)
-  @JsonCreator
-  public Connector(
-      @JsonProperty(ID) @NotNull String id,
-      @JsonProperty(CLASS_NAME) @NotNull Class<? extends IEventHandler> cla$$) {
+  public Connector(@JsonProperty(ID) @NotNull String id, @JsonProperty(CLASS_NAME) @NotNull Class<? extends IEventHandler> cla$$) {
     super(id);
     this.className = cla$$.getName();
   }

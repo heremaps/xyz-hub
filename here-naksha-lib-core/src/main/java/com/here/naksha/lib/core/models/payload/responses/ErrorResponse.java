@@ -20,19 +20,26 @@
 package com.here.naksha.lib.core.models.payload.responses;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /** An error response. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ErrorResponse")
 public class ErrorResponse extends XyzResponse {
 
+    @JsonProperty
     private XyzError error;
+    @JsonProperty
     private String errorMessage;
+    @JsonProperty
     private String streamId;
-    private Map<String, Object> errorDetails;
+    @JsonProperty
+    private @Nullable Map<@NotNull String, @Nullable Object> errorDetails;
 
     /**
      * Returns the errorDetails which can contains additional detail information.
