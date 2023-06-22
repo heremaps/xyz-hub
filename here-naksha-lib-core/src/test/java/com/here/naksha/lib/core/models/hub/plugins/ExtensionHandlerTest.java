@@ -6,9 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.here.naksha.lib.core.EventPipeline;
-import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.extension.ExtensionConfig;
 import com.here.naksha.lib.core.extension.ExtensionHandler;
 import com.here.naksha.lib.core.extension.NakshaExtSocket;
@@ -20,7 +18,6 @@ import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEve
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
 import com.here.naksha.lib.core.util.json.Json;
 import java.net.ServerSocket;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
