@@ -20,7 +20,6 @@ import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEve
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
 import com.here.naksha.lib.core.util.json.Json;
 import java.net.ServerSocket;
-import java.net.Socket;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -39,14 +38,7 @@ class ExtensionHandlerTest {
   }
 
   static final int EXTENSION_ID = 2323;
-
-  static class TestHandler implements IEventHandler {
-
-    @Override
-    public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
-      return new SuccessResponse();
-    }
-  }
+  static final String CLASS_NAME = "com.here.some.Handler";
 
   static class SimulatedNakshaHub extends Thread {
 
@@ -56,13 +48,16 @@ class ExtensionHandlerTest {
     public void run() {
       try {
         // Simulate what Naksha-Hub would do:
-        final Connector testConnector = new Connector("test", TestHandler.class);
+        final Connector testConnector = new Connector("test", CLASS_NAME);
         testConnector.setExtension(EXTENSION_ID);
         final ExtensionConfig config = new ExtensionConfig("http://localhost:" + EXTENSION_ID + "/");
         final IEventHandler eventHandler = new ExtensionHandler(testConnector, config);
         final EventPipeline eventPipeline = new EventPipeline();
-        eventPipeline.addEventHandler(eventHandler); // We expect, that this adds the extension handler
+        eventPipeline.addEventHandler(eventHandler);
         final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent();
+        // This sends the event through the pipeline.
+        // The extension handler will serialize the event and send it to our server, run by the test.
+        // This server simulates the CLASS_NAME class and returns something, we remember what is returned.
         response = eventPipeline.sendEvent(event);
       } catch (Exception e) {
         exception = e;
@@ -81,26 +76,28 @@ class ExtensionHandlerTest {
       hub.start();
 
       // Accept incoming connection from the Naksha-Hub.
-      final Socket socket = serverSocket.accept();
-      try (final NakshaExtSocket nakshaSocket = new NakshaExtSocket(socket)) {
+      try (final NakshaExtSocket nakshaSocket = new NakshaExtSocket(serverSocket.accept())) {
 
-        // The message should be an ProcessEvent.
+        // Wait for the message from the simulated Naksha-Hub.
         final ExtensionMessage msg = nakshaSocket.readMessage();
         assertNotNull(msg);
+        // We should get an ProcessEvent envelope.
         final ProcessEvent processEvent = assertInstanceOf(ProcessEvent.class, msg);
-        assertEquals(EXTENSION_ID, processEvent.connector.getExtension());
+        // The event in the envelope should be an GetFeaturesByIdEvent.
         assertNotNull(processEvent.event);
         assertInstanceOf(GetFeaturesByIdEvent.class, processEvent.event);
+        // The connector being part of the envelope should have the expected class-name and extension ID.
+        assertEquals(EXTENSION_ID, processEvent.connector.getExtension());
+        assertEquals(CLASS_NAME, processEvent.connector.getClassName());
 
-        // Send back a response.
+        // Simulate a SuccessResponse.
         final SuccessResponse response = new SuccessResponse();
         nakshaSocket.sendMessage(new ReturnResponse(response));
 
-        // Wait until the hub is done and then verify the result.
+        // Wait until the simulated Naksha-Hub is done, and then verify the result.
         hub.join();
         assertNull(hub.exception);
         assertNotNull(hub.response);
-
         assertInstanceOf(SuccessResponse.class, hub.response);
       }
     }
