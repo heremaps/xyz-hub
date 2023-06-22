@@ -22,7 +22,7 @@ services:
             - LOCALSTACK_ENDPOINT=http://localstack:4566
         depends_on:
             - "postgres"
-            - "localstack"
+            - "aws-localstack"
         command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
     postgres:
         image: "xyz-postgres"
@@ -41,11 +41,13 @@ services:
         image: "swaggerapi/swagger-ui"
         container_name: "swagger-ui"
         ports:
+            - "8081:8080"
             - "8888:8080"
         environment:
             - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
-    localstack:
+    aws-localstack:
         image: "localstack/localstack"
+        container_name: "aws-localstack"
         hostname: localstack
         ports:
             - "4563-4599:4563-4599"

@@ -451,7 +451,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
                                ERRVALUE_22P05 = Pattern.compile("ERROR:\\s+(.*)\\s+Detail:\\s+(.*)\\s+Where:");
 
   protected XyzResponse checkSQLException(SQLException e, String table) {
-    logger.warn("{} SQL Error ({}) on {} : {}", traceItem, e.getSQLState(), table, e);
+    logger.warn("{} SQL Error ({}) on {} :", traceItem, e.getSQLState(), table, e);
 
     String sqlState = (e.getSQLState() != null ? e.getSQLState().toUpperCase() : "SNULL");
 

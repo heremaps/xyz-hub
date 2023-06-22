@@ -26,7 +26,6 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.QueryRunner.SCHEMA;
 import static com.here.xyz.psql.QueryRunner.TABLE;
-import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_SEQUENCE_SUFFIX;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -425,7 +424,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 return false;
             }
             if (!retryAttempted) {
-                logger.warn("{} Retry based on serverless scaling detected! RemainingTime: {} {}", traceItem, remainingSeconds, e);
+                logger.warn("{} Retry based on serverless scaling detected! RemainingTime: {} ", traceItem, remainingSeconds, e);
                 return true;
             }
         }
@@ -700,7 +699,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                         ;//Table does not exist yet - create it!
                     else {
 
-                        logger.warn("{} Transaction has failed. {]", traceItem, e);
+                        logger.warn("{} Transaction has failed. ", traceItem, e);
                         connection.close();
 
                         Map<String, Object> errorDetails = new HashMap<>();
@@ -1082,7 +1081,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             //Add new indices for existing tables
             createVersioningIndices(stmt, schema, tableName);
             //Add new sequence for existing tables
-            stmt.addBatch(buildCreateSequenceQuery(schema, tableName, VERSION_SEQUENCE_SUFFIX).substitute().text());
+            stmt.addBatch(buildCreateSequenceQuery(schema, tableName, "version").substitute().text());
 
             stmt.setQueryTimeout(calculateTimeout());
             stmt.executeBatch();
@@ -1104,6 +1103,16 @@ public abstract class DatabaseHandler extends StorageConnector {
             + "ALTER COLUMN id SET COMPRESSION lz4, "
             + "ALTER COLUMN jsondata SET COMPRESSION lz4, "
             + "ALTER COLUMN geo SET COMPRESSION lz4;")
+            .withVariable("schema", schema)
+            .withVariable("table", tableName)
+            .substitute()
+            .text());
+    }
+
+    private void alterAuthorColumnStorage(Statement stmt, String schema, String tableName) throws SQLException {
+        stmt.addBatch(new SQLQuery("ALTER TABLE ${schema}.${table} "
+            + "ALTER COLUMN author SET STORAGE MAIN, "
+            + "ALTER COLUMN author SET COMPRESSION lz4;")
             .withVariable("schema", schema)
             .withVariable("table", tableName)
             .substitute()
@@ -1246,15 +1255,6 @@ public abstract class DatabaseHandler extends StorageConnector {
             connection.commit();
             logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
         }
-    }
-
-    private void alterAuthorColumnStorage(Statement stmt, String schema, String tableName) throws SQLException {
-        List<SQLQuery> storageOptions  = Arrays.asList(
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET STORAGE MAIN;"),
-            new SQLQuery("ALTER TABLE ${schema}.${table} ALTER COLUMN author SET COMPRESSION lz4;")
-        );
-        for (SQLQuery query : storageOptions)
-            stmt.addBatch(query.withVariable("schema", schema).withVariable("table", tableName).substitute().text());
     }
 
     private void attachHeadPartition(Statement stmt, String schema, String rootTable, String partitionTable) throws SQLException {
@@ -1418,15 +1418,17 @@ public abstract class DatabaseHandler extends StorageConnector {
         createHeadPartition(stmt, schema, table);
         createHistoryPartition(stmt, schema, table, 0L);
 
-        stmt.addBatch(buildCreateSequenceQuery(schema, table, VERSION_SEQUENCE_SUFFIX).substitute().text());
+        stmt.addBatch(buildCreateSequenceQuery(schema, table, "version").substitute().text());
 
         stmt.setQueryTimeout(calculateTimeout());
     }
 
-    private static SQLQuery buildCreateSequenceQuery(String schema, String table, String sequenceNameSuffix) {
-        return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 0")
+    private static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName) {
+        return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 0 OWNED BY ${schema}.${table}.${columnName}")
             .withVariable("schema", schema)
-            .withVariable("sequence", table + sequenceNameSuffix);
+            .withVariable("table", table)
+            .withVariable("sequence", table + "_" + columnName + "_seq")
+            .withVariable("columnName", columnName);
     }
 
     private static void createVersioningIndices(Statement stmt, String schema, String table) throws SQLException {
