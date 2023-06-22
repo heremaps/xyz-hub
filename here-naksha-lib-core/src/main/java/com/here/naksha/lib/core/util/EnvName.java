@@ -12,17 +12,17 @@ import java.lang.annotation.Target;
 @Repeatable(EnvNames.class)
 public @interface EnvName {
 
-    /**
-     * The name of the environment variable.
-     *
-     * @return name of the environment variable.
-     */
-    String value() default "";
+  /**
+   * The name of the environment variable.
+   *
+   * @return name of the environment variable.
+   */
+  String value() default "";
 
-    /**
-     * If the name should be prefixed.
-     *
-     * @return if the name should be prefixed.
-     */
-    boolean prefix() default false;
+  /**
+   * If the name should be prefixed.
+   *
+   * @return if the name should be prefixed.
+   */
+  boolean prefix() default false;
 }

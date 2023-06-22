@@ -21,11 +21,11 @@ package com.here.naksha.lib.core.models.geojson.coordinates;
 
 public class LineStringCoordinates extends PositionList {
 
-    public LineStringCoordinates() {
-        super();
-    }
+  public LineStringCoordinates() {
+    super();
+  }
 
-    public LineStringCoordinates(int size) {
-        super(size);
-    }
+  public LineStringCoordinates(int size) {
+    super(size);
+  }
 }

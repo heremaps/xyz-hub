@@ -30,22 +30,22 @@ import com.here.naksha.lib.psql.sql.SQLQuery;
 @Deprecated
 public class SQLQueryExt extends SQLQuery {
 
-    @Deprecated
-    public SQLQueryExt() {}
+  @Deprecated
+  public SQLQueryExt() {}
 
-    @Deprecated
-    public SQLQueryExt(String text) {
-        super(text);
-    }
+  @Deprecated
+  public SQLQueryExt(String text) {
+    super(text);
+  }
 
-    @Deprecated
-    public SQLQueryExt(String text, Object... parameters) {
-        super(text, parameters);
-    }
+  @Deprecated
+  public SQLQueryExt(String text, Object... parameters) {
+    super(text, parameters);
+  }
 
-    @SuppressWarnings("rawtypes")
-    @Deprecated
-    public static SQLQuery selectJson(QueryEvent event) {
-        return GetFeatures.buildSelectionFragmentBWC(event);
-    }
+  @SuppressWarnings("rawtypes")
+  @Deprecated
+  public static SQLQuery selectJson(QueryEvent event) {
+    return GetFeatures.buildSelectionFragmentBWC(event);
+  }
 }

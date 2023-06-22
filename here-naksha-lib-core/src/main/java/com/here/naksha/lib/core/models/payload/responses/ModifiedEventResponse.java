@@ -27,18 +27,18 @@ import com.here.naksha.lib.core.models.payload.Event;
 @JsonTypeName(value = "ModifiedEventResponse")
 public class ModifiedEventResponse extends ModifiedPayloadResponse {
 
-    private Event event;
+  private Event event;
 
-    public Event getEvent() {
-        return this.event;
-    }
+  public Event getEvent() {
+    return this.event;
+  }
 
-    public void setEvent(Event event) {
-        this.event = event;
-    }
+  public void setEvent(Event event) {
+    this.event = event;
+  }
 
-    public ModifiedEventResponse withEvent(Event event) {
-        setEvent(event);
-        return this;
-    }
+  public ModifiedEventResponse withEvent(Event event) {
+    setEvent(event);
+    return this;
+  }
 }

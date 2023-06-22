@@ -31,36 +31,36 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "GetFeaturesByBBoxEvent")
 public class GetFeaturesByBBoxEvent extends SpatialQueryEvent {
 
-    @JsonProperty
-    public BBox bbox;
+  @JsonProperty
+  public BBox bbox;
 
-    @JsonProperty
-    public Clustering clustering;
+  @JsonProperty
+  public Clustering clustering;
 
-    @JsonProperty
-    public Tweaks tweaks;
+  @JsonProperty
+  public Tweaks tweaks;
 
-    public BBox getBbox() {
-        return this.bbox;
-    }
+  public BBox getBbox() {
+    return this.bbox;
+  }
 
-    public void setBbox(BBox bbox) {
-        this.bbox = bbox;
-    }
+  public void setBbox(BBox bbox) {
+    this.bbox = bbox;
+  }
 
-    public @Nullable Clustering getClustering() {
-        return this.clustering;
-    }
+  public @Nullable Clustering getClustering() {
+    return this.clustering;
+  }
 
-    public void setClustering(@Nullable Clustering clustering) {
-        this.clustering = clustering;
-    }
+  public void setClustering(@Nullable Clustering clustering) {
+    this.clustering = clustering;
+  }
 
-    public @Nullable Tweaks getTweaks() {
-        return this.tweaks;
-    }
+  public @Nullable Tweaks getTweaks() {
+    return this.tweaks;
+  }
 
-    public void setTweaks(@Nullable Tweaks tweaks) {
-        this.tweaks = tweaks;
-    }
+  public void setTweaks(@Nullable Tweaks tweaks) {
+    this.tweaks = tweaks;
+  }
 }

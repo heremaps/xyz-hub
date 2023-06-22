@@ -34,146 +34,146 @@ import org.jetbrains.annotations.NotNull;
 
 public abstract class GetFeatures<E extends Event> extends ExtendedSpace<E, FeatureCollection> {
 
-    public GetFeatures(@NotNull E event, final @NotNull PsqlHandler psqlConnector) throws SQLException {
-        super(event, psqlConnector);
-        setUseReadReplica(true);
+  public GetFeatures(@NotNull E event, final @NotNull PsqlHandler psqlConnector) throws SQLException {
+    super(event, psqlConnector);
+    setUseReadReplica(true);
+  }
+
+  @Override
+  protected @NotNull SQLQuery buildQuery(@NotNull E event) throws SQLException {
+    boolean isExtended = isExtendedSpace(event);
+    SQLQuery query;
+    if (isExtended) {
+      query = new SQLQuery("SELECT * FROM ("
+          + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
+          + "        FROM ${schema}.${table}"
+          + "        WHERE ${{filterWhereClause}} AND deleted = false ${{iOffsetExtension}} ${{limit}})"
+          + "    UNION ALL "
+          + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
+          + "            ("
+          + "                ${{baseQuery}}"
+          + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE jsondata->>'id' = a.jsondata->>'id')"
+          + ") limitQuery ${{limit}}");
+    } else {
+      query = new SQLQuery("SELECT ${{selection}}, ${{geo}}${{iColumn}}"
+          + "    FROM ${schema}.${table}"
+          + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
-    @Override
-    protected @NotNull SQLQuery buildQuery(@NotNull E event) throws SQLException {
-        boolean isExtended = isExtendedSpace(event);
-        SQLQuery query;
-        if (isExtended) {
-            query = new SQLQuery("SELECT * FROM ("
-                    + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
-                    + "        FROM ${schema}.${table}"
-                    + "        WHERE ${{filterWhereClause}} AND deleted = false ${{iOffsetExtension}} ${{limit}})"
-                    + "    UNION ALL "
-                    + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
-                    + "            ("
-                    + "                ${{baseQuery}}"
-                    + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE jsondata->>'id' = a.jsondata->>'id')"
-                    + ") limitQuery ${{limit}}");
-        } else {
-            query = new SQLQuery("SELECT ${{selection}}, ${{geo}}${{iColumn}}"
-                    + "    FROM ${schema}.${table}"
-                    + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}} ${{offset}}");
-        }
+    if (event instanceof FeatureEvent)
+      query.setQueryFragment("selection", buildSelectionFragment((FeatureEvent) event));
+    else query.setQueryFragment("selection", "jsondata");
 
-        if (event instanceof FeatureEvent)
-            query.setQueryFragment("selection", buildSelectionFragment((FeatureEvent) event));
-        else query.setQueryFragment("selection", "jsondata");
+    query.setQueryFragment("geo", buildGeoFragment(event));
+    query.setQueryFragment("iColumn", ""); // NOTE: This can be overridden by implementing subclasses
+    query.setQueryFragment("limit", ""); // NOTE: This can be overridden by implementing subclasses
 
-        query.setQueryFragment("geo", buildGeoFragment(event));
-        query.setQueryFragment("iColumn", ""); // NOTE: This can be overridden by implementing subclasses
-        query.setQueryFragment("limit", ""); // NOTE: This can be overridden by implementing subclasses
+    query.setVariable(SCHEMA, processor.spaceSchema());
+    query.setVariable(TABLE, processor.spaceTable());
 
-        query.setVariable(SCHEMA, processor.spaceSchema());
-        query.setVariable(TABLE, processor.spaceTable());
+    if (isExtended) {
+      query.setQueryFragment("iColumnExtension", ""); // NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("iOffsetExtension", "");
 
-        if (isExtended) {
-            query.setQueryFragment("iColumnExtension", ""); // NOTE: This can be overridden by implementing subclasses
-            query.setQueryFragment("iOffsetExtension", "");
+      SQLQuery baseQuery = !is2LevelExtendedSpace(event)
+          ? build1LevelBaseQuery(getExtendedTable(event)) // 1-level extension
+          : build2LevelBaseQuery(getIntermediateTable(event), getExtendedTable(event)); // 2-level extension
 
-            SQLQuery baseQuery = !is2LevelExtendedSpace(event)
-                    ? build1LevelBaseQuery(getExtendedTable(event)) // 1-level extension
-                    : build2LevelBaseQuery(getIntermediateTable(event), getExtendedTable(event)); // 2-level extension
+      query.setQueryFragment("baseQuery", baseQuery);
 
-            query.setQueryFragment("baseQuery", baseQuery);
-
-            query.setQueryFragment("iColumnBase", ""); // NOTE: This can be overridden by implementing subclasses
-            query.setQueryFragment("iOffsetBase", ""); // NOTE: This can be overridden by implementing subclasses
-            query.setQueryFragment(
-                    "iColumnIntermediate", ""); // NOTE: This can be overridden by implementing subclasses
-            query.setQueryFragment(
-                    "iOffsetIntermediate", ""); // NOTE: This can be overridden by implementing subclasses
-        } else {
-            query.setQueryFragment("orderBy", ""); // NOTE: This can be overridden by implementing subclasses
-            query.setQueryFragment("offset", ""); // NOTE: This can be overridden by implementing subclasses
-        }
-
-        return query;
+      query.setQueryFragment("iColumnBase", ""); // NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("iOffsetBase", ""); // NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment(
+          "iColumnIntermediate", ""); // NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment(
+          "iOffsetIntermediate", ""); // NOTE: This can be overridden by implementing subclasses
+    } else {
+      query.setQueryFragment("orderBy", ""); // NOTE: This can be overridden by implementing subclasses
+      query.setQueryFragment("offset", ""); // NOTE: This can be overridden by implementing subclasses
     }
 
-    private SQLQuery build1LevelBaseQuery(String extendedTable) {
-        SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumnBase}}"
-                + "    FROM ${schema}.${extendedTable} m"
-                + "    WHERE ${{filterWhereClause}} ${{iOffsetBase}} ${{limit}}"); // in the base
-        // table there is
-        // no need to
-        // check a
-        // deleted flag;
-        query.setVariable("extendedTable", extendedTable);
-        return query;
+    return query;
+  }
+
+  private SQLQuery build1LevelBaseQuery(String extendedTable) {
+    SQLQuery query = new SQLQuery("SELECT jsondata, geo${{iColumnBase}}"
+        + "    FROM ${schema}.${extendedTable} m"
+        + "    WHERE ${{filterWhereClause}} ${{iOffsetBase}} ${{limit}}"); // in the base
+    // table there is
+    // no need to
+    // check a
+    // deleted flag;
+    query.setVariable("extendedTable", extendedTable);
+    return query;
+  }
+
+  private SQLQuery build2LevelBaseQuery(String intermediateTable, String extendedTable) {
+    SQLQuery query = new SQLQuery(
+        "(SELECT jsondata, geo${{iColumnIntermediate}}"
+            + "    FROM ${schema}.${intermediateExtensionTable}"
+            + "    WHERE ${{filterWhereClause}} AND deleted = false ${{iOffsetIntermediate}} ${{limit}})"
+            + "UNION ALL"
+            + "    SELECT jsondata, geo${{iColumn}} FROM"
+            + "        ("
+            + "            ${{innerBaseQuery}}"
+            + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE jsondata->>'id' = b.jsondata->>'id')");
+    query.setVariable("intermediateExtensionTable", intermediateTable);
+    query.setQueryFragment("innerBaseQuery", build1LevelBaseQuery(extendedTable));
+    return query;
+  }
+
+  @Override
+  public @NotNull FeatureCollection handle(@NotNull ResultSet rs) throws SQLException {
+    return processor.defaultFeatureResultSetHandler(rs);
+  }
+
+  protected static SQLQuery buildSelectionFragment(FeatureEvent event) {
+    if (event.getSelection() == null || event.getSelection().size() == 0) return new SQLQuery("jsondata");
+
+    List<String> selection = event.getSelection();
+    if (!selection.contains("type")) {
+      selection = new ArrayList<>(selection);
+      selection.add("type");
     }
 
-    private SQLQuery build2LevelBaseQuery(String intermediateTable, String extendedTable) {
-        SQLQuery query = new SQLQuery(
-                "(SELECT jsondata, geo${{iColumnIntermediate}}"
-                        + "    FROM ${schema}.${intermediateExtensionTable}"
-                        + "    WHERE ${{filterWhereClause}} AND deleted = false ${{iOffsetIntermediate}} ${{limit}})"
-                        + "UNION ALL"
-                        + "    SELECT jsondata, geo${{iColumn}} FROM"
-                        + "        ("
-                        + "            ${{innerBaseQuery}}"
-                        + "        ) b WHERE NOT exists(SELECT 1 FROM ${schema}.${intermediateExtensionTable} WHERE jsondata->>'id' = b.jsondata->>'id')");
-        query.setVariable("intermediateExtensionTable", intermediateTable);
-        query.setQueryFragment("innerBaseQuery", build1LevelBaseQuery(extendedTable));
-        return query;
-    }
+    return new SQLQuery("(SELECT "
+            + "CASE WHEN prj_build ?? 'properties' THEN prj_build "
+            + "ELSE jsonb_set(prj_build,'{properties}','{}'::jsonb) "
+            + "END "
+            + "FROM prj_build(#{selection}, jsondata)) AS jsondata")
+        .withNamedParameter("selection", selection.toArray(new String[0]));
+  }
 
-    @Override
-    public @NotNull FeatureCollection handle(@NotNull ResultSet rs) throws SQLException {
-        return processor.defaultFeatureResultSetHandler(rs);
-    }
+  // TODO: Can be removed after completion of refactoring
+  @Deprecated
+  public static SQLQuery buildSelectionFragmentBWC(QueryEvent event) {
+    SQLQuery selectionFragment = buildSelectionFragment(event);
+    selectionFragment.replaceNamedParameters();
+    return selectionFragment;
+  }
 
-    protected static SQLQuery buildSelectionFragment(FeatureEvent event) {
-        if (event.getSelection() == null || event.getSelection().size() == 0) return new SQLQuery("jsondata");
+  protected SQLQuery buildGeoFragment(E event) {
+    return buildGeoFragment(event, true, null);
+  }
 
-        List<String> selection = event.getSelection();
-        if (!selection.contains("type")) {
-            selection = new ArrayList<>(selection);
-            selection.add("type");
-        }
+  protected SQLQuery buildGeoFragment(Event event, SQLQuery geoOverride) {
+    return buildGeoFragment(event, true, geoOverride);
+  }
 
-        return new SQLQuery("(SELECT "
-                        + "CASE WHEN prj_build ?? 'properties' THEN prj_build "
-                        + "ELSE jsonb_set(prj_build,'{properties}','{}'::jsonb) "
-                        + "END "
-                        + "FROM prj_build(#{selection}, jsondata)) AS jsondata")
-                .withNamedParameter("selection", selection.toArray(new String[0]));
-    }
+  protected static SQLQuery buildGeoFragment(Event event, boolean convertToGeoJson) {
+    return buildGeoFragment(event, convertToGeoJson, null);
+  }
 
-    // TODO: Can be removed after completion of refactoring
-    @Deprecated
-    public static SQLQuery buildSelectionFragmentBWC(QueryEvent event) {
-        SQLQuery selectionFragment = buildSelectionFragment(event);
-        selectionFragment.replaceNamedParameters();
-        return selectionFragment;
-    }
+  protected static SQLQuery buildGeoFragment(Event event, boolean convertToGeoJson, SQLQuery geoOverride) {
+    boolean isForce2D = event instanceof FeatureEvent && ((FeatureEvent) event).isForce2D();
+    String geo = geoOverride != null ? "${{geoOverride}}" : ((isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo)");
 
-    protected SQLQuery buildGeoFragment(E event) {
-        return buildGeoFragment(event, true, null);
-    }
+    if (convertToGeoJson)
+      geo = "replace(ST_AsGeojson(" + geo + ", " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
 
-    protected SQLQuery buildGeoFragment(Event event, SQLQuery geoOverride) {
-        return buildGeoFragment(event, true, geoOverride);
-    }
+    SQLQuery geoFragment = new SQLQuery(geo + " as geo");
+    if (geoOverride != null) geoFragment.setQueryFragment("geoOverride", geoOverride);
 
-    protected static SQLQuery buildGeoFragment(Event event, boolean convertToGeoJson) {
-        return buildGeoFragment(event, convertToGeoJson, null);
-    }
-
-    protected static SQLQuery buildGeoFragment(Event event, boolean convertToGeoJson, SQLQuery geoOverride) {
-        boolean isForce2D = event instanceof FeatureEvent && ((FeatureEvent) event).isForce2D();
-        String geo = geoOverride != null ? "${{geoOverride}}" : ((isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo)");
-
-        if (convertToGeoJson)
-            geo = "replace(ST_AsGeojson(" + geo + ", " + SQLQueryBuilder.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
-
-        SQLQuery geoFragment = new SQLQuery(geo + " as geo");
-        if (geoOverride != null) geoFragment.setQueryFragment("geoOverride", geoOverride);
-
-        return geoFragment;
-    }
+    return geoFragment;
+  }
 }

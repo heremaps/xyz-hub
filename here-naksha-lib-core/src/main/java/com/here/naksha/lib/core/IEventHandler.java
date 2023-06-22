@@ -16,14 +16,14 @@ import org.jetbrains.annotations.NotNull;
 @FunctionalInterface
 public interface IEventHandler {
 
-    /**
-     * The method invoked by the XYZ-Hub directly (embedded) or indirectly, when running in an HTTP
-     * vertx or as AWS lambda.
-     *
-     * @param eventContext the event context to process.
-     * @return the response to send.
-     * @throws XyzErrorException if any error occurred.
-     */
-    @NotNull
-    XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException;
+  /**
+   * The method invoked by the XYZ-Hub directly (embedded) or indirectly, when running in an HTTP
+   * vertx or as AWS lambda.
+   *
+   * @param eventContext the event context to process.
+   * @return the response to send.
+   * @throws XyzErrorException if any error occurred.
+   */
+  @NotNull
+  XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException;
 }

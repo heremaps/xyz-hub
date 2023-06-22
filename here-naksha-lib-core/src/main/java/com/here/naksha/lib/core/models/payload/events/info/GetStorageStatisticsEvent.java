@@ -24,18 +24,18 @@ import java.util.List;
 
 public class GetStorageStatisticsEvent extends InfoEvent {
 
-    private List<String> spaceIds;
+  private List<String> spaceIds;
 
-    public List<String> getSpaceIds() {
-        return spaceIds;
-    }
+  public List<String> getSpaceIds() {
+    return spaceIds;
+  }
 
-    public void setSpaceIds(List<String> spaceIds) {
-        this.spaceIds = spaceIds;
-    }
+  public void setSpaceIds(List<String> spaceIds) {
+    this.spaceIds = spaceIds;
+  }
 
-    public GetStorageStatisticsEvent withSpaceIds(List<String> spaceIds) {
-        setSpaceIds(spaceIds);
-        return this;
-    }
+  public GetStorageStatisticsEvent withSpaceIds(List<String> spaceIds) {
+    setSpaceIds(spaceIds);
+    return this;
+  }
 }

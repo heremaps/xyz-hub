@@ -24,16 +24,16 @@ import java.nio.charset.Charset;
 
 public class Hasher {
 
-    public static final String getHash(String toBeHashed) {
-        //noinspection UnstableApiUsage
-        return Hashing.murmur3_128()
-                .newHasher()
-                .putString(toBeHashed, Charset.defaultCharset())
-                .hash()
-                .toString();
-    }
+  public static final String getHash(String toBeHashed) {
+    //noinspection UnstableApiUsage
+    return Hashing.murmur3_128()
+        .newHasher()
+        .putString(toBeHashed, Charset.defaultCharset())
+        .hash()
+        .toString();
+  }
 
-    public static final String getHash(byte[] bytes) {
-        return Hashing.murmur3_128().newHasher().putBytes(bytes).hash().toString();
-    }
+  public static final String getHash(byte[] bytes) {
+    return Hashing.murmur3_128().newHasher().putBytes(bytes).hash().toString();
+  }
 }

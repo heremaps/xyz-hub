@@ -29,63 +29,63 @@ import org.junit.jupiter.api.Test;
 
 class HttpHandlerTest {
 
-    static Connector eventHandler;
-    static IoEventPipeline eventPipeline;
-    static HttpHandler httpHandler;
+  static Connector eventHandler;
+  static IoEventPipeline eventPipeline;
+  static HttpHandler httpHandler;
 
-    @BeforeAll
-    static void setup() throws XyzErrorException, IOException {
-        eventHandler = new Connector("test:http", HttpHandler.class);
-        String url = "http://localhost:9999/";
-        try {
-            // Set the env var below if you want to run the test against a specific endpoint
-            final String rawUrl = System.getenv("HTTP_HANDLER_TEST_URI");
-            final URL goodURL = new URL(rawUrl);
-            url = goodURL.toString();
-        } catch (Exception ignore) {
-        }
-        eventHandler.getProperties().put(HttpHandlerParams.URL, url);
-        eventHandler.getProperties().put(HttpHandlerParams.HTTP_METHOD, HttpHandlerParams.HTTP_GET);
-        eventPipeline = new IoEventPipeline();
-        httpHandler = new HttpHandler(eventHandler);
-        eventPipeline.addEventHandler(httpHandler);
-        fakeWebserver = new MockHttpServer(9999);
+  @BeforeAll
+  static void setup() throws XyzErrorException, IOException {
+    eventHandler = new Connector("test:http", HttpHandler.class);
+    String url = "http://localhost:9999/";
+    try {
+      // Set the env var below if you want to run the test against a specific endpoint
+      final String rawUrl = System.getenv("HTTP_HANDLER_TEST_URI");
+      final URL goodURL = new URL(rawUrl);
+      url = goodURL.toString();
+    } catch (Exception ignore) {
     }
+    eventHandler.getProperties().put(HttpHandlerParams.URL, url);
+    eventHandler.getProperties().put(HttpHandlerParams.HTTP_METHOD, HttpHandlerParams.HTTP_GET);
+    eventPipeline = new IoEventPipeline();
+    httpHandler = new HttpHandler(eventHandler);
+    eventPipeline.addEventHandler(httpHandler);
+    fakeWebserver = new MockHttpServer(9999);
+  }
 
-    @AfterAll
-    public static void stopWebServer() {
-        if (fakeWebserver != null) {
-            fakeWebserver.server.stop(0);
-            fakeWebserver = null;
-        }
+  @AfterAll
+  public static void stopWebServer() {
+    if (fakeWebserver != null) {
+      fakeWebserver.server.stop(0);
+      fakeWebserver = null;
     }
+  }
 
-    static MockHttpServer fakeWebserver;
+  static MockHttpServer fakeWebserver;
 
-    @Test
-    void test_GetFeaturesById() throws IOException {
-        final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent();
-        final List<String> ids = new ArrayList<>();
-        ids.add("a");
-        ids.add("b");
-        event.setIds(ids);
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray(Serialize.Internal.class)), out);
-        final XyzResponse response = JsonSerializable.deserialize(out.toByteArray(), XyzResponse.class);
-        assertNotNull(response);
-        final ErrorResponse errorResponse = assertInstanceOf(ErrorResponse.class, response);
-        assertSame(XyzError.NOT_IMPLEMENTED, errorResponse.getError());
-    }
+  @Test
+  void test_GetFeaturesById() throws IOException {
+    final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent();
+    final List<String> ids = new ArrayList<>();
+    ids.add("a");
+    ids.add("b");
+    event.setIds(ids);
+    final ByteArrayOutputStream out = new ByteArrayOutputStream();
+    eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray(Serialize.Internal.class)), out);
+    final XyzResponse response = JsonSerializable.deserialize(out.toByteArray(), XyzResponse.class);
+    assertNotNull(response);
+    final ErrorResponse errorResponse = assertInstanceOf(ErrorResponse.class, response);
+    assertSame(XyzError.NOT_IMPLEMENTED, errorResponse.getError());
+  }
 
-    @Test
-    public void test_HealthCheckEvent() throws IOException {
-        final HealthCheckEvent event = new HealthCheckEvent();
-        event.setSpace(new Space("ASpaceThatShouldNotExistBecauseWeAreTesting"));
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray(Serialize.Internal.class)), out);
-        //    eventPipeline.sendEvent(IoHelp.openResource("testevent.json"), out);
-        final XyzResponse response = JsonSerializable.deserialize(out.toByteArray(), XyzResponse.class);
-        assertNotNull(response);
-        assertInstanceOf(HealthStatus.class, response);
-    }
+  @Test
+  public void test_HealthCheckEvent() throws IOException {
+    final HealthCheckEvent event = new HealthCheckEvent();
+    event.setSpace(new Space("ASpaceThatShouldNotExistBecauseWeAreTesting"));
+    final ByteArrayOutputStream out = new ByteArrayOutputStream();
+    eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray(Serialize.Internal.class)), out);
+    //    eventPipeline.sendEvent(IoHelp.openResource("testevent.json"), out);
+    final XyzResponse response = JsonSerializable.deserialize(out.toByteArray(), XyzResponse.class);
+    assertNotNull(response);
+    assertInstanceOf(HealthStatus.class, response);
+  }
 }

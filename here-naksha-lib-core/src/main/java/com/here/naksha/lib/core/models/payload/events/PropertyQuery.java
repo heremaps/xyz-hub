@@ -35,63 +35,63 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "PropertyQuery")
 public class PropertyQuery {
 
-    public PropertyQuery() {}
+  public PropertyQuery() {}
 
-    public PropertyQuery(@NotNull String key, @NotNull QueryOperation op) {}
+  public PropertyQuery(@NotNull String key, @NotNull QueryOperation op) {}
 
-    /** The property key as JSON path. */
-    private String key;
-    /** The operation. */
-    private QueryOperation operation;
-    /** The values to apply the operation for, OR condition (so any of the values should match). */
-    private List<Object> values;
+  /** The property key as JSON path. */
+  private String key;
+  /** The operation. */
+  private QueryOperation operation;
+  /** The values to apply the operation for, OR condition (so any of the values should match). */
+  private List<Object> values;
 
-    @SuppressWarnings("unused")
-    public String getKey() {
-        return this.key;
+  @SuppressWarnings("unused")
+  public String getKey() {
+    return this.key;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setKey(String key) {
+    this.key = key;
+  }
+
+  @SuppressWarnings("unused")
+  public PropertyQuery withKey(String key) {
+    setKey(key);
+    return this;
+  }
+
+  @SuppressWarnings("unused")
+  public @NotNull QueryOperation getOperation() {
+    return this.operation;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setOperation(QueryOperation operation) {
+    this.operation = operation;
+  }
+
+  @SuppressWarnings("unused")
+  public @NotNull PropertyQuery withOperation(QueryOperation operation) {
+    setOperation(operation);
+    return this;
+  }
+
+  @SuppressWarnings("unused")
+  public @NotNull List<@Nullable Object> getValues() {
+    if (values == null) {
+      values = new ArrayList<>();
     }
+    return values;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setKey(String key) {
-        this.key = key;
-    }
+  public void setValues(@NotNull List<@Nullable Object> values) {
+    this.values = values;
+  }
 
-    @SuppressWarnings("unused")
-    public PropertyQuery withKey(String key) {
-        setKey(key);
-        return this;
-    }
-
-    @SuppressWarnings("unused")
-    public @NotNull QueryOperation getOperation() {
-        return this.operation;
-    }
-
-    @SuppressWarnings("WeakerAccess")
-    public void setOperation(QueryOperation operation) {
-        this.operation = operation;
-    }
-
-    @SuppressWarnings("unused")
-    public @NotNull PropertyQuery withOperation(QueryOperation operation) {
-        setOperation(operation);
-        return this;
-    }
-
-    @SuppressWarnings("unused")
-    public @NotNull List<@Nullable Object> getValues() {
-        if (values == null) {
-            values = new ArrayList<>();
-        }
-        return values;
-    }
-
-    public void setValues(@NotNull List<@Nullable Object> values) {
-        this.values = values;
-    }
-
-    public @NotNull PropertyQuery withValues(@NotNull List<@Nullable Object> values) {
-        this.values = values;
-        return this;
-    }
+  public @NotNull PropertyQuery withValues(@NotNull List<@Nullable Object> values) {
+    this.values = values;
+    return this;
+  }
 }

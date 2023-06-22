@@ -29,29 +29,29 @@ import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryExcepti
 @JsonTypeName(value = "Polygon")
 public class Polygon extends GeometryItem {
 
-    private PolygonCoordinates coordinates = new PolygonCoordinates();
+  private PolygonCoordinates coordinates = new PolygonCoordinates();
 
-    @Override
-    public PolygonCoordinates getCoordinates() {
-        return this.coordinates;
-    }
+  @Override
+  public PolygonCoordinates getCoordinates() {
+    return this.coordinates;
+  }
 
-    public void setCoordinates(PolygonCoordinates coordinates) {
-        this.coordinates = coordinates;
-    }
+  public void setCoordinates(PolygonCoordinates coordinates) {
+    this.coordinates = coordinates;
+  }
 
-    public Polygon withCoordinates(PolygonCoordinates coordinates) {
-        setCoordinates(coordinates);
-        return this;
-    }
+  public Polygon withCoordinates(PolygonCoordinates coordinates) {
+    setCoordinates(coordinates);
+    return this;
+  }
 
-    @Override
-    protected com.vividsolutions.jts.geom.Geometry convertToJTSGeometry() {
-        return JTSHelper.toPolygon(this.coordinates);
-    }
+  @Override
+  protected com.vividsolutions.jts.geom.Geometry convertToJTSGeometry() {
+    return JTSHelper.toPolygon(this.coordinates);
+  }
 
-    @Override
-    public void validate() throws InvalidGeometryException {
-        validatePolygonCoordinates(this.coordinates);
-    }
+  @Override
+  public void validate() throws InvalidGeometryException {
+    validatePolygonCoordinates(this.coordinates);
+  }
 }

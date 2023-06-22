@@ -31,91 +31,91 @@ import java.util.List;
 @JsonTypeName(value = "GeometryCollection")
 public class GeometryCollection extends Geometry {
 
-    private List<GeometryItem> geometries = new ArrayList<>();
+  private List<GeometryItem> geometries = new ArrayList<>();
 
-    public List<GeometryItem> getGeometries() {
-        return this.geometries;
+  public List<GeometryItem> getGeometries() {
+    return this.geometries;
+  }
+
+  @SuppressWarnings("WeakerAccess")
+  public void setGeometries(List<GeometryItem> geometries) {
+    this.geometries = geometries;
+  }
+
+  public GeometryCollection withGeometries(final List<GeometryItem> geometries) {
+    setGeometries(geometries);
+    return this;
+  }
+
+  @Override
+  public BBox calculateBBox() {
+    if (this.geometries == null || this.geometries.size() == 0) {
+      return null;
     }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setGeometries(List<GeometryItem> geometries) {
-        this.geometries = geometries;
+    double minLon = Double.MAX_VALUE;
+    double minLat = Double.MAX_VALUE;
+    double maxLon = Double.MIN_VALUE;
+    double maxLat = Double.MIN_VALUE;
+
+    for (GeometryItem geom : this.geometries) {
+      BBox bbox = geom.calculateBBox();
+      if (bbox != null) {
+        if (bbox.minLon() < minLon) {
+          minLon = bbox.minLon();
+        }
+        if (bbox.minLat() < minLat) {
+          minLat = bbox.minLat();
+        }
+        if (bbox.maxLon() > maxLon) {
+          maxLon = bbox.maxLon();
+        }
+        if (bbox.maxLat() > maxLat) {
+          maxLat = bbox.maxLat();
+        }
+      }
     }
 
-    public GeometryCollection withGeometries(final List<GeometryItem> geometries) {
-        setGeometries(geometries);
-        return this;
+    if (minLon != Double.MAX_VALUE
+        && minLat != Double.MAX_VALUE
+        && maxLon != Double.MIN_VALUE
+        && maxLat != Double.MIN_VALUE) {
+      return new BBox(minLon, minLat, maxLon, maxLat);
+    }
+    return null;
+  }
+
+  @Override
+  protected com.vividsolutions.jts.geom.GeometryCollection convertToJTSGeometry() {
+    if (this.geometries == null || this.geometries.size() == 0) {
+      return null;
     }
 
-    @Override
-    public BBox calculateBBox() {
-        if (this.geometries == null || this.geometries.size() == 0) {
-            return null;
-        }
-
-        double minLon = Double.MAX_VALUE;
-        double minLat = Double.MAX_VALUE;
-        double maxLon = Double.MIN_VALUE;
-        double maxLat = Double.MIN_VALUE;
-
-        for (GeometryItem geom : this.geometries) {
-            BBox bbox = geom.calculateBBox();
-            if (bbox != null) {
-                if (bbox.minLon() < minLon) {
-                    minLon = bbox.minLon();
-                }
-                if (bbox.minLat() < minLat) {
-                    minLat = bbox.minLat();
-                }
-                if (bbox.maxLon() > maxLon) {
-                    maxLon = bbox.maxLon();
-                }
-                if (bbox.maxLat() > maxLat) {
-                    maxLat = bbox.maxLat();
-                }
-            }
-        }
-
-        if (minLon != Double.MAX_VALUE
-                && minLat != Double.MAX_VALUE
-                && maxLon != Double.MIN_VALUE
-                && maxLat != Double.MIN_VALUE) {
-            return new BBox(minLon, minLat, maxLon, maxLat);
-        }
-        return null;
+    com.vividsolutions.jts.geom.Geometry[] jtsGeometries =
+        new com.vividsolutions.jts.geom.Geometry[this.geometries.size()];
+    for (int i = 0; i < jtsGeometries.length; i++) {
+      jtsGeometries[i] = this.geometries.get(i).getJTSGeometry();
     }
 
-    @Override
-    protected com.vividsolutions.jts.geom.GeometryCollection convertToJTSGeometry() {
-        if (this.geometries == null || this.geometries.size() == 0) {
-            return null;
-        }
+    return JTSHelper.factory.createGeometryCollection(jtsGeometries);
+  }
 
-        com.vividsolutions.jts.geom.Geometry[] jtsGeometries =
-                new com.vividsolutions.jts.geom.Geometry[this.geometries.size()];
-        for (int i = 0; i < jtsGeometries.length; i++) {
-            jtsGeometries[i] = this.geometries.get(i).getJTSGeometry();
-        }
-
-        return JTSHelper.factory.createGeometryCollection(jtsGeometries);
+  @SuppressWarnings("unchecked")
+  @Override
+  public void validate() throws InvalidGeometryException {
+    if (this.geometries == null || this.geometries.size() == 0) {
+      return;
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
-    public void validate() throws InvalidGeometryException {
-        if (this.geometries == null || this.geometries.size() == 0) {
-            return;
-        }
-
-        for (GeometryItem geometry : this.geometries) {
-            try {
-                geometry.validate();
-            } catch (InvalidGeometryException e) {
-                throw new InvalidGeometryException("The geometry with type "
-                        + geometry.getClass().getSimpleName()
-                        + " is invalid, reason: "
-                        + e.getMessage());
-            }
-        }
+    for (GeometryItem geometry : this.geometries) {
+      try {
+        geometry.validate();
+      } catch (InvalidGeometryException e) {
+        throw new InvalidGeometryException("The geometry with type "
+            + geometry.getClass().getSimpleName()
+            + " is invalid, reason: "
+            + e.getMessage());
+      }
     }
+  }
 }

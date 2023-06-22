@@ -27,84 +27,84 @@ import java.util.List;
 @JsonTypeName(value = "IterateFeaturesEvent")
 public final class IterateFeaturesEvent extends SearchForFeaturesEvent {
 
-    private String handle;
+  private String handle;
 
-    @Deprecated
-    private Integer v;
+  @Deprecated
+  private Integer v;
 
-    private List<String> sort;
-    private Integer[] part;
-    private long offset;
+  private List<String> sort;
+  private Integer[] part;
+  private long offset;
 
-    @Deprecated
-    public Integer getV() {
-        return v;
-    }
+  @Deprecated
+  public Integer getV() {
+    return v;
+  }
 
-    @Deprecated
-    public void setV(Integer v) {
-        this.v = v;
-    }
+  @Deprecated
+  public void setV(Integer v) {
+    this.v = v;
+  }
 
-    @Deprecated
-    public IterateFeaturesEvent withV(Integer v) {
-        setV(v);
-        return this;
-    }
+  @Deprecated
+  public IterateFeaturesEvent withV(Integer v) {
+    setV(v);
+    return this;
+  }
 
-    @SuppressWarnings("unused")
-    public String getHandle() {
-        return handle;
-    }
+  @SuppressWarnings("unused")
+  public String getHandle() {
+    return handle;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setHandle(String handle) {
-        this.handle = handle;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setHandle(String handle) {
+    this.handle = handle;
+  }
 
-    @SuppressWarnings("unused")
-    public IterateFeaturesEvent withHandle(String handle) {
-        setHandle(handle);
-        return this;
-    }
+  @SuppressWarnings("unused")
+  public IterateFeaturesEvent withHandle(String handle) {
+    setHandle(handle);
+    return this;
+  }
 
-    @SuppressWarnings("unused")
-    public List<String> getSort() {
-        return this.sort;
-    }
+  @SuppressWarnings("unused")
+  public List<String> getSort() {
+    return this.sort;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setSort(List<String> sort) {
-        this.sort = sort;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setSort(List<String> sort) {
+    this.sort = sort;
+  }
 
-    @SuppressWarnings("unused")
-    public IterateFeaturesEvent withSort(List<String> sort) {
-        setSort(sort);
-        return this;
-    }
+  @SuppressWarnings("unused")
+  public IterateFeaturesEvent withSort(List<String> sort) {
+    setSort(sort);
+    return this;
+  }
 
-    @SuppressWarnings("unused")
-    public Integer[] getPart() {
-        return this.part;
-    }
+  @SuppressWarnings("unused")
+  public Integer[] getPart() {
+    return this.part;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setPart(Integer[] part) {
-        this.part = part;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setPart(Integer[] part) {
+    this.part = part;
+  }
 
-    @SuppressWarnings("unused")
-    public IterateFeaturesEvent withPart(Integer[] part) {
-        setPart(part);
-        return this;
-    }
+  @SuppressWarnings("unused")
+  public IterateFeaturesEvent withPart(Integer[] part) {
+    setPart(part);
+    return this;
+  }
 
-    public long getOffset() {
-        return offset;
-    }
+  public long getOffset() {
+    return offset;
+  }
 
-    public void setOffset(long offset) {
-        this.offset = offset;
-    }
+  public void setOffset(long offset) {
+    this.offset = offset;
+  }
 }

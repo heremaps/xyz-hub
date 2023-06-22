@@ -16,25 +16,25 @@ import org.jetbrains.annotations.NotNull;
 @JsonTypeName(value = "naksha.ext.rpc.v1.processEvent")
 public class ProcessEvent extends ExtensionMessage {
 
-    @AvailableSince(INaksha.v2_0_3)
-    public static final String CONNECTOR = "connector";
+  @AvailableSince(INaksha.v2_0_3)
+  public static final String CONNECTOR = "connector";
 
-    @AvailableSince(INaksha.v2_0_3)
-    public static final String EVENT = "event";
+  @AvailableSince(INaksha.v2_0_3)
+  public static final String EVENT = "event";
 
-    @JsonCreator
-    @AvailableSince(INaksha.v2_0_3)
-    public ProcessEvent(
-            @JsonProperty(CONNECTOR) @NotNull Connector connector, @JsonProperty(EVENT) @NotNull Event event) {
-        this.connector = connector;
-        this.event = event;
-    }
+  @JsonCreator
+  @AvailableSince(INaksha.v2_0_3)
+  public ProcessEvent(
+      @JsonProperty(CONNECTOR) @NotNull Connector connector, @JsonProperty(EVENT) @NotNull Event event) {
+    this.connector = connector;
+    this.event = event;
+  }
 
-    @AvailableSince(INaksha.v2_0_3)
-    @JsonProperty(CONNECTOR)
-    public final @NotNull Connector connector;
+  @AvailableSince(INaksha.v2_0_3)
+  @JsonProperty(CONNECTOR)
+  public final @NotNull Connector connector;
 
-    @AvailableSince(INaksha.v2_0_3)
-    @JsonProperty(EVENT)
-    public final @NotNull Event event;
+  @AvailableSince(INaksha.v2_0_3)
+  @JsonProperty(EVENT)
+  public final @NotNull Event event;
 }

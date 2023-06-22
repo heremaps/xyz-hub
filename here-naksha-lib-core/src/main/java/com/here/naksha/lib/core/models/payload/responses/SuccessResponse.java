@@ -27,22 +27,22 @@ import com.here.naksha.lib.core.models.payload.XyzResponse;
 @JsonTypeName(value = "SuccessResponse")
 public class SuccessResponse extends XyzResponse {
 
-    public SuccessResponse() {
-        setStatus("OK");
-    }
+  public SuccessResponse() {
+    setStatus("OK");
+  }
 
-    private String status;
+  private String status;
 
-    public String getStatus() {
-        return this.status;
-    }
+  public String getStatus() {
+    return this.status;
+  }
 
-    public void setStatus(String status) {
-        this.status = status;
-    }
+  public void setStatus(String status) {
+    this.status = status;
+  }
 
-    public SuccessResponse withStatus(String status) {
-        setStatus(status);
-        return this;
-    }
+  public SuccessResponse withStatus(String status) {
+    setStatus(status);
+    return this;
+  }
 }

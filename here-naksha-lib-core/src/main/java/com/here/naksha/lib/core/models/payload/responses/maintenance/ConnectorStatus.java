@@ -33,87 +33,87 @@ import java.util.Set;
 @JsonTypeName(value = "ConnectorStatus")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class ConnectorStatus extends XyzResponse {
-    public static final String AUTO_INDEXING = "AUTO_INDEXING";
+  public static final String AUTO_INDEXING = "AUTO_INDEXING";
 
-    private boolean initialized;
+  private boolean initialized;
 
-    private String[] extensions;
+  private String[] extensions;
 
-    @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
-    private Map<String, Integer> scriptVersions;
+  @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
+  private Map<String, Integer> scriptVersions;
 
-    private Map<String, MaintenanceStatus> maintenanceStatus;
+  private Map<String, MaintenanceStatus> maintenanceStatus;
 
-    public void setInitialized(boolean initialized) {
-        this.initialized = initialized;
+  public void setInitialized(boolean initialized) {
+    this.initialized = initialized;
+  }
+
+  public boolean isInitialized() {
+    return initialized;
+  }
+
+  public ConnectorStatus withInitialized(boolean initialized) {
+    setInitialized(initialized);
+    return this;
+  }
+
+  public String[] getExtensions() {
+    return extensions;
+  }
+
+  public void setExtensions(String[] extensions) {
+    this.extensions = extensions;
+  }
+
+  public ConnectorStatus withExtensions(String[] extensions) {
+    setExtensions(extensions);
+    return this;
+  }
+
+  public Map<String, Integer> getScriptVersions() {
+    return scriptVersions;
+  }
+
+  public void setScriptVersions(Map<String, Integer> scriptVersions) {
+    this.scriptVersions = scriptVersions;
+  }
+
+  public ConnectorStatus withScriptVersions(Map<String, Integer> scriptVersions) {
+    setScriptVersions(scriptVersions);
+    return this;
+  }
+
+  public Map<String, MaintenanceStatus> getMaintenanceStatus() {
+    return maintenanceStatus;
+  }
+
+  public void setMaintenanceStatus(Map<String, MaintenanceStatus> maintenanceStatus) {
+    this.maintenanceStatus = maintenanceStatus;
+  }
+
+  public ConnectorStatus withMaintenanceStatus(Map<String, MaintenanceStatus> maintenanceStatus) {
+    setMaintenanceStatus(maintenanceStatus);
+    return this;
+  }
+
+  public static class MaintenanceStatus {
+    private long maintainedAt;
+    private Set<String> maintenanceRunning;
+
+    public long getMaintainedAt() {
+      return maintainedAt;
     }
 
-    public boolean isInitialized() {
-        return initialized;
+    public void setMaintainedAt(long maintainedAt) {
+      this.maintainedAt = maintainedAt;
     }
 
-    public ConnectorStatus withInitialized(boolean initialized) {
-        setInitialized(initialized);
-        return this;
+    public Set<String> getMaintenanceRunning() {
+      return maintenanceRunning;
     }
 
-    public String[] getExtensions() {
-        return extensions;
+    public void setMaintenanceRunning(Set<String> maintenanceRunning) {
+      this.maintenanceRunning = maintenanceRunning;
     }
-
-    public void setExtensions(String[] extensions) {
-        this.extensions = extensions;
-    }
-
-    public ConnectorStatus withExtensions(String[] extensions) {
-        setExtensions(extensions);
-        return this;
-    }
-
-    public Map<String, Integer> getScriptVersions() {
-        return scriptVersions;
-    }
-
-    public void setScriptVersions(Map<String, Integer> scriptVersions) {
-        this.scriptVersions = scriptVersions;
-    }
-
-    public ConnectorStatus withScriptVersions(Map<String, Integer> scriptVersions) {
-        setScriptVersions(scriptVersions);
-        return this;
-    }
-
-    public Map<String, MaintenanceStatus> getMaintenanceStatus() {
-        return maintenanceStatus;
-    }
-
-    public void setMaintenanceStatus(Map<String, MaintenanceStatus> maintenanceStatus) {
-        this.maintenanceStatus = maintenanceStatus;
-    }
-
-    public ConnectorStatus withMaintenanceStatus(Map<String, MaintenanceStatus> maintenanceStatus) {
-        setMaintenanceStatus(maintenanceStatus);
-        return this;
-    }
-
-    public static class MaintenanceStatus {
-        private long maintainedAt;
-        private Set<String> maintenanceRunning;
-
-        public long getMaintainedAt() {
-            return maintainedAt;
-        }
-
-        public void setMaintainedAt(long maintainedAt) {
-            this.maintainedAt = maintainedAt;
-        }
-
-        public Set<String> getMaintenanceRunning() {
-            return maintenanceRunning;
-        }
-
-        public void setMaintenanceRunning(Set<String> maintenanceRunning) {
-            this.maintenanceRunning = maintenanceRunning;
-        }
-    }
+  }
 }

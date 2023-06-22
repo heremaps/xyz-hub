@@ -31,18 +31,18 @@ import org.junit.jupiter.api.Test;
 
 public class JTSConverterTest {
 
-    @Test
-    public void test() throws Exception {
-        byte[] bytes = Files.readAllBytes(Paths.get(JTSConverterTest.class
-                .getResource("/com/here/xyz/test/geometries.json")
-                .toURI()));
-        String featureText = new String(bytes);
-        Feature feature = new ObjectMapper().readValue(featureText, Feature.class);
+  @Test
+  public void test() throws Exception {
+    byte[] bytes = Files.readAllBytes(Paths.get(JTSConverterTest.class
+        .getResource("/com/here/xyz/test/geometries.json")
+        .toURI()));
+    String featureText = new String(bytes);
+    Feature feature = new ObjectMapper().readValue(featureText, Feature.class);
 
-        Geometry sourceGeometry = feature.getGeometry();
-        com.vividsolutions.jts.geom.Geometry jtsGeometry = JTSHelper.toGeometry(sourceGeometry);
-        Geometry targetGeometry = JTSHelper.fromGeometry(jtsGeometry);
+    Geometry sourceGeometry = feature.getGeometry();
+    com.vividsolutions.jts.geom.Geometry jtsGeometry = JTSHelper.toGeometry(sourceGeometry);
+    Geometry targetGeometry = JTSHelper.fromGeometry(jtsGeometry);
 
-        assertNotNull(targetGeometry);
-    }
+    assertNotNull(targetGeometry);
+  }
 }

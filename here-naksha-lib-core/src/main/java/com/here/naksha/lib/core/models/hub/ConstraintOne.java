@@ -10,7 +10,7 @@ import org.jetbrains.annotations.NotNull;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ConstraintOne {
 
-    /** The constraints of which at least one need to hold true (OR). */
-    @JsonProperty
-    public List<@NotNull Constraint> of;
+  /** The constraints of which at least one need to hold true (OR). */
+  @JsonProperty
+  public List<@NotNull Constraint> of;
 }

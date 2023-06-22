@@ -30,66 +30,66 @@ import java.util.Map;
 @JsonTypeName(value = "ChangesetCollection")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class ChangesetCollection extends XyzResponse {
-    private int startVersion;
-    private int endVersion;
+  private int startVersion;
+  private int endVersion;
 
-    @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
-    @JsonInclude(JsonInclude.Include.ALWAYS)
-    private Map<Integer, Changeset> versions;
+  @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
+  @JsonInclude(JsonInclude.Include.ALWAYS)
+  private Map<Integer, Changeset> versions;
 
-    private String nextPageToken;
+  private String nextPageToken;
 
-    @SuppressWarnings("unused")
-    public String getNextPageToken() {
-        return nextPageToken;
-    }
+  @SuppressWarnings("unused")
+  public String getNextPageToken() {
+    return nextPageToken;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setNextPageToken(String nextPageToken) {
-        this.nextPageToken = nextPageToken;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setNextPageToken(String nextPageToken) {
+    this.nextPageToken = nextPageToken;
+  }
 
-    public ChangesetCollection withNextPageToken(final String nextPageToken) {
-        setNextPageToken(nextPageToken);
-        return this;
-    }
+  public ChangesetCollection withNextPageToken(final String nextPageToken) {
+    setNextPageToken(nextPageToken);
+    return this;
+  }
 
-    public int getStartVersion() {
-        return startVersion;
-    }
+  public int getStartVersion() {
+    return startVersion;
+  }
 
-    public void setStartVersion(int startVersion) {
-        this.startVersion = startVersion;
-    }
+  public void setStartVersion(int startVersion) {
+    this.startVersion = startVersion;
+  }
 
-    public ChangesetCollection withStartVersion(final Integer startVersion) {
-        setStartVersion(startVersion);
-        return this;
-    }
+  public ChangesetCollection withStartVersion(final Integer startVersion) {
+    setStartVersion(startVersion);
+    return this;
+  }
 
-    public int getEndVersion() {
-        return endVersion;
-    }
+  public int getEndVersion() {
+    return endVersion;
+  }
 
-    public void setEndVersion(Integer endVersion) {
-        this.endVersion = endVersion;
-    }
+  public void setEndVersion(Integer endVersion) {
+    this.endVersion = endVersion;
+  }
 
-    public ChangesetCollection withEndVersion(final Integer withEndVersion) {
-        setEndVersion(withEndVersion);
-        return this;
-    }
+  public ChangesetCollection withEndVersion(final Integer withEndVersion) {
+    setEndVersion(withEndVersion);
+    return this;
+  }
 
-    public Map<Integer, Changeset> getVersions() {
-        return versions;
-    }
+  public Map<Integer, Changeset> getVersions() {
+    return versions;
+  }
 
-    public void setVersions(Map<Integer, Changeset> versions) {
-        this.versions = versions;
-    }
+  public void setVersions(Map<Integer, Changeset> versions) {
+    this.versions = versions;
+  }
 
-    public ChangesetCollection withVersions(final Map<Integer, Changeset> versions) {
-        setVersions(versions);
-        return this;
-    }
+  public ChangesetCollection withVersions(final Map<Integer, Changeset> versions) {
+    setVersions(versions);
+    return this;
+  }
 }

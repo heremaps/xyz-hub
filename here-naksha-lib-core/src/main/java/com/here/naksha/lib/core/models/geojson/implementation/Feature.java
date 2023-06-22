@@ -55,202 +55,202 @@ import org.jetbrains.annotations.Nullable;
 @SuppressWarnings({"unused", "WeakerAccess"})
 @JsonTypeName(value = "Feature")
 @JsonSubTypes({
-    // Pipelined:
-    @JsonSubTypes.Type(value = Space.class),
-    @JsonSubTypes.Type(value = Subscription.class),
-    // Others:
-    @JsonSubTypes.Type(value = Connector.class),
-    @JsonSubTypes.Type(value = Storage.class),
-    @JsonSubTypes.Type(value = StorageCollection.class),
-    @JsonSubTypes.Type(value = TxSignal.class)
+  // Pipelined:
+  @JsonSubTypes.Type(value = Space.class),
+  @JsonSubTypes.Type(value = Subscription.class),
+  // Others:
+  @JsonSubTypes.Type(value = Connector.class),
+  @JsonSubTypes.Type(value = Storage.class),
+  @JsonSubTypes.Type(value = StorageCollection.class),
+  @JsonSubTypes.Type(value = TxSignal.class)
 })
 public class Feature extends JsonObject implements Typed {
 
-    public static final String ID = "id";
-    public static final String BBOX = "bbox";
-    public static final String GEOMETRY = "geometry";
-    public static final String PROPERTIES = "properties";
-    public static final String ON_FEATURE_NOT_EXISTS = "onFeatureNotExists";
-    public static final String ON_FEATURE_EXISTS = "onFeatureExists";
-    public static final String ON_MERGE_CONFLICT = "onMergeConflict";
+  public static final String ID = "id";
+  public static final String BBOX = "bbox";
+  public static final String GEOMETRY = "geometry";
+  public static final String PROPERTIES = "properties";
+  public static final String ON_FEATURE_NOT_EXISTS = "onFeatureNotExists";
+  public static final String ON_FEATURE_EXISTS = "onFeatureExists";
+  public static final String ON_MERGE_CONFLICT = "onMergeConflict";
 
-    @AvailableSince(INaksha.v2_0_0)
-    public static final String PACKAGES = "packages";
+  @AvailableSince(INaksha.v2_0_0)
+  public static final String PACKAGES = "packages";
 
-    /**
-     * Create a new empty feature.
-     *
-     * @param id The ID; if {@code null}, then a random one is generated.
-     */
-    @JsonCreator
-    public Feature(@JsonProperty(ID) @Nullable String id) {
-        this.id = id != null && id.length() > 0 ? id : RandomStringUtils.randomAlphabetic(12);
-        this.properties = new Properties();
+  /**
+   * Create a new empty feature.
+   *
+   * @param id The ID; if {@code null}, then a random one is generated.
+   */
+  @JsonCreator
+  public Feature(@JsonProperty(ID) @Nullable String id) {
+    this.id = id != null && id.length() > 0 ? id : RandomStringUtils.randomAlphabetic(12);
+    this.properties = new Properties();
+  }
+
+  @JsonProperty(ID)
+  protected @NotNull String id;
+
+  @JsonProperty(BBOX)
+  protected BBox bbox;
+
+  @JsonProperty(GEOMETRY)
+  protected Geometry geometry;
+
+  @JsonProperty(PROPERTIES)
+  protected @NotNull Properties properties;
+
+  // These members can be set by the client (user or manager) and we internally serialize and deserialized them, but
+  // we do not
+  // export them for users or managers. Basically they are for internal purpose and write-only for the end-user.
+  @JsonProperty(ON_FEATURE_NOT_EXISTS)
+  @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
+  protected @Nullable IfNotExists onFeatureNotExists;
+
+  @JsonProperty(ON_FEATURE_EXISTS)
+  @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
+  protected @Nullable IfExists onFeatureExists;
+
+  @JsonProperty(ON_MERGE_CONFLICT)
+  @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
+  protected @Nullable ConflictResolution onMergeConflict;
+
+  /** List of packages to which this feature belongs to; if any. */
+  @AvailableSince(INaksha.v2_0_0)
+  @JsonProperty(PACKAGES)
+  @JsonInclude(Include.NON_EMPTY)
+  private @Nullable List<@NotNull String> packages;
+
+  /**
+   * Replace the packages this feature is part of.
+   *
+   * @param packages the new package list.
+   */
+  @AvailableSince(INaksha.v2_0_0)
+  public void setPackages(@Nullable List<@NotNull String> packages) {
+    this.packages = packages;
+  }
+
+  /**
+   * Returns the packages.
+   *
+   * @return the packages this features is part of.
+   */
+  @AvailableSince(INaksha.v2_0_0)
+  public @NotNull List<@NotNull String> usePackages() {
+    List<@NotNull String> packages = this.packages;
+    if (packages == null) {
+      this.packages = packages = new ArrayList<>();
+    }
+    return packages;
+  }
+
+  /**
+   * Returns the packages.
+   *
+   * @return the packages this features is part of.
+   */
+  @AvailableSince(INaksha.v2_0_0)
+  public @Nullable List<@NotNull String> getPackages() {
+    return packages;
+  }
+
+  @JsonIgnore
+  public @NotNull String getId() {
+    return id;
+  }
+
+  @JsonSetter
+  public void setId(@NotNull String id) {
+    this.id = id;
+  }
+
+  @JsonIgnore
+  public @Nullable BBox getBbox() {
+    return bbox;
+  }
+
+  public void setBbox(@Nullable BBox bbox) {
+    this.bbox = bbox;
+  }
+
+  @JsonIgnore
+  public @Nullable Geometry getGeometry() {
+    return geometry;
+  }
+
+  public void setGeometry(@Nullable Geometry geometry) {
+    this.geometry = geometry;
+  }
+
+  @JsonGetter
+  public @NotNull Properties getProperties() {
+    return properties;
+  }
+
+  @JsonSetter
+  public void setProperties(@NotNull Properties properties) {
+    this.properties = properties;
+  }
+
+  @JsonIgnore
+  public @Nullable IfNotExists getOnFeatureNotExists() {
+    return onFeatureNotExists;
+  }
+
+  public void setOnFeatureNotExists(@Nullable IfNotExists onFeatureNotExists) {
+    this.onFeatureNotExists = onFeatureNotExists;
+  }
+
+  @JsonIgnore
+  public @Nullable IfExists getOnFeatureExists() {
+    return onFeatureExists;
+  }
+
+  public void setOnFeatureExists(@Nullable IfExists onFeatureExists) {
+    this.onFeatureExists = onFeatureExists;
+  }
+
+  @JsonIgnore
+  public @Nullable ConflictResolution getOnMergeConflict() {
+    return onMergeConflict;
+  }
+
+  public void setOnMergeConflict(@Nullable ConflictResolution onMergeConflict) {
+    this.onMergeConflict = onMergeConflict;
+  }
+
+  public void calculateAndSetBbox(boolean recalculateBBox) {
+    if (!recalculateBBox && getBbox() != null) {
+      return;
     }
 
-    @JsonProperty(ID)
-    protected @NotNull String id;
+    final Geometry geometry = getGeometry();
+    if (geometry == null) {
+      setBbox(null);
+    } else {
+      setBbox(geometry.calculateBBox());
+    }
+  }
 
-    @JsonProperty(BBOX)
-    protected BBox bbox;
-
-    @JsonProperty(GEOMETRY)
-    protected Geometry geometry;
-
-    @JsonProperty(PROPERTIES)
-    protected @NotNull Properties properties;
-
-    // These members can be set by the client (user or manager) and we internally serialize and deserialized them, but
-    // we do not
-    // export them for users or managers. Basically they are for internal purpose and write-only for the end-user.
-    @JsonProperty(ON_FEATURE_NOT_EXISTS)
-    @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
-    protected @Nullable IfNotExists onFeatureNotExists;
-
-    @JsonProperty(ON_FEATURE_EXISTS)
-    @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
-    protected @Nullable IfExists onFeatureExists;
-
-    @JsonProperty(ON_MERGE_CONFLICT)
-    @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
-    protected @Nullable ConflictResolution onMergeConflict;
-
-    /** List of packages to which this feature belongs to; if any. */
-    @AvailableSince(INaksha.v2_0_0)
-    @JsonProperty(PACKAGES)
-    @JsonInclude(Include.NON_EMPTY)
-    private @Nullable List<@NotNull String> packages;
-
-    /**
-     * Replace the packages this feature is part of.
-     *
-     * @param packages the new package list.
-     */
-    @AvailableSince(INaksha.v2_0_0)
-    public void setPackages(@Nullable List<@NotNull String> packages) {
-        this.packages = packages;
+  /**
+   * Validates the geometry of the feature and throws an exception if the geometry is invalid. This
+   * method will not throw an exception if the geometry is missing, so null or undefined, but will
+   * do so, when the geometry is somehow broken.
+   *
+   * @throws InvalidGeometryException if the geometry is invalid.
+   */
+  public void validateGeometry() throws InvalidGeometryException {
+    final Geometry geometry = getGeometry();
+    if (geometry == null) {
+      // This is valid, the feature simply does not have any geometry.
+      return;
     }
 
-    /**
-     * Returns the packages.
-     *
-     * @return the packages this features is part of.
-     */
-    @AvailableSince(INaksha.v2_0_0)
-    public @NotNull List<@NotNull String> usePackages() {
-        List<@NotNull String> packages = this.packages;
-        if (packages == null) {
-            this.packages = packages = new ArrayList<>();
-        }
-        return packages;
+    if (geometry instanceof GeometryCollection) {
+      throw new InvalidGeometryException("GeometryCollection is not supported.");
     }
 
-    /**
-     * Returns the packages.
-     *
-     * @return the packages this features is part of.
-     */
-    @AvailableSince(INaksha.v2_0_0)
-    public @Nullable List<@NotNull String> getPackages() {
-        return packages;
-    }
-
-    @JsonIgnore
-    public @NotNull String getId() {
-        return id;
-    }
-
-    @JsonSetter
-    public void setId(@NotNull String id) {
-        this.id = id;
-    }
-
-    @JsonIgnore
-    public @Nullable BBox getBbox() {
-        return bbox;
-    }
-
-    public void setBbox(@Nullable BBox bbox) {
-        this.bbox = bbox;
-    }
-
-    @JsonIgnore
-    public @Nullable Geometry getGeometry() {
-        return geometry;
-    }
-
-    public void setGeometry(@Nullable Geometry geometry) {
-        this.geometry = geometry;
-    }
-
-    @JsonGetter
-    public @NotNull Properties getProperties() {
-        return properties;
-    }
-
-    @JsonSetter
-    public void setProperties(@NotNull Properties properties) {
-        this.properties = properties;
-    }
-
-    @JsonIgnore
-    public @Nullable IfNotExists getOnFeatureNotExists() {
-        return onFeatureNotExists;
-    }
-
-    public void setOnFeatureNotExists(@Nullable IfNotExists onFeatureNotExists) {
-        this.onFeatureNotExists = onFeatureNotExists;
-    }
-
-    @JsonIgnore
-    public @Nullable IfExists getOnFeatureExists() {
-        return onFeatureExists;
-    }
-
-    public void setOnFeatureExists(@Nullable IfExists onFeatureExists) {
-        this.onFeatureExists = onFeatureExists;
-    }
-
-    @JsonIgnore
-    public @Nullable ConflictResolution getOnMergeConflict() {
-        return onMergeConflict;
-    }
-
-    public void setOnMergeConflict(@Nullable ConflictResolution onMergeConflict) {
-        this.onMergeConflict = onMergeConflict;
-    }
-
-    public void calculateAndSetBbox(boolean recalculateBBox) {
-        if (!recalculateBBox && getBbox() != null) {
-            return;
-        }
-
-        final Geometry geometry = getGeometry();
-        if (geometry == null) {
-            setBbox(null);
-        } else {
-            setBbox(geometry.calculateBBox());
-        }
-    }
-
-    /**
-     * Validates the geometry of the feature and throws an exception if the geometry is invalid. This
-     * method will not throw an exception if the geometry is missing, so null or undefined, but will
-     * do so, when the geometry is somehow broken.
-     *
-     * @throws InvalidGeometryException if the geometry is invalid.
-     */
-    public void validateGeometry() throws InvalidGeometryException {
-        final Geometry geometry = getGeometry();
-        if (geometry == null) {
-            // This is valid, the feature simply does not have any geometry.
-            return;
-        }
-
-        if (geometry instanceof GeometryCollection) {
-            throw new InvalidGeometryException("GeometryCollection is not supported.");
-        }
-
-        geometry.validate();
-    }
+    geometry.validate();
+  }
 }

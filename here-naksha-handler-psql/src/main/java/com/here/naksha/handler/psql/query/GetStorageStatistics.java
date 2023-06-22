@@ -40,93 +40,93 @@ import org.jetbrains.annotations.NotNull;
 
 public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEvent, StorageStatistics> {
 
-    private static final String TABLE_NAME = "table_name";
-    private static final String TABLE_BYTES = "table_bytes";
-    private static final String INDEX_BYTES = "index_bytes";
+  private static final String TABLE_NAME = "table_name";
+  private static final String TABLE_BYTES = "table_bytes";
+  private static final String INDEX_BYTES = "index_bytes";
 
-    private final List<String> remainingSpaceIds;
-    private Map<String, String> tableName2SpaceId;
+  private final List<String> remainingSpaceIds;
+  private Map<String, String> tableName2SpaceId;
 
-    public GetStorageStatistics(@NotNull GetStorageStatisticsEvent event, @NotNull PsqlHandler psqlConnector)
-            throws SQLException {
-        super(event, psqlConnector);
-        setUseReadReplica(true);
-        remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
+  public GetStorageStatistics(@NotNull GetStorageStatisticsEvent event, @NotNull PsqlHandler psqlConnector)
+      throws SQLException {
+    super(event, psqlConnector);
+    setUseReadReplica(true);
+    remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
+  }
+
+  @Override
+  protected @NotNull SQLQueryExt buildQuery(@NotNull GetStorageStatisticsEvent event) {
+    final List<@NotNull String> tableNames =
+        new ArrayList<>(event.getSpaceIds().size() * 2);
+    final String schema = processor.spaceSchema();
+    event.getSpaceIds().forEach(spaceId -> {
+      final PsqlCollection space = processor.getSpaceById(spaceId);
+      if (space == null) {
+        currentLogger().info("Unknown space: {}", spaceId);
+      } else if (!schema.equals(space.schema)) {
+        currentLogger()
+            .error(
+                "The given space '{}' is located in schema '{}', but this connector is bound to schema '{}', ignore space",
+                spaceId,
+                space.schema,
+                schema);
+      } else {
+        tableNames.add(space.table);
+        tableNames.add(space.table + "_hst");
+      }
+    });
+    return new SQLQueryExt("SELECT relname                                                AS "
+        + TABLE_NAME
+        + ","
+        + "       pg_indexes_size(c.oid)                                 AS "
+        + INDEX_BYTES
+        + ","
+        + "       pg_total_relation_size(c.oid) - pg_indexes_size(c.oid) AS "
+        + TABLE_BYTES
+        + " FROM pg_class c"
+        + "         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace "
+        + " WHERE relkind = 'r'"
+        + " AND nspname = '"
+        + schema
+        + "'"
+        + " AND relname IN ("
+        + tableNames.stream().map(tableName -> "'" + tableName + "'").collect(Collectors.joining(","))
+        + ")");
+  }
+
+  @Override
+  public @NotNull StorageStatistics handle(@NotNull ResultSet rs) throws SQLException {
+    final Map<@NotNull String, SpaceByteSizes> byteSizes = new HashMap<>();
+    StorageStatistics stats = new StorageStatistics()
+        .withCreatedAt(System.currentTimeMillis())
+        .withByteSizes(byteSizes);
+
+    // Read the space / history info from the returned ResultSet
+    while (rs.next()) {
+      String tableName = rs.getString(TABLE_NAME);
+      boolean isHistoryTable = tableName.endsWith(PsqlHandler.HISTORY_TABLE_SUFFIX);
+      tableName = isHistoryTable
+          ? tableName.substring(0, tableName.length() - PsqlHandler.HISTORY_TABLE_SUFFIX.length())
+          : tableName;
+      String spaceId = tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;
+
+      long tableBytes = rs.getLong(TABLE_BYTES), indexBytes = rs.getLong(INDEX_BYTES);
+
+      SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes());
+      if (isHistoryTable) {
+        sizes.setHistoryBytes(new Value<>(tableBytes + indexBytes).withEstimated(true));
+      } else {
+        sizes.setContentBytes(new Value<>(tableBytes).withEstimated(true));
+        sizes.setSearchablePropertiesBytes(new Value<>(indexBytes).withEstimated(true));
+        remainingSpaceIds.remove(spaceId);
+      }
     }
 
-    @Override
-    protected @NotNull SQLQueryExt buildQuery(@NotNull GetStorageStatisticsEvent event) {
-        final List<@NotNull String> tableNames =
-                new ArrayList<>(event.getSpaceIds().size() * 2);
-        final String schema = processor.spaceSchema();
-        event.getSpaceIds().forEach(spaceId -> {
-            final PsqlCollection space = processor.getSpaceById(spaceId);
-            if (space == null) {
-                currentLogger().info("Unknown space: {}", spaceId);
-            } else if (!schema.equals(space.schema)) {
-                currentLogger()
-                        .error(
-                                "The given space '{}' is located in schema '{}', but this connector is bound to schema '{}', ignore space",
-                                spaceId,
-                                space.schema,
-                                schema);
-            } else {
-                tableNames.add(space.table);
-                tableNames.add(space.table + "_hst");
-            }
-        });
-        return new SQLQueryExt("SELECT relname                                                AS "
-                + TABLE_NAME
-                + ","
-                + "       pg_indexes_size(c.oid)                                 AS "
-                + INDEX_BYTES
-                + ","
-                + "       pg_total_relation_size(c.oid) - pg_indexes_size(c.oid) AS "
-                + TABLE_BYTES
-                + " FROM pg_class c"
-                + "         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace "
-                + " WHERE relkind = 'r'"
-                + " AND nspname = '"
-                + schema
-                + "'"
-                + " AND relname IN ("
-                + tableNames.stream().map(tableName -> "'" + tableName + "'").collect(Collectors.joining(","))
-                + ")");
-    }
+    // For non-existing tables (no features written to the space yet), set all values to zero
+    remainingSpaceIds.forEach(spaceId -> byteSizes
+        .computeIfAbsent(spaceId, k -> new SpaceByteSizes())
+        .withContentBytes(new Value<>(0L).withEstimated(true)));
 
-    @Override
-    public @NotNull StorageStatistics handle(@NotNull ResultSet rs) throws SQLException {
-        final Map<@NotNull String, SpaceByteSizes> byteSizes = new HashMap<>();
-        StorageStatistics stats = new StorageStatistics()
-                .withCreatedAt(System.currentTimeMillis())
-                .withByteSizes(byteSizes);
-
-        // Read the space / history info from the returned ResultSet
-        while (rs.next()) {
-            String tableName = rs.getString(TABLE_NAME);
-            boolean isHistoryTable = tableName.endsWith(PsqlHandler.HISTORY_TABLE_SUFFIX);
-            tableName = isHistoryTable
-                    ? tableName.substring(0, tableName.length() - PsqlHandler.HISTORY_TABLE_SUFFIX.length())
-                    : tableName;
-            String spaceId = tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;
-
-            long tableBytes = rs.getLong(TABLE_BYTES), indexBytes = rs.getLong(INDEX_BYTES);
-
-            SpaceByteSizes sizes = byteSizes.computeIfAbsent(spaceId, k -> new SpaceByteSizes());
-            if (isHistoryTable) {
-                sizes.setHistoryBytes(new Value<>(tableBytes + indexBytes).withEstimated(true));
-            } else {
-                sizes.setContentBytes(new Value<>(tableBytes).withEstimated(true));
-                sizes.setSearchablePropertiesBytes(new Value<>(indexBytes).withEstimated(true));
-                remainingSpaceIds.remove(spaceId);
-            }
-        }
-
-        // For non-existing tables (no features written to the space yet), set all values to zero
-        remainingSpaceIds.forEach(spaceId -> byteSizes
-                .computeIfAbsent(spaceId, k -> new SpaceByteSizes())
-                .withContentBytes(new Value<>(0L).withEstimated(true)));
-
-        return stats;
-    }
+    return stats;
+  }
 }

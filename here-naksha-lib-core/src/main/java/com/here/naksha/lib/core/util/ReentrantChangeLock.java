@@ -45,69 +45,69 @@ import org.jetbrains.annotations.NotNull;
  */
 public class ReentrantChangeLock extends ReentrantLockable implements Closeable {
 
-    /** The change count. */
-    long changeCount;
+  /** The change count. */
+  long changeCount;
 
-    /**
-     * Starts a new read.
-     *
-     * @return the read identifier.
-     */
-    public long read() {
-        long changeCount = this.changeCount;
-        while ((changeCount & 1) == 1) {
-            Thread.yield();
-            changeCount = (long) CHANGE_COUNT.getVolatile(this);
-        }
-        return changeCount;
+  /**
+   * Starts a new read.
+   *
+   * @return the read identifier.
+   */
+  public long read() {
+    long changeCount = this.changeCount;
+    while ((changeCount & 1) == 1) {
+      Thread.yield();
+      changeCount = (long) CHANGE_COUNT.getVolatile(this);
     }
+    return changeCount;
+  }
 
-    /**
-     * Tests if the read was consistent.
-     *
-     * @param readId the read identifier.
-     * @return {@code true} if the read was consistent; {@code false} otherwise.
-     */
-    public boolean isConsistent(long readId) {
-        return (long) CHANGE_COUNT.getVolatile(this) == readId;
+  /**
+   * Tests if the read was consistent.
+   *
+   * @param readId the read identifier.
+   * @return {@code true} if the read was consistent; {@code false} otherwise.
+   */
+  public boolean isConsistent(long readId) {
+    return (long) CHANGE_COUNT.getVolatile(this) == readId;
+  }
+
+  /**
+   * Lock this instance and then return it for modification. The method guarantees to start a new
+   * inconsistent state. If the change lock is currently in an inconsistent state, the method blocks
+   * until a consistent state reached.
+   *
+   * @return this.
+   */
+  public @NotNull ReentrantChangeLock write() {
+    lock();
+    while (true) {
+      long changeCount = this.changeCount;
+      while ((changeCount & 1) == 1) {
+        Thread.yield();
+        changeCount = (long) CHANGE_COUNT.getVolatile(this);
+      }
+      if (CHANGE_COUNT.compareAndSet(this, changeCount, changeCount + 1)) {
+        return this;
+      }
     }
+  }
 
-    /**
-     * Lock this instance and then return it for modification. The method guarantees to start a new
-     * inconsistent state. If the change lock is currently in an inconsistent state, the method blocks
-     * until a consistent state reached.
-     *
-     * @return this.
-     */
-    public @NotNull ReentrantChangeLock write() {
-        lock();
-        while (true) {
-            long changeCount = this.changeCount;
-            while ((changeCount & 1) == 1) {
-                Thread.yield();
-                changeCount = (long) CHANGE_COUNT.getVolatile(this);
-            }
-            if (CHANGE_COUNT.compareAndSet(this, changeCount, changeCount + 1)) {
-                return this;
-            }
-        }
+  static final @NotNull VarHandle CHANGE_COUNT;
+
+  static {
+    try {
+      CHANGE_COUNT = MethodHandles.lookup()
+          .in(ReentrantChangeLock.class)
+          .findVarHandle(ReentrantChangeLock.class, "changeCount", long.class);
+    } catch (Exception e) {
+      throw new InternalError(e);
     }
+  }
 
-    static final @NotNull VarHandle CHANGE_COUNT;
-
-    static {
-        try {
-            CHANGE_COUNT = MethodHandles.lookup()
-                    .in(ReentrantChangeLock.class)
-                    .findVarHandle(ReentrantChangeLock.class, "changeCount", long.class);
-        } catch (Exception e) {
-            throw new InternalError(e);
-        }
-    }
-
-    @Override
-    public void close() {
-        CHANGE_COUNT.getAndAdd(this, 1);
-        unlock();
-    }
+  @Override
+  public void close() {
+    CHANGE_COUNT.getAndAdd(this, 1);
+    unlock();
+  }
 }

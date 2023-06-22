@@ -28,57 +28,57 @@ import com.here.naksha.lib.core.models.payload.Event;
 @JsonTypeName(value = "ModifySubscriptionEvent")
 public class ModifySubscriptionEvent extends Event {
 
-    private Operation operation;
-    private Subscription subscription;
-    private boolean hasNoActiveSubscriptions;
+  private Operation operation;
+  private Subscription subscription;
+  private boolean hasNoActiveSubscriptions;
 
-    @SuppressWarnings("unused")
-    public Operation getOperation() {
-        return this.operation;
-    }
+  @SuppressWarnings("unused")
+  public Operation getOperation() {
+    return this.operation;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setOperation(Operation operation) {
-        this.operation = operation;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setOperation(Operation operation) {
+    this.operation = operation;
+  }
 
-    @SuppressWarnings("unused")
-    public ModifySubscriptionEvent withOperation(Operation operation) {
-        setOperation(operation);
-        return this;
-    }
+  @SuppressWarnings("unused")
+  public ModifySubscriptionEvent withOperation(Operation operation) {
+    setOperation(operation);
+    return this;
+  }
 
-    @SuppressWarnings("unused")
-    public Subscription getSubscription() {
-        return this.subscription;
-    }
+  @SuppressWarnings("unused")
+  public Subscription getSubscription() {
+    return this.subscription;
+  }
 
-    public void setSubscription(Subscription subscription) {
-        this.subscription = subscription;
-    }
+  public void setSubscription(Subscription subscription) {
+    this.subscription = subscription;
+  }
 
-    @SuppressWarnings("unused")
-    public ModifySubscriptionEvent withSubscription(Subscription subscription) {
-        setSubscription(subscription);
-        return this;
-    }
+  @SuppressWarnings("unused")
+  public ModifySubscriptionEvent withSubscription(Subscription subscription) {
+    setSubscription(subscription);
+    return this;
+  }
 
-    public boolean getHasNoActiveSubscriptions() {
-        return hasNoActiveSubscriptions;
-    }
+  public boolean getHasNoActiveSubscriptions() {
+    return hasNoActiveSubscriptions;
+  }
 
-    public void setHasNoActiveSubscriptions(boolean hasNoActiveSubscriptions) {
-        this.hasNoActiveSubscriptions = hasNoActiveSubscriptions;
-    }
+  public void setHasNoActiveSubscriptions(boolean hasNoActiveSubscriptions) {
+    this.hasNoActiveSubscriptions = hasNoActiveSubscriptions;
+  }
 
-    public ModifySubscriptionEvent withHasNoActiveSubscriptions(boolean hasNoActiveSubscriptions) {
-        this.hasNoActiveSubscriptions = hasNoActiveSubscriptions;
-        return this;
-    }
+  public ModifySubscriptionEvent withHasNoActiveSubscriptions(boolean hasNoActiveSubscriptions) {
+    this.hasNoActiveSubscriptions = hasNoActiveSubscriptions;
+    return this;
+  }
 
-    public enum Operation {
-        CREATE,
-        UPDATE,
-        DELETE
-    }
+  public enum Operation {
+    CREATE,
+    UPDATE,
+    DELETE
+  }
 }

@@ -15,132 +15,132 @@ import org.jetbrains.annotations.Nullable;
 /** An common implementation of a key-set. */
 public class MapKeySet<K, V> implements Set<@NotNull K> {
 
-    MapKeySet(@NotNull Map<K, V> map) {
-        this.map = map;
-        this.mapSet = map.entrySet();
+  MapKeySet(@NotNull Map<K, V> map) {
+    this.map = map;
+    this.mapSet = map.entrySet();
+  }
+
+  @JsonIgnore
+  protected final @NotNull Map<K, V> map;
+
+  @JsonIgnore
+  protected final @NotNull Set<Map.Entry<@NotNull K, @Nullable V>> mapSet;
+
+  @JsonIgnore
+  protected @Nullable MapEntry<K, V> entry;
+
+  private @NotNull MapEntry<K, V> entry(@NotNull K key) {
+    MapEntry<K, V> entry = this.entry;
+    if (entry == null) {
+      return this.entry = new MapEntry<>(map, key, null);
     }
+    entry.key = key;
+    entry.value = null;
+    return entry;
+  }
 
-    @JsonIgnore
-    protected final @NotNull Map<K, V> map;
+  @Override
+  public int size() {
+    return mapSet.size();
+  }
 
-    @JsonIgnore
-    protected final @NotNull Set<Map.Entry<@NotNull K, @Nullable V>> mapSet;
+  @Override
+  public boolean isEmpty() {
+    return mapSet.isEmpty();
+  }
 
-    @JsonIgnore
-    protected @Nullable MapEntry<K, V> entry;
+  @Override
+  public boolean contains(Object o) {
+    //noinspection SuspiciousMethodCalls
+    return map.containsKey(o);
+  }
 
-    private @NotNull MapEntry<K, V> entry(@NotNull K key) {
-        MapEntry<K, V> entry = this.entry;
-        if (entry == null) {
-            return this.entry = new MapEntry<>(map, key, null);
-        }
-        entry.key = key;
-        entry.value = null;
-        return entry;
+  @Nonnull
+  @Override
+  public Iterator<@NotNull K> iterator() {
+    final Iterator<Entry<@NotNull K, @Nullable V>> it = mapSet.iterator();
+    return new Iterator<>() {
+      @Override
+      public boolean hasNext() {
+        return it.hasNext();
+      }
+
+      @Override
+      public K next() {
+        return it.next().getKey();
+      }
+    };
+  }
+
+  @Override
+  public @Nullable Object @NotNull [] toArray() {
+    return toArray(EMPTY);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public <T> @NotNull T @NotNull [] toArray(final @NotNull T @NotNull [] original) {
+    return (T[]) JsonUtils.mapToArray(map, original, JsonUtils::extractKey);
+  }
+
+  @Override
+  public boolean add(@NotNull K s) {
+    return mapSet.add(entry(s));
+  }
+
+  @Override
+  public boolean remove(Object o) {
+    //noinspection SuspiciousMethodCalls
+    if (map.containsKey(o)) {
+      map.remove(o);
+      return true;
     }
+    return false;
+  }
 
-    @Override
-    public int size() {
-        return mapSet.size();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return mapSet.isEmpty();
-    }
-
-    @Override
-    public boolean contains(Object o) {
-        //noinspection SuspiciousMethodCalls
-        return map.containsKey(o);
-    }
-
-    @Nonnull
-    @Override
-    public Iterator<@NotNull K> iterator() {
-        final Iterator<Entry<@NotNull K, @Nullable V>> it = mapSet.iterator();
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return it.hasNext();
-            }
-
-            @Override
-            public K next() {
-                return it.next().getKey();
-            }
-        };
-    }
-
-    @Override
-    public @Nullable Object @NotNull [] toArray() {
-        return toArray(EMPTY);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public <T> @NotNull T @NotNull [] toArray(final @NotNull T @NotNull [] original) {
-        return (T[]) JsonUtils.mapToArray(map, original, JsonUtils::extractKey);
-    }
-
-    @Override
-    public boolean add(@NotNull K s) {
-        return mapSet.add(entry(s));
-    }
-
-    @Override
-    public boolean remove(Object o) {
-        //noinspection SuspiciousMethodCalls
-        if (map.containsKey(o)) {
-            map.remove(o);
-            return true;
-        }
+  @Override
+  public boolean containsAll(@NotNull Collection<?> c) {
+    for (final Object key : c) {
+      //noinspection SuspiciousMethodCalls
+      if (!map.containsKey(key)) {
         return false;
+      }
     }
+    return true;
+  }
 
-    @Override
-    public boolean containsAll(@NotNull Collection<?> c) {
-        for (final Object key : c) {
-            //noinspection SuspiciousMethodCalls
-            if (!map.containsKey(key)) {
-                return false;
-            }
-        }
-        return true;
+  @Override
+  public boolean addAll(@NotNull Collection<? extends @NotNull K> c) {
+    boolean modified = false;
+    for (final K key : c) {
+      if (map.putIfAbsent(key, null) == null) {
+        modified = true;
+      }
     }
+    return modified;
+  }
 
-    @Override
-    public boolean addAll(@NotNull Collection<? extends @NotNull K> c) {
-        boolean modified = false;
-        for (final K key : c) {
-            if (map.putIfAbsent(key, null) == null) {
-                modified = true;
-            }
-        }
-        return modified;
-    }
+  @Override
+  public boolean retainAll(@NotNull Collection<?> c) {
+    throw new UnsupportedOperationException("retainAll");
+  }
 
-    @Override
-    public boolean retainAll(@NotNull Collection<?> c) {
-        throw new UnsupportedOperationException("retainAll");
+  @Override
+  public boolean removeAll(@NotNull Collection<?> c) {
+    boolean modified = false;
+    for (final Object key : c) {
+      //noinspection SuspiciousMethodCalls
+      if (map.containsKey(key)) {
+        //noinspection SuspiciousMethodCalls
+        map.remove(key);
+        modified = true;
+      }
     }
+    return modified;
+  }
 
-    @Override
-    public boolean removeAll(@NotNull Collection<?> c) {
-        boolean modified = false;
-        for (final Object key : c) {
-            //noinspection SuspiciousMethodCalls
-            if (map.containsKey(key)) {
-                //noinspection SuspiciousMethodCalls
-                map.remove(key);
-                modified = true;
-            }
-        }
-        return modified;
-    }
-
-    @Override
-    public void clear() {
-        map.clear();
-    }
+  @Override
+  public void clear() {
+    map.clear();
+  }
 }

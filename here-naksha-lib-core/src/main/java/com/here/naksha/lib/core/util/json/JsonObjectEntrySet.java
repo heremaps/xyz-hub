@@ -8,13 +8,13 @@ import org.jetbrains.annotations.Nullable;
 
 class JsonObjectEntrySet extends MapEntrySet<String, Object, JsonObject> {
 
-    JsonObjectEntrySet(@NotNull JsonObject map) {
-        super(map, String.class, Object.class);
-    }
+  JsonObjectEntrySet(@NotNull JsonObject map) {
+    super(map, String.class, Object.class);
+  }
 
-    @Nonnull
-    @Override
-    public Iterator<@NotNull Entry<@NotNull String, @Nullable Object>> iterator() {
-        return new JsonObjectEntryIterator(map);
-    }
+  @Nonnull
+  @Override
+  public Iterator<@NotNull Entry<@NotNull String, @Nullable Object>> iterator() {
+    return new JsonObjectEntryIterator(map);
+  }
 }

@@ -34,70 +34,70 @@ import com.here.naksha.lib.core.models.payload.responses.changesets.Changeset;
 @JsonTypeName(value = "Revision")
 @JsonInclude(Include.NON_DEFAULT)
 public class Revision extends XyzResponse {
-    /** The revision number. */
-    private int revision;
+  /** The revision number. */
+  private int revision;
 
-    /** The author which caused the changes in the revision. */
-    private String author;
+  /** The author which caused the changes in the revision. */
+  private String author;
 
-    /** The timestamp, when the revision was created. */
-    private long createdAt;
+  /** The timestamp, when the revision was created. */
+  private long createdAt;
 
-    /**
-     * The set of changes, including insertions, deletions and updates, that are part of this
-     * revision.
-     */
-    private Changeset changes;
+  /**
+   * The set of changes, including insertions, deletions and updates, that are part of this
+   * revision.
+   */
+  private Changeset changes;
 
-    public int getRevision() {
-        return revision;
-    }
+  public int getRevision() {
+    return revision;
+  }
 
-    public void setRevision(int revision) {
-        this.revision = revision;
-    }
+  public void setRevision(int revision) {
+    this.revision = revision;
+  }
 
-    public Revision withRevision(int revision) {
-        this.revision = revision;
-        return this;
-    }
+  public Revision withRevision(int revision) {
+    this.revision = revision;
+    return this;
+  }
 
-    public String getAuthor() {
-        return author;
-    }
+  public String getAuthor() {
+    return author;
+  }
 
-    public void setAuthor(String author) {
-        this.author = author;
-    }
+  public void setAuthor(String author) {
+    this.author = author;
+  }
 
-    public Revision withAuthor(String author) {
-        this.author = author;
-        return this;
-    }
+  public Revision withAuthor(String author) {
+    this.author = author;
+    return this;
+  }
 
-    public long getCreatedAt() {
-        return createdAt;
-    }
+  public long getCreatedAt() {
+    return createdAt;
+  }
 
-    public void setCreatedAt(long createdAt) {
-        this.createdAt = createdAt;
-    }
+  public void setCreatedAt(long createdAt) {
+    this.createdAt = createdAt;
+  }
 
-    public Revision withCreatedAt(long createdAt) {
-        this.createdAt = createdAt;
-        return this;
-    }
+  public Revision withCreatedAt(long createdAt) {
+    this.createdAt = createdAt;
+    return this;
+  }
 
-    public Changeset getChanges() {
-        return changes;
-    }
+  public Changeset getChanges() {
+    return changes;
+  }
 
-    public void setChanges(Changeset changes) {
-        this.changes = changes;
-    }
+  public void setChanges(Changeset changes) {
+    this.changes = changes;
+  }
 
-    public Revision withChanges(Changeset changes) {
-        this.changes = changes;
-        return this;
-    }
+  public Revision withChanges(Changeset changes) {
+    this.changes = changes;
+    return this;
+  }
 }

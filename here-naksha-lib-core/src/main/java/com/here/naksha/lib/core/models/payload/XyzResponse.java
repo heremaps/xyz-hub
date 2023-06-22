@@ -49,76 +49,76 @@ import org.jetbrains.annotations.Nullable;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = CountResponse.class, name = "CountResponse"),
-    @JsonSubTypes.Type(value = ErrorResponse.class, name = "ErrorResponse"),
-    @JsonSubTypes.Type(value = HealthStatus.class, name = "HealthStatus"),
-    @JsonSubTypes.Type(value = ModifiedEventResponse.class, name = "ModifiedEventResponse"),
-    @JsonSubTypes.Type(value = ModifiedResponseResponse.class, name = "ModifiedResponseResponse"),
-    @JsonSubTypes.Type(value = StatisticsResponse.class, name = "StatisticsResponse"),
-    @JsonSubTypes.Type(value = StorageStatistics.class, name = "StorageStatistics"),
-    @JsonSubTypes.Type(value = HistoryStatisticsResponse.class, name = "HistoryStatisticsResponse"),
-    @JsonSubTypes.Type(value = SuccessResponse.class, name = "SuccessResponse"),
-    @JsonSubTypes.Type(value = NotModifiedResponse.class, name = "NotModifiedResponse"),
-    @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
-    @JsonSubTypes.Type(value = Changeset.class, name = "Changeset"),
-    @JsonSubTypes.Type(value = CompactChangeset.class, name = "CompactChangeset"),
-    @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection"),
-    @JsonSubTypes.Type(value = ConnectorStatus.class, name = "ConnectorStatus"),
-    @JsonSubTypes.Type(value = SpaceStatus.class, name = "SpaceStatus")
+  @JsonSubTypes.Type(value = CountResponse.class, name = "CountResponse"),
+  @JsonSubTypes.Type(value = ErrorResponse.class, name = "ErrorResponse"),
+  @JsonSubTypes.Type(value = HealthStatus.class, name = "HealthStatus"),
+  @JsonSubTypes.Type(value = ModifiedEventResponse.class, name = "ModifiedEventResponse"),
+  @JsonSubTypes.Type(value = ModifiedResponseResponse.class, name = "ModifiedResponseResponse"),
+  @JsonSubTypes.Type(value = StatisticsResponse.class, name = "StatisticsResponse"),
+  @JsonSubTypes.Type(value = StorageStatistics.class, name = "StorageStatistics"),
+  @JsonSubTypes.Type(value = HistoryStatisticsResponse.class, name = "HistoryStatisticsResponse"),
+  @JsonSubTypes.Type(value = SuccessResponse.class, name = "SuccessResponse"),
+  @JsonSubTypes.Type(value = NotModifiedResponse.class, name = "NotModifiedResponse"),
+  @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
+  @JsonSubTypes.Type(value = Changeset.class, name = "Changeset"),
+  @JsonSubTypes.Type(value = CompactChangeset.class, name = "CompactChangeset"),
+  @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection"),
+  @JsonSubTypes.Type(value = ConnectorStatus.class, name = "ConnectorStatus"),
+  @JsonSubTypes.Type(value = SpaceStatus.class, name = "SpaceStatus")
 })
 public abstract class XyzResponse extends Payload {
 
-    private String etag;
+  private String etag;
 
-    /**
-     * An optional set e-tag which should be some value that allows the storage to check if the
-     * content of the response has changed.
-     *
-     * @return the e-tag, when it was calculated.
-     */
-    @SuppressWarnings("unused")
-    public String getEtag() {
-        return this.etag;
-    }
+  /**
+   * An optional set e-tag which should be some value that allows the storage to check if the
+   * content of the response has changed.
+   *
+   * @return the e-tag, when it was calculated.
+   */
+  @SuppressWarnings("unused")
+  public String getEtag() {
+    return this.etag;
+  }
 
-    /**
-     * Set the e-tag (a hash above all features), when it was calculated.
-     *
-     * @param etag the e-tag, if null, the e-tag is removed.
-     */
-    @SuppressWarnings("WeakerAccess")
-    public void setEtag(String etag) {
-        this.etag = etag;
-    }
+  /**
+   * Set the e-tag (a hash above all features), when it was calculated.
+   *
+   * @param etag the e-tag, if null, the e-tag is removed.
+   */
+  @SuppressWarnings("WeakerAccess")
+  public void setEtag(String etag) {
+    this.etag = etag;
+  }
 
-    /**
-     * Calculate the hash of the given bytes. Returns a strong e-tag.
-     *
-     * @param bytes the bytes to hash.
-     * @return the strong e-tag.
-     */
-    public static @NotNull String calculateEtagFor(byte @NotNull [] bytes) {
-        return "\"" + Hasher.getHash(bytes) + "\"";
-    }
+  /**
+   * Calculate the hash of the given bytes. Returns a strong e-tag.
+   *
+   * @param bytes the bytes to hash.
+   * @return the strong e-tag.
+   */
+  public static @NotNull String calculateEtagFor(byte @NotNull [] bytes) {
+    return "\"" + Hasher.getHash(bytes) + "\"";
+  }
 
-    public static boolean etagMatches(@Nullable String ifNoneMatch, @Nullable String etag) {
-        if (ifNoneMatch == null || ifNoneMatch.length() == 0 || etag == null || etag.length() == 0) return false;
-        // Note: Be resilient against clients that do not follow the spec accordingly.
-        //       Some clients may not add the quotation marks around e-tags or use weak e-tags.
-        //       We currently treat weak and normal e-tags the same, so ignore W/ and leading/ending
-        // quotes.
-        // See:  https://en.wikipedia.org/wiki/HTTP_ETag
-        int etagStart = 0;
-        int etagEnd = etag.length();
-        if (etag.startsWith("W/") || etag.startsWith("w/")) etagStart += 2;
-        if (etagStart < etag.length() && etag.charAt(etagStart) == '"') etagStart += 1;
-        if (etag.charAt(etagEnd - 1) == '"') etagEnd -= 1;
+  public static boolean etagMatches(@Nullable String ifNoneMatch, @Nullable String etag) {
+    if (ifNoneMatch == null || ifNoneMatch.length() == 0 || etag == null || etag.length() == 0) return false;
+    // Note: Be resilient against clients that do not follow the spec accordingly.
+    //       Some clients may not add the quotation marks around e-tags or use weak e-tags.
+    //       We currently treat weak and normal e-tags the same, so ignore W/ and leading/ending
+    // quotes.
+    // See:  https://en.wikipedia.org/wiki/HTTP_ETag
+    int etagStart = 0;
+    int etagEnd = etag.length();
+    if (etag.startsWith("W/") || etag.startsWith("w/")) etagStart += 2;
+    if (etagStart < etag.length() && etag.charAt(etagStart) == '"') etagStart += 1;
+    if (etag.charAt(etagEnd - 1) == '"') etagEnd -= 1;
 
-        int inmStart = 0;
-        int inmEnd = ifNoneMatch.length();
-        if (ifNoneMatch.startsWith("W/") || ifNoneMatch.startsWith("w/")) inmStart += 2;
-        if (inmStart < ifNoneMatch.length() && ifNoneMatch.charAt(inmStart) == '"') inmStart += 1;
-        if (ifNoneMatch.charAt(inmEnd - 1) == '"') inmEnd -= 1;
-        return StringHelper.equals(etag, etagStart, etagEnd, ifNoneMatch, inmStart, inmEnd);
-    }
+    int inmStart = 0;
+    int inmEnd = ifNoneMatch.length();
+    if (ifNoneMatch.startsWith("W/") || ifNoneMatch.startsWith("w/")) inmStart += 2;
+    if (inmStart < ifNoneMatch.length() && ifNoneMatch.charAt(inmStart) == '"') inmStart += 1;
+    if (ifNoneMatch.charAt(inmEnd - 1) == '"') inmEnd -= 1;
+    return StringHelper.equals(etag, etagStart, etagEnd, ifNoneMatch, inmStart, inmEnd);
+  }
 }

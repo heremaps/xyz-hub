@@ -20,7 +20,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public abstract class XyzQueryRunner<E extends Event, R extends XyzResponse> extends QueryRunner<E, R> {
 
-    public XyzQueryRunner(E event, final @NotNull PsqlHandler psqlConnector) throws SQLException {
-        super(event, psqlConnector);
-    }
+  public XyzQueryRunner(E event, final @NotNull PsqlHandler psqlConnector) throws SQLException {
+    super(event, psqlConnector);
+  }
 }

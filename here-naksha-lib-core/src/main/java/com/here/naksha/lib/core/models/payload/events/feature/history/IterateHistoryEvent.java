@@ -28,68 +28,68 @@ import com.here.naksha.lib.core.models.payload.events.feature.SearchForFeaturesE
 @JsonTypeName(value = "IterateHistoryEvent")
 public final class IterateHistoryEvent extends SearchForFeaturesEvent {
 
-    private String pageToken;
+  private String pageToken;
 
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    private int startVersion;
+  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+  private int startVersion;
 
-    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    private int endVersion;
+  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+  private int endVersion;
 
-    private boolean compact;
+  private boolean compact;
 
-    public int getStartVersion() {
-        return startVersion;
-    }
+  public int getStartVersion() {
+    return startVersion;
+  }
 
-    public void setStartVersion(int startVersion) {
-        this.startVersion = startVersion;
-    }
+  public void setStartVersion(int startVersion) {
+    this.startVersion = startVersion;
+  }
 
-    public IterateHistoryEvent withStartVersion(int startVersion) {
-        setStartVersion(startVersion);
-        return this;
-    }
+  public IterateHistoryEvent withStartVersion(int startVersion) {
+    setStartVersion(startVersion);
+    return this;
+  }
 
-    public int getEndVersion() {
-        return endVersion;
-    }
+  public int getEndVersion() {
+    return endVersion;
+  }
 
-    public void setEndVersion(int endVersion) {
-        this.endVersion = endVersion;
-    }
+  public void setEndVersion(int endVersion) {
+    this.endVersion = endVersion;
+  }
 
-    public IterateHistoryEvent withEndVersion(int endVersion) {
-        setEndVersion(endVersion);
-        return this;
-    }
+  public IterateHistoryEvent withEndVersion(int endVersion) {
+    setEndVersion(endVersion);
+    return this;
+  }
 
-    @SuppressWarnings("unused")
-    public String getPageToken() {
-        return pageToken;
-    }
+  @SuppressWarnings("unused")
+  public String getPageToken() {
+    return pageToken;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setPageToken(String pageToken) {
-        this.pageToken = pageToken;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setPageToken(String pageToken) {
+    this.pageToken = pageToken;
+  }
 
-    @SuppressWarnings("unused")
-    public IterateHistoryEvent withPageToken(String pageToken) {
-        setPageToken(pageToken);
-        return this;
-    }
+  @SuppressWarnings("unused")
+  public IterateHistoryEvent withPageToken(String pageToken) {
+    setPageToken(pageToken);
+    return this;
+  }
 
-    public boolean isCompact() {
-        return compact;
-    }
+  public boolean isCompact() {
+    return compact;
+  }
 
-    public void setCompact(Boolean compact) {
-        this.compact = compact;
-    }
+  public void setCompact(Boolean compact) {
+    this.compact = compact;
+  }
 
-    public IterateHistoryEvent withCompact(boolean compact) {
-        setCompact(compact);
-        return this;
-    }
+  public IterateHistoryEvent withCompact(boolean compact) {
+    setCompact(compact);
+    return this;
+  }
 }

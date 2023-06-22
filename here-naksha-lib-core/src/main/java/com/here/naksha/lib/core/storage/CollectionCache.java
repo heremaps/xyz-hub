@@ -10,19 +10,19 @@ import org.jetbrains.annotations.NotNull;
  * storage in memory.
  */
 public abstract class CollectionCache<FEATURE extends Feature> {
-    // TODO: Implement me!
+  // TODO: Implement me!
 
-    /**
-     * Returns the collection this caches operates on.
-     *
-     * @return the collection this caches operates on.
-     */
-    public abstract @NotNull StorageCollection collection();
+  /**
+   * Returns the collection this caches operates on.
+   *
+   * @return the collection this caches operates on.
+   */
+  public abstract @NotNull StorageCollection collection();
 
-    /**
-     * Returns the feature reader for this collection.
-     *
-     * @return the feature reader for this collection.
-     */
-    public abstract @NotNull IFeatureReader<FEATURE> featureReader();
+  /**
+   * Returns the feature reader for this collection.
+   *
+   * @return the feature reader for this collection.
+   */
+  public abstract @NotNull IFeatureReader<FEATURE> featureReader();
 }

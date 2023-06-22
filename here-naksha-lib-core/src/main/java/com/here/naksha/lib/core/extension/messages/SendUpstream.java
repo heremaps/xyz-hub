@@ -14,13 +14,13 @@ import org.jetbrains.annotations.NotNull;
 @JsonTypeName(value = "naksha.ext.rpc.v1.sendUpdate")
 public class SendUpstream extends ExtensionMessage {
 
-    public static final String EVENT = "event";
+  public static final String EVENT = "event";
 
-    public SendUpstream(@JsonProperty(EVENT) @NotNull Event event) {
-        this.event = event;
-    }
+  public SendUpstream(@JsonProperty(EVENT) @NotNull Event event) {
+    this.event = event;
+  }
 
-    @AvailableSince(INaksha.v2_0_3)
-    @JsonProperty(EVENT)
-    public final @NotNull Event event;
+  @AvailableSince(INaksha.v2_0_3)
+  @JsonProperty(EVENT)
+  public final @NotNull Event event;
 }

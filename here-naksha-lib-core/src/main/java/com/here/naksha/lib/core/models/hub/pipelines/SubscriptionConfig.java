@@ -11,43 +11,43 @@ import org.jetbrains.annotations.Nullable;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SubscriptionConfig {
 
-    /** The type of the subscription. */
-    @JsonProperty
-    private SubscriptionType type;
+  /** The type of the subscription. */
+  @JsonProperty
+  private SubscriptionType type;
 
-    @JsonProperty
-    @JsonView(Manager.class)
-    private Map<@NotNull String, @Nullable Object> params;
+  @JsonProperty
+  @JsonView(Manager.class)
+  private Map<@NotNull String, @Nullable Object> params;
 
-    public SubscriptionType getType() {
-        return type;
-    }
+  public SubscriptionType getType() {
+    return type;
+  }
 
-    public void setType(SubscriptionType type) {
-        this.type = type;
-    }
+  public void setType(SubscriptionType type) {
+    this.type = type;
+  }
 
-    public @NotNull SubscriptionConfig withType(SubscriptionType type) {
-        this.type = type;
-        return this;
-    }
+  public @NotNull SubscriptionConfig withType(SubscriptionType type) {
+    this.type = type;
+    return this;
+  }
 
-    public Map<@NotNull String, @Nullable Object> getParams() {
-        return params;
-    }
+  public Map<@NotNull String, @Nullable Object> getParams() {
+    return params;
+  }
 
-    public void setParams(Map<@NotNull String, @Nullable Object> params) {
-        this.params = params;
-    }
+  public void setParams(Map<@NotNull String, @Nullable Object> params) {
+    this.params = params;
+  }
 
-    public @NotNull SubscriptionConfig withParams(Map<@NotNull String, @Nullable Object> params) {
-        this.params = params;
-        return this;
-    }
+  public @NotNull SubscriptionConfig withParams(Map<@NotNull String, @Nullable Object> params) {
+    this.params = params;
+    return this;
+  }
 
-    public enum SubscriptionType {
-        PER_FEATURE,
-        PER_TRANSACTION,
-        CONTENT_CHANGE
-    }
+  public enum SubscriptionType {
+    PER_FEATURE,
+    PER_TRANSACTION,
+    CONTENT_CHANGE
+  }
 }

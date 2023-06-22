@@ -41,190 +41,190 @@ import org.junit.jupiter.api.Test;
 
 public class LazyParsedFeatureCollectionTest {
 
-    @Test
-    public void testDeserializeWithPartialView() throws Exception {
-        final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-                "/com/here/xyz/test/feature_collection_example.json");
+  @Test
+  public void testDeserializeWithPartialView() throws Exception {
+    final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
+        "/com/here/xyz/test/feature_collection_example.json");
 
-        final FeatureCollection response = JsonSerializable.deserialize(is);
+    final FeatureCollection response = JsonSerializable.deserialize(is);
 
-        assertNotNull(response);
-        Field features = response.getClass().getDeclaredField("features");
-        features.setAccessible(true);
-        //noinspection unchecked
-        LazyParsableFeatureList lp = (LazyParsableFeatureList) features.get(response);
-        Field value = lp.getClass().getDeclaredField("value");
-        value.setAccessible(true);
-        assertNull(value.get(lp));
+    assertNotNull(response);
+    Field features = response.getClass().getDeclaredField("features");
+    features.setAccessible(true);
+    //noinspection unchecked
+    LazyParsableFeatureList lp = (LazyParsableFeatureList) features.get(response);
+    Field value = lp.getClass().getDeclaredField("value");
+    value.setAccessible(true);
+    assertNull(value.get(lp));
 
-        response.serialize();
+    response.serialize();
 
-        features = response.getClass().getDeclaredField("features");
-        features.setAccessible(true);
-        //noinspection unchecked
-        lp = (LazyParsableFeatureList) features.get(response);
-        value = lp.getClass().getDeclaredField("value");
-        value.setAccessible(true);
-        assertNull(value.get(lp));
+    features = response.getClass().getDeclaredField("features");
+    features.setAccessible(true);
+    //noinspection unchecked
+    lp = (LazyParsableFeatureList) features.get(response);
+    value = lp.getClass().getDeclaredField("value");
+    value.setAccessible(true);
+    assertNull(value.get(lp));
 
-        assertNotNull(response.getFeatures());
-        assertEquals(1, response.getFeatures().size());
+    assertNotNull(response.getFeatures());
+    assertEquals(1, response.getFeatures().size());
 
-        Feature feature = response.getFeatures().get(0);
-        assertEquals("Q45671", feature.getId());
+    Feature feature = response.getFeatures().get(0);
+    assertEquals("Q45671", feature.getId());
+  }
+
+  @Test
+  public void testDeserializeWithFullView() throws Exception {
+    try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
+        "/com/here/xyz/test/feature_collection_example.json")) {
+      final FeatureCollection response = JsonSerializable.deserialize(is);
+      assertNotNull(response);
+      assertNotNull(response.getFeatures());
+      assertEquals(1, response.getFeatures().size());
+
+      Feature feature = response.getFeatures().get(0);
+      assertNotNull(feature);
+      assertNotNull(feature.get("customString"));
+      assertNotNull(feature.getProperties());
+      assertNotNull(feature.getProperties().getXyzNamespace());
+      assertNull(feature.getBbox());
+
+      assertEquals("Q45671", feature.getId());
     }
+  }
 
-    @Test
-    public void testDeserializeWithFullView() throws Exception {
-        try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-                "/com/here/xyz/test/feature_collection_example.json")) {
-            final FeatureCollection response = JsonSerializable.deserialize(is);
-            assertNotNull(response);
-            assertNotNull(response.getFeatures());
-            assertEquals(1, response.getFeatures().size());
+  @Test
+  public void testSerialize() throws Exception {
+    try (final InputStream is =
+        LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/one_feature.json")) {
+      final Feature f = JsonSerializable.deserialize(is);
+      assertNotNull(f);
+      assertEquals("Q45671", f.getId());
+      assertEquals("string_value", f.get("customString"));
+      assertEquals(4, (int) f.get("customLong"));
+      assertNotNull(f.getGeometry());
+      assertTrue(f.getGeometry() instanceof Point);
+      assertEquals(
+          -2.960827778D, ((Point) f.getGeometry()).getCoordinates().getLongitude(), 0.000000002);
+      assertEquals(
+          53.430819444, ((Point) f.getGeometry()).getCoordinates().getLatitude(), 0);
+      assertEquals(0D, ((Point) f.getGeometry()).getCoordinates().getAltitude(), 0);
+      assertNotNull(f.getProperties());
+      assertEquals("Anfield", f.getProperties().get("name"));
+      assertEquals("association football", f.getProperties().get("sport"));
+      assertEquals(54167, (int) f.getProperties().get("capacity"));
+      assertNotNull(f.getProperties().get("@ns:com:here:maphub"));
+      assertTrue(f.getProperties().get("@ns:com:here:maphub") instanceof Map);
 
-            Feature feature = response.getFeatures().get(0);
-            assertNotNull(feature);
-            assertNotNull(feature.get("customString"));
-            assertNotNull(feature.getProperties());
-            assertNotNull(feature.getProperties().getXyzNamespace());
-            assertNull(feature.getBbox());
+      Map<String, Object> maphub = (Map<String, Object>) f.getProperties().get("@ns:com:here:maphub");
+      assertNotNull(maphub);
+      assertEquals("8100c1baecf3749485ccba46529e751d683d1a4f", maphub.get("previousGuid"));
+      assertEquals("15be2f6763b783457d71f2b38a45b8c6bf28c9dc", maphub.get("guid"));
+      assertEquals("grp|xyzhub|data", maphub.get("layerId"));
+      assertEquals(-372, maphub.get("id"));
+      assertEquals(1487963959666L, maphub.get("createdTS"));
+      assertEquals(1488896925130L, maphub.get("lastUpdateTS"));
 
-            assertEquals("Q45671", feature.getId());
-        }
+      // assertEquals("my-space", f.getProperties().getXyzNamespace().getSpace());
+      assertNotNull(f.getProperties().getXyzNamespace().getTags());
+      assertArrayEquals(
+          new String[] {"stadium", "soccer"},
+          f.getProperties().getXyzNamespace().getTags().toArray());
+
+      assertNull(f.getBbox());
+      f.calculateAndSetBbox(true);
+      assertNotNull(f.getBbox());
     }
+  }
 
-    @Test
-    public void testSerialize() throws Exception {
-        try (final InputStream is =
-                LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/one_feature.json")) {
-            final Feature f = JsonSerializable.deserialize(is);
-            assertNotNull(f);
-            assertEquals("Q45671", f.getId());
-            assertEquals("string_value", f.get("customString"));
-            assertEquals(4, (int) f.get("customLong"));
-            assertNotNull(f.getGeometry());
-            assertTrue(f.getGeometry() instanceof Point);
-            assertEquals(
-                    -2.960827778D, ((Point) f.getGeometry()).getCoordinates().getLongitude(), 0.000000002);
-            assertEquals(
-                    53.430819444, ((Point) f.getGeometry()).getCoordinates().getLatitude(), 0);
-            assertEquals(0D, ((Point) f.getGeometry()).getCoordinates().getAltitude(), 0);
-            assertNotNull(f.getProperties());
-            assertEquals("Anfield", f.getProperties().get("name"));
-            assertEquals("association football", f.getProperties().get("sport"));
-            assertEquals(54167, (int) f.getProperties().get("capacity"));
-            assertNotNull(f.getProperties().get("@ns:com:here:maphub"));
-            assertTrue(f.getProperties().get("@ns:com:here:maphub") instanceof Map);
+  @Test
+  public void testDeserializeWithSeveralObjects() {
+    try (InputStream is =
+        LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/one_feature.json")) {
+      final String jsonFeature = inputStreamToString(is);
 
-            Map<String, Object> maphub = (Map<String, Object>) f.getProperties().get("@ns:com:here:maphub");
-            assertNotNull(maphub);
-            assertEquals("8100c1baecf3749485ccba46529e751d683d1a4f", maphub.get("previousGuid"));
-            assertEquals("15be2f6763b783457d71f2b38a45b8c6bf28c9dc", maphub.get("guid"));
-            assertEquals("grp|xyzhub|data", maphub.get("layerId"));
-            assertEquals(-372, maphub.get("id"));
-            assertEquals(1487963959666L, maphub.get("createdTS"));
-            assertEquals(1488896925130L, maphub.get("lastUpdateTS"));
+      final int max = 10;
+      List<Feature> features = new ArrayList<>();
+      for (int i = 0; i < max; i++) {
+        assert jsonFeature != null;
+        Feature f = new ObjectMapper().readValue(jsonFeature, Feature.class);
+        f.setId("my_" + i);
+        f.getProperties().put("from_loop", i);
+        features.add(f);
+      }
 
-            // assertEquals("my-space", f.getProperties().getXyzNamespace().getSpace());
-            assertNotNull(f.getProperties().getXyzNamespace().getTags());
-            assertArrayEquals(
-                    new String[] {"stadium", "soccer"},
-                    f.getProperties().getXyzNamespace().getTags().toArray());
+      FeatureCollection fc = new FeatureCollection();
+      fc.setLazyParsableFeatureList(features);
+      fc.calculateAndSetBBox(true);
 
-            assertNull(f.getBbox());
-            f.calculateAndSetBbox(true);
-            assertNotNull(f.getBbox());
-        }
+      String severalFeaturesIntoFeatureCollection = new ObjectMapper().writeValueAsString(fc);
+
+      //noinspection UnusedAssignment
+      FeatureCollection response =
+          new ObjectMapper().readValue(severalFeaturesIntoFeatureCollection, FeatureCollection.class);
+
+      response = JsonSerializable.deserialize(severalFeaturesIntoFeatureCollection);
+
+      //noinspection unused
+      String responseSerialized = response.serialize();
+    } catch (Exception e) {
+      e.printStackTrace();
+      fail();
     }
+  }
 
-    @Test
-    public void testDeserializeWithSeveralObjects() {
-        try (InputStream is =
-                LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/one_feature.json")) {
-            final String jsonFeature = inputStreamToString(is);
+  /** Pretty naive solution, just to be used in these tests */
+  private String inputStreamToString(InputStream is) {
+    try (BufferedInputStream bis = new BufferedInputStream(is)) {
+      int size = is.available();
+      byte[] byteArray = new byte[size];
+      //noinspection ResultOfMethodCallIgnored
+      bis.read(byteArray);
 
-            final int max = 10;
-            List<Feature> features = new ArrayList<>();
-            for (int i = 0; i < max; i++) {
-                assert jsonFeature != null;
-                Feature f = new ObjectMapper().readValue(jsonFeature, Feature.class);
-                f.setId("my_" + i);
-                f.getProperties().put("from_loop", i);
-                features.add(f);
-            }
-
-            FeatureCollection fc = new FeatureCollection();
-            fc.setLazyParsableFeatureList(features);
-            fc.calculateAndSetBBox(true);
-
-            String severalFeaturesIntoFeatureCollection = new ObjectMapper().writeValueAsString(fc);
-
-            //noinspection UnusedAssignment
-            FeatureCollection response =
-                    new ObjectMapper().readValue(severalFeaturesIntoFeatureCollection, FeatureCollection.class);
-
-            response = JsonSerializable.deserialize(severalFeaturesIntoFeatureCollection);
-
-            //noinspection unused
-            String responseSerialized = response.serialize();
-        } catch (Exception e) {
-            e.printStackTrace();
-            fail();
-        }
+      return new String(byteArray);
+    } catch (IOException e) {
+      return null;
     }
+  }
 
-    /** Pretty naive solution, just to be used in these tests */
-    private String inputStreamToString(InputStream is) {
-        try (BufferedInputStream bis = new BufferedInputStream(is)) {
-            int size = is.available();
-            byte[] byteArray = new byte[size];
-            //noinspection ResultOfMethodCallIgnored
-            bis.read(byteArray);
-
-            return new String(byteArray);
-        } catch (IOException e) {
-            return null;
-        }
+  @Test
+  public void testSerializeWithoutOrder() throws IOException {
+    try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
+        "/com/here/xyz/test/featureWithNumberId.json")) {
+      FeatureCollection fc = JsonSerializable.deserialize(is);
+      assertEquals(1, fc.getFeatures().size());
     }
+  }
 
-    @Test
-    public void testSerializeWithoutOrder() throws IOException {
-        try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-                "/com/here/xyz/test/featureWithNumberId.json")) {
-            FeatureCollection fc = JsonSerializable.deserialize(is);
-            assertEquals(1, fc.getFeatures().size());
-        }
+  @Test
+  public void testDeserializeLarger() throws IOException {
+    try (final InputStream is =
+        LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/processedData.json")) {
+      FeatureCollection fc = JsonSerializable.deserialize(is);
+      assertEquals(252, fc.getFeatures().size());
     }
+  }
 
-    @Test
-    public void testDeserializeLarger() throws IOException {
-        try (final InputStream is =
-                LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/processedData.json")) {
-            FeatureCollection fc = JsonSerializable.deserialize(is);
-            assertEquals(252, fc.getFeatures().size());
-        }
+  @Test
+  public void testDeserializeWithNullFeature() throws IOException {
+    try (final InputStream is =
+        LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/nullFeature.json")) {
+      FeatureCollection fc = JsonSerializable.deserialize(is);
+      assertEquals(1, fc.getFeatures().size());
+      assertNull(fc.getFeatures().get(0));
     }
+  }
 
-    @Test
-    public void testDeserializeWithNullFeature() throws IOException {
-        try (final InputStream is =
-                LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/nullFeature.json")) {
-            FeatureCollection fc = JsonSerializable.deserialize(is);
-            assertEquals(1, fc.getFeatures().size());
-            assertNull(fc.getFeatures().get(0));
-        }
+  @Test
+  public void testDeserializeWithFeatureMissingType() throws IOException {
+    try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
+        "/com/here/xyz/test/featureMissingType.json")) {
+      final String input = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+      FeatureCollection fc = JsonSerializable.deserialize(input);
+      assertEquals(1, fc.getFeatures().size());
+      final Feature feature = fc.getFeatures().get(0);
+      assertEquals("1234", feature.getId());
     }
-
-    @Test
-    public void testDeserializeWithFeatureMissingType() throws IOException {
-        try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
-                "/com/here/xyz/test/featureMissingType.json")) {
-            final String input = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-            FeatureCollection fc = JsonSerializable.deserialize(input);
-            assertEquals(1, fc.getFeatures().size());
-            final Feature feature = fc.getFeatures().get(0);
-            assertEquals("1234", feature.getId());
-        }
-    }
+  }
 }

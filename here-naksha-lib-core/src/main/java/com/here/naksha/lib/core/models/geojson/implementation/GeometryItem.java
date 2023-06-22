@@ -24,24 +24,24 @@ import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.geojson.declaration.IBoundedCoordinates;
 
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = Point.class, name = "Point"),
-    @JsonSubTypes.Type(value = MultiPoint.class, name = "MultiPoint"),
-    @JsonSubTypes.Type(value = LineString.class, name = "LineString"),
-    @JsonSubTypes.Type(value = MultiLineString.class, name = "MultiLineString"),
-    @JsonSubTypes.Type(value = Polygon.class, name = "Polygon"),
-    @JsonSubTypes.Type(value = MultiPolygon.class, name = "MultiPolygon")
+  @JsonSubTypes.Type(value = Point.class, name = "Point"),
+  @JsonSubTypes.Type(value = MultiPoint.class, name = "MultiPoint"),
+  @JsonSubTypes.Type(value = LineString.class, name = "LineString"),
+  @JsonSubTypes.Type(value = MultiLineString.class, name = "MultiLineString"),
+  @JsonSubTypes.Type(value = Polygon.class, name = "Polygon"),
+  @JsonSubTypes.Type(value = MultiPolygon.class, name = "MultiPolygon")
 })
 public abstract class GeometryItem extends Geometry {
 
-    public abstract IBoundedCoordinates getCoordinates();
+  public abstract IBoundedCoordinates getCoordinates();
 
-    @Override
-    public BBox calculateBBox() {
-        final IBoundedCoordinates coordinates = getCoordinates();
-        if (coordinates != null) {
-            return coordinates.calculateBBox();
-        }
-
-        return null;
+  @Override
+  public BBox calculateBBox() {
+    final IBoundedCoordinates coordinates = getCoordinates();
+    if (coordinates != null) {
+      return coordinates.calculateBBox();
     }
+
+    return null;
+  }
 }

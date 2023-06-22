@@ -29,29 +29,29 @@ import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryExcepti
 @JsonTypeName(value = "MultiPolygon")
 public class MultiPolygon extends GeometryItem {
 
-    private MultiPolygonCoordinates coordinates = new MultiPolygonCoordinates();
+  private MultiPolygonCoordinates coordinates = new MultiPolygonCoordinates();
 
-    @Override
-    public MultiPolygonCoordinates getCoordinates() {
-        return this.coordinates;
-    }
+  @Override
+  public MultiPolygonCoordinates getCoordinates() {
+    return this.coordinates;
+  }
 
-    public void setCoordinates(MultiPolygonCoordinates coordinates) {
-        this.coordinates = coordinates;
-    }
+  public void setCoordinates(MultiPolygonCoordinates coordinates) {
+    this.coordinates = coordinates;
+  }
 
-    public MultiPolygon withCoordinates(MultiPolygonCoordinates coordinates) {
-        setCoordinates(coordinates);
-        return this;
-    }
+  public MultiPolygon withCoordinates(MultiPolygonCoordinates coordinates) {
+    setCoordinates(coordinates);
+    return this;
+  }
 
-    @Override
-    protected com.vividsolutions.jts.geom.Geometry convertToJTSGeometry() {
-        return JTSHelper.toMultiPolygon(this.coordinates);
-    }
+  @Override
+  protected com.vividsolutions.jts.geom.Geometry convertToJTSGeometry() {
+    return JTSHelper.toMultiPolygon(this.coordinates);
+  }
 
-    @Override
-    public void validate() throws InvalidGeometryException {
-        validateMultiPolygonCoordinates(this.coordinates);
-    }
+  @Override
+  public void validate() throws InvalidGeometryException {
+    validateMultiPolygonCoordinates(this.coordinates);
+  }
 }

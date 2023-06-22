@@ -9,12 +9,12 @@ import org.jetbrains.annotations.NotNull;
  */
 public interface IPlugin<API> {
 
-    /**
-     * Create a new instance of the plugin.
-     *
-     * @return the API.
-     * @throws Exception if creating the instance failed.
-     */
-    @NotNull
-    API newInstance() throws Exception;
+  /**
+   * Create a new instance of the plugin.
+   *
+   * @return the API.
+   * @throws Exception if creating the instance failed.
+   */
+  @NotNull
+  API newInstance() throws Exception;
 }

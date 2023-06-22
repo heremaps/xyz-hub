@@ -18,59 +18,59 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "HexBinClustering")
 public class ClusteringHexBin extends Clustering {
 
-    public static final int MIN_RESOLUTION = 0;
-    public static final int MAX_RESOLUTION = 13;
+  public static final int MIN_RESOLUTION = 0;
+  public static final int MAX_RESOLUTION = 13;
 
-    /**
-     * The optional H3 hexagon resolution [0,13]. This parameter is as well available with the
-     * downward compatible naming “resolution”.
-     */
-    private @Nullable Integer absoluteResolution;
+  /**
+   * The optional H3 hexagon resolution [0,13]. This parameter is as well available with the
+   * downward compatible naming “resolution”.
+   */
+  private @Nullable Integer absoluteResolution;
 
-    public @Nullable Integer getAbsoluteResolution() {
-        if (absoluteResolution != null
-                && (absoluteResolution < MIN_RESOLUTION || absoluteResolution > MAX_RESOLUTION)) {
-            return null;
-        }
-        return absoluteResolution;
+  public @Nullable Integer getAbsoluteResolution() {
+    if (absoluteResolution != null
+        && (absoluteResolution < MIN_RESOLUTION || absoluteResolution > MAX_RESOLUTION)) {
+      return null;
     }
+    return absoluteResolution;
+  }
 
-    public void setAbsoluteResolution(@Nullable Integer absoluteResolution) throws ParameterError {
-        if (absoluteResolution != null
-                && (absoluteResolution < MIN_RESOLUTION || absoluteResolution > MAX_RESOLUTION)) {
-            throw new ParameterError(format(
-                    "absoluteResolution must be %d to %d and was: %d",
-                    MIN_RESOLUTION, MAX_RESOLUTION, absoluteResolution));
-        }
-        this.absoluteResolution = absoluteResolution;
+  public void setAbsoluteResolution(@Nullable Integer absoluteResolution) throws ParameterError {
+    if (absoluteResolution != null
+        && (absoluteResolution < MIN_RESOLUTION || absoluteResolution > MAX_RESOLUTION)) {
+      throw new ParameterError(format(
+          "absoluteResolution must be %d to %d and was: %d",
+          MIN_RESOLUTION, MAX_RESOLUTION, absoluteResolution));
     }
+    this.absoluteResolution = absoluteResolution;
+  }
 
-    /** Optional value to be added to current used resolution [-2,2]. */
-    private @Nullable Integer relativeResolution;
+  /** Optional value to be added to current used resolution [-2,2]. */
+  private @Nullable Integer relativeResolution;
 
-    public @Nullable Integer getRelativeResolution() {
-        if (relativeResolution != null && (relativeResolution < -2 || relativeResolution > 2)) {
-            return null;
-        }
-        return relativeResolution;
+  public @Nullable Integer getRelativeResolution() {
+    if (relativeResolution != null && (relativeResolution < -2 || relativeResolution > 2)) {
+      return null;
     }
+    return relativeResolution;
+  }
 
-    public void setRelativeResolution(@Nullable Integer relativeResolution) throws ParameterError {
-        if (relativeResolution != null && (relativeResolution < -2 || relativeResolution > 2)) {
-            throw new ParameterError("relativeResolution must be -2 to 2 and was: " + relativeResolution);
-        }
-        this.relativeResolution = relativeResolution;
+  public void setRelativeResolution(@Nullable Integer relativeResolution) throws ParameterError {
+    if (relativeResolution != null && (relativeResolution < -2 || relativeResolution > 2)) {
+      throw new ParameterError("relativeResolution must be -2 to 2 and was: " + relativeResolution);
     }
+    this.relativeResolution = relativeResolution;
+  }
 
-    /** A property of the original features for which to calculate statistics. */
-    public @Nullable String property;
+  /** A property of the original features for which to calculate statistics. */
+  public @Nullable String property;
 
-    /** Return the centroid of hexagons as geojson feature. */
-    public boolean pointMode;
+  /** Return the centroid of hexagons as geojson feature. */
+  public boolean pointMode;
 
-    /** Force to evaluate the first object coordinate only (default: false). */
-    public boolean singleCoord;
+  /** Force to evaluate the first object coordinate only (default: false). */
+  public boolean singleCoord;
 
-    /** Sampling ratio of underlying dataset. */
-    public @NotNull Sampling sampling = Sampling.OFF;
+  /** Sampling ratio of underlying dataset. */
+  public @NotNull Sampling sampling = Sampling.OFF;
 }

@@ -29,49 +29,49 @@ import org.jetbrains.annotations.Nullable;
 
 public class TagsQuery extends ArrayList<TagList> {
 
-    /** Create the tags object from a query parameter. */
-    @Deprecated
-    public static TagsQuery fromQueryParameter(String[] tagsQueryParam) {
-        if (tagsQueryParam == null) {
-            return new TagsQuery();
-        }
-        return fromQueryParameter(Arrays.asList(tagsQueryParam));
+  /** Create the tags object from a query parameter. */
+  @Deprecated
+  public static TagsQuery fromQueryParameter(String[] tagsQueryParam) {
+    if (tagsQueryParam == null) {
+      return new TagsQuery();
+    }
+    return fromQueryParameter(Arrays.asList(tagsQueryParam));
+  }
+
+  @Deprecated
+  public static @NotNull TagsQuery fromQueryParameter(@Nullable List<@Nullable String> tagsQueryParam) {
+    final TagsQuery result = new TagsQuery();
+
+    if (tagsQueryParam == null || tagsQueryParam.size() == 0) {
+      return result;
     }
 
-    @Deprecated
-    public static @NotNull TagsQuery fromQueryParameter(@Nullable List<@Nullable String> tagsQueryParam) {
-        final TagsQuery result = new TagsQuery();
+    final String operatorPlus = "-#:plus:#-";
+    for (String s : tagsQueryParam) {
+      if (s == null || s.length() == 0) {
+        continue;
+      }
 
-        if (tagsQueryParam == null || tagsQueryParam.size() == 0) {
-            return result;
-        }
+      try {
+        s = URLDecoder.decode(s.replaceAll("\\+", operatorPlus), "utf-8");
+      } catch (UnsupportedEncodingException e) {
+        e.printStackTrace();
+      }
 
-        final String operatorPlus = "-#:plus:#-";
-        for (String s : tagsQueryParam) {
-            if (s == null || s.length() == 0) {
-                continue;
-            }
-
-            try {
-                s = URLDecoder.decode(s.replaceAll("\\+", operatorPlus), "utf-8");
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
-
-            final String[] split = s.split(operatorPlus);
-            result.add(new TagList(split, true));
-        }
-
-        return result;
+      final String[] split = s.split(operatorPlus);
+      result.add(new TagList(split, true));
     }
 
-    public boolean containsWildcard() {
-        for (TagList andTags : this) {
-            if (andTags != null && andTags.size() == 1 && "*".equals(andTags.get(0))) {
-                return true;
-            }
-        }
+    return result;
+  }
 
-        return false;
+  public boolean containsWildcard() {
+    for (TagList andTags : this) {
+      if (andTags != null && andTags.size() == 1 && "*".equals(andTags.get(0))) {
+        return true;
+      }
     }
+
+    return false;
+  }
 }

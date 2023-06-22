@@ -21,90 +21,90 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "QuadBinClustering")
 public class ClusteringQuadBin extends Clustering {
 
-    /** The quad resolution [0,4]. The alternative (deprecated) name is “resolution”. */
-    private @Nullable Integer relativeResolution;
+  /** The quad resolution [0,4]. The alternative (deprecated) name is “resolution”. */
+  private @Nullable Integer relativeResolution;
 
-    public @Nullable Integer getRelativeResolution() {
-        if (relativeResolution != null && (relativeResolution < 0 || relativeResolution > 4)) {
-            return null;
-        }
-        return relativeResolution;
+  public @Nullable Integer getRelativeResolution() {
+    if (relativeResolution != null && (relativeResolution < 0 || relativeResolution > 4)) {
+      return null;
+    }
+    return relativeResolution;
+  }
+
+  public void setRelativeResolution(@Nullable Integer relativeResolution) throws ParameterError {
+    if (relativeResolution != null && (relativeResolution < 0 || relativeResolution > 4)) {
+      throw new ParameterError(
+          format("relativeResolution must be between %d and %d, but was %d", 0, 4, relativeResolution));
+    }
+    this.relativeResolution = relativeResolution;
+  }
+
+  // TODO: What is the value range and meaning of this?
+  private @Nullable Integer absoluteResolution;
+
+  public @Nullable Integer getAbsoluteResolution() {
+    if (absoluteResolution != null && (absoluteResolution < 0 || absoluteResolution > 100)) {
+      return null;
+    }
+    return absoluteResolution;
+  }
+
+  public void setAbsoluteResolution(@Nullable Integer absoluteResolution) throws ParameterError {
+    if (absoluteResolution != null && (absoluteResolution < 0 || absoluteResolution > 100)) {
+      throw new ParameterError(
+          format("absoluteResolution must be between %d and %d, but was %d", 0, 100, absoluteResolution));
+    }
+    this.absoluteResolution = absoluteResolution;
+  }
+
+  /** Do not place a buffer around quad polygons. */
+  public boolean noBuffer;
+
+  /** The counting mode. */
+  public @NotNull ClusteringQuadBin.CountMode countMode = CountMode.MIXED;
+
+  public enum CountMode {
+    /** Real feature counts. Best accuracy, but slow. Not recommended for big result sets. */
+    REAL("real"),
+    /** Estimated feature counts. Low accuracy, but fast. Recommended for big result sets. */
+    ESTIMATED("estimated"),
+    /**
+     * Estimated feature counts combined with real ones, if the estimation is low a real count gets
+     * applied. Fits to the most use cases. This is the default.
+     */
+    MIXED("mixed");
+
+    CountMode(@NotNull String text) {
+      this.text = text;
     }
 
-    public void setRelativeResolution(@Nullable Integer relativeResolution) throws ParameterError {
-        if (relativeResolution != null && (relativeResolution < 0 || relativeResolution > 4)) {
-            throw new ParameterError(
-                    format("relativeResolution must be between %d and %d, but was %d", 0, 4, relativeResolution));
+    /**
+     * Returns the count mode for the given text.
+     *
+     * @param text The text.
+     * @param alt The alternative to return, when no matching value found.
+     * @return The count mode.
+     */
+    @JsonCreator
+    public static ClusteringQuadBin.CountMode forText(String text, ClusteringQuadBin.CountMode alt) {
+      if (text == null || text.length() < 3) {
+        return alt;
+      }
+      for (final ClusteringQuadBin.CountMode countMode : values()) {
+        if (countMode.text.equalsIgnoreCase(text)) {
+          return countMode;
         }
-        this.relativeResolution = relativeResolution;
+      }
+      return alt;
     }
 
-    // TODO: What is the value range and meaning of this?
-    private @Nullable Integer absoluteResolution;
+    /** The textual representation. */
+    public final @NotNull String text;
 
-    public @Nullable Integer getAbsoluteResolution() {
-        if (absoluteResolution != null && (absoluteResolution < 0 || absoluteResolution > 100)) {
-            return null;
-        }
-        return absoluteResolution;
+    @JsonValue
+    @Override
+    public @NotNull String toString() {
+      return text;
     }
-
-    public void setAbsoluteResolution(@Nullable Integer absoluteResolution) throws ParameterError {
-        if (absoluteResolution != null && (absoluteResolution < 0 || absoluteResolution > 100)) {
-            throw new ParameterError(
-                    format("absoluteResolution must be between %d and %d, but was %d", 0, 100, absoluteResolution));
-        }
-        this.absoluteResolution = absoluteResolution;
-    }
-
-    /** Do not place a buffer around quad polygons. */
-    public boolean noBuffer;
-
-    /** The counting mode. */
-    public @NotNull ClusteringQuadBin.CountMode countMode = CountMode.MIXED;
-
-    public enum CountMode {
-        /** Real feature counts. Best accuracy, but slow. Not recommended for big result sets. */
-        REAL("real"),
-        /** Estimated feature counts. Low accuracy, but fast. Recommended for big result sets. */
-        ESTIMATED("estimated"),
-        /**
-         * Estimated feature counts combined with real ones, if the estimation is low a real count gets
-         * applied. Fits to the most use cases. This is the default.
-         */
-        MIXED("mixed");
-
-        CountMode(@NotNull String text) {
-            this.text = text;
-        }
-
-        /**
-         * Returns the count mode for the given text.
-         *
-         * @param text The text.
-         * @param alt The alternative to return, when no matching value found.
-         * @return The count mode.
-         */
-        @JsonCreator
-        public static ClusteringQuadBin.CountMode forText(String text, ClusteringQuadBin.CountMode alt) {
-            if (text == null || text.length() < 3) {
-                return alt;
-            }
-            for (final ClusteringQuadBin.CountMode countMode : values()) {
-                if (countMode.text.equalsIgnoreCase(text)) {
-                    return countMode;
-                }
-            }
-            return alt;
-        }
-
-        /** The textual representation. */
-        public final @NotNull String text;
-
-        @JsonValue
-        @Override
-        public @NotNull String toString() {
-            return text;
-        }
-    }
+  }
 }

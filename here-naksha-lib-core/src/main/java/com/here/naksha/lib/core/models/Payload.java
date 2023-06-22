@@ -44,125 +44,125 @@ import org.slf4j.LoggerFactory;
 @JsonSubTypes({@JsonSubTypes.Type(value = Event.class), @JsonSubTypes.Type(value = XyzResponse.class)})
 public class Payload extends JsonObject implements Typed {
 
-    protected static final Logger logger = LoggerFactory.getLogger(Payload.class);
+  protected static final Logger logger = LoggerFactory.getLogger(Payload.class);
 
-    public static @NotNull InputStream prepareInputStream(@NotNull InputStream input) throws IOException {
-        if (!input.markSupported()) {
-            input = new BufferedInputStream(input);
-        }
-        if (isCompressed(input)) {
-            input = gunzip(input);
-        }
-        return input;
+  public static @NotNull InputStream prepareInputStream(@NotNull InputStream input) throws IOException {
+    if (!input.markSupported()) {
+      input = new BufferedInputStream(input);
     }
-
-    @SuppressWarnings("WeakerAccess")
-    public static @NotNull InputStream gunzip(@NotNull InputStream is) throws IOException {
-        try {
-            return new BufferedInputStream(new GZIPInputStream(is));
-        } catch (ZipException z) {
-            return is;
-        }
+    if (isCompressed(input)) {
+      input = gunzip(input);
     }
+    return input;
+  }
 
-    public static @NotNull OutputStream gzip(@NotNull OutputStream os) throws IOException {
-        try {
-            return new GZIPOutputStream(os);
-        } catch (ZipException z) {
-            return os;
-        }
+  @SuppressWarnings("WeakerAccess")
+  public static @NotNull InputStream gunzip(@NotNull InputStream is) throws IOException {
+    try {
+      return new BufferedInputStream(new GZIPInputStream(is));
+    } catch (ZipException z) {
+      return is;
     }
+  }
 
-    /**
-     * Determines if a byte array is compressed. The java.util.zip GZip implementation does not expose
-     * the GZip header so it is difficult to determine if a string is compressed.
-     *
-     * @param is an input stream
-     * @return true if the array is compressed or false otherwise
-     */
-    public static boolean isCompressed(@NotNull InputStream is) {
-        try {
-            if (!is.markSupported()) {
-                is = new BufferedInputStream(is);
-            }
-            final byte[] bytes = new byte[2];
-            is.mark(2);
-            if (is.read(bytes) < bytes.length) {
-                return false;
-            }
-            is.reset();
-            return isGzipped(bytes);
-        } catch (Exception e) {
-            return false;
-        }
+  public static @NotNull OutputStream gzip(@NotNull OutputStream os) throws IOException {
+    try {
+      return new GZIPOutputStream(os);
+    } catch (ZipException z) {
+      return os;
     }
+  }
 
-    public static boolean isGzipped(byte @NotNull [] bytes) {
-        return bytes.length >= 2
-                && GZIPInputStream.GZIP_MAGIC == (((int) bytes[0] & 0xff) | ((bytes[1] << 8) & 0xff00));
+  /**
+   * Determines if a byte array is compressed. The java.util.zip GZip implementation does not expose
+   * the GZip header so it is difficult to determine if a string is compressed.
+   *
+   * @param is an input stream
+   * @return true if the array is compressed or false otherwise
+   */
+  public static boolean isCompressed(@NotNull InputStream is) {
+    try {
+      if (!is.markSupported()) {
+        is = new BufferedInputStream(is);
+      }
+      final byte[] bytes = new byte[2];
+      is.mark(2);
+      if (is.read(bytes) < bytes.length) {
+        return false;
+      }
+      is.reset();
+      return isGzipped(bytes);
+    } catch (Exception e) {
+      return false;
     }
+  }
 
-    public static byte @NotNull [] compress(byte @NotNull [] bytes) {
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (final GZIPOutputStream gos = new GZIPOutputStream(baos)) {
-            gos.write(bytes);
-            gos.flush();
-            baos.flush();
-            return baos.toByteArray();
-        } catch (IOException e) {
-            logger.error("Unexpected exception while trying to GZIP given bytes", e);
-            return bytes;
-        }
+  public static boolean isGzipped(byte @NotNull [] bytes) {
+    return bytes.length >= 2
+        && GZIPInputStream.GZIP_MAGIC == (((int) bytes[0] & 0xff) | ((bytes[1] << 8) & 0xff00));
+  }
+
+  public static byte @NotNull [] compress(byte @NotNull [] bytes) {
+    final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    try (final GZIPOutputStream gos = new GZIPOutputStream(baos)) {
+      gos.write(bytes);
+      gos.flush();
+      baos.flush();
+      return baos.toByteArray();
+    } catch (IOException e) {
+      logger.error("Unexpected exception while trying to GZIP given bytes", e);
+      return bytes;
     }
+  }
 
-    public static byte @NotNull [] decompress(final byte @NotNull [] bytes) throws IOException {
-        return ByteStreams.toByteArray(Payload.prepareInputStream(new ByteArrayInputStream(bytes)));
+  public static byte @NotNull [] decompress(final byte @NotNull [] bytes) throws IOException {
+    return ByteStreams.toByteArray(Payload.prepareInputStream(new ByteArrayInputStream(bytes)));
+  }
+
+  /**
+   * @param versionA
+   * @param versionB
+   * @return -1 if versionA is smaller than versionB, 0 if versionA equals versionB, 1 if versionA
+   *     is larger than versionB.
+   */
+  public static int compareVersions(String versionA, String versionB) {
+    String[] partsA = versionA.split(".");
+    String[] partsB = versionB.split(".");
+    if (partsA.length != partsB.length) {
+      throw new IllegalArgumentException("Incompatible version strings.");
     }
-
-    /**
-     * @param versionA
-     * @param versionB
-     * @return -1 if versionA is smaller than versionB, 0 if versionA equals versionB, 1 if versionA
-     *     is larger than versionB.
-     */
-    public static int compareVersions(String versionA, String versionB) {
-        String[] partsA = versionA.split(".");
-        String[] partsB = versionB.split(".");
-        if (partsA.length != partsB.length) {
-            throw new IllegalArgumentException("Incompatible version strings.");
-        }
-        for (int i = 0; i < partsA.length; i++) {
-            int versionPartA = Integer.parseInt(partsA[i]), versionPartB = Integer.parseInt(partsB[i]);
-            if (versionPartA < versionPartB) {
-                return -1;
-            } else if (versionPartA > versionPartB) {
-                return 1;
-            }
-        }
-        return 0;
+    for (int i = 0; i < partsA.length; i++) {
+      int versionPartA = Integer.parseInt(partsA[i]), versionPartB = Integer.parseInt(partsB[i]);
+      if (versionPartA < versionPartB) {
+        return -1;
+      } else if (versionPartA > versionPartB) {
+        return 1;
+      }
     }
+    return 0;
+  }
 
-    /** Returns the hash of the event as a base64 string. */
-    @JsonIgnore
-    public String getHash() {
-        try {
-            return Hasher.getHash(getCacheString());
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
+  /** Returns the hash of the event as a base64 string. */
+  @JsonIgnore
+  public String getHash() {
+    try {
+      return Hasher.getHash(getCacheString());
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
     }
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    @JsonIgnore
-    @Deprecated
-    public String getCacheString() throws JsonProcessingException {
-        return JsonSerializable.serialize(this);
-    }
+  @SuppressWarnings("WeakerAccess")
+  @JsonIgnore
+  @Deprecated
+  public String getCacheString() throws JsonProcessingException {
+    return JsonSerializable.serialize(this);
+  }
 
-    @Override
-    public String toString() {
-        return serialize();
-    }
+  @Override
+  public String toString() {
+    return serialize();
+  }
 
-    protected static class ExcludeFromHash {}
+  protected static class ExcludeFromHash {}
 }

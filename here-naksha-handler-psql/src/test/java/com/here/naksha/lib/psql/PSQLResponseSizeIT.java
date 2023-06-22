@@ -36,49 +36,49 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings("unused")
 public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
-    static Map<String, Object> connectorParams = new HashMap<String, Object>() {
-        {
-        }
-    };
-
-    @BeforeAll
-    public static void init() throws Exception {
-        initEnv(connectorParams);
+  static Map<String, Object> connectorParams = new HashMap<String, Object>() {
+    {
     }
+  };
 
-    @BeforeAll
-    public void prepare() throws Exception {
-        invokeDeleteTestSpace(connectorParams);
-        invokeLambdaFromFile("/events/InsertFeaturesEventTransactional.json");
-    }
+  @BeforeAll
+  public static void init() throws Exception {
+    initEnv(connectorParams);
+  }
 
-    @AfterAll
-    public void shutdown() throws Exception {
-        invokeDeleteTestSpace(connectorParams);
-    }
+  @BeforeAll
+  public void prepare() throws Exception {
+    invokeDeleteTestSpace(connectorParams);
+    invokeLambdaFromFile("/events/InsertFeaturesEventTransactional.json");
+  }
 
-    @Test
-    public void testMaxConnectorResponseSize() throws Exception {
-        final IterateFeaturesEvent iter = new IterateFeaturesEvent();
-        // iter.setSpaceId("foo");
-        // iter.setConnectorParams(connectorParams);
+  @AfterAll
+  public void shutdown() throws Exception {
+    invokeDeleteTestSpace(connectorParams);
+  }
 
-        // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1024);
-        Typed result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
-        assertTrue(result instanceof FeatureCollection);
+  @Test
+  public void testMaxConnectorResponseSize() throws Exception {
+    final IterateFeaturesEvent iter = new IterateFeaturesEvent();
+    // iter.setSpaceId("foo");
+    // iter.setConnectorParams(connectorParams);
 
-        // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 512);
-        result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
-        assertTrue(result instanceof ErrorResponse);
-        assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
+    // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1024);
+    Typed result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
+    assertTrue(result instanceof FeatureCollection);
 
-        // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1);
-        result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
-        assertTrue(result instanceof ErrorResponse);
-        assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
+    // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 512);
+    result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
+    assertTrue(result instanceof ErrorResponse);
+    assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
 
-        // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 0);
-        result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
-        assertTrue(result instanceof FeatureCollection);
-    }
+    // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1);
+    result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
+    assertTrue(result instanceof ErrorResponse);
+    assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
+
+    // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 0);
+    result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
+    assertTrue(result instanceof FeatureCollection);
+  }
 }

@@ -10,21 +10,21 @@ import org.jetbrains.annotations.NotNull;
 @AvailableSince(INaksha.v2_0_0)
 public class PsqlStorageProperties extends Properties {
 
-    @AvailableSince(INaksha.v2_0_0)
-    public static final String CONFIG = "config";
+  @AvailableSince(INaksha.v2_0_0)
+  public static final String CONFIG = "config";
 
-    /**
-     * Create new PostgresQL storage configuration properties.
-     *
-     * @param config the database configuration to use.
-     */
-    @AvailableSince(INaksha.v2_0_0)
-    @JsonCreator
-    public PsqlStorageProperties(@NotNull PsqlConfig config) {
-        this.config = config;
-    }
+  /**
+   * Create new PostgresQL storage configuration properties.
+   *
+   * @param config the database configuration to use.
+   */
+  @AvailableSince(INaksha.v2_0_0)
+  @JsonCreator
+  public PsqlStorageProperties(@NotNull PsqlConfig config) {
+    this.config = config;
+  }
 
-    /** The configuration of the PostgresQL database. */
-    @AvailableSince(INaksha.v2_0_0)
-    public @NotNull PsqlConfig config;
+  /** The configuration of the PostgresQL database. */
+  @AvailableSince(INaksha.v2_0_0)
+  public @NotNull PsqlConfig config;
 }

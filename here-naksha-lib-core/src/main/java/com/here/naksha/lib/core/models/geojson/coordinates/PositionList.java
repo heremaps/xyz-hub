@@ -25,15 +25,15 @@ import java.util.ArrayList;
 /** A list of positions. */
 public class PositionList extends ArrayList<Position> implements IBoundedCoordinates {
 
-    public PositionList() {
-        super();
-    }
+  public PositionList() {
+    super();
+  }
 
-    public PositionList(int size) {
-        super(size);
-    }
+  public PositionList(int size) {
+    super(size);
+  }
 
-    public BBox calculateBBox() {
-        return IBoundedCoordinates.calculate(this);
-    }
+  public BBox calculateBBox() {
+    return IBoundedCoordinates.calculate(this);
+  }
 }

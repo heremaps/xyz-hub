@@ -21,26 +21,26 @@ import org.jetbrains.annotations.Nullable;
  */
 @AvailableSince(INaksha.v2_0_3)
 public record ExtensionConfig(
-        @NotNull String httpMethod, @NotNull URL url, int connTimeout, int readTimeout, @Nullable Boolean gzip) {
+    @NotNull String httpMethod, @NotNull URL url, int connTimeout, int readTimeout, @Nullable Boolean gzip) {
 
-    /**
-     * Create the default extension parameters.
-     *
-     * @param url the URL.
-     */
-    @AvailableSince(INaksha.v2_0_3)
-    public ExtensionConfig(@NotNull URL url) {
-        this("POST", url, (int) SECONDS.toMillis(5), (int) SECONDS.toMillis(60), null);
-    }
+  /**
+   * Create the default extension parameters.
+   *
+   * @param url the URL.
+   */
+  @AvailableSince(INaksha.v2_0_3)
+  public ExtensionConfig(@NotNull URL url) {
+    this("POST", url, (int) SECONDS.toMillis(5), (int) SECONDS.toMillis(60), null);
+  }
 
-    /**
-     * Create the default extension parameters.
-     *
-     * @param url the URL.
-     * @throws MalformedURLException if the given URL is malformed.
-     */
-    @AvailableSince(INaksha.v2_0_3)
-    public ExtensionConfig(@NotNull String url) throws MalformedURLException {
-        this("POST", new URL(url), (int) SECONDS.toMillis(5), (int) SECONDS.toMillis(60), null);
-    }
+  /**
+   * Create the default extension parameters.
+   *
+   * @param url the URL.
+   * @throws MalformedURLException if the given URL is malformed.
+   */
+  @AvailableSince(INaksha.v2_0_3)
+  public ExtensionConfig(@NotNull String url) throws MalformedURLException {
+    this("POST", new URL(url), (int) SECONDS.toMillis(5), (int) SECONDS.toMillis(60), null);
+  }
 }

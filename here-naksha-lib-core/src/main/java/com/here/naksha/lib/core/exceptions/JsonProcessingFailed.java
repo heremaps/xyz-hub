@@ -9,7 +9,7 @@ import org.jetbrains.annotations.NotNull;
  */
 public class JsonProcessingFailed extends RuntimeException {
 
-    public JsonProcessingFailed(@NotNull IOException e) {
-        super(e);
-    }
+  public JsonProcessingFailed(@NotNull IOException e) {
+    super(e);
+  }
 }

@@ -25,24 +25,24 @@ import com.here.naksha.lib.core.models.payload.events.TagsQuery;
 
 public abstract class QueryEvent extends FeatureEvent {
 
-    private TagsQuery tags;
-    private PropertyQueryOr propertiesQuery;
+  private TagsQuery tags;
+  private PropertyQueryOr propertiesQuery;
 
-    public TagsQuery getTags() {
-        return this.tags;
-    }
+  public TagsQuery getTags() {
+    return this.tags;
+  }
 
-    public void setTags(TagsQuery tags) {
-        this.tags = tags;
-    }
+  public void setTags(TagsQuery tags) {
+    this.tags = tags;
+  }
 
-    @SuppressWarnings("unused")
-    public PropertyQueryOr getPropertiesQuery() {
-        return this.propertiesQuery;
-    }
+  @SuppressWarnings("unused")
+  public PropertyQueryOr getPropertiesQuery() {
+    return this.propertiesQuery;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setPropertiesQuery(PropertyQueryOr propertiesQuery) {
-        this.propertiesQuery = propertiesQuery;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setPropertiesQuery(PropertyQueryOr propertiesQuery) {
+    this.propertiesQuery = propertiesQuery;
+  }
 }

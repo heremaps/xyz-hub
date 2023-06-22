@@ -24,15 +24,15 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class SpatialQueryEvent extends SearchForFeaturesEvent {
 
-    private boolean clip;
+  private boolean clip;
 
-    @SuppressWarnings("unused")
-    public Boolean getClip() {
-        return this.clip;
-    }
+  @SuppressWarnings("unused")
+  public Boolean getClip() {
+    return this.clip;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setClip(Boolean clip) {
-        this.clip = clip;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setClip(Boolean clip) {
+    this.clip = clip;
+  }
 }

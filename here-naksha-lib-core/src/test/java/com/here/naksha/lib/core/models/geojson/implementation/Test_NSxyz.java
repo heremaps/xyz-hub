@@ -28,16 +28,16 @@ import org.junit.jupiter.api.Test;
 
 public class Test_NSxyz {
 
-    @Test
-    public void test_fixNormalizedTags() {
-        final List<String> tags = new ArrayList<>();
-        tags.add("a");
-        tags.add("b,c");
-        assertEquals(2, tags.size());
-        XyzNamespace.fixNormalizedTags(tags);
-        assertEquals(3, tags.size());
-        assertEquals("a", tags.get(0));
-        assertEquals("c", tags.get(1));
-        assertEquals("b", tags.get(2));
-    }
+  @Test
+  public void test_fixNormalizedTags() {
+    final List<String> tags = new ArrayList<>();
+    tags.add("a");
+    tags.add("b,c");
+    assertEquals(2, tags.size());
+    XyzNamespace.fixNormalizedTags(tags);
+    assertEquals(3, tags.size());
+    assertEquals("a", tags.get(0));
+    assertEquals("c", tags.get(1));
+    assertEquals("b", tags.get(2));
+  }
 }

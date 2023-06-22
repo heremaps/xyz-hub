@@ -116,8 +116,9 @@ subprojects {
             removeUnusedImports()
             importOrder()
             formatAnnotations()
-            indentWithSpaces(3)
             palantirJavaFormat()
+            indentWithTabs(4)
+            indentWithSpaces(2)
         }
     }
 

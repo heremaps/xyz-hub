@@ -31,77 +31,77 @@ import org.jetbrains.annotations.Nullable;
 /** The standard properties of the standard feature store in the Naksha-Hub. */
 public class Properties extends JsonObject {
 
-    /**
-     * The internal management properties of the Naksha-Hub.
-     *
-     * @since 0.1.0
-     */
-    public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
+  /**
+   * The internal management properties of the Naksha-Hub.
+   *
+   * @since 0.1.0
+   */
+  public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
 
-    /**
-     * Properties used by the deprecated Activity-Log service, just here to allow downward
-     * compatibility.
-     *
-     * @since 0.6.0
-     */
-    public static final String XYZ_ACTIVITY_LOG_NS = "@ns:com:here:xyz:log";
+  /**
+   * Properties used by the deprecated Activity-Log service, just here to allow downward
+   * compatibility.
+   *
+   * @since 0.6.0
+   */
+  public static final String XYZ_ACTIVITY_LOG_NS = "@ns:com:here:xyz:log";
 
-    public Properties() {
-        xyzNamespace = new XyzNamespace();
-    }
+  public Properties() {
+    xyzNamespace = new XyzNamespace();
+  }
 
-    @JsonProperty(XYZ_NAMESPACE)
-    private @NotNull XyzNamespace xyzNamespace;
+  @JsonProperty(XYZ_NAMESPACE)
+  private @NotNull XyzNamespace xyzNamespace;
 
-    /**
-     * Returns the XYZ namespace, guaranteed to be always present. If parsing a feature without such
-     * property, an empty one will be created.
-     *
-     * @return The namespace.
-     */
-    public @NotNull XyzNamespace getXyzNamespace() {
-        return xyzNamespace;
-    }
+  /**
+   * Returns the XYZ namespace, guaranteed to be always present. If parsing a feature without such
+   * property, an empty one will be created.
+   *
+   * @return The namespace.
+   */
+  public @NotNull XyzNamespace getXyzNamespace() {
+    return xyzNamespace;
+  }
 
-    /**
-     * Sets the XYZ namespace.
-     *
-     * @param xyzNamespace The namespace.
-     */
-    public void setXyzNamespace(@NotNull XyzNamespace xyzNamespace) {
-        this.xyzNamespace = xyzNamespace;
-    }
+  /**
+   * Sets the XYZ namespace.
+   *
+   * @param xyzNamespace The namespace.
+   */
+  public void setXyzNamespace(@NotNull XyzNamespace xyzNamespace) {
+    this.xyzNamespace = xyzNamespace;
+  }
 
-    @JsonProperty(XYZ_ACTIVITY_LOG_NS)
-    @JsonInclude(Include.NON_NULL)
-    private @Nullable XyzActivityLog xyzActivityLog;
+  @JsonProperty(XYZ_ACTIVITY_LOG_NS)
+  @JsonInclude(Include.NON_NULL)
+  private @Nullable XyzActivityLog xyzActivityLog;
 
-    /**
-     * Returns the activity log namespace.
-     *
-     * @return The activity log namespace; if any.
-     */
-    public @Nullable XyzActivityLog getXyzActivityLog() {
-        return xyzActivityLog;
-    }
+  /**
+   * Returns the activity log namespace.
+   *
+   * @return The activity log namespace; if any.
+   */
+  public @Nullable XyzActivityLog getXyzActivityLog() {
+    return xyzActivityLog;
+  }
 
-    /**
-     * Sets the activity log namespace.
-     *
-     * @param ns The namespace.
-     */
-    public void setXyzActivityLog(@Nullable XyzActivityLog ns) {
-        this.xyzActivityLog = ns;
-    }
+  /**
+   * Sets the activity log namespace.
+   *
+   * @param ns The namespace.
+   */
+  public void setXyzActivityLog(@Nullable XyzActivityLog ns) {
+    this.xyzActivityLog = ns;
+  }
 
-    /**
-     * Removes the activity log namespace.
-     *
-     * @return The activity log namespace; if there was any.
-     */
-    public @Nullable XyzActivityLog removeActivityLog() {
-        final XyzActivityLog xyzActivityLog = this.xyzActivityLog;
-        this.xyzActivityLog = null;
-        return xyzActivityLog;
-    }
+  /**
+   * Removes the activity log namespace.
+   *
+   * @return The activity log namespace; if there was any.
+   */
+  public @Nullable XyzActivityLog removeActivityLog() {
+    final XyzActivityLog xyzActivityLog = this.xyzActivityLog;
+    this.xyzActivityLog = null;
+    return xyzActivityLog;
+  }
 }

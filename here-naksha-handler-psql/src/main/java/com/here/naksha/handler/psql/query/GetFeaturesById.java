@@ -27,18 +27,18 @@ import org.jetbrains.annotations.NotNull;
 
 public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent> {
 
-    public GetFeaturesById(@NotNull GetFeaturesByIdEvent event, @NotNull PsqlHandler psqlConnector)
-            throws SQLException {
-        super(event, psqlConnector);
-    }
+  public GetFeaturesById(@NotNull GetFeaturesByIdEvent event, @NotNull PsqlHandler psqlConnector)
+      throws SQLException {
+    super(event, psqlConnector);
+  }
 
-    @Override
-    protected @NotNull SQLQuery buildQuery(@NotNull GetFeaturesByIdEvent event) throws SQLException {
-        final String[] idArray = event.getIds().toArray(new String[0]);
-        final String filterWhereClause = "jsondata->>'id' = ANY(#{ids})";
-        SQLQuery query = super.buildQuery(event);
-        query.setQueryFragment("filterWhereClause", filterWhereClause);
-        query.setNamedParameter("ids", idArray);
-        return query;
-    }
+  @Override
+  protected @NotNull SQLQuery buildQuery(@NotNull GetFeaturesByIdEvent event) throws SQLException {
+    final String[] idArray = event.getIds().toArray(new String[0]);
+    final String filterWhereClause = "jsondata->>'id' = ANY(#{ids})";
+    SQLQuery query = super.buildQuery(event);
+    query.setQueryFragment("filterWhereClause", filterWhereClause);
+    query.setNamedParameter("ids", idArray);
+    return query;
+  }
 }

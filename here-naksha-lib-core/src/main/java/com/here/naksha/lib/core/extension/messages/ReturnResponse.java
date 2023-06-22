@@ -15,18 +15,18 @@ import org.jetbrains.annotations.NotNull;
 @JsonTypeName(value = "naksha.ext.rpc.v1.returnResponse")
 public class ReturnResponse extends ExtensionMessage {
 
-    public static final String RESPONSE = "response";
+  public static final String RESPONSE = "response";
 
-    @AvailableSince(INaksha.v2_0_3)
-    @JsonCreator
-    public ReturnResponse(@JsonProperty(RESPONSE) @NotNull XyzResponse response) {
-        this.response = response;
-    }
+  @AvailableSince(INaksha.v2_0_3)
+  @JsonCreator
+  public ReturnResponse(@JsonProperty(RESPONSE) @NotNull XyzResponse response) {
+    this.response = response;
+  }
 
-    /**
-     * The response to return.
-     */
-    @AvailableSince(INaksha.v2_0_3)
-    @JsonProperty(RESPONSE)
-    public final @NotNull XyzResponse response;
+  /**
+   * The response to return.
+   */
+  @AvailableSince(INaksha.v2_0_3)
+  @JsonProperty(RESPONSE)
+  public final @NotNull XyzResponse response;
 }

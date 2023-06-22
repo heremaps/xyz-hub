@@ -42,56 +42,56 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "LoadFeaturesEvent")
 public final class LoadFeaturesEvent extends FeatureEvent {
 
-    public LoadFeaturesEvent() {
-        setPreferPrimaryDataSource(true);
-        idsMap = new HashMap<>();
-    }
+  public LoadFeaturesEvent() {
+    setPreferPrimaryDataSource(true);
+    idsMap = new HashMap<>();
+  }
 
-    /**
-     * The IDs map, that is a map where the key contains the unique ID of the feature to be loaded.
-     * The value is the base uuid or {@code null}, if only the head state requested.
-     *
-     * <p>If the current head state does not match the provided uuid, so head differs from base, both
-     * states should be returned. If the service does not have a history it may omit to return the
-     * base state and only return the head state.
-     *
-     * @since 0.1.0
-     */
-    @JsonInclude(Include.NON_EMPTY)
-    private @NotNull Map<@NotNull String, @Nullable String> idsMap;
+  /**
+   * The IDs map, that is a map where the key contains the unique ID of the feature to be loaded.
+   * The value is the base uuid or {@code null}, if only the head state requested.
+   *
+   * <p>If the current head state does not match the provided uuid, so head differs from base, both
+   * states should be returned. If the service does not have a history it may omit to return the
+   * base state and only return the head state.
+   *
+   * @since 0.1.0
+   */
+  @JsonInclude(Include.NON_EMPTY)
+  private @NotNull Map<@NotNull String, @Nullable String> idsMap;
 
-    /**
-     * If a feature does exist in the history, but is in the state deleted ({@link Action#DELETE}),
-     * this state should only be returned, if this property is {@code true}.
-     *
-     * <p>This only applies if the storage does have a history that keeps track of deleted features.
-     *
-     * <p>In a nutshell: {@code true} if deleted states should be returned; {@code false} otherwise.
-     *
-     * @since 2.0.0
-     */
-    @JsonInclude(Include.NON_DEFAULT)
-    private boolean returnDeletedStates;
+  /**
+   * If a feature does exist in the history, but is in the state deleted ({@link Action#DELETE}),
+   * this state should only be returned, if this property is {@code true}.
+   *
+   * <p>This only applies if the storage does have a history that keeps track of deleted features.
+   *
+   * <p>In a nutshell: {@code true} if deleted states should be returned; {@code false} otherwise.
+   *
+   * @since 2.0.0
+   */
+  @JsonInclude(Include.NON_DEFAULT)
+  private boolean returnDeletedStates;
 
-    @SuppressWarnings("unused")
-    public @NotNull Map<@NotNull String, @Nullable String> getIdsMap() {
-        return idsMap;
-    }
+  @SuppressWarnings("unused")
+  public @NotNull Map<@NotNull String, @Nullable String> getIdsMap() {
+    return idsMap;
+  }
 
-    public void setIdsMap(@NotNull Map<@NotNull String, @Nullable String> idsMap) {
-        this.idsMap = idsMap;
-    }
+  public void setIdsMap(@NotNull Map<@NotNull String, @Nullable String> idsMap) {
+    this.idsMap = idsMap;
+  }
 
-    public @NotNull LoadFeaturesEvent withIdsMap(@NotNull Map<@NotNull String, @Nullable String> idsMap) {
-        setIdsMap(idsMap);
-        return this;
-    }
+  public @NotNull LoadFeaturesEvent withIdsMap(@NotNull Map<@NotNull String, @Nullable String> idsMap) {
+    setIdsMap(idsMap);
+    return this;
+  }
 
-    public boolean returnDeletedStates() {
-        return returnDeletedStates;
-    }
+  public boolean returnDeletedStates() {
+    return returnDeletedStates;
+  }
 
-    public void returnDeletedStates(boolean returnDeletedStates) {
-        this.returnDeletedStates = returnDeletedStates;
-    }
+  public void returnDeletedStates(boolean returnDeletedStates) {
+    this.returnDeletedStates = returnDeletedStates;
+  }
 }

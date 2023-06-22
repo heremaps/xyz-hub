@@ -27,20 +27,20 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 @JsonTypeName(value = "CompactChangeset")
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CompactChangeset extends Changeset {
-    private String nextPageToken;
+  private String nextPageToken;
 
-    @SuppressWarnings("unused")
-    public String getNextPageToken() {
-        return nextPageToken;
-    }
+  @SuppressWarnings("unused")
+  public String getNextPageToken() {
+    return nextPageToken;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setNextPageToken(String nextPageToken) {
-        this.nextPageToken = nextPageToken;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setNextPageToken(String nextPageToken) {
+    this.nextPageToken = nextPageToken;
+  }
 
-    public CompactChangeset withNextPageToken(final String nextPageToken) {
-        setNextPageToken(nextPageToken);
-        return this;
-    }
+  public CompactChangeset withNextPageToken(final String nextPageToken) {
+    setNextPageToken(nextPageToken);
+    return this;
+  }
 }

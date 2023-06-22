@@ -28,43 +28,43 @@ import com.here.naksha.lib.core.models.payload.events.SpaceEvent;
 @JsonTypeName(value = "ModifySpaceEvent")
 public class ModifySpaceEvent extends SpaceEvent {
 
-    private Operation operation;
-    private Space spaceDefinition;
+  private Operation operation;
+  private Space spaceDefinition;
 
-    @SuppressWarnings("unused")
-    public Operation getOperation() {
-        return this.operation;
-    }
+  @SuppressWarnings("unused")
+  public Operation getOperation() {
+    return this.operation;
+  }
 
-    @SuppressWarnings("WeakerAccess")
-    public void setOperation(Operation operation) {
-        this.operation = operation;
-    }
+  @SuppressWarnings("WeakerAccess")
+  public void setOperation(Operation operation) {
+    this.operation = operation;
+  }
 
-    @SuppressWarnings("unused")
-    public ModifySpaceEvent withOperation(Operation operation) {
-        setOperation(operation);
-        return this;
-    }
+  @SuppressWarnings("unused")
+  public ModifySpaceEvent withOperation(Operation operation) {
+    setOperation(operation);
+    return this;
+  }
 
-    @SuppressWarnings("unused")
-    public Space getSpaceDefinition() {
-        return this.spaceDefinition;
-    }
+  @SuppressWarnings("unused")
+  public Space getSpaceDefinition() {
+    return this.spaceDefinition;
+  }
 
-    public void setSpaceDefinition(Space spaceDefinition) {
-        this.spaceDefinition = spaceDefinition;
-    }
+  public void setSpaceDefinition(Space spaceDefinition) {
+    this.spaceDefinition = spaceDefinition;
+  }
 
-    @SuppressWarnings("unused")
-    public ModifySpaceEvent withSpaceDefinition(Space space) {
-        setSpaceDefinition(space);
-        return this;
-    }
+  @SuppressWarnings("unused")
+  public ModifySpaceEvent withSpaceDefinition(Space space) {
+    setSpaceDefinition(space);
+    return this;
+  }
 
-    public enum Operation {
-        CREATE,
-        UPDATE,
-        DELETE
-    }
+  public enum Operation {
+    CREATE,
+    UPDATE,
+    DELETE
+  }
 }

@@ -8,8 +8,8 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
 @AvailableSince(INaksha.v2_0_3)
 @JsonSubTypes({
-    @JsonSubTypes.Type(value = ProcessEvent.class),
-    @JsonSubTypes.Type(value = ReturnResponse.class),
-    @JsonSubTypes.Type(value = SendUpstream.class)
+  @JsonSubTypes.Type(value = ProcessEvent.class),
+  @JsonSubTypes.Type(value = ReturnResponse.class),
+  @JsonSubTypes.Type(value = SendUpstream.class)
 })
 public class ExtensionMessage extends JsonObject implements Typed {}

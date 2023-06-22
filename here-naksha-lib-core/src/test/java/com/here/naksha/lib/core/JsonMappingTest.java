@@ -38,62 +38,62 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings("unused")
 public class JsonMappingTest {
 
-    @Test
-    public void testDeserializeFeature() throws Exception {
-        final String json =
-                "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}, \"otherProperty\": \"123\"}";
-        final Feature obj = new ObjectMapper().readValue(json, Feature.class);
-        assertNotNull(obj);
+  @Test
+  public void testDeserializeFeature() throws Exception {
+    final String json =
+        "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}, \"otherProperty\": \"123\"}";
+    final Feature obj = new ObjectMapper().readValue(json, Feature.class);
+    assertNotNull(obj);
 
-        assertEquals(5, (int) obj.getProperties().get("x"));
-        assertEquals("123", obj.get("otherProperty"));
+    assertEquals(5, (int) obj.getProperties().get("x"));
+    assertEquals("123", obj.get("otherProperty"));
+  }
+
+  @Test
+  public void testSerializeFeature() throws Exception {
+    try (final Json json = Json.open()) {
+      final String raw = "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}}";
+      final Feature obj = json.reader(All.class).readValue(raw, Feature.class);
+      assertNotNull(obj);
+
+      obj.getProperties().put("y", 7);
+      String result = obj.serialize();
+
+      final String expected =
+          "{\"type\":\"Feature\",\"id\":\"xyz123\",\"properties\":{\"@ns:com:here:xyz\":{},\"x\":5,\"y\":7}}";
+      assertTrue(jsonCompare(expected, result));
     }
+  }
 
-    @Test
-    public void testSerializeFeature() throws Exception {
-        try (final Json json = Json.open()) {
-            final String raw = "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}}";
-            final Feature obj = json.reader(All.class).readValue(raw, Feature.class);
-            assertNotNull(obj);
+  private boolean jsonCompare(@SuppressWarnings("SameParameterValue") String string1, String string2)
+      throws IOException {
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode tree1 = mapper.readTree(string1);
+    JsonNode tree2 = mapper.readTree(string2);
+    return tree1.equals(tree2);
+  }
 
-            obj.getProperties().put("y", 7);
-            String result = obj.serialize();
+  @Test
+  public void testResponseParsing() throws Exception {
+    final String json =
+        "{\"type\":\"ErrorResponse\",\"error\":\"NotImplemented\",\"errorMessage\":\"Hello World!\"}";
+    final ErrorResponse obj = new ObjectMapper().readValue(json, ErrorResponse.class);
+    assertNotNull(obj);
+    assertSame(XyzError.NOT_IMPLEMENTED, obj.getError());
+    assertEquals("Hello World!", obj.getErrorMessage());
+  }
 
-            final String expected =
-                    "{\"type\":\"Feature\",\"id\":\"xyz123\",\"properties\":{\"@ns:com:here:xyz\":{},\"x\":5,\"y\":7}}";
-            assertTrue(jsonCompare(expected, result));
-        }
-    }
-
-    private boolean jsonCompare(@SuppressWarnings("SameParameterValue") String string1, String string2)
-            throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode tree1 = mapper.readTree(string1);
-        JsonNode tree2 = mapper.readTree(string2);
-        return tree1.equals(tree2);
-    }
-
-    @Test
-    public void testResponseParsing() throws Exception {
-        final String json =
-                "{\"type\":\"ErrorResponse\",\"error\":\"NotImplemented\",\"errorMessage\":\"Hello World!\"}";
-        final ErrorResponse obj = new ObjectMapper().readValue(json, ErrorResponse.class);
-        assertNotNull(obj);
-        assertSame(XyzError.NOT_IMPLEMENTED, obj.getError());
-        assertEquals("Hello World!", obj.getErrorMessage());
-    }
-
-    @Test
-    public void testNativeAWSLambdaErrorMessage() throws Exception {
-        final String json =
-                "{\"errorMessage\":\"2018-09-15T07:12:25.013Z a368c0ea-b8b6-11e8-b894-eb5a7755e998 Task timed out after 25.01 seconds\"}";
-        ErrorResponse obj = new ErrorResponse();
-        obj = new ObjectMapper().readerForUpdating(obj).readValue(json);
-        assertNotNull(obj);
-        obj = JsonSerializable.fixAWSLambdaResponse(obj);
-        assertSame(XyzError.TIMEOUT, obj.getError());
-        assertEquals(
-                "2018-09-15T07:12:25.013Z a368c0ea-b8b6-11e8-b894-eb5a7755e998 Task timed out after 25.01 seconds",
-                obj.getErrorMessage());
-    }
+  @Test
+  public void testNativeAWSLambdaErrorMessage() throws Exception {
+    final String json =
+        "{\"errorMessage\":\"2018-09-15T07:12:25.013Z a368c0ea-b8b6-11e8-b894-eb5a7755e998 Task timed out after 25.01 seconds\"}";
+    ErrorResponse obj = new ErrorResponse();
+    obj = new ObjectMapper().readerForUpdating(obj).readValue(json);
+    assertNotNull(obj);
+    obj = JsonSerializable.fixAWSLambdaResponse(obj);
+    assertSame(XyzError.TIMEOUT, obj.getError());
+    assertEquals(
+        "2018-09-15T07:12:25.013Z a368c0ea-b8b6-11e8-b894-eb5a7755e998 Task timed out after 25.01 seconds",
+        obj.getErrorMessage());
+  }
 }

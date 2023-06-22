@@ -29,131 +29,131 @@ import com.here.naksha.lib.core.models.payload.events.info.GetStatisticsEvent;
 @JsonTypeName(value = "HistoryStatisticsResponse")
 public class HistoryStatisticsResponse extends XyzResponse {
 
-    private StatisticsResponse.Value<Long> count;
+  private StatisticsResponse.Value<Long> count;
 
-    @Deprecated
-    private StatisticsResponse.Value<Long> byteSize;
+  @Deprecated
+  private StatisticsResponse.Value<Long> byteSize;
 
-    private StatisticsResponse.Value<Long> dataSize;
-    private StatisticsResponse.Value<Integer> minVersion;
-    private StatisticsResponse.Value<Integer> maxVersion;
+  private StatisticsResponse.Value<Long> dataSize;
+  private StatisticsResponse.Value<Integer> minVersion;
+  private StatisticsResponse.Value<Integer> maxVersion;
 
-    /**
-     * Returns the amount of features stored in the space.
-     *
-     * @return the amount of features stored in the space.
-     */
-    @SuppressWarnings("unused")
-    public StatisticsResponse.Value<Long> getCount() {
-        return this.count;
-    }
+  /**
+   * Returns the amount of features stored in the space.
+   *
+   * @return the amount of features stored in the space.
+   */
+  @SuppressWarnings("unused")
+  public StatisticsResponse.Value<Long> getCount() {
+    return this.count;
+  }
 
-    /**
-     * Sets the amount of features stored in the space.
-     *
-     * @param count the amount of features stored in the space.
-     */
-    @SuppressWarnings({"unused", "WeakerAccess"})
-    public void setCount(StatisticsResponse.Value<Long> count) {
-        this.count = count;
-    }
+  /**
+   * Sets the amount of features stored in the space.
+   *
+   * @param count the amount of features stored in the space.
+   */
+  @SuppressWarnings({"unused", "WeakerAccess"})
+  public void setCount(StatisticsResponse.Value<Long> count) {
+    this.count = count;
+  }
 
-    /**
-     * Sets the amount of features stored in the space.
-     *
-     * @return this.
-     */
-    @SuppressWarnings("unused")
-    public HistoryStatisticsResponse withCount(StatisticsResponse.Value<Long> count) {
-        setCount(count);
-        return this;
-    }
+  /**
+   * Sets the amount of features stored in the space.
+   *
+   * @return this.
+   */
+  @SuppressWarnings("unused")
+  public HistoryStatisticsResponse withCount(StatisticsResponse.Value<Long> count) {
+    setCount(count);
+    return this;
+  }
 
-    /**
-     * Returns the amount of bytes that are stored in the space.
-     *
-     * @return the amount of bytes that are stored in the space.
-     */
-    @SuppressWarnings({"unused"})
-    public StatisticsResponse.Value<Long> getByteSize() {
-        return this.byteSize;
-    }
+  /**
+   * Returns the amount of bytes that are stored in the space.
+   *
+   * @return the amount of bytes that are stored in the space.
+   */
+  @SuppressWarnings({"unused"})
+  public StatisticsResponse.Value<Long> getByteSize() {
+    return this.byteSize;
+  }
 
-    /**
-     * Sets the amount of bytes that are stored in the space.
-     *
-     * @param byteSize the amount of bytes that are stored in the space.
-     */
-    @SuppressWarnings({"WeakerAccess"})
-    public void setByteSize(StatisticsResponse.Value<Long> byteSize) {
-        this.byteSize = byteSize;
-    }
+  /**
+   * Sets the amount of bytes that are stored in the space.
+   *
+   * @param byteSize the amount of bytes that are stored in the space.
+   */
+  @SuppressWarnings({"WeakerAccess"})
+  public void setByteSize(StatisticsResponse.Value<Long> byteSize) {
+    this.byteSize = byteSize;
+  }
 
-    /**
-     * Sets the amount of bytes that are stored in the space.
-     *
-     * @return this.
-     */
-    @SuppressWarnings({"unused"})
-    public HistoryStatisticsResponse withByteSize(StatisticsResponse.Value<Long> byteSize) {
-        setByteSize(byteSize);
-        return this;
-    }
+  /**
+   * Sets the amount of bytes that are stored in the space.
+   *
+   * @return this.
+   */
+  @SuppressWarnings({"unused"})
+  public HistoryStatisticsResponse withByteSize(StatisticsResponse.Value<Long> byteSize) {
+    setByteSize(byteSize);
+    return this;
+  }
 
-    /**
-     * Returns the amount of bytes that are stored in the space.
-     *
-     * @return the amount of bytes that are stored in the space.
-     */
-    @SuppressWarnings({"unused"})
-    public StatisticsResponse.Value<Long> getDataSize() {
-        return this.dataSize;
-    }
+  /**
+   * Returns the amount of bytes that are stored in the space.
+   *
+   * @return the amount of bytes that are stored in the space.
+   */
+  @SuppressWarnings({"unused"})
+  public StatisticsResponse.Value<Long> getDataSize() {
+    return this.dataSize;
+  }
 
-    /**
-     * Sets the amount of bytes that are stored in the space.
-     *
-     * @param dataSize the amount of bytes that are stored in the space.
-     */
-    @SuppressWarnings({"WeakerAccess"})
-    public void setDataSize(StatisticsResponse.Value<Long> dataSize) {
-        this.dataSize = dataSize;
-    }
+  /**
+   * Sets the amount of bytes that are stored in the space.
+   *
+   * @param dataSize the amount of bytes that are stored in the space.
+   */
+  @SuppressWarnings({"WeakerAccess"})
+  public void setDataSize(StatisticsResponse.Value<Long> dataSize) {
+    this.dataSize = dataSize;
+  }
 
-    /**
-     * Sets the amount of bytes that are stored in the space.
-     *
-     * @return this.
-     */
-    @SuppressWarnings({"unused"})
-    public HistoryStatisticsResponse withDataSize(StatisticsResponse.Value<Long> dataSize) {
-        setDataSize(dataSize);
-        return this;
-    }
+  /**
+   * Sets the amount of bytes that are stored in the space.
+   *
+   * @return this.
+   */
+  @SuppressWarnings({"unused"})
+  public HistoryStatisticsResponse withDataSize(StatisticsResponse.Value<Long> dataSize) {
+    setDataSize(dataSize);
+    return this;
+  }
 
-    public StatisticsResponse.Value<Integer> getMinVersion() {
-        return minVersion;
-    }
+  public StatisticsResponse.Value<Integer> getMinVersion() {
+    return minVersion;
+  }
 
-    public void setMinVersion(StatisticsResponse.Value<Integer> minVersion) {
-        this.minVersion = minVersion;
-    }
+  public void setMinVersion(StatisticsResponse.Value<Integer> minVersion) {
+    this.minVersion = minVersion;
+  }
 
-    public HistoryStatisticsResponse withMinVersion(StatisticsResponse.Value<Integer> minVersion) {
-        setMinVersion(minVersion);
-        return this;
-    }
+  public HistoryStatisticsResponse withMinVersion(StatisticsResponse.Value<Integer> minVersion) {
+    setMinVersion(minVersion);
+    return this;
+  }
 
-    public StatisticsResponse.Value<Integer> getMaxVersion() {
-        return maxVersion;
-    }
+  public StatisticsResponse.Value<Integer> getMaxVersion() {
+    return maxVersion;
+  }
 
-    public void setMaxVersion(StatisticsResponse.Value<Integer> maxVersion) {
-        this.maxVersion = maxVersion;
-    }
+  public void setMaxVersion(StatisticsResponse.Value<Integer> maxVersion) {
+    this.maxVersion = maxVersion;
+  }
 
-    public HistoryStatisticsResponse withMaxVersion(StatisticsResponse.Value<Integer> maxVersion) {
-        setMaxVersion(maxVersion);
-        return this;
-    }
+  public HistoryStatisticsResponse withMaxVersion(StatisticsResponse.Value<Integer> maxVersion) {
+    setMaxVersion(maxVersion);
+    return this;
+  }
 }

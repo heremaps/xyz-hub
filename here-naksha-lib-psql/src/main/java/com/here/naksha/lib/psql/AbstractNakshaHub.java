@@ -23,116 +23,116 @@ import org.jetbrains.annotations.Nullable;
  */
 public abstract class AbstractNakshaHub extends PsqlStorage implements INaksha {
 
-    /**
-     * The collection for spaces.
-     */
-    public static final @NotNull String DEFAULT_SPACE_COLLECTION = "naksha:spaces";
+  /**
+   * The collection for spaces.
+   */
+  public static final @NotNull String DEFAULT_SPACE_COLLECTION = "naksha:spaces";
 
-    /**
-     * The collection for connectors.
-     */
-    public static final @NotNull String DEFAULT_CONNECTOR_COLLECTION = "naksha:connectors";
+  /**
+   * The collection for connectors.
+   */
+  public static final @NotNull String DEFAULT_CONNECTOR_COLLECTION = "naksha:connectors";
 
-    /**
-     * The collection for subscriptions.
-     */
-    public static final @NotNull String DEFAULT_SUBSCRIPTIONS_COLLECTION = "naksha:subscriptions";
+  /**
+   * The collection for subscriptions.
+   */
+  public static final @NotNull String DEFAULT_SUBSCRIPTIONS_COLLECTION = "naksha:subscriptions";
 
-    /**
-     * Create a new Naksha client instance and register as default Naksha client.
-     *
-     * @param config the configuration of the admin-database to connect to.
-     * @throws SQLException if any error occurred while accessing the database.
-     * @throws IOException  if reading the SQL extensions from the resources fail.
-     */
-    protected AbstractNakshaHub(@NotNull PsqlConfig config) throws SQLException, IOException {
-        super(config, 0L);
-        instance.getAndSet(this);
+  /**
+   * Create a new Naksha client instance and register as default Naksha client.
+   *
+   * @param config the configuration of the admin-database to connect to.
+   * @throws SQLException if any error occurred while accessing the database.
+   * @throws IOException  if reading the SQL extensions from the resources fail.
+   */
+  protected AbstractNakshaHub(@NotNull PsqlConfig config) throws SQLException, IOException {
+    super(config, 0L);
+    instance.getAndSet(this);
+  }
+
+  /**
+   * Cache.
+   */
+  public final @NotNull CollectionCache<Space> spaces = null;
+
+  /**
+   * Cache.
+   */
+  public final @NotNull CollectionCache<Connector> connectors = null;
+
+  /**
+   * Cache.
+   */
+  public final @NotNull CollectionCache<Subscription> subscriptions = null;
+
+  /**
+   * Cache.
+   */
+  public final @NotNull CollectionCache<Connector> eventHandlers = null;
+
+  /**
+   * Cache.
+   */
+  public final @NotNull CollectionCache<Storage> storages = null;
+
+  @Override
+  public @Nullable Space getSpaceById(@NotNull String id) {
+    return null;
+  }
+
+  @Override
+  public @Nullable Connector getConnectorById(@NotNull String id) {
+    return null;
+  }
+
+  @Override
+  public @Nullable Storage getStorageById(@NotNull String id) {
+    return null;
+  }
+
+  @Override
+  public @Nullable Storage getStorageByNumber(long number) {
+    return null;
+  }
+
+  @Override
+  public @Nullable ExtensionConfig getExtensionById(@NotNull int id) {
+    assert id > 0;
+    try {
+      return new ExtensionConfig("http://localhost:" + id + "/naksha/extension/v1/");
+    } catch (MalformedURLException e) {
+      currentLogger().warn("Failed to return extension information", e);
+      return null;
     }
+  }
 
-    /**
-     * Cache.
-     */
-    public final @NotNull CollectionCache<Space> spaces = null;
+  @Override
+  public @Nullable Subscription getSubscriptionById(@NotNull String id) {
+    return null;
+  }
 
-    /**
-     * Cache.
-     */
-    public final @NotNull CollectionCache<Connector> connectors = null;
+  @Override
+  public @NotNull Iterable<Space> iterateSpaces() {
+    return null;
+  }
 
-    /**
-     * Cache.
-     */
-    public final @NotNull CollectionCache<Subscription> subscriptions = null;
+  @Override
+  public @NotNull Iterable<Connector> iterateConnectors() {
+    return null;
+  }
 
-    /**
-     * Cache.
-     */
-    public final @NotNull CollectionCache<Connector> eventHandlers = null;
+  @Override
+  public @NotNull Iterable<Storage> iterateStorages() {
+    return null;
+  }
 
-    /**
-     * Cache.
-     */
-    public final @NotNull CollectionCache<Storage> storages = null;
+  @Override
+  public @NotNull Iterable<Connector> iterateExtensions() {
+    return null;
+  }
 
-    @Override
-    public @Nullable Space getSpaceById(@NotNull String id) {
-        return null;
-    }
-
-    @Override
-    public @Nullable Connector getConnectorById(@NotNull String id) {
-        return null;
-    }
-
-    @Override
-    public @Nullable Storage getStorageById(@NotNull String id) {
-        return null;
-    }
-
-    @Override
-    public @Nullable Storage getStorageByNumber(long number) {
-        return null;
-    }
-
-    @Override
-    public @Nullable ExtensionConfig getExtensionById(@NotNull int id) {
-        assert id > 0;
-        try {
-            return new ExtensionConfig("http://localhost:" + id + "/naksha/extension/v1/");
-        } catch (MalformedURLException e) {
-            currentLogger().warn("Failed to return extension information", e);
-            return null;
-        }
-    }
-
-    @Override
-    public @Nullable Subscription getSubscriptionById(@NotNull String id) {
-        return null;
-    }
-
-    @Override
-    public @NotNull Iterable<Space> iterateSpaces() {
-        return null;
-    }
-
-    @Override
-    public @NotNull Iterable<Connector> iterateConnectors() {
-        return null;
-    }
-
-    @Override
-    public @NotNull Iterable<Storage> iterateStorages() {
-        return null;
-    }
-
-    @Override
-    public @NotNull Iterable<Connector> iterateExtensions() {
-        return null;
-    }
-
-    @Override
-    public @NotNull Iterable<Subscription> iterateSubscriptions() {
-        return null;
-    }
+  @Override
+  public @NotNull Iterable<Subscription> iterateSubscriptions() {
+    return null;
+  }
 }

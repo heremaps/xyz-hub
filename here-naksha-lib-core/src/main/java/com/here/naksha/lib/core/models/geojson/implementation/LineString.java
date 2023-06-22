@@ -29,28 +29,28 @@ import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryExcepti
 @JsonTypeName(value = "LineString")
 public class LineString extends GeometryItem {
 
-    private LineStringCoordinates coordinates = new LineStringCoordinates();
+  private LineStringCoordinates coordinates = new LineStringCoordinates();
 
-    @Override
-    public LineStringCoordinates getCoordinates() {
-        return this.coordinates;
-    }
+  @Override
+  public LineStringCoordinates getCoordinates() {
+    return this.coordinates;
+  }
 
-    public void setCoordinates(LineStringCoordinates coordinates) {
-        this.coordinates = coordinates;
-    }
+  public void setCoordinates(LineStringCoordinates coordinates) {
+    this.coordinates = coordinates;
+  }
 
-    public LineString withCoordinates(LineStringCoordinates coordinates) {
-        setCoordinates(coordinates);
-        return this;
-    }
+  public LineString withCoordinates(LineStringCoordinates coordinates) {
+    setCoordinates(coordinates);
+    return this;
+  }
 
-    public com.vividsolutions.jts.geom.LineString convertToJTSGeometry() {
-        return JTSHelper.toLineString(this.coordinates);
-    }
+  public com.vividsolutions.jts.geom.LineString convertToJTSGeometry() {
+    return JTSHelper.toLineString(this.coordinates);
+  }
 
-    @Override
-    public void validate() throws InvalidGeometryException {
-        validateLineStringCoordinates(this.coordinates);
-    }
+  @Override
+  public void validate() throws InvalidGeometryException {
+    validateLineStringCoordinates(this.coordinates);
+  }
 }

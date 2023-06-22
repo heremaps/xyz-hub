@@ -24,15 +24,15 @@ import java.util.ArrayList;
 
 public class PolygonCoordinates extends ArrayList<LinearRingCoordinates> implements IBoundedCoordinates {
 
-    public PolygonCoordinates() {
-        super();
-    }
+  public PolygonCoordinates() {
+    super();
+  }
 
-    public PolygonCoordinates(int size) {
-        super(size);
-    }
+  public PolygonCoordinates(int size) {
+    super(size);
+  }
 
-    public BBox calculateBBox() {
-        return IBoundedCoordinates.calculate(this);
-    }
+  public BBox calculateBBox() {
+    return IBoundedCoordinates.calculate(this);
+  }
 }
