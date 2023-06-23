@@ -42,7 +42,6 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.events.ModifySubscriptionEvent;
-import com.here.xyz.events.OneTimeActionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
@@ -56,10 +55,6 @@ import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
-import com.here.xyz.psql.query.helpers.GetTablesWithColumn;
-import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
-import com.here.xyz.psql.query.helpers.GetTablesWithComment;
-import com.here.xyz.psql.query.helpers.GetTablesWithComment.GetTablesWithCommentInput;
 import com.here.xyz.psql.query.helpers.TableExists;
 import com.here.xyz.psql.query.helpers.TableExists.Table;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
@@ -104,7 +99,6 @@ import org.apache.commons.dbutils.ResultSetHandler;
 import org.apache.commons.dbutils.StatementConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 
 public abstract class DatabaseHandler extends StorageConnector {
     private static final Logger logger = LogManager.getLogger();
@@ -113,7 +107,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     private static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()";
     public static final String HISTORY_TABLE_SUFFIX = "_hst";
 
-    public static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
+    private static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
 
     /**
      * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
@@ -121,10 +115,6 @@ public abstract class DatabaseHandler extends StorageConnector {
      * outside.
      **/
     private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
-    public static final String OTA_PHASE_1_COMPLETE = "phase1_complete";
-    public static final String OTA_PHASE_1_STARTED = "phase1_started";
-
-    public static final String OTA_PHASE_X_COMPLETE = "phaseX_complete";
     public static final String HEAD_TABLE_SUFFIX = "_head";
 
     private static String INCLUDE_OLD_STATES = "includeOldStates"; // read from event params
@@ -155,7 +145,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * The dbMaintainer for the current event.
      */
-    protected DatabaseMaintainer dbMaintainer;
+    private DatabaseMaintainer dbMaintainer;
 
     private boolean retryAttempted;
 
@@ -168,21 +158,6 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     protected static DatabaseHandler getInstance() {
         return instance;
-    }
-
-    @Override
-    protected XyzResponse processOneTimeActionEvent(OneTimeActionEvent event) throws Exception {
-        try {
-            if (executeOneTimeAction(event.getPhase(), event.getInputData()))
-                return new SuccessResponse().withStatus("EXECUTED");
-            return new SuccessResponse().withStatus("ALREADY RUNNING");
-        }
-        catch (Exception e) {
-            logger.error("OTA: Error during one time action execution:", e);
-            return new ErrorResponse()
-                .withErrorMessage(e.getMessage())
-                .withError(XyzError.EXCEPTION);
-        }
     }
 
     protected XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException {
@@ -212,18 +187,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         HealthStatus status = ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
-
-        try {
-            if (System.getenv("OTA_PHASE") != null) {
-                Map<String, Object> inputData = null;
-                if (System.getenv("OTA_INPUT_DATA") != null)
-                    inputData = new JSONObject(System.getenv("OTA_INPUT_DATA")).toMap();
-                executeOneTimeAction(System.getenv("OTA_PHASE"), inputData);
-            }
-        }
-        catch (Exception e) {
-            logger.error("OTA: Error during one time action execution:", e);
-        }
 
         return status;
     }
@@ -336,24 +299,12 @@ public abstract class DatabaseHandler extends StorageConnector {
         return executeQuery(query, handler, readDataSource);
     }
 
-    public FeatureCollection executeQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
+    private FeatureCollection executeQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
         return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, useReadReplica);
     }
 
     public FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
         return executeQueryWithRetry(query, true);
-    }
-
-    protected FeatureCollection executeQueryWithRetrySkipIfGeomIsNull(SQLQuery query) throws SQLException {
-        return executeQueryWithRetry(query, this::defaultFeatureResultSetHandlerSkipIfGeomIsNull, true);
-    }
-
-    protected BinaryResponse executeBinQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
-        return executeQueryWithRetry(query, this::defaultBinaryResultSetHandler, useReadReplica);
-    }
-
-    protected BinaryResponse executeBinQueryWithRetry(SQLQuery query) throws SQLException {
-        return executeBinQueryWithRetry(query, true);
     }
 
     /**
@@ -403,7 +354,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected boolean retryCausedOnServerlessDB(Exception e) {
+    private boolean retryCausedOnServerlessDB(Exception e) {
         /** If a timeout comes directly after the invocation it could rely
          * on serverless aurora scaling. Then we should retry again.
          * 57014 - query_canceled
@@ -459,7 +410,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return the amount of updated or deleted records.
      * @throws SQLException if any error occurred.
      */
-    int executeUpdate(SQLQuery query) throws SQLException {
+    private int executeUpdate(SQLQuery query) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
             final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,calculateTimeout()));
@@ -545,7 +496,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return List of Features which could get fetched
      * @throws Exception if any error occurred.
      */
-    protected List<Feature> fetchOldStates(ModifyFeaturesEvent event, String[] idsToFetch) throws Exception {
+    private List<Feature> fetchOldStates(ModifyFeaturesEvent event, String[] idsToFetch) throws Exception {
         List<Feature> oldFeatures = null;
         FeatureCollection oldFeaturesCollection = executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(event, idsToFetch));
 
@@ -813,11 +764,11 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return true if the table for the space exists; false otherwise.
      * @throws SQLException if the test fails due to any SQL error.
      */
-    protected boolean hasTable() throws SQLException {
+    private boolean hasTable() throws SQLException {
         return hasTable(null);
     }
 
-    protected boolean hasTable(String tableName) throws SQLException {
+    private boolean hasTable(String tableName) throws SQLException {
         if (tableName == null && event instanceof HealthCheckEvent)
             return true;
 
@@ -870,12 +821,12 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static void advisoryUnlock(String key, Connection connection ) throws SQLException { _advisory(key,connection,false, true); }
 
-    protected static boolean isForExtendingSpace(Event event) {
+    private static boolean isForExtendingSpace(Event event) {
         return event.getParams() != null && event.getParams().containsKey("extends");
     }
 
     //TODO: Move the following into ModifySpace QR
-    protected void ensureSpace() throws SQLException {
+    private void ensureSpace() throws SQLException {
         // Note: We can assume that when the table exists, the postgis extensions are installed.
         final String tableName = config.readTableFromEvent(event);
 
@@ -917,179 +868,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         return (int) event.getParams().get("versionsToKeep");
     }
 
-    private boolean executeOneTimeAction(String phase, Map<String, Object> inputData) throws SQLException, ErrorResponseException {
-        inputData =  getDefaultInputDataForOneTimeAction(phase, inputData);
-        boolean phaseLock = "phase1".equals(phase) ? false : true;
-        try (final Connection connection = dataSource.getConnection()) {
-            logger.info("oneTimeAction " + phase + ": Starting execution ...");
-            if (!phaseLock || _advisory(phase, connection, true, false)) {
-                try {
-                    switch (phase) {
-                        case "phase0": {
-                            oneTimeActionForVersioning(phase, inputData, connection);
-                            break;
-                        }
-                        case "phase1": {
-                            setupOneTimeActionFillNewColumns(phase, connection);
-                            oneTimeActionForVersioning(phase, inputData, connection);
-                            break;
-                        }
-                        case "phaseX": {
-                            oneTimeActionForVersioning(phase, inputData, connection);
-                            break;
-                        }
-                        case "cleanup": {
-
-                            break;
-                        }
-                        case "test": {
-                            logger.info("oneTimeAction " + phase + ": inputData" + inputData);
-                            logger.info("oneTimeAction " + phase + ": Test succeeded.");
-                            break;
-                        }
-                        default:
-                            throw new IllegalArgumentException("Illegal OTA phase.");
-                    }
-                }
-                finally {
-                    if (phaseLock)
-                        _advisory(phase, connection, false, false);
-                }
-                return true;
-            }
-            else {
-                logger.info("oneTimeActionVersioningMigration " + phase + ": Currently another process is already running.");
-                return false;
-            }
-        }
-    }
-
-    private Map<String, Object> getDefaultInputDataForOneTimeAction(String phase, Map<String, Object> inputData) throws SQLException, ErrorResponseException {
-        inputData = inputData == null ? new HashMap<>() : new HashMap<>(inputData);
-        switch (phase) {
-            case "phase0": {
-                if (!inputData.containsKey("tableNames"))
-                    inputData.put("tableNames",
-                        new GetTablesWithColumn(new GetTablesWithColumnInput("id", false, 100), this).run());
-                break;
-            }
-            case "phase1": {
-                if (!inputData.containsKey("tableSizeLimit"))
-                    inputData.put("tableSizeLimit", 100_000);
-                if (!inputData.containsKey("rowProcessingLimit"))
-                    inputData.put("rowProcessingLimit", 3_000);
-                if (!inputData.containsKey("tableNames"))
-                    inputData.put("tableNames", new GetTablesWithComment(new GetTablesWithCommentInput(OTA_PHASE_1_COMPLETE,
-                        false, (int) inputData.get("tableSizeLimit"), 100), this).run());
-                break;
-            }
-            case "phaseX": {
-                if (!inputData.containsKey("tableSizeLimit"))
-                    inputData.put("tableSizeLimit", 1_000_000_000);
-                if (!inputData.containsKey("tableNames"))
-                    inputData.put("tableNames", new GetTablesWithComment(new GetTablesWithCommentInput(OTA_PHASE_1_COMPLETE,
-                        true, (int) inputData.get("tableSizeLimit"), 100), this).run());
-                break;
-            }
-        }
-        return inputData;
-    }
-
-    private void oneTimeActionForVersioning(String phase, Map<String, Object> inputData, Connection connection) throws SQLException {
-        if (inputData == null || !inputData.containsKey("tableNames") || !(inputData.get("tableNames") instanceof List))
-            throw new IllegalArgumentException("Table names have to be defined for OTA phase: " + phase);
-        List<String> tableNames = (List) inputData.get("tableNames");
-        if (tableNames.isEmpty()) {
-            logger.info("oneTimeActionVersioningMigration " + phase + ": Nothing to do.");
-            return;
-        }
-
-        logger.info("Executing " + phase + " for tables: " + String.join(", ", tableNames));
-        final String schema = config.getDatabaseSettings().getSchema();
-        int processedCount = 0;
-        long overallDuration = 0;
-        for (String tableName : tableNames) {
-            boolean tableCompleted = false;
-            logger.info(phase + ": process table: " + tableName);
-
-            if (_advisory(tableName, connection, true, false)) {
-                long tableStartTime = System.currentTimeMillis();
-                boolean cStateFlag = connection.getAutoCommit();
-                try {
-                    if (cStateFlag)
-                        connection.setAutoCommit(false);
-
-                    switch (phase) {
-                        case "phase0": {
-                            oneTimeAlterExistingTablesAddNewColumnsAndIndices(connection, schema, tableName);
-                            tableCompleted = true;
-                            break;
-                        }
-                        case "phase1": {
-                            tableCompleted = oneTimeFillNewColumns(connection, schema, tableName, inputData);
-                            break;
-                        }
-                        case "phaseX": {
-                            oneTimeAddConstraintsAndPartitioningToOldTables(connection, schema, tableName);
-                            tableCompleted = true;
-                            break;
-                        }
-                    }
-                    processedCount++;
-                    long tableDuration = System.currentTimeMillis() - tableStartTime;
-                    overallDuration += tableDuration;
-                    logger.info(phase + ": table: " + tableName + (tableCompleted ? " done" : " partially processed") + ". took: " + tableDuration + "ms");
-                }
-                catch (Exception e) {
-                    if (e instanceof SQLException && "54000".equals(((SQLException) e).getSQLState())) {
-                        //No time left for processing of further tables
-                        logger.info(phase + ": {} Table '{}' could not be processed anymore. No time left. Processed {} tables : {}", traceItem, tableName, processedCount, e);
-                        connection.rollback();
-                        break;
-                    }
-                    else {
-                        logger.error(phase + ": {} Failed process table '{}' : {}", traceItem, tableName, e);
-                        connection.rollback();
-                    }
-                }
-                finally {
-                    _advisory(tableName, connection, false, false);
-                    if (cStateFlag)
-                        connection.setAutoCommit(true);
-                }
-            }
-            else
-                logger.info(phase + ": lock on table" + tableName + " could not be acquired. Continuing with next one.");
-        }
-        logger.info(phase + ": processed {} tables. Took: {}ms", processedCount, overallDuration);
-    }
-
-    private void oneTimeAlterExistingTablesAddNewColumnsAndIndices(Connection connection, String schema, String tableName) throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
-            //Alter existing tables: add new columns
-            SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
-                + "ADD COLUMN id TEXT, "
-                + "ADD COLUMN version BIGINT NOT NULL DEFAULT 0, "
-                + "ADD COLUMN next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
-                + "ADD COLUMN author TEXT, "
-                + "ADD COLUMN operation CHAR NOT NULL DEFAULT 'I'")
-                .withVariable("schema", schema)
-                .withVariable("table", tableName);
-            stmt.addBatch(alterQuery.substitute().text());
-            //Add new way of using different storage-type for columns
-            alterColumnStorage(stmt, schema, tableName);
-            //Add new indices for existing tables
-            createVersioningIndices(stmt, schema, tableName);
-            //Add new sequence for existing tables
-            stmt.addBatch(buildCreateSequenceQuery(schema, tableName, "version").substitute().text());
-
-            stmt.setQueryTimeout(calculateTimeout());
-            stmt.executeBatch();
-            connection.commit();
-            logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
-        }
-    }
-
     private void alterColumnStorage(Statement stmt, String schema, String tableName) throws SQLException {
         stmt.addBatch(new SQLQuery("ALTER TABLE ${schema}.${table} "
             + "ALTER COLUMN id SET STORAGE MAIN, "
@@ -1099,172 +877,16 @@ public abstract class DatabaseHandler extends StorageConnector {
             + "ALTER COLUMN next_version SET STORAGE PLAIN, "
             + "ALTER COLUMN version SET STORAGE PLAIN, "
             + "ALTER COLUMN i SET STORAGE PLAIN, "
+            + "ALTER COLUMN author SET STORAGE MAIN, "
 
             + "ALTER COLUMN id SET COMPRESSION lz4, "
             + "ALTER COLUMN jsondata SET COMPRESSION lz4, "
-            + "ALTER COLUMN geo SET COMPRESSION lz4;")
-            .withVariable("schema", schema)
-            .withVariable("table", tableName)
-            .substitute()
-            .text());
-    }
-
-    private void alterAuthorColumnStorage(Statement stmt, String schema, String tableName) throws SQLException {
-        stmt.addBatch(new SQLQuery("ALTER TABLE ${schema}.${table} "
-            + "ALTER COLUMN author SET STORAGE MAIN, "
+            + "ALTER COLUMN geo SET COMPRESSION lz4, "
             + "ALTER COLUMN author SET COMPRESSION lz4;")
             .withVariable("schema", schema)
             .withVariable("table", tableName)
             .substitute()
             .text());
-    }
-
-    private static void setupOneTimeActionFillNewColumns(String phase, Connection connection) throws SQLException {
-        logger.info("oneTimeAction " + phase + ": Setting up PSQL function ...");
-        try (Statement stmt = connection.createStatement()) {
-            stmt.execute("CREATE OR REPLACE FUNCTION fill_versioning_fields(schema_name TEXT, space_table_name TEXT, row_limit INTEGER) RETURNS INTEGER AS $$ "
-                + "DECLARE "
-                + "    operation_column_result INTEGER; "
-                + "    update_sql TEXT; "
-                + "    updated_rows INTEGER; "
-                + "BEGIN "
-                + "    operation_column_result := (SELECT 1 WHERE EXISTS (SELECT column_name "
-                + "                                                       FROM information_schema.columns "
-                + "                                                       WHERE table_name = space_table_name and column_name = 'deleted')); "
-                + " "
-                + "    update_sql = 'WITH rows_to_update AS (SELECT jsondata->>''id'' as id FROM \"' || schema_name || '\".\"' || space_table_name || '\" WHERE id IS NULL LIMIT ' || row_limit || ') ' || "
-                + "                 'UPDATE \"' || schema_name || '\".\"' || space_table_name || '\" t ' || "
-                + "                 'SET id = jsondata->>''id'', ' || "
-                + "                 'version = (CASE WHEN version > 0 THEN version ELSE (CASE WHEN (jsondata->''properties''->''@ns:com:here:xyz''->''version'')::BIGINT IS NULL THEN 0::BIGINT ELSE (jsondata->''properties''->''@ns:com:here:xyz''->''version'')::BIGINT END) END)'; "
-                + " "
-                + "    IF operation_column_result = 1 THEN "
-                + "        update_sql = update_sql || ', operation = (CASE WHEN deleted = TRUE THEN ''H'' ELSE operation END)'; "
-                + "    END IF; "
-                + " "
-                + "    EXECUTE update_sql || ' FROM rows_to_update WHERE t.jsondata->>''id'' = rows_to_update.id'; "
-                + "    GET DIAGNOSTICS updated_rows = ROW_COUNT; "
-                + " "
-                + "    IF (updated_rows < row_limit) THEN "
-                + "        EXECUTE 'COMMENT ON TABLE \"' || schema_name || '\".\"' || space_table_name || '\" IS ''" + OTA_PHASE_1_COMPLETE + "'''; "
-                + "    ELSE "
-                + "        EXECUTE 'COMMENT ON TABLE \"' || schema_name || '\".\"' || space_table_name || '\" IS ''" + OTA_PHASE_1_STARTED + "'''; "
-                + "    END IF; "
-                + " "
-                + "    return updated_rows; "
-                + "END; "
-                + "$$ LANGUAGE plpgsql;");
-        }
-    }
-
-    /**
-     * Fill id, version & operation columns
-     * @param connection
-     * @param schema
-     * @param tableName
-     * @return
-     * @throws SQLException
-     */
-    private boolean oneTimeFillNewColumns(Connection connection, String schema, String tableName, Map<String, Object> inputData) throws SQLException {
-        int limit = (int) inputData.get("rowProcessingLimit");
-        //NOTE: If table processing has been fully done a comment "phase1_complete" will be added to the table
-        SQLQuery fillNewColumnsQuery = new SQLQuery("SELECT fill_versioning_fields(#{schema}, #{table}, #{limit})")
-            .withNamedParameter("schema", schema)
-            .withNamedParameter("table", tableName)
-            .withNamedParameter("limit", limit);
-
-        final QueryRunner run = new QueryRunner(new StatementConfiguration(null,null,null,null, calculateTimeout()));
-        int updatedRows = run.query(connection, fillNewColumnsQuery.substitute().text(), rs -> {
-            if (rs.next())
-                return rs.getInt(1);
-            else
-                throw new SQLException("Error while calling function fill_versioning_fields()");
-        }, fillNewColumnsQuery.parameters().toArray());
-
-        boolean tableCompleted = updatedRows < limit;
-        logger.info("phase1: {} Successfully filled columns for " + updatedRows + " rows "
-                + (tableCompleted ? "and set comment '" + OTA_PHASE_1_COMPLETE + "' " : "and set comment '" + OTA_PHASE_1_STARTED + "' ") + "for table '{}'",
-            traceItem, tableName);
-        return tableCompleted;
-    }
-
-    private void oneTimeAddConstraintsAndPartitioningToOldTables(Connection connection, String schema, String tableName) throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
-            String headPartitionTable = tableName + HEAD_TABLE_SUFFIX;
-            //Alter existing table: add new author column and some constraints
-            SQLQuery alterQuery = new SQLQuery("ALTER TABLE ${schema}.${table} "
-                + "ADD COLUMN IF NOT EXISTS author TEXT, "
-                + "DROP COLUMN IF EXISTS deleted CASCADE, "
-                + "ALTER COLUMN version DROP DEFAULT, "
-                + "ALTER COLUMN id SET NOT NULL, "
-                + "ALTER COLUMN operation DROP DEFAULT, "
-                + "DROP CONSTRAINT IF EXISTS ${oldConstraintName}, "
-                + "ADD CONSTRAINT ${constraintName} PRIMARY KEY (id, version, next_version)")
-                .withVariable("schema", schema)
-                .withVariable("table", tableName)
-                .withVariable("oldConstraintName", tableName + "_primKey")
-                .withVariable("constraintName", headPartitionTable + "_primKey");
-            stmt.addBatch(alterQuery.substitute().text());
-
-            //Add new way of using different storage-type for author column
-            alterAuthorColumnStorage(stmt, schema, tableName);
-            //Get all index definitions for later creation of indices at the new root table
-            List<String> allHeadIndexDefs = getAllIndexDefinitions(connection, schema, tableName)
-                .stream()
-                .filter(def -> !def.contains("idversionnextversion")) //Filter out the index which will get deleted
-                .map(def -> def.contains("_id ") && def.contains("UNIQUE") ? def.replace("UNIQUE", "") : def) //Make sure the legacy id index on the root table will be created without UNIQUE constraint
-                .collect(Collectors.toList());
-            //Rename existing indices to free the index-names for the use at the root table
-            renameAllIndices(connection, stmt, schema, tableName, headPartitionTable);
-            //Rename old table to become the head partition
-            SQLQuery renameQuery = new SQLQuery("ALTER TABLE ${schema}.${table} RENAME TO ${newTableName}")
-                .withVariable("schema", schema)
-                .withVariable("table", tableName)
-                .withVariable("newTableName", headPartitionTable);
-            stmt.addBatch(renameQuery.substitute().text());
-            //Delete obsolete index for (id, version, next_version) as that's the new primary key anyways
-            deleteIndex(stmt, "idx_" + headPartitionTable + "_idversionnextversion");
-            //Delete obsolete unique legacy id index
-            deleteIndex(stmt, "idx_" + headPartitionTable + "_id");
-
-            //Create new root table using the old main table name
-            createSpaceTableStatement(stmt, schema, tableName, 0, false, tableName + "_i_seq");
-            //Create all indices on the new root table which are existing at the head table
-            batchCreateIndices(stmt, allHeadIndexDefs);
-            //Add index for new author column
-            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "author", "BTREE", false).substitute().text());
-            //Add index for next_version column
-            stmt.addBatch(buildCreateIndexQuery(schema, tableName, "next_version", "BTREE").substitute().text());
-            //Add comments to non-system indices
-            stmt.addBatch(buildAddIndexCommentsQuery(schema, tableName).substitute().text());
-
-            //Create the first history partition
-            createHistoryPartition(stmt, schema, tableName, 0L);
-            //Move all rows to history partition, which don't belong into HEAD partition anymore (if such rows do exist)
-            moveHistoryRows(stmt, schema, headPartitionTable, tableName + "_p0");
-            //Attach the HEAD partition
-            attachHeadPartition(stmt, schema, tableName, headPartitionTable);
-
-            //Add comment "phaseX_complete"
-            SQLQuery setPhaseXComment = new SQLQuery("COMMENT ON TABLE ${schema}.${table} IS '" + OTA_PHASE_X_COMPLETE + "'")
-                .withVariable("schema", schema)
-                .withVariable("table", tableName);
-            stmt.addBatch(setPhaseXComment.substitute().text());
-
-            stmt.setQueryTimeout(calculateTimeout());
-            stmt.executeBatch();
-            connection.commit();
-            logger.info("phase0: {} Successfully altered table and created indices for table '{}'", traceItem, tableName);
-        }
-    }
-
-    private void attachHeadPartition(Statement stmt, String schema, String rootTable, String partitionTable) throws SQLException {
-        SQLQuery q = new SQLQuery("ALTER TABLE ${schema}.${rootTable} "
-            + "ATTACH PARTITION ${schema}.${partitionTable} FOR VALUES FROM (max_bigint()) TO (MAXVALUE)")
-            .withVariable(SCHEMA, schema)
-            .withVariable("rootTable", rootTable)
-            .withVariable("partitionTable", partitionTable);
-
-        stmt.addBatch(q.substitute().text());
     }
 
     private void createHeadPartition(Statement stmt, String schema, String rootTable) throws SQLException {
@@ -1277,74 +899,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.addBatch(q.substitute().text());
     }
 
-    private void moveHistoryRows(Statement stmt, String schema, String headPartition, String historyPartition) throws SQLException {
-        SQLQuery copy = new SQLQuery("INSERT INTO ${schema}.${historyTable} (id, version, next_version, operation, author, jsondata, geo, i) SELECT id, version, next_version, operation, author, jsondata, geo, i FROM ${schema}.${headTable} WHERE next_version != max_bigint()")
-            .withVariable(SCHEMA, schema)
-            .withVariable("headTable", headPartition)
-            .withVariable("historyTable", historyPartition);
-        stmt.addBatch(copy.substitute().text());
-
-        SQLQuery delete = new SQLQuery("DELETE FROM ${schema}.${headTable} WHERE next_version != max_bigint()")
-            .withVariable(SCHEMA, schema)
-            .withVariable("headTable", headPartition);
-        stmt.addBatch(delete.substitute().text());
-    }
-
     private void createHistoryPartition(Statement stmt, String schema, String rootTable, long partitionNo) throws SQLException {
         SQLQuery q = new SQLQuery("SELECT xyz_create_history_partition('" + schema + "', '" + rootTable + "', " + partitionNo + ", " + PARTITION_SIZE + ")");
         stmt.addBatch(q.substitute().text());
-    }
-
-    private void deleteIndex(Statement stmt, String indexName) throws SQLException {
-        SQLQuery q = new SQLQuery("DROP INDEX IF EXISTS ${indexName}")
-            .withVariable("indexName", indexName);
-        stmt.addBatch(q.substitute().text());
-    }
-
-    private void renameAllIndices(Connection connection, Statement stmt, String schema, String oldTableName, String newTableName) throws SQLException {
-        //First get all indexes
-        List<String> indexNames = getAllIndexNames(connection, schema, oldTableName);
-        for (String indexName : indexNames)
-            renameIndex(stmt, schema, indexName, indexName.replace(oldTableName, newTableName));
-    }
-
-    private List<String> getAllIndexDefinitions(Connection connection, String schema, String tableName) throws SQLException {
-        return getAllIndexInfo(connection, schema, tableName, "indexdef");
-    }
-
-    private List<String> getAllIndexNames(Connection connection, String schema, String tableName) throws SQLException {
-        return getAllIndexInfo(connection, schema, tableName, "indexname");
-    }
-
-    private List<String> getAllIndexInfo(Connection connection, String schema, String tableName, String columnName) throws SQLException {
-        SQLQuery q = new SQLQuery("SELECT ${{selection}} FROM pg_indexes WHERE schemaname = #{schema} "
-            + "AND indexname LIKE 'idx_${{tableName}}_%' "
-            + "AND indexname NOT LIKE 'idx_${{tableName}}_hst_%' "
-            + "AND indexname NOT LIKE 'idx_%deleted%';") //Exclude "deleted" index from renaming & recreation on root
-            .withNamedParameter("schema", schema)
-            .withQueryFragment("tableName", tableName)
-            .withQueryFragment("selection", columnName);
-
-        final QueryRunner run = new QueryRunner(new StatementConfiguration(null,null,null,null, calculateTimeout()));
-        return run.query(connection, q.substitute().text(), rs -> {
-            List<String> indexNames = new ArrayList<>();
-            while (rs.next())
-                indexNames.add(rs.getString(columnName));
-            return indexNames;
-        }, q.parameters().toArray());
-    }
-
-    private void renameIndex(Statement stmt, String schema, String oldIndexName, String newIndexName) throws SQLException {
-        SQLQuery q = new SQLQuery("ALTER INDEX ${oldIndexName} RENAME TO ${newIndexName}")
-            .withVariable("schema", schema)
-            .withVariable("oldIndexName", oldIndexName)
-            .withVariable("newIndexName", newIndexName);
-        stmt.addBatch(q.substitute().text());
-    }
-
-    private void batchCreateIndices(Statement stmt, List<String> indexDefinitions) throws SQLException {
-        for (String indexDefinition : indexDefinitions)
-            stmt.addBatch(indexDefinition);
     }
 
     private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep, boolean withIndices, String existingSerial) throws SQLException {
@@ -1371,7 +928,6 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         //Add new way of using different storage-type for columns
         alterColumnStorage(stmt, schema, table);
-        alterAuthorColumnStorage(stmt, schema, table);
 
         String query;
 
@@ -1440,10 +996,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.addBatch(buildCreateIndexQuery(schema, table, "author", "BTREE").substitute().text());
     }
 
-    private static SQLQuery buildAddIndexCommentsQuery(String schema, String table) {
-        return new SQLQuery("SELECT xyz_index_check_comments('" + schema + "', '" + table + "')");
-    }
-
     static SQLQuery buildCreateIndexQuery(String schema, String table, String columnName, String method) {
       return buildCreateIndexQuery(schema, table, Collections.singletonList(columnName), method);
     }
@@ -1456,7 +1008,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         return buildCreateIndexQuery(schema, table, columnNames, method, null);
     }
 
-    static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method, String predicate) {
+    private static SQLQuery buildCreateIndexQuery(String schema, String table, List<String> columnNames, String method, String predicate) {
         return buildCreateIndexQuery(schema, table, columnNames, method, "idx_" + table + "_"
             + columnNames.stream().map(colName -> colName.replace("_", "")).collect(Collectors.joining()), predicate);
     }
@@ -1475,7 +1027,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withQueryFragment("predicate", predicate != null ? "WHERE " + predicate : "");
     }
 
-    protected void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
+    private void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
         final String schema = config.getDatabaseSettings().getSchema();
         final String tableName = config.readTableFromEvent(event);
         final String hstTable = tableName + HISTORY_TABLE_SUFFIX;
@@ -1552,7 +1104,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    protected void updateHistoryTrigger(ModifySpaceEvent event, Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning)
+    private void updateHistoryTrigger(ModifySpaceEvent event, Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning)
         throws SQLException, ErrorResponseException {
         final String schema = config.getDatabaseSettings().getSchema();
         final String tableName = config.readTableFromEvent(event);
@@ -1601,7 +1153,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private final long MAX_RESULT_CHARS = 100 * 1024 *1024;
 
-    protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
+    private FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
         String nextIOffset = "";
         String nextDataset = null;
 
@@ -1673,7 +1225,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return the generated CompactChangeset from the result set.
      * @throws SQLException when any unexpected error happened.
      */
-    protected CompactChangeset compactHistoryResultSetHandler(ResultSet rs) throws SQLException {
+    private CompactChangeset compactHistoryResultSetHandler(ResultSet rs) throws SQLException {
         long numFeatures = 0;
         long limit = ((IterateHistoryEvent) event).getLimit();
         String id = "";
@@ -1727,7 +1279,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return the generated ChangesetCollection from the result set.
      * @throws SQLException when any unexpected error happened.
      */
-    protected ChangesetCollection historyResultSetHandler(ResultSet rs) throws SQLException {
+    private ChangesetCollection historyResultSetHandler(ResultSet rs) throws SQLException {
         long numFeatures = 0;
         long limit = ((IterateHistoryEvent) event).getLimit();
         String npt = ((IterateHistoryEvent) event).getPageToken();
@@ -1811,7 +1363,7 @@ public abstract class DatabaseHandler extends StorageConnector {
      * @return the generated feature collection from the result set.
      * @throws SQLException when any unexpected error happened.
      */
-    protected FeatureCollection iterateVersionsHandler(ResultSet rs) throws SQLException {
+    private FeatureCollection iterateVersionsHandler(ResultSet rs) throws SQLException {
         String id="";
 
         StringBuilder sb = new StringBuilder();
@@ -1850,38 +1402,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         return featureCollection;
     }
 
-    /**
-     * handler for delete by tags results.
-     *
-     * @param rs the result set.
-     * @return the generated feature collection from the result set.
-     * @throws SQLException when any unexpected error happened.
-     */
-    protected FeatureCollection oldStatesResultSetHandler(ResultSet rs) throws SQLException {
-        StringBuilder sb = new StringBuilder();
-        String prefix = "[";
-        sb.append(prefix);
-        while (rs.next()) {
-            sb.append("{\"type\":\"Feature\",\"id\":");
-            sb.append(rs.getString("id"));
-            String geom = rs.getString("geometry");
-            if (geom != null) {
-                sb.append(",\"geometry\":");
-                sb.append(geom);
-                sb.append("}");
-            }
-            sb.append(",");
-        }
-        if (sb.length() > prefix.length()) {
-            sb.setLength(sb.length() - 1);
-        }
-        sb.append("]");
-
-        final FeatureCollection featureCollection = new FeatureCollection();
-        featureCollection._setFeatures(sb.toString());
-        return featureCollection;
-    }
-
     protected int calculateTimeout() throws SQLException{
         int remainingSeconds = context.getRemainingTimeInMillis() / 1000;
 
@@ -1895,7 +1415,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         return timeout;
     }
 
-    protected boolean isRemainingTimeSufficient(int remainingSeconds){
+    private boolean isRemainingTimeSufficient(int remainingSeconds){
         if(remainingSeconds <= MIN_REMAINING_TIME_FOR_RETRY_SECONDS) {
             logger.warn("{} No time left to execute query '{}' s", traceItem, remainingSeconds);
             return false;
@@ -1995,7 +1515,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         return dataSource;
     }
 
-    static int getStatementTimeoutSeconds() {
+    private static int getStatementTimeoutSeconds() {
         return config.getConnectorParams().getStatementTimeoutSeconds();
     }
 
