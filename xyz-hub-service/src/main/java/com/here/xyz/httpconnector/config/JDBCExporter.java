@@ -83,6 +83,29 @@ public class JDBCExporter extends JDBCClients{
                             });
                 case VML:
                 default:
+
+                    if( j.getCsvFormat().equals(CSVFormat.FEATUREID_FC_B64))
+                    return calculateThreadCountForDownload(j, schema, exportQuery)
+                            .compose(threads -> {
+                                try{
+                                    Promise<Export.ExportStatistic> promise = Promise.promise();
+                                    List<Future> exportFutures = new ArrayList<>();
+
+                                    for (int i = 0; i < threads; i++) {
+                                        String s3Prefix = i + "_";
+                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region,
+                                                new SQLQuery("AND i%% " + threads + " = "+i));
+                                        exportFutures.add( exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
+                                    }
+
+                                    return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
+                                }catch (SQLException e){
+                                    logger.warn(e);
+                                    return Future.failedFuture(e);
+                                }
+                            });
+
+
                     return calculateTileListForVMLExport(j, schema, exportQuery)
                             .compose(tileList-> {
                                 try{
@@ -364,23 +387,37 @@ public class JDBCExporter extends JDBCClients{
         if(customWhereCondition != null)
             sqlQuery.setQueryFragment("customClause", customWhereCondition);
 
-        if (csvFormat.equals(CSVFormat.GEOJSON)) {
+        switch(csvFormat)
+        {
+          case GEOJSON :
+          {
             SQLQuery geoJson = new SQLQuery(
-                    "select jsonb_build_object(" +
-                    " 'type',       'Feature'," +
-                    " 'id',         jsondata->>'id'," +
-                    " 'geometry',   ST_AsGeoJSON(geo)::jsonb," +
-                    " 'properties', jsondata->'properties'" +
-                    ") " +
+                    "select jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) " +
                     "from ( ${{contentQuery}}) X"
             );
             geoJson.setQueryFragment("contentQuery",sqlQuery);
             geoJson.substitute();
             return queryToText(geoJson);
-        }else {
+          }   
+
+         case FEATUREID_FC_B64 :
+         {
+           SQLQuery geoJson = new SQLQuery(
+                    "select jsondata->>'id' as id, replace( encode(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text::bytea,'base64') ,chr(10),'') as data " +
+                    "from ( ${{contentQuery}}) X"
+           );
+            geoJson.setQueryFragment("contentQuery",sqlQuery);
+            geoJson.substitute();
+            return queryToText(geoJson);
+         }
+         
+         default:
+         {
             sqlQuery.substitute();
             return queryToText(sqlQuery);
+         }
         }
+        
     }
 
     private static SQLQuery queryToText(SQLQuery q){
