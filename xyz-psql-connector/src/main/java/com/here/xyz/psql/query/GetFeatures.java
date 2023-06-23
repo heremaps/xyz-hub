@@ -41,6 +41,8 @@ import java.util.List;
 
 public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResponse> extends ExtendedSpace<E, R> {
 
+  private static long MAX_BIGINT = Long.MAX_VALUE;
+
   public GetFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
     setUseReadReplica(true);
@@ -118,7 +120,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     boolean versionIsNotPresent = selectiveEvent.getRef() == null;
 
     final SQLQuery defaultClause = new SQLQuery(" ${{minVersion}} ${{nextVersion}} ")
-        .withQueryFragment("nextVersion", versionIsStar || versionsToKeep <= 1 ? "" : " AND next_version = max_bigint() ");
+        .withQueryFragment("nextVersion", versionIsStar || versionsToKeep <= 1 ? "" : " AND next_version = #{MAX_BIGINT} ")
+        .withNamedParameter("MAX_BIGINT", MAX_BIGINT);
     if (versionsToKeep > 1)
       defaultClause.withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
     else
@@ -133,8 +136,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withNamedParameter("version", loadVersionFromRef(selectiveEvent));
   }
 
-  private String buildBaseVersionCheckFragment() {
-    return " AND next_version = max_bigint()"; //Always assume HEAD version for base spaces
+  private SQLQuery buildBaseVersionCheckFragment() {
+    //Always assume HEAD version for base spaces
+    return new SQLQuery(" AND next_version = #{MAX_BIGINT}").withNamedParameter("MAX_BIGINT", MAX_BIGINT);
   }
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
