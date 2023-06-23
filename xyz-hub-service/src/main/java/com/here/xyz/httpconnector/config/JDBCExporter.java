@@ -59,7 +59,7 @@ public class JDBCExporter extends JDBCClients{
             String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
             Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
             SQLQuery exportQuery = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-                    j.getTargetVersion(), j.getParams(), j.getCsvFormat(), null);
+                    j.getTargetVersion(), j.getParams(), j.getCsvFormat());
 
             switch (j.getExportTarget().getType()){
                 case DOWNLOAD:
@@ -115,7 +115,7 @@ public class JDBCExporter extends JDBCClients{
                                     j.setProcessingList(tileList);
 
                                     for (int i = 0; i < tileList.size() ; i++) {
-                                        SQLQuery q2 = buildVMLExportQuery(j, schema, s3Bucket, s3Path, s3Region, null, tileList.get(i));
+                                        SQLQuery q2 = buildVMLExportQuery(j, schema, s3Bucket, s3Path, s3Region, tileList.get(i));
                                         exportFutures.add(exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
@@ -295,8 +295,7 @@ public class JDBCExporter extends JDBCClients{
     }
 
     public static SQLQuery buildVMLExportQuery(Export j, String schema,
-                                               String s3Bucket, String s3Path, String s3Region,
-                                               SQLQuery customWhereCondition, String parentQk) throws SQLException {
+                                               String s3Bucket, String s3Path, String s3Region, String parentQk) throws SQLException {
 
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
         Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
@@ -304,7 +303,7 @@ public class JDBCExporter extends JDBCClients{
         int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
         String bClipped = ( j.getClipped() != null && j.getClipped() ? "true" : "false" );
 
-        SQLQuery exportSelectString =  generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition);
+        SQLQuery exportSelectString =  generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat());
 
         SQLQuery q = new SQLQuery(
                 "select ("+
@@ -330,8 +329,15 @@ public class JDBCExporter extends JDBCClients{
         return q.substituteAndUseDollarSyntax(q);
     }
 
-    private static SQLQuery generateFilteredExportQuery(String schema, String spaceId, String propertyFilter, Export.SpatialFilter spatialFilter,
-                                                        String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition) throws SQLException {
+    private static SQLQuery generateFilteredExportQuery(String schema, String spaceId, String propertyFilter,
+        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
+        return generateFilteredExportQuery(schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null);
+    }
+
+    private static SQLQuery generateFilteredExportQuery(String schema, String spaceId, String propertyFilter,
+        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition)
+        throws SQLException {
+        //TODO: Re-use existing QR rather than the following duplicated code
         SQLQuery geoFragment;
 
         if (spatialFilter != null && spatialFilter.isClipped()) {
@@ -393,9 +399,9 @@ public class JDBCExporter extends JDBCClients{
 
         try {
             if(spatialFilter == null)
-                sqlQuery = new SearchForFeatures(event, dbHandler)._buildQuery(event);
+                sqlQuery = new SearchForFeatures(event, dbHandler)._buildQuery(event); //TODO: Use full QR instead!!
             else
-                sqlQuery = new GetFeaturesByGeometry(event, dbHandler)._buildQuery(event);
+                sqlQuery = new GetFeaturesByGeometry(event, dbHandler)._buildQuery(event); //TODO: Use full QR instead!!
         } catch (Exception e) {
             throw new SQLException(e);
         }
@@ -405,8 +411,8 @@ public class JDBCExporter extends JDBCClients{
         /** Remove Limit */
         sqlQuery.setQueryFragment("limit", "");
 
-        if(customWhereCondition != null)
-            sqlQuery.setQueryFragment("customClause", customWhereCondition);
+        if (customWhereCondition != null)
+            addCustomWhereClause(sqlQuery, customWhereCondition);
 
         switch(csvFormat)
         {
@@ -441,7 +447,15 @@ public class JDBCExporter extends JDBCClients{
 
     }
 
-    private static SQLQuery queryToText(SQLQuery q, boolean isForCompositeContentDetection){
+    private static void addCustomWhereClause(SQLQuery query, SQLQuery customWhereClause) {
+        SQLQuery filterWhereClause = query.getQueryFragment("filterWhereClause");
+        SQLQuery customizedWhereClause = new SQLQuery("${{innerFilterWhereClause}} ${{customWhereClause}}")
+            .withQueryFragment("innerFilterWhereClause", filterWhereClause)
+            .withQueryFragment("customWhereClause", customWhereClause);
+        query.setQueryFragment("filterWhereClause", customizedWhereClause);
+    }
+
+    private static SQLQuery queryToText(SQLQuery q, boolean isForCompositeContentDetection) {
         SQLQuery sq = new SQLQuery();
         String s = q.text()
                 .replace("?", "%L")

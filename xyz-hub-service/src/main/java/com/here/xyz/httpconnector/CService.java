@@ -247,10 +247,6 @@ public class CService extends Core {
      *  DB Pool size per client
      */
     public Integer JOB_DB_POOL_SIZE_PER_CLIENT;
-    /**
-     * Temporary needed for migration phase
-     */
-    public Boolean JOB_OLD_DATABASE_LAYOUT;
 
     /** ############## Database related ##################### */
     /**

@@ -48,9 +48,8 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
   private SQLQuery buildQueryForV2K1(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
     final Map<String, String> idMap = event.getIdsMap();
 
-    SQLQuery filterWhereClause = new SQLQuery("${{idColumn}} = ANY(#{ids})")
-        .withNamedParameter("ids", idMap.keySet().toArray(new String[0]))
-        .withQueryFragment("idColumn", buildIdFragment(event));
+    SQLQuery filterWhereClause = new SQLQuery("id = ANY(#{ids})")
+        .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
 
     SQLQuery headQuery = super.buildQuery(event)
         .withQueryFragment("filterWhereClause", filterWhereClause);
@@ -121,18 +120,17 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
      return inputFragment;
   }
 
+  @Deprecated
   private SQLQuery buildHistoryQuery(LoadFeaturesEvent event, Collection<String> uuids) {
-    SQLQuery historyQuery = new SQLQuery("SELECT jsondata, ${{geo}} "
+    return new SQLQuery("SELECT jsondata, ${{geo}}, jsondata->>'id' as id "
         + "FROM ${schema}.${hsttable} h "
         + "WHERE uuid = ANY(#{uuids}) AND EXISTS("
         + "    SELECT 1"
         + "    FROM ${schema}.${table} t"
-        + "    WHERE t.${{idColumn}} =  h.jsondata->>'id'"
-        + ")");
-    historyQuery.setQueryFragment("geo", buildGeoFragment(event));
-    historyQuery.withQueryFragment("idColumn", buildIdFragment(event));
-    historyQuery.setNamedParameter("uuids", uuids.toArray(new String[0]));
-    historyQuery.setVariable("hsttable", getDefaultTable(event) + DatabaseHandler.HISTORY_TABLE_SUFFIX);
-    return historyQuery;
+        + "    WHERE t.id =  h.jsondata->>'id'"
+        + ")")
+        .withQueryFragment("geo", buildGeoFragment(event))
+        .withNamedParameter("uuids", uuids.toArray(new String[0]))
+        .withVariable("hsttable", getDefaultTable(event) + DatabaseHandler.HISTORY_TABLE_SUFFIX);
   }
 }

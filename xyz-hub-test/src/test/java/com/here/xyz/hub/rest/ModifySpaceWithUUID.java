@@ -199,8 +199,6 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void testMergeWithHistory() throws JsonProcessingException {
-    /** Keep 6 versions of objects */
-    patchSpaceWithMaxVersionCount(6,AuthProfile.ACCESS_ALL);
     String body = createRequest(generateRandomFeatures(1, 2))
             .post("/spaces/x-psql-test/features")
             .getBody().asString();
@@ -226,8 +224,6 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void testPatchConflictWithHistory() throws JsonProcessingException {
-    /** Keep 6 versions of objects */
-    patchSpaceWithMaxVersionCount(5,AuthProfile.ACCESS_ALL);
     String body = createRequest(generateRandomFeatures(1, 2))
             .post("/spaces/x-psql-test/features")
             .getBody().asString();
@@ -253,8 +249,6 @@ public class ModifySpaceWithUUID extends TestSpaceWithFeature {
 
   @Test
   public void testPatchWithHistory() throws JsonProcessingException {
-    /** Keep 5 versions of objects */
-    patchSpaceWithMaxVersionCount(6,AuthProfile.ACCESS_ALL);
     String body = createRequest(generateRandomFeatures(1, 2))
             .post("/spaces/x-psql-test/features")
             .getBody().asString();

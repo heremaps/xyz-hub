@@ -430,14 +430,13 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (event.getSpaceDefinition() != null && event.getSpaceDefinition().isEnableHistory()) {
             Integer maxVersionCount = event.getSpaceDefinition().getMaxVersionCount();
             boolean isEnableGlobalVersioning = event.getSpaceDefinition().isEnableGlobalVersioning();
-            boolean compactHistory = config.getConnectorParams().isCompactHistory();
 
             if (event.getOperation() == Operation.CREATE)
                 //Create History Table
-                ensureHistorySpace(maxVersionCount, compactHistory, isEnableGlobalVersioning);
+                ensureHistorySpace(maxVersionCount, isEnableGlobalVersioning);
             else if(event.getOperation() == Operation.UPDATE)
                 //Update HistoryTrigger to apply maxVersionCount.
-                updateHistoryTrigger(event, maxVersionCount, compactHistory, isEnableGlobalVersioning);
+                updateHistoryTrigger(event, maxVersionCount);
         }
         else if (event.getSpaceDefinition() != null && event.getOperation() == Operation.CREATE) {
             //Create Space Table
@@ -529,8 +528,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             if (!deletes.isEmpty()) {
                 //Transform the incoming deletes into upserts with deleted flag for features which don't exist in the extended layer (base)
                 List<String> existingIdsInBase = new FetchExistingIds(
-                    //NOTE: The following is a temporary implementation for backwards compatibility for old base spaces which have no id column filled yet
-                    new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes, true), this).run();
+                    new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes), this).run();
 
                 for (String featureId : originalDeletes) {
                   if (existingIdsInBase.contains(featureId)) {
@@ -552,11 +550,6 @@ public abstract class DatabaseHandler extends StorageConnector {
                 upserts.addAll(updates);
                 updates.clear();
             }
-            if (!inserts.isEmpty() && readVersionsToKeep(event) < 1) {
-              //Transform the incoming inserts into upserts, because we don't know whether the object is existing in the extension already, i.e. deleted and reinserted
-              upserts.addAll(inserts);
-              inserts.clear();
-            }
         }
 
         long version = -1;
@@ -574,8 +567,7 @@ public abstract class DatabaseHandler extends StorageConnector {
           if (!upserts.isEmpty()) {
             List<String> upsertIds = upserts.stream().map(Feature::getId).filter(Objects::nonNull).collect(Collectors.toList());
             List<String> existingIds = new FetchExistingIds(new FetchIdsInput(config.readTableFromEvent(event),
-                //NOTE: The following is a temporary implementation for backwards compatibility for old spaces which have no id column filled yet
-                upsertIds, readVersionsToKeep(event) < 1), this).run();
+                upsertIds), this).run();
             upserts.forEach(f -> (existingIds.contains(f.getId()) ? updates : inserts).add(f));
           }
 
@@ -904,7 +896,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         stmt.addBatch(q.substitute().text());
     }
 
-    private void createSpaceTableStatement(Statement stmt, String schema, String table, long versionsToKeep, boolean withIndices, String existingSerial) throws SQLException {
+    private void createSpaceTableStatement(Statement stmt, String schema, String table, boolean withIndices, String existingSerial) throws SQLException {
         String tableFields = "id TEXT NOT NULL, "
                 + "version BIGINT NOT NULL, "
                 + "next_version BIGINT NOT NULL DEFAULT 9223372036854775807::BIGINT, "
@@ -934,11 +926,6 @@ public abstract class DatabaseHandler extends StorageConnector {
         if (withIndices) {
             createVersioningIndices(stmt, schema, table);
 
-            if (versionsToKeep <= 1) {
-                query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} ((jsondata->>'id'))";
-                doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_id"), schema, table);
-            }
-
             query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING gin ((jsondata->'properties'->'@ns:com:here:xyz'->'tags') jsonb_ops)";
             doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_tags"), schema, table);
 
@@ -948,17 +935,14 @@ public abstract class DatabaseHandler extends StorageConnector {
             query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((i))";
             doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_serial"), schema, table);
 
-            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'))";
+            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), id)";
             doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_updatedAt"), schema, table);
 
-            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'))";
+            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), id)";
             doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_createdAt"), schema, table);
 
-            //TODO: That is a workaround for migration so that the viz index is not created twice on the HEAD partition
-            if (versionsToKeep > 0) {
-                query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree (left( md5(''||i),5))";
-                doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_viz"), schema, table);
-            }
+            query = "CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING btree (left(md5('' || i), 5))";
+            doReplacementsAndAdd(stmt, new SQLQuery(query).withVariable("indexName", "idx_" + table + "_viz"), schema, table);
         }
     }
 
@@ -970,7 +954,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         String schema = config.getDatabaseSettings().getSchema();
         String table = config.readTableFromEvent(event);
 
-        createSpaceTableStatement(stmt, schema, table, readVersionsToKeep(event), true, null);
+        createSpaceTableStatement(stmt, schema, table, true, null);
         createHeadPartition(stmt, schema, table);
         createHistoryPartition(stmt, schema, table, 0L);
 
@@ -1027,7 +1011,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             .withQueryFragment("predicate", predicate != null ? "WHERE " + predicate : "");
     }
 
-    private void ensureHistorySpace(Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning) throws SQLException {
+    @Deprecated
+    private void ensureHistorySpace(Integer maxVersionCount, boolean isEnableGlobalVersioning) throws SQLException {
         final String schema = config.getDatabaseSettings().getSchema();
         final String tableName = config.readTableFromEvent(event);
         final String hstTable = tableName + HISTORY_TABLE_SUFFIX;
@@ -1086,8 +1071,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                         stmt.addBatch(query);
                     }
 
-                    query = SQLQueryBuilder.addHistoryTriggerSQL(schema, tableName + HEAD_TABLE_SUFFIX, maxVersionCount, compactHistory, isEnableGlobalVersioning);
-                    stmt.addBatch(query);
+                    SQLQuery q = SQLQueryBuilder.addHistoryTriggerSQL(schema, tableName + HEAD_TABLE_SUFFIX, maxVersionCount);
+                    stmt.addBatch(q.substitute().text());
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
@@ -1104,11 +1089,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
-    private void updateHistoryTrigger(ModifySpaceEvent event, Integer maxVersionCount, boolean compactHistory, boolean isEnableGlobalVersioning)
-        throws SQLException, ErrorResponseException {
+    private void updateHistoryTrigger(ModifySpaceEvent event, Integer maxVersionCount) throws SQLException, ErrorResponseException {
         final String schema = config.getDatabaseSettings().getSchema();
         final String tableName = config.readTableFromEvent(event);
-        boolean headTableExists = readVersionsToKeep(event) > 0 && new TableExists(new Table(schema, tableName + HEAD_TABLE_SUFFIX), this).run();
 
         try (final Connection connection = dataSource.getConnection()) {
             advisoryLock( tableName, connection );
@@ -1119,14 +1102,14 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                 try (Statement stmt = connection.createStatement()) {
                     /** old naming */
-                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(schema, tableName + (headTableExists ? HEAD_TABLE_SUFFIX : ""), false);
+                    String query = SQLQueryBuilder.deleteHistoryTriggerSQL(schema, tableName + HEAD_TABLE_SUFFIX, false);
                     stmt.addBatch(query);
                     /** new naming */
-                    query = SQLQueryBuilder.deleteHistoryTriggerSQL(schema, tableName + (headTableExists ? HEAD_TABLE_SUFFIX : ""), true);
+                    query = SQLQueryBuilder.deleteHistoryTriggerSQL(schema, tableName + HEAD_TABLE_SUFFIX, true);
                     stmt.addBatch(query);
 
-                    query = SQLQueryBuilder.addHistoryTriggerSQL(schema, tableName + (headTableExists ? HEAD_TABLE_SUFFIX : ""), maxVersionCount, compactHistory, isEnableGlobalVersioning);
-                    stmt.addBatch(query);
+                    SQLQuery q = SQLQueryBuilder.addHistoryTriggerSQL(schema, tableName + HEAD_TABLE_SUFFIX, maxVersionCount);
+                    stmt.addBatch(q.substitute().text());
 
                     stmt.setQueryTimeout(calculateTimeout());
                     stmt.executeBatch();
@@ -1153,7 +1136,7 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private final long MAX_RESULT_CHARS = 100 * 1024 *1024;
 
-    private FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom) throws SQLException {
+    private FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom, boolean useColumnNames) throws SQLException {
         String nextIOffset = "";
         String nextDataset = null;
 
@@ -1163,9 +1146,10 @@ public abstract class DatabaseHandler extends StorageConnector {
         int numFeatures = 0;
 
         while (rs.next() && MAX_RESULT_CHARS > sb.length()) {
-            String geom = rs.getString(2);
-            if( skipNullGeom && (geom == null) ) continue;
-            sb.append(rs.getString(1));
+            String geom = getGeoFromResultSet(rs, useColumnNames);
+            if (skipNullGeom && geom == null)
+                continue;
+            sb.append(getJsondataFromResultSet(rs, useColumnNames));
             sb.setLength(sb.length() - 1);
             sb.append(",\"geometry\":");
             sb.append(geom == null ? "null" : geom);
@@ -1175,8 +1159,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             if (event instanceof IterateFeaturesEvent) {
                 numFeatures++;
                 nextIOffset = rs.getString(3);
-                if (rs.getMetaData().getColumnCount() >= 4)
-                    nextDataset = rs.getString(4);
+                if (rs.getMetaData().getColumnCount() >= 5)
+                    nextDataset = rs.getString("dataset");
             }
         }
 
@@ -1199,11 +1183,23 @@ public abstract class DatabaseHandler extends StorageConnector {
         return featureCollection;
     }
 
+    private String getGeoFromResultSet(ResultSet rs, boolean useColumnName) throws SQLException {
+        return useColumnName ? rs.getString("geo") : rs.getString(2);
+    }
+
+    private String getJsondataFromResultSet(ResultSet rs, boolean useColumnName) throws SQLException {
+        return useColumnName ? rs.getString("jsondata") : rs.getString(1);
+    }
+
+    @Deprecated
+    public FeatureCollection legacyDefaultFeatureResultSetHandler(ResultSet rs) throws SQLException
+    { return _defaultFeatureResultSetHandler(rs,false, false); }
+
     public FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException
-    { return _defaultFeatureResultSetHandler(rs,false); }
+    { return _defaultFeatureResultSetHandler(rs,false, true); }
 
     public FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException
-    { return _defaultFeatureResultSetHandler(rs,true); }
+    { return _defaultFeatureResultSetHandler(rs,true, true); }
 
     public BinaryResponse defaultBinaryResultSetHandler(ResultSet rs) throws SQLException {
         BinaryResponse br = new BinaryResponse()

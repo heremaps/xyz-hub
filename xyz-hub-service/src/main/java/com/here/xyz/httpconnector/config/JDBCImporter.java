@@ -19,7 +19,6 @@
 
 package com.here.xyz.httpconnector.config;
 
-import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
@@ -29,11 +28,10 @@ import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.sqlclient.impl.ArrayTuple;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Client for handle IMPORT-Jobs (S3 -> RDS)
@@ -42,7 +40,6 @@ public class JDBCImporter extends JDBCClients{
     private static final Logger logger = LogManager.getLogger();
 
     /** Names of default Indices */
-    private static final String IDX_NAME_ID = "id";
     private static final String IDX_NAME_GEO = "geo";
     private static final String IDX_NAME_CREATEDAT = "createdAt";
     private static final String IDX_NAME_UPDATEDAT = "updatedAt";
@@ -56,15 +53,8 @@ public class JDBCImporter extends JDBCClients{
     private static final String IDX_NAME_OPERATION = "operation";
     private static final String IDX_NAME_AUTHOR = "author";
 
-    /** Temporally used during migration phase */
-    private static final Boolean OLD_DATABASE_LAYOUT =  (CService.configuration !=null && CService.configuration.JOB_OLD_DATABASE_LAYOUT != null)
-            ? CService.configuration.JOB_OLD_DATABASE_LAYOUT : false;
-
-    /** List of default Indices */
-    public static final String[] DEFAULT_IDX_LIST = { IDX_NAME_ID,IDX_NAME_GEO,IDX_NAME_CREATEDAT,IDX_NAME_UPDATEDAT,IDX_NAME_SERIAL,IDX_NAME_TAGS,IDX_NAME_VIZ };
-
-    /** List of version related default Indices */
-    public static final String[] DEFAULT_IDX_LIST_EXTENDED = { IDX_NAME_ID,IDX_NAME_GEO,IDX_NAME_CREATEDAT,IDX_NAME_UPDATEDAT,IDX_NAME_SERIAL,IDX_NAME_TAGS,IDX_NAME_VIZ,
+    /** List of default indices */
+    public static final String[] DEFAULT_IDX_LIST = {IDX_NAME_GEO,IDX_NAME_CREATEDAT,IDX_NAME_UPDATEDAT,IDX_NAME_SERIAL,IDX_NAME_TAGS,IDX_NAME_VIZ,
             IDX_NAME_ID_NEW,IDX_NAME_VERSION,IDX_NAME_ID_VERSION,IDX_NAME_OPERATION,IDX_NAME_AUTHOR };
 
     /**
@@ -127,34 +117,38 @@ public class JDBCImporter extends JDBCClients{
                 .map(f->null);
     }
 
-    public static Future<String> createTriggerOnTargetTable(Job job, String schema){
+    //TODO: Use a QueryRunner for the following!!
+    private static Future<String> createTriggerOnTargetTable(Job job, String schema) {
         String author = job.getAuthor() == null ? "ANONYMOUS" : job.getAuthor();
         boolean addTablenameToXYZNs = false;
 
         /** deprecated */
         boolean _enableUUID  = job.getParam("enableUUID") == null ? false : (boolean) job.getParam("enableUUID");
 
+        //TODO: Move this into the new QR!!
         SQLQuery q = new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${tablename} \n"
-                + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},{enableUUID},{spaceVersion},{author},{oldLayout});"
+                + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},{enableUUID},{spaceVersion},{author});"
+                //TODO: Use named parameters for the following!
                 .replace("{trigger_hrn}","TBD")
                 .replace("{addTableName}", Boolean.toString(addTablenameToXYZNs))
                 .replace("{enableUUID}", Boolean.toString(_enableUUID))
                 .replace("{spaceVersion}", Long.toString( job.getSpaceVersion()))
                 .replace("{author}", author)
-                .replace("{oldLayout}", Boolean.toString(OLD_DATABASE_LAYOUT))
         );
 
         q.setVariable("schema", schema);
         q.setVariable("tablename", job.getTargetTable());
 
+        //TODO: Use a QueryRunner for the following!!
         return getClient(job.getTargetConnector())
                 .query(q.substitute().text())
                 .execute()
                 .map(job.getTargetTable());
     }
 
+    @Deprecated
     public static Future<Long> increaseVersionSequence(String clientID, String schema, String tablename){
-        SQLQuery q = new SQLQuery("SELECT nextval('${schema}.${table}');");
+        SQLQuery q = new SQLQuery("SELECT nextval('${schema}.${table}');"); //TODO: Use existing impl of GetNextVersion QR instead!!
         q.setVariable("schema", schema);
         q.setVariable("table", tablename+"_version_seq");
 
@@ -163,18 +157,9 @@ public class JDBCImporter extends JDBCClients{
                 .map(row -> row.iterator().next().getLong(0));
     }
 
-    public static Future<Void> doesTableExists(String clientID, String schema, String tablename){
-        SQLQuery q = new SQLQuery("SELECT 1 FROM ${schema}.${table} limit 1;");
-        q.setVariable("schema", schema);
-        q.setVariable("table", tablename);
-
-        return getClient(clientID).query(q.substitute().text())
-                .execute()
-                .map(f->null);
-    }
-
+    @Deprecated
     public static Future<Long> isTableEmpty(String clientID, String schema, String tablename){
-        SQLQuery q = new SQLQuery("SELECT count(1) FROM ${schema}.${table};");
+        SQLQuery q = new SQLQuery("SELECT count(1) FROM ${schema}.${table};"); //TODO: Implement QR helper instead!
         q.setVariable("schema", schema);
         q.setVariable("table", tablename);
 
@@ -195,9 +180,9 @@ public class JDBCImporter extends JDBCClients{
                 + "     #{s3Bucket}, "
                 + "     #{s3Path}, "
                 + "     #{s3Region}"
-                + " )),'{iml_import_hint}' as iml_import_hint")
+                + " )),'{importHint}' as iml_import_hint") //TODO: Rename that hint field - make it product agnostic!
                     /** Need replace, because it is not possible to read a Parameter as hint */
-                    .replace("{iml_import_hint}", s3Path+":"+curFileSize));
+                    .replace("{importHint}", s3Path + ":" + curFileSize));
 
         q.setNamedParameter("s3Bucket",s3Bucket);
         q.setNamedParameter("s3Path",s3Path);
@@ -207,7 +192,7 @@ public class JDBCImporter extends JDBCClients{
 
         q.setVariable("table", tablename);
         q.setVariable("schema", schema);
-        q = q.substituteAndUseDollarSyntax(q);
+        q = q.substituteAndUseDollarSyntax(q); //TODO: Replace this by standard substitution technique!
 
         logger.info("Execute S3-Import {}->{} {}", tablename, s3Path, q.text());
         return getClient(clientID)
@@ -220,7 +205,7 @@ public class JDBCImporter extends JDBCClients{
     public static List<Future> generateIndexFutures (Job job, String schema, String tableName, String clientId){
         List<Future> indicesFutures = new ArrayList<>();
 
-        for (String idxName:  (OLD_DATABASE_LAYOUT ? DEFAULT_IDX_LIST : DEFAULT_IDX_LIST_EXTENDED)) {
+        for (String idxName : DEFAULT_IDX_LIST) {
             /** Create VIZ index only on root table - to workaround potential postgres bug */
             if(idxName.equalsIgnoreCase(IDX_NAME_VIZ) && (tableName.indexOf("_head") != -1 || tableName.indexOf("_p0") != -1))
                 continue;
@@ -310,24 +295,21 @@ public class JDBCImporter extends JDBCClients{
                 .map(f -> null);
     }
 
+    //TODO: Re-use index creation procedure from connector classes (e.g. extract necessary methods into utility class)!!
     public static SQLQuery createIdxQuery(String idxName, String schema, String tablename){
         SQLQuery q = null;
 
         switch (idxName){
-            case IDX_NAME_ID:
-                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} ((jsondata->>'id'));");
-                q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_ID);
-                break;
             case IDX_NAME_GEO:
                 q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING gist ((geo));");
                 q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_GEO);
                 break;
             case IDX_NAME_CREATEDAT:
-                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), (jsondata->>'id'));");
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'createdAt'), id);");
                 q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_CREATEDAT);
                 break;
             case IDX_NAME_UPDATEDAT:
-                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), (jsondata->>'id'));");
+                q = new SQLQuery("CREATE INDEX IF NOT EXISTS ${idx_name} ON ${schema}.${table} USING btree ((jsondata->'properties'->'@ns:com:here:xyz'->'updatedAt'), id);");
                 q.setVariable("idx_name", "idx_"+tablename+"_"+IDX_NAME_UPDATEDAT);
                 break;
             case IDX_NAME_SERIAL:
@@ -377,16 +359,5 @@ public class JDBCImporter extends JDBCClients{
         return getClient(clientID).query(q.text())
                 .execute()
                 .map(idxName);
-    }
-
-    public static List<Future> createIndices(String clientID, String schema, String tablename){
-        List<Future> futures = new ArrayList<>();
-
-        for (String idxName: (OLD_DATABASE_LAYOUT ? DEFAULT_IDX_LIST :DEFAULT_IDX_LIST_EXTENDED)) {
-            SQLQuery q = createIdxQuery(idxName, schema, tablename);
-            futures.add(createIndex(clientID, q, idxName));
-        }
-
-        return futures;
     }
 }

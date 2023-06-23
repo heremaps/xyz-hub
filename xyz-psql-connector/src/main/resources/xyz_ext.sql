@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 167
+ select 168
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -134,10 +134,9 @@ AS $BODY$
 		addUUID boolean := TG_ARGV[2];
 		curVersion bigint := TG_ARGV[3];
 		author text := TG_ARGV[4];
-        oldLayout boolean := TG_ARGV[5];
 
 		fid text := NEW.jsondata->>'id';
-		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW())*1000);
+		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
 		meta jsonb := format(
 			'{
                  "createdAt": %s,
@@ -147,19 +146,20 @@ AS $BODY$
     BEGIN
 		-- Inject id if not available
 		IF fid IS NULL THEN
-			NEW.jsondata := (NEW.jsondata|| format('{"id" : "%s"}', xyz_random_string(10))::jsonb);
+		    fid = xyz_random_string(10);
+			NEW.jsondata := (NEW.jsondata || format('{"id": "%s"}', fid)::jsonb);
         END IF;
 
 		IF addSpaceId THEN
-			meta := jsonb_set(meta,'{space}',to_jsonb(spaceId));
+			meta := jsonb_set(meta, '{space}', to_jsonb(spaceId));
         END IF;
 
 		IF addUUID THEN
-			meta := jsonb_set(meta,'{uuid}',to_jsonb(gen_random_uuid()));
+			meta := jsonb_set(meta, '{uuid}', to_jsonb(gen_random_uuid()));
         END IF;
 
 		-- Inject meta
-		NEW.jsondata := jsonb_set(NEW.jsondata,'{properties,@ns:com:here:xyz}', meta);
+		NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
 
 		IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
 		--GeoJson Feature Import
@@ -169,16 +169,10 @@ AS $BODY$
 			NEW.geo := ST_Force3D(NEW.geo);
         END IF;
 
-        -- Only needed during migration phase
-        IF oldLayout THEN
-             RETURN NEW;
-        END IF;
-
         NEW.operation := 'I';
         NEW.version := curVersion;
-        NEW.id := NEW.jsondata->>'id';
-		--Prepared
-		--NEW.author := author;
+        NEW.id := fid;
+		NEW.author := author;
 
         RETURN NEW;
     END;
@@ -353,6 +347,7 @@ END
 $BODY$
     LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
+--@Deprecated
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_versioned()
   RETURNS trigger AS
 $BODY$
@@ -385,135 +380,19 @@ $BODY$
             format('INSERT INTO'
                        || ' %s."%s_hst" (uuid, jsondata, geo, vid)'
                        || ' VALUES(' || uuidValue || ', %L, %L, xyz_legacy_history_create_vid(%7$L, %6$L))',
-                        TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo, v, NEW.jsondata->>'id');
+                        TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo, v, NEW.id);
 
 		IF TG_OP = 'UPDATE' THEN
 		    -- NOTE: Kept for backwards compatibility. For TG_OP == 'INSERT' AND op == 'D' we don't want to delete any row from the main table anymore!
 			IF NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' IS NOT null AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb THEN
 				EXECUTE
-					format('DELETE FROM %s."%s" WHERE jsondata->>''id'' = %L',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.jsondata->>'id');
+					format('DELETE FROM %s."%s" WHERE jsondata->>''id'' = %L',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.id);
 			END IF;
 		END IF;
         RETURN NEW;
 	END;
 $BODY$
-  LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_full()
-  RETURNS trigger AS
-$BODY$
-	DECLARE oldest_uuids text[];
-	DECLARE max_version_cnt integer := COALESCE(TG_ARGV[0]::NUMERIC::INTEGER,10);
-	DECLARE max_version_diff integer;
-	DECLARE uuid_deletes text[];
-
-	BEGIN
-		IF TG_OP = 'INSERT' THEN
-			EXECUTE
-				format('INSERT INTO'
-					||' %s."%s_hst" (uuid,jsondata,geo)'
-					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
-			RETURN NEW;
-		END IF;
-
-		IF max_version_cnt != -1 THEN
-			--IF MORE THAN max_version_cnt ARE EXISTING DELETE OLDEST ENTRIES
-			EXECUTE
-				format('SELECT array_agg(uuid)'
-					|| 'FROM( '
-					|| '	select uuid FROM %s."%s_hst" '
-					|| '		WHERE jsondata->>''id'' = %L ORDER BY jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'' ASC'
-					|| ') A',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), OLD.jsondata->>'id'
-				) into oldest_uuids;
-
-			max_version_diff := array_length(oldest_uuids,1) - max_version_cnt;
-
-			IF max_version_diff >= 0 THEN
-				-- DELETE OLDEST ENTRIES
-				FOR i IN 1..max_version_diff+1 LOOP
-					select array_append(uuid_deletes, oldest_uuids[i])
-						INTO uuid_deletes;
-				END LOOP;
-				EXECUTE
-					format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), uuid_deletes);
-			END IF;
-		END IF;
-
-		IF TG_OP = 'UPDATE' THEN
-			EXECUTE
-				format('INSERT INTO'
-					||' %s."%s_hst" (uuid,jsondata,geo)'
-					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo);
-			RETURN NEW;
-
-		ELSEIF TG_OP = 'DELETE' THEN
-			EXECUTE
-				format('INSERT INTO'
-					||' %s."%s_hst" (uuid,jsondata,geo)'
-					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME),
-					OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' || '_deleted',
-					jsonb_set(OLD.jsondata,'{properties,@ns:com:here:xyz}', ('{"deleted":true}'::jsonb  || (OLD.jsondata->'properties'->'@ns:com:here:xyz')::jsonb)),
-					OLD.geo);
-			RETURN OLD;
-		END IF;
-	END;
-$BODY$
-language plpgsql;
-
-------------------------------------------------
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_trigger_historywriter()
-  RETURNS trigger AS
-$BODY$
-	DECLARE path text[];
-	DECLARE max_version_cnt integer := COALESCE(TG_ARGV[0]::NUMERIC::INTEGER,10);
-	DECLARE max_version_diff integer;
-	DECLARE uuid_deletes text[];
-
-	BEGIN
-        IF max_version_cnt != -1 THEN
-            --IF MORE THAN max_version_cnt ARE EXISTING DELETE OLDEST ENTRIES
-            EXECUTE
-                format('SELECT array_agg(uuid)'
-                    || 'FROM( '
-                    || '	select uuid FROM %s."%s_hst" '
-                    || '		WHERE jsondata->>''id'' = %L ORDER BY jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'' ASC'
-                    || ') A',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), OLD.jsondata->>'id'
-                ) into path;
-
-            max_version_diff := array_length(path,1) - max_version_cnt;
-
-            IF max_version_diff >= 0 THEN
-                -- DELETE OLDEST ENTRIES
-                FOR i IN 1..max_version_diff+1 LOOP
-                    select array_append(uuid_deletes, path[i])
-                        INTO uuid_deletes;
-                END LOOP;
-                EXECUTE
-                    format('DELETE FROM %s."%s_hst" WHERE uuid = ANY(%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), uuid_deletes);
-            END IF;
-        END IF;
-
-		IF TG_OP = 'UPDATE' THEN
-			EXECUTE
-				format('INSERT INTO'
-					||' %s."%s_hst" (uuid,jsondata,geo)'
-					||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', OLD.jsondata, OLD.geo);
-			RETURN NEW;
-		ELSEIF TG_OP = 'DELETE' THEN
-			EXECUTE
-				format('INSERT INTO'
-					||' %s."%s_hst" (uuid,jsondata,geo)'
-                    ||' VALUES( %L,%L,%L)',TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME),
-						OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid',
-						jsonb_set(OLD.jsondata,'{properties,@ns:com:here:xyz}', ('{"deleted":true}'::jsonb  || (OLD.jsondata->'properties'->'@ns:com:here:xyz')::jsonb)),
-						OLD.geo);
-			RETURN OLD;
-		END IF;
-	END;
-$BODY$
-language plpgsql;
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_count_estimation(query text)

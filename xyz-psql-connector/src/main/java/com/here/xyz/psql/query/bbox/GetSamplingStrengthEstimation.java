@@ -72,7 +72,7 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
 
   @Override
   public SamplingStrengthEstimation handle(ResultSet rs) throws SQLException {
-    FeatureCollection collection = dbHandler.defaultFeatureResultSetHandler(rs);
+    FeatureCollection collection = dbHandler.legacyDefaultFeatureResultSetHandler(rs);
     Feature estimateFtr = null;
     try {
       estimateFtr = collection.getFeatures().get(0);

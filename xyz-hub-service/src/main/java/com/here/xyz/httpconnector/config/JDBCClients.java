@@ -45,6 +45,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * @deprecated Use standard JDBC based clients instead
+ */
+@Deprecated
 public class JDBCClients {
     /**
      * We are using JDBCClients for import and export tasks.

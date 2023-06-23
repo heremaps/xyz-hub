@@ -107,7 +107,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                     .withEnableUUID(true)
             );
 
-        SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
 
         /** Increase to 5 allowed Indices */
@@ -136,7 +136,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 add("serial");
                 add("geo");
                 add("tags");
-                add("id");
             }};
 
             String sqlSpaceSchema = "(select schema_name::text from information_schema.schemata where schema_name in ('xyz','public') order by 1 desc limit 1)";
@@ -208,7 +207,6 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                 "serial",
                 "geo",
                 "tags",
-                "id",
                 "viz",
                 "idnew",
                 "version",
@@ -343,10 +341,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
                         assertEquals("CREATE INDEX idx_foo_tags ON ONLY public.foo USING gin (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'tags'::text)))",indexdef);
                         break;
                     case "createdAt" :
-                        assertEquals("CREATE INDEX \"idx_foo_createdAt\" ON ONLY public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'createdAt'::text)), ((jsondata ->> 'id'::text)))",indexdef);
+                        assertEquals("CREATE INDEX \"idx_foo_createdAt\" ON ONLY public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'createdAt'::text)), id)",indexdef);
                         break;
                     case "updatedAt" :
-                        assertEquals("CREATE INDEX \"idx_foo_updatedAt\" ON ONLY public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'updatedAt'::text)), ((jsondata ->> 'id'::text)))",indexdef);
+                        assertEquals("CREATE INDEX \"idx_foo_updatedAt\" ON ONLY public.foo USING btree (((((jsondata -> 'properties'::text) -> '@ns:com:here:xyz'::text) -> 'updatedAt'::text)), id)",indexdef);
                         break;
                 }
             }
