@@ -16,7 +16,7 @@ import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.view.Serialize;
-import com.here.naksha.lib.httpserver.MockHttpServer;
+import com.here.naksha.lib.extension.MockHttpServer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

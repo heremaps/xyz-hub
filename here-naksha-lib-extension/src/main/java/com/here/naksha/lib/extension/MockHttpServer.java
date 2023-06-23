@@ -1,4 +1,4 @@
-package com.here.naksha.lib.httpserver;
+package com.here.naksha.lib.extension;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
