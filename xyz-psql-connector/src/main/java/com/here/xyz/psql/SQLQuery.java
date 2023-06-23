@@ -19,11 +19,11 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 import static com.here.xyz.psql.DatabaseHandler.HEAD_TABLE_SUFFIX;
+import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.psql.query.GetFeatures;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -243,11 +243,12 @@ public class SQLQuery {
     return text == null ? "" : '"' + text.replace("\"", "\"\"") + '"';
   }
 
-  private static final Set<String> notMigratedTables = 
-   new HashSet<>(Arrays.asList( "082c16bb65105fdddf498e588b43f2b2", 
-                                "e359c1541eefa96a73574140e19e978a", 
-                                "9f524195f124b2ef7e263aa1b838072d", 
-                                "9124c5ffe8a5f5f28bb9f4a77a907322", 
+  //TODO: Remove the following hack asap
+  private static final Set<String> notMigratedTables =
+   new HashSet<>(Arrays.asList( "082c16bb65105fdddf498e588b43f2b2",
+                                "e359c1541eefa96a73574140e19e978a",
+                                "9f524195f124b2ef7e263aa1b838072d",
+                                "9124c5ffe8a5f5f28bb9f4a77a907322",
                                 "bc5c95a2b91e2a62680503450c70c035"));
 
   @Deprecated
@@ -398,7 +399,7 @@ public class SQLQuery {
   }
 
   @Deprecated
-  public static SQLQuery selectJson(SearchForFeaturesEvent event) {
+  public static SQLQuery selectJson(SelectiveEvent event) {
     return GetFeatures.buildSelectionFragmentBWC(event);
   }
 
@@ -583,6 +584,7 @@ public class SQLQuery {
   }
 
   /** from ? to $1-$N */
+  @Deprecated
   public static SQLQuery substituteAndUseDollarSyntax(SQLQuery q){
     q.substitute();
 

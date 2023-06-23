@@ -27,7 +27,6 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMP
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
-import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
@@ -43,6 +42,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private static long MAX_BIGINT = Long.MAX_VALUE;
 
+  private boolean withoutIdField = false;
+
   public GetFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
     super(event, dbHandler);
     setUseReadReplica(true);
@@ -56,11 +57,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     if (isExtended) {
       query = new SQLQuery(
           "SELECT * FROM ("
-          + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}"
+          + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}${{id}}"
           + "        FROM ${schema}.${table}"
-          + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{customClause}} ${{iOffsetExtension}} ${{limit}})"
+          + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{iOffsetExtension}} ${{limit}})"
           + "    UNION ALL "
-          + "        SELECT ${{selection}}, ${{geo}}${{iColumn}} FROM"
+          + "        SELECT ${{selection}}, ${{geo}}${{iColumn}}${{id}} FROM"
           + "            ("
           + "                ${{baseQuery}}"
           + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE ${{notExistsIdComparison}})"
@@ -69,9 +70,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     }
     else {
       query = new SQLQuery(
-          "SELECT ${{selection}}, ${{geo}}${{iColumn}}"
+          "SELECT ${{selection}}, ${{geo}}${{iColumn}}${{id}}"
               + "    FROM ${schema}.${table} ${{tableSample}}"
-              + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{customClause}} ${{orderBy}} ${{limit}} ${{offset}}");
+              + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
     query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, isExtended));
@@ -80,10 +81,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildGeoFragment(event));
 
-    query.setQueryFragment("customClause", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("tableSample", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
+    query.setQueryFragment("id", withoutIdField ? "" : ", id");
 
     query.setVariable(SCHEMA, getSchema());
     query.setVariable(TABLE, getDefaultTable(event));
@@ -174,7 +175,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     return new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{customClause}} ${{iOffsetBase}} ${{limit}}")
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}} ${{limit}}")
         .withVariable("extendedTable", getExtendedTable(event))
         .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, false)) //NOTE: We know that the base space is not an extended one
         .withQueryFragment("versionCheck", buildBaseVersionCheckFragment());
@@ -185,7 +186,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
     return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{customClause}} ${{iOffsetIntermediate}} ${{limit}})"
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetIntermediate}} ${{limit}})"
         + "UNION ALL"
         + "    SELECT id, version, operation, jsondata, geo${{iColumn}} FROM"
         + "        ("
@@ -199,7 +200,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private String buildIdComparisonFragment(E event, String prefix) {
-    return DatabaseHandler.readVersionsToKeep(event) > 0 ? "id = " + prefix + "id" : "jsondata->>'id' = " + prefix + "jsondata->>'id'";
+    return  "id = " + prefix + "id";
   }
 
   private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended) {
@@ -214,7 +215,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    return (R) dbHandler.defaultFeatureResultSetHandler(rs);
+    return (R) dbHandler.legacyDefaultFeatureResultSetHandler(rs);
   }
 
   protected static SQLQuery buildSelectionFragment(ContextAwareEvent event) {
@@ -254,7 +255,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   //TODO: Can be removed after completion of refactoring
   @Deprecated
-  public static SQLQuery buildSelectionFragmentBWC(SearchForFeaturesEvent event) {
+  public static SQLQuery buildSelectionFragmentBWC(SelectiveEvent event) {
     SQLQuery selectionFragment = buildSelectionFragment(event);
     selectionFragment.replaceNamedParameters();
     return selectionFragment;
@@ -286,11 +287,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return geoFragment;
   }
 
-  protected static String buildIdFragment(ContextAwareEvent event) {
-    return DatabaseHandler.readVersionsToKeep(event) < 1 ? "jsondata->>'id'" : "id";
-  }
-
+  //TODO: Remove that hack and instantiate & use the whole GetFeatures QR instead from wherever it's needed
   public SQLQuery _buildQuery(E event) throws SQLException, ErrorResponseException {
+    withoutIdField = true;
     return buildQuery(event);
   }
 }

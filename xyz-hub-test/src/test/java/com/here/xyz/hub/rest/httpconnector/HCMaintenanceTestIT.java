@@ -252,7 +252,7 @@ public class HCMaintenanceTestIT {
                 .accept(APPLICATION_JSON)
                 .headers(authHeaders)
                 .when()
-                .body("{\"id\": \""+testSpace+"\",\"title\": \"test\",\"enableHistory\" : true,\"searchableProperties\" : {\"foo\" :true}}")
+                .body("{\"id\": \""+testSpace+"\",\"title\": \"test\",\"enableGlobalVersioning\" : true,\"searchableProperties\" : {\"foo\" :true}}")
                 .post(RestAssuredConfig.config().fullHubUri +"/spaces")
                 .then()
                 .statusCode(OK.code());
@@ -281,7 +281,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size", equalTo(14))
+                .body("idxAvailable.size", equalTo(13))
                 .body("idxManual.searchableProperties.foo", equalTo(true))
                 .body("idxManual.sortableProperties", nullValue());
     }

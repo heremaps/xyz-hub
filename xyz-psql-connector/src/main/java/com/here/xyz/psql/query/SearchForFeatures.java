@@ -205,7 +205,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
     /** ID is indexed as text */
     if(keySegments.length == 1 && keySegments[0].equalsIgnoreCase("id")) {
-      return new SQLQuery( buildIdFragment(event));
+      return new SQLQuery("id");
     }
 
     /** special handling on geometry column */

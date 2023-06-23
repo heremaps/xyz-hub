@@ -136,7 +136,6 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
           add("idx_" + hashedSpaceId + "_serial");
           add("idx_" + hashedSpaceId + "_tags");
           add("idx_" + hashedSpaceId + "_updatedAt");
-          add("idx_" + hashedSpaceId + "_id");
         }};
 
         indexes.addAll(features.get(0).getProperties().keySet().stream()

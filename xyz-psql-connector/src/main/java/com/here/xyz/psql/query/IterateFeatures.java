@@ -326,13 +326,10 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     List<String> sortby = event.getHandle() != null ? convHandle2sortbyList(event.getHandle()) : event.getSort();
 
     if (sortby == null || sortby.size() == 0)
-     return isPartOverI(event) ? "ORDER BY i" : "ORDER BY (" + buildIdFragment(event) + ")"; // in case no sort is specified
+     return isPartOverI(event) ? "ORDER BY i" : "ORDER BY id"; // in case no sort is specified
 
-    if( sortby.size() == 1 && sortby.get(0).toLowerCase().startsWith("id") ) // usecase order by id
-     if( sortby.get(0).equalsIgnoreCase( "id:desc" ) )
-      return "ORDER BY (" + buildIdFragment(event) + ") DESC";
-     else
-      return "ORDER BY (" + buildIdFragment(event) + ")";
+    if (sortby.size() == 1 && sortby.get(0).toLowerCase().startsWith("id")) // usecase order by id
+      return "ORDER BY id" + (sortby.get(0).equalsIgnoreCase("id:desc") ? " DESC" : "");
 
     String orderByClause = "", direction = "";
 
@@ -343,7 +340,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
      orderByClause += DhString.format("%s %s %s", (orderByClause.length() == 0 ? "" : ","), jpathFromSortProperty(s), direction);
     }
 
-    return DhString.format("ORDER BY %s, (" + buildIdFragment(event) + ") %s", orderByClause, direction); // id is always last sort crit with sort direction as last (most inner) index
+    return DhString.format("ORDER BY %s, id %s", orderByClause, direction); // id is always last sort crit with sort direction as last (most inner) index
   }
 
   private static List<String> convHandle2sortbyList( String handle )
@@ -379,7 +376,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
    }
 
    if( h.has("h") ) // start handle partitioned by id
-   { ret.add(DhString.format(" and (" + buildIdFragment(event) + ") >= '%s'",h.get("h").toString()));
+   { ret.add(DhString.format(" and id >= '%s'",h.get("h").toString()));
      return ret;
    }
 
@@ -401,7 +398,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
       sqlWhereContinuation += DhString.format(" and %s is null", jpathFromSortProperty(s) );
     }
 
-   sqlWhereContinuation += DhString.format(" and (" + buildIdFragment(event) + ") %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
+   sqlWhereContinuation += DhString.format(" and id %s '%s'", ( descendingLast ? "<" : ">" ) ,h.get("h0").toString());
 
    ret.add( sqlWhereContinuation );
 
@@ -451,9 +448,9 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   private static String bucketOfIdsSql =
       "with  "
     + "idata as "
-    + "(  select min( jsondata->>'id' ) as id from ${schema}.${table} "
+    + "(  select min(id) as id from ${schema}.${table} "
     + "  union  "
-    + "   select jsondata->>'id' as id from ${schema}.${table} "
+    + "   select id from ${schema}.${table} "
     + "    tablesample system( (select least((100000/greatest(reltuples,1)),100) from pg_catalog.pg_class where oid = format('%%s.%%s','${schema}', '${table}' )::regclass) ) " //-- repeatable ( 0.7 )
     + "), "
     + "iidata   as ( select id, ntile( %1$d ) over ( order by id ) as bucket from idata ), "

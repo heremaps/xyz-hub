@@ -51,23 +51,7 @@ public class SQLQueryBuilder {
         return new SQLQuery("SELECT nextval('${schema}.\"" + table.replaceAll("-","_") + "_hst_seq\"')");
     }
 
-  public static SQLQuery buildDeleteFeaturesByTagQuery(boolean includeOldStates, SQLQuery searchQuery) {
-
-        final SQLQuery query;
-
-        if (searchQuery != null) {
-            query = new SQLQuery("DELETE FROM ${schema}.${table} WHERE");
-            query.append(searchQuery);
-        } else {
-            query = new SQLQuery("TRUNCATE ${schema}.${table}");
-        }
-
-        if (searchQuery != null && includeOldStates)
-            query.append(" RETURNING jsondata->'id' as id, replace(ST_AsGeojson(ST_Force3D(geo),"+ GetFeaturesByBBox.GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geometry");
-
-        return query;
-    }
-
+    @Deprecated
     public static SQLQuery buildHistoryQuery(IterateHistoryEvent event) {
         SQLQuery query = new SQLQuery(
                 "SELECT vid," +
@@ -97,8 +81,7 @@ public class SQLQueryBuilder {
         if(event.getEndVersion() != 0)
             query.append("  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= to_jsonb(?::numeric)", event.getEndVersion());
 
-        query.append(" ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'version' , " +
-                "jsondata->>'id'");
+        query.append(" ORDER BY jsondata->'properties'->'@ns:com:here:xyz'->'version', jsondata->>'id'");
 
         if(event.getLimit() != 0)
             query.append("LIMIT ?", event.getLimit());
@@ -106,6 +89,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
+    @Deprecated
     public static SQLQuery buildSquashHistoryQuery(IterateHistoryEvent event){
         SQLQuery query = new SQLQuery(
                 "SELECT distinct ON (jsondata->>'id') jsondata->>'id'," +
@@ -137,9 +121,7 @@ public class SQLQueryBuilder {
             query.append(
                 "  AND jsondata->'properties'->'@ns:com:here:xyz'->'version' <= to_jsonb(?::numeric)", event.getEndVersion());
 
-        query.append(
-                "   order by jsondata->>'id'," +
-                "jsondata->'properties'->'@ns:com:here:xyz'->'version' DESC");
+        query.append("   order by jsondata->>'id', jsondata->'properties'->'@ns:com:here:xyz'->'version' DESC");
 
         if(event.getLimit() != 0)
             query.append("LIMIT ?", event.getLimit());
@@ -147,6 +129,7 @@ public class SQLQueryBuilder {
         return query;
     }
 
+    @Deprecated
     public static SQLQuery buildLatestHistoryQuery(IterateFeaturesEvent event) {
         SQLQuery query = new SQLQuery("select jsondata#-'{properties,@ns:com:here:xyz,lastVersion}' as jsondata, geo, id " +
                 "FROM(" +
@@ -188,11 +171,7 @@ public class SQLQueryBuilder {
 
 
   protected static SQLQuery generateLoadOldFeaturesQuery(ModifyFeaturesEvent event, final String[] idsToFetch) {
-        return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+ GetFeaturesByBBox.GEOMETRY_DECIMAL_DIGITS+"),'nan','0') FROM ${schema}.${table} WHERE " + buildIdFragment(event) + " = ANY(?)", (Object) idsToFetch);
-    }
-
-    private static String buildIdFragment(ContextAwareEvent event) {
-      return DatabaseHandler.readVersionsToKeep(event) < 1 ? "jsondata->>'id'" : "id";
+        return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo),"+ GetFeaturesByBBox.GEOMETRY_DECIMAL_DIGITS+"),'nan','0') as geo FROM ${schema}.${table} WHERE id = ANY(?)", (Object) idsToFetch);
     }
 
     protected static SQLQuery generateIDXStatusQuery(final String space){
@@ -227,9 +206,8 @@ public class SQLQueryBuilder {
           + "operation = #{operation}, "
           + "jsondata = #{jsondata}::jsonb, "
           + "geo = (${{geo}}) "
-          + "WHERE ${{idColumn}} = #{id} ${{uuidCheck}}"), dbHandler, event)
-          .withQueryFragment("uuidCheck", buildUuidCheckFragment(event))
-          .withQueryFragment("idColumn", buildIdFragment(event));
+          + "WHERE id = #{id} ${{uuidCheck}}"), dbHandler, event)
+          .withQueryFragment("uuidCheck", buildUuidCheckFragment(event));
   }
 
   private static SQLQuery setWriteQueryComponents(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
@@ -247,12 +225,9 @@ public class SQLQueryBuilder {
 
   protected static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, long version) {
       //If versioning is enabled, perform an update instead of a deletion. The trigger will finally delete the row.
-      //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-      boolean oldTableStyle = DatabaseHandler.readVersionsToKeep(event) < 1;
       SQLQuery query =
-          version == -1 || !oldTableStyle && !event.isEnableGlobalVersioning()
-          ? new SQLQuery("DELETE FROM ${schema}.${table} WHERE ${{idColumn}} = #{id} ${{uuidCheck}}")
-              .withQueryFragment("idColumn", buildIdFragment(event))
+          version == -1 || !event.isEnableGlobalVersioning()
+          ? new SQLQuery("DELETE FROM ${schema}.${table} WHERE id = #{id} ${{uuidCheck}}")
           //Use UPDATE instead of DELETE to inject a version and the deleted flag. The deletion gets performed afterwards by the trigger.
           : new SQLQuery("UPDATE ${schema}.${table} "
               + "SET jsondata = jsonb_set(jsondata, '{properties,@ns:com:here:xyz}', "
@@ -261,9 +236,8 @@ public class SQLQueryBuilder {
               + "|| format('{\"version\": %s}', #{version})::JSONB "
               + "|| format('{\"updatedAt\": %s}', (extract(epoch from now()) * 1000)::BIGINT)::JSONB "
               + "|| '{\"deleted\": true}'::JSONB) "
-              + "WHERE ${{idColumn}} = #{id} ${{uuidCheck}}")
-              .withNamedParameter("version", version)
-              .withQueryFragment("idColumn", buildIdFragment(event));
+              + "WHERE id = #{id} ${{uuidCheck}}")
+              .withNamedParameter("version", version);
 
       return setTableVariables(
           query.withQueryFragment("uuidCheck", buildUuidCheckFragment(event)),
@@ -277,6 +251,7 @@ public class SQLQueryBuilder {
     //return new SQLQuery(event.getEnableUUID() ? (DatabaseHandler.readVersionsToKeep(event) > 0 ? " AND (CASE WHEN #{baseVersion}::BIGINT IS NULL THEN next_version = #{MAX_BIGINT} ELSE version = #{baseVersion} END)" : " AND (#{puuid}::TEXT IS NULL OR jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid})") : "").withNamedParameter("MAX_BIGINT", MAX_BIGINT);
   }
 
+  @Deprecated
   public static String deleteOldHistoryEntries(final String schema, final String table, long maxAllowedVersion){
         /** Delete rows which have a too old version - only used if maxVersionCount is set */
 
@@ -347,31 +322,13 @@ public class SQLQueryBuilder {
       return "TR_" + tableName.replaceAll("-", "_") + "_HISTORY_WRITER";
     }
 
-    protected static String addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount, final boolean compactHistory, final boolean isEnableGlobalVersioning){
-        String triggerSQL = "";
-        String triggerFunction = "xyz_trigger_historywriter";
-        String triggerActions = "UPDATE OR DELETE ON";
-        String tiggerEvent = "BEFORE";
-
-        if(isEnableGlobalVersioning == true){
-            triggerFunction = "xyz_trigger_historywriter_versioned";
-            tiggerEvent = "AFTER";
-            triggerActions = "INSERT OR UPDATE ON";
-        }else{
-            if(compactHistory == false){
-                triggerFunction = "xyz_trigger_historywriter_full";
-                triggerActions = "INSERT OR UPDATE OR DELETE ON";
-            }
-        }
-
-        triggerSQL = "CREATE TRIGGER \"" + toTriggerName(table) + "\" " +
-                tiggerEvent+" "+triggerActions+" ${schema}.${table} " +
-                " FOR EACH ROW " +
-                "EXECUTE PROCEDURE "+triggerFunction;
-        triggerSQL+=
-                maxVersionCount == null ? "()" : "('"+maxVersionCount+"')";
-
-        return SQLQuery.replaceVars(triggerSQL, schema, table);
+    protected static SQLQuery addHistoryTriggerSQL(final String schema, final String table, final Integer maxVersionCount) {
+        return new SQLQuery("CREATE TRIGGER ${triggerName} AFTER INSERT OR UPDATE ON ${schema}.${table} FOR EACH ROW EXECUTE PROCEDURE ${{triggerFunction}}(${{functionArgs}})")
+            .withVariable("schema", schema)
+            .withVariable("table", table)
+            .withVariable("triggerName", toTriggerName(table))
+            .withQueryFragment("triggerFunction", "xyz_trigger_historywriter_versioned")
+            .withQueryFragment("functionArgs", maxVersionCount == null ? "" : "'" + maxVersionCount + "'");
     }
 
   protected static SQLQuery buildAddSubscriptionQuery(String space, String schemaName, String tableName) {

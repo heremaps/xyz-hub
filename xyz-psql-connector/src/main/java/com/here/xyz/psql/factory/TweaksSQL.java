@@ -102,7 +102,6 @@ public class TweaksSQL
     return 100;
   }
 
-
   public static String mergeBeginSql =
     "select jsondata, geo "
    +"from "
@@ -119,7 +118,7 @@ public class TweaksSQL
    +"    select ST_GeoHash(geo) as gh, i, id , geo "
    +"    from "
    +"    ( "
-   +"     select i, jsondata->>'id' as id, geo "  // fetch objects
+   +"     select i, id, geo "  // fetch objects
    +"     from ${schema}.${table} "
    +"     where 1 = 1 "
    +"       and %3$s ";  // bboxquery
@@ -191,7 +190,7 @@ public class TweaksSQL
    +"    then ( select "; /* prj_jsondata */
   public static String linemergeEndSql2 =
                          " from ${schema}.${table} where i = ids[1] ) "
-   +"    else ( select jsonb_set( jsonb_set('{\"type\":\"Feature\",\"properties\":{}}'::jsonb,'{id}', to_jsonb( max(jsondata->>'id') )),'{properties,ids}', jsonb_agg( jsondata->>'id' )) from ${schema}.${table} where i in ( select unnest( ids ) ) ) "
+   +"    else ( select jsonb_set( jsonb_set('{\"type\":\"Feature\",\"properties\":{}}'::jsonb,'{id}', to_jsonb(max(id))),'{properties,ids}', jsonb_agg(id)) from ${schema}.${table} where i in ( select unnest( ids ) ) ) "
    +"   end as jsondata, "
    +"   case when step = 0 "
    +"    then ( select geo from ${schema}.${table} where i = ids[1] ) "
@@ -267,8 +266,8 @@ public class TweaksSQL
 
 
   public static String
-   mvtPropertiesSql        = "( select jsonb_object_agg(key, case when jsonb_typeof(value) in ('object', 'array') then to_jsonb(value::text) else value end) from jsonb_each(jsonb_set((jsondata)->'properties','{id}', to_jsonb(jsondata->>'id'))))",
-   mvtPropertiesFlattenSql = "( select jsonb_object_agg('properties.' || jkey,jval) from prj_flatten( jsonb_set((jsondata)->'properties','{id}', to_jsonb( jsondata->>'id' )) ))",
+   mvtPropertiesSql        = "( select jsonb_object_agg(key, case when jsonb_typeof(value) in ('object', 'array') then to_jsonb(value::text) else value end) from jsonb_each(jsonb_set((jsondata)->'properties','{id}', to_jsonb(id))))",
+   mvtPropertiesFlattenSql = "( select jsonb_object_agg('properties.' || jkey,jval) from prj_flatten( jsonb_set((jsondata)->'properties','{id}', to_jsonb(id)) ))",
 
    hrtBeginSql =
     "with tile as ( select %1$s as bounds, %3$d::integer as extend, %4$d::integer as buffer, true as clip_geom ), "
