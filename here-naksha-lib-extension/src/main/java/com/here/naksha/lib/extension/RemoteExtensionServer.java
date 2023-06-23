@@ -28,6 +28,7 @@ public class RemoteExtensionServer extends Thread {
   public RemoteExtensionServer(int port) throws IOException {
     serverSocket = new ServerSocket(port);
     nakshaSocket = new NakshaExtSocket(serverSocket.accept());
+    start();
   }
 
   @Override
