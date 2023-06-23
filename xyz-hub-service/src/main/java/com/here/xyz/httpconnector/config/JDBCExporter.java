@@ -366,12 +366,7 @@ public class JDBCExporter extends JDBCClients{
 
         if (csvFormat.equals(CSVFormat.GEOJSON)) {
             SQLQuery geoJson = new SQLQuery(
-                    "select jsonb_build_object(" +
-                    " 'type',       'Feature'," +
-                    " 'id',         jsondata->>'id'," +
-                    " 'geometry',   ST_AsGeoJSON(geo)::jsonb," +
-                    " 'properties', jsondata->'properties'" +
-                    ") " +
+                    "select jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) " +
                     "from ( ${{contentQuery}}) X"
             );
             geoJson.setQueryFragment("contentQuery",sqlQuery);

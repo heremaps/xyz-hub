@@ -185,7 +185,7 @@ public class JobApiExportIT extends JobApiIT {
             add("Polygon with hole");
         }};
 
-        downloadAndCheck(urls, 4633, 11, mustContains );
+        downloadAndCheck(urls, 4700, 11, mustContains );
     }
 
     /**
@@ -210,7 +210,7 @@ public class JobApiExportIT extends JobApiIT {
         }};
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 114966, 263, mustContains );
+        downloadAndCheck(urls, 114905, 263, mustContains );
     }
 
     @Test
@@ -230,7 +230,7 @@ public class JobApiExportIT extends JobApiIT {
             add("foo_new"); //Got overridden in composite space
         }};
 
-        downloadAndCheck(urls, 12913, 30, mustContains );
+        downloadAndCheck(urls, 12972, 30, mustContains );
     }
 
     @Test
@@ -277,7 +277,7 @@ public class JobApiExportIT extends JobApiIT {
             add("2LPoint");  //Got added in composite space L2
         }};
 
-        downloadAndCheck(urls, 13217, 31, mustContains );
+        downloadAndCheck(urls, 13276, 31, mustContains );
     }
 
     @Test
@@ -297,7 +297,7 @@ public class JobApiExportIT extends JobApiIT {
             add("2LPoint");  //Got added in composite space L2
         }};
         // 252 + 11 + 1 = 263
-        downloadAndCheck(urls, 115270, 264, mustContains );
+        downloadAndCheck(urls, 115209, 264, mustContains );
     }
 
     /**
