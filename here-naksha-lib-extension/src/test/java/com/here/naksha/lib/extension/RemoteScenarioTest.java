@@ -1,31 +1,20 @@
 package com.here.naksha.lib.extension;
 
 import com.here.naksha.lib.core.EventPipeline;
-import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.extension.ExtensionConfig;
 import com.here.naksha.lib.core.extension.ExtensionHandler;
-import com.here.naksha.lib.core.extension.messages.ReturnResponse;
 import com.here.naksha.lib.core.models.hub.plugins.Connector;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
 import com.here.naksha.lib.core.util.json.Json;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 public class RemoteScenarioTest {
- /** A handler that the customer supplied and wish to deploy. */
-  public class RemoteCustomerHandler implements IEventHandler {
-
-    @Override
-    public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
-      return new HealthStatus();
-    }
-  }
 
   @BeforeAll
   static void init() {
@@ -54,7 +43,7 @@ public class RemoteScenarioTest {
         final EventPipeline eventPipeline = new EventPipeline();
         eventPipeline.addEventHandler(eventHandler);
         final HealthCheckEvent event = new HealthCheckEvent();
-        event.setConnector(testConnector);
+//        event.setConnector(testConnector);
         // This sends the event through the pipeline.
         // The extension handler will serialize the event and send it to our server, run by the test.
         // This server simulates the CLASS_NAME class and returns something, we remember what is returned.
@@ -76,6 +65,6 @@ public class RemoteScenarioTest {
 
     final RemoteExtensionServer remoteExtensionServer = new RemoteExtensionServer(EXTENSION_ID);
     hub.join();
-    Assertions.assertInstanceOf(ReturnResponse.class,hub.response);
+    Assertions.assertInstanceOf(HealthStatus.class,hub.response);
   }
 }
