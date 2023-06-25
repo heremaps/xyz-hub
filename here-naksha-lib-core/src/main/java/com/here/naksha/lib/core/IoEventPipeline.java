@@ -2,7 +2,7 @@ package com.here.naksha.lib.core;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
-import com.here.naksha.lib.core.models.Payload;
+import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;

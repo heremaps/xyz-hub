@@ -1,12 +1,15 @@
 package com.here.naksha.lib.core;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.extension.ExtensionConfig;
-import com.here.naksha.lib.core.models.hub.pipelines.Space;
-import com.here.naksha.lib.core.models.hub.pipelines.Subscription;
-import com.here.naksha.lib.core.models.hub.plugins.Connector;
-import com.here.naksha.lib.core.models.hub.plugins.Storage;
+import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.Extension;
+import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.features.Storage;
+import com.here.naksha.lib.core.models.features.StorageCollection;
+import com.here.naksha.lib.core.models.features.Subscription;
 import com.here.naksha.lib.core.models.payload.Event;
+import com.here.naksha.lib.core.storage.IFeatureReader;
+import com.here.naksha.lib.core.storage.IStorage;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -14,10 +17,37 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The Naksha host interface. When an application bootstraps, it creates a Naksha host implementation and exposes it via the
  * {@link #instance} reference. The reference implementation is based upon the PostgresQL database, but alternative implementations are
- * possible.
+ * possible, for example the Naksha extension library will fake a Naksha-Hub.
  */
 @SuppressWarnings("unused")
 public interface INaksha {
+
+  /**
+   * All well-known collections. Still, not all Naksha-Hubs may support them, for example the Naksha extension library currently does not
+   * support any collection out of the box!
+   */
+  final class AdminCollections {
+
+    /**
+     * The collections for all spaces.
+     */
+    public static final StorageCollection SPACES = new StorageCollection("naksha:spaces", 0L);
+
+    /**
+     * The collections for all subscriptions.
+     */
+    public static final StorageCollection SUBSCRIPTIONS = new StorageCollection("naksha:subscriptions", 0L);
+
+    /**
+     * The collections for all connectors.
+     */
+    public static final StorageCollection CONNECTORS = new StorageCollection("naksha:connectors", 0L);
+
+    /**
+     * The collections for all storages.
+     */
+    public static final StorageCollection STORAGES = new StorageCollection("naksha:storages", 0L);
+  }
 
   /**
    * Naksha version constant. The last version compatible with XYZ-Hub.
@@ -37,22 +67,27 @@ public interface INaksha {
   /**
    * The reference to the Naksha implementation provided by the host. Rather use the {@link #get()} method to get the instance.
    */
-  AtomicReference<@NotNull INaksha> instance = new AtomicReference<>();
+  AtomicReference<@Nullable INaksha> instance = new AtomicReference<>();
 
   /**
    * Returns the reference to the Naksha implementation provided by the host.
    *
-   * @return The reference to the Naksha implementation provided by the host.
+   * @return the reference to the Naksha implementation provided by the host.
+   * @throws NullPointerException if the Naksha interface is not available (no host registered).
    */
   static @NotNull INaksha get() {
-    return instance.getPlain();
+    final INaksha hub = instance.getPlain();
+    if (hub == null) {
+      throw new NullPointerException();
+    }
+    return hub;
   }
 
   /**
    * Create a new task for the given event.
    *
-   * @param eventClass The class of the event-type to create a task for.
-   * @param <EVENT>    The event-type.
+   * @param eventClass the class of the event-type to create a task for.
+   * @param <EVENT>    the event-type.
    * @return The created task.
    * @throws XyzErrorException If the creation of the task failed for some reason.
    */
@@ -60,96 +95,66 @@ public interface INaksha {
       throws XyzErrorException;
 
   /**
-   * Returns the space with the given identifier or {@code null}, if no such space exists.
+   * Returns the administration storage that is guaranteed to have all the {@link AdminCollections admin collections}. This storage does
+   * have the storage number 0.
    *
-   * @param id The space identifier.
-   * @return The space or {@code null}, if no such space exists.
-   */
-  @Nullable
-  Space getSpaceById(@NotNull String id);
-
-  /**
-   * Returns the connector with the given identifier or {@code null}, if no such connector exists.
-   *
-   * @param id The connector identifier.
-   * @return The connector or {@code null}, if no such connector exists.
-   */
-  @Nullable
-  Connector getConnectorById(@NotNull String id);
-
-  /**
-   * Returns the extension with the given identifier.
-   *
-   * @param id the identifier.
-   * @return the extension configuartion or {@code null}; if no such extension exists.
-   */
-  @Nullable
-  ExtensionConfig getExtensionById(int id);
-
-  /**
-   * Returns the storage with the given identifier or {@code null}, if no such storage exists.
-   *
-   * @param id the storage identifier.
-   * @return the storage or {@code null}, if no such storage exists.
-   */
-  @Nullable
-  Storage getStorageById(@NotNull String id);
-
-  /**
-   * Returns the storage with the given storage identifier or {@code null}, if no such storage exists.
-   *
-   * @param number the storage number.
-   * @return the storage or {@code null}, if no such storage exists.
-   */
-  @Nullable
-  Storage getStorageByNumber(long number);
-
-  /**
-   * Returns the subscription with the given identifier.
-   *
-   * @param id The identifier.
-   * @return The subscription or {@code null}; if no such subscription exists.
-   */
-  @Nullable
-  Subscription getSubscriptionById(@NotNull String id);
-
-  /**
-   * Return an iterable about all spaces.
-   *
-   * @return An iterable about all spaces.
+   * @return the administration storage.
+   * @throws UnsupportedOperationException if the operation is not supported.
    */
   @NotNull
-  Iterable<Space> iterateSpaces();
+  IStorage adminStorage();
 
   /**
-   * Return an iterable about all connectors.
+   * Returns the extension with the given extension number.
    *
-   * @return An iterable about all connectors.
+   * @param number the extension number.
+   * @return the extension, if such an extension exists.
    */
-  @NotNull
-  Iterable<Connector> iterateConnectors();
+  @Nullable
+  Extension getExtension(int number);
 
   /**
-   * Return an iterable about all storages.
+   * Returns the cached reader for spaces.
    *
-   * @return An iterable about all storages.
+   * @return the reader.
+   * @throws UnsupportedOperationException if the operation is not supported.
    */
   @NotNull
-  Iterable<Storage> iterateStorages();
+  IFeatureReader<Space> spaceReader();
 
   /**
-   * Return an iterable about all extensions.
+   * Returns the cached reader for subscriptions.
    *
-   * @return An iterable about all extensions.
+   * @return the reader.
+   * @throws UnsupportedOperationException if the operation is not supported.
    */
   @NotNull
-  Iterable<Connector> iterateExtensions();
+  IFeatureReader<Subscription> subscriptionReader();
 
   /**
-   * Return an iterable about all subscriptions.
+   * Returns the cached reader for connectors.
    *
-   * @return An iterable about all subscriptions.
+   * @return the reader.
+   * @throws UnsupportedOperationException if the operation is not supported.
    */
   @NotNull
-  Iterable<Subscription> iterateSubscriptions();
+  IFeatureReader<Connector> connectorReader();
+
+  /**
+   * Returns the cached reader for storages.
+   *
+   * @return the reader.
+   * @throws UnsupportedOperationException if the operation is not supported.
+   */
+  @NotNull
+  IFeatureReader<Storage> storageReader();
+
+  /**
+   * Returns the cached reader for extensions.
+   *
+   * @return the reader.
+   * @throws UnsupportedOperationException if the operation is not supported.
+   */
+  @NotNull
+  IFeatureReader<Extension> extensionReader();
 }

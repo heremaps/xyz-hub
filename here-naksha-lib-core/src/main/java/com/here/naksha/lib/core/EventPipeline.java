@@ -3,8 +3,8 @@ package com.here.naksha.lib.core;
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.models.hub.pipelines.Space;
-import com.here.naksha.lib.core.models.hub.plugins.Connector;
+import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
@@ -118,7 +118,7 @@ public class EventPipeline implements IEventContext {
       if (eventHandlerId == null) {
         throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
       }
-      final Connector eventHandler = INaksha.instance.get().getConnectorById(eventHandlerId);
+      final Connector eventHandler = INaksha.get().connectorReader().getFeatureById(eventHandlerId);
       if (eventHandler == null) {
         throw new XyzErrorException(
             XyzError.EXCEPTION, "The connector[" + i + "] with id " + eventHandlerId + " does not exists");

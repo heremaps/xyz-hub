@@ -21,7 +21,7 @@ package com.here.naksha.lib.psql;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.handler.psql.PsqlHandlerParams;
-import com.here.naksha.lib.core.models.hub.pipelines.Space;
+import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.events.info.GetStatisticsEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;

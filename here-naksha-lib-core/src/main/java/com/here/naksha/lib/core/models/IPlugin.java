@@ -1,4 +1,4 @@
-package com.here.naksha.lib.core.models.hub.plugins;
+package com.here.naksha.lib.core.models;
 
 import org.jetbrains.annotations.NotNull;
 

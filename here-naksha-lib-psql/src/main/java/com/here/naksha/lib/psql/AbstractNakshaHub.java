@@ -3,15 +3,16 @@ package com.here.naksha.lib.psql;
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.extension.ExtensionConfig;
-import com.here.naksha.lib.core.models.hub.pipelines.Space;
-import com.here.naksha.lib.core.models.hub.pipelines.Subscription;
-import com.here.naksha.lib.core.models.hub.plugins.Connector;
-import com.here.naksha.lib.core.models.hub.plugins.Storage;
+import com.here.naksha.lib.core.models.features.Extension;
+import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.features.Subscription;
+import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.storage.CollectionCache;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.sql.SQLException;
+import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -96,10 +97,10 @@ public abstract class AbstractNakshaHub extends PsqlStorage implements INaksha {
   }
 
   @Override
-  public @Nullable ExtensionConfig getExtensionById(@NotNull int id) {
+  public @Nullable Extension getExtensionById(@NotNull int id) {
     assert id > 0;
     try {
-      return new ExtensionConfig("http://localhost:" + id + "/naksha/extension/v1/");
+      return new Extension("http://localhost:" + id + "/naksha/extension/v1/");
     } catch (MalformedURLException e) {
       currentLogger().warn("Failed to return extension information", e);
       return null;
@@ -107,12 +108,12 @@ public abstract class AbstractNakshaHub extends PsqlStorage implements INaksha {
   }
 
   @Override
-  public @Nullable Subscription getSubscriptionById(@NotNull String id) {
+  public @Nullable Subscription getCollectionById(@NotNull String id) throws NullPointerException, NoSuchElementException {
     return null;
   }
 
   @Override
-  public @NotNull Iterable<Space> iterateSpaces() {
+  public @NotNull Iterable<Space> iterateCollections() {
     return null;
   }
 

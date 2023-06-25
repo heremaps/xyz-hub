@@ -1,10 +1,12 @@
-package com.here.naksha.lib.core.models.hub.plugins;
+package com.here.naksha.lib.core.models.features;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.IPlugin;
+import com.here.naksha.lib.core.models.PluginCache;
 import com.here.naksha.lib.core.storage.IStorage;
 import java.lang.reflect.InvocationTargetException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;

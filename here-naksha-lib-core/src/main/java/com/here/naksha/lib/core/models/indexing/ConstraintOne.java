@@ -1,4 +1,4 @@
-package com.here.naksha.lib.core.models.hub;
+package com.here.naksha.lib.core.models.indexing;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -6,11 +6,11 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
-@JsonTypeName(value = "All")
+@JsonTypeName(value = "One")
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ConstraintAll {
+public class ConstraintOne {
 
-  /** The constraints that all need to hold true (AND). */
+  /** The constraints of which at least one need to hold true (OR). */
   @JsonProperty
   public List<@NotNull Constraint> of;
 }

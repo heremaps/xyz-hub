@@ -27,20 +27,20 @@ class ExtensionServerConnection extends Thread implements IEventContext {
   @Override
   public void run() {
     final ExtensionMessage msg;
-      try {
-        msg = nakshaExtSocket.readMessage();
-        if (msg instanceof ProcessEventMsg processEvent) {
-          event = processEvent.event;
-          final IEventHandler handler = Objects.requireNonNull(processEvent.connector).newInstance();
-          final XyzResponse response = handler.processEvent(this);
-          nakshaExtSocket.sendMessage(new ResponseMsg(response));
-        }
-      } catch (Exception e) {
-        e.printStackTrace();
+    try {
+      msg = nakshaExtSocket.readMessage();
+      if (msg instanceof ProcessEventMsg processEvent) {
+        event = processEvent.event;
+        final IEventHandler handler =
+            Objects.requireNonNull(processEvent.connector).newInstance();
+        final XyzResponse response = handler.processEvent(this);
+        nakshaExtSocket.sendMessage(new ResponseMsg(response));
       }
-      finally {
-        nakshaExtSocket.close();
-      }
+    } catch (Exception e) {
+      e.printStackTrace();
+    } finally {
+      nakshaExtSocket.close();
+    }
   }
 
   private Event event;
@@ -83,11 +83,13 @@ class ExtensionServerConnection extends Thread implements IEventContext {
       if (message instanceof ResponseMsg responseMsg) {
         return responseMsg.response;
       }
-      return new ErrorResponse().withError(XyzError.EXCEPTION)
+      return new ErrorResponse()
+          .withError(XyzError.EXCEPTION)
           .withErrorMessage("Received invalid message from Naksha.")
           .withStreamId(event.getStreamId());
     } catch (IOException e) {
-      return new ErrorResponse().withError(XyzError.EXCEPTION)
+      return new ErrorResponse()
+          .withError(XyzError.EXCEPTION)
           .withErrorMessage("Received invalid message from Naksha.")
           .withStreamId(event.getStreamId());
     }

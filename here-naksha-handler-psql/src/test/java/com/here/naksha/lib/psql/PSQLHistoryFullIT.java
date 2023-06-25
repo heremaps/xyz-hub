@@ -24,7 +24,7 @@ import com.here.naksha.handler.psql.PsqlHandlerParams;
 import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
 import com.here.naksha.lib.core.models.geojson.implementation.*;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.naksha.lib.core.models.hub.pipelines.Space;
+import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
 import com.here.naksha.lib.core.util.json.JsonSerializable;

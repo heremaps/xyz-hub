@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.models.hub.pipelines.Space;
-import com.here.naksha.lib.core.models.hub.plugins.Connector;
+import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;

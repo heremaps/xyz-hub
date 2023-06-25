@@ -1,4 +1,4 @@
-package com.here.naksha.lib.core.models.hub.transactions;
+package com.here.naksha.lib.core.models.features;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;

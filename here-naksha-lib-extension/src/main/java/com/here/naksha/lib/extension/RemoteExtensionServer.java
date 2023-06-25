@@ -32,7 +32,7 @@ public class RemoteExtensionServer {
   private volatile boolean doStop;
   private final Thread serverThread;
 
-  private void run()  {
+  private void run() {
     while (!doStop) {
       try {
         synchronized (this) {

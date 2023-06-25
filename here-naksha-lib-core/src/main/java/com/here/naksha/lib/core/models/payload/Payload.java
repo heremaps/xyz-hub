@@ -17,14 +17,13 @@
  * License-Filename: LICENSE
  */
 
-package com.here.naksha.lib.core.models;
+package com.here.naksha.lib.core.models.payload;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.io.ByteStreams;
-import com.here.naksha.lib.core.models.payload.Event;
-import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.util.Hasher;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.json.JsonSerializable;

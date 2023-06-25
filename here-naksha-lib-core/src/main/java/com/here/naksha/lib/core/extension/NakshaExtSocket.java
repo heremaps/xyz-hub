@@ -1,6 +1,7 @@
 package com.here.naksha.lib.core.extension;
 
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
+import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.Deserialize;
 import com.here.naksha.lib.core.view.Serialize;
@@ -26,17 +27,19 @@ public class NakshaExtSocket implements AutoCloseable {
    * @throws IOException          if any error occurs.
    * @throws UnknownHostException if the host name configured is unknown.
    */
-  public static @NotNull NakshaExtSocket connect(@NotNull ExtensionConfig config) throws IOException {
-    final InetAddress hostAddress = InetAddress.getByName(config.url().getHost());
-    final int port = config.url().getPort();
+  public static @NotNull NakshaExtSocket connect(@NotNull Extension config) throws IOException {
+    final InetAddress hostAddress = InetAddress.getByName(config.getHost());
+    final int port = config.getPort();
     if (port <= 0 || port > 65535) {
       throw new IOException("Invalid port: " + port);
     }
     final InetSocketAddress inetSocketAddress = new InetSocketAddress(hostAddress, port);
     final Socket socket = new Socket();
-    socket.connect(inetSocketAddress, config.connTimeout());
+    socket.connect(inetSocketAddress, config.getConnTimeout());
     socket.setTcpNoDelay(true);
-    return new NakshaExtSocket(socket).withReadTimeout(config.readTimeout()).asClient();
+    return new NakshaExtSocket(socket)
+        .withReadTimeout(config.getReadTimeout())
+        .asClient();
   }
 
   /**

@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.naksha.lib.core.models.hub.pipelines;
+package com.here.naksha.lib.core.models.features;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -27,10 +27,11 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.geojson.implementation.Properties;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.naksha.lib.core.models.hub.Constraint;
-import com.here.naksha.lib.core.models.hub.Copyright;
-import com.here.naksha.lib.core.models.hub.Index;
-import com.here.naksha.lib.core.models.hub.License;
+import com.here.naksha.lib.core.models.indexing.Constraint;
+import com.here.naksha.lib.core.models.Copyright;
+import com.here.naksha.lib.core.models.indexing.Index;
+import com.here.naksha.lib.core.models.License;
+import com.here.naksha.lib.core.models.PipelineComponent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;

@@ -7,12 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.extension.ExtensionConfig;
 import com.here.naksha.lib.core.extension.ExtensionHandler;
 import com.here.naksha.lib.core.extension.NakshaExtSocket;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
 import com.here.naksha.lib.core.extension.messages.ProcessEventMsg;
 import com.here.naksha.lib.core.extension.messages.ResponseMsg;
+import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
@@ -47,7 +48,7 @@ class ExtensionHandlerTest {
         // Simulate what Naksha-Hub would do:
         final Connector testConnector = new Connector("test", CLASS_NAME);
         testConnector.setExtension(EXTENSION_ID);
-        final ExtensionConfig config = new ExtensionConfig("http://localhost:" + EXTENSION_ID + "/");
+        final Extension config = new Extension("localhost", EXTENSION_ID);
         final IEventHandler eventHandler = new ExtensionHandler(testConnector, config);
         final EventPipeline eventPipeline = new EventPipeline();
         eventPipeline.addEventHandler(eventHandler);

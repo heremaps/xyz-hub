@@ -25,7 +25,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.models.geojson.implementation.Action;
 import com.here.naksha.lib.core.models.geojson.implementation.Properties;
-import com.here.naksha.lib.core.models.hub.pipelines.Space;
+import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;

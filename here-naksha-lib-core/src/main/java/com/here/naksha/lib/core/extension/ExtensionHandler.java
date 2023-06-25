@@ -10,7 +10,8 @@ import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
 import com.here.naksha.lib.core.extension.messages.ProcessEventMsg;
 import com.here.naksha.lib.core.extension.messages.ResponseMsg;
 import com.here.naksha.lib.core.extension.messages.SendUpstreamMsg;
-import com.here.naksha.lib.core.models.hub.plugins.Connector;
+import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
@@ -35,7 +36,7 @@ public class ExtensionHandler implements IEventHandler {
    */
   @AvailableSince(INaksha.v2_0_3)
   public ExtensionHandler(@NotNull Connector connector) {
-    final ExtensionConfig config = INaksha.get().getExtensionById(connector.getExtension());
+    final Extension config = INaksha.get().getExtension(connector.getExtension());
     if (config == null) {
       throw new IllegalArgumentException("No such extension exists: " + connector.getId());
     }
@@ -50,19 +51,19 @@ public class ExtensionHandler implements IEventHandler {
    * @param config    the configuration to use.
    */
   @AvailableSince(INaksha.v2_0_3)
-  public ExtensionHandler(@NotNull Connector connector, @NotNull ExtensionConfig config) {
+  public ExtensionHandler(@NotNull Connector connector, @NotNull Extension config) {
     this.connector = connector;
     this.config = config;
   }
 
-  private final @NotNull ExtensionConfig config;
+  private final @NotNull Extension config;
   private final @NotNull Connector connector;
 
   @AvailableSince(INaksha.v2_0_3)
   @Override
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
     final Event event = eventContext.getEvent();
-    final String host = config.url().getHost();
+    final String host = config.getHost();
     try (final NakshaExtSocket nakshaExtSocket = NakshaExtSocket.connect(config)) {
       nakshaExtSocket.sendMessage(new ProcessEventMsg(connector, event));
       while (true) {

@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
+import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.events.clustering.Clustering;
 import com.here.naksha.lib.core.models.payload.events.tweaks.Tweaks;
 import com.here.naksha.lib.core.util.json.JsonSerializable;

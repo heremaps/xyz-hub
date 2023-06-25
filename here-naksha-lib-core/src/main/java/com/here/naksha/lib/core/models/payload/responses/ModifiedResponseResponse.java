@@ -21,7 +21,7 @@ package com.here.naksha.lib.core.models.payload.responses;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.models.Payload;
+import com.here.naksha.lib.core.models.payload.Payload;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ModifiedResponseResponse")

@@ -1,7 +1,11 @@
-package com.here.naksha.lib.core.models.hub.transactions;
+package com.here.naksha.lib.core.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.here.naksha.lib.core.models.features.TxComment;
+import com.here.naksha.lib.core.models.features.TxModifyCollection;
+import com.here.naksha.lib.core.models.features.TxModifyFeatures;
+import com.here.naksha.lib.core.models.features.TxSignal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;

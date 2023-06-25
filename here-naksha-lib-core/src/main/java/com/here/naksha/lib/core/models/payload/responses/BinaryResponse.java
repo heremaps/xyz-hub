@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.here.naksha.lib.core.bin.ConnectorPayload;
-import com.here.naksha.lib.core.models.Payload;
+import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.view.Serialize;
 import java.nio.ByteBuffer;

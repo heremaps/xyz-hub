@@ -16,6 +16,7 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
   @JsonSubTypes.Type(value = SendUpstreamMsg.class)
 })
 public class ExtensionMessage extends JsonObject implements Typed {
-  // Note: We may want in the future to allow Naksha extensions to invoke new tasks on the Naksha-Hub. For this purpose we only
+  // Note: We may want in the future to allow Naksha extensions to invoke new tasks on the Naksha-Hub. For this
+  // purpose we only
   //       new to create a new message type, the result will anyway still be a ResponseMsg.
 }

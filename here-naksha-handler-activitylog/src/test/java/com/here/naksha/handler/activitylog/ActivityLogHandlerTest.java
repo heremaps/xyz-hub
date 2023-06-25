@@ -9,7 +9,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.naksha.lib.core.models.hub.plugins.Connector;
+import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;

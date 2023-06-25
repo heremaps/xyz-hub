@@ -1,4 +1,4 @@
-package com.here.naksha.lib.core.models.hub;
+package com.here.naksha.lib.core.models.indexing;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;

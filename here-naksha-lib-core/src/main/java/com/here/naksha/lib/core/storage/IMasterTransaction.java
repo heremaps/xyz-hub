@@ -2,7 +2,7 @@ package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.hub.StorageCollection;
+import com.here.naksha.lib.core.models.features.StorageCollection;
 import java.sql.SQLException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;

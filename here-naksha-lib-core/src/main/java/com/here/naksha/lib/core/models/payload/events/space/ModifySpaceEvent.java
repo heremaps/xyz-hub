@@ -21,7 +21,7 @@ package com.here.naksha.lib.core.models.payload.events.space;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.models.hub.pipelines.Space;
+import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.payload.events.SpaceEvent;
 
 @JsonIgnoreProperties(ignoreUnknown = true)

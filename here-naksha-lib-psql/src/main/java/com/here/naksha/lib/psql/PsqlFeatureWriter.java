@@ -1,7 +1,7 @@
 package com.here.naksha.lib.psql;
 
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.hub.StorageCollection;
+import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.storage.IFeatureWriter;
 import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;

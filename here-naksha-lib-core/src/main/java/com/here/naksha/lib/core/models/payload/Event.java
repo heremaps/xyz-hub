@@ -33,9 +33,8 @@ import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.exceptions.ParameterError;
-import com.here.naksha.lib.core.models.Payload;
-import com.here.naksha.lib.core.models.hub.pipelines.Space;
-import com.here.naksha.lib.core.models.hub.plugins.Connector;
+import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.payload.events.admin.ModifySubscriptionEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.DeleteFeaturesByTagEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByBBoxEvent;
@@ -286,7 +285,7 @@ public class Event extends Payload {
    */
   public @NotNull Space getSpace() throws ParameterError {
     if (space == null && spaceId != null) {
-      space = INaksha.get().getSpaceById(spaceId);
+      space = INaksha.get().spaceReader().getFeatureById(spaceId);
     }
     if (space == null) {
       throw new ParameterError("Missing or invalid spaceId: " + spaceId);

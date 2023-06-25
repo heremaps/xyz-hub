@@ -4,8 +4,8 @@ import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.lambdas.Pe1;
-import com.here.naksha.lib.core.models.hub.plugins.Storage;
-import com.here.naksha.lib.core.models.hub.transactions.TxSignalSet;
+import com.here.naksha.lib.core.models.features.Storage;
+import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.JsonSerializable;

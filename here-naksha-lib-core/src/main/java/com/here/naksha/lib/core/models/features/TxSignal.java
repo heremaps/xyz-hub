@@ -1,4 +1,4 @@
-package com.here.naksha.lib.core.models.hub.transactions;
+package com.here.naksha.lib.core.models.features;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -8,7 +8,6 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.naksha.lib.core.models.hub.plugins.Storage;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

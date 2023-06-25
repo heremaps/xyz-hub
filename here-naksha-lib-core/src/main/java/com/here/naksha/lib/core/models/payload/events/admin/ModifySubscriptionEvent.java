@@ -21,7 +21,7 @@ package com.here.naksha.lib.core.models.payload.events.admin;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.models.hub.pipelines.Subscription;
+import com.here.naksha.lib.core.models.features.Subscription;
 import com.here.naksha.lib.core.models.payload.Event;
 
 @JsonIgnoreProperties(ignoreUnknown = true)

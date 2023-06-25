@@ -1,8 +1,8 @@
 package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.lambdas.Pe1;
-import com.here.naksha.lib.core.models.hub.StorageCollection;
-import com.here.naksha.lib.core.models.hub.transactions.TxSignalSet;
+import com.here.naksha.lib.core.models.TxSignalSet;
+import com.here.naksha.lib.core.models.features.StorageCollection;
 import java.io.Closeable;
 import java.io.IOException;
 import org.jetbrains.annotations.NotNull;

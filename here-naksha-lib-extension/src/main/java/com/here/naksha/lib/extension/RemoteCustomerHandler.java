@@ -2,7 +2,7 @@ package com.here.naksha.lib.extension;
 
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.models.hub.plugins.Connector;
+import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
 import org.jetbrains.annotations.NotNull;
