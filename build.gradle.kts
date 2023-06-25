@@ -127,12 +127,13 @@ subprojects {
             useJUnitPlatform()
         }
 
-        build {
+        compileJava {
             finalizedBy(spotlessApply)
         }
 
         compileKotlin {
             kotlinOptions.jvmTarget = JavaVersion.VERSION_17.toString()
+            finalizedBy(spotlessApply)
         }
     }
 
