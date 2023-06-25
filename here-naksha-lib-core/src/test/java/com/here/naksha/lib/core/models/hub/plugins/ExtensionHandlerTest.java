@@ -11,8 +11,8 @@ import com.here.naksha.lib.core.extension.ExtensionConfig;
 import com.here.naksha.lib.core.extension.ExtensionHandler;
 import com.here.naksha.lib.core.extension.NakshaExtSocket;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
-import com.here.naksha.lib.core.extension.messages.ProcessEvent;
-import com.here.naksha.lib.core.extension.messages.ReturnResponse;
+import com.here.naksha.lib.core.extension.messages.ProcessEventMsg;
+import com.here.naksha.lib.core.extension.messages.ResponseMsg;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
@@ -79,7 +79,7 @@ class ExtensionHandlerTest {
         final ExtensionMessage msg = nakshaSocket.readMessage();
         assertNotNull(msg);
         // We should get an ProcessEvent envelope.
-        final ProcessEvent processEvent = assertInstanceOf(ProcessEvent.class, msg);
+        final ProcessEventMsg processEvent = assertInstanceOf(ProcessEventMsg.class, msg);
         // The event in the envelope should be an GetFeaturesByIdEvent.
         assertNotNull(processEvent.event);
         assertInstanceOf(GetFeaturesByIdEvent.class, processEvent.event);
@@ -89,7 +89,7 @@ class ExtensionHandlerTest {
 
         // Simulate a SuccessResponse.
         final SuccessResponse response = new SuccessResponse();
-        nakshaSocket.sendMessage(new ReturnResponse(response));
+        nakshaSocket.sendMessage(new ResponseMsg(response));
 
         // Wait until the simulated Naksha-Hub is done, and then verify the result.
         hub.join();

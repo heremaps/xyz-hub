@@ -1,13 +1,12 @@
 package com.here.naksha.lib.extension;
 
-import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.extension.NakshaExtSocket;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
-import com.here.naksha.lib.core.extension.messages.ProcessEvent;
-import com.here.naksha.lib.core.extension.messages.ReturnResponse;
-import com.here.naksha.lib.core.extension.messages.SendUpstream;
+import com.here.naksha.lib.core.extension.messages.ProcessEventMsg;
+import com.here.naksha.lib.core.extension.messages.ResponseMsg;
+import com.here.naksha.lib.core.extension.messages.SendUpstreamMsg;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
@@ -30,11 +29,11 @@ class ExtensionServerConnection extends Thread implements IEventContext {
     final ExtensionMessage msg;
       try {
         msg = nakshaExtSocket.readMessage();
-        if (msg instanceof ProcessEvent processEvent) {
+        if (msg instanceof ProcessEventMsg processEvent) {
           event = processEvent.event;
           final IEventHandler handler = Objects.requireNonNull(processEvent.connector).newInstance();
           final XyzResponse response = handler.processEvent(this);
-          nakshaExtSocket.sendMessage(new ReturnResponse(response));
+          nakshaExtSocket.sendMessage(new ResponseMsg(response));
         }
       } catch (Exception e) {
         e.printStackTrace();
@@ -77,11 +76,11 @@ class ExtensionServerConnection extends Thread implements IEventContext {
    */
   @Override
   public @NotNull XyzResponse sendUpstream() {
-    final SendUpstream sendUpstream = new SendUpstream(event);
+    final SendUpstreamMsg sendUpstream = new SendUpstreamMsg(event);
     try {
       nakshaExtSocket.sendMessage(sendUpstream);
       final ExtensionMessage message = nakshaExtSocket.readMessage();
-      if (message instanceof ReturnResponse responseMsg) {
+      if (message instanceof ResponseMsg responseMsg) {
         return responseMsg.response;
       }
       return new ErrorResponse().withError(XyzError.EXCEPTION)

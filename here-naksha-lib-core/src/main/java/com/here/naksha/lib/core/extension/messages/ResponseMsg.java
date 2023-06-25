@@ -9,17 +9,18 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Send by the extension when Naksha should return a response to the caller in the pipeline.
+ * Send by the extension to Naksha-Hub, when an extension is done with processing an event. Send as well by Naksha-Hub as response to a
+ * {@link SendUpstreamMsg}.
  */
 @AvailableSince(INaksha.v2_0_3)
 @JsonTypeName(value = "naksha.ext.rpc.v1.returnResponse")
-public class ReturnResponse extends ExtensionMessage {
+public class ResponseMsg extends ExtensionMessage {
 
   public static final String RESPONSE = "response";
 
   @AvailableSince(INaksha.v2_0_3)
   @JsonCreator
-  public ReturnResponse(@JsonProperty(RESPONSE) @NotNull XyzResponse response) {
+  public ResponseMsg(@JsonProperty(RESPONSE) @NotNull XyzResponse response) {
     this.response = response;
   }
 

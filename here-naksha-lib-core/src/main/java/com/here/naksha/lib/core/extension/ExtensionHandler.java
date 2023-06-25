@@ -7,9 +7,9 @@ import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
-import com.here.naksha.lib.core.extension.messages.ProcessEvent;
-import com.here.naksha.lib.core.extension.messages.ReturnResponse;
-import com.here.naksha.lib.core.extension.messages.SendUpstream;
+import com.here.naksha.lib.core.extension.messages.ProcessEventMsg;
+import com.here.naksha.lib.core.extension.messages.ResponseMsg;
+import com.here.naksha.lib.core.extension.messages.SendUpstreamMsg;
 import com.here.naksha.lib.core.models.hub.plugins.Connector;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
@@ -64,15 +64,15 @@ public class ExtensionHandler implements IEventHandler {
     final Event event = eventContext.getEvent();
     final String host = config.url().getHost();
     try (final NakshaExtSocket nakshaExtSocket = NakshaExtSocket.connect(config)) {
-      nakshaExtSocket.sendMessage(new ProcessEvent(connector, event));
+      nakshaExtSocket.sendMessage(new ProcessEventMsg(connector, event));
       while (true) {
         final ExtensionMessage extMsg = nakshaExtSocket.readMessage();
-        if (extMsg instanceof ReturnResponse extResponse) {
+        if (extMsg instanceof ResponseMsg extResponse) {
           return extResponse.response;
         }
-        if (extMsg instanceof SendUpstream sendUpstream) {
+        if (extMsg instanceof SendUpstreamMsg sendUpstream) {
           final XyzResponse xyzResponse = eventContext.sendUpstream(sendUpstream.event);
-          nakshaExtSocket.sendMessage(new ReturnResponse(xyzResponse));
+          nakshaExtSocket.sendMessage(new ResponseMsg(xyzResponse));
           // We then need to read the response again.
         } else {
           currentLogger().info("Received invalid response from Naksha extension: {}", extMsg);
