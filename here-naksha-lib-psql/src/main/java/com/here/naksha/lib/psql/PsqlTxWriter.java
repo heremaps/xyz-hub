@@ -3,13 +3,13 @@ package com.here.naksha.lib.psql;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.hub.StorageCollection;
-import com.here.naksha.lib.core.storage.ITxWriter;
+import com.here.naksha.lib.core.storage.IMasterTransaction;
 import java.sql.SQLException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /** A Naksha PostgresQL database transaction that can be used to read and mutate data. */
-public class PsqlTxWriter extends PsqlTxReader implements ITxWriter {
+public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
 
   /**
    * Creates a new transaction for the given PostgresQL client.

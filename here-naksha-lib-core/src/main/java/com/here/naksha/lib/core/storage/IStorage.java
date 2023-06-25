@@ -23,22 +23,23 @@ public interface IStorage extends Closeable {
   void maintain() throws Exception;
 
   /**
-   * Opens a storage reader.
+   * Opens a read-only transaction, preferably from a replication node; if no replication node is available, then returns a transaction to
+   * the master node.
    *
-   * @return the reader.
+   * @return the read transaction.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
   @NotNull
-  ITxReader startRead() throws Exception;
+  IReadTransaction openReplicationTransaction() throws Exception;
 
   /**
-   * Opens a storage mutator.
+   * Opens a read/write transaction to the master node.
    *
-   * @return the mutator.
+   * @return the mutator transaction.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
   @NotNull
-  ITxWriter startWrite() throws Exception;
+  IMasterTransaction openMasterTransaction() throws Exception;
 
   /**
    * Add a listener to be called, when something changes in the storage.
@@ -49,7 +50,7 @@ public interface IStorage extends Closeable {
   void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener);
 
   /**
-   * Remove the given lisener.
+   * Remove the given listener.
    *
    * @param listener the change listener to remove.
    * @return {@code true} if the listener was removed; {@code false} otherwise.

@@ -283,12 +283,12 @@ public class PsqlStorage implements IStorage {
   }
 
   @Override
-  public @NotNull PsqlTxReader startRead() throws SQLException {
+  public @NotNull PsqlTxReader openReplicationTransaction() throws SQLException {
     return new PsqlTxWriter(this);
   }
 
   @Override
-  public @NotNull PsqlTxWriter startWrite() throws SQLException {
+  public @NotNull PsqlTxWriter openMasterTransaction() throws SQLException {
     return new PsqlTxWriter(this);
   }
 

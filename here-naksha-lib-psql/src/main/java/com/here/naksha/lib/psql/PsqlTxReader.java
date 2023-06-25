@@ -2,7 +2,7 @@ package com.here.naksha.lib.psql;
 
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.hub.StorageCollection;
-import com.here.naksha.lib.core.storage.ITxReader;
+import com.here.naksha.lib.core.storage.IReadTransaction;
 import java.sql.SQLException;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
@@ -12,7 +12,7 @@ import org.jetbrains.annotations.Nullable;
  * A Naksha PostgresQL transaction that can be used to read data, optionally using a read-replica,
  * if opened as read-only transaction.
  */
-public class PsqlTxReader implements ITxReader {
+public class PsqlTxReader implements IReadTransaction {
 
   /**
    * Creates a new transaction for the given PostgresQL client.
@@ -41,7 +41,7 @@ public class PsqlTxReader implements ITxReader {
   }
 
   @Override
-  public @NotNull List<@NotNull StorageCollection> getAllCollections() throws SQLException {
+  public @NotNull List<@NotNull StorageCollection> iterateCollections() throws SQLException {
     throw new UnsupportedOperationException("getAllCollections");
   }
 

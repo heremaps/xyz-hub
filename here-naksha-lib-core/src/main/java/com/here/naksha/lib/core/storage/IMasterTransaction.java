@@ -8,7 +8,7 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /** Interface to grant write-access to a storage. */
-public interface ITxWriter extends ITxReader {
+public interface IMasterTransaction extends IReadTransaction {
 
   /**
    * Commit all changes.

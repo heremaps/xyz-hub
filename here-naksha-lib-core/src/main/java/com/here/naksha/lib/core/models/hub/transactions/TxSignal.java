@@ -14,8 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A transaction persists out of multiple signals. Each signal represents something that has
- * happened in a {@link Storage storage}.
+ * A transaction persists out of multiple signals. Each signal represents something that has happened in a {@link Storage storage}.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")

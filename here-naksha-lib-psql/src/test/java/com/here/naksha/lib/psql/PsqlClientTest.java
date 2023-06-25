@@ -1,6 +1,12 @@
 package com.here.naksha.lib.psql;
 
+import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.hub.StorageCollection;
+import com.here.naksha.lib.core.storage.IFeatureWriter;
+import com.here.naksha.lib.core.storage.IStorage;
+import com.here.naksha.lib.core.storage.IMasterTransaction;
+import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
+import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
@@ -18,11 +24,15 @@ public class PsqlClientTest {
         .withAppName("Naksha-Psql-Test")
         .parseUrl(System.getenv("TEST_ADMIN_DB"))
         .build();
-    try (final PsqlStorage client = new PsqlStorage(config, 0L)) {
-      try (final PsqlTxWriter transaction = client.startWrite()) {
-        final StorageCollection testCollection = new StorageCollection("testID");
-        transaction.createCollection(testCollection);
-        transaction.commit();
+    try (final IStorage client = new PsqlStorage(config, 0L)) {
+      try (final IMasterTransaction tx = client.openMasterTransaction()) {
+        final StorageCollection testCollection = new StorageCollection("road");
+        tx.createCollection(testCollection);
+        final IFeatureWriter<Feature> featureWriter = tx.writeFeatures(Feature.class, testCollection);
+        final ModifyFeaturesReq<Feature> req = new ModifyFeaturesReq<>();
+        req.insert().add(new Feature("foo"));
+        final ModifyFeaturesResp<Feature> resp = featureWriter.modifyFeatures(req);
+        tx.commit();
       }
     }
   }

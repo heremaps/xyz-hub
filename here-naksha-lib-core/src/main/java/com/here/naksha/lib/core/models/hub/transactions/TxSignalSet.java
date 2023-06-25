@@ -12,9 +12,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A transaction event list, persists out of multiple transaction events. Each event represents
- * something that has happened as part of the transaction. This is the container that is used to
- * transport all transactions.
+ * A transaction signal set, persists out of multiple transaction signals. Each signal represents something that has happened as part of
+ * the transaction. This is just a container that is used to transport all transaction signals.
  */
 @SuppressWarnings("unused")
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -25,8 +24,7 @@ public class TxSignalSet implements Iterable<TxSignal> {
   //       ??? -> @JsonFormat(shape=JsonFormat.Shape.ARRAY)
 
   /**
-   * All transaction items as read from the transaction table. They all need to have the same
-   * transaction number.
+   * All transaction signals as read from the transaction table. They all must have the same transaction number.
    */
   private final ArrayList<@NotNull TxSignal> all = new ArrayList<>();
 
@@ -38,29 +36,29 @@ public class TxSignalSet implements Iterable<TxSignal> {
   private @Nullable String txn;
 
   /**
-   * Return the transaction number, which all events being part of the transaction list share, or
-   * {@code null}, if the set does not have any event elements.
+   * Return the transaction number, which all signals being part of the transaction-set share, or {@code null}, if the set does not have
+   * any signal.
    *
-   * @return The transaction number; {@code null}, if the transaction does not have any item.
+   * @return the transaction number; {@code null}, if the transaction is empty.
    */
   public @Nullable String txn() {
     return txn;
   }
 
   /**
-   * Returns the amount of transaction events being part of this transaction list.
+   * Returns the amount of transaction signals being part of this transaction-set.
    *
-   * @return The amount of transaction events being part of this transaction list.
+   * @return The amount of transaction signals being part of this transaction-set.
    */
   public int size() {
     return all.size();
   }
 
   /**
-   * Returns the amount of transaction events that fulfill the given filter.
+   * Returns the amount of transaction signals that fulfill the given filter.
    *
-   * @param filter The filter to apply.
-   * @return The amount of transaction events that fulfill the given filter.
+   * @param filter the filter to apply.
+   * @return the amount of transaction signals that fulfill the given filter.
    */
   public int count(@NotNull Function<@NotNull TxSignal, @NotNull Boolean> filter) {
     int size = 0;
@@ -73,10 +71,10 @@ public class TxSignalSet implements Iterable<TxSignal> {
   }
 
   /**
-   * Return a filtered transaction event list.
+   * Return a filtered transaction signal list.
    *
    * @param filter the filter to apply.
-   * @return a list of all transaction events that match the given filter.
+   * @return a list of all transaction signals that match the given filter.
    */
   public @NotNull List<@NotNull TxSignal> get(@NotNull Function<@NotNull TxSignal, @NotNull Boolean> filter) {
     final ArrayList<@NotNull TxSignal> items = new ArrayList<>(4);
@@ -89,49 +87,45 @@ public class TxSignalSet implements Iterable<TxSignal> {
   }
 
   /**
-   * Return the transaction event with the given identifier.
+   * Return the transaction signal with the given identifier.
    *
    * @param id the identifier to query.
-   * @return the transaction event with the given identifier; {@code null} if no such transaction
-   *     event exists.
+   * @return the transaction signal with the given identifier; {@code null} if no such transaction signal exists.
    */
   public @Nullable TxSignal get(@NotNull String id) {
     return allById.get(id);
   }
 
   /**
-   * Add the given transaction event.
+   * Add the given transaction signal.
    *
-   * @param event the event to add.
-   * @return The overridden event, if any.
-   * @throws NullPointerException If the given event is null or the {@link TxSignal#txn txn} of the
-   *     event is {@code null}.
-   * @throws IllegalArgumentException If the given event does not have the same transaction number
-   *     like existing ones.
+   * @param signal the signal to add.
+   * @return the overridden signal, if any.
+   * @throws NullPointerException if the given signal is {@code null} or the {@link TxSignal#txn transaction number} of the signal is
+   * {@code null}.
+   * @throws IllegalArgumentException if the given signal does not have the same transaction number as the existing ones.
    */
-  public @Nullable TxSignal put(@NotNull TxSignal event) {
+  public @Nullable TxSignal put(@NotNull TxSignal signal) {
     if (txn == null) {
-      if (event.txn.isEmpty()) {
-        throw new IllegalArgumentException("The transaction item does have an empty txn");
+      if (signal.txn.isEmpty()) {
+        throw new IllegalArgumentException(
+            "The transaction signal does have an empty transaction number (txn)");
       }
-      txn = event.txn;
-    } else if (!txn.equals(event.txn)) {
-      throw new IllegalArgumentException("Failed to add transaction item, the given item has txn: '"
-          + event.txn
-          + "', but '"
-          + txn
-          + "' is required!");
+      txn = signal.txn;
+    } else if (!txn.equals(signal.txn)) {
+      throw new IllegalArgumentException("Failed to add transaction signal, the given signal has txn '"
+          + signal.txn + "', but '" + txn + "' is required!");
     }
-    final TxSignal existing = allById.get(event.getId());
+    final TxSignal existing = allById.get(signal.getId());
     if (existing != null) {
-      if (existing == event) {
+      if (existing == signal) {
         return existing;
       }
       final boolean removed = all.remove(existing);
       assert removed;
     }
-    all.add(event);
-    final TxSignal removed = allById.put(event.getId(), event);
+    all.add(signal);
+    final TxSignal removed = allById.put(signal.getId(), signal);
     assert removed == null;
     return existing;
   }
@@ -148,32 +142,32 @@ public class TxSignalSet implements Iterable<TxSignal> {
   // --------------------------------------------------------------------------------------------------------------------------------
 
   /**
-   * A filter that only returns those transaction events that represent feature modifications.
+   * A filter that only returns those transaction signals that represent feature modifications.
    *
-   * @param event The event to filter.
-   * @return true if the event represents a matching transaction event; false otherwise.
+   * @param signal the signal to filter.
+   * @return true if the signals represents a matching transaction signals; false otherwise.
    */
-  public boolean returnFeatureModification(@NotNull TxSignal event) {
-    return event instanceof TxModifyFeatures;
+  public boolean returnFeatureModification(@NotNull TxSignal signal) {
+    return signal instanceof TxModifyFeatures;
   }
 
   /**
-   * A filter that only returns those transaction events that represent commit messages.
+   * A filter that only returns those transaction signals that represent commit messages.
    *
-   * @param event The event to filter.
-   * @return true if the item represents a matching transaction item; false otherwise.
+   * @param signal the signal to filter.
+   * @return true if the signals represents a matching transaction signals; false otherwise.
    */
-  public boolean returnCommitMessage(@NotNull TxSignal event) {
-    return event instanceof TxComment;
+  public boolean returnCommitMessage(@NotNull TxSignal signal) {
+    return signal instanceof TxComment;
   }
 
   /**
-   * A filter that only returns those transaction events that represent collection modifications.
+   * A filter that only returns those transaction signals that represent collection modifications.
    *
-   * @param event The event to filter.
-   * @return true if the item represents a matching transaction event; false otherwise.
+   * @param signal the signal to filter.
+   * @return true if the signals represents a matching transaction signals; false otherwise.
    */
-  public boolean returnCollectionModification(@NotNull TxSignal event) {
-    return event instanceof TxModifyCollection;
+  public boolean returnCollectionModification(@NotNull TxSignal signal) {
+    return signal instanceof TxModifyCollection;
   }
 }

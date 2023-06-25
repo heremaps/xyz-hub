@@ -3,14 +3,14 @@ package com.here.naksha.lib.core.storage;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.hub.StorageCollection;
-import java.util.List;
+import java.util.Iterator;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** Interface to grant read-access to a storage. */
+/** The read API of a transaction. */
 @AvailableSince(INaksha.v2_0_0)
-public interface ITxReader extends AutoCloseable {
+public interface IReadTransaction extends AutoCloseable {
   /**
    * Returns the current transaction number, if none has been created yet, creating a new one.
    *
@@ -25,14 +25,14 @@ public interface ITxReader extends AutoCloseable {
   void close();
 
   /**
-   * Returns all collections from the storage.
+   * Iterate all collections from the storage.
    *
-   * @return all collections from the storage.
+   * @return the iterator above all storage collections.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  List<@NotNull StorageCollection> getAllCollections() throws Exception;
+  Iterator<@NotNull StorageCollection> iterateCollections() throws Exception;
 
   /**
    * Returns the collection with the given id.
