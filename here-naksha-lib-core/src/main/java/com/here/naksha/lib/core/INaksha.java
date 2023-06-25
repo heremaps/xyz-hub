@@ -47,6 +47,11 @@ public interface INaksha {
      * The collections for all storages.
      */
     public static final StorageCollection STORAGES = new StorageCollection("naksha:storages", 0L);
+
+    /**
+     * The collections for all extensions.
+     */
+    public static final StorageCollection EXTENSIONS = new StorageCollection("naksha:extensions", 0L);
   }
 
   /**

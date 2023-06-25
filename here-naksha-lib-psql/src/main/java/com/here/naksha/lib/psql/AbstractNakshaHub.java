@@ -1,20 +1,9 @@
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
-
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.features.Extension;
-import com.here.naksha.lib.core.models.features.Space;
-import com.here.naksha.lib.core.models.features.Subscription;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Storage;
-import com.here.naksha.lib.core.storage.CollectionCache;
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.sql.SQLException;
-import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * The abstract Naksha-Hub is the base class for the Naksha-Hub implementation, granting access to the administration PostgresQL database.
@@ -23,21 +12,6 @@ import org.jetbrains.annotations.Nullable;
  * Naksha-Hub itself and exposed to all other parts of the Naksha-Hub via the {@link INaksha#get()} method.
  */
 public abstract class AbstractNakshaHub extends PsqlStorage implements INaksha {
-
-  /**
-   * The collection for spaces.
-   */
-  public static final @NotNull String DEFAULT_SPACE_COLLECTION = "naksha:spaces";
-
-  /**
-   * The collection for connectors.
-   */
-  public static final @NotNull String DEFAULT_CONNECTOR_COLLECTION = "naksha:connectors";
-
-  /**
-   * The collection for subscriptions.
-   */
-  public static final @NotNull String DEFAULT_SUBSCRIPTIONS_COLLECTION = "naksha:subscriptions";
 
   /**
    * Create a new Naksha client instance and register as default Naksha client.
@@ -49,91 +23,5 @@ public abstract class AbstractNakshaHub extends PsqlStorage implements INaksha {
   protected AbstractNakshaHub(@NotNull PsqlConfig config) throws SQLException, IOException {
     super(config, 0L);
     instance.getAndSet(this);
-  }
-
-  /**
-   * Cache.
-   */
-  public final @NotNull CollectionCache<Space> spaces = null;
-
-  /**
-   * Cache.
-   */
-  public final @NotNull CollectionCache<Connector> connectors = null;
-
-  /**
-   * Cache.
-   */
-  public final @NotNull CollectionCache<Subscription> subscriptions = null;
-
-  /**
-   * Cache.
-   */
-  public final @NotNull CollectionCache<Connector> eventHandlers = null;
-
-  /**
-   * Cache.
-   */
-  public final @NotNull CollectionCache<Storage> storages = null;
-
-  @Override
-  public @Nullable Space getSpaceById(@NotNull String id) {
-    return null;
-  }
-
-  @Override
-  public @Nullable Connector getConnectorById(@NotNull String id) {
-    return null;
-  }
-
-  @Override
-  public @Nullable Storage getStorageById(@NotNull String id) {
-    return null;
-  }
-
-  @Override
-  public @Nullable Storage getStorageByNumber(long number) {
-    return null;
-  }
-
-  @Override
-  public @Nullable Extension getExtensionById(@NotNull int id) {
-    assert id > 0;
-    try {
-      return new Extension("http://localhost:" + id + "/naksha/extension/v1/");
-    } catch (MalformedURLException e) {
-      currentLogger().warn("Failed to return extension information", e);
-      return null;
-    }
-  }
-
-  @Override
-  public @Nullable Subscription getCollectionById(@NotNull String id) throws NullPointerException, NoSuchElementException {
-    return null;
-  }
-
-  @Override
-  public @NotNull Iterable<Space> iterateCollections() {
-    return null;
-  }
-
-  @Override
-  public @NotNull Iterable<Connector> iterateConnectors() {
-    return null;
-  }
-
-  @Override
-  public @NotNull Iterable<Storage> iterateStorages() {
-    return null;
-  }
-
-  @Override
-  public @NotNull Iterable<Connector> iterateExtensions() {
-    return null;
-  }
-
-  @Override
-  public @NotNull Iterable<Subscription> iterateSubscriptions() {
-    return null;
   }
 }
