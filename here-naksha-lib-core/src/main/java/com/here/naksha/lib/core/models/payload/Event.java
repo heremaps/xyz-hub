@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.naksha.lib.core.models.payload;
 
 import static com.here.naksha.lib.core.AbstractTask.currentTask;
@@ -272,7 +271,7 @@ public class Event extends Payload {
   @JsonIgnore
   public void setSpace(@NotNull Space space) {
     this.spaceId = space.getId();
-    this.collection = space.getCollection();
+    this.collection = space.getCollectionId();
     this.params = JsonSerializable.deepClone(space.getProperties());
     this.space = space;
   }

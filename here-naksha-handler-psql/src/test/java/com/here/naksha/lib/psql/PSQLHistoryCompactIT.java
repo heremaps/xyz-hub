@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,10 +21,10 @@ package com.here.naksha.lib.psql;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.handler.psql.PsqlHandlerParams;
+import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
 import com.here.naksha.lib.core.models.geojson.implementation.*;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
 import com.here.naksha.lib.core.util.json.JsonSerializable;

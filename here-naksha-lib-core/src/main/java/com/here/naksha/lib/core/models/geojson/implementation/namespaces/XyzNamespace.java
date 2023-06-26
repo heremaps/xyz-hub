@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.naksha.lib.core.models.geojson.implementation.namespaces;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.geojson.implementation.Action;
 import com.here.naksha.lib.core.models.geojson.implementation.Properties;
-import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;

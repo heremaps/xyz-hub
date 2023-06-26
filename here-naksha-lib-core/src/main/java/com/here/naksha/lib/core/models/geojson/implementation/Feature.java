@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.naksha.lib.core.models.geojson.implementation;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -31,14 +30,15 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.Typed;
-import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
-import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
+import com.here.naksha.lib.core.models.features.Catalog;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.features.Subscription;
 import com.here.naksha.lib.core.models.features.TxSignal;
+import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
+import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
 import com.here.naksha.lib.core.util.diff.ConflictResolution;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.modify.IfExists;
@@ -59,6 +59,7 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = Space.class),
   @JsonSubTypes.Type(value = Subscription.class),
   // Others:
+  @JsonSubTypes.Type(value = Catalog.class),
   @JsonSubTypes.Type(value = Connector.class),
   @JsonSubTypes.Type(value = Storage.class),
   @JsonSubTypes.Type(value = StorageCollection.class),
@@ -84,7 +85,7 @@ public class Feature extends JsonObject implements Typed {
    */
   @JsonCreator
   public Feature(@JsonProperty(ID) @Nullable String id) {
-    this.id = id != null && id.length() > 0 ? id : RandomStringUtils.randomAlphabetic(12);
+    setId(id != null && id.length() > 0 ? id : RandomStringUtils.randomAlphabetic(12));
     this.properties = new Properties();
   }
 

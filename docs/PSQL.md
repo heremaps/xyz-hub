@@ -42,32 +42,33 @@ CREATE TABLE IF NOT EXISTS transactions
 (
     -- Unique index of the row.
     i                    BIGSERIAL PRIMARY KEY NOT NULL,
-    -- The action: COMMIT_MESSAGE, MODIFY_FEATURES, CREATE_COLLECTION, UPDATE_COLLECTION, DELETE_COLLECTION or RESTORE_COLLECTION.
+    -- The action that has been performed:
+    -- MODIFY_FEATURES: The features of a collection are modified, "id" refers to the collection name.
+    -- MODIFY_COLLECTION: A collection was modified, "id" refers to the collection name.
+    -- MESSAGE: A message was set, the "id" some arbitrary message identifier.
     action               text COLLATE "C"      NOT NULL,
-    -- The unique transaction identifier encoded in the `txn` as **object_id**.
-    id                   int8                  NOT NULL,
-    -- The local identifier of the event within the transaction, normally "{collection}" or "msg:{commit-msg-id}".
-    name                 text COLLATE "C"      NOT NULL,
-    -- The collection effected (the table-set prefix), if any.
-    collection           text COLLATE "C",
+    -- The target of the action.
+    target               text COLLATE "C",
     -- The application identifier of the application performing the change.
     appId                text                  NOT NULL,
     -- The author used for the transaction (optional); if any.
     author               text                  NOT NULL,
+    -- The unique transaction identifier, encoded in the `txn` as **object_id**.
+    object_id            int8                  NOT NULL,
+    -- The unique storage identifier, encoded in the `txn` as **storage_id**.
+    storage_id           int8                  NOT NULL,
+    -- The full timestamp when the transaction started, the year, month and day, encoded as well in the `txn` in a short form.
+    ts                   timestamptz           NOT NULL,
     -- The UUID of the transaction as stored in the XYZ namespace property `txn`.
-    tx_uuid              uuid                  NOT NULL,
+    txn                  uuid                  NOT NULL,
     -- The PostgresQL transaction id.
-    tx_psql_id           int8                  NOT NULL,
-    -- The unique storage identifier encoded in the `txn` as ** **.
-    tx_storage_id        int8                  NOT NULL,
-    -- The full timestamp when the transaction started, the year, month and day encoded as well in the `txn`.
-    tx_ts                timestamptz           NOT NULL,
+    psql_id              int8                  NOT NULL,
     -- The commit messages, if the action is COMMIT_MESSAGE.
-    commit_msg           text COLLATE "C",
+    msg_text             text COLLATE "C",
     -- The JSON attachment for commit messages.
-    commit_json          jsonb,
+    msg_json             jsonb,
     -- The binary attachment for commit messages.
-    commit_attachment    bytea,
+    msg_attachment       bytea,
     -- The unique publishing identifier, set by the transaction fix job as soon as the transaction becomes visible.
     publish_id           int8,
     -- The publishing timestamp of when the transaction became visible.

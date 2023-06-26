@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.naksha.handler.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
@@ -45,12 +44,12 @@ import com.here.naksha.handler.psql.query.helpers.FetchExistingIds.FetchIdsInput
 import com.here.naksha.lib.core.ExtendedEventHandler;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.geojson.HQuad;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
-import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.admin.ModifySubscriptionEvent;

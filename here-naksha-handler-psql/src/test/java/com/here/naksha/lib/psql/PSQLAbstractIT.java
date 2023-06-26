@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
@@ -26,9 +25,9 @@ import com.amazonaws.util.IOUtils;
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.handler.psql.PsqlHandlerParams;
 import com.here.naksha.lib.core.IoEventPipeline;
-import com.here.naksha.lib.core.models.payload.Payload;
-import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;

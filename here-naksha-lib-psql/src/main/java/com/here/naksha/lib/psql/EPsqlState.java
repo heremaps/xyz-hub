@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2017-2023 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
 package com.here.naksha.lib.psql;
 
 import com.here.naksha.lib.core.util.ILike;
@@ -105,6 +123,7 @@ public class EPsqlState implements ILike, CharSequence {
   public static final EPsqlState INVALID_TRANSACTION_TERMINATION = new EPsqlState("2D000");
   public static final EPsqlState STATEMENT_NOT_ALLOWED_IN_FUNCTION_CALL = new EPsqlState("2F003");
   public static final EPsqlState INVALID_SAVEPOINT_SPECIFICATION = new EPsqlState("3B000");
+  public static final EPsqlState INVALID_SCHEMA_NAME = new EPsqlState("3F000");
   public static final EPsqlState SERIALIZATION_FAILURE = new EPsqlState("40001");
   public static final EPsqlState DEADLOCK_DETECTED = new EPsqlState("40P01");
   public static final EPsqlState SYNTAX_ERROR = new EPsqlState("42601");
@@ -118,6 +137,7 @@ public class EPsqlState implements ILike, CharSequence {
   public static final EPsqlState DATATYPE_MISMATCH = new EPsqlState("42804");
   public static final EPsqlState CANNOT_COERCE = new EPsqlState("42846");
   public static final EPsqlState UNDEFINED_TABLE = new EPsqlState("42P01");
+  public static final EPsqlState INVALID_SCHEMA_DEFINITION = new EPsqlState("42P15");
   public static final EPsqlState OUT_OF_MEMORY = new EPsqlState("53200");
   public static final EPsqlState OBJECT_NOT_IN_STATE = new EPsqlState("55000");
   public static final EPsqlState OBJECT_IN_USE = new EPsqlState("55006");

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,29 +16,33 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-
 package com.here.naksha.lib.core.models.features;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.models.Copyright;
+import com.here.naksha.lib.core.models.License;
+import com.here.naksha.lib.core.models.PipelineComponent;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.geojson.implementation.Properties;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.indexing.Constraint;
-import com.here.naksha.lib.core.models.Copyright;
 import com.here.naksha.lib.core.models.indexing.Index;
-import com.here.naksha.lib.core.models.License;
-import com.here.naksha.lib.core.models.PipelineComponent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** The space configuration. A space is an event-pipeline accessible via the REST API. */
+/**
+ * The space configuration. A space is an event-pipeline accessible via the REST API.
+ */
 @SuppressWarnings("unused")
 @JsonTypeName(value = "Space")
 public final class Space extends PipelineComponent implements Typed {
@@ -46,138 +50,231 @@ public final class Space extends PipelineComponent implements Typed {
   /**
    * Create new space initialized with the given identifier.
    *
-   * @param id the identifier.
+   * @param id            the identifier.
+   * @param eventHandlers the list of event handler identifiers to form the event-pipeline.
+   * @param packages      the packages this feature is part of.
    */
   @JsonCreator
-  public Space(@JsonProperty(ID) @NotNull String id) {
+  public Space(
+      @JsonProperty(ID) @NotNull String id,
+      @JsonProperty(EVENT_HANDLERS) @NotNull List<@NotNull String> eventHandlers,
+      @JsonProperty(PACKAGES) @Nullable List<@NotNull String> packages) {
+    super(id, eventHandlers, packages);
+  }
+
+  /**
+   * Create new space with the given identifier.
+   *
+   * @param id the identifier of the space.
+   */
+  public Space(@NotNull String id) {
     super(id, new ArrayList<>(), null);
   }
 
   /**
    * Create new space initialized with the given identifier.
    *
-   * @param id the identifier.
-   * @param eventHandlers the list of event handler identifiers to form the event-pipeline.
+   * @param catalogId the catalog identifier.
+   * @param name      the name of the space, unique within the catalog.
    */
-  @JsonCreator
-  public Space(
-      @JsonProperty(ID) @NotNull String id,
-      @JsonProperty(EVENT_HANDLERS) @NotNull List<@NotNull String> eventHandlers) {
-    super(id, eventHandlers, null);
+  public Space(@Nullable String catalogId, @NotNull String name) {
+    super(catalogId != null ? (catalogId + ":" + name) : name, new ArrayList<>(), null);
   }
 
   /**
    * Create new space initialized with the given identifier.
    *
-   * @param id the identifier.
+   * @param catalogId     the catalog identifier.
+   * @param name          the name of the space, unique within the catalog.
    * @param eventHandlers the list of event handler identifiers to form the event-pipeline.
-   * @param packages the packages this feature is part of.
    */
-  @JsonCreator
-  public Space(
-      @JsonProperty(ID) @NotNull String id,
-      @JsonProperty(EVENT_HANDLERS) @NotNull List<@NotNull String> eventHandlers,
-      @Nullable List<@NotNull String> packages) {
-    super(id, eventHandlers, packages);
+  public Space(@Nullable String catalogId, @NotNull String name, @NotNull List<@NotNull String> eventHandlers) {
+    super(catalogId + ":" + name, eventHandlers, null);
   }
 
-  /** Beta release date: 2018-10-01T00:00Z[UTC] */
+  /**
+   * Set the full qualified space identifier.
+   *
+   * @param catalogId the catalog-identifier (being the prefix of the ID).
+   * @param name      the name of the space.
+   */
+  public void setId(@Nullable String catalogId, @NotNull String name) {
+    this.catalogId = catalogId;
+    this.name = name;
+    if (catalogId == null) {
+      this.id = name;
+    } else {
+      this.id = catalogId + ":" + name;
+    }
+  }
+
+  @Override
+  @JsonSetter
+  public void setId(@NotNull String id) {
+    final int catEnd = id.lastIndexOf(':');
+    if (catEnd > 0) {
+      this.catalogId = id.substring(0, catEnd);
+      this.name = id.substring(catEnd + 1);
+    } else {
+      this.catalogId = null;
+      this.name = id;
+    }
+    this.id = id;
+  }
+
+  /**
+   * Beta release date: 2018-10-01T00:00Z[UTC]
+   */
   private final long DEFAULT_TIMESTAMP = 1538352000000L;
 
-  /** A human-readable title of the space. */
+  /**
+   * The catalog identifier.
+   */
+  @AvailableSince(INaksha.v2_0_3)
+  @JsonProperty
+  private @Nullable String catalogId;
+
+  /**
+   * The name of the space, must be unique within a given catalog.
+   */
+  @AvailableSince(INaksha.v2_0_3)
+  @JsonProperty
+  private @NotNull String name;
+
+  /**
+   * A human-readable title of the space.
+   */
   @JsonProperty
   @JsonInclude(Include.NON_NULL)
   private String title;
 
   /**
-   * The collection into which to place the features. The {@link #getId() id} reflects the unique
-   * identifier under which the space is referred externally, the collection refers to the storage
-   * internally and is only understood by the storage connector. If the client does not explicitly
-   * set the collection name, then it will be set to the same as the space identifier.
+   * The collection into which to place the features. The {@link #getId() id} reflects the unique identifier under which the space is
+   * referred externally, the collection refers to the storage internally and is only understood by the storage connector. If the client
+   * does not explicitly set the collection name, then it will be set to the same as the space identifier.
    */
   @JsonProperty
   @JsonInclude(Include.NON_NULL)
-  private String collection;
+  private String collectionId;
 
-  /** A human-readable description of the space, and its content. */
+  /**
+   * A human-readable description of the space, and its content.
+   */
   @JsonProperty
   @JsonInclude(Include.NON_NULL)
   private String description;
 
-  /** If set to true, every authenticated user can read the features in the space. */
+  /**
+   * If set to true, every authenticated user can read the features in the space.
+   */
   @JsonProperty
   @JsonInclude(Include.NON_DEFAULT)
   private boolean shared = false;
 
-  /** Copyright information for the data in the space. */
+  /**
+   * Copyright information for the data in the space.
+   */
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
   private List<Copyright> copyright;
 
   /**
-   * Information about the license bound to the data within the space. For valid keywords see {@link
-   * License}.
+   * Information about the license bound to the data within the space. For valid keywords see {@link License}.
    */
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
   private License license;
 
-  /** Allows to temporary or permanently disable history. */
+  /**
+   * Allows to temporary or permanently disable history.
+   */
   @JsonProperty
   private boolean history = true;
 
-  /** The maximum days of history to keep; {@code null} means forever. */
+  /**
+   * The maximum days of history to keep; {@code null} means forever.
+   */
   @JsonProperty
   @JsonInclude(Include.NON_NULL)
   private Integer maxHistoryAge;
 
-  /** List of packages that this space belongs to. */
+  /**
+   * List of packages that this space belongs to.
+   */
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
   private List<@NotNull String> packages;
 
-  /** Arbitrary properties added to the space, this includes the standard {@link XyzNamespace}. */
+  /**
+   * Arbitrary properties added to the space, this includes the standard {@link XyzNamespace}.
+   */
   @JsonProperty
   private Properties properties;
 
-  /** Indicates if the space is in a read-only mode. */
+  /**
+   * Indicates if the space is in a read-only mode.
+   */
   @JsonProperty
   @JsonInclude(Include.NON_DEFAULT)
   private boolean readOnly = false;
 
   /**
-   * A map defined by the user to index feature-properties to make them searchable and sortable. The
-   * key is the name of the index to create, the value describes the properties to index including
-   * their ordering in the index. Properties not being indexes still can be searched, but the result
-   * can be bad.
+   * A map defined by the user to index feature-properties to make them searchable and sortable. The key is the name of the index to create,
+   * the value describes the properties to index including their ordering in the index. Properties not being indexes still can be searched,
+   * but the result can be bad.
    */
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
   private Map<@NotNull String, @NotNull Index> indices;
 
   /**
-   * A map defined by the user to apply constraints on feature-properties to prevent illegal values.
-   * Note that creating constraints later will fail, if the space does not fulfill the constraint.
+   * A map defined by the user to apply constraints on feature-properties to prevent illegal values. Note that creating constraints later
+   * will fail, if the space does not fulfill the constraint.
    */
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
   private Map<@NotNull String, @NotNull Constraint> constraints;
 
-  /** If set, then the owner of all features in this space forcefully set to this value. */
+  /**
+   * If set, then the owner of all features in this space forcefully set to this value.
+   */
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
   private String forceOwner;
 
-  public String getCollection() {
-    return collection != null ? collection : getId();
+  /**
+   * Returns the catalog identifier to which this space belongs.
+   *
+   * @return the catalog identifier to which this space belongs; if any.
+   */
+  public @Nullable String getCatalogId() {
+    return catalogId;
   }
 
-  public void setCollection(final String collection) {
-    this.collection = collection;
+  /**
+   * Returns the name of the space.
+   *
+   * @return the name of the space.
+   */
+  public @NotNull String getName() {
+    return name;
   }
 
-  public @NotNull Space withCollection(final String collection) {
-    setCollection(collection);
+  /**
+   * Returns the collection identifier of the collection in which to persist the space; if any.
+   *
+   * @return the collection identifier.
+   */
+  public @NotNull String getCollectionId() {
+    return collectionId != null ? collectionId : getId();
+  }
+
+  public void setCollectionId(final @Nullable String collection) {
+    this.collectionId = collection;
+  }
+
+  public @NotNull Space withCollection(final @Nullable String collectionId) {
+    setCollectionId(collectionId);
     return this;
   }
 
