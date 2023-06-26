@@ -451,7 +451,9 @@ BEGIN
 END
 $BODY$;
 
-CREATE OR REPLACE FUNCTION __naksha_trigger_fix_jsondata()
+-- A trigger attached to the HEAD table of all collections to fix the XYZ namespace.
+-- In a nutshell, fix: jsondata->'properties'->'@ns:com:here:xyz'
+CREATE OR REPLACE FUNCTION __naksha_trigger_fix_ns_xyz()
     RETURNS trigger
     LANGUAGE 'plpgsql' STABLE
 AS $BODY$
@@ -474,7 +476,7 @@ BEGIN
     author := naksha_tx_get_author();
 
     IF TG_OP = 'INSERT' THEN
-        --RAISE NOTICE 'naksha_trigger_fix_jsondata % %', TG_OP, NEW.jsondata;
+        RAISE NOTICE '__naksha_trigger_fix_ns_xyz % %', TG_OP, NEW.jsondata;
         author := naksha_tx_get_author();
         xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
         IF xyz IS NULL THEN
@@ -483,8 +485,8 @@ BEGIN
         xyz := jsonb_set(xyz, '{"action"}', ('"CREATE"')::jsonb, true);
         xyz := jsonb_set(xyz, '{"version"}', to_jsonb(1::int8), true);
         xyz := jsonb_set(xyz, '{"collection"}', to_jsonb(TG_TABLE_NAME), true);
-        xyz := jsonb_set(xyz, '{"author"}', coalesce(author::jsonb, 'null'), true);
-        xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id::jsonb, 'null'), true);
+        xyz := jsonb_set(xyz, '{"author"}', coalesce(to_jsonb(author),'null'::jsonb), true);
+        xyz := jsonb_set(xyz, '{"appId"}', coalesce(to_jsonb(app_id),'null'::jsonb), true);
         xyz := jsonb_set(xyz, '{"puuid"}', 'null'::jsonb, true);
         xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
         xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
@@ -497,12 +499,12 @@ BEGIN
         END IF;
         NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
         NEW.i = i;
-        --RAISE NOTICE 'naksha_trigger_fix_jsondata return %', NEW.jsondata;
+        RAISE NOTICE '__naksha_trigger_fix_ns_xyz return %', NEW.jsondata;
         return NEW;
     END IF;
 
     IF TG_OP = 'UPDATE' THEN
-        --RAISE NOTICE 'naksha_trigger_fix_jsondata % %', TG_OP, NEW.jsondata;
+        --RAISE NOTICE '__naksha_trigger_fix_ns_xyz % %', TG_OP, NEW.jsondata;
         author := naksha_tx_get_author(OLD.jsondata);
         xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
         IF xyz IS NULL THEN
@@ -511,8 +513,8 @@ BEGIN
         xyz := jsonb_set(xyz, '{"action"}', ('"UPDATE"')::jsonb, true);
         xyz := jsonb_set(xyz, '{"version"}', to_jsonb(naksha_feature_get_version(OLD.jsondata) + 1::int8), true);
         xyz := jsonb_set(xyz, '{"collection"}', to_jsonb(TG_TABLE_NAME), true);
-        xyz := jsonb_set(xyz, '{"author"}', coalesce(author::jsonb, 'null'), true);
-        xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id::jsonb, 'null'), true);
+        xyz := jsonb_set(xyz, '{"author"}', coalesce(to_jsonb(author),'null'::jsonb), true);
+        xyz := jsonb_set(xyz, '{"appId"}', coalesce(to_jsonb(app_id),'null'::jsonb), true);
         xyz := jsonb_set(xyz, '{"puuid"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid', true);
         xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
         xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
@@ -525,16 +527,17 @@ BEGIN
         END IF;
         NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
         NEW.i = i;
-        --RAISE NOTICE 'naksha_trigger_fix_jsondata return %', NEW.jsondata;
+        --RAISE NOTICE '__naksha_trigger_fix_ns_xyz return %', NEW.jsondata;
         return NEW;
     END IF;
 
     -- DELETE
-    --RAISE NOTICE 'naksha_trigger_fix_jsondata % return %', TG_OP, OLD.jsondata;
+    --RAISE NOTICE '__naksha_trigger_fix_ns_xyz % return %', TG_OP, OLD.jsondata;
     RETURN OLD;
 END
 $BODY$;
 
+-- Trigger that writes into the transaction table.
 CREATE OR REPLACE FUNCTION __naksha_trigger_write_tx()
     RETURNS trigger
     LANGUAGE 'plpgsql' VOLATILE
@@ -548,6 +551,7 @@ BEGIN
 END
 $BODY$;
 
+-- Trigger that writes into the history table.
 CREATE OR REPLACE FUNCTION __naksha_trigger_write_hst()
     RETURNS trigger
     LANGUAGE 'plpgsql' VOLATILE
@@ -564,7 +568,7 @@ DECLARE
     SQL text;
 BEGIN
     IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
-        --RAISE NOTICE 'naksha_trigger_write_hst % %', TG_OP, NEW.jsondata;
+        --RAISE NOTICE '__naksha_trigger_write_hst % %', TG_OP, NEW.jsondata;
 
         -- purge feature.
         SQL := format('DELETE FROM %I.%I WHERE jsondata->>''id'' = %L',
@@ -578,7 +582,7 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    --RAISE NOTICE 'naksha_trigger_write_hst % %', TG_OP, OLD.jsondata;
+    --RAISE NOTICE '__naksha_trigger_write_hst % %', TG_OP, OLD.jsondata;
     rts_millis := naksha_current_millis(clock_timestamp());
     ts_millis := naksha_current_millis(current_timestamp);
     txn := naksha_tx_current();
@@ -591,8 +595,9 @@ BEGIN
     xyz := OLD.jsondata->'properties'->'@ns:com:here:xyz';
     xyz := jsonb_set(xyz, '{"action"}', ('"DELETE"')::jsonb, true);
     xyz := jsonb_set(xyz, '{"version"}', to_jsonb(naksha_feature_get_version(OLD.jsondata) + 1::int8), true);
-    xyz := jsonb_set(xyz, '{"author"}', coalesce(author::jsonb, 'null'), true);
-    xyz := jsonb_set(xyz, '{"appId"}', coalesce(app_id::jsonb, 'null'), true);
+    xyz := jsonb_set(xyz, '{"collection"}', to_jsonb(TG_TABLE_NAME), true);
+    xyz := jsonb_set(xyz, '{"author"}', coalesce(to_jsonb(author), 'null'::jsonb), true);
+    xyz := jsonb_set(xyz, '{"appId"}', coalesce(to_jsonb(app_id), 'null'::jsonb), true);
     xyz := jsonb_set(xyz, '{"puuid"}', xyz->'uuid', true);
     xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
     xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
@@ -622,142 +627,78 @@ AS $BODY$
 DECLARE
     sql text;
 BEGIN
-    sql := format('CREATE TABLE IF NOT EXISTS %I ('
-               || 'jsondata   JSONB'
-               || ',geo       GEOMETRY(GeometryZ, 4326) '
-               || ',i         int8 PRIMARY KEY NOT NULL)',
-               _table);
-    --RAISE NOTICE '%', sql;
+    sql = format('CREATE TABLE IF NOT EXISTS %I ('
+              || 'jsondata   JSONB'
+              || ',geo       GEOMETRY(GeometryZ, 4326) '
+              || ',i         int8 PRIMARY KEY NOT NULL)',
+              _table);
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 
     -- Primary index to avoid that two features with the same "id" are created.
-    EXECUTE format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I '
-                || 'USING btree (jsondata->>''id'') DESC) '
-                || 'WITH (fillfactor=50)',
-                   format('%s_id_idx', _table), _table);
-
-    -- Index to search for one specific feature by its state UUID.
-    EXECUTE format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I '
-                || 'USING btree ((jsondata->>''properties''->''@ns:com:here:xyz''->>''uuid'') ASC) '
-                || 'WITH (fillfactor=50)',
-                   format('%s_uuid_idx', _table), _table);
-
-    -- Index to search for features by geometry.
-    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I '
-                || 'USING gist (geo) '
-                || 'WITH (buffering=ON,fillfactor=50)',
-                   format('%s_geo_idx', _table), _table);
-
-    -- Index to search for features that have been part of a certain transaction, using "i" for paging.
-    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I '
-                || 'USING btree ((jsondata->>''properties''->''@ns:com:here:xyz''->>''txn'') ASC, i DESC) '
-                || 'WITH (fillfactor=50)',
-                   format('%s_txn_idx', _table), _table);
-
-    -- Index to search for features that have been created within a certain time window, using "i" for paging.
-    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I '
-                || 'USING btree ((jsondata->>''properties''->''@ns:com:here:xyz''->>''createdAt'') DESC, i DESC) '
-                || 'WITH (fillfactor=50)',
-                   format('%s_createdAt_idx', _table), _table);
-
-    -- Index to search for features that have been updated within a certain time window, using "i" for paging.
-    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I '
-                || 'USING btree ((jsondata->>''properties''->''@ns:com:here:xyz''->>''updatedAt'') DESC, i DESC) '
-                || 'WITH (fillfactor=50)',
-                   format('%s_updatedAt_idx', _table), _table);
-
-    -- Index to search what a user has updated (newest first), results order descending by update-time, id and version.
-    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I '
-                || 'USING btree ((jsondata->>''properties''->''@ns:com:here:xyz''->>''lastUpdatedBy'') DESC, '
-                || '             (jsondata->>''properties''->''@ns:com:here:xyz''->>''updatedAt'') DESC) '
-                || '             (jsondata->>''id'') DESC) '
-                || '             (jsondata->>''properties''->''@ns:com:here:xyz''->>''version'')::int8 DESC) '
-                || 'WITH (fillfactor=50)',
-                   format('%s_lastUpdatedBy_idx', _table), _table);
-END
-$BODY$;
-
--- __naksha_collection_maintain(name text)
--- naksha_collection_get_all()
--- naksha_collection_get(name text)
--- naksha_collection_upsert(name text, max_age int)
--- naksha_collection_delete(name text, at timestamptz)
--- naksha_collection_history(name text)
--- naksha_collection_enable_history(name text)
--- naksha_collection_disable_history(name text)
-
-CREATE OR REPLACE FUNCTION naksha_table_ensure(_schema text, _table text)
-    RETURNS void
-    LANGUAGE 'plpgsql' VOLATILE
-AS $BODY$
-DECLARE
-    full_name text;
-    trigger_name text;
-    sql text;
-BEGIN
-    PERFORM __naksha_create_table(_table);
-
-    sql := format('CREATE SEQUENCE IF NOT EXISTS %I.%I AS int8 OWNED BY %I.i', _schema, format('%s_i_seq', _table), _table);
-    --RAISE NOTICE '%', sql;
+    sql = format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I '
+              || 'USING btree ((jsondata->>''id'') DESC) '
+              || 'WITH (fillfactor=50)',
+                 format('%s_id_idx', _table), _table);
+    RAISE NOTICE '%', sql;
     EXECUTE sql;
 
-    PERFORM __naksha_create_table(_schema, format('%s_del', _table));
+    -- Index to search for one specific feature by its state UUID.
+    sql = format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I '
+              || 'USING btree ((jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'') ASC) '
+              || 'WITH (fillfactor=50)',
+                 format('%s_uuid_idx', _table), _table);
+    RAISE NOTICE '%', sql;
+    EXECUTE sql;
 
-    -- Update the XYZ namespace in jsondata.
-    trigger_name := format('%s_fix_jsondata', _table);
-    full_name := format('%I.%I', _schema, _table);
-    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = full_name::regclass and tgname = trigger_name) THEN
-        sql := format('CREATE TRIGGER %I '
-                   || 'BEFORE INSERT OR UPDATE ON %I.%I '
-                   || 'FOR EACH ROW EXECUTE FUNCTION naksha_trigger_fix_jsondata();',
-                      trigger_name, _schema, _table);
-        --RAISE NOTICE '%', sql;
-        EXECUTE sql;
-    END IF;
+    -- Index to search for features by geometry.
+    sql = format('CREATE INDEX IF NOT EXISTS %I ON %I '
+              || 'USING gist (geo) '
+              || 'WITH (buffering=ON,fillfactor=50)',
+                 format('%s_geo_idx', _table), _table);
+    RAISE NOTICE '%', sql;
+    EXECUTE sql;
 
-    -- Update the transaction table.
-    trigger_name := format('%s_write_tx', _table);
-    full_name := format('%I.%I', _schema, _table);
-    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = full_name::regclass and tgname = trigger_name) THEN
-        sql := format('CREATE TRIGGER %I '
-                   || 'AFTER INSERT OR UPDATE OR DELETE ON %I.%I '
-                   || 'FOR EACH ROW EXECUTE FUNCTION naksha_trigger_write_tx();',
-                      trigger_name, _schema, _table);
-        --RAISE NOTICE '%', sql;
-        EXECUTE sql;
-    END IF;
-END
-$BODY$;
+    -- Index to search for features that have been part of a certain transaction, using "i" for paging.
+    sql = format('CREATE INDEX IF NOT EXISTS %I ON %I '
+              || 'USING btree ((jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') ASC, i DESC) '
+              || 'WITH (fillfactor=50)',
+                 format('%s_txn_i_idx', _table), _table);
+    RAISE NOTICE '%', sql;
+    EXECUTE sql;
 
--- Ensures that the given schema and table exist as storage location for a space, including the
--- needed history tables and partitions.
--- This method does NOT enable the history, this has to be done as an own action.
-CREATE OR REPLACE FUNCTION naksha_table_ensure_with_history(_schema text, _table text)
-    RETURNS void
-    LANGUAGE 'plpgsql' VOLATILE
-AS $BODY$
-DECLARE
-    TABLE_NAME_HST text;
-    ts timestamptz;
-BEGIN
-    PERFORM naksha_table_ensure(_schema, _table);
-    TABLE_NAME_HST := format('%s_hst', _table);
-    EXECUTE format('CREATE TABLE IF NOT EXISTS %I.%I '
-                || '(jsondata jsonb, geo geometry(GeometryZ, 4326), i int8 NOT NULL) '
-                || 'PARTITION BY RANGE (naksha_json_txn_ts(jsondata))',
-                   _schema, TABLE_NAME_HST);
+    -- Index to search for features that have been created within a certain time window, using "i" for paging.
+    sql = format('CREATE INDEX IF NOT EXISTS %I ON %I '
+              || 'USING btree ((jsondata->''properties''->''@ns:com:here:xyz''->>''createdAt'') DESC, i DESC) '
+              || 'WITH (fillfactor=50)',
+                 format('%s_createdAt_i_idx', _table), _table);
+    RAISE NOTICE '%', sql;
+    EXECUTE sql;
 
-    -- We rather use the start of the transaction to ensure that every query works.
-    --ts = clock_timestamp();
-    ts = current_timestamp;
-    PERFORM __naksha_create_history_partition_for_day(_schema, _table, ts);
-    PERFORM __naksha_create_history_partition_for_day(_schema, _table, ts + '1 day'::interval);
-    PERFORM __naksha_create_history_partition_for_day(_schema, _table, ts + '2 day'::interval);
+    -- Index to search for features that have been updated within a certain time window, using "i" for paging.
+    sql = format('CREATE INDEX IF NOT EXISTS %I ON %I '
+              || 'USING btree ((jsondata->''properties''->''@ns:com:here:xyz''->>''updatedAt'') DESC, i DESC) '
+              || 'WITH (fillfactor=50)',
+                 format('%s_updatedAt_i_idx', _table), _table);
+    RAISE NOTICE '%', sql;
+    EXECUTE sql;
+
+    -- Index to search what a user has updated (newest first), results order descending by update-time, id and version.
+    sql = format('CREATE INDEX IF NOT EXISTS %I ON %I '
+              || 'USING btree ('
+              || '   (jsondata->''properties''->''@ns:com:here:xyz''->>''lastUpdatedBy'') DESC '
+              || '  ,((jsondata->''properties''->''@ns:com:here:xyz''->>''updatedAt'')::int8) DESC '
+              || '  ,(jsondata->>''id'') DESC '
+              || '  ,((jsondata->''properties''->''@ns:com:here:xyz''->>''version'')::int8) DESC '
+              || ') WITH (fillfactor=50)',
+                 format('%s_lastUpdatedBy_idx', _table), _table);
+    RAISE NOTICE '%', sql;
+    EXECUTE sql;
 END
 $BODY$;
 
 -- Ensure that the partition for the given day exists.
-CREATE OR REPLACE FUNCTION __naksha_create_history_partition_for_day(_schema text, _table text, from_ts timestamptz)
+CREATE OR REPLACE FUNCTION __naksha_create_history_partition_for_day(collection text, from_ts timestamptz)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
@@ -772,13 +713,12 @@ BEGIN
     from_day := to_char(from_ts, 'YYYY_MM_DD');
     to_ts := from_ts + '1 day'::interval;
     to_day := to_char(to_ts, 'YYYY_MM_DD');
-    hst_name := format('%s_hst', _table);
-    hst_part_name := format('%s_hst_%s', _table, from_day); -- example: foo_hst_2023_03_01
+    hst_name := format('%s_hst', collection);
+    hst_part_name := format('%s_hst_%s', collection, from_day); -- example: foo_hst_2023_03_01
 
-    sql := format('CREATE TABLE IF NOT EXISTS %I.%I PARTITION OF %I.%I '
+    sql := format('CREATE TABLE IF NOT EXISTS %I PARTITION OF %I '
                || 'FOR VALUES FROM (%L::timestamptz) TO (%L::timestamptz);',
-                  _schema, hst_part_name, _schema, hst_name,
-                  from_day, to_day);
+                  hst_part_name, hst_name, from_day, to_day);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
@@ -787,71 +727,181 @@ BEGIN
     --       when doing bulk loads, because we may have more page splits.
     -- Therefore: Disable history for bulk loads by removing the triggers!
 
-    -- Indices with important constrains.
-    sql := format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I.%I '
-               || 'USING btree (naksha_json_uuid(jsondata) DESC) '
-               || 'INCLUDE (i) '
-               || 'WITH (fillfactor=90) ',
-                  format('%s_uuid_idx', hst_part_name), _schema, hst_part_name);
+    sql := format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I '
+               || 'USING btree ('
+               || '  (jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'') DESC '
+               || ') WITH (fillfactor=90) ',
+                  format('%s_uuid_idx', hst_part_name), hst_part_name);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
-    -- Indices that can be delayed in creation.
-    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-               || 'USING btree (naksha_json_id(jsondata) ASC) '
-               || 'INCLUDE (i) '
-               || 'WITH (fillfactor=90) ',
-                  format('%s_id_idx', hst_part_name), _schema, hst_part_name);
+    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+               || 'USING btree ('
+               || '  (jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') DESC '
+               || '  ,(jsondata->''id'') DESC '
+               || ') WITH (fillfactor=90) ',
+                  format('%s_txn_id_idx', hst_part_name), hst_part_name);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
-    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-               || 'USING gist (geo, naksha_json_id(jsondata), naksha_json_version(jsondata)) '
-               || 'INCLUDE (i) '
-               || 'WITH (buffering=ON,fillfactor=90) ',
-                  format('%s_geo_idx', hst_part_name), _schema, hst_part_name);
+    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+               || 'USING btree ('
+               || '  (jsondata->''id'') DESC '
+               || '  ,(jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') DESC'
+               || ') WITH (fillfactor=90) ',
+                  format('%s_id_txn_idx', hst_part_name), hst_part_name);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
-    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-               || 'USING btree (naksha_json_txn(jsondata) DESC) '
-               || 'INCLUDE (i) '
-               || 'WITH (fillfactor=90) ',
-                  format('%s_txn_idx', hst_part_name), _schema, hst_part_name);
+    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+               || 'USING gist ('
+               || '  geo '
+               || '  ,(jsondata->>''id'')'
+               || '  ,(jsondata->''properties''->''@ns:com:here:xyz''->>''txn'')'
+               || ') WITH (buffering=ON,fillfactor=90) ',
+                  format('%s_geo_id_txn_idx', hst_part_name), hst_part_name);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
-    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-               || 'USING btree (naksha_json_createdAt(jsondata) DESC) '
-               || 'INCLUDE (i) '
-               || 'WITH (fillfactor=90) ',
-                  format('%s_createdAt_idx', hst_part_name), _schema, hst_part_name);
+    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+               || 'USING btree ('
+               || '  ((jsondata->''properties''->''@ns:com:here:xyz''->>''updatedAt'')::int8) DESC'
+               || ') WITH (fillfactor=90) ',
+                  format('%s_updatedAt_idx', hst_part_name), hst_part_name);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
-    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-               || 'USING btree (naksha_json_updatedAt(jsondata) DESC) '
-               || 'INCLUDE (i) '
-               || 'WITH (fillfactor=90) ',
-                  format('%s_updatedAt_idx', hst_part_name), _schema, hst_part_name);
-    --RAISE NOTICE '%', sql;
-    EXECUTE sql;
-
-    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I.%I '
-               || 'USING btree (naksha_json_lastUpdatedBy(jsondata) ASC, '
-               ||              'naksha_json_id(jsondata) ASC, '
-               ||              'naksha_json_version(jsondata) DESC) '
-               || 'INCLUDE (i) '
-               || 'WITH (fillfactor=90) ',
-                  format('%s_lastUpdatedBy_idx', hst_part_name), _schema, hst_part_name);
+    sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+               || 'USING btree ('
+               || '  (jsondata->''properties''->''@ns:com:here:xyz''->>''lastUpdatedBy'') DESC'
+               || '  ,(jsondata->''id'') DESC'
+               || '  ,(jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') DESC '
+               || ') WITH (fillfactor=90) ',
+                  format('%s_lastUpdatedBy_id_txn_idx', hst_part_name), hst_part_name);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
 END
 $BODY$;
 
+-- naksha_collection_maintain(name text)
+-- naksha_collection_maintain_all()
+-- naksha_collection_get_all() -> return all states
+-- naksha_collection_get(name text) -> return state
+-- naksha_collection_delete_at(name text, ts timestamptz)
+-- naksha_collection_enable_history(name text)
+-- naksha_collection_disable_history(name text)
+-- naksha_collection_drop(name text)
+
+-- Create or update the collection, setting the maximum age of historic states and enable/disable history.
+CREATE OR REPLACE FUNCTION naksha_collection_upsert(collection text, max_age int4, enable_history bool)
+    RETURNS void
+    LANGUAGE 'plpgsql' VOLATILE
+AS $BODY$
+DECLARE
+    full_name text;
+    trigger_name text;
+    sql text;
+    ts timestamptz;
+    comment text;
+    h text;
+BEGIN
+    -- Create HEAD table
+    PERFORM __naksha_create_table(collection);
+    -- Create object_id sequence (i)
+    sql := format('CREATE SEQUENCE IF NOT EXISTS %I AS int8 OWNED BY %I.i', format('%s_i_seq', collection), collection);
+    --RAISE NOTICE '%', sql;
+    EXECUTE sql;
+
+    -- Create the deletion table, to keep track of deleted objects.
+    PERFORM __naksha_create_table(format('%s_del', collection));
+
+    -- Create the history table
+    sql = format('CREATE TABLE IF NOT EXISTS %I '
+              || '(jsondata jsonb, geo geometry(GeometryZ, 4326), i int8 NOT NULL) '
+              || 'PARTITION BY RANGE ('
+              || '  naksha_uuid_bytes_get_ts(naksha_uuid_to_bytes((jsondata->''properties''->''@ns:com:here:xyz''->>''txn'')::uuid))'
+              || ')', format('%s_hst', collection));
+    --RAISE NOTICE '%', sql;
+    EXECUTE sql;
+
+    -- Add the comment to the HEAD table.
+    IF enable_history THEN
+        h = 'true';
+    ELSE
+        h = 'false';
+    END IF;
+    comment = format('{"id":%s, "number":%s, "maxAge":%s, "history":%s, "deletedAt":%s}',
+        (to_json(collection))::text, naksha_storage_id(), max_age, h, 0
+    );
+    sql = format('COMMENT ON TABLE %I IS %L;', collection, comment);
+    --RAISE NOTICE '%', sql;
+    EXECUTE sql;
+
+    -- Create the first three days of history
+    ts = current_timestamp;
+    PERFORM __naksha_create_history_partition_for_day(collection, ts);
+    PERFORM __naksha_create_history_partition_for_day(collection, ts + '1 day'::interval);
+    PERFORM __naksha_create_history_partition_for_day(collection, ts + '2 day'::interval);
+
+    -- Update the XYZ namespace in jsondata.
+    trigger_name := format('%s_fix_ns_xyz', collection);
+    full_name := format('%I', collection);
+    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = full_name::regclass and tgname = trigger_name) THEN
+        sql := format('CREATE TRIGGER %I '
+                   || 'BEFORE INSERT OR UPDATE ON %I '
+                   || 'FOR EACH ROW EXECUTE FUNCTION __naksha_trigger_fix_ns_xyz();',
+                      trigger_name, collection);
+        --RAISE NOTICE '%', sql;
+        EXECUTE sql;
+    END IF;
+
+    -- Update the transaction table.
+    trigger_name := format('%s_write_tx', collection);
+    full_name := format('%I', collection);
+    IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = full_name::regclass and tgname = trigger_name) THEN
+        sql := format('CREATE TRIGGER %I '
+                   || 'AFTER INSERT OR UPDATE OR DELETE ON %I '
+                   || 'FOR EACH ROW EXECUTE FUNCTION naksha_trigger_write_tx();',
+                      trigger_name, collection);
+        --RAISE NOTICE '%', sql;
+        EXECUTE sql;
+    END IF;
+
+    IF enable_history THEN
+        PERFORM naksha_collection_enable_history(collection);
+    END IF;
+END
+$BODY$;
+
+-- Returns the information about the collection.
+CREATE OR REPLACE FUNCTION naksha_collection_get(collection text)
+    RETURNS jsonb
+    LANGUAGE 'plpgsql' IMMUTABLE
+AS
+$BODY$
+BEGIN
+    RETURN (obj_description(collection::regclass, 'pg_class'))::jsonb;
+END
+$BODY$;
+
+-- Returns the information about the collection.
+CREATE OR REPLACE FUNCTION naksha_collection_get_all()
+    RETURNS TABLE (id text, jsondata jsonb)
+    LANGUAGE 'plpgsql' IMMUTABLE
+AS
+$BODY$
+BEGIN
+    RETURN QUERY
+    SELECT (oid::regclass)::text AS "id", obj_description(oid)::jsonb AS "jsondata"
+    FROM pg_class
+    WHERE relkind='r'
+    AND obj_description(oid) IS NOT NULL
+    AND obj_description(oid) LIKE ('{"id":"'||oid::regclass||'%');
+END
+$BODY$;
 
 -- Enable the history by adding the triggers to the main table.
-CREATE OR REPLACE FUNCTION naksha_table_enable_history(_schema text, _table text)
+CREATE OR REPLACE FUNCTION naksha_collection_enable_history(collection text)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
@@ -860,28 +910,28 @@ DECLARE
     full_name text;
     sql text;
 BEGIN
-    trigger_name := format('%s_write_hst', _table);
-    full_name := format('%I.%I', _schema, _table);
+    trigger_name := format('%s_write_hst', collection);
+    full_name := format('%I', collection);
     IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = full_name::regclass and tgname = trigger_name) THEN
         sql := format('CREATE TRIGGER %I '
-                   || 'AFTER INSERT OR UPDATE OR DELETE ON %I.%I '
-                   || 'FOR EACH ROW EXECUTE FUNCTION naksha_trigger_write_hst();',
-                      trigger_name, _schema, _table);
+                   || 'AFTER INSERT OR UPDATE OR DELETE ON %I '
+                   || 'FOR EACH ROW EXECUTE FUNCTION __naksha_trigger_write_hst();',
+                      trigger_name, collection);
         EXECUTE sql;
     END IF;
 END
 $BODY$;
 
 -- Disable the history by dropping the triggers from the main table.
-CREATE OR REPLACE FUNCTION naksha_table_disable_history(_schema text, _table text)
+CREATE OR REPLACE FUNCTION naksha_collection_disable_history(collection text)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
     trigger_name text;
 BEGIN
-    trigger_name := format('%s_write_hst', _table);
-    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I.%I', trigger_name, _schema, _table);
+    trigger_name := format('%s_write_hst', collection);
+    EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, collection);
 END
 $BODY$;
 
@@ -1045,7 +1095,7 @@ BEGIN
 END
 $BODY$;
 
--- Set the message with the given identifier
+-- Set a transaction message.
 CREATE OR REPLACE FUNCTION naksha_tx_set_msg(id text, msg text)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
@@ -1055,6 +1105,7 @@ BEGIN
 END
 $BODY$;
 
+-- Set a transaction message, optionally with a json and attachment.
 CREATE OR REPLACE FUNCTION naksha_tx_set_msg(id text, msg text, json jsonb, attachment jsonb)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
@@ -1102,7 +1153,7 @@ BEGIN
     CREATE SEQUENCE IF NOT EXISTS naksha_tx_object_id_seq AS int8;
 
     -- PRIMARY UNIQUE INDEX to search for transactions by transaction number.
-    CREATE UNIQUE INDEX IF NOT EXISTS naksha_tx_primary_idx
+    CREATE UNIQUE INDEX IF NOT EXISTS naksha_tx_txn_action_id_idx
     ON naksha_tx USING btree ("txn" ASC, "action" ASC, "id" ASC);
 
     -- INDEX to search for transactions by time.
