@@ -32,10 +32,13 @@ public class ExportValidator extends Validator{
         setJobDefaults(job);
 
         if(job.getExportTarget() != null && job.getExportTarget().getType().equals(Export.ExportTarget.Type.VML)){
-            job.setCsvFormat(Job.CSVFormat.TILEID_FC_B64);
+            
+           if( job.getCsvFormat() != null && job.getCsvFormat().equals(Job.CSVFormat.FEATUREID_FC_B64) ) return;
 
-            if(job.getMaxTilesPerFile() == 0)
-                job.setMaxTilesPerFile(ExportValidator.VML_EXPORT_MAX_TILES_PER_FILE);
+           job.setCsvFormat(Job.CSVFormat.TILEID_FC_B64);
+
+           if(job.getMaxTilesPerFile() == 0)
+            job.setMaxTilesPerFile(ExportValidator.VML_EXPORT_MAX_TILES_PER_FILE);
         }
     }
 
@@ -46,20 +49,33 @@ public class ExportValidator extends Validator{
             throw new Exception("Please specify exportTarget!");
 
         if(job.getExportTarget().getType().equals(Export.ExportTarget.Type.VML)){
-            if(!job.getCsvFormat().equals(Job.CSVFormat.TILEID_FC_B64))
-                throw new Exception("Invalid Format! Allowed ["+ Job.CSVFormat.TILEID_FC_B64+"]");
+
+            switch(job.getCsvFormat())
+            { case TILEID_FC_B64 : 
+              case FEATUREID_FC_B64 : break;
+              default: throw new Exception("Invalid Format! Allowed ["+ Job.CSVFormat.TILEID_FC_B64+ "," + Job.CSVFormat.FEATUREID_FC_B64 +"]");
+            }
 
             if(job.getExportTarget().getTargetId() == null)
                 throw new Exception("Please specify the targetId!");
 
-            if(job.getTargetLevel() == null)
-                throw new Exception("Please specify targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
+            if( !job.getCsvFormat().equals(Job.CSVFormat.FEATUREID_FC_B64) )
+            {   
+             if( job.getTargetLevel() == null )
+                 throw new Exception("Please specify targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
 
-            if(job.getTargetLevel() < ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL || job.getTargetLevel() > ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL)
+             if(job.getTargetLevel() < ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL || job.getTargetLevel() > ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL)
                 throw new Exception("Invalid targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
+            }
+
         }else if(job.getExportTarget().getType().equals(Export.ExportTarget.Type.DOWNLOAD)){
-            if(job.getCsvFormat().equals(Job.CSVFormat.TILEID_FC_B64))
-                throw new Exception("Invalid Format! Allowed ["+ Job.CSVFormat.JSON_WKB +","+ Job.CSVFormat.GEOJSON +"]");
+
+            switch(job.getCsvFormat())
+            { case JSON_WKB : 
+              case GEOJSON : break;
+              default: throw new Exception("Invalid Format! Allowed ["+ Job.CSVFormat.JSON_WKB +","+ Job.CSVFormat.GEOJSON +"]");
+            }
+                
         }
 
         Export.Filters filters = job.getFilters();
