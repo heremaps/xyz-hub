@@ -59,7 +59,7 @@ public class PsqlStorage implements IStorage {
     final PsqlStorageProperties properties =
         JsonSerializable.convert(storage.getProperties(), PsqlStorageProperties.class);
     this.dataSource = new PsqlDataSource(properties.config);
-    this.storageNumber = storage.number;
+    this.storageNumber = storage.getNumber();
     init();
   }
 
@@ -234,7 +234,6 @@ public class PsqlStorage implements IStorage {
    */
   void init() throws SQLException, IOException {
     String SQL;
-    final StringBuilder sb = new StringBuilder();
     try (final Connection conn = dataSource.getConnection()) {
       try (final Statement stmt = conn.createStatement()) {
         long version = 0L;
@@ -267,14 +266,13 @@ public class PsqlStorage implements IStorage {
           // Re-Initialize the connection.
           // This ensures that we really have the schema at the end of the search path and therefore selected.
           dataSource.initConnection(conn);
-
           if (version == 0L) {
             stmt.execute("SELECT naksha_init();");
           }
           conn.commit();
+          //      setupH3();
         }
       }
-      //      setupH3();
     }
   }
 

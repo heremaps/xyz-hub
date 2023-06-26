@@ -19,8 +19,8 @@
 package com.here.naksha.lib.psql;
 
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IMasterTransaction;
 import java.sql.SQLException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -40,39 +40,39 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
   }
 
   @Override
-  public @NotNull StorageCollection createCollection(@NotNull StorageCollection collection) throws SQLException {
+  public @NotNull CollectionInfo createCollection(@NotNull CollectionInfo collection) throws SQLException {
     throw new UnsupportedOperationException("createCollection");
   }
 
   @Override
-  public @NotNull StorageCollection updateCollection(@NotNull StorageCollection collection) throws SQLException {
+  public @NotNull CollectionInfo updateCollection(@NotNull CollectionInfo collection) throws SQLException {
     throw new UnsupportedOperationException("updateCollection");
   }
 
   @AvailableSince(INaksha.v2_0_0)
-  public @NotNull StorageCollection upsertCollection(@NotNull StorageCollection collection) throws SQLException {
+  public @NotNull CollectionInfo upsertCollection(@NotNull CollectionInfo collection) throws SQLException {
     throw new UnsupportedOperationException("updateCollection");
   }
 
   @Override
-  public @NotNull StorageCollection dropCollection(@NotNull StorageCollection collection, long deleteAt)
+  public @NotNull CollectionInfo dropCollection(@NotNull CollectionInfo collection, long deleteAt)
       throws SQLException {
     throw new UnsupportedOperationException("dropCollection");
   }
 
   @Override
-  public @NotNull StorageCollection enableHistory(@NotNull StorageCollection collection) throws SQLException {
+  public @NotNull CollectionInfo enableHistory(@NotNull CollectionInfo collection) throws SQLException {
     throw new UnsupportedOperationException("enableHistory");
   }
 
   @Override
-  public @NotNull StorageCollection disableHistory(@NotNull StorageCollection collection) throws SQLException {
+  public @NotNull CollectionInfo disableHistory(@NotNull CollectionInfo collection) throws SQLException {
     throw new UnsupportedOperationException("disableHistory");
   }
 
   @Override
   public @NotNull <F extends Feature> PsqlFeatureWriter<F> writeFeatures(
-      @NotNull Class<F> featureClass, @NotNull StorageCollection collection) {
+      @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) {
     // TODO: Optimize by tracking the write, no need to create a new instance for every call!
     return new PsqlFeatureWriter<>(this, featureClass, collection);
   }

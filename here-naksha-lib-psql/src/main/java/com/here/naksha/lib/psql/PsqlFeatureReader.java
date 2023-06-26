@@ -18,8 +18,8 @@
  */
 package com.here.naksha.lib.psql;
 
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IFeatureReader;
 import java.sql.SQLException;
 import java.util.List;
@@ -31,7 +31,7 @@ public class PsqlFeatureReader<FEATURE extends Feature> implements IFeatureReade
   PsqlFeatureReader(
       @NotNull PsqlTxReader storageReader,
       @NotNull Class<FEATURE> featureClass,
-      @NotNull StorageCollection collection) {
+      @NotNull CollectionInfo collection) {
     this.storageReader = storageReader;
     this.featureClass = featureClass;
     this.collection = collection;
@@ -39,7 +39,7 @@ public class PsqlFeatureReader<FEATURE extends Feature> implements IFeatureReade
 
   final @NotNull PsqlTxReader storageReader;
   final @NotNull Class<FEATURE> featureClass;
-  final @NotNull StorageCollection collection;
+  final @NotNull CollectionInfo collection;
 
   @Override
   public @Nullable FEATURE getFeatureById(@NotNull String id) {

@@ -19,7 +19,6 @@
 package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import java.util.Iterator;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -50,7 +49,7 @@ public interface IReadTransaction extends AutoCloseable {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  Iterator<@NotNull StorageCollection> iterateCollections() throws Exception;
+  Iterator<@NotNull CollectionInfo> iterateCollections() throws Exception;
 
   /**
    * Returns the collection with the given id.
@@ -61,7 +60,7 @@ public interface IReadTransaction extends AutoCloseable {
    */
   @AvailableSince(INaksha.v2_0_0)
   @Nullable
-  StorageCollection getCollectionById(@NotNull String id) throws Exception;
+  CollectionInfo getCollectionById(@NotNull String id) throws Exception;
 
   /**
    * Returns the reader for the given feature-type and collection.
@@ -73,5 +72,5 @@ public interface IReadTransaction extends AutoCloseable {
    * @throws Exception if access to the storage failed or any other error occurred.
    */
   <FEATURE extends Feature> @NotNull IFeatureReader<FEATURE> readFeatures(
-      @NotNull Class<FEATURE> featureClass, @NotNull StorageCollection collection) throws Exception;
+      @NotNull Class<FEATURE> featureClass, @NotNull CollectionInfo collection) throws Exception;
 }

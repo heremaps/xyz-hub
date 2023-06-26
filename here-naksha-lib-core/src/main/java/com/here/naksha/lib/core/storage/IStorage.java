@@ -20,7 +20,6 @@ package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import java.io.Closeable;
 import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
@@ -32,7 +31,7 @@ public interface IStorage extends Closeable {
 
   /**
    * Perform maintenance tasks, for example garbage collect features that are older than the set
-   * {@link StorageCollection#maxAge}. This task is at least called ones every 12 hours. It is
+   * {@link CollectionInfo#maxAge}. This task is at least called ones every 12 hours. It is
    * guaranteed that this is only executed on one Naksha instances at a given time, so there is no
    * concurrent execution.
    *

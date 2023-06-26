@@ -23,8 +23,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.naksha.lib.core.view.Member.Export;
-import com.here.naksha.lib.core.view.Member.Import.User;
+import com.here.naksha.lib.core.view.ViewMember.Export;
+import com.here.naksha.lib.core.view.ViewMember.Import.User;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -37,6 +37,7 @@ public class PsqlCollection {
   //       COMMENT ON TABLE test IS 'Some table';
   //       SELECT pg_catalog.obj_description('test'::regclass, 'pg_class');
   //       Comments can also be added on other objects, like columns, data types, functions, etc.
+  //       SELECT obj_description(oid) FROM pg_class WHERE relkind = 'r'
   // See:
   // https://stackoverflow.com/questions/17947274/is-it-possible-to-add-table-metadata-in-postgresql
 

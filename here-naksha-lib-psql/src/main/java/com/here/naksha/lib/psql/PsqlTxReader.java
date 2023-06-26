@@ -20,8 +20,8 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IReadTransaction;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -87,18 +87,18 @@ public class PsqlTxReader implements IReadTransaction {
   }
 
   @Override
-  public @NotNull Iterator<@NotNull StorageCollection> iterateCollections() throws SQLException {
+  public @NotNull Iterator<@NotNull CollectionInfo> iterateCollections() throws SQLException {
     throw new UnsupportedOperationException("getAllCollections");
   }
 
   @Override
-  public @Nullable StorageCollection getCollectionById(@NotNull String id) throws SQLException {
+  public @Nullable CollectionInfo getCollectionById(@NotNull String id) throws SQLException {
     throw new UnsupportedOperationException("getCollectionById");
   }
 
   @Override
   public @NotNull <F extends Feature> PsqlFeatureReader<F> readFeatures(
-      @NotNull Class<F> featureClass, @NotNull StorageCollection collection) {
+      @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) {
     // TODO: Optimize by tracking the read, no need to create a new instance for every call!
     return new PsqlFeatureReader<>(this, featureClass, collection);
   }

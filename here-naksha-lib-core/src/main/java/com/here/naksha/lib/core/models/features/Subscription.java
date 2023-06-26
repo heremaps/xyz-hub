@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.PipelineComponent;
-import com.here.naksha.lib.core.view.Member.Manager;
+import com.here.naksha.lib.core.view.ViewMember.Manager;
 import java.util.List;
 import java.util.Map;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;

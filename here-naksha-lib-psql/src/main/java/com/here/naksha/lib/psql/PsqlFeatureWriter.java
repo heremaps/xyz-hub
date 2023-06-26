@@ -18,8 +18,8 @@
  */
 package com.here.naksha.lib.psql;
 
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IFeatureWriter;
 import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
@@ -32,7 +32,7 @@ public class PsqlFeatureWriter<FEATURE extends Feature> extends PsqlFeatureReade
   PsqlFeatureWriter(
       @NotNull PsqlTxWriter storageWriter,
       @NotNull Class<FEATURE> featureClass,
-      @NotNull StorageCollection collection) {
+      @NotNull CollectionInfo collection) {
     super(storageWriter, featureClass, collection);
     this.storageWriter = storageWriter;
     assert this.storageReader == this.storageWriter;

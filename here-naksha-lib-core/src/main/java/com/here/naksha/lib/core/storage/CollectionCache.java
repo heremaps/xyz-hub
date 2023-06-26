@@ -18,7 +18,6 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import org.jetbrains.annotations.NotNull;
 
@@ -35,7 +34,7 @@ public abstract class CollectionCache<FEATURE extends Feature> {
    *
    * @return the collection this caches operates on.
    */
-  public abstract @NotNull StorageCollection collection();
+  public abstract @NotNull CollectionInfo collection();
 
   /**
    * Returns the feature reader for this collection.

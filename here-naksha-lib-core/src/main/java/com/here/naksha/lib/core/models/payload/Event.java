@@ -52,7 +52,7 @@ import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.core.view.Member;
+import com.here.naksha.lib.core.view.ViewMember;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -197,7 +197,7 @@ public class Event extends Payload {
    * This is a special member that is only used for internal communication, it will not be part of the storage nor of the external REST API,
    * it is only used by the extension-handler and by the lib-extension.
    */
-  @JsonView({Member.Export.Internal.class, Member.Import.Internal.class})
+  @JsonView({ViewMember.Export.Internal.class, ViewMember.Import.Internal.class})
   @JsonProperty
   private @Nullable Connector connector;
 

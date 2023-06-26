@@ -33,7 +33,7 @@ import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.core.view.Serialize;
+import com.here.naksha.lib.core.view.ViewSerialize;
 import com.here.naksha.lib.extension.MockHttpServer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -88,7 +88,7 @@ class HttpHandlerTest {
     ids.add("b");
     event.setIds(ids);
     final ByteArrayOutputStream out = new ByteArrayOutputStream();
-    eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray(Serialize.Internal.class)), out);
+    eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray(ViewSerialize.Internal.class)), out);
     final XyzResponse response = JsonSerializable.deserialize(out.toByteArray(), XyzResponse.class);
     assertNotNull(response);
     final ErrorResponse errorResponse = assertInstanceOf(ErrorResponse.class, response);
@@ -100,7 +100,7 @@ class HttpHandlerTest {
     final HealthCheckEvent event = new HealthCheckEvent();
     event.setSpace(new Space("ASpaceThatShouldNotExistBecauseWeAreTesting"));
     final ByteArrayOutputStream out = new ByteArrayOutputStream();
-    eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray(Serialize.Internal.class)), out);
+    eventPipeline.sendEvent(new ByteArrayInputStream(event.toByteArray(ViewSerialize.Internal.class)), out);
     //    eventPipeline.sendEvent(IoHelp.openResource("testevent.json"), out);
     final XyzResponse response = JsonSerializable.deserialize(out.toByteArray(), XyzResponse.class);
     assertNotNull(response);

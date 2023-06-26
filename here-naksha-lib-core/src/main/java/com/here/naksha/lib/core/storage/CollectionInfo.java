@@ -16,18 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.models.features;
-
-import static com.here.naksha.lib.core.models.features.Storage.NUMBER;
+package com.here.naksha.lib.core.storage;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.storage.CollectionInfo;
+import com.here.naksha.lib.core.models.features.Storage;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -35,18 +32,23 @@ import org.jetbrains.annotations.NotNull;
  * A collection is a virtual container for features, managed by a {@link Storage}. All collections optionally have a history and transaction
  * log.
  */
-@JsonTypeName(value = "CollectionList")
 @AvailableSince(INaksha.v2_0_3)
-public class StorageCollection extends Feature {
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class CollectionInfo {
+
+  // Note: Meta information attached JSON serialized to collection tables in PostgresQL.
+  //       COMMENT ON TABLE test IS 'Some table';
+  //       SELECT pg_catalog.obj_description('test'::regclass, 'pg_class');
+  //       Comments can also be added on other objects, like columns, data types, functions, etc.
+  //       SELECT obj_description(oid) FROM pg_class WHERE relkind = 'r'
+  // See:
+  // https://stackoverflow.com/questions/17947274/is-it-possible-to-add-table-metadata-in-postgresql
 
   @AvailableSince(INaksha.v2_0_0)
-  public static final String MAX_AGE = "maxAge";
+  public static final String ID = "id";
 
   @AvailableSince(INaksha.v2_0_0)
-  public static final String HISTORY = "history";
-
-  @AvailableSince(INaksha.v2_0_0)
-  public static final String DELETED_AT = "deleted";
+  public static final String NUMBER = "number";
 
   /**
    * Create a new empty collection.
@@ -57,27 +59,20 @@ public class StorageCollection extends Feature {
    */
   @AvailableSince(INaksha.v2_0_0)
   @JsonCreator
-  public StorageCollection(@JsonProperty(ID) @NotNull String id, @JsonProperty(NUMBER) long number) {
-    super(id);
+  public CollectionInfo(@JsonProperty(ID) @NotNull String id, @JsonProperty(NUMBER) long number) {
+    this.id = id;
     this.number = number;
   }
 
   /**
-   * Constructor to wrap a collection information as returned by a storage into an feature.
-   *
-   * @param info the collection information.
+   * The identifier of the collection.
    */
   @AvailableSince(INaksha.v2_0_3)
-  public StorageCollection(@NotNull CollectionInfo info) {
-    super(info.getId());
-    this.number = info.getNumber();
-    this.history = info.getHistory();
-    this.deletedAt = info.getDeletedAt();
-    this.maxAge = info.getMaxAge();
-  }
+  @JsonProperty(ID)
+  private @NotNull String id;
 
   /**
-   * The unique storage identifier, being a 40-bit unsigned integer.
+   * The unique storage identifier in which this collection is stored, being a 40-bit unsigned integer.
    */
   @AvailableSince(INaksha.v2_0_0)
   @JsonProperty(NUMBER)
@@ -87,14 +82,12 @@ public class StorageCollection extends Feature {
    * The maximum age of the history entries in days. Zero means no history, {@link Long#MAX_VALUE} means unlimited.
    */
   @AvailableSince(INaksha.v2_0_0)
-  @JsonProperty(MAX_AGE)
   private long maxAge = Long.MAX_VALUE;
 
   /**
    * Toggle if the history is enabled.
    */
   @AvailableSince(INaksha.v2_0_0)
-  @JsonProperty(HISTORY)
   private boolean history = Boolean.TRUE;
 
   /**
@@ -102,9 +95,26 @@ public class StorageCollection extends Feature {
    * milliseconds when the deletion has been done.
    */
   @AvailableSince(INaksha.v2_0_0)
-  @JsonProperty(DELETED_AT)
   @JsonInclude(Include.NON_DEFAULT)
   private long deletedAt = 0L;
+
+  /**
+   * Returns the collection identifier.
+   *
+   * @return the collection identifier.
+   */
+  public @NotNull String getId() {
+    return id;
+  }
+
+  /**
+   * Set the collection identifier.
+   *
+   * @param id the collection identifier to set.
+   */
+  public void setId(@NotNull String id) {
+    this.id = id;
+  }
 
   /**
    * Returns the storage number, a 40-bit unsigned integer.
@@ -113,6 +123,15 @@ public class StorageCollection extends Feature {
    */
   public long getNumber() {
     return number;
+  }
+
+  /**
+   * Set the storage number, a 40-bit unsigned integer normally only provided by the Naksha-Hub.
+   *
+   * @param number the storage number to set.
+   */
+  public void setNumber(long number) {
+    this.number = number;
   }
 
   /**
@@ -138,7 +157,7 @@ public class StorageCollection extends Feature {
    *
    * @return true if the history is currently enabled; false otherwise.
    */
-  public boolean isHistory() {
+  public boolean getHistory() {
     return history;
   }
 

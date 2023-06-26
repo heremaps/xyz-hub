@@ -25,7 +25,7 @@ import com.google.flatbuffers.FlatBufferBuilder;
 import com.here.naksha.lib.core.bin.ConnectorPayload;
 import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.view.Serialize;
+import com.here.naksha.lib.core.view.ViewSerialize;
 import java.nio.ByteBuffer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -88,7 +88,7 @@ public class BinaryResponse extends XyzResponse {
   }
 
   @Override
-  public byte @NotNull [] toByteArray(@Nullable Class<? extends Serialize> viewClass) {
+  public byte @NotNull [] toByteArray(@Nullable Class<? extends ViewSerialize> viewClass) {
     return toByteArray();
   }
 

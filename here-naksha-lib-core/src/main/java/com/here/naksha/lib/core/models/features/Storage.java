@@ -82,12 +82,12 @@ public class Storage extends Feature implements IPlugin<IStorage> {
   /** The unique storage number, being a 40-bit unsigned integer. */
   @AvailableSince(INaksha.v2_0_0)
   @JsonProperty(NUMBER)
-  public long number;
+  private long number;
 
   /** The classname to load. */
   @AvailableSince(INaksha.v2_0_0)
   @JsonProperty(CLASS_NAME)
-  public @NotNull String className;
+  private @NotNull String className;
 
   /**
    * Initialize the storage engine, invoked from the Naksha-Hub when creating a new instance of the
@@ -107,5 +107,21 @@ public class Storage extends Feature implements IPlugin<IStorage> {
       }
       throw ite;
     }
+  }
+
+  public long getNumber() {
+    return number;
+  }
+
+  public void setNumber(long number) {
+    this.number = number;
+  }
+
+  public String getClassName() {
+    return className;
+  }
+
+  public void setClassName(String className) {
+    this.className = className;
   }
 }

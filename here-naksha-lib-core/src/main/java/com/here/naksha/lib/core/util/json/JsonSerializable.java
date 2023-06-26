@@ -27,9 +27,9 @@ import com.here.naksha.lib.core.LazyParsableFeatureList.ProxyStringReader;
 import com.here.naksha.lib.core.exceptions.JsonProcessingFailed;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.view.Deserialize.All;
-import com.here.naksha.lib.core.view.Deserialize.User;
-import com.here.naksha.lib.core.view.Serialize;
+import com.here.naksha.lib.core.view.ViewDeserialize.All;
+import com.here.naksha.lib.core.view.ViewDeserialize.User;
+import com.here.naksha.lib.core.view.ViewSerialize;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Formatter;
@@ -57,7 +57,7 @@ public interface JsonSerializable {
 
   static <T extends Typed> String serialize(T object) {
     try (final Json json = Json.open()) {
-      return json.writer(Serialize.User.class, false).writeValueAsString(object);
+      return json.writer(ViewSerialize.User.class, false).writeValueAsString(object);
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
@@ -65,7 +65,7 @@ public interface JsonSerializable {
 
   static @NotNull String serialize(@Nullable Object object, @NotNull TypeReference<?> typeReference) {
     try (final Json json = Json.open()) {
-      return json.writer(Serialize.User.class, false)
+      return json.writer(ViewSerialize.User.class, false)
           .forType(typeReference)
           .writeValueAsString(object);
     } catch (JsonProcessingException e) {
@@ -150,7 +150,7 @@ public interface JsonSerializable {
       return null;
     }
     try (final Json json = Json.open()) {
-      final byte[] bytes = json.writer(Serialize.All.class, false)
+      final byte[] bytes = json.writer(ViewSerialize.All.class, false)
           .forType(object.getClass())
           .writeValueAsBytes(object);
       final Object clone =
@@ -174,7 +174,7 @@ public interface JsonSerializable {
     }
   }
 
-  default byte @NotNull [] toByteArray(@NotNull Class<? extends Serialize> viewClass) {
+  default byte @NotNull [] toByteArray(@NotNull Class<? extends ViewSerialize> viewClass) {
     try (final Json json = Json.open()) {
       return json.writer(viewClass).writeValueAsBytes(this);
     } catch (JsonProcessingException e) {
@@ -188,7 +188,7 @@ public interface JsonSerializable {
 
   default @NotNull String serialize(boolean pretty) {
     try (final Json json = Json.open()) {
-      return json.writer(Serialize.User.class, pretty).writeValueAsString(this);
+      return json.writer(ViewSerialize.User.class, pretty).writeValueAsString(this);
     } catch (JsonProcessingException e) {
       throw new JsonProcessingFailed(e);
     }

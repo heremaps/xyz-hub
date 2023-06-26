@@ -19,7 +19,6 @@
 package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import java.sql.SQLException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -54,7 +53,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  StorageCollection createCollection(@NotNull StorageCollection collection) throws Exception;
+  CollectionInfo createCollection(@NotNull CollectionInfo collection) throws Exception;
 
   /**
    * Update the collection.
@@ -65,7 +64,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  StorageCollection updateCollection(@NotNull StorageCollection collection) throws Exception;
+  CollectionInfo updateCollection(@NotNull CollectionInfo collection) throws Exception;
 
   /**
    * Update or insert the collection.
@@ -76,7 +75,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  StorageCollection upsertCollection(@NotNull StorageCollection collection) throws Exception;
+  CollectionInfo upsertCollection(@NotNull CollectionInfo collection) throws Exception;
 
   /**
    * Deletes the collection including the history.
@@ -89,7 +88,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  StorageCollection dropCollection(@NotNull StorageCollection collection, long deleteAt) throws Exception;
+  CollectionInfo dropCollection(@NotNull CollectionInfo collection, long deleteAt) throws Exception;
 
   /**
    * Enable the history for the given collection.
@@ -100,7 +99,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  StorageCollection enableHistory(@NotNull StorageCollection collection) throws Exception;
+  CollectionInfo enableHistory(@NotNull CollectionInfo collection) throws Exception;
 
   /**
    * Disable the history for the given collection.
@@ -111,7 +110,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  StorageCollection disableHistory(@NotNull StorageCollection collection) throws Exception;
+  CollectionInfo disableHistory(@NotNull CollectionInfo collection) throws Exception;
 
   /**
    * Returns the writer for the given feature-type and collection.
@@ -123,5 +122,5 @@ public interface IMasterTransaction extends IReadTransaction {
    * @throws Exception if access to the storage failed or any other error occurred.
    */
   <F extends Feature> @NotNull IFeatureWriter<F> writeFeatures(
-      @NotNull Class<F> featureClass, @NotNull StorageCollection collection) throws Exception;
+      @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) throws Exception;
 }

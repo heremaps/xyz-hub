@@ -23,9 +23,9 @@ import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.features.Storage;
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.features.Subscription;
 import com.here.naksha.lib.core.models.payload.Event;
+import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IFeatureReader;
 import com.here.naksha.lib.core.storage.IStorage;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,32 +50,32 @@ public interface INaksha {
     /**
      * The collections for all catalogs.
      */
-    public static final StorageCollection CATALOGS = new StorageCollection("naksha:catalogs", 0L);
+    public static final CollectionInfo CATALOGS = new CollectionInfo("naksha:catalogs", 0L);
 
     /**
      * The collections for all spaces.
      */
-    public static final StorageCollection SPACES = new StorageCollection("naksha:spaces", 0L);
+    public static final CollectionInfo SPACES = new CollectionInfo("naksha:spaces", 0L);
 
     /**
      * The collections for all subscriptions.
      */
-    public static final StorageCollection SUBSCRIPTIONS = new StorageCollection("naksha:subscriptions", 0L);
+    public static final CollectionInfo SUBSCRIPTIONS = new CollectionInfo("naksha:subscriptions", 0L);
 
     /**
      * The collections for all connectors.
      */
-    public static final StorageCollection CONNECTORS = new StorageCollection("naksha:connectors", 0L);
+    public static final CollectionInfo CONNECTORS = new CollectionInfo("naksha:connectors", 0L);
 
     /**
      * The collections for all storages.
      */
-    public static final StorageCollection STORAGES = new StorageCollection("naksha:storages", 0L);
+    public static final CollectionInfo STORAGES = new CollectionInfo("naksha:storages", 0L);
 
     /**
      * The collections for all extensions.
      */
-    public static final StorageCollection EXTENSIONS = new StorageCollection("naksha:extensions", 0L);
+    public static final CollectionInfo EXTENSIONS = new CollectionInfo("naksha:extensions", 0L);
   }
 
   /**

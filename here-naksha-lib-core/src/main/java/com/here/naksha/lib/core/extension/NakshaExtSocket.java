@@ -21,8 +21,8 @@ package com.here.naksha.lib.core.extension;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.util.json.Json;
-import com.here.naksha.lib.core.view.Deserialize;
-import com.here.naksha.lib.core.view.Serialize;
+import com.here.naksha.lib.core.view.ViewDeserialize;
+import com.here.naksha.lib.core.view.ViewSerialize;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -124,7 +124,7 @@ public class NakshaExtSocket implements AutoCloseable {
       isNew = false;
     }
     try (final Json json = Json.open()) {
-      return json.reader(Deserialize.Internal.class)
+      return json.reader(ViewDeserialize.Internal.class)
           .forType(ExtensionMessage.class)
           .readValue(in);
     }
@@ -140,7 +140,7 @@ public class NakshaExtSocket implements AutoCloseable {
       isNew = false;
     }
     try (final Json json = Json.open()) {
-      json.writer(Serialize.Internal.class).writeValue(out, msg);
+      json.writer(ViewSerialize.Internal.class).writeValue(out, msg);
       out.flush();
     }
   }

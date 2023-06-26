@@ -32,9 +32,9 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
-import com.here.naksha.lib.core.view.Deserialize;
-import com.here.naksha.lib.core.view.Deserialize.All;
-import com.here.naksha.lib.core.view.Serialize;
+import com.here.naksha.lib.core.view.ViewDeserialize;
+import com.here.naksha.lib.core.view.ViewDeserialize.All;
+import com.here.naksha.lib.core.view.ViewSerialize;
 import java.lang.ref.WeakReference;
 import java.util.Formatter;
 import java.util.HashMap;
@@ -92,7 +92,7 @@ public final class Json implements AutoCloseable {
         .configure(SerializationFeature.CLOSE_CLOSEABLE, false)
         .addModule(new JsonModule())
         .build();
-    this.serialize = Serialize.All.class;
+    this.serialize = ViewSerialize.All.class;
     this.deserialize = All.class;
   }
 
@@ -109,10 +109,10 @@ public final class Json implements AutoCloseable {
   final @NotNull ObjectMapper mapper;
 
   /** The serialization view to use. */
-  private @NotNull Class<? extends Serialize> serialize;
+  private @NotNull Class<? extends ViewSerialize> serialize;
 
   /** The deserialization view to use. */
-  private @NotNull Class<? extends Deserialize> deserialize;
+  private @NotNull Class<? extends ViewDeserialize> deserialize;
 
   /**
    * Return a new dedicated thread local Json parser instance. Can be used recursive.
@@ -190,9 +190,10 @@ public final class Json implements AutoCloseable {
   /** The currently used Json instance; if any. */
   private static final ThreadLocal<@Nullable Json> current = new ThreadLocal<>();
 
-  private final HashMap<@NotNull Class<? extends Deserialize>, @NotNull ObjectReader> readers = new HashMap<>();
-  private final HashMap<@NotNull Class<? extends Serialize>, @NotNull ObjectWriter> writers = new HashMap<>();
-  private final HashMap<@NotNull Class<? extends Serialize>, @NotNull ObjectWriter> pretty_writers = new HashMap<>();
+  private final HashMap<@NotNull Class<? extends ViewDeserialize>, @NotNull ObjectReader> readers = new HashMap<>();
+  private final HashMap<@NotNull Class<? extends ViewSerialize>, @NotNull ObjectWriter> writers = new HashMap<>();
+  private final HashMap<@NotNull Class<? extends ViewSerialize>, @NotNull ObjectWriter> pretty_writers =
+      new HashMap<>();
 
   // ------------------------------------------------------------------------------------------------------------------------------------
   // Standard API
@@ -215,7 +216,7 @@ public final class Json implements AutoCloseable {
    * @param view The view to read.
    * @return The reader for this view.
    */
-  public @NotNull ObjectReader reader(@NotNull Class<? extends Deserialize> view) {
+  public @NotNull ObjectReader reader(@NotNull Class<? extends ViewDeserialize> view) {
     ObjectReader reader = readers.get(view);
     if (reader == null) {
       reader = mapper.readerWithView(view);
@@ -230,7 +231,7 @@ public final class Json implements AutoCloseable {
    * @param view the view to write.
    * @return the writer for this view.
    */
-  public @NotNull ObjectWriter writer(@NotNull Class<? extends Serialize> view) {
+  public @NotNull ObjectWriter writer(@NotNull Class<? extends ViewSerialize> view) {
     return writer(view, false);
   }
 
@@ -242,7 +243,7 @@ public final class Json implements AutoCloseable {
    *     otherwise (compact machine optimized).
    * @return the writer for this view.
    */
-  public @NotNull ObjectWriter writer(@NotNull Class<? extends Serialize> view, boolean pretty) {
+  public @NotNull ObjectWriter writer(@NotNull Class<? extends ViewSerialize> view, boolean pretty) {
     ObjectWriter writer;
     if (DEBUG || pretty) {
       writer = pretty_writers.get(view);

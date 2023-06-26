@@ -40,12 +40,12 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
  * <p>
  * This will result in the property being part of the public REST API, but the client can't set it (no import rule), and it is not
  * serialized internally or stored in the database. It is recommended to not add the {@link JsonView} annotation, except some special
- * handling needed. In that case, whenever possible, use the default {@link Member.User}, {@link Member.Manager} or {@link Member.Internal}
+ * handling needed. In that case, whenever possible, use the default {@link ViewMember.User}, {@link ViewMember.Manager} or {@link ViewMember.Internal}
  * annotations, which declare import and export rules. Only for special cases do use individual fine-grained annotations.
  */
 @SuppressWarnings("unused")
 @AvailableSince(INaksha.v2_0_3)
-public interface Member {
+public interface ViewMember {
 
   /**
    * The member can be read and written by all authenticated users, is stored in the storage and available for hashing.

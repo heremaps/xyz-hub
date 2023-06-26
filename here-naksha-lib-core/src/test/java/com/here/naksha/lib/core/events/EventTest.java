@@ -31,7 +31,7 @@ import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileE
 import com.here.naksha.lib.core.models.payload.events.feature.IterateFeaturesEvent;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.core.view.Deserialize.User;
+import com.here.naksha.lib.core.view.ViewDeserialize.User;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import org.junit.jupiter.api.Test;

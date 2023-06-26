@@ -34,16 +34,16 @@ import com.here.naksha.lib.core.models.features.Catalog;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.features.Storage;
-import com.here.naksha.lib.core.models.features.StorageCollection;
 import com.here.naksha.lib.core.models.features.Subscription;
 import com.here.naksha.lib.core.models.features.TxSignal;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
+import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.util.diff.ConflictResolution;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.modify.IfExists;
 import com.here.naksha.lib.core.util.modify.IfNotExists;
-import com.here.naksha.lib.core.view.Member;
+import com.here.naksha.lib.core.view.ViewMember;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.lang3.RandomStringUtils;
@@ -62,7 +62,7 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = Catalog.class),
   @JsonSubTypes.Type(value = Connector.class),
   @JsonSubTypes.Type(value = Storage.class),
-  @JsonSubTypes.Type(value = StorageCollection.class),
+  @JsonSubTypes.Type(value = CollectionInfo.class),
   @JsonSubTypes.Type(value = TxSignal.class)
 })
 public class Feature extends JsonObject implements Typed {
@@ -105,15 +105,15 @@ public class Feature extends JsonObject implements Typed {
   // we do not
   // export them for users or managers. Basically they are for internal purpose and write-only for the end-user.
   @JsonProperty(ON_FEATURE_NOT_EXISTS)
-  @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
+  @JsonView({ViewMember.Import.User.class, ViewMember.Import.Manager.class, ViewMember.Internal.class})
   protected @Nullable IfNotExists onFeatureNotExists;
 
   @JsonProperty(ON_FEATURE_EXISTS)
-  @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
+  @JsonView({ViewMember.Import.User.class, ViewMember.Import.Manager.class, ViewMember.Internal.class})
   protected @Nullable IfExists onFeatureExists;
 
   @JsonProperty(ON_MERGE_CONFLICT)
-  @JsonView({Member.Import.User.class, Member.Import.Manager.class, Member.Internal.class})
+  @JsonView({ViewMember.Import.User.class, ViewMember.Import.Manager.class, ViewMember.Internal.class})
   protected @Nullable ConflictResolution onMergeConflict;
 
   /** List of packages to which this feature belongs to; if any. */

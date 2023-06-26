@@ -30,7 +30,7 @@ import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.core.view.Deserialize.All;
+import com.here.naksha.lib.core.view.ViewDeserialize.All;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 
