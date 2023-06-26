@@ -24,7 +24,9 @@ import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IReadTransaction;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Iterator;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -43,20 +45,39 @@ public class PsqlTxReader implements IReadTransaction {
   PsqlTxReader(@NotNull PsqlStorage psqlClient) throws SQLException {
     this.psqlClient = psqlClient;
     this.connection = psqlClient.dataSource.getConnection();
-    try (final var stmt = connection.createStatement()) {
-      stmt.execute("SELECT naksha_tx_init()");
-    }
   }
 
   /**
    * The PostgresQL client to which this transaction is bound.
    */
-  protected final @NotNull PsqlStorage psqlClient;
+  final @NotNull PsqlStorage psqlClient;
 
   /**
    * The JDBC connection.
    */
-  protected @Nullable Connection connection;
+  @Nullable
+  Connection connection;
+
+  @NotNull
+  Connection connection() {
+    final Connection connection = this.connection;
+    if (connection == null) {
+      throw new IllegalStateException("Connection is closed");
+    }
+    return connection;
+  }
+
+  @NotNull
+  PreparedStatement preparedStatement(@NotNull String sql) throws SQLException {
+    //noinspection resource
+    return connection().prepareStatement(sql);
+  }
+
+  @NotNull
+  Statement createStatement() throws SQLException {
+    //noinspection resource
+    return connection().createStatement();
+  }
 
   /**
    * Returns the client to which the transaction is bound.

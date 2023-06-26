@@ -18,10 +18,15 @@
  */
 package com.here.naksha.lib.psql;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IMasterTransaction;
+import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.view.ViewDeserialize;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -41,7 +46,20 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
 
   @Override
   public @NotNull CollectionInfo createCollection(@NotNull CollectionInfo collection) throws SQLException {
-    throw new UnsupportedOperationException("createCollection");
+    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_collection_upsert(?, ?, ?);")) {
+      stmt.setString(1, collection.getId());
+      stmt.setLong(2, collection.getMaxAge());
+      stmt.setBoolean(3, collection.getHistory());
+      final ResultSet rs = stmt.executeQuery();
+      rs.next();
+      try (final Json json = Json.open()) {
+        return json.reader(ViewDeserialize.Storage.class)
+            .forType(CollectionInfo.class)
+            .readValue(rs.getString(1));
+      } catch (JsonProcessingException e) {
+        throw new SQLException(e);
+      }
+    }
   }
 
   @Override
@@ -83,11 +101,18 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    * @throws SQLException If any error occurred.
    */
   public void commit() throws SQLException {
-    throw new UnsupportedOperationException("commit");
+    //noinspection resource
+    connection().commit();
   }
 
   /** Abort the transaction. */
-  public void rollback() {}
+  public void rollback() {
+    try {
+      //noinspection resource
+      connection().rollback();
+    } catch (SQLException ignore) {
+    }
+  }
 
   /** Close the transaction, which effectively will roll back the transaction. */
   @Override

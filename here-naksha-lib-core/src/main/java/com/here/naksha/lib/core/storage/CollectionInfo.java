@@ -65,6 +65,17 @@ public class CollectionInfo {
   }
 
   /**
+   * Create a collection reference with an invalid number (minus one).
+   *
+   * @param id the identifier of the collection.
+   */
+  @AvailableSince(INaksha.v2_0_0)
+  public CollectionInfo(@NotNull String id) {
+    this.id = id;
+    this.number = -1L;
+  }
+
+  /**
    * The identifier of the collection.
    */
   @AvailableSince(INaksha.v2_0_3)

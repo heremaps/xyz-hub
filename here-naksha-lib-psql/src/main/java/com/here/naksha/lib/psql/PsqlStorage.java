@@ -20,7 +20,6 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
-import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
@@ -46,7 +45,7 @@ public class PsqlStorage implements IStorage {
   /**
    * The latest version of the naksha-extension stored in the resources.
    */
-  static final NakshaVersion latest = new NakshaVersion(1, 0, 0);
+  static NakshaVersion latest = new NakshaVersion(2, 0, 3);
 
   /**
    * The constructor to create a new PostgresQL storage client using a storage configuration.
@@ -64,8 +63,7 @@ public class PsqlStorage implements IStorage {
   }
 
   /**
-   * Constructor to manually create a new PostgresQL storage client. You can register this as the main instance by simply setting the
-   * {@link INaksha#instance} atomic reference.
+   * Constructor to manually create a new PostgresQL storage client.
    *
    * @param config        the PSQL configuration to use for this client.
    * @param storageNumber the unique 40-bit unsigned integer storage number to use. Except for the main database (which always has the
@@ -76,7 +74,6 @@ public class PsqlStorage implements IStorage {
   public PsqlStorage(@NotNull PsqlConfig config, long storageNumber) throws SQLException, IOException {
     this.dataSource = new PsqlDataSource(config);
     this.storageNumber = storageNumber;
-    init();
   }
 
   /**
@@ -227,12 +224,12 @@ public class PsqlStorage implements IStorage {
   // We should simply store the NakshaCollection information in serialized form.
 
   /**
-   * Ensure that the administration tables exists, and the scripts are in the latest version in the database.
+   * Ensure that the administration tables exists, and the Naksha extension script installed in the latest version.
    *
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
-  void init() throws SQLException, IOException {
+  public void init() throws SQLException, IOException {
     String SQL;
     try (final Connection conn = dataSource.getConnection()) {
       try (final Statement stmt = conn.createStatement()) {
@@ -268,8 +265,8 @@ public class PsqlStorage implements IStorage {
           dataSource.initConnection(conn);
           if (version == 0L) {
             stmt.execute("SELECT naksha_init();");
+            conn.commit();
           }
-          conn.commit();
           //      setupH3();
         }
       }
@@ -349,75 +346,4 @@ public class PsqlStorage implements IStorage {
       throw new SQLException("Failed to setup H3: " + e.getMessage());
     }
   }
-
-  //
-  // maintainSpaceSchema()
-  // maintainSpace()
-  // maintainTransactions()
-  //
-
-  // -----------------------------------------------------------------------------------------------------------------------------------
-  // ---------- Caching code
-  // -----------------------------------------------------------------------------------------------------------------------------------
-
-  //
-  // installExtensionIntoMgmt()
-  //   SELECT naksha_mgmt_ensure(schema);
-  // installExtensionIntoAdmin()
-  //   SELECT naksha_admin_ensure(schema);
-  //   SELECT naksha_spaces_ensure(schema, connector-id);
-  // createNewSpace()
-  //   SELECT naksha_table_ensure_with_history(schema, table);
-  //   SELECT naksha_table_enable_history(schema, table);
-  //
-  // SELECT * FROM naksha_fetch_transaction(id); -- fetch all changes from this transaction (id
-  // sequential identifier)
-  //
-  //
-  //  private void installNakshaExtension() throws SQLException {
-  //    final StringBuilder sb = NakshaThreadLocal.get().sb();
-  //    String SQL;
-  //
-  //    sb.setLength(0);
-  //    final String MGMT_SCHEMA = escapeId(dataSource.getSchema(), sb).toString();
-  //
-  //    try (final Connection conn = dataSource.getConnection()) {
-  //      sb.setLength(0);
-  //      sb.append("CREATE TABLE IF NOT EXISTS
-  // ").append(MGMT_SCHEMA).append('.').append(DEFAULT_SPACE_COLLECTION).append(" (")
-  //          .append(" id                TEXT PRIMARY KEY NOT NULL")
-  //          .append(",owner             TEXT NOT NULL")
-  //          .append(",config            JSONB NOT NULL")
-  //          .append("i                  int8 NOT NULL")
-  //          .append(");\n");
-  //      sb.append("CREATE TABLE IF NOT EXISTS
-  // ").append(MGMT_SCHEMA).append(+'.').append(DEFAULT_CONNECTOR_COLLECTION).append(" (")
-  //          .append(" id                TEXT PRIMARY KEY NOT NULL")
-  //          .append(",owner             TEXT NOT NULL")
-  //          .append(",cid               TEXT")
-  //          .append(",config            JSONB NOT NULL")
-  //          .append(",i int8            NOT NULL")
-  //          .append(");\n");
-  //
-  //      sb.append("CREATE TABLE IF NOT EXISTS
-  // ").append(MGMT_SCHEMA).append(+'.').append(DEFAULT_SUBSCRIPTIONS_COLLECTION).append(" (")
-  //          .append(" subscription_id   TEXT NOT NULL")
-  //          .append(",last_txn_id       int8 NOT NULL")
-  //          .append(",updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()")
-  //          .append(");");
-  //      sb.append("CREATE UNIQUE INDEX IF NOT EXISTS ");
-  //      escapeId(DEFAULT_SUBSCRIPTIONS_COLLECTION, "_id_idx", sb);
-  //      sb.append(" ON
-  // ").append(MGMT_SCHEMA).append('.').append(DEFAULT_SUBSCRIPTIONS_COLLECTION);
-  //      sb.append(" USING btree (subscription_id);\n");
-  //
-  //      SQL = sb.toString();
-  //      try (final Statement stmt = conn.createStatement()) {
-  //        stmt.execute(SQL);
-  //        conn.commit();
-  //      }
-  //    }
-  //  }
-
-  // TODO: Fill spaces and connectors
 }

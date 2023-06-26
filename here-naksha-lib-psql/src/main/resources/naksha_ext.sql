@@ -792,9 +792,19 @@ $BODY$;
 -- naksha_collection_disable_history(name text)
 -- naksha_collection_drop(name text)
 
+-- Create the collection, if it does not exist, setting max age to 9223372036854775807 and enable history.
+CREATE OR REPLACE FUNCTION naksha_collection_upsert(collection text)
+    RETURNS jsonb
+    LANGUAGE 'plpgsql' VOLATILE
+AS $BODY$
+BEGIN
+    RETURN naksha_collection_upsert(collection, 9223372036854775807::int8, true);
+END;
+$BODY$;
+
 -- Create or update the collection, setting the maximum age of historic states and enable/disable history.
-CREATE OR REPLACE FUNCTION naksha_collection_upsert(collection text, max_age int4, enable_history bool)
-    RETURNS void
+CREATE OR REPLACE FUNCTION naksha_collection_upsert(collection text, max_age int8, enable_history bool)
+    RETURNS jsonb
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
@@ -870,6 +880,8 @@ BEGIN
     IF enable_history THEN
         PERFORM naksha_collection_enable_history(collection);
     END IF;
+
+    RETURN comment::jsonb;
 END
 $BODY$;
 

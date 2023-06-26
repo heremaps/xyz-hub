@@ -18,12 +18,18 @@
  */
 package com.here.naksha.lib.psql;
 
-import com.here.naksha.lib.core.storage.IMasterTransaction;
-import com.here.naksha.lib.core.storage.IStorage;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.storage.CollectionInfo;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-public class PsqlClientTest {
+public class PsqlStorageTest {
 
   /** This is mainly an example that you can use when running this test. */
   @SuppressWarnings("unused")
@@ -35,6 +41,19 @@ public class PsqlClientTest {
         && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length();
   }
 
+  static NakshaVersion backup;
+
+  @BeforeAll
+  static void beforeAll() {
+    backup = PsqlStorage.latest;
+    PsqlStorage.latest = new NakshaVersion(999, 0, 0);
+  }
+
+  @AfterAll
+  static void afterAll() {
+    PsqlStorage.latest = backup;
+  }
+
   @Test
   @EnabledIf("isAllTestEnvVarsSet")
   public void testInit() throws Exception {
@@ -42,8 +61,16 @@ public class PsqlClientTest {
         .withAppName("Naksha-Psql-Test")
         .parseUrl(System.getenv("TEST_ADMIN_DB"))
         .build();
-    try (final IStorage client = new PsqlStorage(config, 0L)) {
-      try (final IMasterTransaction tx = client.openMasterTransaction()) {}
+    try (final var client = new PsqlStorage(config, 0L)) {
+      client.init();
+      try (final var tx = client.openMasterTransaction()) {
+        final CollectionInfo foo = tx.createCollection(new CollectionInfo("foo"));
+        assertNotNull(foo);
+        assertEquals("foo", foo.getId());
+        assertEquals(9223372036854775807L, foo.getMaxAge());
+        assertTrue(foo.getHistory());
+        tx.commit();
+      }
     }
   }
 }
