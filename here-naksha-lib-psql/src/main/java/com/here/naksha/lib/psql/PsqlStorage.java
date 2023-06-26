@@ -45,7 +45,7 @@ public class PsqlStorage implements IStorage {
   /**
    * The latest version of the naksha-extension stored in the resources.
    */
-  static NakshaVersion latest = new NakshaVersion(2, 0, 3);
+  static NakshaVersion latest = new NakshaVersion(2, 0, 4);
 
   /**
    * The constructor to create a new PostgresQL storage client using a storage configuration.

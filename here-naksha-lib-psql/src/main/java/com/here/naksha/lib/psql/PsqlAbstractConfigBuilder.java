@@ -50,8 +50,7 @@ abstract class PsqlAbstractConfigBuilder<TARGET, SELF extends PsqlAbstractConfig
   long idleTimeout;
 
   /**
-   * Parse the given <a href="https://jdbc.postgresql.org/documentation/use/>PostgresQL URL</a> to
-   * set up the builder.
+   * Parse the given <a href="https://jdbc.postgresql.org/documentation/use/">PostgresQL URL</a> to set up the builder.
    *
    * @param postgresUrl the PostgresQL URL.
    * @return this.

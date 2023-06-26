@@ -35,8 +35,7 @@ public class IndexProperty {
   public boolean asc = true;
 
   /**
-   * Optionally decide if {@link null} values should be ordered first or last. If not explicitly
-   * defined, automatically decided.
+   * Optionally decide if {@code null} values should be ordered first or last. If not explicitly defined, automatically decided.
    */
   @JsonProperty
   @JsonInclude(Include.NON_NULL)

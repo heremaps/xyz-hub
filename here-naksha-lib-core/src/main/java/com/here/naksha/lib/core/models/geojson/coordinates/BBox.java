@@ -27,7 +27,7 @@ import java.util.ArrayList;
  * with all axes of the most southwesterly point followed by all axes of the more northeasterly
  * point. The axes order of a bbox follows the axes order of geometries.
  *
- * @see [https://tools.ietf.org/html/rfc7946#section-5]
+ * @see <a href="https://tools.ietf.org/html/rfc7946#section-5">RFC-7946 Section-5</a>
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class BBox extends ArrayList<Double> {

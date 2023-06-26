@@ -744,7 +744,7 @@ public class QueryParameterDecoder {
    * Can be overridden to expand keys and values or implement special handling for delimiters. The
    * method is invoked whenever a delimiter character is found in a query string. The {@link #sb
    * string-builder} will hold the string parsed so far, without the delimiter, for example for the
-   * query string "&p:foo=hello" the method is invoked when the {@link #sb string-builder} holds
+   * query string {@code &p:foo=hello} the method is invoked when the {@link #sb string-builder} holds
    * "p". The found delimiter is given as argument.
    *
    * <p>If the method returns {@code true} it will abort the query parsing and the content of the

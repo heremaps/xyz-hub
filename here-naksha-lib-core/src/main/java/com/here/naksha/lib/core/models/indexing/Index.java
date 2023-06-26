@@ -31,14 +31,14 @@ public class Index {
    * The algorithm to use. The implementing processor will decide if it supports the algorithm.
    *
    * <p>The PostgresQL processor supports the following algorithms (with its recommended targets):
+   * <ul>
    * <li>{@code btree} for {@code String}, {@code Number} and {@code Boolean}.
    * <li>{@code hash} for {@code String}, {@code Number} and {@code Boolean}.
    * <li>{@code brin} for {@code String}, {@code Number} and {@code Boolean}.
    * <li>{@code gin} for {@code List} and {@code Map}.
    * <li>{@code gin_trigram} for {@code String}.
-   *
-   *     <p>Note that if no algorithm given, the PostgresQL processor will auto-select on and return
-   *     the selected algorithm in the response.
+   * </ul>
+   * <p>Note that if no algorithm given, the PostgresQL processor will auto-select on and return the selected algorithm in the response.
    */
   @JsonProperty
   public String alg;

@@ -34,7 +34,7 @@ import org.jetbrains.annotations.Nullable;
  * feature in the head and in the base state. If both, the head, and the base state, are the same,
  * then only this state should be returned.
  *
- * <p><b>Note/<b>: A base state is for example requested, when a merge operation may be needed.
+ * <p><b>Note</b>: A base state is for example requested, when a merge operation may be needed.
  *
  * @since 0.1.0
  */

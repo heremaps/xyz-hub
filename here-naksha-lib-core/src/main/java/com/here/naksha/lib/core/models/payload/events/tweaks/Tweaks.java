@@ -25,8 +25,7 @@ import com.here.naksha.lib.core.models.payload.events.Sampling;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Providing this parameter only a subset of the data will be returned. This can be used for
- * rendering higher zoom levels.
+ * Providing this parameter only a subset of the data will be returned. This can be used for rendering higher zoom levels.
  */
 @JsonSubTypes({
   @JsonSubTypes.Type(value = TweaksSimplification.class),
@@ -38,10 +37,9 @@ public abstract class Tweaks implements Typed {
   /**
    * The sampling settings; if any.
    *
-   * <p>This is simplified, its called sometimes strength, then sampling and “samplingthreshold”.
-   * This is a combination of all, and we now allow to either select a pre-defined name via
-   * "&tweaks:sampling" and to override individual values via "&tweaks:sampling:strength". The
-   * default selection is always “off”.
+   * <p>This is simplified, its called sometimes strength, then sampling and “samplingthreshold”. This is a combination of all, and we now
+   * allow to either select a pre-defined name via {@code &tweaks:sampling} and to override individual values via
+   * {@code &tweaks:sampling:strength}. The default selection is always “off”.
    */
   @JsonProperty
   public @NotNull Sampling sampling = Sampling.OFF;

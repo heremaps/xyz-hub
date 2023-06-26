@@ -34,8 +34,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The properties stored as value for the {@link Properties#XYZ_NAMESPACE @ns:com:here:xyz} key in
- * the {@link Properties}.
+ * The properties stored as value for the {@link Properties#XYZ_NAMESPACE @ns:com:here:xyz} key in the {@link Properties}.
  */
 @SuppressWarnings("unused")
 public class XyzNamespace extends JsonObject {
@@ -226,7 +225,7 @@ public class XyzNamespace extends JsonObject {
    * Therefore, a comma is not allowed as part of a tag.
    *
    * @param tags The list of tags, will be modified if any tag contains a comma (so may extend).
-   * @see [https://tools.ietf.org/html/rfc3986#section-2.2]
+   * @see <a href="https://tools.ietf.org/html/rfc3986#section-2.2">https://tools.ietf.org/html/rfc3986#section-2.2</a>
    */
   @Deprecated
   public static void fixNormalizedTags(final @NotNull List<@NotNull String> tags) {
@@ -437,8 +436,7 @@ public class XyzNamespace extends JsonObject {
    * Set the tags to the given array.
    *
    * @param tags The tags to set.
-   * @param normalize {@code true} if the given tags should be normalized; {@code false}, if they
-   *     are already normalized.
+   * @param normalize {@code true} if the given tags should be normalized; {@code false}, if they are already normalized.
    */
   public @NotNull XyzNamespace setTags(@Nullable List<@NotNull String> tags, boolean normalize) {
     if (normalize) {

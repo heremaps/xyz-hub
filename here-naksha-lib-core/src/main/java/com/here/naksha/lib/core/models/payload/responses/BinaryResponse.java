@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.here.naksha.lib.core.bin.ConnectorPayload;
-import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.view.ViewSerialize;
 import java.nio.ByteBuffer;
@@ -37,7 +36,6 @@ import org.jetbrains.annotations.Nullable;
  * <p>An instance of {@link ConnectorPayload} will be used internally to convert it to binary form.
  * For all other protocol versions the payload will be encoded as JSON.
  *
- * @see Payload#VERSION
  */
 public class BinaryResponse extends XyzResponse {
 

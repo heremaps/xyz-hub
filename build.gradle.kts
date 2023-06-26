@@ -176,6 +176,10 @@ subprojects {
 
 project(":here-naksha-lib-core") {
     description = "Naksha Core Library"
+    java {
+        withJavadocJar()
+        withSourcesJar()
+    }
     dependencies {
         // We include this and expose it via currentLogger() to others!
         api(slf4j)
@@ -192,6 +196,10 @@ project(":here-naksha-lib-core") {
 
 project(":here-naksha-lib-psql") {
     description = "Naksha PostgresQL Storage Library"
+    java {
+        withJavadocJar()
+        withSourcesJar()
+    }
     dependencies {
         implementation(project(":here-naksha-lib-core"))
 

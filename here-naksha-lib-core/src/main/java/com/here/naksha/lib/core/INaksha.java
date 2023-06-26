@@ -94,6 +94,11 @@ public interface INaksha {
   String v2_0_3 = "2.0.3";
 
   /**
+   * Naksha version constant.
+   */
+  String v2_0_4 = "2.0.4";
+
+  /**
    * The reference to the Naksha implementation provided by the host. Rather use the {@link #get()} method to get the instance.
    */
   @AvailableSince(v2_0_0)

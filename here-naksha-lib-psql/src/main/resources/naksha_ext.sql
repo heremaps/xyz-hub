@@ -32,7 +32,7 @@ SET SESSION search_path TO "${schema}", public, topology;
 CREATE OR REPLACE FUNCTION naksha_version() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
     --        major               minor               revision
-    return (  2::int8 << 32) | (  0::int8 << 16) | (  3::int8);
+    return (  2::int8 << 32) | (  0::int8 << 16) | (  4::int8);
 END $BODY$;
 
 -- Returns the storage-id of this storage, this is created when the Naksha extension is installed and never changes.
