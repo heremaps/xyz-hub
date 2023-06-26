@@ -91,6 +91,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
       final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
       final boolean force2D = Query.getBoolean(context, FORCE_2D, false);
       final PropertiesQuery propertiesQuery = getPropertiesQuery(context);
+      final SpaceContext spaceContext = getSpaceContext(context);
       final String version = Query.getString(context, Query.VERSION, null);
       final String author = Query.getString(context, Query.AUTHOR, null);
 
@@ -101,7 +102,8 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withRef(version)
           .withAuthor(author)
           .withForce2D(force2D)
-          .withSelection(Query.getSelection(context));
+          .withSelection(Query.getSelection(context))
+          .withContext(spaceContext);
 
       final SearchQuery task = new SearchQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache);
       task.execute(this::sendResponse, this::sendErrorResponse);
