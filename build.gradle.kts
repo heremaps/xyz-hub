@@ -13,7 +13,8 @@ plugins {
     id("com.diffplug.spotless").version("6.11.0")
     // https://github.com/johnrengelman/shadow
     id("com.github.johnrengelman.shadow") version "7.1.2"
-    kotlin("jvm") version "1.8.21"
+    // Don't apply for all projects, we individually only apply where Kotlin is used.
+    kotlin("jvm") version "1.8.21" apply false
 }
 
 group = "com.here.naksha"
@@ -75,7 +76,7 @@ val commons_dbutils = "commons-dbutils:commons-dbutils:1.7"
 
 val commons_lang3 = "org.apache.commons:commons-lang3:3.12.0"
 val jodah_expiringmap = "net.jodah:expiringmap:0.5.10"
-val caffinitas_ohc ="org.caffinitas.ohc:ohc-core:0.7.4"
+val caffinitas_ohc = "org.caffinitas.ohc:ohc-core:0.7.4"
 val lmax_disruptor = "com.lmax:disruptor:3.4.4"
 val mchange_commons = "com.mchange:mchange-commons-java:0.2.20"
 val mchange_c3p0 = "com.mchange:c3p0:0.9.5.5"
@@ -101,14 +102,13 @@ subprojects {
     apply(plugin = "java")
     apply(plugin = "com.diffplug.spotless")
     apply(plugin = "java-library")
-    apply(plugin = "kotlin")
 
     repositories {
         maven(uri("https://repo.osgeo.org/repository/release/"))
         mavenCentral()
     }
 
-    // https://github.com/diffplug/spotless/tree/main/plugin-gradle#google-java-format
+    // https://github.com/diffplug/spotless/tree/main/plugin-gradle
     spotless {
         java {
             encoding("UTF-8")
@@ -133,7 +133,6 @@ subprojects {
  * License-Filename: LICENSE
  */
 """)
-            // TODO: licenseHeader()
             // Allow "spotless:off" / "spotless:on" comments to toggle spotless auto-format.
             toggleOffOn()
             removeUnusedImports()
@@ -151,11 +150,6 @@ subprojects {
         }
 
         compileJava {
-            finalizedBy(spotlessApply)
-        }
-
-        compileKotlin {
-            kotlinOptions.jvmTarget = JavaVersion.VERSION_17.toString()
             finalizedBy(spotlessApply)
         }
     }
@@ -229,6 +223,15 @@ project(":here-naksha-handler-activitylog") {
 
 project(":here-naksha-handler-http") {
     description = "Naksha Http Handler"
+    apply(plugin = "kotlin")
+    tasks {
+        // Note: Using compileKotlin {} does not work due to a bug in the Kotlin DSL!
+        //       It only works, when applying the Kotlin plugin for all projects.
+        withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+            kotlinOptions.jvmTarget = JavaVersion.VERSION_17.toString()
+            finalizedBy(spotlessApply)
+        }
+    }
     dependencies {
         implementation(project(":here-naksha-lib-core"))
         testImplementation(project(":here-naksha-lib-extension"))
