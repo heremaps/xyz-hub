@@ -59,11 +59,14 @@ public class ExportValidator extends Validator{
             if(job.getExportTarget().getTargetId() == null)
                 throw new Exception("Please specify the targetId!");
 
-            if(job.getTargetLevel() == null)
-                throw new Exception("Please specify targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
+            if( !job.getCsvFormat().equals(Job.CSVFormat.FEATUREID_FC_B64) )
+            {   
+             if( job.getTargetLevel() == null )
+                 throw new Exception("Please specify targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
 
-            if(job.getTargetLevel() < ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL || job.getTargetLevel() > ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL)
+             if(job.getTargetLevel() < ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL || job.getTargetLevel() > ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL)
                 throw new Exception("Invalid targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
+            }
 
         }else if(job.getExportTarget().getType().equals(Export.ExportTarget.Type.DOWNLOAD)){
 
