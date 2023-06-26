@@ -85,7 +85,7 @@ public class JDBCExporter extends JDBCClients{
                 default:
 
                     if( j.getCsvFormat().equals(CSVFormat.FEATUREID_FC_B64))
-                    return calculateThreadCountForDownload(j, schema, exportQuery)
+                     return calculateThreadCountForDownload(j, schema, exportQuery)
                             .compose(threads -> {
                                 try{
                                     Promise<Export.ExportStatistic> promise = Promise.promise();

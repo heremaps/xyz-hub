@@ -33,7 +33,7 @@ public class ExportValidator extends Validator{
 
         if(job.getExportTarget() != null && job.getExportTarget().getType().equals(Export.ExportTarget.Type.VML)){
             
-           if( job.getCsvFormat().equals(Job.CSVFormat.FEATUREID_FC_B64) ) return;
+           if( job.getCsvFormat() != null && job.getCsvFormat().equals(Job.CSVFormat.FEATUREID_FC_B64) ) return;
 
            job.setCsvFormat(Job.CSVFormat.TILEID_FC_B64);
 
