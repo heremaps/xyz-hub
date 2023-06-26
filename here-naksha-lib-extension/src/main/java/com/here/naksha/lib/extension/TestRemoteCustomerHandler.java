@@ -26,11 +26,13 @@ import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
 import org.jetbrains.annotations.NotNull;
 
 /**
+ * For testing purpose, but must be available in main, so that
+ * the remote server code can invoke it.
  * A handler that the customer supplied and wish to deploy.
  */
-public class RemoteCustomerHandler implements IEventHandler {
+public class TestRemoteCustomerHandler implements IEventHandler {
 
-  public RemoteCustomerHandler(Connector connector) {}
+  public TestRemoteCustomerHandler(Connector connector) {}
 
   @Override
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {

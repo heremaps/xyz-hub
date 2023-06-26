@@ -54,7 +54,7 @@ public class RemoteScenarioTest {
     public void run() {
       try {
         // Simulate what Naksha-Hub would do:
-        final Connector testConnector = new Connector("test", RemoteCustomerHandler.class);
+        final Connector testConnector = new Connector("test", TestRemoteCustomerHandler.class);
         testConnector.setExtension(EXTENSION_ID);
         final Extension config = new Extension("localhost", EXTENSION_ID);
         final IEventHandler eventHandler = new ExtensionHandler(testConnector, config);

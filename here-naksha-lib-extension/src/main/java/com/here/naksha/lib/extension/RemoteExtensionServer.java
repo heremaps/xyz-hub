@@ -24,7 +24,7 @@ import java.net.ServerSocket;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
 /**
- * The remote extension server that will be hosted separatedly from Naksha.
+ * The remote extension server that will be hosted separately from Naksha.
  */
 @AvailableSince(INaksha.v2_0_3)
 public class RemoteExtensionServer {
