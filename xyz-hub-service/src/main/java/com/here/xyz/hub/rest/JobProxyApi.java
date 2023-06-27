@@ -79,7 +79,7 @@ public class JobProxyApi extends Api{
                                     job.setTargetSpaceId(spaceId);
                                     job.setTargetConnector(headSpace.getStorage().getId());
                                     job.addParam("versionsToKeep",headSpace.getVersionsToKeep());
-
+                                    job.addParam("persistExport", headSpace.isPersistExport());
                                     Promise<Map> p = Promise.promise();
                                     if (headSpace.getExtension() != null) {
                                         /** Evaluate if we have 2nd extension */

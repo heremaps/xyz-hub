@@ -120,7 +120,26 @@ public class ExportQueue extends JobQueue{
         j.setExecutedAt(Core.currentTimeMillis() / 1000L);
         String defaultSchema = JDBCImporter.getDefaultSchema(j.getTargetConnector());
 
-        String s3Path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER+"/"+j.getId();
+        String s3Path = CService.jobS3Client.getS3Path(j);
+
+        boolean persistExport = j.getParams().containsKey("persistExport") ? (boolean) j.getParam("persistExport") : false;
+        if(persistExport && ((Export) j).getExportTarget().getType() == Export.ExportTarget.Type.VML && ((Export) j).getFilters() == null ) {
+            Export existingJob = CService.jobS3Client.readMetaFile((Export) j);
+            if(existingJob != null) {
+                if(existingJob.getExportObjects() == null || existingJob.getExportObjects().isEmpty()) {
+                    String message = String.format("Another job already started for %s and targetLevel %s with status %s",
+                            existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
+                    failJob(j, message, Job.ERROR_TYPE_EXECUTION_FAILED);
+                } else {
+                     addFileData(existingJob);
+                     ((Export) j).setExportObjects(existingJob.getExportObjects());
+                     updateJobStatus(j, Job.Status.executed);
+                }
+                return;
+            } else {
+                addFileData(j);
+            }
+        }
 
         JDBCExporter.executeExport(((Export) j), defaultSchema, CService.configuration.JOBS_S3_BUCKET, s3Path,
                         CService.configuration.JOBS_REGION)
