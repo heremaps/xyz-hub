@@ -61,7 +61,7 @@ public class PsqlStorageTest {
   void createStorage() throws Exception {
     final PsqlConfig config = new PsqlConfigBuilder()
         .withAppName("Naksha-Psql-Test")
-        .parseUrl(System.getenv("TEST_ADMIN_DB"))
+        .parseUrl(TEST_ADMIN_DB)
         .build();
     storage = new PsqlStorage(config, 0L);
     // This ensures that the upgrade is always done.

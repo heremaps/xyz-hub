@@ -18,6 +18,7 @@
  */
 package com.here.naksha.handler.psql;
 
+import static com.here.naksha.lib.core.NakshaContext.currentContext;
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
@@ -187,7 +188,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
   }
 
   public final @NotNull String streamId() {
-    return currentLogger().streamId();
+    return currentContext().streamId();
   }
 
   public final @NotNull DataSource masterDataSource() {
