@@ -301,19 +301,20 @@ public class JDBCExporter extends JDBCClients{
         Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
+        String bClipped = ( j.getClipped() != null && j.getClipped() ? "true" : "false" );
 
         SQLQuery exportSelectString =  generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition);
 
         SQLQuery q = new SQLQuery(
-                "select("+
-                        " aws_s3.query_export_to_s3( replace( o.s3sql, 'select *', 'select htiles_convert_qk_to_longk(tile_id)::text as tile_id, tile_content' ) , " +
+                "select ("+
+                        " aws_s3.query_export_to_s3( o.s3sql, " +
                         "   #{s3Bucket}, " +
                         "   format('%s/%s/%s-%s.csv',#{s3Path}::text, o.qk, o.bucket, o.nrbuckets) ," +
                         "   #{s3Region}," +
                         "   'format csv')).* ," +
                         "  '{iml_vml_export_hint}' as iml_vml_export_hint " +
                         " from" +
-                        "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, #{maxTilesPerFile}::int )o"
+                        "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, null::text, #{maxTilesPerFile}::int, true, "+ bClipped +" ) o"
         );
 
         q.setQueryFragment("exportSelectString", exportSelectString);

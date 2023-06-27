@@ -188,6 +188,10 @@ public abstract class Job {
     @JsonView({Internal.class})
     private String author;
 
+    @JsonView({Public.class})
+    protected Boolean clipped;
+
+
     /**
      * Arbitrary parameters to be provided from hub
      */
@@ -328,6 +332,14 @@ public abstract class Job {
 
     public void setAuthor(String author) {
         this.author = author;
+    }
+
+    public Boolean getClipped() {
+        return clipped;
+    }
+
+    public void setClipped(Boolean clipped) {
+        this.clipped = clipped;
     }
 
     public Object getParam(String key) {

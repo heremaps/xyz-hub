@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 165
+ select 166
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3734,7 +3734,7 @@ begin
           from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, qk_s_inhabited(i.iqk, i.mlevel, i._tbl ) r ) rr
             group by rr.bucket, rr.tiles_total
         )
-        select r.iqk as qk, r.mlevel, r._tbl, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles(false,%1$L::text[],''%2$s'',true,true)',l.tlist,r._tbl) as s3sql
+        select r.iqk as qk, r.mlevel, r._tbl, r.max_tiles, l.*, format('select tile_id, tile_content from qk_s_get_fc_of_tiles(false,%1$L::text[],''%2$s'',true,true)',l.tlist,r._tbl) as s3sql
         from ibuckets l, indata r
         order by bucket;
     else
@@ -3746,7 +3746,7 @@ begin
           from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, htile_s_inhabited(i.iqk, i.mlevel, i._tbl ) r ) rr
             group by rr.bucket, rr.tiles_total
         )
-        select r.iqk as qk, r.mlevel, r._tbl, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles(true,%1$L::text[],''%2$s'',true,true)',l.tlist,r._tbl) as s3sql
+        select r.iqk as qk, r.mlevel, r._tbl, r.max_tiles, l.*, format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, tile_content from qk_s_get_fc_of_tiles(true,%1$L::text[],''%2$s'',true,true)',l.tlist,r._tbl) as s3sql
         from ibuckets l, indata r
         order by bucket;
     end if;
@@ -3956,56 +3956,88 @@ as $_$
 $_$;
 ------------------------------------------------
 ------------------------------------------------
-create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text, max_tiles integer)
+
+create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text, max_tiles integer, base64enc boolean, clipped boolean )
  returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
 language plpgsql stable
 as $_$
+declare
+    v_clipped   text := 'false';
+    v_base64enc text := 'false';
 begin
-     if not htile then
+
+    if clipped then
+        v_clipped = 'true';
+    end if;
+
+    if base64enc then
+       v_base64enc = 'true';
+    end if;
+
+    if not htile then
       return query
          with
           indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk,
-                                             exp_build_sql_inhabited_txt.mlevel as mlevel,
-                                           exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
-                                           coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
-                                             exp_build_sql_inhabited_txt.max_tiles as max_tiles
-                                    ),
+                               exp_build_sql_inhabited_txt.mlevel as mlevel,
+                               exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
+                               coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+                               exp_build_sql_inhabited_txt.max_tiles as max_tiles
+                      ),
         ibuckets as
         ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
           from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
             group by rr.bucket, rr.tiles_total
         )
-        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles_txt(false,%1$L::text[],%2$L,true,true)',l.tlist,r.sql_export_data) as s3sql
-            from ibuckets l, indata r
+        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*, 
+		       format('select tile_id, tile_content from qk_s_get_fc_of_tiles_txt(false,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped) as s3sql
+        from ibuckets l, indata r
         order by bucket;
     else
       return query
          with
           indata   as ( select exp_build_sql_inhabited_txt.iqk as iqk,
-                                             exp_build_sql_inhabited_txt.mlevel as mlevel,
-                                           exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
-                                           coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
-                                             exp_build_sql_inhabited_txt.max_tiles as max_tiles
-                                    ),
+                               exp_build_sql_inhabited_txt.mlevel as mlevel,
+                               exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
+                               coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks,
+                               exp_build_sql_inhabited_txt.max_tiles as max_tiles
+                      ),
         ibuckets as
         ( select rr.bucket::integer, (count(1) over ())::integer as nrbuckets, count(1)::integer as nrsubtiles, rr.tiles_total::integer , array_agg(rr.qk) as tlist
           from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
             group by rr.bucket, rr.tiles_total
         )
-        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*, format('select * from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,true,true)',l.tlist,r.sql_export_data) as s3sql
-            from ibuckets l, indata r
+        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*, 
+		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, tile_content from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped) as s3sql
+        from ibuckets l, indata r
         order by bucket;
     end if;
 end
 $_$;
 ------------------------------------------------
 ------------------------------------------------
+
+create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text, max_tiles integer)
+ returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
+language sql stable
+as $_$
+    select qk, mlev, sql_with_jsdata_geo, max_tls, bucket, nrbuckets, nrsubtiles, tiles_total, tile_list, s3sql 
+	from exp_build_sql_inhabited_txt(htile, iqk, mlevel, sql_with_jsondata_geo, sql_qk_tileqry_with_geo, max_tiles, true, false )
+$_$;
+
 create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, max_tiles integer)
  returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
 language sql stable
 as $_$
     select qk, mlev, sql_with_jsdata_geo, max_tls, bucket, nrbuckets, nrsubtiles, tiles_total, tile_list, s3sql from exp_build_sql_inhabited_txt(htile, iqk, mlevel, sql_with_jsondata_geo, null::text, max_tiles)
 $_$;
+
+create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, max_tiles integer, base64enc boolean, clipped boolean)
+ returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
+language sql stable
+as $_$
+    select qk, mlev, sql_with_jsdata_geo, max_tls, bucket, nrbuckets, nrsubtiles, tiles_total, tile_list, s3sql from exp_build_sql_inhabited_txt(htile, iqk, mlevel, sql_with_jsondata_geo, null::text, max_tiles, base64enc, clipped)
+$_$;
+
 
 /*
 Sample:

@@ -58,6 +58,10 @@ public class Export extends Job {
 
     /** Only used by type VML */
     @JsonView({Public.class})
+    private Boolean clipped;
+
+    /** Only used by type VML */
+    @JsonView({Public.class})
     private Integer targetLevel;
 
     @JsonView({Public.class})
@@ -76,6 +80,7 @@ public class Export extends Job {
         this.targetSpaceId = targetSpaceId;
         this.targetTable = targetTable;
         this.strategy = strategy;
+        this.clipped = false;
     }
 
     public String getType() {
@@ -154,6 +159,14 @@ public class Export extends Job {
 
     public void setMaxTilesPerFile(int maxTilesPerFile) {
         this.maxTilesPerFile = maxTilesPerFile;
+    }
+
+    public Boolean getClipped() {
+        return clipped;
+    }
+
+    public void setClipped(boolean clipped) {
+        this.clipped = clipped;
     }
 
     public Filters getFilters() {
@@ -274,6 +287,12 @@ public class Export extends Job {
         setMaxTilesPerFile(maxTilesPerFile);
         return this;
     }
+
+    public Export withClipped(final boolean clipped) {
+        setClipped(clipped);
+        return this;
+    }
+
 
     public Export withFilters(final Filters filters) {
         setFilters(filters);
