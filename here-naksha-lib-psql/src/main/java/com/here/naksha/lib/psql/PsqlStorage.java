@@ -20,6 +20,7 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
+import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
@@ -41,11 +42,6 @@ import org.postgresql.util.PSQLException;
  * collections. It as well grants access to transactions.
  */
 public class PsqlStorage implements IStorage {
-
-  /**
-   * The latest version of the naksha-extension stored in the resources.
-   */
-  static NakshaVersion latest = new NakshaVersion(2, 0, 4);
 
   /**
    * The constructor to create a new PostgresQL storage client using a storage configuration.
@@ -222,6 +218,8 @@ public class PsqlStorage implements IStorage {
   // COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
   // SELECT pg_catalog.obj_description('xyz_config.transactions'::regclass, 'pg_class');
   // We should simply store the NakshaCollection information in serialized form.
+
+  NakshaVersion latest = INaksha.latest;
 
   /**
    * Ensure that the administration tables exists, and the Naksha extension script installed in the latest version.

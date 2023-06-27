@@ -99,6 +99,11 @@ public interface INaksha {
   String v2_0_4 = "2.0.4";
 
   /**
+   * The latest version of the naksha-extension stored in the resources.
+   */
+  NakshaVersion latest = NakshaVersion.of(v2_0_4);
+
+  /**
    * The reference to the Naksha implementation provided by the host. Rather use the {@link #get()} method to get the instance.
    */
   @AvailableSince(v2_0_0)

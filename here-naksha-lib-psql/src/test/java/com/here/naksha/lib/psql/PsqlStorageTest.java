@@ -24,8 +24,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.storage.CollectionInfo;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 
@@ -41,19 +39,6 @@ public class PsqlStorageTest {
         && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length();
   }
 
-  static NakshaVersion backup;
-
-  @BeforeAll
-  static void beforeAll() {
-    backup = PsqlStorage.latest;
-    PsqlStorage.latest = new NakshaVersion(999, 0, 0);
-  }
-
-  @AfterAll
-  static void afterAll() {
-    PsqlStorage.latest = backup;
-  }
-
   @Test
   @EnabledIf("isAllTestEnvVarsSet")
   public void testInit() throws Exception {
@@ -62,6 +47,7 @@ public class PsqlStorageTest {
         .parseUrl(System.getenv("TEST_ADMIN_DB"))
         .build();
     try (final var client = new PsqlStorage(config, 0L)) {
+      client.latest = new NakshaVersion(999, 0, 0);
       client.init();
       try (final var tx = client.openMasterTransaction()) {
         final CollectionInfo foo = tx.createCollection(new CollectionInfo("foo"));

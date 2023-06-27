@@ -37,7 +37,7 @@ public record NakshaVersion(int major, int minor, int revision) implements Compa
    * @return the Naksha version.
    * @throws NumberFormatException if the given string is no valid version.
    */
-  static @NotNull NakshaVersion of(@NotNull String version) throws NumberFormatException {
+  public static @NotNull NakshaVersion of(@NotNull String version) throws NumberFormatException {
     final int majorEnd = version.indexOf('.');
     final int minorEnd = version.indexOf('.', majorEnd + 1);
     return new NakshaVersion(
