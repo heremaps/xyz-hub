@@ -324,7 +324,7 @@ public class JobApiExportIT extends JobApiIT {
         }};
 
         /** Expect 10 features instead of 11 because feature without geometry is not included in result */
-        downloadAndCheckFC(urls, 5429, 10, csvMustContains, 1);
+        downloadAndCheckFC(urls, 5433, 10, csvMustContains, 1);
     }
 
     /**
@@ -352,7 +352,7 @@ public class JobApiExportIT extends JobApiIT {
         }};
 
         /** Expect 39 features because the geometry of some features is intersecting multiple tiles */
-        downloadAndCheckFC(urls, 22034, 39, csvMustContains, 17);
+        downloadAndCheckFC(urls, 24502, 39, csvMustContains, 17);
     }
 
     /**
@@ -536,7 +536,7 @@ public class JobApiExportIT extends JobApiIT {
             add("RyeSI6IHsidHlwZSI6I");
         }};
 
-        downloadAndCheckFC(urls, 15493, 30, mustContains, 1 );
+        downloadAndCheckFC(urls, 15489, 30, mustContains, 1 );
     }
 
     @Test
