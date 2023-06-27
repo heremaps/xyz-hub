@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.core;
 
+import static com.here.naksha.lib.core.NakshaContext.currentContext;
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.here.naksha.lib.core.models.Typed;
@@ -105,7 +106,7 @@ public class IoEventPipeline extends EventPipeline {
                 expected,
                 deserialized);
         response = new ErrorResponse()
-            .withStreamId(currentLogger().streamId())
+            .withStreamId(currentContext().streamId())
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Invalid event, expected " + expected + ", but found " + deserialized);
         if (output != null) {
@@ -130,7 +131,7 @@ public class IoEventPipeline extends EventPipeline {
     } catch (Throwable e) {
       currentLogger().warn("Exception while processing the event", e);
       response = new ErrorResponse()
-          .withStreamId(currentLogger().streamId())
+          .withStreamId(currentContext().streamId())
           .withError(XyzError.EXCEPTION)
           .withErrorMessage(e.getMessage());
       if (output != null) {

@@ -21,13 +21,13 @@ package com.here.naksha.lib.psql;
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.storage.ClosableIterator;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IReadTransaction;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Iterator;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -69,13 +69,11 @@ public class PsqlTxReader implements IReadTransaction {
 
   @NotNull
   PreparedStatement preparedStatement(@NotNull String sql) throws SQLException {
-    //noinspection resource
     return connection().prepareStatement(sql);
   }
 
   @NotNull
   Statement createStatement() throws SQLException {
-    //noinspection resource
     return connection().createStatement();
   }
 
@@ -108,8 +106,10 @@ public class PsqlTxReader implements IReadTransaction {
   }
 
   @Override
-  public @NotNull Iterator<@NotNull CollectionInfo> iterateCollections() throws SQLException {
-    throw new UnsupportedOperationException("getAllCollections");
+  public @NotNull ClosableIterator<@NotNull CollectionInfo> iterateCollections() throws SQLException {
+    try (final var stmt = connection().prepareStatement(UtCollectionInfoResultSet.STATEMENT)) {
+      return new UtCollectionInfoResultSet(stmt.executeQuery());
+    }
   }
 
   @Override

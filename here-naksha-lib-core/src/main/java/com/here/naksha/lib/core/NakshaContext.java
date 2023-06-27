@@ -50,7 +50,17 @@ public class NakshaContext implements Logger {
    *
    * @return The current thread local logger.
    */
-  public static @NotNull NakshaContext currentLogger() {
+  public static @NotNull Logger currentLogger() {
+    return currentContext();
+  }
+
+  /**
+   * Returns the current thread local logger.
+   *
+   * @param sourceClass the class querying the logger.
+   * @return The current thread local logger.
+   */
+  public static @NotNull Logger currentLogger(@NotNull Class<?> sourceClass) {
     return currentContext();
   }
 

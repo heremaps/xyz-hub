@@ -93,6 +93,18 @@ val mavenUrl = rootProject.properties["mavenUrl"] as String
 val mavenUser = rootProject.properties["mavenUser"] as String
 val mavenPassword = rootProject.properties["mavenPassword"] as String
 
+/*
+
+    IMPORTANT: api vs implementation
+
+    We need to differ between libraries (starting with "here-naksha-lib") and other parts of
+    the project. For the Naksha libraries we need to select "api" for any dependency, that is
+    needed for the public API (should be usable by the user of the library), while
+    “implementation” should be used for all test dependencies, or dependencies that must not be
+    used by the final users.
+
+ */
+
 // Apply general settings to all sub-projects
 subprojects {
     // All subprojects should be in the naksha group (for artifactory) and have the same version!
@@ -166,10 +178,27 @@ subprojects {
 
 // Shared dependencies
 subprojects {
+    if (name.startsWith("here-naksha-lib")) {
+        // TODO: We need to expose JTS, but actually we need to upgrade it first.
+        dependencies {
+            api(jetbrains_annotations)
+            api(slf4j)
+            api(jackson_core)
+            api(jackson_core_databind)
+            api(jackson_core_dataformat)
+            api(jackson_core_annotations)
+        }
+    } else {
+        dependencies {
+            implementation(jetbrains_annotations)
+            implementation(slf4j)
+            implementation(jackson_core)
+            implementation(jackson_core_databind)
+            implementation(jackson_core_dataformat)
+            implementation(jackson_core_annotations)
+        }
+    }
     dependencies {
-        implementation(jetbrains_annotations)
-        implementation(jackson_core_annotations)
-
         testImplementation(junit_jupiter)
     }
 }
@@ -181,15 +210,10 @@ project(":here-naksha-lib-core") {
         withSourcesJar()
     }
     dependencies {
-        // We include this and expose it via currentLogger() to others!
-        api(slf4j)
+        // Can we get rid of this?
         implementation(google_guava)
         implementation(commons_lang3)
         implementation(vividsolutions_jts_core)
-        api(jackson_core)
-        api(jackson_core_databind)
-        api(jackson_core_dataformat)
-        api(jackson_core_annotations)
         implementation(google_flatbuffers)
     }
 }
@@ -201,7 +225,7 @@ project(":here-naksha-lib-psql") {
         withSourcesJar()
     }
     dependencies {
-        implementation(project(":here-naksha-lib-core"))
+        api(project(":here-naksha-lib-core"))
 
         implementation(commons_lang3)
         implementation(postgres)

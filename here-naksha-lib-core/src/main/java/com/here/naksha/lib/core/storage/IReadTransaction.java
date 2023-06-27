@@ -20,7 +20,6 @@ package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import java.util.Iterator;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -49,7 +48,7 @@ public interface IReadTransaction extends AutoCloseable {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  Iterator<@NotNull CollectionInfo> iterateCollections() throws Exception;
+  ClosableIterator<@NotNull CollectionInfo> iterateCollections() throws Exception;
 
   /**
    * Returns the collection with the given id.
