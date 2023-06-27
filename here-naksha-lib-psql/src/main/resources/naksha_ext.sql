@@ -28,35 +28,11 @@
 CREATE SCHEMA IF NOT EXISTS "${schema}";
 SET SESSION search_path TO "${schema}", public, topology;
 
--- Helper to test if a text is a valid JSON.
-CREATE OR REPLACE FUNCTION naksha_is_json(t TEXT) RETURNS boolean LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
-BEGIN
-  RETURN (t::json IS NOT NULL);
-EXCEPTION
-  WHEN OTHERS THEN RETURN FALSE;
-END;
-$BODY$;
-
--- Helper to test if a text is a valid JSON.
-CREATE OR REPLACE FUNCTION naksha_json_id(t TEXT) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
-DECLARE
-  j jsonb;
-BEGIN
-  j = t::json;
-  IF j->>'id' IS NOT NULL THEN
-    RETURN j->>'id';
-  END IF;
-  RETURN NULL;
-EXCEPTION
-  WHEN OTHERS THEN RETURN NULL;
-END;
-$BODY$;
-
 -- Returns the packed Naksha extension version: 16 bit reserved, 16 bit major, 16 bit minor, 16 bit revision.
 CREATE OR REPLACE FUNCTION naksha_version() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
     --        major               minor               revision
-    return (  2::int8 << 32) | (  0::int8 << 16) | (  4::int8);
+    return (  2::int8 << 32) | (  0::int8 << 16) | (  5::int8);
 END $BODY$;
 
 -- Returns the storage-id of this storage, this is created when the Naksha extension is installed and never changes.
@@ -108,6 +84,30 @@ BEGIN
     v := string_to_array(version, '.');
     return naksha_version_of(v[1]::int, v[2]::int, v[3]::int);
 END $BODY$;
+
+-- Helper to test if a text is a valid JSON.
+CREATE OR REPLACE FUNCTION naksha_is_json(t TEXT) RETURNS boolean LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+BEGIN
+  RETURN (t::json IS NOT NULL);
+EXCEPTION
+  WHEN OTHERS THEN RETURN FALSE;
+END;
+$BODY$;
+
+-- Helper to test if a text is a valid JSON.
+CREATE OR REPLACE FUNCTION naksha_json_id(t TEXT) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+DECLARE
+  j jsonb;
+BEGIN
+  j = t::json;
+  IF j->>'id' IS NOT NULL THEN
+    RETURN j->>'id';
+  END IF;
+  RETURN NULL;
+EXCEPTION
+  WHEN OTHERS THEN RETURN NULL;
+END;
+$BODY$;
 
 -- Converts the UUID into a 16 byte array.
 CREATE OR REPLACE FUNCTION naksha_uuid_to_bytes(the_uuid uuid)
@@ -810,7 +810,6 @@ $BODY$;
 -- naksha_collection_maintain(name text)
 -- naksha_collection_maintain_all()
 -- naksha_collection_delete_at(name text, ts timestamptz)
--- naksha_collection_drop(name text)
 
 -- Create the collection, if it does not exist, setting max age to 9223372036854775807 and enable history.
 CREATE OR REPLACE FUNCTION naksha_collection_upsert(collection text)
@@ -988,9 +987,19 @@ BEGIN
 END
 $BODY$;
 
+-- Drop the collection instantly, this operation is inrevertable.
+CREATE OR REPLACE FUNCTION naksha_collection_drop(collection text)
+    RETURNS jsonb
+    LANGUAGE 'plpgsql' VOLATILE
+AS $BODY$
+BEGIN
+    -- TODO: Implement me!
+    RETURN NULL;
+END;
+$BODY$;
+
 -- Start the transaction by setting the application-identifier, the current author (which may be null)
 -- and the returns the transaction number.
---
 CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text)
     RETURNS uuid
     LANGUAGE 'plpgsql' VOLATILE

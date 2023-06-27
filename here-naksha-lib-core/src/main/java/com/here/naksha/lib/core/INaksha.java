@@ -82,26 +82,15 @@ public interface INaksha {
    * Naksha version constant. The last version compatible with XYZ-Hub.
    */
   String v0_6 = "0.6.0";
-
-  /**
-   * Naksha version constant.
-   */
   String v2_0_0 = "2.0.0";
-
-  /**
-   * Naksha version constant.
-   */
   String v2_0_3 = "2.0.3";
-
-  /**
-   * Naksha version constant.
-   */
   String v2_0_4 = "2.0.4";
+  String v2_0_5 = "2.0.5";
 
   /**
    * The latest version of the naksha-extension stored in the resources.
    */
-  NakshaVersion latest = NakshaVersion.of(v2_0_4);
+  NakshaVersion latest = NakshaVersion.of(v2_0_5);
 
   /**
    * The reference to the Naksha implementation provided by the host. Rather use the {@link #get()} method to get the instance.
