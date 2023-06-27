@@ -35,10 +35,10 @@ val vertx_web_templ = "io.vertx:vertx-web-templ-handlebars:4.4.0"
 val netty_transport_native_kqueue = "io.netty:netty-transport-native-kqueue:4.1.90.Final"
 val netty_transport_native_epoll = "io.netty:netty-transport-native-epoll:4.1.90.Final"
 
-val jackson_core = "com.fasterxml.jackson.core:jackson-core:2.14.2"
+val jackson_core = "com.fasterxml.jackson.core:jackson-core:2.15.1"
 val jackson_core_annotations = "com.fasterxml.jackson.core:jackson-annotations:2.15.1"
 val jackson_core_databind = "com.fasterxml.jackson.core:jackson-databind:2.15.1"
-val jackson_core_dataformat = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.14.2"
+val jackson_core_dataformat = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.1"
 
 val google_flatbuffers = "com.google.flatbuffers:flatbuffers-java:23.5.9"
 val google_protobuf = "com.google.protobuf:protobuf-java:3.16.3"
