@@ -28,6 +28,30 @@
 CREATE SCHEMA IF NOT EXISTS "${schema}";
 SET SESSION search_path TO "${schema}", public, topology;
 
+-- Helper to test if a text is a valid JSON.
+CREATE OR REPLACE FUNCTION naksha_is_json(t TEXT) RETURNS boolean LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+BEGIN
+  RETURN (t::json IS NOT NULL);
+EXCEPTION
+  WHEN OTHERS THEN RETURN FALSE;
+END;
+$BODY$;
+
+-- Helper to test if a text is a valid JSON.
+CREATE OR REPLACE FUNCTION naksha_json_id(t TEXT) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+DECLARE
+  j jsonb;
+BEGIN
+  j = t::json;
+  IF j->>'id' IS NOT NULL THEN
+    RETURN j->>'id';
+  END IF;
+  RETURN NULL;
+EXCEPTION
+  WHEN OTHERS THEN RETURN NULL;
+END;
+$BODY$;
+
 -- Returns the packed Naksha extension version: 16 bit reserved, 16 bit major, 16 bit minor, 16 bit revision.
 CREATE OR REPLACE FUNCTION naksha_version() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
@@ -785,11 +809,7 @@ $BODY$;
 
 -- naksha_collection_maintain(name text)
 -- naksha_collection_maintain_all()
--- naksha_collection_get_all() -> return all states
--- naksha_collection_get(name text) -> return state
 -- naksha_collection_delete_at(name text, ts timestamptz)
--- naksha_collection_enable_history(name text)
--- naksha_collection_disable_history(name text)
 -- naksha_collection_drop(name text)
 
 -- Create the collection, if it does not exist, setting max age to 9223372036854775807 and enable history.
@@ -840,8 +860,8 @@ BEGIN
     ELSE
         h = 'false';
     END IF;
-    comment = format('{"id":%s, "number":%s, "maxAge":%s, "history":%s, "deletedAt":%s}',
-        (to_json(collection))::text, naksha_storage_id(), max_age, h, 0
+    comment = format('{"id":%s, "number":%s, "maxAge":%s, "history":%s}',
+        (to_json(collection))::text, naksha_storage_id(), max_age, h
     );
     sql = format('COMMENT ON TABLE %I IS %L;', collection, comment);
     --RAISE NOTICE '%', sql;
@@ -889,10 +909,17 @@ $BODY$;
 CREATE OR REPLACE FUNCTION naksha_collection_get(collection text)
     RETURNS jsonb
     LANGUAGE 'plpgsql' IMMUTABLE
-AS
-$BODY$
+AS $BODY$
+DECLARE
+  j jsonb;
 BEGIN
-    RETURN (obj_description(collection::regclass, 'pg_class'))::jsonb;
+    j = obj_description(collection::regclass, 'pg_class')::jsonb;
+    IF j->>'id' = (collection::regclass)::text THEN
+      RETURN j;
+    END IF;
+    RETURN NULL;
+EXCEPTION
+  WHEN OTHERS THEN RETURN NULL;
 END
 $BODY$;
 
@@ -904,11 +931,8 @@ AS
 $BODY$
 BEGIN
     RETURN QUERY
-    SELECT (oid::regclass)::text AS "id", obj_description(oid)::jsonb AS "jsondata"
-    FROM pg_class
-    WHERE relkind='r'
-    AND obj_description(oid) IS NOT NULL
-    AND obj_description(oid) LIKE ('{"id":"'||oid::regclass||'%');
+    SELECT (oid::regclass)::text AS "id", obj_description(oid)::jsonb AS "jsondata" FROM pg_class
+    WHERE relkind='r' AND naksha_json_id(obj_description(oid)) = (oid::regclass)::text;
 END
 $BODY$;
 
@@ -918,10 +942,18 @@ CREATE OR REPLACE FUNCTION naksha_collection_enable_history(collection text)
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
+    meta jsonb;
     trigger_name text;
     full_name text;
     sql text;
 BEGIN
+    meta = obj_description(collection::regclass, 'pg_class')::jsonb;
+    IF NOT (meta->'history')::boolean THEN
+        meta = jsonb_set(meta, '{"history"}', to_jsonb(true), true);
+        sql = format('COMMENT ON TABLE %I IS %L;', collection, meta::text);
+        RAISE NOTICE '%', sql;
+        EXECUTE sql;
+    END IF;
     trigger_name := format('%s_write_hst', collection);
     full_name := format('%I', collection);
     IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = full_name::regclass and tgname = trigger_name) THEN
@@ -940,8 +972,17 @@ CREATE OR REPLACE FUNCTION naksha_collection_disable_history(collection text)
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
+    sql text;
+    meta jsonb;
     trigger_name text;
 BEGIN
+    meta = obj_description(collection::regclass, 'pg_class')::jsonb;
+    IF (meta->'history')::boolean THEN
+        meta = jsonb_set(meta, '{"history"}', to_jsonb(false), true);
+        sql = format('COMMENT ON TABLE %I IS %L;', collection, meta::text);
+        RAISE NOTICE '%', sql;
+        EXECUTE sql;
+    END IF;
     trigger_name := format('%s_write_hst', collection);
     EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I', trigger_name, collection);
 END
