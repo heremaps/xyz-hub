@@ -21,6 +21,7 @@ package com.here.naksha.lib.core.bin;
 import com.google.flatbuffers.*;
 import java.nio.*;
 
+@Deprecated
 @SuppressWarnings("unused")
 public final class ConnectorPayload extends Table {
   public static void ValidateVersion() {

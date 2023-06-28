@@ -20,12 +20,16 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.storage.ClosableIterator;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IReadTransaction;
+import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.view.ViewDeserialize;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import org.jetbrains.annotations.NotNull;
@@ -114,7 +118,24 @@ public class PsqlTxReader implements IReadTransaction {
 
   @Override
   public @Nullable CollectionInfo getCollectionById(@NotNull String id) throws SQLException {
-    throw new UnsupportedOperationException("getCollectionById");
+    final String SQL = "SELECT naksha_collection_get(?);";
+    try (final var stmt = connection().prepareStatement(SQL)) {
+      stmt.setString(1, id);
+      final ResultSet rs = stmt.executeQuery();
+      if (rs.next()) {
+        final String jsonText = rs.getString(1);
+        if (jsonText != null) {
+          try (final Json json = Json.open()) {
+            return json.reader(ViewDeserialize.Storage.class)
+                .forType(CollectionInfo.class)
+                .readValue(jsonText);
+          } catch (JsonProcessingException e) {
+            throw new SQLException("Failed to parse JSON", e);
+          }
+        }
+      }
+      return null;
+    }
   }
 
   @Override

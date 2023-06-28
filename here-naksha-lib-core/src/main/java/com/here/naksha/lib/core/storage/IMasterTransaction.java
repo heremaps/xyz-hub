@@ -78,9 +78,9 @@ public interface IMasterTransaction extends IReadTransaction {
   CollectionInfo upsertCollection(@NotNull CollectionInfo collection) throws Exception;
 
   /**
-   * Deletes the collection including the history.
+   * Deletes the collection, including the history, at the given point in time.
    *
-   * @param collection The collection to delete.
+   * @param collection the collection to delete.
    * @param deleteAt the unix epoch timestamp in milliseconds when to delete the table, must be
    *     greater than zero.
    * @return the dropped collection.
@@ -88,7 +88,18 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  CollectionInfo dropCollection(@NotNull CollectionInfo collection, long deleteAt) throws Exception;
+  CollectionInfo deleteCollection(@NotNull CollectionInfo collection, long deleteAt) throws Exception;
+
+  /**
+   * Deletes the collection including the history instantly and not revertable.
+   *
+   * @param collection the collection to delete.
+   * @return the dropped collection.
+   * @throws Exception if access to the storage failed or any other error occurred.
+   */
+  @AvailableSince(INaksha.v2_0_4)
+  @NotNull
+  CollectionInfo dropCollection(@NotNull CollectionInfo collection) throws Exception;
 
   /**
    * Enable the history for the given collection.

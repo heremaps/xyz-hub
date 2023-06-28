@@ -21,6 +21,8 @@ package com.here.naksha.lib.psql;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.lib.core.NakshaVersion;
@@ -71,13 +73,29 @@ public class PsqlStorageTest {
   @Test
   @Order(2)
   @EnabledIf("isEnabled")
+  void dropSchemaIfExists() throws Exception {
+    final StringBuilder sb = new StringBuilder();
+    sb.append("DROP SCHEMA IF EXISTS ");
+    assert storage != null;
+    PsqlStorage.escapeId(sb, storage.getSchema());
+    sb.append(" CASCADE;");
+    final String SQL = sb.toString();
+    try (final var conn = storage.dataSource.getConnection()) {
+      conn.createStatement().execute(SQL);
+      conn.commit();
+    }
+  }
+
+  @Test
+  @Order(3)
+  @EnabledIf("isEnabled")
   void initStorage() throws Exception {
     assertNotNull(storage);
     storage.init();
   }
 
   @Test
-  @Order(3)
+  @Order(4)
   @EnabledIf("isEnabled")
   void startTransaction() throws Exception {
     assertNotNull(storage);
@@ -85,7 +103,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(4)
+  @Order(5)
   @EnabledIf("isEnabled")
   void createFooCollection() throws Exception {
     assertNotNull(storage);
@@ -100,7 +118,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(5)
+  @Order(6)
   @EnabledIf("isEnabled")
   void listAllCollections() throws Exception {
     assertNotNull(storage);
@@ -116,8 +134,28 @@ public class PsqlStorageTest {
     assertFalse(it.hasNext());
   }
 
+  @Test
+  @Order(7)
+  @EnabledIf("isEnabled")
+  void dropCollection() throws Exception {
+    assertNotNull(storage);
+    assertNotNull(tx);
+    final CollectionInfo foo = tx.getCollectionById("foo");
+    assertNotNull(foo);
+    final CollectionInfo dropped = tx.dropCollection(foo);
+    tx.commit();
+    assertNotNull(dropped);
+    assertNotSame(foo, dropped);
+    assertEquals(foo.getId(), dropped.getId());
+    assertEquals(foo.getHistory(), dropped.getHistory());
+    assertEquals(foo.getMaxAge(), dropped.getMaxAge());
+    final CollectionInfo fooAgain = tx.getCollectionById("foo");
+    assertNull(fooAgain);
+  }
+
+  @EnabledIf("isEnabled")
   @AfterAll
-  public static void finish() {
+  public static void afterTest() {
     if (tx != null) {
       try {
         tx.close();

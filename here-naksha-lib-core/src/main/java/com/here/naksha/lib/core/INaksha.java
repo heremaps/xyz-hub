@@ -82,6 +82,7 @@ public interface INaksha {
    * Naksha version constant. The last version compatible with XYZ-Hub.
    */
   String v0_6 = "0.6.0";
+
   String v2_0_0 = "2.0.0";
   String v2_0_3 = "2.0.3";
   String v2_0_4 = "2.0.4";

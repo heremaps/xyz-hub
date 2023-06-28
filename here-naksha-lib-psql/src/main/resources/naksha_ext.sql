@@ -987,14 +987,24 @@ BEGIN
 END
 $BODY$;
 
--- Drop the collection instantly, this operation is inrevertable.
+-- Drop the collection instantly, this operation is not revertible.
 CREATE OR REPLACE FUNCTION naksha_collection_drop(collection text)
     RETURNS jsonb
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
+DECLARE
+    meta jsonb;
+    sql text;
 BEGIN
-    -- TODO: Implement me!
-    RETURN NULL;
+    meta = obj_description(collection::regclass, 'pg_class')::jsonb;
+    PERFORM naksha_collection_disable_history(collection);
+    sql = format('DROP TABLE IF EXISTS %I CASCADE;', collection||'_hst');
+    EXECUTE sql;
+    sql = format('DROP TABLE IF EXISTS %I CASCADE;', collection||'_del');
+    EXECUTE sql;
+    sql = format('DROP TABLE IF EXISTS %I CASCADE;', collection);
+    EXECUTE sql;
+    RETURN meta;
 END;
 $BODY$;
 

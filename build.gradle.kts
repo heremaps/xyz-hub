@@ -4,6 +4,12 @@ import java.net.URI
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+repositories {
+    maven {
+        url = uri("https://plugins.gradle.org/m2/")
+    }
+}
+
 plugins {
     java
     `java-library`

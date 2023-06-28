@@ -73,9 +73,24 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
   }
 
   @Override
-  public @NotNull CollectionInfo dropCollection(@NotNull CollectionInfo collection, long deleteAt)
+  public @NotNull CollectionInfo deleteCollection(@NotNull CollectionInfo collection, long deleteAt)
       throws SQLException {
     throw new UnsupportedOperationException("dropCollection");
+  }
+
+  @Override
+  @NotNull
+  public CollectionInfo dropCollection(@NotNull CollectionInfo collection) throws Exception {
+    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_collection_drop(?);")) {
+      stmt.setString(1, collection.getId());
+      final ResultSet rs = stmt.executeQuery();
+      rs.next();
+      try (final var json = Json.open()) {
+        return json.reader(ViewDeserialize.class)
+            .forType(CollectionInfo.class)
+            .readValue(rs.getString(1));
+      }
+    }
   }
 
   @Override
