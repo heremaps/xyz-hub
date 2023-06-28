@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 166
+ select 167
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3987,7 +3987,7 @@ begin
           from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
             group by rr.bucket, rr.tiles_total
         )
-        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*, 
+        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
 		       format('select tile_id, tile_content from qk_s_get_fc_of_tiles_txt(false,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped) as s3sql
         from ibuckets l, indata r
         order by bucket;
@@ -4005,7 +4005,7 @@ begin
           from ( select count(1) over () tiles_total, ((row_number() over ()) - 1) / i.max_tiles as bucket, r.qk from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r ) rr
             group by rr.bucket, rr.tiles_total
         )
-        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*, 
+        select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
 		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, tile_content from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped) as s3sql
         from ibuckets l, indata r
         order by bucket;
@@ -4019,7 +4019,7 @@ create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, 
  returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
 language sql stable
 as $_$
-    select qk, mlev, sql_with_jsdata_geo, max_tls, bucket, nrbuckets, nrsubtiles, tiles_total, tile_list, s3sql 
+    select qk, mlev, sql_with_jsdata_geo, max_tls, bucket, nrbuckets, nrsubtiles, tiles_total, tile_list, s3sql
 	from exp_build_sql_inhabited_txt(htile, iqk, mlevel, sql_with_jsondata_geo, sql_qk_tileqry_with_geo, max_tiles, true, false )
 $_$;
 
