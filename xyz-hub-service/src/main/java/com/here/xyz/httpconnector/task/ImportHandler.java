@@ -50,10 +50,9 @@ public class ImportHandler extends JobHandler{
         return CService.jobConfigClient.get(marker, job.getId())
                 .compose( loadedJob -> {
                     if(loadedJob == null)
-                        return CService.jobConfigClient.store(marker, job);
+                        return HubWebClient.getSpaceStatistics(job.getTargetSpaceId());
                     return Future.failedFuture(new HttpException(BAD_REQUEST, "Job with id '"+job.getId()+"' already exists!"));
                 })
-                .compose( f -> HubWebClient.getSpaceStatistics(job.getTargetSpaceId()))
                 .compose( statistics-> {
                     Long value = statistics.getCount().getValue();
                     if(value != null && value != 0) {
