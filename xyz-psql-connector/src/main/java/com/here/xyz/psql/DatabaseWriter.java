@@ -85,20 +85,23 @@ public class DatabaseWriter {
 
     private static PGobject featureToPGobject(ModifyFeaturesEvent event, final Feature feature, long version) throws SQLException {
         final Geometry geometry = feature.getGeometry();
-        feature.setGeometry(null); // Do not serialize the geometry in the JSON object
+        feature.setGeometry(null); //Do not serialize the geometry in the JSON object
 
         final String json;
-
         try {
-            //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
+            //Remove the version from the JSON data, because it should not be written into the "jsondata" column. The version has its own column.
+            feature.getProperties().getXyzNamespace().setVersion(-1);
+
+            //NOTE: The following is a temporary implementation for backwards compatibility for old table structures with legacy history
             if (event.isEnableGlobalVersioning() && version != -1)
                 feature.getProperties().getXyzNamespace().setVersion(version);
 
-            if (event.getVersionsToKeep() <= 1) {
+            if (event.getVersionsToKeep() <= 1)
               feature.getProperties().getXyzNamespace().setAuthor(null);
-            }
+
             json = feature.serialize();
-        } finally {
+        }
+        finally {
             feature.setGeometry(geometry);
         }
 

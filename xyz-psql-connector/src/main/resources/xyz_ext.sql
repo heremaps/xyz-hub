@@ -3069,7 +3069,6 @@ $BODY$
         updated_rows INTEGER;
         minVersion BIGINT;
     BEGIN
-        jsondata := jsondata #- '{properties,@ns:com:here:xyz,version}';
         EXECUTE
            format('INSERT INTO %I.%I (id, version, operation, author, jsondata, geo) VALUES (%L, %L, %L, %L, %L, %L)',
                schema, tableName, id, version, operation, author, jsondata, CASE WHEN geo::geometry IS NULL THEN NULL ELSE ST_Force3D(ST_GeomFromWKB(geo::BYTEA, 4326)) END);
