@@ -53,6 +53,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.payload.events.IfRowLock;
 import com.here.naksha.lib.core.models.payload.events.admin.ModifySubscriptionEvent;
 import com.here.naksha.lib.core.models.payload.events.clustering.Clustering;
 import com.here.naksha.lib.core.models.payload.events.clustering.ClusteringHexBin;
@@ -1183,6 +1184,8 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     final boolean transactional = event.getTransaction() == Boolean.TRUE;
     final boolean includeOldStates =
         event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
+    final boolean enableNowait =
+        event.getActionIfRowLocked() != null && event.getActionIfRowLocked() == IfRowLock.ABORT;
     List<Feature> oldFeatures = null;
 
     final String schema = spaceSchema();
@@ -1295,6 +1298,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
               connection,
               transactional,
               handleUUID,
+              enableNowait,
               version,
               forExtendingSpace);
         }
@@ -1323,6 +1327,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
           retryAttempted = true;
 
           if (!connection.isClosed()) {
+            connection.rollback();
             connection.setAutoCommit(previousAutoCommitState);
             connection.close();
           }
@@ -1339,7 +1344,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
             throw e; // Table does not exist yet - create it!
           } else {
 
-            logger.warn("{}:{} - Transaction has failed.", e);
+            currentLogger().warn("Transaction has failed. ", e);
             connection.close();
 
             Map<String, Object> errorDetails = new HashMap<>();

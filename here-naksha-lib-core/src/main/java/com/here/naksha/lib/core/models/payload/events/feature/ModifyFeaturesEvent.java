@@ -26,6 +26,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection.ModificationFailure;
 import com.here.naksha.lib.core.models.payload.events.FeatureEvent;
+import com.here.naksha.lib.core.models.payload.events.IfRowLock;
 import java.util.List;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
@@ -96,6 +97,9 @@ public final class ModifyFeaturesEvent extends FeatureEvent {
 
   private List<ModificationFailure> failed;
   private Integer maxVersionCount;
+
+  @JsonInclude(Include.NON_DEFAULT)
+  private IfRowLock actionIfRowLocked;
 
   /**
    * Returns the list of all features to be inserted.
@@ -306,6 +310,19 @@ public final class ModifyFeaturesEvent extends FeatureEvent {
 
   public ModifyFeaturesEvent withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
     this.enableGlobalVersioning = enableGlobalVersioning;
+    return this;
+  }
+
+  public IfRowLock getActionIfRowLocked() {
+    return actionIfRowLocked;
+  }
+
+  public void setActionIfRowLocked(final IfRowLock actionIfRowLocked) {
+    this.actionIfRowLocked = actionIfRowLocked;
+  }
+
+  public ModifyFeaturesEvent withActionIfRowLocked(final IfRowLock actionIfRowLocked) {
+    this.actionIfRowLocked = actionIfRowLocked;
     return this;
   }
 }

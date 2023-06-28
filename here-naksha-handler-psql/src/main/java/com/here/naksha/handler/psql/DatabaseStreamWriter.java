@@ -18,19 +18,26 @@
  */
 package com.here.naksha.handler.psql;
 
+import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.io.WKBWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PGobject;
 
 public class DatabaseStreamWriter extends DatabaseWriter {
+
+  private static final int TYPE_INSERT = 1;
+  private static final int TYPE_UPDATE = 2;
+  private static final int TYPE_DELETE = 3;
 
   protected static FeatureCollection insertFeatures(
       @NotNull PsqlHandler processor,
@@ -46,39 +53,60 @@ public class DatabaseStreamWriter extends DatabaseWriter {
     final PreparedStatement insertStmt = createInsertStatement(connection, schema, table, forExtendedSpace);
     final PreparedStatement insertWithoutGeometryStmt =
         createInsertWithoutGeometryStatement(connection, schema, table, forExtendedSpace);
+    final long startTS = System.currentTimeMillis();
 
     for (int i = 0; i < inserts.size(); i++) {
 
       String fId = "";
       try {
-        int rows = 0;
+        boolean success = false;
+        ResultSet rs = null;
         final Feature feature = inserts.get(i);
         fId = feature.getId();
 
         final PGobject jsonbObject = featureToPGobject(feature, null);
+        final List<PGobject> jsonbObjectList = new ArrayList<>();
+        final List<Geometry> geometryList = new ArrayList<>();
 
+        jsonbObjectList.add(jsonbObject);
         if (feature.getGeometry() == null) {
-          insertWithoutGeometryStmt.setObject(1, jsonbObject);
-          if (forExtendedSpace) insertWithoutGeometryStmt.setBoolean(2, getDeletedFlagFromFeature(feature));
+          insertWithoutGeometryStmt.setArray(1, connection.createArrayOf("jsonb", jsonbObjectList.toArray()));
+          /*if (forExtendedSpace)
+          insertWithoutGeometryStmt.setBoolean(2, getDeletedFlagFromFeature(feature));*/
           insertWithoutGeometryStmt.setQueryTimeout(processor.calculateTimeout());
-          rows = insertWithoutGeometryStmt.executeUpdate();
+          success = insertWithoutGeometryStmt.execute();
+          if (success) {
+            rs = insertWithoutGeometryStmt.getResultSet();
+          }
         } else {
-          insertStmt.setObject(1, jsonbObject);
-          final WKBWriter wkbWriter = new WKBWriter(3);
+          insertStmt.setArray(1, connection.createArrayOf("jsonb", jsonbObjectList.toArray()));
           Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
           // Avoid NAN values
           assure3d(jtsGeometry.getCoordinates());
-          insertStmt.setBytes(2, wkbWriter.write(jtsGeometry));
-          if (forExtendedSpace) insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));
+          geometryList.add(jtsGeometry);
+          insertStmt.setArray(2, connection.createArrayOf("geometry", geometryList.toArray()));
+          /*if (forExtendedSpace)
+          insertStmt.setBoolean(3, getDeletedFlagFromFeature(feature));*/
           insertStmt.setQueryTimeout(processor.calculateTimeout());
-          rows = insertStmt.executeUpdate();
+          success = insertStmt.execute();
+          if (success) {
+            rs = insertStmt.getResultSet();
+          }
         }
 
-        if (rows == 0) {
+        if (success
+            && rs != null
+            && rs.next()
+            && ((boolean[]) rs.getArray("success").getArray())[0]) {
+          saveXyzNamespaceInFeature(
+              feature, ((String[]) rs.getArray("xyz_ns").getArray())[0]);
+          rs.close();
+          collection.getFeatures().add(feature);
+        } else {
           fails.add(new FeatureCollection.ModificationFailure()
               .withId(fId)
               .withMessage(INSERT_ERROR_GENERAL));
-        } else collection.getFeatures().add(feature);
+        }
 
       } catch (Exception e) {
         if ((e instanceof SQLException
@@ -97,6 +125,14 @@ public class DatabaseStreamWriter extends DatabaseWriter {
 
     insertStmt.close();
     insertWithoutGeometryStmt.close();
+    final long duration = System.currentTimeMillis() - startTS;
+    currentLogger()
+        .info(
+            "NonTransactional DB Operation Stats [format => eventType,table,opType,timeTakenMs] - {} {} {} {}",
+            "DBOperationStats",
+            table,
+            TYPE_INSERT,
+            duration);
 
     return collection;
   }
@@ -108,6 +144,7 @@ public class DatabaseStreamWriter extends DatabaseWriter {
       List<Feature> updates,
       Connection connection,
       boolean handleUUID,
+      boolean enableNowait,
       boolean forExtendedSpace)
       throws SQLException {
 
@@ -117,13 +154,15 @@ public class DatabaseStreamWriter extends DatabaseWriter {
         createUpdateStatement(connection, schema, table, handleUUID, forExtendedSpace);
     final PreparedStatement updateWithoutGeometryStmt =
         createUpdateWithoutGeometryStatement(connection, schema, table, handleUUID, forExtendedSpace);
+    final long startTS = System.currentTimeMillis();
 
     for (int i = 0; i < updates.size(); i++) {
       String fId = "";
       try {
         final Feature feature = updates.get(i);
         final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
-        int rows = 0;
+        boolean success = false;
+        ResultSet rs = null;
 
         if (feature.getId() == null) {
           fails.add(new FeatureCollection.ModificationFailure()
@@ -142,37 +181,68 @@ public class DatabaseStreamWriter extends DatabaseWriter {
         }
 
         final PGobject jsonbObject = featureToPGobject(feature, null);
+        final List<String> fIdList = new ArrayList<>();
+        final List<String> uuidList = new ArrayList<>();
+        final List<PGobject> jsonbObjectList = new ArrayList<>();
+        final List<Geometry> geometryList = new ArrayList<>();
 
+        fIdList.add(fId);
+        if (handleUUID) {
+          uuidList.add(puuid);
+        } else {
+          uuidList.add(null);
+        }
+        jsonbObjectList.add(jsonbObject);
         int paramIdx = 0;
         if (feature.getGeometry() == null) {
-          updateWithoutGeometryStmt.setObject(++paramIdx, jsonbObject);
-          if (forExtendedSpace)
-            updateWithoutGeometryStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));
-          updateWithoutGeometryStmt.setString(++paramIdx, fId);
-          if (handleUUID) updateWithoutGeometryStmt.setString(++paramIdx, puuid);
+          updateWithoutGeometryStmt.setArray(++paramIdx, connection.createArrayOf("text", fIdList.toArray()));
+          updateWithoutGeometryStmt.setArray(
+              ++paramIdx, connection.createArrayOf("text", uuidList.toArray()));
+          updateWithoutGeometryStmt.setArray(
+              ++paramIdx, connection.createArrayOf("jsonb", jsonbObjectList.toArray()));
+          updateWithoutGeometryStmt.setBoolean(++paramIdx, enableNowait);
+          /*if (forExtendedSpace)
+          updateWithoutGeometryStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));*/
 
           updateWithoutGeometryStmt.setQueryTimeout(processor.calculateTimeout());
-          rows = updateWithoutGeometryStmt.executeUpdate();
+          success = updateWithoutGeometryStmt.execute();
+          if (success) {
+            rs = updateWithoutGeometryStmt.getResultSet();
+          }
         } else {
-          updateStmt.setObject(++paramIdx, jsonbObject);
-          final WKBWriter wkbWriter = new WKBWriter(3);
+          updateStmt.setArray(++paramIdx, connection.createArrayOf("text", fIdList.toArray()));
+          updateStmt.setArray(++paramIdx, connection.createArrayOf("text", uuidList.toArray()));
+          updateStmt.setArray(++paramIdx, connection.createArrayOf("jsonb", jsonbObjectList.toArray()));
           Geometry jtsGeometry = feature.getGeometry().getJTSGeometry();
           // Avoid NAN values
           assure3d(jtsGeometry.getCoordinates());
-          updateStmt.setBytes(++paramIdx, wkbWriter.write(jtsGeometry));
-          if (forExtendedSpace) updateStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));
-          updateStmt.setString(++paramIdx, fId);
-          if (handleUUID) updateStmt.setString(++paramIdx, puuid);
+          geometryList.add(jtsGeometry);
+          updateStmt.setArray(++paramIdx, connection.createArrayOf("geometry", geometryList.toArray()));
+          updateStmt.setBoolean(++paramIdx, enableNowait);
+          ;
+          /*if (forExtendedSpace)
+          updateStmt.setBoolean(++paramIdx, getDeletedFlagFromFeature(feature));*/
 
           updateStmt.setQueryTimeout(processor.calculateTimeout());
-          rows = updateStmt.executeUpdate();
+          success = updateStmt.execute();
+          if (success) {
+            rs = updateStmt.getResultSet();
+          }
         }
 
-        if (rows == 0) {
+        if (success
+            && rs != null
+            && rs.next()
+            && ((boolean[]) rs.getArray("success").getArray())[0]) {
+          saveXyzNamespaceInFeature(
+              feature, ((String[]) rs.getArray("xyz_ns").getArray())[0]);
+          rs.close();
+          collection.getFeatures().add(feature);
+        } else {
           fails.add(new FeatureCollection.ModificationFailure()
               .withId(fId)
               .withMessage((handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS)));
-        } else collection.getFeatures().add(feature);
+        }
 
       } catch (Exception e) {
         fails.add(
@@ -183,6 +253,14 @@ public class DatabaseStreamWriter extends DatabaseWriter {
 
     updateStmt.close();
     updateWithoutGeometryStmt.close();
+    final long duration = System.currentTimeMillis() - startTS;
+    currentLogger()
+        .info(
+            "NonTransactional DB Operation Stats [format => eventType,table,opType,timeTakenMs] - {} {} {} {}",
+            "DBOperationStats",
+            table,
+            TYPE_UPDATE,
+            duration);
 
     return collection;
   }
@@ -199,30 +277,44 @@ public class DatabaseStreamWriter extends DatabaseWriter {
     final String table = processor.spaceTable();
     final PreparedStatement deleteStmt = deleteStmtSQLStatement(connection, schema, table, handleUUID);
     final PreparedStatement deleteStmtWithoutUUID = deleteStmtSQLStatement(connection, schema, table, false);
+    final long startTS = System.currentTimeMillis();
 
     for (String deleteId : deletes.keySet()) {
       try {
         final String puuid = deletes.get(deleteId);
-        int rows = 0;
+        boolean success = false;
+        ResultSet rs = null;
+        final List<String> fIdList = new ArrayList<>();
+        final List<String> uuidList = new ArrayList<>();
 
+        fIdList.add(deleteId);
         if (handleUUID && puuid == null) {
-          deleteStmtWithoutUUID.setString(1, deleteId);
+          deleteStmtWithoutUUID.setArray(1, connection.createArrayOf("text", fIdList.toArray()));
           deleteStmtWithoutUUID.setQueryTimeout(processor.calculateTimeout());
-          rows += deleteStmtWithoutUUID.executeUpdate();
+          success = deleteStmtWithoutUUID.execute();
+          if (success) {
+            rs = deleteStmtWithoutUUID.getResultSet();
+          }
         } else {
-          deleteStmt.setString(1, deleteId);
+          deleteStmt.setArray(1, connection.createArrayOf("text", fIdList.toArray()));
           if (handleUUID) {
-            deleteStmt.setString(2, puuid);
+            uuidList.add(puuid);
+            deleteStmt.setArray(2, connection.createArrayOf("text", uuidList.toArray()));
           }
           deleteStmt.setQueryTimeout(processor.calculateTimeout());
-          rows += deleteStmt.executeUpdate();
+          success = deleteStmt.execute();
+          if (success) {
+            rs = deleteStmt.getResultSet();
+          }
         }
 
-        if (rows == 0) {
+        if (!success
+            || (rs.next() && !((boolean[]) rs.getArray("success").getArray())[0])) {
           fails.add(new FeatureCollection.ModificationFailure()
               .withId(deleteId)
               .withMessage((handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS)));
         }
+        if (rs != null) rs.close();
 
       } catch (Exception e) {
         fails.add(new FeatureCollection.ModificationFailure()
@@ -234,5 +326,13 @@ public class DatabaseStreamWriter extends DatabaseWriter {
 
     deleteStmt.close();
     deleteStmtWithoutUUID.close();
+    final long duration = System.currentTimeMillis() - startTS;
+    currentLogger()
+        .info(
+            "NonTransactional DB Operation Stats [format => eventType,table,opType,timeTakenMs] - {} {} {} {}",
+            "DBOperationStats",
+            table,
+            TYPE_DELETE,
+            duration);
   }
 }

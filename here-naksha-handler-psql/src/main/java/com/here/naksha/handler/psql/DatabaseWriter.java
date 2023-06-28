@@ -24,7 +24,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.vividsolutions.jts.geom.Coordinate;
+import io.vertx.core.json.JsonObject;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -150,17 +152,26 @@ public class DatabaseWriter {
       Connection connection,
       boolean transactional,
       boolean handleUUID,
+      boolean enableNowait,
       Integer version,
       boolean forExtendedSpace)
       throws SQLException, JsonProcessingException {
     if (transactional) {
       setAutocommit(connection, false);
       return DatabaseTransactionalWriter.updateFeatures(
-          processor, collection, fails, updates, connection, handleUUID, version, forExtendedSpace);
+          processor,
+          collection,
+          fails,
+          updates,
+          connection,
+          handleUUID,
+          enableNowait,
+          version,
+          forExtendedSpace);
     }
     setAutocommit(connection, true);
     return DatabaseStreamWriter.updateFeatures(
-        processor, collection, fails, updates, connection, handleUUID, forExtendedSpace);
+        processor, collection, fails, updates, connection, handleUUID, enableNowait, forExtendedSpace);
   }
 
   protected static void deleteFeatures(
@@ -193,5 +204,11 @@ public class DatabaseWriter {
       /* If table not yet exist */
       currentLogger().info("{Failed to perform {} - table {} does not exists {}", action, table, e);
     } else currentLogger().info("Failed to perform {} on table {} {}", action, table, e);
+  }
+
+  protected static void saveXyzNamespaceInFeature(final Feature f, final String xyzNsJson) {
+    if (xyzNsJson == null) return;
+    final XyzNamespace newXyzNsObj = new JsonObject(xyzNsJson).mapTo(XyzNamespace.class);
+    f.getProperties().setXyzNamespace(newXyzNsObj);
   }
 }

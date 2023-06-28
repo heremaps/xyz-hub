@@ -23,6 +23,7 @@ import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.HeaderValues.APPLICATION_JSON;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 
+import com.here.naksha.lib.core.models.payload.events.IfRowLock;
 import com.here.xyz.events.feature.DeleteFeaturesByTagEvent;
 import com.here.xyz.events.feature.GetFeaturesByIdEvent;
 import com.here.xyz.events.feature.ModifyFeaturesEvent;
@@ -174,6 +175,7 @@ public class FeatureApi extends SpaceBasedApi {
       return;
 
     ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional).withContext(spaceContext);
+    event.setActionIfRowLocked(IfRowLock.of(Query.getString(context, Query.IF_ROW_LOCKED, IfRowLock.WAIT.toString())));
     int bodySize = context.getBody() != null ? context.getBody().length() : 0;
     ConditionalModifyFeaturesTask task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists, ifExists, transactional, cr, requireResourceExists, bodySize);
     final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
