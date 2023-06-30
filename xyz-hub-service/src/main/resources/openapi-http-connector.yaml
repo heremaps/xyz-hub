@@ -387,6 +387,7 @@ components:
         enum:
           - start
           - retry
+          - abort
           - createUploadUrl
     SpaceId:
       name: spaceId

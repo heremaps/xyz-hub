@@ -20,6 +20,7 @@
 package com.here.xyz.httpconnector.task;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.*;
 import com.here.xyz.httpconnector.util.jobs.validate.ExportValidator;
@@ -78,15 +79,13 @@ public class ExportHandler extends JobHandler{
                         loadClientAndInjectDefaults(exportJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, null);
 
                         switch (command){
-                            case ABORT:
-                                p.fail(new HttpException(NOT_IMPLEMENTED,"NA"));
-                                return;
+                            case ABORT: abbortJob(marker, exportJob, p); break;
+                                
                             case CREATEUPLOADURL:
                                 p.fail(new HttpException(NOT_IMPLEMENTED, "For Export not required!"));
                                 return;
                             case RETRY:
-                            case START:
-                                checkAndAddJob(marker, exportJob, p);
+                            case START: checkAndAddJob(marker, exportJob, p); break;
                         }
                     }catch (HttpException e){
                         p.fail(e);
@@ -102,13 +101,24 @@ public class ExportHandler extends JobHandler{
         }
 
         switch (command){
-            case CREATEUPLOADURL:
-                throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
-            case ABORT:
-            case RETRY:
-                throw new HttpException(NOT_IMPLEMENTED, "TBD");
-            case START:
-                isValidForStart(job);
+            case CREATEUPLOADURL: throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
+            case ABORT: isValidForAbort(job); break;
+            case RETRY:  throw new HttpException(NOT_IMPLEMENTED, "TBD");
+            case START: isValidForStart(job); break;
+            default: throw new HttpException(BAD_REQUEST, "unknown command [" + command + "]");
         }
+    }
+
+    private static void isValidForAbort(Job job) throws HttpException {
+        switch (job.getStatus()){
+            case executing: break;
+            default: throw new HttpException(PRECONDITION_FAILED, "Job is not in executing state - current status: "+job.getStatus());
+        }
+    }    
+
+    private static void abbortJob(Marker marker, Job job, Promise<Job> p)
+    {
+      JDBCExporter.abortJobsByJobId((Export) job);
+      return;  
     }
 }
