@@ -38,6 +38,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.sql.SQLClient;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -154,6 +155,10 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
     if (selectedCondition.region != null) {
       whereConjunctions.add("region = '" + selectedCondition.region + "'");
+    }
+
+    if (selectedCondition.prefix != null) {
+      whereConjunctions.add("id like '" + selectedCondition.prefix + "%'");
     }
 
     String query = baseQuery + (whereConjunctions.isEmpty() ? "" :

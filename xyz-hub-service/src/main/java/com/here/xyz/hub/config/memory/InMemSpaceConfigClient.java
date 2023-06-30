@@ -76,6 +76,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
     Predicate<Space> selectionFilter = s -> authorizedCondition.spaceIds == null && authorizedCondition.ownerIds == null
         || selectedCondition.spaceIds != null && selectedCondition.spaceIds.contains(s.getId())
         || selectedCondition.ownerIds != null && selectedCondition.ownerIds.contains(s.getOwner())
+        || selectedCondition.prefix != null && s.getId().startsWith(selectedCondition.prefix)
         || selectedCondition.shared && s.isShared();
 
 

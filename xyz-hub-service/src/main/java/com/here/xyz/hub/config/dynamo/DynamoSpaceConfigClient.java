@@ -415,7 +415,13 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
             .forEach(page -> page.forEach(i -> regionSpaces.add(i.getString("id"))));
 
         authorizedSpaces.removeIf(i -> !regionSpaces.contains(i));
-        logger.debug(marker, "Number of space IDs after removal of the ones not selected by owner: {}", authorizedSpaces.size());
+        logger.debug(marker, "Number of space IDs after removal of the ones not selected by region: {}", authorizedSpaces.size());
+      }
+
+      // Filter per prefix
+      if (selectedCondition.prefix != null) {
+        authorizedSpaces.removeIf(i -> !i.startsWith(selectedCondition.prefix));
+        logger.debug(marker, "Number of space IDs after removal of the ones not selected by prefix: {}", authorizedSpaces.size());
       }
 
       logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", authorizedSpaces.size());

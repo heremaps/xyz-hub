@@ -184,6 +184,7 @@ public abstract class SpaceConfigClient implements Initializable {
     public boolean negateOwnerIds = false;
     public String tagId;
     public String region;
+    public String prefix;
   }
 
   public static class InvalidateSpaceCacheMessage extends RelayedMessage {
