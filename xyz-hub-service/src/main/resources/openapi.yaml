@@ -1353,6 +1353,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Command'
       responses:
         '204':

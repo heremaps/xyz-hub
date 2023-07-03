@@ -18,12 +18,14 @@
  */
 
 package com.here.xyz.httpconnector.task;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Type;
+import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
@@ -99,7 +101,7 @@ public class JobHandler {
     }
 
     public static Future<Job> postExecute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                          boolean enableHashedSpaceId, boolean enableUUID, Marker marker){
+                                          boolean enableHashedSpaceId, boolean enableUUID, ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context, Marker marker){
 
         /** Load JobConfig */
         return CService.jobConfigClient.get(marker, jobId)
@@ -113,12 +115,13 @@ public class JobHandler {
                     if(job instanceof Import)
                         return ImportHandler.execute(jobId,connectorId,ecps,passphrase,command,enableHashedSpaceId,enableUUID,marker);
                     else //export
-                        return ExportHandler.execute(jobId,connectorId,ecps,passphrase,command,enableHashedSpaceId,enableUUID,marker);
+                        return ExportHandler.execute(jobId,connectorId,ecps,passphrase,command,enableHashedSpaceId,enableUUID,incremental,_context,marker);
                 });
     }
 
     protected static void loadClientAndInjectDefaults(Job job, HApiParam.HQuery.Command command, String connectorId, String ecps,
-                                                      String passphrase, boolean enableHashedSpaceId, Boolean enableUUID)
+                                                      String passphrase, boolean enableHashedSpaceId, Boolean enableUUID,
+                                                      ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context)
             throws HttpException {
 
         if(job.getTargetTable() == null){
@@ -133,8 +136,12 @@ public class JobHandler {
 
         job.addParam("enableHashedSpaceId",enableHashedSpaceId);
 
-        if(enableUUID == null)
+        if(enableUUID != null)
             job.addParam("enableUUID",enableUUID);
+        if(incremental != null)
+            job.addParam("incremental", incremental.toString());
+        if(_context != null)
+            job.addParam("context", _context.toString());
 
         if(command.equals(HApiParam.HQuery.Command.START) || command.equals(HApiParam.HQuery.Command.RETRY)){
             /** Add Client if missing or reload client if config has changed */

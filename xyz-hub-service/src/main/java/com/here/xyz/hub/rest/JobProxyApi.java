@@ -18,6 +18,7 @@
  */
 package com.here.xyz.hub.rest;
 
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -221,6 +222,8 @@ public class JobProxyApi extends Api{
     private void postExecute(final RoutingContext context) {
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
+        ContextAwareEvent.SpaceContext _context = ApiParam.Query.getContext(context);
+        ApiParam.Query.Incremental incremental = ApiParam.Query.getIncremental(context);
         String command = ApiParam.Query.getString(context, HApiParam.HQuery.H_COMMAND, null);
 
         JobAuthorization.authorizeManageSpacesRights(context,spaceId)
@@ -257,12 +260,17 @@ public class JobProxyApi extends Api{
                                                     +"/jobs/{jobId}/execute?"
                                                     +"&connectorId={connectorId}"
                                                     +"&ecps={ecps}"
-                                                    +"&enableHashedSpaceId="+enableHashedSpaceId
+                                                    +"&enableHashedSpaceId={enableHashedSpaceId}"
                                                     +"&enableUUID={enableUUID}"
+                                                    +"&incremental={incremental}"
+                                                    +"&context={context}"
                                                     +"&command={command}")
                                                         .replace("{jobId}",jobId)
                                                         .replace("{connectorId}",connector.id)
                                                         .replace("{ecps}",ecps)
+                                                        .replace("{enableHashedSpaceId}", Boolean.toString(enableHashedSpaceId))
+                                                        .replace("{incremental}", incremental.toString().toLowerCase())
+                                                        .replace("{context}",_context.toString().toLowerCase())
                                                         /**deprecated */
                                                         .replace("{enableUUID}","false")
                                                         .replace("{command}",command);

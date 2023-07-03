@@ -19,6 +19,7 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -189,7 +190,7 @@ public class JobApiExportIT extends JobApiIT {
     }
 
     /**
-     *  EXPORT (full+filtered) composite L1 & L2 space
+     *  EXPORT (full+filtered) composite L1 space
      *  TYPE: "DOWNLOAD"
      *  CSVFormat: "GEOJSON"
      * */
@@ -211,6 +212,50 @@ public class JobApiExportIT extends JobApiIT {
 
         // 252 + 11 = 263
         downloadAndCheck(urls, 114905, 263, mustContains );
+    }
+
+    /**
+     *  EXPORT (full+filtered) composite L1 space with context=super
+     *  TYPE: "DOWNLOAD"
+     *  CSVFormat: "GEOJSON"
+     * */
+    @Test
+    public void testFullGEOJSONCompositeL1SuperExport() throws Exception {
+        /** Create job */
+        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        List<URL> urls = performExport(job, testSpaceId2Ext, Job.Status.finalized, Job.Status.failed, ContextAwareEvent.SpaceContext.SUPER, null);
+
+        ArrayList<String> mustContains = new ArrayList<String>(){{
+            add("MultiPolygon");
+            add("MultiLineString");
+            add("LineString");
+            add("Point");
+            add("Polygon with hole");
+        }};
+
+        // 252 + 11 = 263
+        downloadAndCheck(urls, 4700, 11, mustContains );
+    }
+
+    /**
+     *  EXPORT (full+filtered) composite L1 space with context=extension
+     *  TYPE: "DOWNLOAD"
+     *  CSVFormat: "GEOJSON"
+     * */
+    @Test
+    public void testFullGEOJSONCompositeL1ExtensionExport() throws Exception {
+        /** Create job */
+        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        List<URL> urls = performExport(job, testSpaceId2Ext, Job.Status.finalized, Job.Status.failed, ContextAwareEvent.SpaceContext.EXTENSION, null);
+
+        ArrayList<String> mustContains = new ArrayList<String>(){{
+            add("Point");
+            add("Q601162"); //in delta of composite
+            add("foo_new"); //Got overridden in composite space
+        }};
+
+        // 252 + 1 (Edit of Base);
+        downloadAndCheck(urls, 110640, 253, mustContains );
     }
 
     @Test
@@ -281,7 +326,7 @@ public class JobApiExportIT extends JobApiIT {
     }
 
     @Test
-    public void testFilteredGEOJSONCompositeL2Export() throws Exception {
+    public void testFullGEOJSONCompositeL2Export() throws Exception {
         /** Create job */
         Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, testSpaceId2ExtExt, Job.Status.finalized, Job.Status.failed);
@@ -296,8 +341,27 @@ public class JobApiExportIT extends JobApiIT {
             add("foo_polygon"); //Got overridden in composite space L1
             add("2LPoint");  //Got added in composite space L2
         }};
-        // 252 + 11 + 1 = 263
+        // 252 + 11 + 1 = 264
         downloadAndCheck(urls, 115209, 264, mustContains );
+    }
+
+    @Test
+    public void testFullGEOJSONCompositeL2SuperExport() throws Exception {
+        /** Create job */
+        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        List<URL> urls = performExport(job, testSpaceId2ExtExt, Job.Status.finalized, Job.Status.failed, ContextAwareEvent.SpaceContext.SUPER, null);
+
+        ArrayList<String> mustContains = new ArrayList<String>(){{
+            add("MultiPolygon");
+            add("MultiLineString");
+            add("LineString");
+            add("Point");
+            add("Polygon with hole");
+            add("Q601162"); //in delta of composite L1
+            add("foo_polygon"); //Got overridden in composite space L1
+        }};
+        // 252 + 11 = 263
+        downloadAndCheck(urls, 114905, 263, mustContains );
     }
 
     /**
@@ -629,18 +693,29 @@ public class JobApiExportIT extends JobApiIT {
     }
 
     /** ------------------- HELPER -------------------- */
-    public List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus) throws Exception {
+    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus) throws Exception {
+        return performExport(job, spaceId, expectedStatus, failStatus, null, null);
+    }
+
+    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus,
+                                      ContextAwareEvent.SpaceContext context, ApiParam.Query.Incremental incremental) throws Exception {
         /** Create job */
         postJob(job, spaceId)
                 .body("status", equalTo(Job.Status.waiting.toString()))
                 .statusCode(CREATED.code());
+
+        String postUrl = "/spaces/{spaceId}/job/{jobId}/execute?command=start&{context}&{incremental}"
+                .replace("{spaceId}", spaceId)
+                .replace("{jobId}", job.getId())
+                .replace("{context}", context == null ? "" : "context="+context.toString().toLowerCase())
+                .replace("{incremental}", incremental == null ? "" : "incremental="+incremental.toString().toLowerCase());
 
         /** start import */
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .post("/spaces/" + spaceId + "/job/"+job.getId()+"/execute?command=start")
+                .post(postUrl)
                 .then()
                 .statusCode(NO_CONTENT.code());
 
@@ -658,7 +733,7 @@ public class JobApiExportIT extends JobApiIT {
         return urlList;
     }
 
-    public static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContains) throws IOException {
+    protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContains) throws IOException {
         String result = "";
         long totalByteSize = 0;
 
@@ -693,7 +768,7 @@ public class JobApiExportIT extends JobApiIT {
         return result;
     }
 
-    public static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContains, Integer expectedTileCount) throws IOException {
+    protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContains, Integer expectedTileCount) throws IOException {
         List<String> tileIds = new ArrayList<>();
         int lineCount = 0;
         int featureCount = 0;
@@ -712,7 +787,7 @@ public class JobApiExportIT extends JobApiIT {
         assertEquals(expectedFeatureCount, featureCount);
     }
 
-    private Export buildTestJob(Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format){
+    protected Export buildTestJob(Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format){
         return new Export()
                 .withId(testExportJobId)
                 .withFilters(filters)

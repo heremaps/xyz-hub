@@ -75,7 +75,7 @@ public class ImportHandler extends JobHandler{
                         isJobStateValid(j, jobId, command, p);
 
                         Import importJob = (Import) j;
-                        loadClientAndInjectDefaults(importJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, enableUUID);
+                        loadClientAndInjectDefaults(importJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, enableUUID, null, null);
 
                         switch (command){
                             case ABORT:

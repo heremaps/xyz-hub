@@ -19,19 +19,19 @@
 
 package com.here.xyz.httpconnector.task;
 
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.*;
 import com.here.xyz.httpconnector.util.jobs.validate.ExportValidator;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
-import java.io.IOException;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
@@ -63,7 +63,7 @@ public class ExportHandler extends JobHandler{
     }
 
     public static Future<Job> execute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                          boolean enableHashedSpaceId, boolean enableUUID, Marker marker){
+                                      boolean enableHashedSpaceId, boolean enableUUID, ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context, Marker marker){
 
         Promise<Job> p = Promise.promise();
 
@@ -75,7 +75,7 @@ public class ExportHandler extends JobHandler{
                         isJobStateValid(j, jobId, command, p);
 
                         Export exportJob = (Export) j;
-                        loadClientAndInjectDefaults(exportJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, null);
+                        loadClientAndInjectDefaults(exportJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, null, incremental, _context);
 
                         switch (command){
                             case ABORT:

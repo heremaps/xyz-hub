@@ -125,6 +125,10 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
       return Collections.emptyMap();
     //Storage params are taken from the input and then resolved based on the extensions
     final Map<String, Object> extendsMap = getExtension().asMap();
+
+    if(extendedSpace.persistExport)
+      extendsMap.put("persistExport", true);
+
     //Check if the extended space itself is extending some other space (2-level extension)
     if (extendedSpace != null && extendedSpace.getExtension() != null)
       //Get the extension definition from the extended space and add it to this one additionally
