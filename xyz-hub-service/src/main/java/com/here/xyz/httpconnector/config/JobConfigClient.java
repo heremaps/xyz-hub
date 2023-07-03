@@ -28,8 +28,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-import static org.junit.Assert.fail;
-
 import java.util.List;
 
 /**
