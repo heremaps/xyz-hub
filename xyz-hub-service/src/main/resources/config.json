@@ -13,6 +13,7 @@
   "XYZ_HUB_REDIS_URI": "redis://localhost",
 
   "OFF_HEAP_CACHE_SIZE_MB": 256,
+  "CACHE_SIZE_MB": 256,
 
   "DEFAULT_STORAGE_ID": "psql",
 

@@ -21,51 +21,29 @@ package com.here.xyz.hub.util;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThrows;
 
-import com.here.xyz.hub.Service;
-import com.here.xyz.hub.Service.Config;
-import com.here.xyz.hub.util.LimitedOffHeapQueue.OffHeapBuffer;
-import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.List;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class LimitedQueueTest {
 
-  protected Class<? extends LimitedQueue> getQueueClass() {
-    return LimitedQueue.class;
-  }
+  public class TestElement implements ByteSizeAware {
 
-  @BeforeClass
-  public static void setupClass() {
-    Service.configuration = new Config();
-    Service.configuration.GLOBAL_MAX_QUEUE_SIZE = 1024;
-  }
+    private final long byteSize;
 
-  public class TestElement extends OffHeapBuffer {
-
-    TestElement(int byteSize) {
-      super(new byte[byteSize]);
+    TestElement(long byteSize) {
+      this.byteSize = byteSize;
     }
 
-  }
-
-  private <E extends ByteSizeAware> LimitedQueue<E> getQueueInstance(long maxSize,
-      long maxByteSize) {
-    try {
-      return getQueueClass().getConstructor(Long.TYPE, Long.TYPE).newInstance(maxSize, maxByteSize);
-    }
-    catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
-      e.printStackTrace();
-      return null;
+    @Override
+    public long getByteSize() {
+      return byteSize;
     }
   }
 
   @Test
   public void addTooLargeElement() {
-    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
+    LimitedQueue<TestElement> queue = new LimitedQueue<>(3, 100);
     TestElement tooLargeElement = new TestElement(101);
     List<TestElement> discarded = queue.add( tooLargeElement );
     assertEquals("Only the inserted element must be discarded.", 1, discarded.size());
@@ -74,7 +52,7 @@ public class LimitedQueueTest {
 
   @Test
   public void addTooManyElements() {
-    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
+    LimitedQueue<TestElement> queue = new LimitedQueue<>(3, 100);
     TestElement element1 = new TestElement(1);
     TestElement element2 = new TestElement(1);
     TestElement element3 = new TestElement(1);
@@ -101,7 +79,7 @@ public class LimitedQueueTest {
 
   @Test
   public void addTooManyBytes() {
-    LimitedQueue<TestElement> queue = getQueueInstance(100, 100);
+    LimitedQueue<TestElement> queue = new LimitedQueue<>(100, 100);
     TestElement element1 = new TestElement(40);
     TestElement element2 = new TestElement(40);
     TestElement element3 = new TestElement(40);
@@ -121,7 +99,7 @@ public class LimitedQueueTest {
 
   @Test
   public void remove() {
-    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
+    LimitedQueue<TestElement> queue = new LimitedQueue<>(3, 100);
     TestElement element1 = new TestElement(1);
     TestElement element2 = new TestElement(1);
     TestElement element3 = new TestElement(1);
@@ -160,7 +138,7 @@ public class LimitedQueueTest {
 
   @Test
   public void setMaxByteSize() {
-    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
+    LimitedQueue<TestElement> queue = new LimitedQueue<>(3, 100);
     TestElement element1 = new TestElement(1);
     TestElement element2 = new TestElement(1);
     TestElement element3 = new TestElement(1);
@@ -179,7 +157,7 @@ public class LimitedQueueTest {
 
   @Test
   public void getSizes() {
-    LimitedQueue<TestElement> queue = getQueueInstance(50, 100);
+    LimitedQueue<TestElement> queue = new LimitedQueue<>(50, 100);
     TestElement element1 = new TestElement(40);
     TestElement element2 = new TestElement(40);
 
@@ -194,7 +172,7 @@ public class LimitedQueueTest {
 
   @Test
   public void setMaxSize() {
-    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
+    LimitedQueue<TestElement> queue = new LimitedQueue<>(3, 100);
     TestElement element1 = new TestElement(1);
     TestElement element2 = new TestElement(1);
     TestElement element3 = new TestElement(1);
@@ -209,19 +187,5 @@ public class LimitedQueueTest {
     assertEquals("Expected was 1 element.", 1, queue.getSize());
     assertEquals("Expected was that element 1 was discarded first.", element1, discarded.get(0));
     assertEquals("Expected was that element 2 was discarded second.", element2, discarded.get(1));
-  }
-
-  @Test
-  public void consumePayload() throws PayloadVanishedException {
-    LimitedQueue<TestElement> queue = getQueueInstance(3, 100);
-    TestElement element1 = new TestElement(1);
-    queue.add(element1);
-
-    byte[] payload = element1.getPayload();
-    assertEquals(1, payload.length);
-    payload = element1.consumePayload();
-    assertEquals(1, payload.length);
-    assertThrows(IllegalStateException.class, () -> element1.getPayload());
-    assertThrows(IllegalStateException.class, () -> element1.consumePayload());
   }
 }

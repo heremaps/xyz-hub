@@ -19,53 +19,47 @@
 
 package com.here.xyz.hub.cache;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.Weigher;
+import com.here.xyz.hub.Service;
 import io.vertx.core.Future;
-import java.util.Arrays;
-import java.util.List;
 
-public class MultiLevelCacheClient implements CacheClient {
+public class InMemoryCacheClient implements CacheClient {
 
-  final List<CacheClient> clients;
+  private Cache<String, byte[]> cache = CacheBuilder
+      .newBuilder()
+      .maximumWeight(Service.configuration.CACHE_SIZE_MB * 1024 * 1024)
+      .weigher((Weigher<String, byte[]>) (key, value) -> value.length)
+      .build();
 
-  public MultiLevelCacheClient(CacheClient... clients) {
-    this.clients = Arrays.asList(clients);
+  private static InMemoryCacheClient instance;
+
+  private InMemoryCacheClient() {}
+
+  public static synchronized CacheClient getInstance() {
+    if (instance == null) instance = new InMemoryCacheClient();
+    return instance;
   }
 
   @Override
   public Future<byte[]> get(String key) {
-    return get(0, key);
-  }
-
-  private Future<byte[]> get(final int i, final String key) {
-    return clients.get(i).get(key).compose(result -> {
-      if (result == null) {
-        if (clients.size() > i + 1)
-          return get(i + 1, key);
-        else
-          return Future.succeededFuture(null);
-      }
-      else {
-        int j = i;
-        while (--j >= 0) {
-          clients.get(j).set(key, result, Integer.MAX_VALUE);
-        }
-        return Future.succeededFuture(result);
-      }
-    });
+    return Future.succeededFuture(cache.getIfPresent(key));
   }
 
   @Override
   public void set(String key, byte[] value, long ttl) {
-    clients.forEach(c -> c.set(key, value, ttl));
+    //NOTE: ttl is ignored - Values will get evicted when the cache reaches its size limit on an LRU basis
+    cache.put(key, value);
   }
 
   @Override
   public void remove(String key) {
-    clients.forEach(c -> c.remove(key));
+    cache.invalidate(key);
   }
 
   @Override
   public void shutdown() {
-    clients.forEach(c -> c.shutdown());
+    //Nothing to do
   }
 }

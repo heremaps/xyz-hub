@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * A queue with limits on the number of elements and the their size.
+ * A queue with limits on the number of elements and their size.
  */
 public class LimitedQueue<E extends ByteSizeAware> implements ByteSizeAware {
 
