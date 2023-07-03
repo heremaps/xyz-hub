@@ -2113,6 +2113,7 @@ components:
         enum:
           - start
           - retry
+          - abort
           - createUploadUrl
   responses:
     ChangesetCollectionResponse:

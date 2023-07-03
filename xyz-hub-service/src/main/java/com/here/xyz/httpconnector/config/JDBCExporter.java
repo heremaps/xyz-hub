@@ -241,6 +241,35 @@ public class JDBCExporter extends JDBCClients{
                 });
     }
 
+    public static Future<Integer> abortJobsByJobId(Export j)  {
+
+        SQLQuery q = buildAbortsJobQuery(j.getId());
+        
+        logger.info("[{}] Abort S3-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+
+        return getClient(j.getTargetConnector())
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .map(row -> {
+                    Row res = row.iterator().next();
+                    if (res != null) {
+                        return 1; 
+                    }
+                    return null;
+                });
+    }    
+
+    private static SQLQuery buildAbortsJobQuery(String id) {
+
+        return new SQLQuery(String.format(   "select pg_terminate_backend( pid ) from pg_stat_activity "
+                                               + "where 1 = 1 "
+                                               + "and state = 'active' "
+                                               + "and strpos( query, 'pg_terminate_backend' ) = 0 "
+                                               + "and strpos( query, 'aws_s3.query_export_to_s3' ) > 0"
+                                               + "and strpos( query, 'm499#jobId(%s)' ) > 0 ", id ));
+
+    }
+
     public static SQLQuery buildS3CalculateQuery(Export job, String schema, SQLQuery query) {
         SQLQuery q = new SQLQuery("select ${schema}.exp_type_download_precalc(" +
                 "#{estimated_count}, ${{exportSelectString}}, #{tbl}::regclass) as thread_cnt");
@@ -280,7 +309,7 @@ public class JDBCExporter extends JDBCClients{
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
         SQLQuery exportSelectString = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition);
 
-        SQLQuery q = new SQLQuery("SELECT *,'{iml_s3_export_hint}' as iml_s3_export_hint from aws_s3.query_export_to_s3( "+
+        SQLQuery q = new SQLQuery("SELECT * /* iml_s3_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
                 " aws_commons.create_s3_uri(#{s3Bucket}, #{s3Path}, #{s3Region}),"+
                 " options := 'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' ' );"
@@ -312,8 +341,8 @@ public class JDBCExporter extends JDBCClients{
                         "   #{s3Bucket}, " +
                         "   format('%s/%s/%s-%s.csv',#{s3Path}::text, o.qk, o.bucket, o.nrbuckets) ," +
                         "   #{s3Region}," +
-                        "   'format csv')).* ," +
-                        "  '{iml_vml_export_hint}' as iml_vml_export_hint " +
+                        "   'format csv')).* " +
+                        "  /* iml_vml_export_hint m499#jobId(" + j.getId() + ") */ " +
                         " from" +
                         "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, null::text, #{maxTilesPerFile}::int, true, "+ bClipped +" ) o"
         );
