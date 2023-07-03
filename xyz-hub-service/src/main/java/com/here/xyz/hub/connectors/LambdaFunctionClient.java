@@ -23,7 +23,6 @@ import static com.here.xyz.hub.rest.Api.CLIENT_CLOSED_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.amazonaws.AbortedException;
 import com.amazonaws.ClientConfiguration;
@@ -50,7 +49,6 @@ import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLamb
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.util.ARN;
-import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
 import io.vertx.core.Future;
@@ -186,17 +184,10 @@ public class LambdaFunctionClient extends RemoteFunctionClient {
     Context context = fc.context;
     logger.debug(marker, "Invoking remote lambda function with id '{}' Event size is: {}", remoteFunction.id, fc.getByteSize());
 
-    InvokeRequest invokeReq = null;
-    try {
-      invokeReq = new InvokeRequest()
-          .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
-          .withPayload(ByteBuffer.wrap(fc.consumePayload()))
-          .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
-    }
-    catch (PayloadVanishedException e) {
-      callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked.")));
-      return;
-    }
+    InvokeRequest invokeReq = new InvokeRequest()
+        .withFunctionName(((AWSLambda) remoteFunction).lambdaARN)
+        .withPayload(ByteBuffer.wrap(fc.bytes))
+        .withInvocationType(fc.fireAndForget ? InvocationType.Event : InvocationType.RequestResponse);
 
     java.util.concurrent.Future<InvokeResult> future = asyncClient.invokeAsync(invokeReq, new AsyncHandler<InvokeRequest, InvokeResult>() {
       @Override

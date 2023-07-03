@@ -392,6 +392,11 @@ public class Service extends Core {
     public int OFF_HEAP_CACHE_SIZE_MB;
 
     /**
+     * Size of the in-memory cache in megabytes. (Maximum 2GB)
+     */
+    public int CACHE_SIZE_MB;
+
+    /**
      * The port of the HTTP server.
      */
     public int HTTP_PORT;
