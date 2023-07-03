@@ -19,7 +19,6 @@
 package com.here.xyz.httpconnector.rest;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
@@ -31,7 +30,6 @@ import java.util.HashMap;
 
 import static com.here.xyz.hub.AbstractHttpServerVerticle.STREAM_INFO_CTX_KEY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 
 public class HApiParam extends ApiParam {
 

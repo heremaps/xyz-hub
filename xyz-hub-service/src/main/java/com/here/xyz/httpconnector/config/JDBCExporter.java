@@ -19,6 +19,7 @@
 
 package com.here.xyz.httpconnector.config;
 
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.httpconnector.rest.HApiParam;
@@ -350,6 +351,25 @@ public class JDBCExporter extends JDBCClients{
         if(params != null && params.get("versionsToKeep") != null)
             event.setVersionsToKeep((int)params.get("versionsToKeep"));
 
+        if(params != null && params.get("context") != null) {
+            ContextAwareEvent.SpaceContext context = ContextAwareEvent.SpaceContext.of((String) params.get("context"));
+
+            if(context.equals(ContextAwareEvent.SpaceContext.SUPER)){
+                //switch to super space
+                Map<String,Object> ext = (Map<String, Object>)params.get("extends");
+                if(ext != null){
+                    String superSpace = (String) ext.get("spaceId");
+                    if(superSpace != null){
+                        event.setSpace(superSpace);
+                    }
+
+                }
+                context = ContextAwareEvent.SpaceContext.DEFAULT;
+            }
+
+            event.setContext(context);
+        }
+
         if(targetVersion != null) {
             event.setRef(targetVersion);
         }
@@ -398,8 +418,8 @@ public class JDBCExporter extends JDBCClients{
             );
             geoJson.setQueryFragment("contentQuery",sqlQuery);
             geoJson.substitute();
-            return queryToText(geoJson);
-          }   
+            return queryToText(geoJson, false);
+          }
 
          case FEATUREID_FC_B64 :
          {
@@ -409,19 +429,19 @@ public class JDBCExporter extends JDBCClients{
            );
             geoJson.setQueryFragment("contentQuery",sqlQuery);
             geoJson.substitute();
-            return queryToText(geoJson);
+            return queryToText(geoJson, false);
          }
-         
+
          default:
          {
             sqlQuery.substitute();
-            return queryToText(sqlQuery);
+            return queryToText(sqlQuery, false);
          }
         }
-        
+
     }
 
-    private static SQLQuery queryToText(SQLQuery q){
+    private static SQLQuery queryToText(SQLQuery q, boolean isForCompositeContentDetection){
         SQLQuery sq = new SQLQuery();
         String s = q.text()
                 .replace("?", "%L")
@@ -436,7 +456,16 @@ public class JDBCExporter extends JDBCClients{
             sq.setNamedParameter(curVar, o);
         }
 
-        sq.setText(r+")");
+        if(isForCompositeContentDetection) {
+            sq.setText((r + ")")
+                    .replace(
+                            "NOT exists", "EXISTS"
+                    ).replace(
+                            "UNION ALL", "UNION DISTINCT"
+                    )
+            );
+        }else
+            sq.setText(r+")");
         return sq;
     }
 }

@@ -85,14 +85,22 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected static String createSpaceWithId(String spaceId) {
-    return createSpaceWithCustomStorage(spaceId, "psql", null, 1);
+    return createSpaceWithCustomStorage(spaceId, "psql", null, 1, false);
   }
 
   protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams) {
-    return createSpaceWithCustomStorage(spaceId, storageId, storageParams, 1);
+    return createSpaceWithCustomStorage(spaceId, storageId, storageParams, 1, false);
+  }
+
+  protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams, boolean persistExport) {
+    return createSpaceWithCustomStorage(spaceId, storageId, storageParams, 1, persistExport);
   }
 
   protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams, int versionsToKeep) {
+    return createSpaceWithCustomStorage(spaceId, storageId, storageParams, versionsToKeep, false);
+  }
+
+  protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams, int versionsToKeep, boolean persistExport) {
     JsonObject storage = new JsonObject()
         .put("id", storageId);
     if (storageParams != null)
@@ -102,6 +110,8 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .put("title", "Demo Space with storage " + storageId)
         .put("storage", storage)
         .put("versionsToKeep", versionsToKeep);
+    if(persistExport)
+      space.put("persistExport", true);
 
     return given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))

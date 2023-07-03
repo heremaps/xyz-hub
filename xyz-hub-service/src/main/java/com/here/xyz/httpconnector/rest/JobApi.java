@@ -20,6 +20,7 @@
 package com.here.xyz.httpconnector.rest;
 
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.rest.HApiParam.Path;
@@ -30,6 +31,7 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.Api;
+import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -112,6 +114,9 @@ public class JobApi extends Api {
     Command command = HQuery.getCommand(context);
     boolean enableHashedSpaceId = HQuery.getBoolean(context, HApiParam.HQuery.ENABLED_HASHED_SPACE_ID , true);
     boolean enableUUID = HQuery.getBoolean(context, HQuery.ENABLED_UUID , true);
+    ContextAwareEvent.SpaceContext _context = HApiParam.Query.getContext(context);
+    ApiParam.Query.Incremental incremental = HApiParam.Query.getIncremental(context);
+
     String[] params = HApiParam.HQuery.parseMainParams(context);
 
     if(command == null) {
@@ -121,7 +126,7 @@ public class JobApi extends Api {
 
     String jobId = context.pathParam(Path.JOB_ID);
 
-    JobHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, enableUUID, Api.Context.getMarker(context))
+    JobHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, enableUUID, incremental, _context, Api.Context.getMarker(context))
             .onFailure(t -> this.sendErrorResponse(context, t))
             .onSuccess(job -> {
               switch (command){

@@ -320,6 +320,7 @@ paths:
         - $ref: '#/components/parameters/ECPS'
         - $ref: '#/components/parameters/EnableHashedSpaceId'
         - $ref: '#/components/parameters/EnableUUID'
+        - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Command'
       responses:
         '204':
@@ -377,6 +378,27 @@ components:
       required: false
       schema:
         type: string
+    Context:
+      name: context
+      in: query
+      description: |
+        The context where the operation will be performed on a composite space.
+        If not specified, the operation occurs based on the extension rules.
+        For additional information, see Space.extends.
+
+        Available context are:
+        |Context|Description|
+        |-------|-----------|
+        |default|The default value if none is given. For composite spaces the operation occurs based on the extension rules. For normal spaces this is the only valid context.|
+        |extension|The operation will be executed only in the extension and no operation will be performed in the extended space.|
+        |super|Only applicable for read-operations. The operation will be executed only in the space being extended (super space).|
+      schema:
+        type: string
+        enum:
+          - default
+          - extension
+          - super
+        default: default
     Command:
       name: command
       in: query

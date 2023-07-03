@@ -28,6 +28,7 @@ recipes:
       - paths.'/spaces/{spaceId}/features/{featureId}'.delete.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/job/{jobId}/execute'.post.parameters.$ref~=^.*Context$
       - components.parameters.Context
       - components.schemas.Extension
       - components.schemas.Space.properties.extends

@@ -20,6 +20,7 @@
 package com.here.xyz.hub.rest;
 
 import com.amazonaws.util.StringUtils;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.PropertyQuery.QueryOperation;
@@ -152,6 +153,7 @@ public class ApiParam {
     static final String H3_INDEX = "h3Index";
     static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
     static final String CONTEXT = "context";
+    static final String INCREMENTAL = "incremental";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
     static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
@@ -644,6 +646,28 @@ public class ApiParam {
       }
 
       return new Point().withCoordinates(new PointCoordinates(lon,lat));
+    }
+
+    public static ContextAwareEvent.SpaceContext getContext(RoutingContext context){
+      return ContextAwareEvent.SpaceContext.of(Query.getString(context, CONTEXT, ContextAwareEvent.SpaceContext.DEFAULT.toString()).toUpperCase());
+    }
+
+    public enum Incremental {
+      DEACTIVATED, FULL, CHANGES;
+
+      public static Incremental of(String value) {
+        if (value == null) {
+          return null;
+        }
+        try {
+          return valueOf(value);
+        } catch (IllegalArgumentException e) {
+          return null;
+        }
+      }
+    }
+    public static Incremental getIncremental(RoutingContext context){
+      return Incremental.of(Query.getString(context, INCREMENTAL, Incremental.DEACTIVATED.toString()).toUpperCase());
     }
 
     public static Integer getRadius(RoutingContext context) {
