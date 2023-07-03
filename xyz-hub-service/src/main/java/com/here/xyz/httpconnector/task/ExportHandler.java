@@ -118,7 +118,7 @@ public class ExportHandler extends JobHandler{
 
     private static void abbortJob(Marker marker, Job job, Promise<Job> p)
     {
-      JDBCExporter.abortJobsByJobId((Export) job);
-      return;  
+      JDBCExporter.abortJobsByJobId((Export) job)
+       .onComplete(f -> p.complete());
     }
 }
