@@ -264,6 +264,7 @@ public class JDBCExporter extends JDBCClients{
                                                + "where 1 = 1 "
                                                + "and state = 'active' "
                                                + "and strpos( query, 'pg_terminate_backend' ) = 0 "
+                                               + "and strpos( query, 'aws_s3.query_export_to_s3' ) > 0"
                                                + "and strpos( query, 'm499#jobId(%s)' ) > 0 ", id ));
 
     }
@@ -307,7 +308,7 @@ public class JDBCExporter extends JDBCClients{
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
         SQLQuery exportSelectString = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition);
 
-        SQLQuery q = new SQLQuery("SELECT *,'{iml_s3_export_hint}' as iml_s3_export_hint /* m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
+        SQLQuery q = new SQLQuery("SELECT * /* iml_s3_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
                 " aws_commons.create_s3_uri(#{s3Bucket}, #{s3Path}, #{s3Region}),"+
                 " options := 'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' ' );"
@@ -339,9 +340,8 @@ public class JDBCExporter extends JDBCClients{
                         "   #{s3Bucket}, " +
                         "   format('%s/%s/%s-%s.csv',#{s3Path}::text, o.qk, o.bucket, o.nrbuckets) ," +
                         "   #{s3Region}," +
-                        "   'format csv')).* ," +
-                        "  '{iml_vml_export_hint}' as iml_vml_export_hint " + // ",(pg_sleep(3 * 60* 60) || 'a') " +
-                        "  /* m499#jobId(" + j.getId() + ") */ " +
+                        "   'format csv')).* " +
+                        "  /* iml_vml_export_hint m499#jobId(" + j.getId() + ") */ " +
                         " from" +
                         "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, null::text, #{maxTilesPerFile}::int, true, "+ bClipped +" ) o"
         );
