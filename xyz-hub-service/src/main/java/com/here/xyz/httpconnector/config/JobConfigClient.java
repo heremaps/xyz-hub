@@ -28,6 +28,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
+import static org.junit.Assert.fail;
+
 import java.util.List;
 
 /**
@@ -104,7 +106,9 @@ public abstract class JobConfigClient implements Initializable {
                 .onSuccess(j -> {
                             if (j == null) {
                                 logger.info(marker, "jobId[{}]: not found. Nothing to delete!", jobId);
-                            }else {
+                            }else if ( !isValidForDelete(j) ) {
+                                logger.info(marker, "jobId[{}]: not in end state. Nothing to delete!", jobId);
+                            } else {     
                                 deleteJob(marker, j)
                                         .onSuccess(job -> logger.info(marker, "job[{}]: successfully deleted!", jobId))
                                         .onFailure(t -> logger.error(marker, "job[{}]: Failed delete job:", jobId, t));
@@ -122,4 +126,14 @@ public abstract class JobConfigClient implements Initializable {
     protected abstract Future<Job> storeJob(Marker marker, Job job, boolean isUpdate);
 
     protected abstract Future<Job> deleteJob(Marker marker, Job job);
+
+    public boolean isValidForDelete(Job job) {
+
+        switch (job.getStatus()){
+            case finalized: case aborted: case failed: return true;
+            default: return false;
+        }
+
+    }
+
 }
