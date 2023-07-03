@@ -128,7 +128,7 @@ public abstract class JobConfigClient implements Initializable {
     public boolean isValidForDelete(Job job) {
 
         switch (job.getStatus()){
-            case finalized: case aborted: case failed: return true;
+            case waiting: case finalized: case aborted: case failed: return true;
             default: return false;
         }
 
