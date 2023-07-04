@@ -243,20 +243,12 @@ public class SQLQuery {
     return text == null ? "" : '"' + text.replace("\"", "\"\"") + '"';
   }
 
-  //TODO: Remove the following hack asap
-  private static final Set<String> notMigratedTables =
-   new HashSet<>(Arrays.asList( "082c16bb65105fdddf498e588b43f2b2",
-                                "e359c1541eefa96a73574140e19e978a",
-                                "9f524195f124b2ef7e263aa1b838072d",
-                                "9124c5ffe8a5f5f28bb9f4a77a907322",
-                                "bc5c95a2b91e2a62680503450c70c035"));
-
   @Deprecated
   public static String replaceVars(String query, String schema, String table) {
     SQLQuery q = new SQLQuery(query)
         .withVariable(VAR_SCHEMA, schema)
         .withVariable(VAR_TABLE, table)
-        .withVariable(VAR_TABLE_HEAD, table + ( notMigratedTables.contains(table) ? "" : HEAD_TABLE_SUFFIX ))
+        .withVariable(VAR_TABLE_HEAD, table + HEAD_TABLE_SUFFIX)
         .withVariable(VAR_HST_TABLE, table + HISTORY_TABLE_SUFFIX)
         .withVariable(VAR_TABLE_SEQ, table != null ? table.replaceAll("-", "_") + "_i_seq\";" : "")
         .withVariable(VAR_HST_TABLE_SEQ, table != null ? (table + HISTORY_TABLE_SUFFIX + "_seq").replaceAll("-", "_") : " ");
