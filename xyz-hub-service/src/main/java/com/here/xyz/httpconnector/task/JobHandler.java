@@ -92,7 +92,9 @@ public class JobHandler {
                 .compose(j -> {
                     if(j == null){
                         return Future.failedFuture(new HttpException(NOT_FOUND, "Job with Id "+jobId+" not found"));
-                    }else{
+                    } else if ( !CService.jobConfigClient.isValidForDelete(j) ) {
+                        return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Job is not in end state - current status: "+ j.getStatus()) );
+                    } else {    
                         /** Clean S3 Job Folder */
                         CService.jobS3Client.cleanJobData(jobId);
                         return Future.succeededFuture(j);
