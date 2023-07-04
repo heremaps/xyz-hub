@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 168
+ select 169
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -339,13 +339,12 @@ CREATE OR REPLACE FUNCTION xyz_legacy_history_get_previous_uuid(schema TEXT, tab
 $BODY$
 DECLARE
     uuid TEXT;
-    prevVersion TEXT := (newVersion::BIGINT - 1)::TEXT;
 BEGIN
-    EXECUTE format('SELECT uuid FROM %I.%I WHERE vid = %L', schema, tableName || '_hst', xyz_legacy_history_create_vid(id, prevVersion)) INTO uuid;
+    EXECUTE format('SELECT uuid FROM %I.%I WHERE vid LIKE %L ORDER BY vid DESC LIMIT 1', schema, tableName || '_hst', '%_' || id) INTO uuid;
     RETURN uuid;
 END
 $BODY$
-    LANGUAGE plpgsql VOLATILE;
+LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 --@Deprecated
 CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_versioned()
@@ -3086,7 +3085,7 @@ BEGIN
     ) SELECT min(substring(range_expression, 0, position('''' IN range_expression))::BIGINT) FROM partition_ranges);
 
     -- Drop according partitions
-    FOR partitionNo in (minRangeMin / partitionSize)..((minVersion + 1) / partitionSize - 1) loop
+    FOR partitionNo IN (minRangeMin / partitionSize)..((minVersion + 1) / partitionSize - 1) LOOP
         EXECUTE 'DROP TABLE IF EXISTS "' || schema || '"."' || tableName || '_p' || partitionNo || '"';
     END LOOP;
 
