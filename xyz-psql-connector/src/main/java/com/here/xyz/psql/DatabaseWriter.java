@@ -333,9 +333,13 @@ public class DatabaseWriter {
         String table = dbHandler.config.readTableFromEvent(event);
         String message = e != null && e.getMessage() != null && e.getMessage().contains("does not exist")
             //If table doesn't exist yet
-            ? "{} Failed to perform {} - table {} does not exists {}"
-            : "{} Failed to perform {} on table {} {}";
-        logger.info(message, dbHandler.traceItem, action.name(), table, e);
+            ? "{} Failed to perform {} - table {} does not exists"
+            : "{} Failed to perform {} on table {}";
+
+        if (e.getMessage().contains("Conflict")) //TODO: Use custom ERRCODE instead
+            logger.info(message, dbHandler.traceItem, action.name(), table, e);
+        else
+            logger.warn(message, dbHandler.traceItem, action.name(), table, e);
     }
 
     private static void executeBatchesAndCheckOnFailures(DatabaseHandler dbh, List<String> idList, PreparedStatement batchStmt,
@@ -358,6 +362,11 @@ public class DatabaseWriter {
                 && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
                 //Re-throw, as a missing table will be handled by DatabaseHandler.
                 throw e;
+
+            if (e.getMessage().contains("Conflict")) //TODO: Use custom ERRCODE instead
+                logger.info("{} Error during transactional write operation", dbh.traceItem, e);
+            else
+                logger.warn("{} Error during transactional write operation", dbh.traceItem, e);
 
             //If there was some error inside the multimodal insert query, fail the transaction
             int[] res = new int[idList.size()];
