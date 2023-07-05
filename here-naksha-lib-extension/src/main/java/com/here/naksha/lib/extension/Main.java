@@ -34,7 +34,12 @@ public class Main {
     @Override
     public void run() {
       // Perform cleanup tasks or actions here
+      try {
+        remoteExtensionServer.forceCloseSocket();
+      } catch (IOException e) {
+      }
       remoteExtensionServer.stop();
+      System.out.println("Shutdown hook invoked.");
     }
   }
 }

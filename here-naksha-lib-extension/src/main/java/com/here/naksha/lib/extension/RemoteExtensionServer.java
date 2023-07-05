@@ -47,6 +47,10 @@ public class RemoteExtensionServer {
     notifyAll();
   }
 
+  void forceCloseSocket() throws IOException {
+    serverSocket.close();
+  }
+
   private volatile boolean doStop;
   private final Thread serverThread;
 
