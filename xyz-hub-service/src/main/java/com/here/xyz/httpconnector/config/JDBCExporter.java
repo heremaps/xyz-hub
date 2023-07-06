@@ -85,7 +85,7 @@ public class JDBCExporter extends JDBCClients{
                 case VML:
                 default:
 
-                    if( j.getCsvFormat().equals(CSVFormat.FEATUREID_FC_B64))
+                    if( j.getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64))
                      return calculateThreadCountForDownload(j, schema, exportQuery)
                             .compose(threads -> {
                                 try{
@@ -456,7 +456,7 @@ public class JDBCExporter extends JDBCClients{
             return queryToText(geoJson, false);
           }
 
-         case FEATUREID_FC_B64 :
+         case PARTITIONID_FC_B64 :
          {
            SQLQuery geoJson = new SQLQuery(
                     "select jsondata->>'id' as id, replace( encode(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text::bytea,'base64') ,chr(10),'') as data " +

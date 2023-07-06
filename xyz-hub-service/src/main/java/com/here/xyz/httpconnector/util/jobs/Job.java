@@ -80,7 +80,7 @@ public abstract class Job {
 
     @JsonView({Public.class})
     public enum CSVFormat {
-        GEOJSON, JSON_WKT, JSON_WKB, TILEID_FC_B64, FEATUREID_FC_B64;
+        GEOJSON, JSON_WKT, JSON_WKB, TILEID_FC_B64, PARTITIONID_FC_B64;
 
         public static CSVFormat of(String value) {
             if (value == null) {
