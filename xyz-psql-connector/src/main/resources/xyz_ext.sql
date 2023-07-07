@@ -4075,3 +4075,18 @@ end
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
+CREATE OR REPLACE FUNCTION streamId() RETURNS TEXT AS
+$BODY$
+BEGIN
+    RETURN current_setting('xyz.streamId');
+EXCEPTION WHEN OTHERS THEN RETURN 'no-streamId';
+END
+$BODY$
+    LANGUAGE plpgsql VOLATILE;
+CREATE OR REPLACE FUNCTION streamId(sid TEXT) RETURNS VOID AS
+$BODY$
+BEGIN
+    PERFORM set_config('xyz.streamId', sid, true);
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;

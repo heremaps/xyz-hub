@@ -34,6 +34,7 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
+import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.io.WKBWriter;
 import java.sql.Connection;
@@ -53,7 +54,7 @@ public class DatabaseWriter {
         return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
             + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion})")
             .withNamedParameter("schema", dbHandler.config.getDatabaseSettings().getSchema())
-            .withNamedParameter("table", dbHandler.config.readTableFromEvent(event))
+            .withNamedParameter("table", XyzEventBasedQueryRunner.readTableFromEvent(event))
             .withNamedParameter("concurrencyCheck", event.getEnableUUID())
             .withNamedParameter("partitionSize", PARTITION_SIZE)
             .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
@@ -91,7 +92,7 @@ public class DatabaseWriter {
     private static SQLQuery setTableVariables(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
       return writeQuery
           .withVariable("schema", dbHandler.config.getDatabaseSettings().getSchema())
-          .withVariable("table", dbHandler.config.readTableFromEvent(event));
+          .withVariable("table", XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
 
     private static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
@@ -397,7 +398,7 @@ public class DatabaseWriter {
     }
 
     private static void logException(Exception e, ModificationType action, DatabaseHandler dbHandler, ModifyFeaturesEvent event){
-        String table = dbHandler.config.readTableFromEvent(event);
+        String table = XyzEventBasedQueryRunner.readTableFromEvent(event);
         String message = e != null && e.getMessage() != null && e.getMessage().contains("does not exist")
             //If table doesn't exist yet
             ? "{} Failed to perform {} - table {} does not exists"

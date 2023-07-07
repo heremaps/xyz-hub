@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.connectors;
+package com.here.xyz.connectors.runtime;
 
 import com.amazonaws.services.lambda.runtime.ClientContext;
 import com.amazonaws.services.lambda.runtime.CognitoIdentity;
@@ -34,7 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * When you need to run you AWS lambda locally you may use this class an pass it to the AWS lambda handler as context.
+ * When you need to run your connector locally you may use this class and pass an instance of it to the connector handler as context.
  */
 @SuppressWarnings("unused")
 public class SimulatedContext implements Context, LambdaLogger {
@@ -144,7 +144,9 @@ public class SimulatedContext implements Context, LambdaLogger {
       decoder.onUnmappableCharacter(CodingErrorAction.REPORT);
       final ByteBuffer in = ByteBuffer.wrap(bytes);
       log(decoder.decode(in).toString());
-    } catch (CharacterCodingException ignored) {
+    }
+    catch (CharacterCodingException ignored) {
+      //Ignore
     }
   }
 }

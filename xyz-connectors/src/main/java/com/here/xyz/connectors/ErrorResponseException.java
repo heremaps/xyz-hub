@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 
 package com.here.xyz.connectors;
 
+import static com.here.xyz.responses.XyzError.EXCEPTION;
+
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
 
@@ -30,7 +32,23 @@ public class ErrorResponseException extends Exception {
   private ErrorResponse errorResponse;
 
   public ErrorResponseException(XyzError xyzError, String errorMessage) {
-    this(null, xyzError, errorMessage);
+    super(errorMessage);
+    createErrorResponse(xyzError, errorMessage);
+  }
+
+  public ErrorResponseException(Exception cause) {
+    super(cause);
+    createErrorResponse(EXCEPTION, cause.getMessage());
+  }
+
+  public ErrorResponseException(XyzError xyzError, Exception cause) {
+    super(cause);
+    createErrorResponse(xyzError, cause.getMessage());
+  }
+
+  public ErrorResponseException(XyzError xyzError, String errorMessage, Exception cause) {
+    super(errorMessage, cause);
+    createErrorResponse(xyzError, errorMessage);
   }
 
   /**
@@ -43,26 +61,11 @@ public class ErrorResponseException extends Exception {
   @Deprecated
   public ErrorResponseException(String streamId, XyzError xyzError, String errorMessage) {
     super(errorMessage);
-    createErrorResponse(streamId, xyzError, errorMessage);
+    createErrorResponse(xyzError, errorMessage);
   }
 
-  /**
-   * @deprecated Please use constructor without stream ID (see above).
-   *  The stream ID will be attached just before the ErrorResponse is being sent.
-   * @param streamId
-   * @param xyzError
-   * @param e
-   */
-  @Deprecated
-  public ErrorResponseException(String streamId, XyzError xyzError, Exception e) {
-    super(e);
-    createErrorResponse(streamId, xyzError, e.getMessage());
-  }
-
-  @Deprecated
-  private void createErrorResponse(String streamId, XyzError xyzError, String errorMessage) {
+  private void createErrorResponse(XyzError xyzError, String errorMessage) {
     this.errorResponse = new ErrorResponse()
-        .withStreamId(streamId)
         .withError(xyzError)
         .withErrorMessage(errorMessage);
   }

@@ -22,14 +22,13 @@ package com.here.xyz.psql.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 
 public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent, FeatureCollection> {
 
-  public GetFeaturesById(GetFeaturesByIdEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public GetFeaturesById(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
+    super(event);
   }
 
   @Override

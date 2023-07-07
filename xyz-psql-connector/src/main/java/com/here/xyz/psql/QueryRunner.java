@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 package com.here.xyz.psql;
 
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.psql.datasource.DataSourceProvider;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.apache.commons.dbutils.ResultSetHandler;
@@ -39,19 +40,30 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
 
   private final SQLQuery query;
   private boolean useReadReplica;
-  protected DatabaseHandler dbHandler;
+  protected PSQLXyzConnector dbHandler;
 
-  public QueryRunner(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    this.dbHandler = dbHandler;
+  public QueryRunner(E input) throws SQLException, ErrorResponseException {
     query = buildQuery(input);
   }
 
+  public R run(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    return dbHandler.executeQueryWithRetry(prepareQuery(), this, useReadReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter());
+  }
+
   public R run() throws SQLException, ErrorResponseException {
-    return dbHandler.executeQueryWithRetry(prepareQuery(), this, useReadReplica);
+    if (dbHandler == null)
+      dbHandler = PSQLXyzConnector.getInstance(); //TODO: Remove that workaround once refactoring is complete
+    return run(dbHandler.getDataSourceProvider());
+  }
+
+  public int write(DataSourceProvider dataSourceProvider) throws SQLException, ErrorResponseException {
+    return dbHandler.executeUpdateWithRetry(prepareQuery(), dataSourceProvider.getWriter());
   }
 
   public int write() throws SQLException, ErrorResponseException {
-    return dbHandler.executeUpdateWithRetry(prepareQuery());
+    if (dbHandler == null)
+      dbHandler = PSQLXyzConnector.getInstance(); //TODO: Remove that workaround once refactoring is complete
+    return write(dbHandler.getDataSourceProvider());
   }
 
   private SQLQuery prepareQuery() {
@@ -73,5 +85,17 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
 
   protected String getSchema() {
     return dbHandler.config.getDatabaseSettings().getSchema();
+  }
+
+  //TODO: Remove temporary BWC method once refactoring is complete
+  @Deprecated
+  protected static String getSchemaBWC() {
+    return PSQLXyzConnector.getInstance().getConfig().getDatabaseSettings().getSchema();
+  }
+
+  //TODO: Remove temporary BWC method once refactoring is complete
+  @Deprecated
+  public void setDbHandler(PSQLXyzConnector dbHandler) {
+    this.dbHandler = dbHandler;
   }
 }

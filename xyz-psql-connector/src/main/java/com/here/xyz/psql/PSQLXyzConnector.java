@@ -25,7 +25,9 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 
 import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.DeleteChangesetsEvent;
+import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -43,6 +45,8 @@ import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.psql.datasource.DataSourceProvider;
+import com.here.xyz.psql.datasource.StaticDataSources;
 import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.GetChangesetStatistics;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
@@ -54,11 +58,14 @@ import com.here.xyz.psql.query.GetStatistics;
 import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
+import com.here.xyz.psql.query.IterateFeaturesSorted;
 import com.here.xyz.psql.query.LoadFeatures;
 import com.here.xyz.psql.query.ModifySubscription;
 import com.here.xyz.psql.query.SearchForFeatures;
+import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.HealthStatus;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
@@ -78,6 +85,36 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   private static final Logger logger = LogManager.getLogger();
 
+  private static ThreadLocal<PSQLXyzConnector> instance = new ThreadLocal<>();
+
+  private DataSourceProvider dsProvider;
+
+  //TODO: Remove that workaround after refactoring is complete
+  public PSQLXyzConnector() {
+    this(true);
+  }
+
+  //TODO: Remove that workaround after refactoring is complete
+  @Deprecated
+  public PSQLXyzConnector(boolean singleton) {
+    super();
+    if (singleton)
+      instance.set(this);
+  }
+
+  //TODO: Remove that workaround after refactoring is complete
+  @Deprecated
+  public static PSQLXyzConnector getInstance() {
+    return instance.get();
+  }
+
+  @Override
+  protected synchronized void initialize(Event event) {
+    super.initialize(event);
+    dsProvider = new StaticDataSources(readDataSource, dataSource);
+    DataSourceProvider.setDefaultProvider(dsProvider);
+  }
+
   @Override
   protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
     try {
@@ -85,21 +122,45 @@ public class PSQLXyzConnector extends DatabaseHandler {
       return processHealthCheckEventImpl(event);
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
+    }
+    catch (ErrorResponseException e) {
+      return new HealthStatus().withStatus("ERROR");
     }
     finally {
       logger.info("{} Finished HealthCheckEvent", traceItem);
     }
   }
 
+  private XyzResponse processHealthCheckEventImpl(HealthCheckEvent event) throws SQLException, ErrorResponseException {
+    if (event.getWarmupCount() == 0 && ConnectorRuntime.getInstance().isRunningLocally()) {
+      /** run DB-Maintenance - warmUp request is used */
+      if (event.getMinResponseTime() != 0) {
+        logger.info("{} dbMaintainer start", traceItem);
+        dbMaintainer.run(traceItem);
+        logger.info("{} dbMaintainer finished", traceItem);
+        return new HealthStatus().withStatus("OK");
+      }
+    }
+
+    SQLQuery query = new SQLQuery("SELECT 1");
+    query.run(dsProvider.getWriter());
+
+    //Run health-check query on the replica, if such is set.
+    if (dsProvider.hasReader())
+      query.run(dsProvider.getReader());
+
+    return ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
+  }
+
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws ErrorResponseException {
     try {
       logger.info("{} Received GetStatisticsEvent", traceItem);
-      return new GetStatistics(event, this).run();
+      return new GetStatistics(event).run();
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
     finally {
       logger.info("{} Finished GetStatisticsEvent", traceItem);
@@ -113,10 +174,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if (event.getIds() == null || event.getIds().size() == 0)
         return new FeatureCollection();
 
-      return new GetFeaturesById(event, this).run();
+      return new GetFeaturesById(event).run();
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
     finally {
       logger.info("{} Finished GetFeaturesByIdEvent", traceItem);
@@ -127,9 +188,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
     try {
       logger.info("{} Received GetFeaturesByGeometryEvent", traceItem);
-        return new GetFeaturesByGeometry(event, this).run();
+        return new GetFeaturesByGeometry(event).run();
     }catch (SQLException e){
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }finally {
       logger.info("{} Finished GetFeaturesByGeometryEvent", traceItem);
     }
@@ -141,21 +202,21 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
 
       if (event.getClusteringType() != null)
-       if(!event.getParams().containsKey("extends") )
-        return new GetFeaturesByBBoxClustered<>(event, this).run();
-       else 
-        throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "clustering=[hexbin,quadbin] not supported with 'extends' ");   
+        if (!event.getParams().containsKey("extends"))
+          return new GetFeaturesByBBoxClustered<>(event).run();
+        else
+          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "clustering = [hexbin, quadbin] is not supported with 'extends'");
 
       if (event.getTweakType() != null || "viz".equals(event.getOptimizationMode()))
-       if(!event.getParams().containsKey("extends") )
-        return new GetFeaturesByBBoxTweaked<>(event, this).run();
-       else 
-        throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, String.format("%s not supported with 'extends' ", ("viz".equals(event.getOptimizationMode())) ? "mode=viz" : "tweaks" ) );   
-      
-      return new GetFeaturesByBBox<>(event, this).run();
+        if (!event.getParams().containsKey("extends"))
+          return new GetFeaturesByBBoxTweaked<>(event).run();
+        else
+          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, String.format("%s is not supported with 'extends'", "viz".equals(event.getOptimizationMode()) ? "mode = viz" : "tweaks"));
+
+      return new GetFeaturesByBBox<>(event).run();
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
     finally {
       logger.info("{} Finished "+event.getClass().getSimpleName(), traceItem);
@@ -181,12 +242,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
       SearchForFeatures.checkCanSearchFor(event, this);
 
       if (isOrderByEvent(event))
-        return IterateFeatures.findFeaturesSort(event, this);
+        return new IterateFeaturesSorted(event).run();
 
-      return new IterateFeatures(event, this).run();
+      return new IterateFeatures(event).run();
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
     finally {
       logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
@@ -213,10 +274,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
             .withErrorMessage("Invalid request parameters.");
 
-      return new SearchForFeatures<>(event, this).run();
+      return new SearchForFeatures<>(event).run();
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
     finally {
       logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
@@ -230,9 +291,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if (event.getIdsMap() == null || event.getIdsMap().size() == 0)
         return new FeatureCollection();
 
-      return new LoadFeatures(event, this).run();
+      return new LoadFeatures(event).run();
     }catch (SQLException e){
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }finally {
       logger.info("{} Finished LoadFeaturesEvent", traceItem);
     }
@@ -266,7 +327,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
           .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace(), addUUID));
       return executeModifyFeatures(event);
     } catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }finally {
       logger.info("{} Finished ModifyFeaturesEvent", traceItem);
     }
@@ -284,7 +345,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       return executeModifySpace(event);
     }catch (SQLException e){
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }finally {
       logger.info("{} Finished ModifySpaceEvent", traceItem);
     }
@@ -294,11 +355,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
     try {
       logger.info("{} Received ModifySpaceEvent", traceItem);
-      new ModifySubscription(event, this).write();
+      new ModifySubscription(event).write();
       return new FeatureCollection().withCount(1L); //TODO: Fix return type of this operation should not be a FeatureCollection but simply a SuccessResponse
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
     finally {
       logger.info("{} Finished ModifySpaceEvent", traceItem);
@@ -309,10 +370,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
-      return new GetStorageStatistics(event, this).run();
+      return new GetStorageStatistics(event).run();
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
     finally {
       logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
@@ -323,13 +384,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
-      int write = new DeleteChangesets(event, this).write();
+      int write = new DeleteChangesets(event).write();
       if(write == 0)
         throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Version < '"+event.getRequestedMinVersion()+"' is already deleted!");
       return new SuccessResponse();
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
     finally {
       logger.info("{} Finished " + event.getClass().getSimpleName(), traceItem);
@@ -340,10 +401,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
     try {
       logger.info("{} Received IterateChangesetsEvent", traceItem);
-      return new IterateChangesets(event, this).run();
+      return new IterateChangesets(event).run();
     }
     catch (SQLException e) {
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
     finally {
       logger.info("{} Finished IterateChangesetsEvent", traceItem);
@@ -354,9 +415,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
     try {
       logger.info("{} Received GetChangesetsStatisticsEvent", traceItem);
-      return new GetChangesetStatistics(event,this).run();
+      return new GetChangesetStatistics(event).run();
     }catch (SQLException e){
-      return checkSQLException(e, config.readTableFromEvent(event));
+      return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }finally {
       logger.info("{} Finished GetChangesetsStatisticsEvent", traceItem);
     }
@@ -494,5 +555,9 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
 
     return new ErrorResponse().withStreamId(streamId).withError(EXCEPTION).withErrorMessage(e.getMessage());
+  }
+
+  public DataSourceProvider getDataSourceProvider() {
+    return dsProvider;
   }
 }

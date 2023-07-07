@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.SuccessResponse;
@@ -52,9 +51,9 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     private static List<String> spaces = new ArrayList<String>(){{add(BASE1);add(BASE2);add(DELTA1);add(DELTA2);}};
 
     protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
-            put(ConnectorParameters.AUTO_INDEXING, true);
-            put(ConnectorParameters.PROPERTY_SEARCH, true);
+        {   put(PSQLAbstractIT.CONNECTOR_ID, "test-connector");
+            put(PSQLAbstractIT.AUTO_INDEXING, true);
+            put(PSQLAbstractIT.PROPERTY_SEARCH, true);
         }
     };
 

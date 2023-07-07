@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.DatabaseHandler;
+import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.factory.H3SQL;
 import com.here.xyz.psql.factory.QuadbinSQL;
@@ -48,9 +49,9 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
   public static final String COUNTMODE_BOOL      = "bool"; // no counts but test [0|1] if data exists int tile.
   private boolean isMvtRequested;
 
-  public GetFeaturesByBBoxClustered(E event, DatabaseHandler dbHandler)
+  public GetFeaturesByBBoxClustered(E event)
       throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+    super(event);
   }
 
   @Override
@@ -59,7 +60,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
     SQLQuery query;
     switch(event.getClusteringType().toLowerCase()) {
       case H3SQL.HEXBIN: {
-        setUseReadReplica(true); // => set to 'false' for use of h3cache ( insert into h3cache ) 
+        setUseReadReplica(true); // => set to 'false' for use of h3cache ( insert into h3cache )
         query = buildHexbinClusteringQuery(event);
 
         if (isMvtRequested)
@@ -68,10 +69,10 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
       }
       case QuadbinSQL.QUAD: {
         setUseReadReplica(true);
-        query = buildQuadbinClusteringQuery(event, dbHandler);
+        query = buildQuadbinClusteringQuery(event, PSQLXyzConnector.getInstance());
 
         if (isMvtRequested)
-          return GetFeaturesByBBox.buildMvtEncapsuledQuery(dbHandler.getConfig().readTableFromEvent(event), (GetFeaturesByTileEvent) event, query);
+          return GetFeaturesByBBox.buildMvtEncapsuledQuery(XyzEventBasedQueryRunner.readTableFromEvent(event), (GetFeaturesByTileEvent) event, query);
         return query;
       }
       default: {
@@ -83,13 +84,13 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
 
   @Override
   public R handle(ResultSet rs) throws SQLException {
-    return isMvtRequested ? (R) dbHandler.defaultBinaryResultSetHandler(rs) : super.handle(rs);
+    return isMvtRequested ? (R) GetFeaturesByBBox.defaultBinaryResultSetHandler(rs) : super.handle(rs);
   }
 
   /**
    * Check if request parameters are valid. In case of invalidity throw an Exception
    */
-  private static void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, DatabaseHandler dbHandler) throws ErrorResponseException
+  private static void checkQuadbinInput(String countMode, int relResolution, GetFeaturesByBBoxEvent event, PSQLXyzConnector dbHandler) throws ErrorResponseException
   {
     if( countMode != null )
      switch( countMode.toLowerCase() )
@@ -131,8 +132,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
      return Math.min( Math.min( h3res, defaultResForLevel + overzoomingRes ) , 13 ); // cut to maximum res
     }
 
-  public static SQLQuery buildHexbinClusteringQuery(
-            GetFeaturesByBBoxEvent event) {
+  private static SQLQuery buildHexbinClusteringQuery(GetFeaturesByBBoxEvent event) {
     BBox bbox = event.getBbox();
     Map<String, Object> clusteringParams = event.getClusteringParams();
 
@@ -150,12 +150,12 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         boolean statisticalPropertyProvided = (statisticalProperty != null && statisticalProperty.length() > 0),
                 h3cflip = (clusteringParams.get(H3SQL.HEXBIN_POINTMODE) == Boolean.TRUE);
                /** todo: replace format %.14f with parameterized version*/
-        final String expBboxSql = String
+        final String expBboxSql = DhString
                 .format("st_envelope( st_buffer( ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f, 4326)::geography, ( 2.5 * edgeLengthM( %d )) )::geometry )",
                         bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat(), h3res);
 
         /*clippedGeo - passed bbox is extended by "margin" on service level */
-        String clippedGeo = (!event.getClip() ? "geo" : String
+        String clippedGeo = (!event.getClip() ? "geo" : DhString
                 .format("ST_Intersection(st_makevalid(geo),ST_MakeEnvelope(%.14f,%.14f,%.14f,%.14f,4326) )", bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat())),
                 fid = (!event.getClip() ? "h3" : DhString.format("h3 || %f || %f", bbox.minLon(), bbox.minLat())),
                 filterEmptyGeo = (!event.getClip() ? "" : DhString.format(" and not st_isempty( %s ) ", clippedGeo));
@@ -209,7 +209,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         return query;
     }
 
-  public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event, DatabaseHandler dbHandler)
+  public static SQLQuery buildQuadbinClusteringQuery(GetFeaturesByBBoxEvent event, PSQLXyzConnector dbHandler)
       throws ErrorResponseException {
 
     final Map<String, Object> clusteringParams = event.getClusteringParams();
@@ -243,6 +243,6 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
                 }
             }
         }
-        return QuadbinSQL.generateQuadbinClusteringSQL(dbHandler.getConfig().getDatabaseSettings().getSchema(), dbHandler.getConfig().readTableFromEvent(event), relResolution, countMode, propQuerySQL, tile, bbox, isTileRequest, clippedOnBbox, noBuffer, getResponseType(event) == GEO_JSON);
+        return QuadbinSQL.generateQuadbinClusteringSQL(dbHandler.getConfig().getDatabaseSettings().getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), relResolution, countMode, propQuerySQL, tile, bbox, isTileRequest, clippedOnBbox, noBuffer, getResponseType(event) == GEO_JSON);
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
 import java.util.Map;
@@ -31,8 +30,8 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
   private static final String EXTENDS = "extends";
   private static final String SPACE_ID = "spaceId";
 
-  public ExtendedSpace(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public ExtendedSpace(E event) throws SQLException, ErrorResponseException {
+    super(event);
   }
 
   protected static <E extends Event> boolean isExtendedSpace(E event) {
@@ -43,40 +42,32 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     return isExtendedSpace(event) && ((Map<String, Object>) event.getParams().get(EXTENDS)).containsKey(EXTENDS);
   }
 
-  private static <E extends Event> String getFirstLevelExtendedTable(E event, DatabaseHandler dbHandler) {
+  private static <E extends Event> String getFirstLevelExtendedTable(E event) {
     if (isExtendedSpace(event))
-      return dbHandler.getConfig().getTableNameForSpaceId((String) ((Map<String, Object>) event.getParams().get(EXTENDS)).get(SPACE_ID));
+      return XyzEventBasedQueryRunner.getTableNameForSpaceId((String) ((Map<String, Object>) event.getParams().get(EXTENDS)).get(SPACE_ID));
     return null;
   }
 
-  private static <E extends Event> String getSecondLevelExtendedTable(E event, DatabaseHandler dbHandler) {
+  private static <E extends Event> String getSecondLevelExtendedTable(E event) {
     if (is2LevelExtendedSpace(event)) {
       Map<String, Object> extSpec = (Map<String, Object>) event.getParams().get(EXTENDS);
       Map<String, Object> baseExtSpec = (Map<String, Object>) extSpec.get(EXTENDS);
-      return dbHandler.getConfig().getTableNameForSpaceId((String) baseExtSpec.get(SPACE_ID));
+      return XyzEventBasedQueryRunner.getTableNameForSpaceId((String) baseExtSpec.get(SPACE_ID));
     }
     return null;
   }
 
-  public static <E extends Event> String getExtendedTable(E event, DatabaseHandler dbHandler) {
+  public static <E extends Event> String getExtendedTable(E event) {
     if (is2LevelExtendedSpace(event))
-      return getSecondLevelExtendedTable(event, dbHandler);
+      return getSecondLevelExtendedTable(event);
     else if (isExtendedSpace(event))
-      return getFirstLevelExtendedTable(event, dbHandler);
+      return getFirstLevelExtendedTable(event);
     return null;
   }
 
-  protected String getExtendedTable(E event) {
-    return getExtendedTable(event, dbHandler);
-  }
-
-  protected static <E extends Event> String getIntermediateTable(E event, DatabaseHandler dbHandler) {
+  protected static <E extends Event> String getIntermediateTable(E event) {
     if (is2LevelExtendedSpace(event))
-      return getFirstLevelExtendedTable(event, dbHandler);
+      return getFirstLevelExtendedTable(event);
     return null;
-  }
-
-  protected String getIntermediateTable(E event) {
-    return getIntermediateTable(event, dbHandler);
   }
 }

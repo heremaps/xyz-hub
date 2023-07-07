@@ -19,24 +19,22 @@
 
 package com.here.xyz.psql.query;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
-import com.here.xyz.psql.DatabaseHandler;
+import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.query.helpers.GetIndexList;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 /*
@@ -48,12 +46,12 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
   protected boolean hasSearch;
 
-  public SearchForFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public SearchForFeatures(E event) throws SQLException, ErrorResponseException {
+    super(event);
   }
 
-  public static void checkCanSearchFor(SearchForFeaturesEvent event, DatabaseHandler dbHandler) throws ErrorResponseException {
-    if (!canSearchFor(dbHandler.getConfig().readTableFromEvent(event), event.getPropertiesQuery(), dbHandler))
+  public static void checkCanSearchFor(SearchForFeaturesEvent event, PSQLXyzConnector dbHandler) throws ErrorResponseException {
+    if (!canSearchFor(XyzEventBasedQueryRunner.readTableFromEvent(event), event.getPropertiesQuery(), dbHandler))
       throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
           "Invalid request parameters. Search for the provided properties is not supported for this space.");
   }
@@ -83,6 +81,9 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
   }
 
 
+  /**
+   * @deprecated Please use {@link SearchForFeatures#generatePropertiesQuery(SearchForFeaturesEvent)} instead.
+   */
   //TODO: Can be removed after completion of refactoring
   @Deprecated
   protected static SQLQuery generatePropertiesQueryBWC(SearchForFeaturesEvent event) {
@@ -105,7 +106,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return skeys;
   }
 
-  private static boolean canSearchFor(String tableName, PropertiesQuery query, DatabaseHandler dbHandler) {
+  private static boolean canSearchFor(String tableName, PropertiesQuery query, PSQLXyzConnector dbHandler) {
     if (query == null) {
       return true;
     }
@@ -131,7 +132,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           return true;
 
         /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
-        List<String> indices = IndexList.getIndexList(tableName, dbHandler);
+        List<String> indices = new GetIndexList(tableName).run(dbHandler.getDataSourceProvider());
 
         /** The table has not many records - Indices are not required */
         if (indices == null) {
@@ -152,7 +153,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
       if(idx_check == keys.size())
         return true;
 
-      return IndexList.getIndexList(tableName, dbHandler) == null;
+      return new GetIndexList(tableName).run(dbHandler.getDataSourceProvider()) == null;
     } catch (Exception e) {
       // In all cases, when something with the check went wrong, allow the search
       return true;
@@ -219,13 +220,32 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           }
           keyDisjunctionQueries.add(q);
         }
-        conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, "OR", true));
+        conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, " OR ", true));
       });
-      disjunctionQueries.add(SQLQuery.join(conjunctionQueries, "AND", false));
+      disjunctionQueries.add(SQLQuery.join(conjunctionQueries, " AND ", false));
     });
-    SQLQuery query = SQLQuery.join(disjunctionQueries, "OR", false);
+    SQLQuery query = SQLQuery.join(disjunctionQueries, " OR ", false);
     query.setNamedParameters(namedParams);
     return query;
+  }
+
+  private static SQLQuery joinQueries(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets) {
+    List<String> fragmentPlaceholders = new ArrayList<>();
+    Map<String, SQLQuery> queryFragments = new HashMap<>();
+    int i = 0;
+    for (SQLQuery q : queries) {
+      String fragmentName = "f" + i++;
+      String fragmentPlaceholder = "${{" + fragmentName + "}}";
+      if (encloseInBrackets)
+        fragmentPlaceholder = "(" + fragmentPlaceholder + ")";
+      fragmentPlaceholders.add(fragmentPlaceholder);
+      queryFragments.put(fragmentName, q);
+    }
+
+    SQLQuery joinedQuery = new SQLQuery(String.join(delimiter, fragmentPlaceholders));
+    for (Entry<String, SQLQuery> queryFragment : queryFragments.entrySet())
+      joinedQuery.setQueryFragment(queryFragment.getKey(), queryFragment.getValue());
+    return joinedQuery;
   }
 
   private static SQLQuery generateTagsQuery(TagsQuery tagsQuery) {
@@ -242,6 +262,9 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
+  /**
+   * @deprecated Please use {@link #generateSearchQuery(SearchForFeaturesEvent)} instead.
+   */
   //TODO: Can be removed after completion of refactoring
   @Deprecated
   public static SQLQuery generateSearchQueryBWC(SearchForFeaturesEvent event) {
@@ -251,7 +274,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
-  public static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) {
+  protected static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) {
     final SQLQuery propertiesQuery = generatePropertiesQuery(event);
     final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 
@@ -322,66 +345,4 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return "";
   }
 
-  protected static class IndexList {
-
-    private static final Integer BIG_SPACE_THRESHOLD = 10000;
-    /** Cache indexList for 3 Minutes  */
-    static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
-
-    /** Get list of indexed Values from a XYZ-Space */
-    public static List<String> getIndexList(String space, DatabaseHandler dbHandler) throws SQLException {
-      IndexList indexList = cachedIndices.get(space);
-      if (indexList != null && indexList.expiry >= System.currentTimeMillis()) {
-        return indexList.indices;
-      }
-
-      indexList = dbHandler.executeQuery(generateIDXStatusQuery(space),
-              IndexList::rsHandler);
-
-      cachedIndices.put(space, indexList);
-      return indexList.indices;
-    }
-
-    IndexList(List<String> indices) {
-      this.indices = indices;
-      expiry = System.currentTimeMillis() + CACHE_INTERVAL_MS;
-    }
-
-    List<String> indices;
-    long expiry;
-
-    static Map<String, IndexList> cachedIndices = new HashMap<>();
-
-    private static IndexList rsHandler(ResultSet rs) {
-      try {
-        if (!rs.next()) {
-          return new IndexList(null);
-        }
-        List<String> indices = new ArrayList<>();
-
-        String result = rs.getString("idx_available");
-        List<Map<String, Object>> raw = XyzSerializable.deserialize(result, new TypeReference<List<Map<String, Object>>>() {});
-        for (Map<String, Object> one : raw) {
-          /*
-           * Indices are marked as:
-           * a = automatically created (auto-indexing)
-           * m = manually created (on-demand)
-           * o = sortable - manually created (on-demand) --> first single sortable propertie is always ascending
-           * s = basic system indices
-           */
-          if (one.get("src").equals("a") || one.get("src").equals("m") )
-            indices.add((String) one.get("property"));
-          else if( one.get("src").equals("o") )
-            indices.add( "o:" + (String) one.get("property"));
-        }
-        return new IndexList(indices);
-      } catch (Exception e) {
-        return new IndexList(null);
-      }
-    }
-
-    private static SQLQuery generateIDXStatusQuery(final String space){
-        return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE_FQN +" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
-    }
-  }
 }

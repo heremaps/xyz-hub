@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql.config;
 
-import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.util.Hasher;
 
 public class DatabaseSettings {
@@ -104,16 +103,16 @@ public class DatabaseSettings {
         this.schema = schema;
     }
 
-    public DatabaseSettings(Context context){
-        this.user = PSQLConfig.readFromEnvVars(PSQL_USER,context);
-        this.password = PSQLConfig.readFromEnvVars(PSQL_PASSWORD,context);
-        this.host = PSQLConfig.readFromEnvVars(PSQL_HOST,context);
-        this.replicaHost = PSQLConfig.readFromEnvVars(PSQL_REPLICA_HOST,context);
-        this.db = PSQLConfig.readFromEnvVars(PSQL_DB,context);
-        this.schema = PSQLConfig.readFromEnvVars(PSQL_SCHEMA,context);
-        this.port = PSQLConfig.readFromEnvVars(PSQL_PORT,context) != null ? Integer.parseInt(PSQLConfig.readFromEnvVars(PSQL_PORT,context)) : null;
-        this.readOnly = PSQLConfig.readFromEnvVars(PSQL_READ_ONLY,context) != null ? Boolean.parseBoolean( PSQLConfig.readFromEnvVars(PSQL_READ_ONLY,context)) : null;
-        this.maxConnections = PSQLConfig.readFromEnvVars(PSQL_MAX_CONN,context) != null ? Integer.parseInt(PSQLConfig.readFromEnvVars(PSQL_MAX_CONN,context)) : null;
+    public DatabaseSettings(PSQLConfig config) {
+        this.user = config.readFromEnvVars(PSQL_USER);
+        this.password = config.readFromEnvVars(PSQL_PASSWORD);
+        this.host = config.readFromEnvVars(PSQL_HOST);
+        this.replicaHost = config.readFromEnvVars(PSQL_REPLICA_HOST);
+        this.db = config.readFromEnvVars(PSQL_DB);
+        this.schema = config.readFromEnvVars(PSQL_SCHEMA);
+        this.port = config.readFromEnvVars(PSQL_PORT) != null ? Integer.parseInt(config.readFromEnvVars(PSQL_PORT)) : null;
+        this.readOnly = config.readFromEnvVars(PSQL_READ_ONLY) != null ? Boolean.parseBoolean(config.readFromEnvVars(PSQL_READ_ONLY)) : null;
+        this.maxConnections = config.readFromEnvVars(PSQL_MAX_CONN) != null ? Integer.parseInt(config.readFromEnvVars(PSQL_MAX_CONN)) : null;
 
         if(this.user == null)
             this.user = "postgres";
