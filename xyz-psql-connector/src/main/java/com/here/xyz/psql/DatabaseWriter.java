@@ -24,6 +24,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
+import static com.here.xyz.psql.DatabaseWriter.XyzSqlErrors.XYZ_CONFLICT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -46,6 +47,25 @@ import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
 
 public class DatabaseWriter {
+
+    public enum XyzSqlErrors {
+
+        XYZ_CONFLICT("XYZ49", "xyz_conflict"),
+        XYZ_UNEXPECTED_ERROR("XYZ50", "xyz_unexpected_error");
+
+        public final String errorCode;
+        public final String errorName;
+
+        XyzSqlErrors(String errorCode, String errorName) {
+            this.errorCode = errorCode;
+            this.errorName = errorName;
+        }
+
+        @Override
+        public String toString() {
+            return errorName;
+        }
+    }
 
     public enum ModificationType {
         INSERT("I"),
@@ -336,7 +356,7 @@ public class DatabaseWriter {
             ? "{} Failed to perform {} - table {} does not exists"
             : "{} Failed to perform {} on table {}";
 
-        if (e.getMessage().contains("Conflict")) //TODO: Use custom ERRCODE instead
+        if (e instanceof SQLException && XYZ_CONFLICT.errorCode.equals(((SQLException) e).getSQLState()))
             logger.info(message, dbHandler.traceItem, action.name(), table, e);
         else
             logger.warn(message, dbHandler.traceItem, action.name(), table, e);
@@ -359,14 +379,14 @@ public class DatabaseWriter {
         }
         catch (Exception e) {
             if (e instanceof SQLException && ((SQLException)e).getSQLState() != null
-                && ((SQLException)e).getSQLState().equalsIgnoreCase("42P01"))
+                && ((SQLException) e).getSQLState().equalsIgnoreCase("42P01"))
                 //Re-throw, as a missing table will be handled by DatabaseHandler.
                 throw e;
 
-            if (e.getMessage().contains("Conflict")) //TODO: Use custom ERRCODE instead
-                logger.info("{} Error during transactional write operation", dbh.traceItem, e);
+            if (e instanceof SQLException && XYZ_CONFLICT.errorCode.equals(((SQLException) e).getSQLState()))
+                logger.info("{} Conflict during transactional write operation", dbh.traceItem, e);
             else
-                logger.warn("{} Error during transactional write operation", dbh.traceItem, e);
+                logger.warn("{} Unexpected error during transactional write operation", dbh.traceItem, e);
 
             //If there was some error inside the multimodal insert query, fail the transaction
             int[] res = new int[idList.size()];
