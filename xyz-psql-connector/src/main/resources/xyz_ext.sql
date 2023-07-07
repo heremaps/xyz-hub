@@ -2965,7 +2965,8 @@ $BODY$
                 GET DIAGNOSTICS updated_rows = ROW_COUNT;
                 IF updated_rows != 1 THEN
                     RAISE EXCEPTION 'Conflict while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
-                        USING HINT = 'Base version ' || baseVersion::TEXT || ' is not matching the current HEAD version.';
+                        USING HINT = 'Base version ' || baseVersion::TEXT || ' is not matching the current HEAD version.',
+                            ERRCODE = 'XYZ49';
                 END IF;
             ELSE
                 EXECUTE
@@ -2976,7 +2977,8 @@ $BODY$
                 IF updated_rows != 1 THEN
                     -- This can only happen if the HEAD version of the feature was deleted in the table for some reason
                     RAISE EXCEPTION 'Unexpected error while trying to % feature with ID % in version %.', operation_2_human_readable(operation), id, version
-                        USING HINT = 'Previous (HEAD) version of the feature is missing.';
+                        USING HINT = 'Previous (HEAD) version of the feature is missing.',
+                            ERRCODE = 'XYZ50';
                 END IF;
             END IF;
 
