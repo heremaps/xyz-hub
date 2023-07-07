@@ -44,8 +44,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private boolean withoutIdField = false;
 
-  public GetFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public GetFeatures(E event) throws SQLException, ErrorResponseException {
+    super(event);
     setUseReadReplica(true);
   }
 
@@ -254,6 +254,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return "*".equals(selectiveEvent.getRef()) ? "ORDER BY version" : "";
   }
 
+  /**
+   * @deprecated Please use {@link GetFeatures#buildSelectionFragment(ContextAwareEvent)} instead.
+   */
   //TODO: Can be removed after completion of refactoring
   @Deprecated
   public static SQLQuery buildSelectionFragmentBWC(SelectiveEvent event) {

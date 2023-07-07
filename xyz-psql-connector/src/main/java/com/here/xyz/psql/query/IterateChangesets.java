@@ -19,27 +19,25 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.versioning.GetMinAvailableVersion;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 
 public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, XyzResponse> {
 
@@ -49,8 +47,8 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
   private boolean useCollection;
   private IterateChangesetsEvent event;
 
-  public IterateChangesets(IterateChangesetsEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public IterateChangesets(IterateChangesetsEvent event) throws SQLException, ErrorResponseException {
+    super(event);
 
     this.event = event;
     this.limit = event.getLimit();
@@ -61,7 +59,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
 
   @Override
   public XyzResponse run() throws SQLException, ErrorResponseException {
-    long min = new GetMinAvailableVersion<>(event, dbHandler).run();
+    long min = new GetMinAvailableVersion<>(event).run();
 
     if (start < min)
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Min Version=" + min);
@@ -82,7 +80,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
   }
 
   public SQLQuery buildIterateChangesets(IterateChangesetsEvent event){
-    
+
     String geo = "replace(ST_AsGeojson(geo, " + GetFeaturesByBBox.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')::jsonb";
 
     SQLQuery query =new SQLQuery(

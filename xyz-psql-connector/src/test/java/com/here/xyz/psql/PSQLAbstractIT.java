@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,12 @@ import java.util.Random;
 import static org.junit.Assert.assertEquals;
 
 public abstract class PSQLAbstractIT extends Helper {
+
+  public final static String CONNECTOR_ID = "connectorId";
+  public final static String PROPERTY_SEARCH = "propertySearch";
+  public final static String AUTO_INDEXING = "autoIndexing";
+  public final static String ENABLE_HASHED_SPACEID = "enableHashedSpaceId";
+  public final static String ON_DEMAND_IDX_LIMIT = "onDemandIdxLimit";
   protected static final Logger LOGGER = LogManager.getLogger();
 
   protected static PSQLXyzConnector LAMBDA;

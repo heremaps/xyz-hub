@@ -66,6 +66,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
@@ -263,7 +264,7 @@ public class RpcClient {
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
     tmpFillVersionsToKeepParam(event, tmpSpace);
     final Connector connector = getConnector();
-    event.setConnectorParams(connector.params);
+    injectConnectorParams(event, connector);
     final boolean expectBinaryResponse = expectBinaryResponse(event);
     final String eventJson = event.serialize();
     final byte[] eventBytes = eventJson.getBytes();
@@ -308,6 +309,13 @@ public class RpcClient {
     return context;
   }
 
+  //TODO: Remove this injection of "connectorId" connector-param when the hash of ECPS is used as cache key for any connections in the PSQL connector
+  private static void injectConnectorParams(Event event, Connector connector) {
+    Map<String, Object> connectorParams = new HashMap<>(connector.params);
+    connectorParams.put("connectorId", connector.id);
+    event.setConnectorParams(connectorParams);
+  }
+
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback) {
     return execute(marker, event, hasPriority, callback, null);
   }
@@ -348,7 +356,7 @@ public class RpcClient {
    */
   public RpcContext send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
     final Connector connector = getConnector();
-    event.setConnectorParams(connector.params);
+    injectConnectorParams(event, connector);
     final byte[] eventBytes = event.toByteArray();
     RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
     invokeWithRelocation(marker, context, eventBytes, true, false, r -> {

@@ -21,7 +21,6 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetStorageStatisticsEvent;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.StatisticsResponse.Value;
 import com.here.xyz.responses.StorageStatistics;
@@ -44,9 +43,9 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
   private final List<String> remainingSpaceIds;
   private Map<String, String> tableName2SpaceId;
 
-  public GetStorageStatistics(GetStorageStatisticsEvent event, DatabaseHandler dbHandler)
+  public GetStorageStatistics(GetStorageStatisticsEvent event)
       throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+    super(event);
     setUseReadReplica(true);
     remainingSpaceIds = new LinkedList<>(event.getSpaceIds());
   }
@@ -74,7 +73,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
   private String resolveTableName(String spaceId) {
     if (tableName2SpaceId == null)
       tableName2SpaceId = new HashMap<>();
-    String tableName = dbHandler.getConfig().getTableNameForSpaceId(spaceId);
+    String tableName = XyzEventBasedQueryRunner.getTableNameForSpaceId(spaceId);
     if (!spaceId.equals(tableName))
       tableName2SpaceId.put(tableName, spaceId);
     return tableName;

@@ -27,10 +27,10 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
+import com.here.xyz.psql.query.GetFeatures;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.SearchForFeatures;
 import io.vertx.core.CompositeFuture;
@@ -38,16 +38,15 @@ import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.impl.ArrayTuple;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Client for handle Export-Jobs (RDS -> S3)
@@ -290,7 +289,7 @@ public class JDBCExporter extends JDBCClients{
         Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
-        SQLQuery exportSelectString = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, 
+        SQLQuery exportSelectString = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
                                                                    j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, false,
                                                                    j.getPartitionKey(), j.getOmitOnNull());
 
@@ -416,19 +415,23 @@ public class JDBCExporter extends JDBCClients{
             event.setClip(spatialFilter.isClipped());
         }
 
-        DatabaseHandler dbHandler = new PSQLXyzConnector();
+        PSQLXyzConnector dbHandler = new PSQLXyzConnector(false);
         PSQLConfig config = new PSQLConfig(event, schema);
         dbHandler.setConfig(config);
 
         SQLQuery sqlQuery;
 
         try {
-            if(spatialFilter == null)
-                sqlQuery = new SearchForFeatures(event, dbHandler)._buildQuery(event); //TODO: Use full QR instead!!
-            else
-                sqlQuery = new GetFeaturesByGeometry(event, dbHandler)._buildQuery(event); //TODO: Use full QR instead!!
-        } catch (Exception e) {
-            throw new SQLException(e);
+          GetFeatures queryRunner;
+          if (spatialFilter == null)
+            queryRunner = new SearchForFeatures(event);
+          else
+            queryRunner = new GetFeaturesByGeometry(event);
+          queryRunner.setDbHandler(dbHandler);
+          sqlQuery = queryRunner._buildQuery(event);
+        }
+        catch (Exception e) {
+          throw new SQLException(e);
         }
 
         /** Override geoFragment */
@@ -453,9 +456,9 @@ public class JDBCExporter extends JDBCClients{
           }
 
          case PARTITIONID_FC_B64 :
-         { 
+         {
             boolean partById = true;
-            String partQry =   "select jsondata->>'id' as id, replace( encode(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text::bytea,'base64') ,chr(10),'') as data " 
+            String partQry =   "select jsondata->>'id' as id, replace( encode(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text::bytea,'base64') ,chr(10),'') as data "
                             + "from ( ${{contentQuery}}) X";
 
            if( partitionKey != null && !"id".equalsIgnoreCase(partitionKey) )
@@ -481,7 +484,8 @@ public class JDBCExporter extends JDBCClients{
                 +" select id, data from iiidata ", partitionKey );
            }
 
-           SQLQuery geoJson = new SQLQuery( partQry );
+           SQLQuery geoJson = new SQLQuery(partQry)
+               .withQueryFragment("customWhereCondition", "");
 
            if (  partById && customWhereCondition != null )
             addCustomWhereClause(sqlQuery, customWhereCondition);
@@ -489,7 +493,7 @@ public class JDBCExporter extends JDBCClients{
            if ( !partById && customWhereCondition != null )
              geoJson.withQueryFragment("customWhereClause", customWhereCondition);
 
-           geoJson.setQueryFragment("contentQuery",sqlQuery);
+           geoJson.setQueryFragment("contentQuery", sqlQuery);
            geoJson.substitute();
            return queryToText(geoJson, isForCompositeContentDetection);
          }
@@ -511,52 +515,28 @@ public class JDBCExporter extends JDBCClients{
         query.setQueryFragment("filterWhereClause", customizedWhereClause);
     }
 
-    private static String sqlType(Object o)
-    { 
-      String tcast = "text";
-
-      if( o instanceof String )
-       tcast = "text";
-      else if( o instanceof Integer || o instanceof Long)
-       tcast = "bigint";
-      else if ( o instanceof Float || o instanceof Double ) 
-       tcast = "double precision";
-      else if ( o instanceof Character ) 
-       tcast = "char";
-      else if (o instanceof String[])
-       tcast = "text[]";
-      else if (o instanceof Character[])
-       tcast = "char[]";
-      else if( o instanceof Integer[] || o instanceof Long[] )
-       tcast = "bigint[]";
-      else if ( o instanceof Float[] || o instanceof Double[] ) 
-       tcast = "double precision[]";
-
-      return tcast; 
-    }
-
+    //FIXME: The following works only for very specific kind of queries
     private static SQLQuery queryToText(SQLQuery q, boolean isForCompositeContentDetection) {
-        SQLQuery sq = new SQLQuery();
-        String s = q.text()
+        String queryText = q.text()
                     .replace("?", "%L")
                     .replace("'","''");
 
-        if(isForCompositeContentDetection) 
-          s = s.replace( "NOT exists", "EXISTS" )
+        //TODO: Replace that detection-hack by making the original request(s) more "editable" using named params
+        if (isForCompositeContentDetection)
+          queryText = queryText.replace( "NOT exists", "EXISTS" )
                .replace( "UNION ALL", "UNION DISTINCT" );
 
         int i = 0;
-        String r = "";
-        for (Object o :q.parameters()) {
-            String curVar = "var"+(i++);
-
-            r += (",(#{"+curVar+"})::" + sqlType(o));
-
-            sq.setNamedParameter(curVar, o);
+        String replacement = "";
+        Map<String, Object> newParams = new HashMap<>();
+        for (Object paramValue : q.parameters()) {
+            String paramName = "var" + i++;
+            replacement += ",(#{"+paramName+"})";
+            newParams.put(paramName, paramValue);
         }
 
-        sq.setText( String.format("format('%s'%s)",s,r) );
-
-        return sq;
+      SQLQuery sq = new SQLQuery(String.format("format('%s'%s)", queryText, replacement))
+          .withNamedParameters(newParams);
+      return sq;
     }
 }

@@ -28,16 +28,15 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class ModifySubscription extends XyzQueryRunner<ModifySubscriptionEvent, FeatureCollection> {
 
-  public ModifySubscription(ModifySubscriptionEvent event, DatabaseHandler dbHandler)
+  public ModifySubscription(ModifySubscriptionEvent event)
       throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+    super(event);
   }
 
   @Override

@@ -21,9 +21,13 @@ package com.here.xyz.psql;
 
 import static com.here.xyz.psql.DatabaseHandler.HEAD_TABLE_SUFFIX;
 
+import com.here.xyz.connectors.ErrorResponseException;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.psql.datasource.StaticDataSources;
 import com.here.xyz.psql.query.GetFeatures;
+import com.here.xyz.psql.query.InlineQueryRunner;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -37,13 +41,15 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.sql.DataSource;
+import org.apache.commons.dbutils.ResultSetHandler;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
  */
 public class SQLQuery {
-  private String statement;
-  private List<Object> parameters;
+  private String statement = "";
+  private List<Object> parameters = new ArrayList<>();
   private Map<String, Object> namedParameters;
   private Map<String, String> variables;
   private Map<String, SQLQuery> queryFragments;
@@ -62,23 +68,21 @@ public class SQLQuery {
 
   private PreparedStatement preparedStatement;
 
-  @Deprecated
-  public SQLQuery() {
-    this.statement = "";
-    this.parameters = new ArrayList<>();
-  }
-
   public SQLQuery(String text) {
-    this();
     append(text);
   }
 
+  /**
+   * @deprecated Please do not use this constructor anymore!
+   * Instead, please use more flexible / configurable / isolation-keeping placeholders
+   * in the form of variables / query-fragments / named-parameters.
+   */
   @Deprecated
   public SQLQuery(String text, Object... parameters) {
-    this();
     append(text, parameters);
   }
 
+  //TODO: Remove once SearchForFeatures#joinQueries() is used instead
   @Deprecated
   public static SQLQuery join(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets ) {
     if (queries == null) throw new NullPointerException("queries parameter is required");
@@ -86,7 +90,7 @@ public class SQLQuery {
 
 
     int counter = 0;
-    final SQLQuery result = new SQLQuery();
+    final SQLQuery result = new SQLQuery("");
     if( queries.size() > 1 && encloseInBrackets ){
       result.append("(");
     }
@@ -106,20 +110,37 @@ public class SQLQuery {
     return result;
   }
 
-  //@Deprecated
+  //TODO: Remove once refactoring is complete
+  @Deprecated
+  /**
+   * @deprecated Please do not use this method anymore!
+   * Instead, please use more flexible / configurable / isolation-keeping placeholders
+   * in the form of variables / query-fragments / named-parameters.
+   */
   public void append(String text, Object... parameters) {
     addText(text);
     addParameters(parameters);
   }
 
+  //TODO: Remove once refactoring is complete
   @Deprecated
+  /**
+   * @deprecated Please do not use this method anymore!
+   * Instead, please use more flexible / configurable / isolation-keeping placeholders
+   * in the form of variables / query-fragments / named-parameters.
+   */
   public void append(SQLQuery other) {
-    if (other.parameters() != null)
-      append(other.text(), other.parameters().toArray());
+    if (other.parameters() != null) {
+      addText(other.text());
+      addParameters(other.parameters().toArray());
+    }
     else
-      append(other.text());
+      addText(other.text());
   }
 
+  /**
+   * @deprecated Will be removed once the #append() methods have been removed.
+   */
   @Deprecated
   private void addText(CharSequence text) {
     if (text == null || text.length() == 0)
@@ -130,17 +151,33 @@ public class SQLQuery {
       statement += " " + text;
   }
 
+  /**
+   * @deprecated Please do not use this method anymore!
+   * Instead, please use more flexible / configurable / isolation-keeping placeholders
+   * in the form of variables / query-fragments / named-parameters.
+   */
   @Deprecated
   public void addParameter(Object value) {
     parameters.add(value);
   }
 
+  /**
+   * @deprecated Please do not use this method anymore!
+   * Instead, please use more flexible / configurable / isolation-keeping placeholders
+   * in the form of variables / query-fragments / named-parameters.
+   */
+  @Deprecated
   private void addParameters(Object... values) {
     if (values != null) {
       Collections.addAll(parameters, values);
     }
   }
 
+  /**
+   * Returns the query text as it has been defined for this SQLQuery.
+   * Use method {@link #substitute()} prior to this method to retrieve to substitute all placeholders of this query.
+   * @return
+   */
   public String text() {
     return statement;
   }
@@ -178,11 +215,7 @@ public class SQLQuery {
   }
 
   //TODO: Make private when refactoring is complete
-  public void setText(String queryText) {
-    statement = queryText;
-  }
-
-  @Deprecated
+  //@Deprecated
   public List<Object> parameters() {
     return parameters;
   }
@@ -194,8 +227,8 @@ public class SQLQuery {
     if (async) {
       SQLQuery asyncQuery = new SQLQuery("SELECT asyncify(#{query}, #{password})")
           .withNamedParameter("query", text())
-          .withNamedParameter("password", DatabaseHandler.getInstance().getConfig().getDatabaseSettings().getPassword());
-      setText(asyncQuery.substitute().text());
+          .withNamedParameter("password", PSQLXyzConnector.getInstance().getConfig().getDatabaseSettings().getPassword());
+      statement = asyncQuery.substitute().text();
       return asyncQuery;
     }
     return this;
@@ -237,6 +270,11 @@ public class SQLQuery {
     return text == null ? "" : '"' + text.replace("\"", "\"\"") + '"';
   }
 
+  /**
+   * @deprecated Please do not use this method anymore!
+   * Instead, please use more flexible / configurable / isolation-keeping placeholders
+   * in the form of variables / query-fragments / named-parameters.
+   */
   @Deprecated
   public static String replaceVars(String query, String schema, String table) {
     SQLQuery q = new SQLQuery(query)
@@ -264,13 +302,13 @@ public class SQLQuery {
       namedParams2Positions.get(nParam).add(parameters.size());
       addParameter( namedParameters.get(nParam) );
       if (!usePlaceholders) {
-        setText(m.replaceFirst(paramValueToString(namedParameters.get(nParam))));
+        statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
         m = p.matcher(text());
       }
     }
 
     if (usePlaceholders)
-      setText(m.replaceAll("?"));
+      statement = m.replaceAll("?");
   }
 
   private String paramValueToString(Object paramValue) {
@@ -310,7 +348,7 @@ public class SQLQuery {
   }
 
   private void replaceChildVars(Map<String, String> variables) {
-    setText(replaceVars(text(), variables));
+    statement = replaceVars(text(), variables);
   }
 
   //TODO: Make private when refactoring is complete
@@ -347,10 +385,16 @@ public class SQLQuery {
     String queryText = text();
     for (String key : fragments.keySet())
       queryText = queryText.replace(FRAGMENT_PREFIX + key + FRAGMENT_SUFFIX, fragments.get(key).text());
-    setText(queryText);
+    statement = queryText;
   }
 
+  /**
+   * @deprecated Please do not use this method anymore!
+   * Instead, please use more flexible / configurable / isolation-keeping placeholders
+   * in the form of variables / query-fragments / named-parameters.
+   */
   //TODO: Make private when refactoring is complete
+  @Deprecated
   public void replaceNamedParameters() {
     replaceNamedParameters(true);
   }
@@ -366,6 +410,11 @@ public class SQLQuery {
     namedParameters = null;
   }
 
+  /**
+   * @deprecated Please do not use this method anymore!
+   * Instead, please use more flexible / configurable / isolation-keeping placeholders
+   * in the form of variables / query-fragments / named-parameters.
+   */
   //TODO: Can be removed after completion of refactoring
   @Deprecated
   public void replaceUnnamedParameters() {
@@ -378,10 +427,14 @@ public class SQLQuery {
     for (Object paramValue : params) {
       String paramName = "param" + ++i;
       setNamedParameter(paramName, paramValue);
-      setText(text().replaceFirst(Pattern.quote("?"), "#{" + paramName + "}"));
+      statement = text().replaceFirst(Pattern.quote("?"), "#{" + paramName + "}");
     }
   }
 
+  /**
+   * @deprecated Please do not use this method anymore!
+   * Instead, please use GetFeatures#buildSelectionFragment(ContextAwareEvent).
+   */
   @Deprecated
   public static SQLQuery selectJson(SelectiveEvent event) {
     return GetFeatures.buildSelectionFragmentBWC(event);
@@ -567,9 +620,24 @@ public class SQLQuery {
     return null;
   }
 
+  public void run(DataSource dataSource) throws SQLException, ErrorResponseException {
+    run(dataSource, rs -> null);
+  }
+
+  public <R> R run(DataSource dataSource, ResultSetHandler<R> handler) throws SQLException, ErrorResponseException {
+    return new InlineQueryRunner<>(() -> this, handler).run(new StaticDataSources(dataSource));
+  }
+
+  public int write(DataSource dataSource) throws SQLException, ErrorResponseException {
+    return new InlineQueryRunner<Void>(() -> this).write(new StaticDataSources(dataSource));
+  }
+
+  /**
+   * @deprecated Can be removed, once the db client interface has been streamlined.
+   */
   /** from ? to $1-$N */
   @Deprecated
-  public static SQLQuery substituteAndUseDollarSyntax(SQLQuery q){
+  public static SQLQuery substituteAndUseDollarSyntax(SQLQuery q) {
     q.substitute();
 
     String translatedQuery = "";
@@ -581,7 +649,7 @@ public class SQLQuery {
         translatedQuery += c;
     }
 
-    q.setText(translatedQuery);
+    q.statement = translatedQuery;
     return q;
   }
 }

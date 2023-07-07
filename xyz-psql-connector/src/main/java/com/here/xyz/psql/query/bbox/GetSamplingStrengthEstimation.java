@@ -29,7 +29,6 @@ import com.here.xyz.models.geojson.WebMercatorTile;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
@@ -56,9 +55,9 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
     }
   }
 
-  public GetSamplingStrengthEstimation(E event, DatabaseHandler dbHandler)
+  public GetSamplingStrengthEstimation(E event)
       throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+    super(event);
   }
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {

@@ -34,6 +34,8 @@ import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.decryptors.EventDecryptor;
 import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
+import com.here.xyz.connectors.runtime.ConnectorRuntime;
+import com.here.xyz.connectors.runtime.LambdaConnectorRuntime;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.RelocatedEvent;
@@ -86,7 +88,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    * The lambda client, used for warmup.
    * Only used when running in AWS Lambda environment.
    */
-  private static final AWSLambda lambda = System.getenv("AWS_LAMBDA_FUNCTION_NAME") != null ? AWSLambdaClientBuilder.defaultClient(): null;
+  private static AWSLambda lambdaClient;
 
   /**
    * The number of the bytes to read from an input stream and preview as a String in the logs.
@@ -121,12 +123,6 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   public static int GZIP_THRESHOLD_SIZE = 1024 * 1024; // 1MB
 
   /**
-   * The context for this request.
-   */
-  @SuppressWarnings("WeakerAccess")
-  protected Context context;
-
-  /**
    * The stream-id that should be added to every log output.
    */
   protected String streamId;
@@ -159,6 +155,8 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
   private static final String DEFAULT_STORAGE_REGION_MAPPING = "DEFAULT_STORAGE_REGION_MAPPING";
   private static final Map<String, Set<String>> allowedEventTypes;
+
+  protected Context context;
 
   static {
     try {
@@ -220,15 +218,16 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
 
   public void handleRequest(InputStream input, OutputStream output, Context context, String streamId) {
     try {
+      this.context = context;
       start = System.currentTimeMillis();
       Typed dataOut;
-      this.context = context;
       String ifNoneMatch = null;
       try {
         Event event = readEvent(input);
 
         String connectorId = null;
         this.streamId = streamId != null ? streamId : event.getStreamId();
+        new LambdaConnectorRuntime(context, this.streamId);
 
         if (event.getConnectorParams() != null  && event.getConnectorParams().get("connectorId") != null)
           connectorId = (String) event.getConnectorParams().get("connectorId");
@@ -247,8 +246,7 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
         dataOut = processEvent(event);
       }
       catch (ErrorResponseException e) {
-        if (e.getErrorResponse().getStreamId() == null)
-          e.getErrorResponse().setStreamId(this.streamId);
+        e.getErrorResponse().setStreamId(this.streamId);
         dataOut = e.getErrorResponse();
       }
       catch (Exception e) {
@@ -286,15 +284,18 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
       Event receivedEvent = XyzSerializable.deserialize(input);
       logger.debug("{} [{} ms] - Parsed event: {}", receivedEvent.getStreamId(), ms(), streamPreview);
       return receivedEvent;
-    } catch (JsonMappingException e) {
+    }
+    catch (JsonMappingException e) {
       logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "Unknown event type");
-    } catch (ClassCastException e) {
+      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Unknown event type");
+    }
+    catch (ClassCastException e) {
       logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "The input should be of type Event");
-    } catch (Exception e) {
+      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "The input should be of type Event");
+    }
+    catch (Exception e) {
       logger.error("{} [{} ms] - Exception {} occurred while reading the event: {}", "FATAL", ms(), e.getMessage(), streamPreview, e);
-      throw new ErrorResponseException(streamId, XyzError.EXCEPTION, e);
+      throw new ErrorResponseException(e);
     }
   }
 
@@ -381,19 +382,21 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
   /**
    * Processes a HealthCheckEvent event.
    *
-   * This type of events are sent in regular intervals to the lambda handler and could be used to keep the handler's container active and
+   * These type of events are sent in regular intervals to the lambda handler and could be used to keep the handler's container active and
    * the connection to the database open.
    */
   protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
-    if (event.getWarmupCount() > 0 && this.context != null && this.context.getInvokedFunctionArn() != null && lambda != null) {
+    if (event.getWarmupCount() > 0 && !ConnectorRuntime.getInstance().isRunningLocally()) {
       int warmupCount = event.getWarmupCount();
       event.setWarmupCount(0);
       byte[] newEvent = event.toByteArray();
       logger.debug("{} Calling myself. WarmupCount: {}", traceItem, warmupCount);
       List<Thread> threads = new ArrayList<>(warmupCount);
       for (int i = 0; i < warmupCount; i++) {
-        threads.add(new Thread(() -> lambda.invoke(new InvokeRequest()
-                .withFunctionName(this.context.getInvokedFunctionArn())
+        if (lambdaClient == null)
+          lambdaClient = AWSLambdaClientBuilder.defaultClient();
+        threads.add(new Thread(() -> lambdaClient.invoke(new InvokeRequest()
+                .withFunctionName(((LambdaConnectorRuntime) ConnectorRuntime.getInstance()).getInvokedFunctionArn())
                 .withPayload(ByteBuffer.wrap(newEvent)))));
       }
       threads.forEach(t -> t.start());

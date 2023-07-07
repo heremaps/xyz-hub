@@ -23,14 +23,13 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 
 public class GetFeaturesByGeometry extends Spatial<GetFeaturesByGeometryEvent, FeatureCollection> {
 
-  public GetFeaturesByGeometry(GetFeaturesByGeometryEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public GetFeaturesByGeometry(GetFeaturesByGeometryEvent event) throws SQLException, ErrorResponseException {
+    super(event);
   }
 
   @Override

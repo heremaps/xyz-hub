@@ -21,7 +21,6 @@ package com.here.xyz.psql.query.helpers.versioning;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import java.sql.ResultSet;
@@ -31,8 +30,8 @@ public class GetNextVersion<E extends Event> extends XyzEventBasedQueryRunner<E,
 
   public static final String VERSION_SEQUENCE_SUFFIX = "_version_seq";
 
-  public GetNextVersion(E input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(input, dbHandler);
+  public GetNextVersion(E input) throws SQLException, ErrorResponseException {
+    super(input);
   }
 
   @Override
