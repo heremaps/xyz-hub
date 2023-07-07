@@ -33,7 +33,7 @@ public class ExportValidator extends Validator{
 
         if(job.getExportTarget() != null && job.getExportTarget().getType().equals(Export.ExportTarget.Type.VML)){
             
-           if( job.getCsvFormat() != null && job.getCsvFormat().equals(Job.CSVFormat.FEATUREID_FC_B64) ) return;
+           if( job.getCsvFormat() != null && job.getCsvFormat().equals(Job.CSVFormat.PARTITIONID_FC_B64) ) return;
 
            job.setCsvFormat(Job.CSVFormat.TILEID_FC_B64);
 
@@ -52,14 +52,14 @@ public class ExportValidator extends Validator{
 
             switch(job.getCsvFormat())
             { case TILEID_FC_B64 : 
-              case FEATUREID_FC_B64 : break;
-              default: throw new Exception("Invalid Format! Allowed ["+ Job.CSVFormat.TILEID_FC_B64+ "," + Job.CSVFormat.FEATUREID_FC_B64 +"]");
+              case PARTITIONID_FC_B64 : break;
+              default: throw new Exception("Invalid Format! Allowed ["+ Job.CSVFormat.TILEID_FC_B64+ "," + Job.CSVFormat.PARTITIONID_FC_B64 +"]");
             }
 
             if(job.getExportTarget().getTargetId() == null)
                 throw new Exception("Please specify the targetId!");
 
-            if( !job.getCsvFormat().equals(Job.CSVFormat.FEATUREID_FC_B64) )
+            if( !job.getCsvFormat().equals(Job.CSVFormat.PARTITIONID_FC_B64) )
             {   
              if( job.getTargetLevel() == null )
                  throw new Exception("Please specify targetLevel! Allowed range ["+ ExportValidator.VML_EXPORT_MIN_TARGET_LEVEL +":"+ ExportValidator.VML_EXPORT_MAX_TARGET_LEVEL +"]");
