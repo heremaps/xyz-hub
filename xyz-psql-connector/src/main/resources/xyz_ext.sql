@@ -3205,7 +3205,7 @@ LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile(qk text, isbase4encoded boolean) RETURNS TABLE(rowy integer, colx integer, lev integer, hkey bigint)
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 declare
     level integer;
@@ -3231,7 +3231,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile(x integer, y integer, level integer) RETURNS bigint
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 begin
     return htiles_convert_xy_to_long_key(x, y) | (1::bigint << (level * 2));
@@ -3240,7 +3240,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile_bbox(rowy integer, colx integer, lev integer) RETURNS public.geometry
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 declare
     height float;
@@ -3293,7 +3293,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htiles_convert_qk_to_longk(qk text) RETURNS bigint
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 declare
     level integer;
@@ -3315,7 +3315,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htiles_convert_xy_to_long_key(x integer, y integer) RETURNS bigint
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 begin
     x = htiles_utils_modify_bits(x,'interleave');
@@ -3326,7 +3326,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htiles_utils_modify_bits(num bigint, bmode text) RETURNS bigint
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 declare
     magicNumbers bigint[] := ARRAY[
@@ -3498,7 +3498,7 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v1(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql stable
     AS $_$
 declare
     result record;
@@ -3543,7 +3543,7 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v2(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql stable
     AS $_$
 declare
     fkt_qk2box text := 'xyz_qk_qk2bbox';
@@ -3581,7 +3581,7 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-LANGUAGE sql
+LANGUAGE sql stable
 AS $_$
     select tile_id, tile_content from qk_s_get_fc_of_tiles_v1( here_tile_qk, tile_list, _tbl, base64enc, clipped )
 $_$;
@@ -3738,7 +3738,7 @@ CREATE OR REPLACE FUNCTION public.qk_s_get_fc_of_tiles_txt_v1(
 	base64enc boolean,
 	clipped boolean)
     RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE 'plpgsql'
+    LANGUAGE 'plpgsql' stable
 AS $BODY$
 declare
     result record;
@@ -3785,7 +3785,7 @@ $BODY$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v2(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql stable
     AS $_$
 declare
     fkt_qk2box text := 'xyz_qk_qk2bbox';
@@ -3823,7 +3823,7 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-LANGUAGE sql
+LANGUAGE sql stable
 AS $_$
     select tile_id, tile_content from qk_s_get_fc_of_tiles_txt_v1( here_tile_qk, tile_list, sql_with_jsondata_geo, base64enc, clipped )
 $_$;
@@ -3969,7 +3969,7 @@ CREATE OR REPLACE FUNCTION exp_qk_weight(
 	tbls regclass[],
 	sql_qk_tileqry_with_geo text)
 RETURNS TABLE(lev integer, qk text, weight double precision, reltuples bigint)
-LANGUAGE 'plpgsql'
+LANGUAGE 'plpgsql' stable
 AS $BODY$
 begin
 
@@ -4020,7 +4020,7 @@ CREATE OR REPLACE FUNCTION exp_type_download_precalc(
 	sql_with_jsondata_geo text,
 	tbl regclass)
 RETURNS int
-    LANGUAGE 'plpgsql'
+    LANGUAGE 'plpgsql' stable
 AS $BODY$
 declare
     start_parallelization_threshold integer := 500000;
@@ -4050,7 +4050,7 @@ CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
 	esitmated_count bigint,
 	tbl regclass)
 RETURNS  TABLE(tilelist text[])
-    LANGUAGE 'plpgsql'
+    LANGUAGE 'plpgsql' stable
 AS $BODY$
 declare
 	-- defines how much rows a table need till we start parallelization
