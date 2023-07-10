@@ -23,6 +23,7 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IMasterTransaction;
+import com.here.naksha.lib.core.storage.ITransactionSettings;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import java.sql.PreparedStatement;
@@ -38,10 +39,11 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    * Creates a new transaction for the given PostgresQL client.
    *
    * @param psqlClient the PostgresQL client for which to create a new transaction.
+   * @param settings The transaction settings.
    * @throws SQLException if creation of the writer failed.
    */
-  PsqlTxWriter(@NotNull PsqlStorage psqlClient) throws SQLException {
-    super(psqlClient);
+  PsqlTxWriter(@NotNull PsqlStorage psqlClient, @NotNull ITransactionSettings settings) throws SQLException {
+    super(psqlClient, settings);
   }
 
   @Override

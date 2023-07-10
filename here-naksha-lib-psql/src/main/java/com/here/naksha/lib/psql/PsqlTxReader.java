@@ -25,6 +25,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.Feature;
 import com.here.naksha.lib.core.storage.ClosableIterator;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IReadTransaction;
+import com.here.naksha.lib.core.storage.ITransactionSettings;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import java.sql.Connection;
@@ -43,13 +44,20 @@ public class PsqlTxReader implements IReadTransaction {
   /**
    * Creates a new transaction for the given PostgresQL client.
    *
-   * @param psqlClient the PostgresQL client for which to create a new transaction.
+   * @param psqlClient The PostgresQL client for which to create a new transaction.
+   * @param settings The transaction settings.
    * @throws SQLException if creation of the reader failed.
    */
-  PsqlTxReader(@NotNull PsqlStorage psqlClient) throws SQLException {
+  PsqlTxReader(@NotNull PsqlStorage psqlClient, @NotNull ITransactionSettings settings) throws SQLException {
     this.psqlClient = psqlClient;
-    this.connection = psqlClient.dataSource.getConnection();
+    this.settings = PsqlTransactionSettings.of(settings, this);
+    this.connection = psqlClient.dataSource.getConnection(this.settings);
   }
+
+  /**
+   * The transaction settings.
+   */
+  final @NotNull PsqlTransactionSettings settings;
 
   /**
    * The PostgresQL client to which this transaction is bound.
@@ -62,8 +70,12 @@ public class PsqlTxReader implements IReadTransaction {
   @Nullable
   Connection connection;
 
-  @NotNull
-  Connection connection() {
+  /**
+   * Returns the underlying PostgresQL connection.
+   * @return The underlying PostgresQL connection.
+   * @throws IllegalStateException When the connection is closed.
+   */
+  public @NotNull Connection connection() {
     final Connection connection = this.connection;
     if (connection == null) {
       throw new IllegalStateException("Connection is closed");
@@ -105,8 +117,13 @@ public class PsqlTxReader implements IReadTransaction {
   }
 
   @Override
-  public @NotNull String getTransactionNumber() throws SQLException {
+  public @NotNull String transactionNumber() throws SQLException {
     throw new UnsupportedOperationException("getTransactionNumber");
+  }
+
+  @Override
+  public @NotNull ITransactionSettings settings() {
+    return settings;
   }
 
   @Override

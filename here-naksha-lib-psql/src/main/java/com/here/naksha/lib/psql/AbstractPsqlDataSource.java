@@ -20,11 +20,13 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.psql.PsqlStorage.escapeId;
 
+import com.here.naksha.lib.core.storage.ITransactionSettings;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
+import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -166,17 +168,29 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
   }
 
   /**
-   * Returns an initialized connection. This means the connection will have auto-commit being off,
-   * the current schema will be at the root of the search path, and the correct role pre-selected.
-   * Note that these settings can be modified overridding the {@link #initConnection(Connection)} or
-   * {@link #initSession(StringBuilder)} methods.
+   * Returns an initialized connection. This means the connection will have auto-commit being off, the current schema will be at the root
+   * of the search path, and the correct role pre-selected. Note that these settings can be modified by overriding the
+   * {@link #initConnection(Connection,ITransactionSettings)} or {@link #initSession(StringBuilder,ITransactionSettings)} methods.
    *
    * @return the initialized connection.
    * @throws SQLException if any error happened while initializing the connection.
    */
   @Override
-  public Connection getConnection() throws SQLException {
+  public final Connection getConnection() throws SQLException {
     return initConnection(pool.dataSource.getConnection());
+  }
+
+  /**
+   * Returns an initialized connection. This means the connection will have auto-commit being off, the current schema will be at the root
+   * of the search path, and the correct role pre-selected. Note that these settings can be modified by overriding the
+   * {@link #initConnection(Connection,ITransactionSettings)} or {@link #initSession(StringBuilder,ITransactionSettings)} methods.
+   *
+   * @param settings Transaction settings.
+   * @return the initialized connection.
+   * @throws SQLException if any error happened while initializing the connection.
+   */
+  public Connection getConnection(@NotNull ITransactionSettings settings) throws SQLException {
+    return initConnection(pool.dataSource.getConnection(), settings);
   }
 
   /**
@@ -226,17 +240,37 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
   }
 
   /**
+   * Create default transaction settings.
+   * @return New transaction settings.
+   */
+  public @NotNull ITransactionSettings createSettings() {
+    return new PsqlTransactionSettings(pool.config.stmtTimeout, pool.config.lockTimeout);
+  }
+
+  /**
    * The default initializer for connections.
    *
-   * @param conn the connection.
+   * @param conn The connection.
    * @return the connection.
    * @throws SQLException if the init failed.
    */
   public final @NotNull Connection initConnection(@NotNull Connection conn) throws SQLException {
+    return initConnection(conn, null);
+  }
+
+  /**
+   * The default initializer for connections.
+   *
+   * @param conn The connection.
+   * @param settings The default connection settings.
+   * @return the connection.
+   * @throws SQLException if the init failed.
+   */
+  public @NotNull Connection initConnection(@NotNull Connection conn, @Nullable ITransactionSettings settings) throws SQLException {
     conn.setAutoCommit(false);
     try (final Statement stmt = conn.createStatement()) {
       final StringBuilder sb = new StringBuilder();
-      initSession(sb);
+      initSession(sb, settings);
       final String sql = sb.toString();
       logger.debug("{} - Init connection: {}", applicationName, sql);
       stmt.execute(sql);
@@ -258,19 +292,20 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
    * do not know how many transactions are done with the connection and we want all of them to use
    * the same settings.
    *
-   * @param sb the string builder in which to create the query.
-   * @throws SQLException if any error occurred.
+   * @param settings The transaction settings; if any.
+   * @param sb The string builder in which to create the query.
+   * @throws SQLException If any error occurred.
    */
-  protected void initSession(@NotNull StringBuilder sb) throws SQLException {
+  protected void initSession(@NotNull StringBuilder sb, @Nullable ITransactionSettings settings) throws SQLException {
     sb.append("SET SESSION application_name TO '").append(applicationName).append("';\n");
     sb.append("SET SESSION work_mem TO '256 MB';\n");
     sb.append("SET SESSION enable_seqscan TO OFF;\n");
     // sb.append("SET SESSION enable_bitmapscan TO OFF;\n");
     sb.append("SET SESSION statement_timeout TO ")
-        .append(pool.config.stmtTimeout)
+        .append(settings != null ? settings.getStatementTimeout(TimeUnit.MICROSECONDS) : pool.config.stmtTimeout)
         .append(";\n");
     sb.append("SET SESSION lock_timeout TO ")
-        .append(pool.config.lockTimeout)
+        .append(settings != null ? settings.getLockTimeout(TimeUnit.MILLISECONDS) : pool.config.lockTimeout)
         .append(";\n");
     sb.append("SET SESSION search_path TO ");
     if (!searchPath.contains(schema)) {

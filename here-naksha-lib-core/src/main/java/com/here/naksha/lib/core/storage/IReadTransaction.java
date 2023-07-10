@@ -34,7 +34,13 @@ public interface IReadTransaction extends AutoCloseable {
    */
   @AvailableSince(INaksha.v2_0_0)
   @NotNull
-  String getTransactionNumber() throws Exception;
+  String transactionNumber() throws Exception;
+
+  /**
+   * Returns the settings of the transaction.
+   * @return The settings of the transaction.
+   */
+  @NotNull ITransactionSettings settings();
 
   @AvailableSince(INaksha.v2_0_0)
   @Override

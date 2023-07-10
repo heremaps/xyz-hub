@@ -14,8 +14,8 @@ Naksha uses the following terms:
 - **PipelineComponent**: A component processing events via an event-pipeline. The event-pipeline is part of the configuration of the pipeline-component.
 - **Space**: A pipeline-component with some configuration and a public name. It receives an event from a REST API, sending this event through the attached event-pipeline. A space can be used for any purpose, mostly used to store and modify features in a storage.
 - **Subscription**: A component configuration to react upon content changes of a **storage**. When a storage driver creates a new event to inform Naksha-Hub about a change of the underlying storage, then Naksha will review all subscription to this storage and process these events in the corresponding event-pipelines. A subscription will be executed for all change-events and guaranteed to be called at least ones. That means if an error occurs while processing an event, the subscription pipeline receives the event again. All subscriptions are independent of each other. Naksha calls individual subscriptions in parallel, but each subscription receive all events in order. A subscription is guaranteed to be called at least ones at one Naksha instance at a time, but it can be moved between instances on demand.
-- **AID/AppId**: The identifier of the acting application, read from the JWT token.
-- **Author**: A user or application identifier read from the JWT token.
+- **AID/AppId/app_id**: The identifier of the acting application, read from the JWT token.
+- **Author**: The identifier of the author, normally a user acting, read from the JWT token.
 
 ## Spaces
 

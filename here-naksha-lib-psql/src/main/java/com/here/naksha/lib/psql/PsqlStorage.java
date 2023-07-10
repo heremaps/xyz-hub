@@ -26,6 +26,7 @@ import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.storage.IStorage;
+import com.here.naksha.lib.core.storage.ITransactionSettings;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.IOException;
@@ -35,6 +36,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.postgresql.util.PSQLException;
 
 /**
@@ -211,8 +213,8 @@ public class PsqlStorage implements IStorage {
   }
 
   static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()"; // TODO: Why to we need this?
-  static final String[] extensionList = new String[] {"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
-  static final String[] localScripts = new String[] {"/xyz_ext.sql", "/h3Core.sql", "/naksha_ext.sql"};
+  static final String[] extensionList = new String[]{"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
+  static final String[] localScripts = new String[]{"/xyz_ext.sql", "/h3Core.sql", "/naksha_ext.sql"};
 
   // We can store meta-information at tables using
   // COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
@@ -282,14 +284,23 @@ public class PsqlStorage implements IStorage {
     throw new UnsupportedOperationException("maintain");
   }
 
-  @Override
-  public @NotNull PsqlTxReader openReplicationTransaction() throws SQLException {
-    return new PsqlTxReader(this);
+  /**
+   * Create default transaction settings.
+   *
+   * @return New transaction settings.
+   */
+  public @NotNull ITransactionSettings createSettings() {
+    return new PsqlTransactionSettings(dataSource.pool.config.stmtTimeout, dataSource.pool.config.lockTimeout);
   }
 
   @Override
-  public @NotNull PsqlTxWriter openMasterTransaction() throws SQLException {
-    return new PsqlTxWriter(this);
+  public @NotNull PsqlTxReader openReplicationTransaction(@NotNull ITransactionSettings settings) throws SQLException {
+    return new PsqlTxReader(this, settings);
+  }
+
+  @Override
+  public @NotNull PsqlTxWriter openMasterTransaction(@NotNull ITransactionSettings settings) throws SQLException {
+    return new PsqlTxWriter(this, settings);
   }
 
   @Override
@@ -303,7 +314,8 @@ public class PsqlStorage implements IStorage {
   }
 
   @Override
-  public void close() {}
+  public void close() {
+  }
 
   // Add listener for change events like create/update/delete collection and for the features in it.
   // Basically, listen to transaction log!
@@ -322,8 +334,8 @@ public class PsqlStorage implements IStorage {
       boolean needUpdate = false;
       ResultSet rs;
       if ((rs = stmt.executeQuery("select count(1)::integer from pg_catalog.pg_proc r inner join"
-              + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where 1 = 1"
-              + " and l.nspname = 'h3' and r.proname = 'h3_version'"))
+          + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where 1 = 1"
+          + " and l.nspname = 'h3' and r.proname = 'h3_version'"))
           .next()) {
         needUpdate = (0 == rs.getInt(1));
       }
