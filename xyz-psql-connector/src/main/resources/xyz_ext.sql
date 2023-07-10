@@ -4050,7 +4050,7 @@ CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
 	esitmated_count bigint,
 	tbl regclass)
 RETURNS  TABLE(tilelist text[])
-    LANGUAGE 'plpgsql' stable
+    LANGUAGE 'plpgsql' volatile
 AS $BODY$
 declare
 	-- defines how much rows a table need till we start parallelization
