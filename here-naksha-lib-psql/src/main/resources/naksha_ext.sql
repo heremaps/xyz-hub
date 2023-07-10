@@ -691,27 +691,6 @@ BEGIN
 END
 $BODY$;
 
--- Prepare a statement for the session. This method expects that the there are two arguments in the
--- statement for the table name and the schema.
--- Example: stmt := naksha_prepare_stmt('purge_del','(text)','DELETE FROM %I WHERE jsondata->>''id'' = $1', tg_table_schema, tg_table_name);
-CREATE OR REPLACE FUNCTION naksha_prepare_stmt(id text, params text, statement text, _table text)
-    RETURNS text
-    LANGUAGE 'plpgsql' VOLATILE
-AS $BODY$
-DECLARE
-    sql text;
-BEGIN
-    id := format('nakstmt:%s:%s', _table, id);
-    statement := format(statement, _table);
-    sql := format('PREPARE %I%s AS %s', id, params, statement);
-    -- RAISE NOTICE '%', sql;
-    EXECUTE sql;
-    RETURN id;
-EXCEPTION
-    WHEN duplicate_prepared_statement THEN RETURN id;
-END;
-$BODY$;
-
 -- Trigger that writes into the history table.
 CREATE OR REPLACE FUNCTION __naksha_trigger_write_hst()
     RETURNS trigger
@@ -733,22 +712,14 @@ BEGIN
         --RAISE NOTICE '__naksha_trigger_write_hst % %', TG_OP, NEW.jsondata;
 
         -- purge feature from deletion table.
-        stmt := naksha_prepare_stmt('purge_del', '(text)',
-            'DELETE FROM %I WHERE jsondata->>''id'' = $1;',
-            format('%s_del', tg_table_name)
-        );
-        sql := format('EXECUTE %I(%L)', stmt, NEW.jsondata->>'id');
-        -- RAISE NOTICE '%', sql;
-        EXECUTE sql;
+        stmt := format('DELETE FROM %I WHERE jsondata->>''id'' = $1;', format('%s_del', tg_table_name));
+        --RAISE NOTICE '%', stmt;
+        EXECUTE stmt USING NEW.jsondata->>'id';
 
         -- write history.
-        stmt := naksha_prepare_stmt('write_hst', '(jsonb,geometry,int8)',
-            'INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);',
-            format('%s_hst', tg_table_name)
-        );
-        sql := format('EXECUTE %I(%L,%L,%L);', stmt, NEW.jsondata, NEW.geo, NEW.i);
-        -- RAISE NOTICE '%', sql;
-        EXECUTE sql;
+        stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_hst', tg_table_name));
+        --RAISE NOTICE '%', stmt;
+        EXECUTE stmt USING NEW.jsondata, NEW.geo, NEW.i;
 
         RETURN NEW;
     END IF;
@@ -779,22 +750,14 @@ BEGIN
     OLD.i = i;
 
     -- write delete.
-    stmt := naksha_prepare_stmt('write_del', '(jsonb,geometry,int8)',
-        'INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);',
-        format('%s_del', tg_table_name)
-    );
-    sql := format('EXECUTE %I(%L,%L,%L);', stmt, OLD.jsondata, OLD.geo, OLD.i);
-    -- RAISE NOTICE '%', sql;
-    EXECUTE sql;
+    stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_del', tg_table_name));
+    -- RAISE NOTICE '%', stmt;
+    EXECUTE stmt USING OLD.jsondata, OLD.geo, OLD.i;
 
     -- write history of the delete.
-    stmt := naksha_prepare_stmt('write_hst', '(jsonb,geometry,int8)',
-        'INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);',
-        format('%s_hst', tg_table_name)
-    );
-    sql := format('EXECUTE %I(%L,%L,%L);', stmt, OLD.jsondata, OLD.geo, OLD.i);
-    -- RAISE NOTICE '%', sql;
-    EXECUTE sql;
+    stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_hst', tg_table_name));
+    -- RAISE NOTICE '%', stmt;
+    EXECUTE stmt USING OLD.jsondata, OLD.geo, OLD.i;
 
     -- Note: PostgresQL does not support returning modified old records.
     --       Therefore, the next trigger will see the unmodified OLD.jsondata again!
@@ -1537,32 +1500,32 @@ END
 $$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_modify_features(collection text) RETURNS void
-LANGUAGE 'plpgsql' VOLATILE AS $BODY$ BEGIN
+LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
     PERFORM naksha_tx_set_action('TxModifyFeatures', collection);
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_upsert_collection(collection text) RETURNS void
-LANGUAGE 'plpgsql' VOLATILE AS $BODY$ BEGIN
+LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
     PERFORM naksha_tx_set_action('TxUpsertCollection', collection);
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_delete_collection(collection text) RETURNS void
-LANGUAGE 'plpgsql' VOLATILE AS $BODY$ BEGIN
+LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
     PERFORM naksha_tx_set_action('TxDeleteCollection', collection);
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_purge_collection(collection text) RETURNS void
-LANGUAGE 'plpgsql' VOLATILE AS $BODY$ BEGIN
+LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
     PERFORM naksha_tx_set_action('TxPurgeCollection', collection);
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_enable_history(collection text) RETURNS void
-LANGUAGE 'plpgsql' VOLATILE AS $BODY$ BEGIN
+LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
     PERFORM naksha_tx_set_action('TxEnableHistory', collection);
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_disable_history(collection text) RETURNS void
-LANGUAGE 'plpgsql' VOLATILE AS $BODY$ BEGIN
+LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
     PERFORM naksha_tx_set_action('TxDisableHistory', collection);
 END $BODY$;
 
@@ -1572,18 +1535,27 @@ CREATE OR REPLACE FUNCTION naksha_tx_set_action(action text, collection text)
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
 DECLARE
+    id          text;
+    exists      text;
+    sql         text;
     part_id     int;
     txn         uuid;
     app_id      text;
     author      text;
 BEGIN
-    part_id = naksha_part_id_from_ts(current_timestamp);
-    txn = naksha_tx_current();
-    app_id = naksha_tx_get_app_id();
-    author = naksha_tx_get_author();
-    INSERT INTO naksha_tx ("part_id", "txn", "action", "id", "app_id", "author", "ts", "psql_id")
-      VALUES (part_id, txn, action, collection, app_id, author, current_timestamp, txid_current())
-      ON CONFLICT DO NOTHING;
+    id := format('naksha.tx_set_%s_%s',action,collection);
+    exists := current_setting(id, true);
+    IF coalesce(exists, '') = '' THEN
+        part_id = naksha_part_id_from_ts(current_timestamp);
+        txn = naksha_tx_current();
+        app_id = naksha_tx_get_app_id();
+        author = naksha_tx_get_author();
+        INSERT INTO naksha_tx ("part_id", "txn", "action", "id", "app_id", "author", "ts", "psql_id")
+          VALUES (part_id, txn, action, collection, app_id, author, current_timestamp, txid_current())
+          ON CONFLICT DO NOTHING;
+        sql := format('SELECT SET_CONFIG(%L, %L::text, true)', id, 'true', true);
+        EXECUTE sql;
+    END IF;
 END
 $BODY$;
 
