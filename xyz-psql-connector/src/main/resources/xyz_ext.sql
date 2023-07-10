@@ -4007,7 +4007,6 @@ CREATE OR REPLACE FUNCTION exp_qk_weight(
 	tbl regclass,
 	sql_qk_tileqry_with_geo text)
 RETURNS TABLE(lev integer, qk text, weight double precision, reltuples bigint)
-
 language sql stable
 as $_$
   select * from exp_qk_weight( htile, startqk, mlevel, mweight, array[tbl], sql_qk_tileqry_with_geo )
