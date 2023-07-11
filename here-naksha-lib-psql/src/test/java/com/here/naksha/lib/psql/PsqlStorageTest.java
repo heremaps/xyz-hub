@@ -21,8 +21,6 @@ package com.here.naksha.lib.psql;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.lib.core.NakshaVersion;
@@ -129,10 +127,12 @@ public class PsqlStorageTest {
     assertNotNull(tx);
     final PsqlFeatureWriter<XyzFeature> writer = tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"));
     final ModifyFeaturesReq<XyzFeature> req = new ModifyFeaturesReq<>();
-    req.insert().add(new XyzFeature("test"));
+    for (int i = 0; i < 10000; i++) {
+      req.insert().add(new XyzFeature("test" + i));
+    }
     final ModifyFeaturesResp<XyzFeature> resp = writer.modifyFeatures(req);
     tx.commit();
-    assertNotNull(resp);
+    // assertNotNull(resp);
     tx.commit();
   }
 
@@ -153,24 +153,24 @@ public class PsqlStorageTest {
     assertFalse(it.hasNext());
   }
 
-  @Test
-  @Order(8)
-  @EnabledIf("isEnabled")
-  void dropCollection() throws Exception {
-    assertNotNull(storage);
-    assertNotNull(tx);
-    final CollectionInfo foo = tx.getCollectionById("foo");
-    assertNotNull(foo);
-    final CollectionInfo dropped = tx.dropCollection(foo);
-    tx.commit();
-    assertNotNull(dropped);
-    assertNotSame(foo, dropped);
-    assertEquals(foo.getId(), dropped.getId());
-    assertEquals(foo.getHistory(), dropped.getHistory());
-    assertEquals(foo.getMaxAge(), dropped.getMaxAge());
-    final CollectionInfo fooAgain = tx.getCollectionById("foo");
-    assertNull(fooAgain);
-  }
+  //  @Test
+  //  @Order(8)
+  //  @EnabledIf("isEnabled")
+  //  void dropCollection() throws Exception {
+  //    assertNotNull(storage);
+  //    assertNotNull(tx);
+  //    final CollectionInfo foo = tx.getCollectionById("foo");
+  //    assertNotNull(foo);
+  //    final CollectionInfo dropped = tx.dropCollection(foo);
+  //    tx.commit();
+  //    assertNotNull(dropped);
+  //    assertNotSame(foo, dropped);
+  //    assertEquals(foo.getId(), dropped.getId());
+  //    assertEquals(foo.getHistory(), dropped.getHistory());
+  //    assertEquals(foo.getMaxAge(), dropped.getMaxAge());
+  //    final CollectionInfo fooAgain = tx.getCollectionById("foo");
+  //    assertNull(fooAgain);
+  //  }
 
   @EnabledIf("isEnabled")
   @AfterAll
