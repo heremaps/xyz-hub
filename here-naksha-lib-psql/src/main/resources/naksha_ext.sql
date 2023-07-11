@@ -1065,7 +1065,7 @@ BEGIN
     -- Create HEAD table
     PERFORM __naksha_create_head_table(collection);
     -- Create object_id sequence (i)
-    sql := format('CREATE SEQUENCE IF NOT EXISTS %I AS int8 OWNED BY %I.i', format('%s_i_seq', collection), collection);
+    sql := format('CREATE SEQUENCE IF NOT EXISTS %I AS int8 CACHE 1000 OWNED BY %I.i', format('%s_i_seq', collection), collection);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
@@ -1347,12 +1347,12 @@ $BODY$;
 
 -- Start the transaction by setting the application-identifier, the current author (which may be null)
 -- and the returns the transaction number.
-CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text)
+CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool)
     RETURNS uuid
     LANGUAGE 'plpgsql' VOLATILE
 AS $$
 BEGIN
-    EXECUTE 'SELECT '
+    EXECUTE format('SELECT '
          || 'SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', true)'
          || ',SET_CONFIG(''work_mem'', ''128 MB'', true)'
          || ',SET_CONFIG(''maintenance_work_mem'', ''1024 MB'', true)'
@@ -1360,10 +1360,15 @@ BEGIN
          || ',SET_CONFIG(''enable_bitmapscan'', ''OFF'', true)'
          || ',SET_CONFIG(''enable_sort'', ''OFF'', true)'
          || ',SET_CONFIG(''enable_partitionwise_join'', ''ON'', true)'
-         || ',SET_CONFIG(''enable_partitionwise_aggregate'', ''ON'', true)';
-    PERFORM naksha_tx_set_app_id(app_id);
-    PERFORM naksha_tx_set_author(author);
-    RETURN naksha_tx_current();
+         || ',SET_CONFIG(''enable_partitionwise_aggregate'', ''ON'', true)'
+         || ',SET_CONFIG(''jit'', ''OFF'', true)'
+         || ',SET_CONFIG(''naksha.appid'', %L::text, true)' -- same as naksha_tx_set_app_id
+         || ',SET_CONFIG(''naksha.author'', %L::text, true)' -- same as naksha_tx_set_author
+         , app_id, author);
+    IF create_tx THEN
+        RETURN naksha_tx_current();
+    END IF;
+    RETURN NULL;
 END
 $$;
 
@@ -1476,7 +1481,6 @@ CREATE OR REPLACE FUNCTION naksha_tx_current()
 AS $$
 DECLARE
     value  text;
-    sql    text;
     txi    int8;
     txn    uuid;
 BEGIN
@@ -1488,41 +1492,56 @@ BEGIN
 
     txi := nextval('naksha_tx_object_id_seq');
     txn := naksha_txn_from_object_id_and_ts(txi, current_timestamp);
-    sql := format('SELECT SET_CONFIG(%L, %L::text, true)', 'naksha.txn', txn, true);
-    -- RAISE NOTICE 'create value via sql = %', sql;
-    EXECUTE sql;
+    PERFORM SET_CONFIG('naksha.txn', txn::text, true);
     RETURN txn;
 END
 $$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_modify_features(collection text) RETURNS void
-LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
-    PERFORM naksha_tx_set_action('TxModifyFeatures', collection);
+LANGUAGE 'plpgsql' STABLE AS $BODY$ BEGIN
+    IF NOT naksha_tx_action_cached('TxModifyFeatures', collection) THEN
+        PERFORM naksha_tx_set_action('TxModifyFeatures', collection);
+    END IF;
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_upsert_collection(collection text) RETURNS void
-LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
-    PERFORM naksha_tx_set_action('TxUpsertCollection', collection);
+LANGUAGE 'plpgsql' STABLE AS $BODY$ BEGIN
+    IF NOT naksha_tx_action_cached('TxUpsertCollection', collection) THEN
+        PERFORM naksha_tx_set_action('TxUpsertCollection', collection);
+    END IF;
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_delete_collection(collection text) RETURNS void
-LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
-    PERFORM naksha_tx_set_action('TxDeleteCollection', collection);
+LANGUAGE 'plpgsql' STABLE AS $BODY$ BEGIN
+    IF NOT naksha_tx_action_cached('TxDeleteCollection', collection) THEN
+        PERFORM naksha_tx_set_action('TxDeleteCollection', collection);
+    END IF;
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_purge_collection(collection text) RETURNS void
-LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
-    PERFORM naksha_tx_set_action('TxPurgeCollection', collection);
+LANGUAGE 'plpgsql' STABLE AS $BODY$ BEGIN
+    IF NOT naksha_tx_action_cached('TxPurgeCollection', collection) THEN
+        PERFORM naksha_tx_set_action('TxPurgeCollection', collection);
+    END IF;
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_enable_history(collection text) RETURNS void
-LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
-    PERFORM naksha_tx_set_action('TxEnableHistory', collection);
+LANGUAGE 'plpgsql' STABLE AS $BODY$ BEGIN
+    IF NOT naksha_tx_action_cached('TxEnableHistory', collection) THEN
+        PERFORM naksha_tx_set_action('TxEnableHistory', collection);
+    END IF;
 END $BODY$;
 
 CREATE OR REPLACE FUNCTION __naksha_tx_action_disable_history(collection text) RETURNS void
-LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$ BEGIN
-    PERFORM naksha_tx_set_action('TxDisableHistory', collection);
+LANGUAGE 'plpgsql' STABLE AS $BODY$ BEGIN
+    IF NOT naksha_tx_action_cached('TxDisableHistory', collection) THEN
+        PERFORM naksha_tx_set_action('TxDisableHistory', collection);
+    END IF;
+END $BODY$;
+
+CREATE OR REPLACE FUNCTION naksha_tx_action_cached(action text, collection text) RETURNS bool
+LANGUAGE 'plpgsql' STABLE AS $BODY$ BEGIN
+    RETURN coalesce(current_setting(format('naksha.tx_set_%s_%s',action,collection), true),'') <> '';
 END $BODY$;
 
 -- Set a collection action for the current transaction.
@@ -1532,16 +1551,13 @@ CREATE OR REPLACE FUNCTION naksha_tx_set_action(action text, collection text)
 AS $BODY$
 DECLARE
     id          text;
-    exists      text;
-    sql         text;
     part_id     int;
     txn         uuid;
     app_id      text;
     author      text;
 BEGIN
     id := format('naksha.tx_set_%s_%s',action,collection);
-    exists := current_setting(id, true);
-    IF coalesce(exists, '') = '' THEN
+    IF coalesce(current_setting(id, true), '') = '' THEN
         part_id = naksha_part_id_from_ts(current_timestamp);
         txn = naksha_tx_current();
         app_id = naksha_tx_get_app_id();
@@ -1549,8 +1565,7 @@ BEGIN
         INSERT INTO naksha_tx ("part_id", "txn", "action", "id", "app_id", "author", "ts", "psql_id")
           VALUES (part_id, txn, action, collection, app_id, author, current_timestamp, txid_current())
           ON CONFLICT DO NOTHING;
-        sql := format('SELECT SET_CONFIG(%L, %L::text, true)', id, 'true', true);
-        EXECUTE sql;
+        PERFORM SET_CONFIG(id, 'true', true);
     END IF;
 END
 $BODY$;
