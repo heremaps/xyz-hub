@@ -392,24 +392,6 @@ BEGIN
 END;
 $$;
 
--- Returns the "id" from the given feature.
-CREATE OR REPLACE FUNCTION naksha_feature_get_id(f jsonb)
-    RETURNS text
-    LANGUAGE 'plpgsql' IMMUTABLE
-AS $BODY$
-DECLARE
-    id text;
-BEGIN
-    id = f->>'id'::text;
-    IF id IS NULL THEN
-        --RAISE NOTICE '%', f::text;
-        -- 23502
-        --RAISE EXCEPTION not_null_violation USING MESSAGE = '"id" must not be null';
-    END IF;
-    RETURN id;
-END
-$BODY$;
-
 -- Returns the "version" from the given feature.
 CREATE OR REPLACE FUNCTION naksha_feature_get_version(f jsonb)
     RETURNS int8
@@ -618,52 +600,56 @@ BEGIN
     IF TG_OP = 'INSERT' THEN
         -- RAISE NOTICE '__naksha_trigger_fix_ns_xyz % %', TG_OP, NEW.jsondata;
         author := naksha_tx_get_author(null);
-        xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
-        IF xyz IS NULL THEN
-            xyz := '{}'::jsonb;
-        END IF;
-        xyz := jsonb_set(xyz, '{"action"}', ('"CREATE"')::jsonb, true);
-        xyz := jsonb_set(xyz, '{"version"}', to_jsonb(1::int8), true);
-        xyz := jsonb_set(xyz, '{"collection"}', to_jsonb(TG_TABLE_NAME), true);
-        xyz := jsonb_set(xyz, '{"author"}', coalesce(to_jsonb(author),'null'::jsonb), true);
-        xyz := jsonb_set(xyz, '{"appId"}', coalesce(to_jsonb(app_id),'null'::jsonb), true);
-        xyz := jsonb_set(xyz, '{"puuid"}', 'null'::jsonb, true);
-        xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
-        xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
-        xyz := jsonb_set(xyz, '{"createdAt"}', to_jsonb(ts_millis), true);
-        xyz := jsonb_set(xyz, '{"updatedAt"}', to_jsonb(ts_millis), true);
-        xyz := jsonb_set(xyz, '{"rtcts"}', to_jsonb(rts_millis), true);
-        xyz := jsonb_set(xyz, '{"rtuts"}', to_jsonb(rts_millis), true);
+        xyz := jsonb_build_object(
+            'action', 'CREATE',
+            'version', 1::int8,
+            'collection', TG_TABLE_NAME,
+            'author', author,
+            'appId', app_id,
+            'puuid', null,
+            'uuid', new_uuid::text,
+            'txn', txn::text,
+            'createdAt', ts_millis,
+            'updatedAt', ts_millis,
+            'rtcts', rts_millis,
+            'rtuts', rts_millis
+        );
+        --RAISE NOTICE '__naksha_trigger_fix_ns_xyz %', xyz;
         IF NEW.jsondata->'properties' IS NULl THEN
             NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties"}', '{}'::jsonb, true);
+        ELSEIF NEW.jsondata->'properties'->'@ns:com:here:xyz' IS NOT NULL
+            AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags' IS NOT NULL THEN
+            xyz := jsonb_set(xyz, '{"tags"}', NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags', true);
         END IF;
+        --RAISE NOTICE '__naksha_trigger_fix_ns_xyz %', xyz;
         NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
         NEW.i = i;
-        -- RAISE NOTICE '__naksha_trigger_fix_ns_xyz return %', NEW.jsondata;
+        --RAISE NOTICE '__naksha_trigger_fix_ns_xyz return %', NEW.jsondata;
         return NEW;
     END IF;
 
     IF TG_OP = 'UPDATE' THEN
         --RAISE NOTICE '__naksha_trigger_fix_ns_xyz % %', TG_OP, NEW.jsondata;
         author := naksha_tx_get_author(OLD.jsondata);
-        xyz := NEW.jsondata->'properties'->'@ns:com:here:xyz';
-        IF xyz IS NULL THEN
-            xyz := '{}'::jsonb;
-        END IF;
-        xyz := jsonb_set(xyz, '{"action"}', ('"UPDATE"')::jsonb, true);
-        xyz := jsonb_set(xyz, '{"version"}', to_jsonb(naksha_feature_get_version(OLD.jsondata) + 1::int8), true);
-        xyz := jsonb_set(xyz, '{"collection"}', to_jsonb(TG_TABLE_NAME), true);
-        xyz := jsonb_set(xyz, '{"author"}', coalesce(to_jsonb(author),'null'::jsonb), true);
-        xyz := jsonb_set(xyz, '{"appId"}', coalesce(to_jsonb(app_id),'null'::jsonb), true);
-        xyz := jsonb_set(xyz, '{"puuid"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid', true);
-        xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
-        xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
-        xyz := jsonb_set(xyz, '{"createdAt"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt', true);
-        xyz := jsonb_set(xyz, '{"updatedAt"}', to_jsonb(ts_millis), true);
-        xyz := jsonb_set(xyz, '{"rtcts"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts', true);
-        xyz := jsonb_set(xyz, '{"rtuts"}', to_jsonb(rts_millis), true);
+        xyz := jsonb_build_object(
+            'action', 'UPDATE',
+            'version', (OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'version')::int8 + 1::int8,
+            'collection', TG_TABLE_NAME,
+            'author', author,
+            'appId', app_id,
+            'puuid', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid',
+            'uuid', new_uuid::text,
+            'txn', txn::text,
+            'createdAt', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt',
+            'updatedAt', ts_millis,
+            'rtcts', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts',
+            'rtuts', rts_millis
+        );
         IF NEW.jsondata->'properties' IS NULl THEN
             NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties"}', '{}'::jsonb, true);
+        ELSEIF NEW.jsondata->'properties'->'@ns:com:here:xyz' IS NOT NULL
+            AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags' IS NOT NULL THEN
+            xyz := jsonb_set(xyz, '{"tags"}', NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags', true);
         END IF;
         NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
         NEW.i = i;
@@ -706,21 +692,16 @@ DECLARE
     rts_millis int8;
     i int8;
     xyz jsonb;
-    sql text;
 BEGIN
     IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
-        --RAISE NOTICE '__naksha_trigger_write_hst % %', TG_OP, NEW.jsondata;
-
-        -- purge feature from deletion table.
-        stmt := format('DELETE FROM %I WHERE jsondata->>''id'' = $1;', format('%s_del', tg_table_name));
+        -- purge feature from deletion table and write history.
+        stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);'
+                    || 'DELETE FROM %I WHERE jsondata->>''id'' = $4;',
+                        format('%s_hst', tg_table_name),
+                        format('%s_del', tg_table_name)
+        );
         --RAISE NOTICE '%', stmt;
-        EXECUTE stmt USING NEW.jsondata->>'id';
-
-        -- write history.
-        stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_hst', tg_table_name));
-        --RAISE NOTICE '%', stmt;
-        EXECUTE stmt USING NEW.jsondata, NEW.geo, NEW.i;
-
+        EXECUTE stmt USING NEW.jsondata, NEW.geo, NEW.i, NEW.jsondata->>'id';
         RETURN NEW;
     END IF;
 
@@ -734,28 +715,32 @@ BEGIN
     app_id := naksha_tx_get_app_id();
 
     -- We do these updates, because in the "after-trigger" we only write into history.
-    xyz := OLD.jsondata->'properties'->'@ns:com:here:xyz';
-    xyz := jsonb_set(xyz, '{"action"}', ('"DELETE"')::jsonb, true);
-    xyz := jsonb_set(xyz, '{"version"}', to_jsonb(naksha_feature_get_version(OLD.jsondata) + 1::int8), true);
-    xyz := jsonb_set(xyz, '{"collection"}', to_jsonb(TG_TABLE_NAME), true);
-    xyz := jsonb_set(xyz, '{"author"}', coalesce(to_jsonb(author), 'null'::jsonb), true);
-    xyz := jsonb_set(xyz, '{"appId"}', coalesce(to_jsonb(app_id), 'null'::jsonb), true);
-    xyz := jsonb_set(xyz, '{"puuid"}', xyz->'uuid', true);
-    xyz := jsonb_set(xyz, '{"uuid"}', ('"'||((new_uuid)::text)||'"')::jsonb, true);
-    xyz := jsonb_set(xyz, '{"txn"}', ('"'||((txn)::text)||'"')::jsonb, true);
-    -- createdAt and rtcts stay what they are
-    xyz := jsonb_set(xyz, '{"updatedAt"}', to_jsonb(ts_millis), true);
-    xyz := jsonb_set(xyz, '{"rtuts"}', to_jsonb(rts_millis), true);
+    xyz := jsonb_build_object(
+        'action', 'DELETE',
+        'version', (OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'version')::int8 + 1::int8,
+        'collection', TG_TABLE_NAME,
+        'author', author,
+        'appId', app_id,
+        'puuid', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid',
+        'uuid', new_uuid::text,
+        'txn', txn::text,
+        'createdAt', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt',
+        'updatedAt', ts_millis,
+        'rtcts', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts',
+        'rtuts', rts_millis
+    );
+    IF OLD.jsondata->'properties'->'@ns:com:here:xyz'->'tags' IS NOT NULL THEN
+        xyz := jsonb_set(xyz, '{"tags"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'tags', true);
+    END IF;
     OLD.jsondata = jsonb_set(OLD.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
     OLD.i = i;
 
     -- write delete.
-    stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_del', tg_table_name));
-    -- RAISE NOTICE '%', stmt;
-    EXECUTE stmt USING OLD.jsondata, OLD.geo, OLD.i;
-
-    -- write history of the delete.
-    stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_hst', tg_table_name));
+    stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);'
+                || 'INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);',
+                    format('%s_hst', tg_table_name),
+                    format('%s_del', tg_table_name)
+    );
     -- RAISE NOTICE '%', stmt;
     EXECUTE stmt USING OLD.jsondata, OLD.geo, OLD.i;
 
@@ -913,6 +898,14 @@ BEGIN
     -- RAISE NOTICE '%', sql;
     EXECUTE sql;
 
+    -- Index to search for features by tags.
+    sql = format('CREATE INDEX IF NOT EXISTS %I ON %I '
+              || 'USING gin ((jsondata->''properties''->''@ns:com:here:xyz''->''tags'')) '
+              || 'WITH (fastupdate=OFF)',
+                 format('%s_tags_idx', _table), _table);
+    -- RAISE NOTICE '%', sql;
+    EXECUTE sql;
+
     -- Index to search for features that have been part of a certain transaction, using "i" for paging.
     sql = format('CREATE INDEX IF NOT EXISTS %I ON %I '
               || 'USING btree ((jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') ASC, i DESC) '
@@ -940,12 +933,12 @@ BEGIN
     -- Index to search what a user has updated (newest first), results order descending by update-time, id and version.
     sql = format('CREATE INDEX IF NOT EXISTS %I ON %I '
               || 'USING btree ('
-              || '   (jsondata->''properties''->''@ns:com:here:xyz''->>''lastUpdatedBy'') DESC '
+              || '   (jsondata->''properties''->''@ns:com:here:xyz''->>''author'') DESC '
               || '  ,((jsondata->''properties''->''@ns:com:here:xyz''->>''updatedAt'')::int8) DESC '
               || '  ,(jsondata->>''id'') DESC '
               || '  ,((jsondata->''properties''->''@ns:com:here:xyz''->>''version'')::int8) DESC '
               || ') WITH (fillfactor=50)',
-                 format('%s_lastUpdatedBy_idx', _table), _table);
+                 format('%s_author_idx', _table), _table);
     -- RAISE NOTICE '%', sql;
     EXECUTE sql;
 END
@@ -1260,6 +1253,7 @@ CREATE TYPE naksha_op AS ENUM (
     'DELETE'
 );
 
+-- Bulk insert, update, upsert, delete of features.
 CREATE OR REPLACE FUNCTION naksha_modify_features(
     collection text, -- the collection
     feature_arr jsonb array, -- the new feature
@@ -1330,21 +1324,22 @@ BEGIN
     SELECT ARRAY(SELECT "unnest" FROM ordered_ids), ARRAY(SELECT "ordinality" FROM ordered_ids)
     INTO id_arr, id_idx_arr;
 
-    -- Read ids and their uuid
+    -- Read ids and their uuid, lock rows.
+    -- TODO: Check lock_time and use it as a total maximum, not individual one!
+    -- In other words, we loop until we get the lock or the maximum number of ms passed.
+    -- Optionally we could simply decide to use some good value like 1 second.
     WITH id_and_uuid AS (
         SELECT jsondata->>'id' as "id",
         jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' as "uuid"
         FROM collection
         WHERE jsondata->>'id' = ANY(id_arr)
         ORDER BY jsondata->>'id'
-        FOR UPDATE
+        FOR UPDATE NOWAIT
     ) SELECT ARRAY(SELECT id FROM id_and_uuid), ARRAY(SELECT uuid FROM id_and_uuid) FROM id_and_uuid
     LIMIT 1
     INTO existing_id_arr, existing_uuid_arr;
 
-    BEGIN
-
-    END;
+    --
     RETURN QUERY SELECT id_arr     AS "ids";
 END
 $BODY$;
@@ -1359,7 +1354,8 @@ AS $$
 BEGIN
     EXECUTE 'SELECT '
          || 'SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', true)'
-         || ',SET_CONFIG(''work_mem'', ''100 MB'', true)'
+         || ',SET_CONFIG(''work_mem'', ''128 MB'', true)'
+         || ',SET_CONFIG(''maintenance_work_mem'', ''1024 MB'', true)'
          || ',SET_CONFIG(''enable_seqscan'', ''OFF'', true)'
          || ',SET_CONFIG(''enable_bitmapscan'', ''OFF'', true)'
          || ',SET_CONFIG(''enable_sort'', ''OFF'', true)'
