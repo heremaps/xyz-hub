@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -28,6 +29,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
+import java.sql.SQLException;
 import java.util.Iterator;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -119,21 +121,56 @@ public class PsqlStorageTest {
     tx.commit();
   }
 
+  private static void test_modifyFeatures(@NotNull PsqlTxWriter tx, @NotNull String name, final int count)
+      throws SQLException {
+    final PsqlFeatureWriter<XyzFeature> writer = tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"));
+    final ModifyFeaturesReq<XyzFeature> req = new ModifyFeaturesReq<>();
+    for (int i = 0; i < count; i++) {
+      req.insert().add(new XyzFeature(name + i));
+    }
+    final ModifyFeaturesResp<XyzFeature> resp = writer.modifyFeatures(req);
+    tx.commit();
+  }
+
   @Test
   @Order(6)
   @EnabledIf("isEnabled")
   void writeFeaturesIntoFooCollection() throws Exception {
     assertNotNull(storage);
     assertNotNull(tx);
-    final PsqlFeatureWriter<XyzFeature> writer = tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"));
-    final ModifyFeaturesReq<XyzFeature> req = new ModifyFeaturesReq<>();
-    for (int i = 0; i < 10000; i++) {
-      req.insert().add(new XyzFeature("test" + i));
+    final String[] prefixes = new String[] {"test", "bar", "fox", "xyz", "lol", "goo", "hey", "kuk"};
+    final Thread[] threads = new Thread[prefixes.length];
+    for (int i = 0; i < threads.length; i++) {
+      final String name = prefixes[i];
+      final Thread thread = new Thread(
+          () -> {
+            assertDoesNotThrow(() -> {
+              final var tx = storage.openMasterTransaction(
+                  storage.createSettings().withAppId("naksha_test"));
+              test_modifyFeatures(tx, name, 10_000);
+              tx.commit();
+              tx.close();
+            });
+          },
+          name);
+      threads[i] = thread;
     }
-    final ModifyFeaturesResp<XyzFeature> resp = writer.modifyFeatures(req);
-    tx.commit();
-    // assertNotNull(resp);
-    tx.commit();
+    for (final var t : threads) {
+      t.start();
+    }
+    for (final var t : threads) {
+      t.join();
+    }
+    //    final PsqlFeatureWriter<XyzFeature> writer = tx.writeFeatures(XyzFeature.class, new
+    // CollectionInfo("foo"));
+    //    final ModifyFeaturesReq<XyzFeature> req = new ModifyFeaturesReq<>();
+    //    for (int i = 0; i < 10000; i++) {
+    //      req.insert().add(new XyzFeature("test" + i));
+    //    }
+    //    final ModifyFeaturesResp<XyzFeature> resp = writer.modifyFeatures(req);
+    //    tx.commit();
+    //    // assertNotNull(resp);
+    //    tx.commit();
   }
 
   @Test
