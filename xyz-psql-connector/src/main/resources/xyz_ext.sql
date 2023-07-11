@@ -110,7 +110,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 169
+ select 170
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3207,7 +3207,7 @@ LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile(qk text, isbase4encoded boolean) RETURNS TABLE(rowy integer, colx integer, lev integer, hkey bigint)
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 declare
     level integer;
@@ -3233,7 +3233,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile(x integer, y integer, level integer) RETURNS bigint
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 begin
     return htiles_convert_xy_to_long_key(x, y) | (1::bigint << (level * 2));
@@ -3242,7 +3242,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile_bbox(rowy integer, colx integer, lev integer) RETURNS public.geometry
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 declare
     height float;
@@ -3295,7 +3295,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htiles_convert_qk_to_longk(qk text) RETURNS bigint
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 declare
     level integer;
@@ -3317,7 +3317,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htiles_convert_xy_to_long_key(x integer, y integer) RETURNS bigint
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 begin
     x = htiles_utils_modify_bits(x,'interleave');
@@ -3328,7 +3328,7 @@ $$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htiles_utils_modify_bits(num bigint, bmode text) RETURNS bigint
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 declare
     magicNumbers bigint[] := ARRAY[
@@ -3437,6 +3437,19 @@ $body$
     select htile_bbox(rowy, colx, lev) from htile( qk,true )
 $body$
     language sql immutable strict;
+
+CREATE OR REPLACE FUNCTION tile_bbox(htile boolean, qk text) returns geometry 
+LANGUAGE plpgsql immutable AS 
+$_$
+begin
+    if not htile then
+      return xyz_qk_qk2bbox( qk );
+    else
+      return htile_bbox( qk );
+    end if;
+end
+$_$;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile_s_inhabited(iqk text, mlevel integer, _tbl regclass) RETURNS TABLE(qk text)
@@ -3487,7 +3500,7 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v1(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql stable
     AS $_$
 declare
     result record;
@@ -3532,7 +3545,7 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_v2(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql stable
     AS $_$
 declare
     fkt_qk2box text := 'xyz_qk_qk2bbox';
@@ -3570,7 +3583,7 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles(here_tile_qk boolean, tile_list text[], _tbl regclass, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-LANGUAGE sql
+LANGUAGE sql stable
 AS $_$
     select tile_id, tile_content from qk_s_get_fc_of_tiles_v1( here_tile_qk, tile_list, _tbl, base64enc, clipped )
 $_$;
@@ -3699,6 +3712,25 @@ begin
     end loop;
 end
 $_$;
+
+CREATE OR REPLACE FUNCTION tile_s_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_geo text) RETURNS TABLE(qk text)
+    LANGUAGE plpgsql STABLE
+    AS $_$
+declare
+    bFound boolean := false;
+begin
+    if not htile then
+      return query
+	     select o.qk from qk_s_inhabited_txt( iqk, mlevel, sql_with_geo ) o;
+    else
+      return query
+ 	     select o.qk from htile_s_inhabited_txt( iqk, mlevel, sql_with_geo ) o;
+
+    end if;
+
+end
+$_$;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION public.qk_s_get_fc_of_tiles_txt_v1(
@@ -3708,7 +3740,7 @@ CREATE OR REPLACE FUNCTION public.qk_s_get_fc_of_tiles_txt_v1(
 	base64enc boolean,
 	clipped boolean)
     RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE 'plpgsql'
+    LANGUAGE 'plpgsql' stable
 AS $BODY$
 declare
     result record;
@@ -3755,7 +3787,7 @@ $BODY$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v2(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql stable
     AS $_$
 declare
     fkt_qk2box text := 'xyz_qk_qk2bbox';
@@ -3793,39 +3825,35 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
-LANGUAGE sql
+LANGUAGE sql stable
 AS $_$
     select tile_id, tile_content from qk_s_get_fc_of_tiles_txt_v1( here_tile_qk, tile_list, sql_with_jsondata_geo, base64enc, clipped )
 $_$;
 ------------------------------------------------
 ------------------------------------------------
+
 create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text) returns table(qk text, s3sql text)
 language plpgsql stable
 as $_$
+declare
+    fkt_qk2box text := 'xyz_qk_qk2bbox';
 begin
-    if not htile then
-      return query
-         with
-        indata as ( select exp_build_sql_inhabited_txt.iqk as iqk,
-                           exp_build_sql_inhabited_txt.mlevel as mlevel,
-                           exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
-                           coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks
-                  ),
-        qks as ( select r.qk, i.sql_export_data from indata i, qk_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r )
-        select o.qk, format('select %1L, jsondata,geo from ( %2$s ) i where st_intersects(geo, xyz_qk_qk2bbox( %1$L))',o.qk,o.sql_export_data) as s3sql from qks o;
-    else
-      return query
-         with
-        indata as ( select exp_build_sql_inhabited_txt.iqk as iqk,
-                           exp_build_sql_inhabited_txt.mlevel as mlevel,
-                           exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
-                           coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks
-                  ),
-        qks as ( select r.qk, i.sql_export_data from indata i, htile_s_inhabited_txt(i.iqk, i.mlevel, i.sql_qks ) r )
-        select o.qk, format('select %1L, jsondata,geo from ( %2$s ) i where st_intersects(geo, htile_bbox( %1$L))',o.qk,o.sql_export_data) as s3sql from qks o;
+    if htile then
+       fkt_qk2box = 'htile_bbox';
     end if;
+
+    return query
+       with
+        indata as ( select exp_build_sql_inhabited_txt.iqk as iqk,
+                           exp_build_sql_inhabited_txt.mlevel as mlevel,
+                           exp_build_sql_inhabited_txt.sql_with_jsondata_geo as sql_export_data,
+                           coalesce( exp_build_sql_inhabited_txt.sql_qk_tileqry_with_geo, exp_build_sql_inhabited_txt.sql_with_jsondata_geo) as sql_qks
+                  ),
+        qks as ( select r.qk, i.sql_export_data from indata i, tile_s_inhabited_txt(htile, i.iqk, i.mlevel, i.sql_qks ) r )
+        select o.qk, format('select %1L, jsondata,geo from ( %2$s ) i where st_intersects(geo, %3$s( %1$L))',o.qk,o.sql_export_data,fkt_qk2box) as s3sql from qks o;
 end
 $_$;
+
 ------------------------------------------------
 ------------------------------------------------
 create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text) returns table(qk text, s3sql text)
@@ -3934,29 +3962,31 @@ from exp_build_sql_inhabited_txt(true, '013200030201', 12,
 */
 ------------------------------------------------
 ------------------------------------------------
+
 CREATE OR REPLACE FUNCTION exp_qk_weight(
 	htile boolean,
 	startqk text,
 	mlevel integer,
 	mweight double precision,
-	tbl regclass,
+	tbls regclass[],
 	sql_qk_tileqry_with_geo text)
 RETURNS TABLE(lev integer, qk text, weight double precision, reltuples bigint)
-LANGUAGE 'plpgsql'
+LANGUAGE 'plpgsql' stable
 AS $BODY$
 begin
- if not htile then
+
   return query
-    with
-    indata as ( select c.reltuples::bigint from pg_class c where oid = tbl ),
+   with
+	indata as ( select r.tbl, c.reltuples::bigint from pg_class c , (select unnest( tbls ) as tbl ) r	where c.oid = r.tbl ),
+	iindata as ( select tbl, x.reltuples, x.reltuples::float/max(x.reltuples) over () as rweight, sum(x.reltuples) over () as total from indata x ),
     qkdata as
     (
        with recursive t( lev, qk, ew ) as
        (  select length(startQk) as lev, startQk as qk, 1.0::double precision as ew
            union all
             select t.lev+1 as lev, o.qk, o.ew
-            from t, lateral ( select ii.qk, xyz_postgis_selectivity( tbl, 'geo', xyz_qk_qk2bbox(ii.qk) ) as ew
-                              from qk_s_inhabited_txt(t.qk, t.lev+1, sql_qk_tileqry_with_geo ) ii
+            from t, lateral ( select ii.qk, (select sum( u.reltuples * xyz_postgis_selectivity( u.tbl, 'geo', tile_bbox(htile,ii.qk) ) ) / sum( u.reltuples) from iindata u ) as ew
+                              from tile_s_inhabited_txt(htile, t.qk, t.lev+1, sql_qk_tileqry_with_geo ) ii
                             ) o
             where 1 = 1
                 and t.ew > mweight
@@ -3966,32 +3996,25 @@ begin
        where 1 = 1
            and ( t.ew <= mweight or t.lev = least( mlevel, 12 ) )
     )
-    select qkdata.*, indata.reltuples from qkdata, indata;
- else
-  return query
-    with
-    indata as ( select c.reltuples::bigint from pg_class c where oid = tbl ),
-    qkdata as
-    (
-            with recursive t( lev, qk, ew ) as
-            (  select length(startQk) as lev, startQk as qk, 1.0::double precision as ew
-                union all
-                 select t.lev+1 as lev, o.qk, o.ew
-                 from t, lateral ( select ii.qk, xyz_postgis_selectivity( tbl, 'geo', htile_bbox(ii.qk) ) as ew
-                                                     from htile_s_inhabited_txt(t.qk, t.lev+1, sql_qk_tileqry_with_geo ) ii
-                                                 ) o
-                 where 1 = 1
-                     and t.ew > mweight
-                     and t.lev < least( mlevel, 12 )
-            )
-            select t.lev, t.qk, t.ew from t
-            where 1 = 1
-                and ( t.ew <= mweight or t.lev = least( mlevel, 12 ) )
-    )
-    select qkdata.*, indata.reltuples from qkdata, indata;
- end if;
+    select r.*, l.reltuples::bigint from qkdata r, (select max(s.total) as reltuples from iindata s) l;
+
 end
 $BODY$;
+
+CREATE OR REPLACE FUNCTION exp_qk_weight(
+	htile boolean,
+	startqk text,
+	mlevel integer,
+	mweight double precision,
+	tbl regclass,
+	sql_qk_tileqry_with_geo text)
+RETURNS TABLE(lev integer, qk text, weight double precision, reltuples bigint)
+language sql stable
+as $_$
+  select * from exp_qk_weight( htile, startqk, mlevel, mweight, array[tbl], sql_qk_tileqry_with_geo )
+$_$;
+
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION exp_type_download_precalc(
@@ -3999,7 +4022,7 @@ CREATE OR REPLACE FUNCTION exp_type_download_precalc(
 	sql_with_jsondata_geo text,
 	tbl regclass)
 RETURNS int
-    LANGUAGE 'plpgsql'
+    LANGUAGE 'plpgsql' stable
 AS $BODY$
 declare
     start_parallelization_threshold integer := 500000;
@@ -4029,7 +4052,7 @@ CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
 	esitmated_count bigint,
 	tbl regclass)
 RETURNS  TABLE(tilelist text[])
-    LANGUAGE 'plpgsql'
+    LANGUAGE 'plpgsql' volatile
 AS $BODY$
 declare
 	-- defines how much rows a table need till we start parallelization
