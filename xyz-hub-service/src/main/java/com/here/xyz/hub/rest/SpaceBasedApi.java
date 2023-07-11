@@ -18,8 +18,12 @@ public abstract class SpaceBasedApi extends Api {
   protected final static int MIN_LIMIT = 1;
   protected final static int HARD_LIMIT = 100_000;
 
-  protected static SpaceContext getSpaceContext(RoutingContext context) {
-    return SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
+  protected static SpaceContext getSpaceContext(RoutingContext context) throws HttpException {
+    SpaceContext spaceContext = SpaceContext.of(Query.getString(context, Query.CONTEXT, SpaceContext.DEFAULT.toString()).toUpperCase());
+    if(spaceContext == null) {
+      throw new HttpException(BAD_REQUEST, "Invalid value provided for 'context' parameter");
+    }
+    return spaceContext;
   }
 
   /**
