@@ -1243,14 +1243,10 @@ DROP FUNCTION IF EXISTS naksha_modify_features;
 DROP TYPE IF EXISTS naksha_op;
 
 CREATE TYPE naksha_op AS ENUM (
-    'INSERT',
-    'UPDATE',
-    'UPDATE_WITHOUT_GEOMETRY',
-    'UPSERT',
-    'UPSERT_WITHOUT_GEOMETRY',
-    'UPDELETE',
-    'UPDELETE_WITHOUT_GEOMETRY',
-    'DELETE'
+    'INSERT', -- returns the new state
+    'UPDATE', -- returns the new state
+    'UPSERT', -- returns the new state
+    'DELETE' -- returns the deleted feature
 );
 
 -- Bulk insert, update, upsert, delete of features.
@@ -1261,24 +1257,33 @@ CREATE OR REPLACE FUNCTION naksha_modify_features(
     expected_uuid_arr text array, -- If atomic updates used, the expected state identifier
     op_arr naksha_op array -- the operation to perform
 )
-    RETURNS TABLE (ids text array) -- (feature jsonb array, geo geometry array)
+    RETURNS TABLE (f jsonb, g geometry)
     LANGUAGE 'plpgsql' VOLATILE
 AS
 $BODY$
 DECLARE
-    col         jsonb;
-    arr_size    int;
-    id_arr      text array;
-    id_idx_arr  int array;
-    existing_id_arr text array;
-    existing_uuid_arr text array;
-    i           int;
-    id          text;
-    feature     jsonb;
-    geo         geometry;
-    uuid        text;
-    op          naksha_op;
+    col                 jsonb;
+    arr_size            int;
+    id_arr              text array;
+    id_idx_arr          int array;
+    existing_id_arr     text array;
+    existing_uuid_arr   text array;
+    e_uuid_i            int;
+    e_uuid_len          int;
+    i                   int;
+    index               int;
+    id                  text;
+    feature             jsonb;
+    geo                 geometry;
+    expected_uuid       text;
+    existing_uuid       text;
+    op                  naksha_op;
+    stmt                text;
+    insert_stmt         text;
+    update_stmt         text;
+    delete_stmt         text;
 BEGIN
+    --RAISE NOTICE '------------------ START ----------------------------';
     -- See: https://www.postgresql.org/docs/current/errcodes-appendix.html
     -- 22023 invalid_parameter_value
     col := naksha_collection_get(collection);
@@ -1299,6 +1304,10 @@ BEGIN
         RAISE SQLSTATE '22023' USING MESSAGE = '"op_arr" must not be null and have same size as all other arrays';
     END IF;
 
+    -- TODO: Ensure that input does not contain the same feature twice!
+    --       In other words, every feature-id must only be given ones!
+
+    --RAISE NOTICE 'Start';
     id_arr := ARRAY[]::text[];
     i := 1;
     WHILE i <= arr_size
@@ -1314,33 +1323,106 @@ BEGIN
         id := feature->>'id';
         IF id IS NULL THEN
             id := md5(random()::text);
+            --RAISE NOTICE 'Generate id: %', id;
             feature_arr[i] = jsonb_set(feature, '{"id"}', to_jsonb(id), true);
         END IF;
         id_arr := array_append(id_arr, id);
         i := i + 1;
     END LOOP;
+
     -- Order ids and attach ordinal (index), then select back into arrays.
     WITH ordered_ids AS (SELECT "unnest", "ordinality" FROM unnest(id_arr) WITH ORDINALITY ORDER BY "unnest")
     SELECT ARRAY(SELECT "unnest" FROM ordered_ids), ARRAY(SELECT "ordinality" FROM ordered_ids)
     INTO id_arr, id_idx_arr;
+    --RAISE NOTICE 'Ordered ids: % %', id_arr, id_idx_arr;
 
-    -- Read ids and their uuid, lock rows.
-    -- TODO: Check lock_time and use it as a total maximum, not individual one!
-    -- In other words, we loop until we get the lock or the maximum number of ms passed.
-    -- Optionally we could simply decide to use some good value like 1 second.
-    WITH id_and_uuid AS (
-        SELECT jsondata->>'id' as "id",
-        jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' as "uuid"
-        FROM collection
-        WHERE jsondata->>'id' = ANY(id_arr)
-        ORDER BY jsondata->>'id'
-        FOR UPDATE NOWAIT
-    ) SELECT ARRAY(SELECT id FROM id_and_uuid), ARRAY(SELECT uuid FROM id_and_uuid) FROM id_and_uuid
-    LIMIT 1
-    INTO existing_id_arr, existing_uuid_arr;
+    -- Read ids and their uuid, lock rows for update.
+    stmt := format('WITH id_and_uuid AS ('
+        || 'SELECT jsondata->>''id'' as "id", jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'' as "uuid" '
+        || 'FROM %I WHERE jsondata->>''id'' = ANY($1) '
+        || 'ORDER BY jsondata->>''id'' FOR UPDATE '
+        || ') SELECT ARRAY(SELECT id FROM id_and_uuid), ARRAY(SELECT uuid FROM id_and_uuid) FROM id_and_uuid '
+        || 'LIMIT 1', collection);
+    --RAISE NOTICE 'Select ids and uuids: %', stmt;
+    EXECUTE stmt USING id_arr INTO existing_id_arr, existing_uuid_arr;
+    --RAISE NOTICE 'ids, uuids: % %', existing_id_arr, existing_uuid_arr;
 
-    --
-    RETURN QUERY SELECT id_arr     AS "ids";
+    --RAISE NOTICE 'Perform all actions';
+    insert_stmt := format('INSERT INTO %I (jsondata, geo) VALUES ($1, $2) RETURNING jsondata;', collection);
+    update_stmt := format('UPDATE %I SET jsondata=$1, geo=$2 WHERE jsondata->>''id''=$3 RETURNING jsondata;', collection);
+    delete_stmt := format('DELETE FROM %I WHERE jsondata->>''id''=$1 RETURNING jsondata, geo;', collection);
+    i := 1;
+    e_uuid_i := 1;
+    e_uuid_len := array_length(existing_uuid_arr, 1);
+    WHILE i <= arr_size
+    LOOP
+        id := id_arr[i];
+        IF e_uuid_i <= e_uuid_len AND id = existing_id_arr[e_uuid_i] THEN
+            existing_uuid := existing_uuid_arr[e_uuid_i];
+            e_uuid_i = e_uuid_i + 1;
+        ELSE
+            existing_uuid := NULL;
+        END IF;
+        index := id_idx_arr[i];
+        feature := feature_arr[index];
+        geo := geometry_arr[index];
+        expected_uuid := expected_uuid_arr[index];
+        op := op_arr[index];
+        --RAISE NOTICE 'Op ''%'' for ''%'' (uuid: ''%'', expected: ''%'')', op, id, existing_uuid, expected_uuid;
+
+        IF op = 'INSERT' THEN
+            IF existing_uuid IS NOT NULL THEN
+                RAISE SQLSTATE '22023' USING MESSAGE = format('The feature %L exists already', id);
+            END IF;
+            EXECUTE insert_stmt USING feature, geo INTO feature;
+            feature_arr[index] = feature;
+        ELSEIF op = 'UPDATE' THEN
+            IF expected_uuid IS NOT NULL THEN
+                IF expected_uuid != existing_uuid THEN
+                    RAISE SQLSTATE '22023' USING
+                    MESSAGE = format('The feature %L is not in expected state %L, found: %L', id, expected_uuid, existing_uuid);
+                END IF;
+            END IF;
+
+            IF existing_uuid IS NULL THEN
+                RAISE SQLSTATE '22023' USING
+                MESSAGE = format('The feature %L does not exist', id);
+            END IF;
+            EXECUTE update_stmt USING feature, geo, id INTO feature;
+            feature_arr[index] = feature;
+        ELSEIF op = 'UPSERT' THEN
+            IF expected_uuid IS NOT NULL THEN
+                IF expected_uuid != existing_uuid THEN
+                    RAISE SQLSTATE '22023' USING
+                    MESSAGE = format('The feature %L is not in expected state %L, found: %L', id, expected_uuid, existing_uuid);
+                END IF;
+            END IF;
+
+            IF existing_uuid IS NOT NULL THEN
+                EXECUTE update_stmt USING feature, geo, id INTO feature;
+                feature_arr[index] = feature;
+            ELSE
+                EXECUTE insert_stmt USING feature, geo INTO feature;
+                feature_arr[index] = feature;
+            END IF;
+        ELSEIF op = 'DELETE' THEN
+            IF expected_uuid IS NOT NULL THEN
+                IF expected_uuid != existing_uuid THEN
+                    RAISE SQLSTATE '22023' USING
+                    MESSAGE = format('The feature %L is not in expected state %L, found: %L', id, expected_uuid, existing_uuid);
+                END IF;
+            END IF;
+
+            IF existing_uuid IS NOT NULL THEN
+                EXECUTE delete_stmt USING id INTO feature, geo;
+                feature_arr[index] = feature;
+                geometry_arr[index] = geo;
+            END IF;
+        END IF;
+
+        i = i + 1;
+    END LOOP;
+    RETURN QUERY SELECT unnest(feature_arr) AS "f", unnest(geometry_arr) AS "g";
 END
 $BODY$;
 
