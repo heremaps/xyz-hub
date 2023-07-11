@@ -99,7 +99,7 @@ public class PsqlStorageTest {
   @EnabledIf("isEnabled")
   void startTransaction() throws Exception {
     assertNotNull(storage);
-    tx = storage.openMasterTransaction();
+    tx = storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"));
   }
 
   @Test

@@ -36,7 +36,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.postgresql.util.PSQLException;
 
 /**
@@ -213,8 +212,8 @@ public class PsqlStorage implements IStorage {
   }
 
   static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()"; // TODO: Why to we need this?
-  static final String[] extensionList = new String[]{"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
-  static final String[] localScripts = new String[]{"/xyz_ext.sql", "/h3Core.sql", "/naksha_ext.sql"};
+  static final String[] extensionList = new String[] {"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
+  static final String[] localScripts = new String[] {"/xyz_ext.sql", "/h3Core.sql", "/naksha_ext.sql"};
 
   // We can store meta-information at tables using
   // COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
@@ -235,13 +234,19 @@ public class PsqlStorage implements IStorage {
       try (final Statement stmt = conn.createStatement()) {
         long version = 0L;
         try {
-          ResultSet rs = stmt.executeQuery("SELECT naksha_version();");
+          final StringBuilder sb = new StringBuilder();
+          sb.append("SELECT ");
+          escapeId(sb, getSchema());
+          sb.append(".naksha_version();");
+          final ResultSet rs = stmt.executeQuery(sb.toString());
           if (rs.next()) {
             version = rs.getLong(1);
           }
         } catch (PSQLException e) {
-          if (EPsqlState.of(e) != EPsqlState.UNDEFINED_FUNCTION
-              && EPsqlState.of(e) != EPsqlState.INVALID_SCHEMA_DEFINITION) {
+          final EPsqlState state = EPsqlState.of(e);
+          if (state != EPsqlState.UNDEFINED_FUNCTION
+              && state != EPsqlState.INVALID_SCHEMA_DEFINITION
+              && state != EPsqlState.INVALID_SCHEMA_NAME) {
             throw e;
           }
           conn.rollback();
@@ -267,7 +272,7 @@ public class PsqlStorage implements IStorage {
             stmt.execute("SELECT naksha_init();");
             conn.commit();
           }
-          //      setupH3();
+          // setupH3();
         }
       }
     }
@@ -294,8 +299,19 @@ public class PsqlStorage implements IStorage {
   }
 
   @Override
-  public @NotNull PsqlTxReader openReplicationTransaction(@NotNull ITransactionSettings settings) throws SQLException {
+  public @NotNull PsqlTxReader openReplicationTransaction() throws SQLException {
+    return new PsqlTxReader(this, createSettings());
+  }
+
+  @Override
+  public @NotNull PsqlTxReader openReplicationTransaction(@NotNull ITransactionSettings settings)
+      throws SQLException {
     return new PsqlTxReader(this, settings);
+  }
+
+  @Override
+  public @NotNull PsqlTxWriter openMasterTransaction() throws SQLException {
+    return new PsqlTxWriter(this, createSettings());
   }
 
   @Override
@@ -314,8 +330,7 @@ public class PsqlStorage implements IStorage {
   }
 
   @Override
-  public void close() {
-  }
+  public void close() {}
 
   // Add listener for change events like create/update/delete collection and for the features in it.
   // Basically, listen to transaction log!
@@ -334,8 +349,8 @@ public class PsqlStorage implements IStorage {
       boolean needUpdate = false;
       ResultSet rs;
       if ((rs = stmt.executeQuery("select count(1)::integer from pg_catalog.pg_proc r inner join"
-          + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where 1 = 1"
-          + " and l.nspname = 'h3' and r.proname = 'h3_version'"))
+              + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where 1 = 1"
+              + " and l.nspname = 'h3' and r.proname = 'h3_version'"))
           .next()) {
         needUpdate = (0 == rs.getInt(1));
       }

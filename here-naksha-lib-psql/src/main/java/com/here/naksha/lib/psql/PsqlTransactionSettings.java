@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2017-2023 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
 package com.here.naksha.lib.psql;
 
 import com.here.naksha.lib.core.storage.ITransactionSettings;
@@ -21,9 +39,7 @@ class PsqlTransactionSettings implements ITransactionSettings {
       return psqlSettings;
     }
     final PsqlTransactionSettings psqlSettings = new PsqlTransactionSettings(
-        settings.getStatementTimeout(TimeUnit.MILLISECONDS),
-        settings.getLockTimeout(TimeUnit.MILLISECONDS)
-    );
+        settings.getStatementTimeout(TimeUnit.MILLISECONDS), settings.getLockTimeout(TimeUnit.MILLISECONDS));
     psqlSettings.reader = reader;
     return psqlSettings;
   }
@@ -33,9 +49,13 @@ class PsqlTransactionSettings implements ITransactionSettings {
     this.lockTimeout = lockTimeout;
   }
 
-  @Nullable PsqlTxReader reader;
+  @Nullable
+  PsqlTxReader reader;
+
   long stmtTimeout;
   long lockTimeout;
+  String appId;
+  String author;
 
   @Override
   public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
@@ -43,7 +63,8 @@ class PsqlTransactionSettings implements ITransactionSettings {
   }
 
   @Override
-  public @NotNull ITransactionSettings withStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) throws Exception {
+  public @NotNull ITransactionSettings withStatementTimeout(long timeout, @NotNull TimeUnit timeUnit)
+      throws Exception {
     final long stmtTimeout = TimeUnit.MILLISECONDS.convert(timeout, timeUnit);
     if (reader != null) {
       try (final var stmt = reader.createStatement()) {
@@ -68,6 +89,29 @@ class PsqlTransactionSettings implements ITransactionSettings {
       }
     }
     this.lockTimeout = lockTimeout;
+    return this;
+  }
+
+  @Override
+  public @NotNull String getAppId() throws Exception {
+    if (appId == null) throw new NullPointerException();
+    return appId;
+  }
+
+  @Override
+  public @NotNull ITransactionSettings withAppId(@NotNull String app_id) throws Exception {
+    this.appId = app_id;
+    return this;
+  }
+
+  @Override
+  public @Nullable String getAuthor() throws Exception {
+    return author;
+  }
+
+  @Override
+  public @NotNull ITransactionSettings withAuthor(@Nullable String author) throws Exception {
+    this.author = author;
     return this;
   }
 }

@@ -52,6 +52,25 @@ public class PsqlTxReader implements IReadTransaction {
     this.psqlClient = psqlClient;
     this.settings = PsqlTransactionSettings.of(settings, this);
     this.connection = psqlClient.dataSource.getConnection(this.settings);
+    naksha_tx_start();
+  }
+
+  protected boolean naksha_tx_start_write() {
+    return false;
+  }
+
+  protected void naksha_tx_start() {
+    String app_id = null;
+    String author = null;
+    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_tx_start(?, ?, ?);")) {
+      stmt.setString(1, app_id = settings.getAppId());
+      stmt.setString(2, author = settings.getAuthor());
+      stmt.setBoolean(3, naksha_tx_start_write());
+      stmt.execute();
+    } catch (Exception e) {
+      currentLogger()
+          .error("Failed to call naksha_tx_start({}, {}, {})", app_id, author, naksha_tx_start_write(), e);
+    }
   }
 
   /**

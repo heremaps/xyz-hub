@@ -40,7 +40,8 @@ public interface IReadTransaction extends AutoCloseable {
    * Returns the settings of the transaction.
    * @return The settings of the transaction.
    */
-  @NotNull ITransactionSettings settings();
+  @NotNull
+  ITransactionSettings settings();
 
   @AvailableSince(INaksha.v2_0_0)
   @Override

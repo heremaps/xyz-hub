@@ -811,7 +811,7 @@ BEGIN
                -- Specifies a fraction of the table size to add to autovacuum_analyze_threshold when deciding whether to trigger an ANALYZE.
                || ',autovacuum_analyze_threshold=10000, autovacuum_analyze_scale_factor=0.1'
                || ');',
-                  _table, _table, _table);
+                  _table, _table, _table, _table, _table);
     -- RAISE NOTICE '%', sql;
     EXECUTE sql;
 END
@@ -837,7 +837,7 @@ BEGIN
                || ',fillfactor=100'
                || ',autovacuum_enabled=OFF, toast.autovacuum_enabled=OFF'
                || ');',
-                  _table, _table, _table);
+                  _table, _table, _table, _table, _table);
     -- RAISE NOTICE '%', sql;
     EXECUTE sql;
 END
@@ -1715,7 +1715,7 @@ BEGIN
                -- Specifies a fraction of the table size to add to autovacuum_analyze_threshold when deciding whether to trigger an ANALYZE.
                || ',autovacuum_analyze_threshold=10000, autovacuum_analyze_scale_factor=0.1'
                || ');',
-                  hst_part_name, hst_part_name, hst_part_name);
+                  hst_part_name, hst_part_name, hst_part_name, hst_part_name);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
 END

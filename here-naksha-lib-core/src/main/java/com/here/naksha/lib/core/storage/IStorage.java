@@ -23,7 +23,6 @@ import com.here.naksha.lib.core.models.TxSignalSet;
 import java.io.Closeable;
 import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /** Storage API to gain access to storages. */
 public interface IStorage extends Closeable {
@@ -44,7 +43,8 @@ public interface IStorage extends Closeable {
    * Create default transaction settings.
    * @return New transaction settings.
    */
-  @NotNull ITransactionSettings createSettings();
+  @NotNull
+  ITransactionSettings createSettings();
 
   /**
    * Opens a read-only transaction, preferably from a replication node; if no replication node is available, then returns a transaction to

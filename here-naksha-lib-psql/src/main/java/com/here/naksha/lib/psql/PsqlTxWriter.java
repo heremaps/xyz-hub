@@ -32,18 +32,25 @@ import java.sql.SQLException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
-/** A Naksha PostgresQL database transaction that can be used to read and mutate data. */
+/**
+ * A Naksha PostgresQL database transaction that can be used to read and mutate data.
+ */
 public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
 
   /**
    * Creates a new transaction for the given PostgresQL client.
    *
    * @param psqlClient the PostgresQL client for which to create a new transaction.
-   * @param settings The transaction settings.
+   * @param settings   The transaction settings.
    * @throws SQLException if creation of the writer failed.
    */
   PsqlTxWriter(@NotNull PsqlStorage psqlClient, @NotNull ITransactionSettings settings) throws SQLException {
     super(psqlClient, settings);
+  }
+
+  @Override
+  protected boolean naksha_tx_start_write() {
+    return true;
   }
 
   @Override
@@ -118,20 +125,30 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    * @throws SQLException If any error occurred.
    */
   public void commit() throws SQLException {
-    //noinspection resource
-    connection().commit();
-  }
-
-  /** Abort the transaction. */
-  public void rollback() {
     try {
-      //noinspection resource
-      connection().rollback();
-    } catch (SQLException ignore) {
+      connection().commit();
+    } finally {
+      // start a new transaction, this ensures that the app_id and author are set.
+      naksha_tx_start();
     }
   }
 
-  /** Close the transaction, which effectively will roll back the transaction. */
+  /**
+   * Abort the transaction.
+   */
+  public void rollback() {
+    try {
+      connection().rollback();
+    } catch (SQLException ignore) {
+    } finally {
+      // start a new transaction, this ensures that the app_id and author are set.
+      naksha_tx_start();
+    }
+  }
+
+  /**
+   * Close the transaction, which effectively will roll back the transaction.
+   */
   @Override
   public void close() {
     rollback();

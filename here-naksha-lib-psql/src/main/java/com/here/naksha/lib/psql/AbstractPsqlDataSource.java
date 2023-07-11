@@ -266,7 +266,8 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
    * @return the connection.
    * @throws SQLException if the init failed.
    */
-  public @NotNull Connection initConnection(@NotNull Connection conn, @Nullable ITransactionSettings settings) throws SQLException {
+  public @NotNull Connection initConnection(@NotNull Connection conn, @Nullable ITransactionSettings settings)
+      throws SQLException {
     conn.setAutoCommit(false);
     try (final Statement stmt = conn.createStatement()) {
       final StringBuilder sb = new StringBuilder();
@@ -302,7 +303,10 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
     sb.append("SET SESSION enable_seqscan TO OFF;\n");
     // sb.append("SET SESSION enable_bitmapscan TO OFF;\n");
     sb.append("SET SESSION statement_timeout TO ")
-        .append(settings != null ? settings.getStatementTimeout(TimeUnit.MICROSECONDS) : pool.config.stmtTimeout)
+        .append(
+            settings != null
+                ? settings.getStatementTimeout(TimeUnit.MICROSECONDS)
+                : pool.config.stmtTimeout)
         .append(";\n");
     sb.append("SET SESSION lock_timeout TO ")
         .append(settings != null ? settings.getLockTimeout(TimeUnit.MILLISECONDS) : pool.config.lockTimeout)
