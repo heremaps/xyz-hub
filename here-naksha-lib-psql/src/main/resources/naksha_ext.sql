@@ -796,7 +796,9 @@ DECLARE
     sql text;
 BEGIN
     sql := format('ALTER TABLE %I ALTER COLUMN "jsondata" SET STORAGE MAIN;'
+               || 'ALTER TABLE %I ALTER COLUMN "jsondata" SET COMPRESSION lz4;'
                || 'ALTER TABLE %I ALTER COLUMN "geo" SET STORAGE MAIN;'
+               || 'ALTER TABLE %I ALTER COLUMN "geo" SET COMPRESSION lz4;'
                || 'ALTER TABLE %I SET ('
                || 'toast_tuple_target=8160'
                || ',fillfactor=50'
@@ -812,14 +814,6 @@ BEGIN
                   _table, _table, _table);
     -- RAISE NOTICE '%', sql;
     EXECUTE sql;
-
-    IF __naksha_pg_version() >= 14 THEN
-        sql := format('ALTER TABLE %I ALTER COLUMN "jsondata" SET COMPRESSION lz4; ' ||
-                      'ALTER TABLE %I ALTER COLUMN "geo" SET COMPRESSION lz4; '
-                      , _table, _table);
-        -- RAISE NOTICE '%', sql;
-        EXECUTE sql;
-    END IF;
 END
 $BODY$;
 
@@ -835,7 +829,9 @@ BEGIN
     -- For history we disable auto-vacuum, because we only have inserts and then end writing into the table.
     -- We rather run this job by ourself ones for every "closed" table when doing maintenance.
     sql := format('ALTER TABLE %I ALTER COLUMN "jsondata" SET STORAGE MAIN;'
+               || 'ALTER TABLE %I ALTER COLUMN "jsondata" SET COMPRESSION lz4;'
                || 'ALTER TABLE %I ALTER COLUMN "geo" SET STORAGE MAIN;'
+               || 'ALTER TABLE %I ALTER COLUMN "geo" SET COMPRESSION lz4;'
                || 'ALTER TABLE %I SET ('
                || 'toast_tuple_target=8160'
                || ',fillfactor=100'
@@ -844,14 +840,6 @@ BEGIN
                   _table, _table, _table);
     -- RAISE NOTICE '%', sql;
     EXECUTE sql;
-
-    IF __naksha_pg_version() >= 14 THEN
-        sql := format('ALTER TABLE %I ALTER COLUMN "jsondata" SET COMPRESSION lz4; ' ||
-                      'ALTER TABLE %I ALTER COLUMN "geo" SET COMPRESSION lz4; '
-                      , _table, _table);
-        -- RAISE NOTICE '%', sql;
-        EXECUTE sql;
-    END IF;
 END
 $BODY$;
 
@@ -1713,6 +1701,7 @@ BEGIN
     EXECUTE sql;
 
     sql := format('ALTER TABLE %I ALTER COLUMN "msg_json" SET STORAGE MAIN;'
+               || 'ALTER TABLE %I ALTER COLUMN "msg_json" SET COMPRESSION lz4;'
                || 'ALTER TABLE %I ALTER COLUMN "msg_attachment" SET STORAGE EXTERNAL;'
                || 'ALTER TABLE %I SET ('
                || 'toast_tuple_target=8160'
@@ -1729,12 +1718,6 @@ BEGIN
                   hst_part_name, hst_part_name, hst_part_name);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
-
-    IF __naksha_pg_version() >= 14 THEN
-        sql := format('ALTER TABLE %I ALTER COLUMN "msg_json" SET COMPRESSION lz4;', hst_part_name);
-        --RAISE NOTICE '%', sql;
-        EXECUTE sql;
-    END IF;
 END
 $BODY$;
 
@@ -1814,6 +1797,10 @@ BEGIN
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS "hstore" SCHEMA public;
 
+    IF __naksha_pg_version() < 14 THEN
+        -- feature_not_supported
+        RAISE SQLSTATE '0A000' USING MESSAGE = format('Naksha requires PostgresQL version 14+, found %L', __naksha_pg_version());
+    END IF;
     PERFORM __naksha_create_tx_table();
 END
 $BODY$;
