@@ -484,31 +484,49 @@ public class JDBCExporter extends JDBCClients{
         query.setQueryFragment("filterWhereClause", customizedWhereClause);
     }
 
+
+    private static String sqlType(Object o)
+    { 
+      String tcast = "text";
+
+      if( o instanceof Integer || o instanceof Long)
+       tcast = "bigint";
+      else if ( o instanceof Float || o instanceof Double ) 
+       tcast = "double precision";
+      else if ( o instanceof Character ) 
+       tcast = "char";
+      else if (o instanceof String[])
+       tcast = "text[]";
+      else if (o instanceof Character[])
+       tcast = "char[]";
+      else if ( o instanceof Float[] || o instanceof Double[] ) 
+       tcast = "double precision[]";
+
+      return tcast; 
+    }
+
     private static SQLQuery queryToText(SQLQuery q, boolean isForCompositeContentDetection) {
         SQLQuery sq = new SQLQuery();
         String s = q.text()
-                .replace("?", "%L")
-                .replace("'","''");
+                    .replace("?", "%L")
+                    .replace("'","''");
 
-        String r =  "format('"+s+"'";
+        if(isForCompositeContentDetection) 
+          s = s.replace( "NOT exists", "EXISTS" )
+               .replace( "UNION ALL", "UNION DISTINCT" );
 
         int i = 0;
+        String r = "";
         for (Object o :q.parameters()) {
             String curVar = "var"+(i++);
-            r += ",#{"+curVar+"}";
+
+            r += (",(#{"+curVar+"})::" + sqlType(o));
+
             sq.setNamedParameter(curVar, o);
         }
 
-        if(isForCompositeContentDetection) {
-            sq.setText((r + ")")
-                    .replace(
-                            "NOT exists", "EXISTS"
-                    ).replace(
-                            "UNION ALL", "UNION DISTINCT"
-                    )
-            );
-        }else
-            sq.setText(r+")");
+        sq.setText( String.format("format('%s'%s)",s,r) );
+
         return sq;
     }
 }
