@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
@@ -75,8 +75,8 @@ class ActivityLogHandlerTest {
 
   @Test
   void test_fromActivityLog() throws IOException {
-    final Feature feature =
-        JsonSerializable.deserialize(IoHelp.openResource("activity_log_feature.json"), Feature.class);
+    final XyzFeature feature =
+        JsonSerializable.deserialize(IoHelp.openResource("activity_log_feature.json"), XyzFeature.class);
     assertNotNull(feature);
     assertNotNull(feature.getProperties());
     assertNotNull(feature.getProperties().getXyzNamespace());
@@ -105,8 +105,8 @@ class ActivityLogHandlerTest {
 
   @Test
   void test_fromActivityLogPartial() throws IOException {
-    final Feature feature =
-        JsonSerializable.deserialize(IoHelp.openResource("activity_log_partial.json"), Feature.class);
+    final XyzFeature feature =
+        JsonSerializable.deserialize(IoHelp.openResource("activity_log_partial.json"), XyzFeature.class);
     assertNotNull(feature);
     assertNotNull(feature.getProperties());
     assertNotNull(feature.getProperties().getXyzNamespace());
@@ -135,10 +135,10 @@ class ActivityLogHandlerTest {
 
   @Test
   void test_toActivityLog() throws IOException {
-    final Feature feature =
-        JsonSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), Feature.class);
-    final Feature oldFeature =
-        JsonSerializable.deserialize(IoHelp.openResource("naksha_feature_2.json"), Feature.class);
+    final XyzFeature feature =
+        JsonSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), XyzFeature.class);
+    final XyzFeature oldFeature =
+        JsonSerializable.deserialize(IoHelp.openResource("naksha_feature_2.json"), XyzFeature.class);
     assertNotNull(feature);
     assertNotNull(oldFeature);
     ActivityLogHandler.toActivityLogFormat(feature, oldFeature);
@@ -182,13 +182,13 @@ class ActivityLogHandlerTest {
 
   @Test
   void test_deserialization() throws IOException {
-    final Feature feature =
-        JsonSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), Feature.class);
+    final XyzFeature feature =
+        JsonSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), XyzFeature.class);
     final Typed raw = JsonSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), Typed.class);
     final JsonNode raw1 =
         JsonSerializable.deserialize(IoHelp.openResource("naksha_feature_1.json"), JsonNode.class);
     final String raw3 = JsonSerializable.serialize(feature);
-    assertInstanceOf(Feature.class, raw);
+    assertInstanceOf(XyzFeature.class, raw);
   }
 
   @Test

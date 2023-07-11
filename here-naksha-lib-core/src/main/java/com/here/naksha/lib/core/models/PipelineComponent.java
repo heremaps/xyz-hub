@@ -21,7 +21,7 @@ package com.here.naksha.lib.core.models;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -35,7 +35,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 @AvailableSince(INaksha.v2_0_0)
-public abstract class PipelineComponent extends Feature {
+public abstract class PipelineComponent extends XyzFeature {
 
   @AvailableSince(INaksha.v2_0_0)
   public static final String EVENT_HANDLERS = "eventHandlers";

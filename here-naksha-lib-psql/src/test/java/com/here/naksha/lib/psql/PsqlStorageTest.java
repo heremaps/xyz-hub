@@ -26,7 +26,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
+import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
+import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import java.util.Iterator;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -100,6 +103,7 @@ public class PsqlStorageTest {
   void startTransaction() throws Exception {
     assertNotNull(storage);
     tx = storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"));
+    assertNotNull(tx);
   }
 
   @Test
@@ -120,6 +124,21 @@ public class PsqlStorageTest {
   @Test
   @Order(6)
   @EnabledIf("isEnabled")
+  void writeFeaturesIntoFooCollection() throws Exception {
+    assertNotNull(storage);
+    assertNotNull(tx);
+    final PsqlFeatureWriter<XyzFeature> writer = tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"));
+    final ModifyFeaturesReq<XyzFeature> req = new ModifyFeaturesReq<>();
+    req.insert().add(new XyzFeature("test"));
+    final ModifyFeaturesResp<XyzFeature> resp = writer.modifyFeatures(req);
+    tx.commit();
+    assertNotNull(resp);
+    tx.commit();
+  }
+
+  @Test
+  @Order(7)
+  @EnabledIf("isEnabled")
   void listAllCollections() throws Exception {
     assertNotNull(storage);
     assertNotNull(tx);
@@ -135,7 +154,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(7)
+  @Order(8)
   @EnabledIf("isEnabled")
   void dropCollection() throws Exception {
     assertNotNull(storage);

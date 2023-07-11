@@ -40,7 +40,7 @@ import org.jetbrains.annotations.Nullable;
 @JsonTypeName(value = "FeatureCollection")
 @JsonInclude(Include.NON_EMPTY)
 @SuppressWarnings({"unused", "unchecked"})
-public class FeatureCollection extends XyzResponse {
+public class XyzFeatureCollection extends XyzResponse {
 
   @JsonIgnore
   private final @NotNull LazyParsableFeatureList features;
@@ -80,7 +80,7 @@ public class FeatureCollection extends XyzResponse {
 
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
-  private List<Feature> oldFeatures;
+  private List<XyzFeature> oldFeatures;
 
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
@@ -90,7 +90,7 @@ public class FeatureCollection extends XyzResponse {
   @JsonInclude(Include.NON_NULL)
   private Integer version;
 
-  public FeatureCollection() {
+  public XyzFeatureCollection() {
     features = new LazyParsableFeatureList();
   }
 
@@ -105,7 +105,7 @@ public class FeatureCollection extends XyzResponse {
     double maxLon = Double.NEGATIVE_INFINITY;
     double maxLat = Double.NEGATIVE_INFINITY;
 
-    for (final Feature feature : getFeatures()) {
+    for (final XyzFeature feature : getFeatures()) {
       if (recalculateChildrenBoxes || feature.getBbox() == null) {
         feature.calculateAndSetBbox(recalculateChildrenBoxes);
       }
@@ -147,21 +147,21 @@ public class FeatureCollection extends XyzResponse {
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withBbox(final BBox bbox) {
+  public XyzFeatureCollection withBbox(final BBox bbox) {
     setBbox(bbox);
     return this;
   }
 
-  public @NotNull List<@NotNull Feature> getFeatures() {
+  public @NotNull List<@NotNull XyzFeature> getFeatures() {
     return features.get();
   }
 
-  public void setFeatures(@NotNull List<@NotNull Feature> features) {
+  public void setFeatures(@NotNull List<@NotNull XyzFeature> features) {
     this.features.set(features);
   }
 
   @SuppressWarnings("unused")
-  public @NotNull FeatureCollection withFeatures(final @NotNull List<@NotNull Feature> features) {
+  public @NotNull XyzFeatureCollection withFeatures(final @NotNull List<@NotNull XyzFeature> features) {
     setFeatures(features);
     return this;
   }
@@ -178,7 +178,7 @@ public class FeatureCollection extends XyzResponse {
     if (features instanceof String string) {
       this.features.set(string);
     } else if (features instanceof List<?> list) {
-      this.features.set((List<Feature>) list);
+      this.features.set((List<XyzFeature>) list);
     }
   }
 
@@ -207,7 +207,7 @@ public class FeatureCollection extends XyzResponse {
    * @deprecated use {@link #withNextPageToken(String)} instead.
    */
   @SuppressWarnings("unused")
-  public FeatureCollection withHandle(final String handle) {
+  public XyzFeatureCollection withHandle(final String handle) {
     setHandle(handle);
     return this;
   }
@@ -232,7 +232,7 @@ public class FeatureCollection extends XyzResponse {
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withNextPageToken(final String nextPageToken) {
+  public XyzFeatureCollection withNextPageToken(final String nextPageToken) {
     setNextPageToken(nextPageToken);
     return this;
   }
@@ -257,7 +257,7 @@ public class FeatureCollection extends XyzResponse {
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withPartial(final Boolean partial) {
+  public XyzFeatureCollection withPartial(final Boolean partial) {
     setPartial(partial);
     return this;
   }
@@ -285,7 +285,7 @@ public class FeatureCollection extends XyzResponse {
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withCount(final Long count) {
+  public XyzFeatureCollection withCount(final Long count) {
     setCount(count);
     return this;
   }
@@ -308,7 +308,7 @@ public class FeatureCollection extends XyzResponse {
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withInserted(List<String> inserted) {
+  public XyzFeatureCollection withInserted(List<String> inserted) {
     setInserted(inserted);
     return this;
   }
@@ -331,7 +331,7 @@ public class FeatureCollection extends XyzResponse {
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withUpdated(List<String> updated) {
+  public XyzFeatureCollection withUpdated(List<String> updated) {
     setUpdated(updated);
     return this;
   }
@@ -354,7 +354,7 @@ public class FeatureCollection extends XyzResponse {
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withDeleted(List<String> deleted) {
+  public XyzFeatureCollection withDeleted(List<String> deleted) {
     setDeleted(deleted);
     return this;
   }
@@ -372,7 +372,7 @@ public class FeatureCollection extends XyzResponse {
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withFailed(List<ModificationFailure> failed) {
+  public XyzFeatureCollection withFailed(List<ModificationFailure> failed) {
     setFailed(failed);
     return this;
   }
@@ -392,23 +392,23 @@ public class FeatureCollection extends XyzResponse {
     this.version = version;
   }
 
-  public FeatureCollection withVersion(int version) {
+  public XyzFeatureCollection withVersion(int version) {
     setVersion(version);
     return this;
   }
 
   @SuppressWarnings("unused")
-  public List<Feature> getOldFeatures() {
+  public List<XyzFeature> getOldFeatures() {
     return oldFeatures;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setOldFeatures(List<Feature> oldFeatures) {
+  public void setOldFeatures(List<XyzFeature> oldFeatures) {
     this.oldFeatures = oldFeatures;
   }
 
   @SuppressWarnings("unused")
-  public FeatureCollection withOldFeatures(List<Feature> oldFeatures) {
+  public XyzFeatureCollection withOldFeatures(List<XyzFeature> oldFeatures) {
     setOldFeatures(oldFeatures);
     return this;
   }

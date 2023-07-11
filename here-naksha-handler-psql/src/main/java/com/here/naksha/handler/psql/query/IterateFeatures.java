@@ -28,7 +28,7 @@ import com.here.naksha.handler.psql.Capabilities.IndexList;
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.handler.psql.SQLQueryExt;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.events.PropertyQuery;
 import com.here.naksha.lib.core.models.payload.events.PropertyQueryAnd;
 import com.here.naksha.lib.core.models.payload.events.PropertyQueryOr;
@@ -175,8 +175,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
   }
 
   @Override
-  public @NotNull FeatureCollection handle(@NotNull ResultSet rs) throws SQLException {
-    FeatureCollection fc = super.handle(rs);
+  public @NotNull XyzFeatureCollection handle(@NotNull ResultSet rs) throws SQLException {
+    XyzFeatureCollection fc = super.handle(rs);
     if (isOrderByEvent) {
       if (fc.getHandle() != null) {
         // Extend handle and encrypt
@@ -635,12 +635,12 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     return HPREFIX + chrE(addEventValuesToHandle(event, jsonData));
   }
 
-  private static @NotNull FeatureCollection requestIterationHandles(
+  private static @NotNull XyzFeatureCollection requestIterationHandles(
       @NotNull IterateFeaturesEvent event, int nrHandles, @NotNull PsqlHandler psqlConnector) throws Exception {
     event.setPart(null);
     event.setTags(null);
 
-    FeatureCollection cl = psqlConnector.executeQueryWithRetry(buildGetIterateHandlesQuery(nrHandles));
+    XyzFeatureCollection cl = psqlConnector.executeQueryWithRetry(buildGetIterateHandlesQuery(nrHandles));
     List<List<Object>> hdata =
         (List<List<Object>>) cl.getFeatures().get(0).getProperties().get("handles");
     for (List<Object> entry : hdata) {
@@ -667,7 +667,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent> {
     return cl;
   }
 
-  public static @NotNull FeatureCollection findFeaturesSort(
+  public static @NotNull XyzFeatureCollection findFeaturesSort(
       @NotNull IterateFeaturesEvent event, @NotNull PsqlHandler processor) throws Exception {
     boolean hasHandle = (event.getHandle() != null);
     final String table = processor.spaceTable();

@@ -45,7 +45,7 @@ public class LazyParsedFeatureCollectionTest {
     final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
         "/com/here/xyz/test/feature_collection_example.json");
 
-    final FeatureCollection response = JsonSerializable.deserialize(is);
+    final XyzFeatureCollection response = JsonSerializable.deserialize(is);
 
     assertNotNull(response);
     Field features = response.getClass().getDeclaredField("features");
@@ -69,7 +69,7 @@ public class LazyParsedFeatureCollectionTest {
     assertNotNull(response.getFeatures());
     assertEquals(1, response.getFeatures().size());
 
-    Feature feature = response.getFeatures().get(0);
+    XyzFeature feature = response.getFeatures().get(0);
     assertEquals("Q45671", feature.getId());
   }
 
@@ -77,12 +77,12 @@ public class LazyParsedFeatureCollectionTest {
   public void testDeserializeWithFullView() throws Exception {
     try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
         "/com/here/xyz/test/feature_collection_example.json")) {
-      final FeatureCollection response = JsonSerializable.deserialize(is);
+      final XyzFeatureCollection response = JsonSerializable.deserialize(is);
       assertNotNull(response);
       assertNotNull(response.getFeatures());
       assertEquals(1, response.getFeatures().size());
 
-      Feature feature = response.getFeatures().get(0);
+      XyzFeature feature = response.getFeatures().get(0);
       assertNotNull(feature);
       assertNotNull(feature.get("customString"));
       assertNotNull(feature.getProperties());
@@ -97,18 +97,18 @@ public class LazyParsedFeatureCollectionTest {
   public void testSerialize() throws Exception {
     try (final InputStream is =
         LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/one_feature.json")) {
-      final Feature f = JsonSerializable.deserialize(is);
+      final XyzFeature f = JsonSerializable.deserialize(is);
       assertNotNull(f);
       assertEquals("Q45671", f.getId());
       assertEquals("string_value", f.get("customString"));
       assertEquals(4, (int) f.get("customLong"));
       assertNotNull(f.getGeometry());
-      assertTrue(f.getGeometry() instanceof Point);
+      assertTrue(f.getGeometry() instanceof XyzPoint);
       assertEquals(
-          -2.960827778D, ((Point) f.getGeometry()).getCoordinates().getLongitude(), 0.000000002);
+          -2.960827778D, ((XyzPoint) f.getGeometry()).getCoordinates().getLongitude(), 0.000000002);
       assertEquals(
-          53.430819444, ((Point) f.getGeometry()).getCoordinates().getLatitude(), 0);
-      assertEquals(0D, ((Point) f.getGeometry()).getCoordinates().getAltitude(), 0);
+          53.430819444, ((XyzPoint) f.getGeometry()).getCoordinates().getLatitude(), 0);
+      assertEquals(0D, ((XyzPoint) f.getGeometry()).getCoordinates().getAltitude(), 0);
       assertNotNull(f.getProperties());
       assertEquals("Anfield", f.getProperties().get("name"));
       assertEquals("association football", f.getProperties().get("sport"));
@@ -144,24 +144,24 @@ public class LazyParsedFeatureCollectionTest {
       final String jsonFeature = inputStreamToString(is);
 
       final int max = 10;
-      List<Feature> features = new ArrayList<>();
+      List<XyzFeature> features = new ArrayList<>();
       for (int i = 0; i < max; i++) {
         assert jsonFeature != null;
-        Feature f = new ObjectMapper().readValue(jsonFeature, Feature.class);
+        XyzFeature f = new ObjectMapper().readValue(jsonFeature, XyzFeature.class);
         f.setId("my_" + i);
         f.getProperties().put("from_loop", i);
         features.add(f);
       }
 
-      FeatureCollection fc = new FeatureCollection();
+      XyzFeatureCollection fc = new XyzFeatureCollection();
       fc.setLazyParsableFeatureList(features);
       fc.calculateAndSetBBox(true);
 
       String severalFeaturesIntoFeatureCollection = new ObjectMapper().writeValueAsString(fc);
 
       //noinspection UnusedAssignment
-      FeatureCollection response =
-          new ObjectMapper().readValue(severalFeaturesIntoFeatureCollection, FeatureCollection.class);
+      XyzFeatureCollection response =
+          new ObjectMapper().readValue(severalFeaturesIntoFeatureCollection, XyzFeatureCollection.class);
 
       response = JsonSerializable.deserialize(severalFeaturesIntoFeatureCollection);
 
@@ -191,7 +191,7 @@ public class LazyParsedFeatureCollectionTest {
   public void testSerializeWithoutOrder() throws IOException {
     try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
         "/com/here/xyz/test/featureWithNumberId.json")) {
-      FeatureCollection fc = JsonSerializable.deserialize(is);
+      XyzFeatureCollection fc = JsonSerializable.deserialize(is);
       assertEquals(1, fc.getFeatures().size());
     }
   }
@@ -200,7 +200,7 @@ public class LazyParsedFeatureCollectionTest {
   public void testDeserializeLarger() throws IOException {
     try (final InputStream is =
         LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/processedData.json")) {
-      FeatureCollection fc = JsonSerializable.deserialize(is);
+      XyzFeatureCollection fc = JsonSerializable.deserialize(is);
       assertEquals(252, fc.getFeatures().size());
     }
   }
@@ -209,7 +209,7 @@ public class LazyParsedFeatureCollectionTest {
   public void testDeserializeWithNullFeature() throws IOException {
     try (final InputStream is =
         LazyParsedFeatureCollectionTest.class.getResourceAsStream("/com/here/xyz/test/nullFeature.json")) {
-      FeatureCollection fc = JsonSerializable.deserialize(is);
+      XyzFeatureCollection fc = JsonSerializable.deserialize(is);
       assertEquals(1, fc.getFeatures().size());
       assertNull(fc.getFeatures().get(0));
     }
@@ -220,9 +220,9 @@ public class LazyParsedFeatureCollectionTest {
     try (final InputStream is = LazyParsedFeatureCollectionTest.class.getResourceAsStream(
         "/com/here/xyz/test/featureMissingType.json")) {
       final String input = new String(is.readAllBytes(), StandardCharsets.UTF_8);
-      FeatureCollection fc = JsonSerializable.deserialize(input);
+      XyzFeatureCollection fc = JsonSerializable.deserialize(input);
       assertEquals(1, fc.getFeatures().size());
-      final Feature feature = fc.getFeatures().get(0);
+      final XyzFeature feature = fc.getFeatures().get(0);
       assertEquals("1234", feature.getId());
     }
   }

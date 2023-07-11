@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.jayway.jsonpath.Configuration;
@@ -40,8 +40,8 @@ public class Helper {
   protected final Configuration jsonPathConf =
       Configuration.defaultConfiguration().addOptions(Option.SUPPRESS_EXCEPTIONS);
 
-  protected void setPUUID(FeatureCollection featureCollection) throws JsonProcessingException {
-    for (Feature feature : featureCollection.getFeatures()) {
+  protected void setPUUID(XyzFeatureCollection featureCollection) throws JsonProcessingException {
+    for (XyzFeature feature : featureCollection.getFeatures()) {
       feature.getProperties()
           .getXyzNamespace()
           .setPuuid(feature.getProperties().getXyzNamespace().getUuid());
@@ -54,11 +54,11 @@ public class Helper {
   }
 
   protected void assertRead(String insertRequest, String response, boolean checkGuid) throws Exception {
-    final FeatureCollection responseCollection = JsonSerializable.deserialize(response);
-    final List<Feature> responseFeatures = responseCollection.getFeatures();
+    final XyzFeatureCollection responseCollection = JsonSerializable.deserialize(response);
+    final List<XyzFeature> responseFeatures = responseCollection.getFeatures();
 
     final ModifyFeaturesEvent gsModifyFeaturesEvent = JsonSerializable.deserialize(insertRequest);
-    List<Feature> modifiedFeatures;
+    List<XyzFeature> modifiedFeatures;
 
     modifiedFeatures = gsModifyFeaturesEvent.getInsertFeatures();
     assertReadFeatures(gsModifyFeaturesEvent.getSpaceId(), checkGuid, modifiedFeatures, responseFeatures);
@@ -68,13 +68,13 @@ public class Helper {
   }
 
   protected void assertReadFeatures(
-      String space, boolean checkGuid, List<Feature> requestFeatures, List<Feature> responseFeatures) {
+      String space, boolean checkGuid, List<XyzFeature> requestFeatures, List<XyzFeature> responseFeatures) {
     if (requestFeatures == null) {
       return;
     }
     for (int i = 0; i < requestFeatures.size(); i++) {
-      Feature requestFeature = requestFeatures.get(i);
-      Feature responseFeature = responseFeatures.get(i);
+      XyzFeature requestFeature = requestFeatures.get(i);
+      XyzFeature responseFeature = responseFeatures.get(i);
       assertTrue(jsonCompare(requestFeature.getGeometry(), responseFeature.getGeometry()));
       assertEquals(
           (String) requestFeature.getProperties().get("name"),

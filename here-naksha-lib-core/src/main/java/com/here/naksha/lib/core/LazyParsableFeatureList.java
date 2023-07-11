@@ -32,7 +32,7 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.IOException;
 import java.io.StringReader;
@@ -44,11 +44,11 @@ import org.jetbrains.annotations.Nullable;
 public class LazyParsableFeatureList {
 
   /** Type for a feature list. */
-  public static final TypeReference<List<@NotNull Feature>> FEATURE_LIST = new TypeReference<>() {};
+  public static final TypeReference<List<@NotNull XyzFeature>> FEATURE_LIST = new TypeReference<>() {};
 
   private static final String FEATURE_TYPE = "Feature";
   private String valueString;
-  private List<@NotNull Feature> value;
+  private List<@NotNull XyzFeature> value;
 
   public LazyParsableFeatureList() {}
 
@@ -58,12 +58,12 @@ public class LazyParsableFeatureList {
   }
 
   @JsonCreator(mode = Mode.DELEGATING)
-  public LazyParsableFeatureList(@Nullable List<@NotNull Feature> value) {
+  public LazyParsableFeatureList(@Nullable List<@NotNull XyzFeature> value) {
     this.value = value;
   }
 
   @JsonValue
-  public @NotNull List<@NotNull Feature> get() {
+  public @NotNull List<@NotNull XyzFeature> get() {
     if (valueString != null) {
       // TODO: Make generic
       try {
@@ -79,7 +79,7 @@ public class LazyParsableFeatureList {
     return value;
   }
 
-  public void set(@NotNull List<@NotNull Feature> value) {
+  public void set(@NotNull List<@NotNull XyzFeature> value) {
     this.value = value;
     this.valueString = null;
   }

@@ -26,7 +26,7 @@ import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryExcepti
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "LineString")
-public class LineString extends GeometryItem {
+public class XyzLineString extends XyzGeometryItem {
 
   private LineStringCoordinates coordinates = new LineStringCoordinates();
 
@@ -39,7 +39,7 @@ public class LineString extends GeometryItem {
     this.coordinates = coordinates;
   }
 
-  public LineString withCoordinates(LineStringCoordinates coordinates) {
+  public XyzLineString withCoordinates(LineStringCoordinates coordinates) {
     setCoordinates(coordinates);
     return this;
   }

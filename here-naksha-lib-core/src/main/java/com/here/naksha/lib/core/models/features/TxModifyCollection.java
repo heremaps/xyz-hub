@@ -22,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.geojson.implementation.Action;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -51,7 +51,7 @@ public class TxModifyCollection extends TxSignal {
       @JsonProperty(STORAGE_ID) @NotNull String storageId,
       @JsonProperty(COLLECTION) @NotNull String collection,
       @JsonProperty(XyzNamespace.TXN) @NotNull String txn,
-      @JsonProperty(ACTION) @NotNull Action action) {
+      @JsonProperty(ACTION) @NotNull XyzAction action) {
     super(id, storageId, collection, txn);
     assert !id.equals(collection) && id.startsWith("col:");
     this.action = action;
@@ -59,5 +59,5 @@ public class TxModifyCollection extends TxSignal {
 
   /** The action done to the collection. */
   @JsonProperty(ACTION)
-  public @NotNull Action action;
+  public @NotNull XyzAction action;
 }

@@ -20,8 +20,8 @@ package com.here.naksha.handler.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.vividsolutions.jts.geom.Geometry;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -39,11 +39,11 @@ public class DatabaseStreamWriter extends DatabaseWriter {
   private static final int TYPE_UPDATE = 2;
   private static final int TYPE_DELETE = 3;
 
-  protected static FeatureCollection insertFeatures(
+  protected static XyzFeatureCollection insertFeatures(
       @NotNull PsqlHandler processor,
-      FeatureCollection collection,
-      List<FeatureCollection.ModificationFailure> fails,
-      List<Feature> inserts,
+      XyzFeatureCollection collection,
+      List<XyzFeatureCollection.ModificationFailure> fails,
+      List<XyzFeature> inserts,
       Connection connection,
       boolean forExtendedSpace)
       throws SQLException {
@@ -61,7 +61,7 @@ public class DatabaseStreamWriter extends DatabaseWriter {
       try {
         boolean success = false;
         ResultSet rs = null;
-        final Feature feature = inserts.get(i);
+        final XyzFeature feature = inserts.get(i);
         fId = feature.getId();
 
         final PGobject jsonbObject = featureToPGobject(feature, null);
@@ -103,7 +103,7 @@ public class DatabaseStreamWriter extends DatabaseWriter {
           rs.close();
           collection.getFeatures().add(feature);
         } else {
-          fails.add(new FeatureCollection.ModificationFailure()
+          fails.add(new XyzFeatureCollection.ModificationFailure()
               .withId(fId)
               .withMessage(INSERT_ERROR_GENERAL));
         }
@@ -118,7 +118,7 @@ public class DatabaseStreamWriter extends DatabaseWriter {
         }
 
         fails.add(
-            new FeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
+            new XyzFeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
         logException(e, processor, LOG_EXCEPTION_INSERT, table);
       }
     }
@@ -137,11 +137,11 @@ public class DatabaseStreamWriter extends DatabaseWriter {
     return collection;
   }
 
-  protected static FeatureCollection updateFeatures(
+  protected static XyzFeatureCollection updateFeatures(
       @NotNull PsqlHandler processor,
-      FeatureCollection collection,
-      List<FeatureCollection.ModificationFailure> fails,
-      List<Feature> updates,
+      XyzFeatureCollection collection,
+      List<XyzFeatureCollection.ModificationFailure> fails,
+      List<XyzFeature> updates,
       Connection connection,
       boolean handleUUID,
       boolean enableNowait,
@@ -159,13 +159,13 @@ public class DatabaseStreamWriter extends DatabaseWriter {
     for (int i = 0; i < updates.size(); i++) {
       String fId = "";
       try {
-        final Feature feature = updates.get(i);
+        final XyzFeature feature = updates.get(i);
         final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
         boolean success = false;
         ResultSet rs = null;
 
         if (feature.getId() == null) {
-          fails.add(new FeatureCollection.ModificationFailure()
+          fails.add(new XyzFeatureCollection.ModificationFailure()
               .withId(fId)
               .withMessage(UPDATE_ERROR_ID_MISSING));
           continue;
@@ -174,7 +174,7 @@ public class DatabaseStreamWriter extends DatabaseWriter {
         fId = feature.getId();
 
         if (handleUUID && puuid == null) {
-          fails.add(new FeatureCollection.ModificationFailure()
+          fails.add(new XyzFeatureCollection.ModificationFailure()
               .withId(fId)
               .withMessage(UPDATE_ERROR_PUUID_MISSING));
           continue;
@@ -239,14 +239,14 @@ public class DatabaseStreamWriter extends DatabaseWriter {
           rs.close();
           collection.getFeatures().add(feature);
         } else {
-          fails.add(new FeatureCollection.ModificationFailure()
+          fails.add(new XyzFeatureCollection.ModificationFailure()
               .withId(fId)
               .withMessage((handleUUID ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS)));
         }
 
       } catch (Exception e) {
         fails.add(
-            new FeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_GENERAL));
+            new XyzFeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_GENERAL));
         logException(e, processor, LOG_EXCEPTION_UPDATE, table);
       }
     }
@@ -267,7 +267,7 @@ public class DatabaseStreamWriter extends DatabaseWriter {
 
   protected static void deleteFeatures(
       @NotNull PsqlHandler processor,
-      List<FeatureCollection.ModificationFailure> fails,
+      List<XyzFeatureCollection.ModificationFailure> fails,
       Map<String, String> deletes,
       Connection connection,
       boolean handleUUID)
@@ -310,14 +310,14 @@ public class DatabaseStreamWriter extends DatabaseWriter {
 
         if (!success
             || (rs.next() && !((boolean[]) rs.getArray("success").getArray())[0])) {
-          fails.add(new FeatureCollection.ModificationFailure()
+          fails.add(new XyzFeatureCollection.ModificationFailure()
               .withId(deleteId)
               .withMessage((handleUUID ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS)));
         }
         if (rs != null) rs.close();
 
       } catch (Exception e) {
-        fails.add(new FeatureCollection.ModificationFailure()
+        fails.add(new XyzFeatureCollection.ModificationFailure()
             .withId(deleteId)
             .withMessage(DELETE_ERROR_GENERAL));
         logException(e, processor, LOG_EXCEPTION_DELETE, table);

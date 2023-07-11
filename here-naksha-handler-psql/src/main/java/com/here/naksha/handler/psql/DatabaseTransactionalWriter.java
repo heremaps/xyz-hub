@@ -21,8 +21,8 @@ package com.here.naksha.handler.psql;
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.vividsolutions.jts.geom.Geometry;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -41,11 +41,11 @@ public class DatabaseTransactionalWriter extends DatabaseWriter {
   private static final int TYPE_UPDATE = 2;
   private static final int TYPE_DELETE = 3;
 
-  public static FeatureCollection insertFeatures(
+  public static XyzFeatureCollection insertFeatures(
       @NotNull PsqlHandler processor,
-      FeatureCollection collection,
-      List<FeatureCollection.ModificationFailure> fails,
-      List<Feature> inserts,
+      XyzFeatureCollection collection,
+      List<XyzFeatureCollection.ModificationFailure> fails,
+      List<XyzFeature> inserts,
       Connection connection,
       Integer version,
       boolean forExtendedSpace)
@@ -60,15 +60,15 @@ public class DatabaseTransactionalWriter extends DatabaseWriter {
     // parameters for without-geometry scenario
     final List<String> insertWithoutGeometryIdList = new ArrayList<>();
     final List<PGobject> insertWithoutGeoJsonbObjectList = new ArrayList<>();
-    final List<Feature> featureWithoutGeoList = new ArrayList<>();
+    final List<XyzFeature> featureWithoutGeoList = new ArrayList<>();
     // parameters for with-geometry scenario
     final List<String> insertIdList = new ArrayList<>();
     final List<PGobject> insertJsonbObjectList = new ArrayList<>();
     final List<Geometry> insertGeometryList = new ArrayList<>();
-    final List<Feature> featureList = new ArrayList<>();
+    final List<XyzFeature> featureList = new ArrayList<>();
 
     for (int i = 0; i < inserts.size(); i++) {
-      final Feature feature = inserts.get(i);
+      final XyzFeature feature = inserts.get(i);
 
       final PGobject jsonbObject = featureToPGobject(feature, version);
 
@@ -122,11 +122,11 @@ public class DatabaseTransactionalWriter extends DatabaseWriter {
     return collection;
   }
 
-  public static FeatureCollection updateFeatures(
+  public static XyzFeatureCollection updateFeatures(
       @NotNull PsqlHandler processor,
-      FeatureCollection collection,
-      List<FeatureCollection.ModificationFailure> fails,
-      List<Feature> updates,
+      XyzFeatureCollection collection,
+      List<XyzFeatureCollection.ModificationFailure> fails,
+      List<XyzFeature> updates,
       Connection connection,
       boolean handleUUID,
       boolean enableNowait,
@@ -144,16 +144,16 @@ public class DatabaseTransactionalWriter extends DatabaseWriter {
     final List<String> updateWithoutGeometryIdList = new ArrayList<>();
     final List<PGobject> updateWithoutGeoJsonbObjectList = new ArrayList<>();
     final List<String> updateWithoutGeoUuidList = handleUUID ? new ArrayList<>() : null;
-    final List<Feature> featureWithoutGeoList = new ArrayList<>();
+    final List<XyzFeature> featureWithoutGeoList = new ArrayList<>();
     // parameters for with-geometry scenario
     final List<String> updateIdList = new ArrayList<>();
     final List<PGobject> updateJsonbObjectList = new ArrayList<>();
     final List<String> updateUuidList = handleUUID ? new ArrayList<>() : null;
     final List<Geometry> updateGeometryList = new ArrayList<>();
-    final List<Feature> featureList = new ArrayList<>();
+    final List<XyzFeature> featureList = new ArrayList<>();
 
     for (int i = 0; i < updates.size(); i++) {
-      final Feature feature = updates.get(i);
+      final XyzFeature feature = updates.get(i);
       final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
 
       final PGobject jsonbObject = featureToPGobject(feature, version);
@@ -225,7 +225,7 @@ public class DatabaseTransactionalWriter extends DatabaseWriter {
 
   protected static void deleteFeatures(
       @NotNull PsqlHandler processor,
-      List<FeatureCollection.ModificationFailure> fails,
+      List<XyzFeatureCollection.ModificationFailure> fails,
       Map<String, String> deletes,
       Connection connection,
       boolean handleUUID,
@@ -336,9 +336,9 @@ public class DatabaseTransactionalWriter extends DatabaseWriter {
       List<String> idList2,
       PreparedStatement batchStmt,
       PreparedStatement batchStmt2,
-      final List<Feature> featureList,
-      final List<Feature> featureWithoutGeoList,
-      List<FeatureCollection.ModificationFailure> fails,
+      final List<XyzFeature> featureList,
+      final List<XyzFeature> featureWithoutGeoList,
+      List<XyzFeatureCollection.ModificationFailure> fails,
       boolean handleUUID,
       int type,
       final String table)
@@ -381,8 +381,8 @@ public class DatabaseTransactionalWriter extends DatabaseWriter {
 
   private static void fillFeatureListAndFailList(
       final ResultSet rs,
-      final List<Feature> featureList,
-      List<FeatureCollection.ModificationFailure> fails,
+      final List<XyzFeature> featureList,
+      List<XyzFeatureCollection.ModificationFailure> fails,
       List<String> idList,
       boolean handleUUID,
       int type)
@@ -418,7 +418,7 @@ public class DatabaseTransactionalWriter extends DatabaseWriter {
                 type,
                 featureId,
                 errMsgArr[i]);
-        fails.add(new FeatureCollection.ModificationFailure()
+        fails.add(new XyzFeatureCollection.ModificationFailure()
             .withId(featureId)
             .withMessage(message));
       } else {

@@ -72,11 +72,11 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
     // ============= INSERT ======================
     XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
-    FeatureCollection collection = new FeatureCollection();
-    List<Feature> featureList = new ArrayList<>();
+    XyzFeatureCollection collection = new XyzFeatureCollection();
+    List<XyzFeature> featureList = new ArrayList<>();
 
-    Point point = new Point().withCoordinates(new PointCoordinates(50, 8));
-    Feature f = new Feature("1234");
+    XyzPoint point = new XyzPoint().withCoordinates(new PointCoordinates(50, 8));
+    XyzFeature f = new XyzFeature("1234");
     f.setGeometry(point);
     f.getProperties().put("foo", 0);
     f.getProperties().setXyzNamespace(xyzNamespace);
@@ -124,7 +124,7 @@ public class PSQLHistoryFullIT extends PSQLAbstractIT {
 
       // Check if 5 last versions are available in history table
       while (resultSet.next()) {
-        Feature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
+        XyzFeature feature = JsonSerializable.deserialize(resultSet.getString("jsondata"));
 
         rowCount++;
         if (rowCount == 6) {

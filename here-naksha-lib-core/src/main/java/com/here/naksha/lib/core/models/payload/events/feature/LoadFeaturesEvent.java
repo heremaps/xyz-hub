@@ -21,7 +21,7 @@ package com.here.naksha.lib.core.models.payload.events.feature;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.models.geojson.implementation.Action;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
 import com.here.naksha.lib.core.models.payload.events.FeatureEvent;
 import java.util.HashMap;
 import java.util.Map;
@@ -60,7 +60,7 @@ public final class LoadFeaturesEvent extends FeatureEvent {
   private @NotNull Map<@NotNull String, @Nullable String> idsMap;
 
   /**
-   * If a feature does exist in the history, but is in the state deleted ({@link Action#DELETE}),
+   * If a feature does exist in the history, but is in the state deleted ({@link XyzAction#DELETE}),
    * this state should only be returned, if this property is {@code true}.
    *
    * <p>This only applies if the storage does have a history that keeps track of deleted features.

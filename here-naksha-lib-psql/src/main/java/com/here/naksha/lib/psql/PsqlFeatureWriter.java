@@ -18,31 +18,83 @@
  */
 package com.here.naksha.lib.psql;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IFeatureWriter;
 import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
+import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.view.ViewSerialize.Storage;
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
-public class PsqlFeatureWriter<FEATURE extends Feature> extends PsqlFeatureReader<FEATURE>
+public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureReader<FEATURE, PsqlTxWriter>
     implements IFeatureWriter<FEATURE> {
 
   PsqlFeatureWriter(
-      @NotNull PsqlTxWriter storageWriter,
-      @NotNull Class<FEATURE> featureClass,
-      @NotNull CollectionInfo collection) {
-    super(storageWriter, featureClass, collection);
-    this.storageWriter = storageWriter;
-    assert this.storageReader == this.storageWriter;
+      @NotNull PsqlTxWriter txWriter, @NotNull Class<FEATURE> featureClass, @NotNull CollectionInfo collection) {
+    super(txWriter, featureClass, collection);
   }
-
-  final @NotNull PsqlTxWriter storageWriter;
 
   @Override
   public @NotNull ModifyFeaturesResp<FEATURE> modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req)
       throws SQLException {
-    throw new UnsupportedOperationException("modifyFeatures");
+    try (final Json json = Json.open()) {
+      final ObjectWriter featureWriter = json.writer(Storage.class).forType(XyzFeature.class);
+      final ArrayList<String> features = new ArrayList<>();
+      final ArrayList<Geometry> geometries = new ArrayList<>();
+      final ArrayList<String> expected_uuids = new ArrayList<>();
+      final ArrayList<String> ops = new ArrayList<>();
+      final List<@NotNull FEATURE> inserts = req.insert();
+      for (final @NotNull FEATURE feature : inserts) {
+        final XyzGeometry nkGeometry = feature.getGeometry();
+        feature.setGeometry(null);
+        try {
+          final Geometry jtsGeometry;
+          if (nkGeometry != null) {
+            jtsGeometry = nkGeometry.getJTSGeometry();
+            assure3d(jtsGeometry.getCoordinates());
+          } else {
+            jtsGeometry = null;
+          }
+          features.add(featureWriter.writeValueAsString(feature));
+          geometries.add(jtsGeometry);
+          expected_uuids.add(null);
+          ops.add("INSERT");
+        } catch (JsonProcessingException e) {
+          // TODO: Fix me!!!!
+          e.printStackTrace();
+        } finally {
+          feature.setGeometry(nkGeometry);
+        }
+      }
+      try (final PreparedStatement stmt =
+          tx.conn().prepareStatement("SELECT * FROM naksha_modify_features(?,?,?,?,?);")) {
+        stmt.setString(1, collection.getId());
+        stmt.setArray(2, tx.conn().createArrayOf("jsonb", features.toArray()));
+        stmt.setArray(3, tx.conn().createArrayOf("geometry", geometries.toArray()));
+        stmt.setArray(4, tx.conn().createArrayOf("text", expected_uuids.toArray()));
+        stmt.setArray(5, tx.conn().createArrayOf("naksha_op", ops.toArray()));
+        final ResultSet rs = stmt.executeQuery();
+      }
+    }
+    return null;
+  }
+
+  private static void assure3d(@NotNull Coordinate @NotNull [] coords) {
+    for (final @NotNull Coordinate coord : coords) {
+      if (coord.z != coord.z) { // if coord.z is NaN
+        coord.z = 0;
+      }
+    }
   }
 }

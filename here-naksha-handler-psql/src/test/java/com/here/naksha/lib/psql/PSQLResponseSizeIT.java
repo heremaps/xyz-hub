@@ -21,7 +21,7 @@ package com.here.naksha.lib.psql;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.lib.core.models.Typed;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.events.feature.IterateFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
@@ -64,7 +64,7 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
     // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1024);
     Typed result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
-    assertTrue(result instanceof FeatureCollection);
+    assertTrue(result instanceof XyzFeatureCollection);
 
     // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 512);
     result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
@@ -78,6 +78,6 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
     // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 0);
     result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
-    assertTrue(result instanceof FeatureCollection);
+    assertTrue(result instanceof XyzFeatureCollection);
   }
 }

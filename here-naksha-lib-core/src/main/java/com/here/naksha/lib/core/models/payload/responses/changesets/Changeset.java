@@ -19,7 +19,7 @@
 package com.here.naksha.lib.core.models.payload.responses.changesets;
 
 import com.fasterxml.jackson.annotation.*;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -28,49 +28,49 @@ import com.here.naksha.lib.core.models.payload.XyzResponse;
 public class Changeset extends XyzResponse {
 
   @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
-  private FeatureCollection inserted;
+  private XyzFeatureCollection inserted;
 
   @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
-  private FeatureCollection updated;
+  private XyzFeatureCollection updated;
 
   @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
-  private FeatureCollection deleted;
+  private XyzFeatureCollection deleted;
 
-  public FeatureCollection getInserted() {
+  public XyzFeatureCollection getInserted() {
     return inserted;
   }
 
-  public void setInserted(FeatureCollection inserted) {
+  public void setInserted(XyzFeatureCollection inserted) {
     this.inserted = inserted;
   }
 
-  public Changeset withInserted(final FeatureCollection inserted) {
+  public Changeset withInserted(final XyzFeatureCollection inserted) {
     setInserted(inserted);
     return this;
   }
 
-  public FeatureCollection getUpdated() {
+  public XyzFeatureCollection getUpdated() {
     return updated;
   }
 
-  public void setUpdated(FeatureCollection updated) {
+  public void setUpdated(XyzFeatureCollection updated) {
     this.updated = updated;
   }
 
-  public Changeset withUpdated(final FeatureCollection updated) {
+  public Changeset withUpdated(final XyzFeatureCollection updated) {
     setUpdated(updated);
     return this;
   }
 
-  public FeatureCollection getDeleted() {
+  public XyzFeatureCollection getDeleted() {
     return deleted;
   }
 
-  public void setDeleted(FeatureCollection deleted) {
+  public void setDeleted(XyzFeatureCollection deleted) {
     this.deleted = deleted;
   }
 
-  public Changeset withDeleted(final FeatureCollection deleted) {
+  public Changeset withDeleted(final XyzFeatureCollection deleted) {
     setDeleted(deleted);
     return this;
   }

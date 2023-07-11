@@ -18,12 +18,12 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
-public record ModifyFeaturesReq<FEATURE extends Feature>(
+public record ModifyFeaturesReq<FEATURE extends XyzFeature>(
     @NotNull List<@NotNull FEATURE> insert,
     @NotNull List<@NotNull FEATURE> update,
     @NotNull List<@NotNull FEATURE> upsert,

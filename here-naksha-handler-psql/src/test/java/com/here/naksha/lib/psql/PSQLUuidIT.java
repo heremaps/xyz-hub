@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.amazonaws.util.IOUtils;
 import com.here.naksha.handler.psql.DatabaseWriter;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.SearchForFeaturesEvent;
@@ -64,21 +64,21 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     currentLogger().info("Insert feature tested successfully");
 
     // =========== UPDATE With wrong UUID ==========
-    FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
-    for (Feature feature : featureCollection.getFeatures()) {
+    XyzFeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
+    for (XyzFeature feature : featureCollection.getFeatures()) {
       feature.getProperties().put("foo", "bar");
     }
 
     String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
     featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
 
-    Feature f = new Feature("test2");
+    XyzFeature f = new XyzFeature("test2");
     f.getProperties().setXyzNamespace(xyzNamespace);
-    List<Feature> insertFeatureList = new ArrayList<>();
+    List<XyzFeature> insertFeatureList = new ArrayList<>();
     insertFeatureList.add(f);
 
     List<String> idList =
-        featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+        featureCollection.getFeatures().stream().map(XyzFeature::getId).collect(Collectors.toList());
     idList.add("test2");
 
     setPUUID(featureCollection);
@@ -92,7 +92,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     mfevent.setInsertFeatures(insertFeatureList);
 
     String response = invokeLambda(mfevent.serialize());
-    FeatureCollection responseCollection = JsonSerializable.deserialize(response);
+    XyzFeatureCollection responseCollection = JsonSerializable.deserialize(response);
 
     assertEquals(3, responseCollection.getFeatures().size());
     assertEquals(1, responseCollection.getFailed().size());
@@ -100,7 +100,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     List<String> inserted = responseCollection.getInserted();
 
-    FeatureCollection.ModificationFailure failure =
+    XyzFeatureCollection.ModificationFailure failure =
         responseCollection.getFailed().get(0);
     assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, failure.getMessage());
     assertEquals(modifiedFeatureId, failure.getId());
@@ -114,7 +114,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     String searchResponse = invokeLambda(eventJson);
     responseCollection = JsonSerializable.deserialize(searchResponse);
 
-    for (Feature feature : responseCollection.getFeatures()) {
+    for (XyzFeature feature : responseCollection.getFeatures()) {
       // The new Feature and the failed updated one should not have the property foo
       if (feature.getId().equalsIgnoreCase(modifiedFeatureId)
           || feature.getId().equalsIgnoreCase(inserted.get(0))) {
@@ -126,7 +126,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     }
 
     // =========== UPDATE With correct UUID ==========
-    for (Feature feature : responseCollection.getFeatures()) {
+    for (XyzFeature feature : responseCollection.getFeatures()) {
       feature.getProperties().put("foo", "bar2");
     }
 
@@ -141,7 +141,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     assertEquals(4, responseCollection.getUpdated().size());
     assertNull(responseCollection.getFailed());
 
-    for (Feature feature : responseCollection.getFeatures()) {
+    for (XyzFeature feature : responseCollection.getFeatures()) {
       assertEquals("bar2", feature.getProperties().get("foo"));
     }
 
@@ -149,7 +149,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     Map<String, String> idUUIDMap = new HashMap<>();
     Map<String, String> idMap = new HashMap<>();
     // get current UUIDS
-    for (Feature feature : responseCollection.getFeatures()) {
+    for (XyzFeature feature : responseCollection.getFeatures()) {
       idUUIDMap.put(
           feature.getId(), feature.getProperties().getXyzNamespace().getUuid());
       idMap.put(feature.getId(), null);
@@ -212,21 +212,21 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     currentLogger().info("Insert feature tested successfully");
 
     // =========== UPDATE With wrong UUID ==========
-    FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
-    for (Feature feature : featureCollection.getFeatures()) {
+    XyzFeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
+    for (XyzFeature feature : featureCollection.getFeatures()) {
       feature.getProperties().put("foo", "bar");
     }
 
     String modifiedFeatureId = featureCollection.getFeatures().get(1).getId();
     featureCollection.getFeatures().get(1).getProperties().getXyzNamespace().setUuid("wrong");
 
-    Feature f = new Feature("test2");
+    XyzFeature f = new XyzFeature("test2");
     f.getProperties().setXyzNamespace(xyzNamespace);
-    List<Feature> insertFeatureList = new ArrayList<>();
+    List<XyzFeature> insertFeatureList = new ArrayList<>();
     insertFeatureList.add(f);
 
     List<String> idList =
-        featureCollection.getFeatures().stream().map(Feature::getId).collect(Collectors.toList());
+        featureCollection.getFeatures().stream().map(XyzFeature::getId).collect(Collectors.toList());
     idList.add("test2");
 
     setPUUID(featureCollection);
@@ -258,14 +258,14 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     String eventJson = searchEvent.serialize();
     String searchResponse = invokeLambda(eventJson);
-    FeatureCollection responseCollection = JsonSerializable.deserialize(searchResponse);
+    XyzFeatureCollection responseCollection = JsonSerializable.deserialize(searchResponse);
 
-    for (Feature feature : responseCollection.getFeatures()) {
+    for (XyzFeature feature : responseCollection.getFeatures()) {
       assertNull(feature.getProperties().get("foo"));
     }
 
     // =========== UPDATE With correct UUID ==========
-    for (Feature feature : responseCollection.getFeatures()) {
+    for (XyzFeature feature : responseCollection.getFeatures()) {
       feature.getProperties().put("foo", "bar");
     }
 
@@ -281,7 +281,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     assertNull(responseCollection.getFailed());
 
     // Check returned FeatureCollection
-    for (Feature feature : responseCollection.getFeatures()) {
+    for (XyzFeature feature : responseCollection.getFeatures()) {
       assertEquals("bar", feature.getProperties().get("foo"));
     }
 
@@ -290,7 +290,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     responseCollection = JsonSerializable.deserialize(searchResponse);
     assertEquals(3, responseCollection.getFeatures().size());
 
-    for (Feature feature : responseCollection.getFeatures()) {
+    for (XyzFeature feature : responseCollection.getFeatures()) {
       assertEquals("bar", feature.getProperties().get("foo"));
     }
 
@@ -298,7 +298,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     Map<String, String> idUUIDMap = new HashMap<>();
     Map<String, String> idMap = new HashMap<>();
     // get current UUIDS
-    for (Feature feature : responseCollection.getFeatures()) {
+    for (XyzFeature feature : responseCollection.getFeatures()) {
       idUUIDMap.put(
           feature.getId(), feature.getProperties().getXyzNamespace().getUuid());
       idMap.put(feature.getId(), null);
@@ -344,7 +344,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         withUUID ? "/events/InsertFeaturesEventTransactional.json" : "/events/InsertFeaturesEvent.json";
     final String insertResponse = invokeLambdaFromFile(insertJsonFile);
     final String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
-    final FeatureCollection insertRequestCollection = JsonSerializable.deserialize(insertResponse);
+    final XyzFeatureCollection insertRequestCollection = JsonSerializable.deserialize(insertResponse);
     assertRead(insertRequest, insertResponse, withUUID);
     currentLogger().info("Insert feature tested successfully");
 
@@ -360,7 +360,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     }
 
     String response = invokeLambda(mfevent.serialize());
-    FeatureCollection responseCollection = JsonSerializable.deserialize(response);
+    XyzFeatureCollection responseCollection = JsonSerializable.deserialize(response);
     assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
     assertEquals(0, responseCollection.getFeatures().size());
     assertNull(responseCollection.getUpdated());
@@ -398,12 +398,12 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
     // =========== INSERT EXISTING FEATURE ==========
     // Stream
-    Feature existing = insertRequestCollection.getFeatures().get(0);
+    XyzFeature existing = insertRequestCollection.getFeatures().get(0);
     existing.getProperties()
         .getXyzNamespace()
         .setPuuid(existing.getProperties().getXyzNamespace().getUuid());
 
-    mfevent.setInsertFeatures(new ArrayList<Feature>() {
+    mfevent.setInsertFeatures(new ArrayList<XyzFeature>() {
       {
         add(existing);
       }
@@ -436,7 +436,7 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     // Change ID to not existing one
     existing.setId("doesnotexist");
     mfevent.setInsertFeatures(new ArrayList<>());
-    mfevent.setUpdateFeatures(new ArrayList<Feature>() {
+    mfevent.setUpdateFeatures(new ArrayList<XyzFeature>() {
       {
         add(existing);
       }

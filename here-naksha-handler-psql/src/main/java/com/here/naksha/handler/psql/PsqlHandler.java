@@ -49,8 +49,8 @@ import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.geojson.HQuad;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.IfRowLock;
@@ -287,7 +287,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     try {
       currentLogger().info("Received GetFeaturesByIdEvent");
       if (event.getIds() == null || event.getIds().size() == 0) {
-        return new FeatureCollection();
+        return new XyzFeatureCollection();
       }
 
       return new GetFeaturesById(event, this).run();
@@ -416,7 +416,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
           }
 
           String rTuples = TupleTime.rTuplesMap.get(event.getSpaceId());
-          final Feature estimateFtr = executeQueryWithRetry(
+          final XyzFeature estimateFtr = executeQueryWithRetry(
                   SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples))
               .getFeatures()
               .get(0);
@@ -438,7 +438,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
         if (tweaks instanceof TweaksSampling) {
           final TweaksSampling sampling = (TweaksSampling) tweaks;
           if (!bMvtRequested) {
-            final FeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(
+            final XyzFeatureCollection collection = executeQueryWithRetrySkipIfGeomIsNull(
                 SQLQueryBuilder.buildSamplingTweaksQuery(event, bbox, sampling, bSortByHashedValue));
             if (sampling.sampling.strength == 0) {
               collection.setPartial(true);
@@ -689,7 +689,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     try {
       currentLogger().info("Received LoadFeaturesEvent");
       if (event.getIdsMap() == null || event.getIdsMap().size() == 0) {
-        return new FeatureCollection();
+        return new XyzFeatureCollection();
       }
 
       return new LoadFeatures(event, this).run();
@@ -713,11 +713,11 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
 
       final boolean addUUID = event.getEnableUUID() && event.getVersion().compareTo("0.2.0") < 0;
       // Update the features to insert
-      final List<Feature> inserts =
+      final List<XyzFeature> inserts =
           Optional.ofNullable(event.getInsertFeatures()).orElse(Collections.emptyList());
-      final List<Feature> updates =
+      final List<XyzFeature> updates =
           Optional.ofNullable(event.getUpdateFeatures()).orElse(Collections.emptyList());
-      final List<Feature> upserts =
+      final List<XyzFeature> upserts =
           Optional.ofNullable(event.getUpsertFeatures()).orElse(Collections.emptyList());
 
       // Generate feature ID
@@ -963,15 +963,15 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     return executeQuery(query, handler, readDataSource());
   }
 
-  public FeatureCollection executeQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
+  public XyzFeatureCollection executeQueryWithRetry(SQLQuery query, boolean useReadReplica) throws SQLException {
     return executeQueryWithRetry(query, this::defaultFeatureResultSetHandler, useReadReplica);
   }
 
-  public FeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
+  public XyzFeatureCollection executeQueryWithRetry(SQLQuery query) throws SQLException {
     return executeQueryWithRetry(query, true);
   }
 
-  protected FeatureCollection executeQueryWithRetrySkipIfGeomIsNull(SQLQuery query) throws SQLException {
+  protected XyzFeatureCollection executeQueryWithRetrySkipIfGeomIsNull(SQLQuery query) throws SQLException {
     return executeQueryWithRetry(query, this::defaultFeatureResultSetHandlerSkipIfGeomIsNull, true);
   }
 
@@ -1129,13 +1129,13 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
         final long rVal = executeUpdateWithRetry(
             SQLQueryBuilder.buildAddSubscriptionQuery(spaceId(), spaceSchema(), spaceTable()));
         setReplicaIdentity();
-        return new FeatureCollection().withCount(rVal);
+        return new XyzFeatureCollection().withCount(rVal);
 
       case DELETE:
         if (!bLastSubscriptionToDelete) {
-          return new FeatureCollection().withCount(1L);
+          return new XyzFeatureCollection().withCount(1L);
         } else {
-          return new FeatureCollection().withCount((long) executeUpdateWithRetry(
+          return new XyzFeatureCollection().withCount((long) executeUpdateWithRetry(
               SQLQueryBuilder.buildRemoveSubscriptionQuery(spaceId(), spaceSchema())));
         }
 
@@ -1167,9 +1167,9 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
    * @return List of Features which could get fetched
    * @throws Exception if any error occurred.
    */
-  protected List<Feature> fetchOldStates(String[] idsToFetch) throws Exception {
-    List<Feature> oldFeatures = null;
-    FeatureCollection oldFeaturesCollection =
+  protected List<XyzFeature> fetchOldStates(String[] idsToFetch) throws Exception {
+    List<XyzFeature> oldFeatures = null;
+    XyzFeatureCollection oldFeaturesCollection =
         executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(idsToFetch));
 
     if (oldFeaturesCollection != null) {
@@ -1186,21 +1186,21 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
         event.getParams() != null && event.getParams().get(INCLUDE_OLD_STATES) == Boolean.TRUE;
     final boolean enableNowait =
         event.getActionIfRowLocked() != null && event.getActionIfRowLocked() == IfRowLock.ABORT;
-    List<Feature> oldFeatures = null;
+    List<XyzFeature> oldFeatures = null;
 
     final String schema = spaceSchema();
     final String table = spaceTable();
 
     Integer version = null;
-    final FeatureCollection collection = new FeatureCollection();
+    final XyzFeatureCollection collection = new XyzFeatureCollection();
     collection.setFeatures(new ArrayList<>());
 
-    List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
-    List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
-    List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
+    List<XyzFeature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
+    List<XyzFeature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
+    List<XyzFeature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
     Map<String, String> deletes =
         Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
-    List<FeatureCollection.ModificationFailure> fails =
+    List<XyzFeatureCollection.ModificationFailure> fails =
         Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
     boolean forExtendingSpace = isForExtendingSpace(event);
 
@@ -1217,7 +1217,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
 
         for (String featureId : originalDeletes) {
           if (existingIdsInBase.contains(featureId)) {
-            final Feature feature = new Feature(featureId);
+            final XyzFeature feature = new XyzFeature(featureId);
             feature.getProperties().getXyzNamespace().setDeleted(true);
             upserts.add(feature);
             deletes.remove(featureId);
@@ -1247,7 +1247,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
       /** Include Upserts */
       if (!upserts.isEmpty()) {
         List<String> upsertIds = upserts.stream()
-            .map(Feature::getId)
+            .map(XyzFeature::getId)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
         List<String> existingIds = new FetchExistingIds(new FetchIdsInput(table, upsertIds), this).run();
@@ -1393,11 +1393,11 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
 
       /** filter out failed ids */
       final List<String> failedIds = fails.stream()
-          .map(FeatureCollection.ModificationFailure::getId)
+          .map(XyzFeatureCollection.ModificationFailure::getId)
           .filter(Objects::nonNull)
           .collect(Collectors.toList());
       final List<String> insertIds = inserts.stream()
-          .map(Feature::getId)
+          .map(XyzFeature::getId)
           .filter(x -> !failedIds.contains(x) && !originalUpdates.contains(x) && !originalDeletes.contains(x))
           .collect(Collectors.toList());
       final List<String> updateIds = originalUpdates.stream()
@@ -1436,10 +1436,10 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
   }
 
   private List<String> getAllIds(
-      List<Feature> inserts, List<Feature> updates, List<Feature> upserts, Map<String, ?> deletes) {
+      List<XyzFeature> inserts, List<XyzFeature> updates, List<XyzFeature> upserts, Map<String, ?> deletes) {
     List<String> ids = Stream.of(inserts, updates, upserts)
         .flatMap(Collection::stream)
-        .map(Feature::getId)
+        .map(XyzFeature::getId)
         .collect(Collectors.toList());
     ids.addAll(deletes.keySet());
 
@@ -1460,7 +1460,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
       return executeQueryWithRetry(query, this::oldStatesResultSetHandler, false);
     }
 
-    return new FeatureCollection().withCount((long) executeUpdateWithRetry(query));
+    return new XyzFeatureCollection().withCount((long) executeUpdateWithRetry(query));
   }
 
   private boolean canRetryAttempt() throws Exception {
@@ -1841,7 +1841,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
    */
   private final long MAX_RESULT_CHARS = 100 * 1024 * 1024;
 
-  protected FeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom)
+  protected XyzFeatureCollection _defaultFeatureResultSetHandler(ResultSet rs, boolean skipNullGeom)
       throws SQLException {
     String nextIOffset = "";
     String nextDataset = null;
@@ -1877,7 +1877,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     }
     sb.append("]");
 
-    final FeatureCollection featureCollection = new FeatureCollection();
+    final XyzFeatureCollection featureCollection = new XyzFeatureCollection();
     featureCollection.setLazyParsableFeatureList(sb.toString());
 
     if (sb.length() > MAX_RESULT_CHARS) {
@@ -1895,11 +1895,11 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     return featureCollection;
   }
 
-  public FeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException {
+  public XyzFeatureCollection defaultFeatureResultSetHandler(ResultSet rs) throws SQLException {
     return _defaultFeatureResultSetHandler(rs, false);
   }
 
-  protected FeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException {
+  protected XyzFeatureCollection defaultFeatureResultSetHandlerSkipIfGeomIsNull(ResultSet rs) throws SQLException {
     return _defaultFeatureResultSetHandler(rs, true);
   }
 
@@ -1925,15 +1925,15 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
 
     CompactChangeset cc = new CompactChangeset();
 
-    List<Feature> inserts = new ArrayList<>();
-    List<Feature> updates = new ArrayList<>();
-    List<Feature> deletes = new ArrayList<>();
+    List<XyzFeature> inserts = new ArrayList<>();
+    List<XyzFeature> updates = new ArrayList<>();
+    List<XyzFeature> deletes = new ArrayList<>();
 
     while (rs.next()) {
-      Feature feature;
+      XyzFeature feature;
       String operation = rs.getString("Operation");
       try {
-        feature = new ObjectMapper().readValue(rs.getString("Feature"), Feature.class);
+        feature = new ObjectMapper().readValue(rs.getString("Feature"), XyzFeature.class);
       } catch (JsonProcessingException e) {
         currentLogger().error("Error in compactHistoryResultSetHandler for space id '{}': {}", spaceId(), e);
         throw new SQLException("Cant read json from database!");
@@ -1954,9 +1954,9 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
       numFeatures++;
     }
 
-    cc.setInserted(new FeatureCollection().withFeatures(inserts));
-    cc.setUpdated(new FeatureCollection().withFeatures(updates));
-    cc.setDeleted(new FeatureCollection().withFeatures(deletes));
+    cc.setInserted(new XyzFeatureCollection().withFeatures(inserts));
+    cc.setUpdated(new XyzFeatureCollection().withFeatures(updates));
+    cc.setDeleted(new XyzFeatureCollection().withFeatures(deletes));
 
     if (numFeatures > 0 && numFeatures == limit) {
       cc.setNextPageToken(id);
@@ -1983,12 +1983,12 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     Integer startVersion = null;
     boolean wroteStart = false;
 
-    List<Feature> inserts = new ArrayList<>();
-    List<Feature> updates = new ArrayList<>();
-    List<Feature> deletes = new ArrayList<>();
+    List<XyzFeature> inserts = new ArrayList<>();
+    List<XyzFeature> updates = new ArrayList<>();
+    List<XyzFeature> deletes = new ArrayList<>();
 
     while (rs.next()) {
-      Feature feature = null;
+      XyzFeature feature = null;
       String operation = rs.getString("Operation");
       Integer version = rs.getInt("Version");
 
@@ -1999,9 +1999,9 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
 
       if (lastVersion != null && version > lastVersion) {
         Changeset cs = new Changeset()
-            .withInserted(new FeatureCollection().withFeatures(inserts))
-            .withUpdated(new FeatureCollection().withFeatures(updates))
-            .withDeleted(new FeatureCollection().withFeatures(deletes));
+            .withInserted(new XyzFeatureCollection().withFeatures(inserts))
+            .withUpdated(new XyzFeatureCollection().withFeatures(updates))
+            .withDeleted(new XyzFeatureCollection().withFeatures(deletes));
         versions.put(lastVersion, cs);
         inserts = new ArrayList<>();
         updates = new ArrayList<>();
@@ -2009,7 +2009,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
       }
 
       try {
-        feature = new ObjectMapper().readValue(rs.getString("Feature"), Feature.class);
+        feature = new ObjectMapper().readValue(rs.getString("Feature"), XyzFeature.class);
       } catch (JsonProcessingException e) {
         currentLogger().error("Error in historyResultSetHandler for space id '{}': {}", spaceId(), e);
         throw new SQLException("Cant read json from database!");
@@ -2034,9 +2034,9 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
 
     if (wroteStart) {
       Changeset cs = new Changeset()
-          .withInserted(new FeatureCollection().withFeatures(inserts))
-          .withUpdated(new FeatureCollection().withFeatures(updates))
-          .withDeleted(new FeatureCollection().withFeatures(deletes));
+          .withInserted(new XyzFeatureCollection().withFeatures(inserts))
+          .withUpdated(new XyzFeatureCollection().withFeatures(updates))
+          .withDeleted(new XyzFeatureCollection().withFeatures(deletes));
       versions.put(lastVersion, cs);
       ccol.setStartVersion(startVersion);
       ccol.setEndVersion(lastVersion);
@@ -2058,7 +2058,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
    * @return the generated feature collection from the result set.
    * @throws SQLException when any unexpected error happened.
    */
-  protected FeatureCollection iterateVersionsHandler(ResultSet rs) throws SQLException {
+  protected XyzFeatureCollection iterateVersionsHandler(ResultSet rs) throws SQLException {
     String id = "";
 
     StringBuilder sb = new StringBuilder();
@@ -2084,7 +2084,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     }
     sb.append("]");
 
-    final FeatureCollection featureCollection = new FeatureCollection();
+    final XyzFeatureCollection featureCollection = new XyzFeatureCollection();
     featureCollection.setLazyParsableFeatureList(sb.toString());
 
     if (MAX_RESULT_CHARS <= sb.length()) {
@@ -2106,7 +2106,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
    * @return the generated feature collection from the result set.
    * @throws SQLException when any unexpected error happened.
    */
-  protected FeatureCollection oldStatesResultSetHandler(ResultSet rs) throws SQLException {
+  protected XyzFeatureCollection oldStatesResultSetHandler(ResultSet rs) throws SQLException {
     StringBuilder sb = new StringBuilder();
     String prefix = "[";
     sb.append(prefix);
@@ -2126,7 +2126,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     }
     sb.append("]");
 
-    final FeatureCollection featureCollection = new FeatureCollection();
+    final XyzFeatureCollection featureCollection = new XyzFeatureCollection();
     featureCollection.setLazyParsableFeatureList(sb.toString());
     return featureCollection;
   }

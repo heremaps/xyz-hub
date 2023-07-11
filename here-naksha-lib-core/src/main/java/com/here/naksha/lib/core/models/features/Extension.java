@@ -23,7 +23,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -31,7 +31,7 @@ import org.jetbrains.annotations.NotNull;
  * An extension is an administrative feature that allows to run proprietary code, outside the Naksha-Hub using proprietary libraries.
  */
 @AvailableSince(INaksha.v2_0_3)
-public class Extension extends Feature {
+public class Extension extends XyzFeature {
 
   @AvailableSince(INaksha.v2_0_3)
   public static final String NUMBER = "number";

@@ -18,38 +18,40 @@
  */
 package com.here.naksha.lib.core.models.geojson.implementation;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
-import com.here.naksha.lib.core.models.geojson.coordinates.MultiPointCoordinates;
+import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "MultiPoint")
-public class MultiPoint extends GeometryItem {
+@JsonTypeName(value = "Point")
+public class XyzPoint extends XyzGeometryItem {
 
-  private MultiPointCoordinates coordinates = new MultiPointCoordinates();
+  private PointCoordinates coordinates = new PointCoordinates();
 
   @Override
-  public MultiPointCoordinates getCoordinates() {
+  public PointCoordinates getCoordinates() {
     return this.coordinates;
   }
 
-  public void setCoordinates(MultiPointCoordinates coordinates) {
+  public void setCoordinates(PointCoordinates coordinates) {
     this.coordinates = coordinates;
   }
 
-  public MultiPoint withCoordinates(MultiPointCoordinates coordinates) {
+  public XyzPoint withCoordinates(PointCoordinates coordinates) {
     setCoordinates(coordinates);
     return this;
   }
 
-  public com.vividsolutions.jts.geom.MultiPoint convertToJTSGeometry() {
-    return JTSHelper.toMultiPoint(this.coordinates);
+  @JsonIgnore
+  public com.vividsolutions.jts.geom.Point convertToJTSGeometry() {
+    return JTSHelper.toPoint(this.coordinates);
   }
 
   @Override
   public void validate() throws InvalidGeometryException {
-    validateMultiPointCoordinates(this.coordinates);
+    validatePointCoordinates(this.coordinates);
   }
 }

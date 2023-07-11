@@ -20,14 +20,14 @@ package com.here.naksha.lib.core.models.payload.events.feature;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetFeaturesByGeometryEvent")
 public class GetFeaturesByGeometryEvent extends SpatialQueryEvent {
 
   private int radius;
-  private Geometry geometry;
+  private XyzGeometry geometry;
   private String h3Index;
 
   @SuppressWarnings("unused")
@@ -60,15 +60,15 @@ public class GetFeaturesByGeometryEvent extends SpatialQueryEvent {
     return this;
   }
 
-  public Geometry getGeometry() {
+  public XyzGeometry getGeometry() {
     return geometry;
   }
 
-  public void setGeometry(Geometry geometry) {
+  public void setGeometry(XyzGeometry geometry) {
     this.geometry = geometry;
   }
 
-  public GetFeaturesByGeometryEvent withGeometry(Geometry geometry) {
+  public GetFeaturesByGeometryEvent withGeometry(XyzGeometry geometry) {
     setGeometry(geometry);
     return this;
   }

@@ -22,8 +22,8 @@ import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 import static com.here.naksha.lib.core.util.diff.Patcher.calculateDifferenceOfPartialUpdate;
 import static com.here.naksha.lib.core.util.modify.IfExists.REPLACE;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Action;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.util.diff.ConflictResolution;
 import com.here.naksha.lib.core.util.diff.Difference;
@@ -40,7 +40,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * @param <FEATURE> the feature-type.
  */
-public class FeatureModificationEntry<FEATURE extends Feature> {
+public class FeatureModificationEntry<FEATURE extends XyzFeature> {
 
   /** The input state of the caller. */
   @NotNull
@@ -90,13 +90,13 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
    * feature should simply be retained.
    */
   @Nullable
-  Action action;
+  XyzAction action;
 
   /**
    * The action to perform; {@code null} if nothing is need to be done, for example an existing
    * feature should simply be retained.
    */
-  public @Nullable Action action() {
+  public @Nullable XyzAction action() {
     return action;
   }
 
@@ -189,7 +189,7 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
    * @throws MergeConflictException If a merge failed.
    * @throws ModificationException If any error occurred.
    */
-  final @Nullable Action apply() throws ModificationException, MergeConflictException {
+  final @Nullable XyzAction apply() throws ModificationException, MergeConflictException {
     if (head == null) { // IF NOT EXISTS
       switch (ifNotExists) {
         case RETAIN -> {
@@ -198,7 +198,7 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
         }
         case CREATE -> {
           result = input;
-          return action = Action.CREATE;
+          return action = XyzAction.CREATE;
         }
         case ERROR -> {
           result = null;
@@ -214,19 +214,19 @@ public class FeatureModificationEntry<FEATURE extends Feature> {
         }
         case REPLACE -> {
           result = input;
-          return action = Action.UPDATE;
+          return action = XyzAction.UPDATE;
         }
         case DELETE -> {
           result = null;
-          return action = Action.DELETE;
+          return action = XyzAction.DELETE;
         }
         case PATCH -> {
           result = patch();
-          return action = result == null ? null : Action.UPDATE;
+          return action = result == null ? null : XyzAction.UPDATE;
         }
         case MERGE -> {
           result = merge();
-          return action = result == null ? null : Action.UPDATE;
+          return action = result == null ? null : XyzAction.UPDATE;
         }
         case ERROR -> {
           result = null;

@@ -26,7 +26,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.naksha.lib.core.models.geojson.coordinates.*;
 import com.here.naksha.lib.core.models.geojson.implementation.*;
-import com.here.naksha.lib.core.models.geojson.implementation.Properties;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.PropertyQuery;
@@ -83,9 +83,9 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
     String queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
     assertNotNull(queryResponse);
-    FeatureCollection featureCollection = JsonSerializable.deserialize(queryResponse);
+    XyzFeatureCollection featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
-    List<Feature> features = featureCollection.getFeatures();
+    List<XyzFeature> features = featureCollection.getFeatures();
     assertNotNull(features);
     assertEquals(3, features.size());
 
@@ -133,7 +133,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     if (response instanceof ErrorResponse) {
       failWithError((ErrorResponse) response);
     }
-    featureCollection = (FeatureCollection) response;
+    featureCollection = (XyzFeatureCollection) response;
     assertNotNull(featureCollection);
     features = featureCollection.getFeatures();
     assertNotNull(features);
@@ -231,13 +231,13 @@ public class PSQLReadIT extends PSQLAbstractIT {
   @Test
   public void testGetFeaturesByGeometryQuery() throws Exception {
     XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
-    FeatureCollection collection = new FeatureCollection();
-    List<Feature> featureList = new ArrayList<>();
+    XyzFeatureCollection collection = new XyzFeatureCollection();
+    List<XyzFeature> featureList = new ArrayList<>();
     // =========== INSERT Point Grid 20x20 ==========
     for (double x = 7.; x < 7.19d; x += 0.01d) {
       for (double y = 50.; y < 50.19d; y += 0.01d) {
-        Feature f = new Feature(RandomStringUtils.randomAlphabetic(12));
-        f.setGeometry(new Point()
+        XyzFeature f = new XyzFeature(RandomStringUtils.randomAlphabetic(12));
+        f.setGeometry(new XyzPoint()
             .withCoordinates(new PointCoordinates(
                 (Math.round(x * 10000.0) / 10000.0), Math.round(y * 10000.0) / 10000.0)));
         f.getProperties().put("foo", Math.round(x * 10000.0) / 10000.0);
@@ -255,8 +255,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     rC.add(new Position(7.01, 50.01));
     singlePoly.add(rC);
 
-    Feature f = new Feature(RandomStringUtils.randomAlphabetic(8));
-    f.setGeometry(new Polygon().withCoordinates(singlePoly));
+    XyzFeature f = new XyzFeature(RandomStringUtils.randomAlphabetic(8));
+    f.setGeometry(new XyzPolygon().withCoordinates(singlePoly));
     f.getProperties().put("foo", 999.1);
     f.getProperties().setXyzNamespace(xyzNamespace);
     featureList.add(f);
@@ -272,8 +272,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     rC.add(new Position(7.06, 50.07));
     singlePoly.add(rC);
 
-    f = new Feature(RandomStringUtils.randomAlphabetic(8));
-    f.setGeometry(new Polygon().withCoordinates(singlePoly));
+    f = new XyzFeature(RandomStringUtils.randomAlphabetic(8));
+    f.setGeometry(new XyzPolygon().withCoordinates(singlePoly));
     f.getProperties().put("foo", 999.2);
     f.getProperties().setXyzNamespace(xyzNamespace);
     featureList.add(f);
@@ -284,8 +284,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     lcCoords.add(new Position(7.02, 50.02));
     lcCoords.add(new Position(7.18, 50.18));
 
-    f = new Feature(RandomStringUtils.randomAlphabetic(8));
-    f.setGeometry(new LineString().withCoordinates(lcCoords));
+    f = new XyzFeature(RandomStringUtils.randomAlphabetic(8));
+    f.setGeometry(new XyzLineString().withCoordinates(lcCoords));
     f.getProperties().put("foo", 999.3);
     f.getProperties().setXyzNamespace(xyzNamespace);
     featureList.add(f);
@@ -295,8 +295,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     lcCoords.add(new Position(7.16, 50.01));
     lcCoords.add(new Position(7.19, 50.01));
 
-    f = new Feature(RandomStringUtils.randomAlphabetic(8));
-    f.setGeometry(new LineString().withCoordinates(lcCoords));
+    f = new XyzFeature(RandomStringUtils.randomAlphabetic(8));
+    f.setGeometry(new XyzLineString().withCoordinates(lcCoords));
     f.getProperties().put("foo", 999.4);
     f.getProperties().setXyzNamespace(xyzNamespace);
     featureList.add(f);
@@ -322,7 +322,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     ringCords.add(new Position(7, 50));
     polyCoords.add(ringCords);
 
-    Geometry geo = new Polygon().withCoordinates(polyCoords);
+    XyzGeometry geo = new XyzPolygon().withCoordinates(polyCoords);
 
     GetFeaturesByGeometryEvent geometryEvent = new GetFeaturesByGeometryEvent();
     // geometryEvent.setConnectorParams(defaultTestConnectorParams);
@@ -330,7 +330,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     geometryEvent.setGeometry(geo);
 
     String queryResponse = invokeLambda(geometryEvent.serialize());
-    FeatureCollection featureCollection = JsonSerializable.deserialize(queryResponse);
+    XyzFeatureCollection featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     assertEquals(124, featureCollection.getFeatures().size());
     currentLogger().info("Area Query with POLYGON tested successfully");
@@ -343,7 +343,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     holeCords.add(new Position(7.05, 50.05));
     polyCoords.add(holeCords);
 
-    geo = new Polygon().withCoordinates(polyCoords);
+    geo = new XyzPolygon().withCoordinates(polyCoords);
     geometryEvent = new GetFeaturesByGeometryEvent();
     // geometryEvent.setConnectorParams(defaultTestConnectorParams);
     // geometryEvent.setSpaceId("foo");
@@ -352,7 +352,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     queryResponse = invokeLambda(geometryEvent.serialize());
     featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
-    for (Feature feature : featureCollection.getFeatures()) {
+    for (XyzFeature feature : featureCollection.getFeatures()) {
       /* try to find polygon inside the hole  */
       if ((feature.getProperties().get("foo")).toString().contains(("999.2"))) {
         fail();
@@ -374,7 +374,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     multiCords.add(polyCoords);
     multiCords.add(polyCoords2);
 
-    geo = new MultiPolygon().withCoordinates(multiCords);
+    geo = new XyzMultiPolygon().withCoordinates(multiCords);
     geometryEvent = new GetFeaturesByGeometryEvent();
     // geometryEvent.setConnectorParams(defaultTestConnectorParams);
     // geometryEvent.setSpaceId("foo");
@@ -384,7 +384,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     featureCollection = JsonSerializable.deserialize(queryResponse);
     assertNotNull(featureCollection);
     int cnt = 0;
-    for (Feature feature : featureCollection.getFeatures()) {
+    for (XyzFeature feature : featureCollection.getFeatures()) {
       /* Try to find the both polygons */
       if ((feature.getProperties().get("foo")).toString().contains(("999."))) {
         cnt++;
@@ -402,7 +402,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         .withValues(new ArrayList<>(Collections.singletonList(7.1))));
     pq.add(pql);
 
-    geo = new MultiPolygon().withCoordinates(multiCords);
+    geo = new XyzMultiPolygon().withCoordinates(multiCords);
     geometryEvent = new GetFeaturesByGeometryEvent();
     // geometryEvent.setConnectorParams(defaultTestConnectorParams);
     // geometryEvent.setSpaceId("foo");
@@ -415,7 +415,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     assertEquals(121, featureCollection.getFeatures().size());
     currentLogger().info("Area Query with MULTIPOLYGON + PROPERTIES_SEARCH tested successfully");
     // =========== QUERY WITH MULTIPOLYGON + SELECTION ==========
-    geo = new MultiPolygon().withCoordinates(multiCords);
+    geo = new XyzMultiPolygon().withCoordinates(multiCords);
     geometryEvent = new GetFeaturesByGeometryEvent();
     // geometryEvent.setConnectorParams(defaultTestConnectorParams);
     // geometryEvent.setSpaceId("foo");
@@ -431,7 +431,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     assertNotNull(featureCollection);
     assertEquals(213, featureCollection.getFeatures().size());
 
-    Properties properties = featureCollection.getFeatures().get(0).getProperties();
+    XyzProperties properties = featureCollection.getFeatures().get(0).getProperties();
     assertEquals(Integer.valueOf(1), properties.get("foo2"));
     assertNull(properties.get("foo"));
     currentLogger().info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
@@ -531,7 +531,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
     assertEquals(false, response.getGeometryTypes().getEstimated());
 
     // =========== INSERT 11k ==========
-    FeatureCollection collection = new FeatureCollection();
+    XyzFeatureCollection collection = new XyzFeatureCollection();
 
     List<String> pKeys = Stream.generate(() -> RandomStringUtils.randomAlphanumeric(10))
         .limit(3)
@@ -541,8 +541,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     collection
         .getFeatures()
         .addAll(Stream.generate(() -> {
-              Feature f = new Feature(RandomStringUtils.randomAlphabetic(8));
-              f.setGeometry(new Point()
+              XyzFeature f = new XyzFeature(RandomStringUtils.randomAlphabetic(8));
+              f.setGeometry(new XyzPoint()
                   .withCoordinates(new PointCoordinates(
                       360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)));
               f.getProperties().setXyzNamespace(xyzNamespace);
@@ -745,8 +745,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
     addPropertiesQueryToSearchObject(test14, false, properties14_1);
 
     String response = invokeLambda(mapper.writeValueAsString(test14));
-    FeatureCollection responseCollection = JsonSerializable.deserialize(response);
-    List<Feature> responseFeatures = responseCollection.getFeatures();
+    XyzFeatureCollection responseCollection = JsonSerializable.deserialize(response);
+    List<XyzFeature> responseFeatures = responseCollection.getFeatures();
     String id = responseFeatures.get(0).getId();
     assertEquals(4, responseFeatures.size());
 
@@ -773,7 +773,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
   @Test
   public void testIterate() throws Exception {
     final String response = invokeLambdaFromFile("/events/IterateMySpace.json");
-    final FeatureCollection features = JsonSerializable.deserialize(response);
+    final XyzFeatureCollection features = JsonSerializable.deserialize(response);
     features.serialize(true);
   }
 
@@ -816,8 +816,8 @@ public class PSQLReadIT extends PSQLAbstractIT {
   protected void invokeAndAssert(Map<String, Object> json, int size, String... names) throws Exception {
     String response = invokeLambda(new ObjectMapper().writeValueAsString(json));
 
-    final FeatureCollection responseCollection = JsonSerializable.deserialize(response);
-    final List<Feature> responseFeatures = responseCollection.getFeatures();
+    final XyzFeatureCollection responseCollection = JsonSerializable.deserialize(response);
+    final List<XyzFeature> responseFeatures = responseCollection.getFeatures();
     assertEquals(size, responseFeatures.size());
 
     for (int i = 0; i < size; i++) {

@@ -21,7 +21,7 @@ package com.here.naksha.lib.psql;
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.ClosableIterator;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IReadTransaction;
@@ -94,7 +94,7 @@ public class PsqlTxReader implements IReadTransaction {
    * @return The underlying PostgresQL connection.
    * @throws IllegalStateException When the connection is closed.
    */
-  public @NotNull Connection connection() {
+  public @NotNull Connection conn() {
     final Connection connection = this.connection;
     if (connection == null) {
       throw new IllegalStateException("Connection is closed");
@@ -104,12 +104,12 @@ public class PsqlTxReader implements IReadTransaction {
 
   @NotNull
   PreparedStatement preparedStatement(@NotNull String sql) throws SQLException {
-    return connection().prepareStatement(sql);
+    return conn().prepareStatement(sql);
   }
 
   @NotNull
   Statement createStatement() throws SQLException {
-    return connection().createStatement();
+    return conn().createStatement();
   }
 
   /**
@@ -147,7 +147,7 @@ public class PsqlTxReader implements IReadTransaction {
 
   @Override
   public @NotNull ClosableIterator<@NotNull CollectionInfo> iterateCollections() throws SQLException {
-    try (final var stmt = connection().prepareStatement(UtCollectionInfoResultSet.STATEMENT)) {
+    try (final var stmt = conn().prepareStatement(UtCollectionInfoResultSet.STATEMENT)) {
       return new UtCollectionInfoResultSet(stmt.executeQuery());
     }
   }
@@ -155,7 +155,7 @@ public class PsqlTxReader implements IReadTransaction {
   @Override
   public @Nullable CollectionInfo getCollectionById(@NotNull String id) throws SQLException {
     final String SQL = "SELECT naksha_collection_get(?);";
-    try (final var stmt = connection().prepareStatement(SQL)) {
+    try (final var stmt = conn().prepareStatement(SQL)) {
       stmt.setString(1, id);
       final ResultSet rs = stmt.executeQuery();
       if (rs.next()) {
@@ -175,7 +175,7 @@ public class PsqlTxReader implements IReadTransaction {
   }
 
   @Override
-  public @NotNull <F extends Feature> PsqlFeatureReader<F> readFeatures(
+  public @NotNull <F extends XyzFeature> PsqlFeatureReader<F, PsqlTxReader> readFeatures(
       @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) {
     // TODO: Optimize by tracking the read, no need to create a new instance for every call!
     return new PsqlFeatureReader<>(this, featureClass, collection);

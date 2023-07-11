@@ -65,7 +65,7 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = CollectionInfo.class),
   @JsonSubTypes.Type(value = TxSignal.class)
 })
-public class Feature extends JsonObject implements Typed {
+public class XyzFeature extends JsonObject implements Typed {
 
   public static final String ID = "id";
   public static final String BBOX = "bbox";
@@ -84,9 +84,9 @@ public class Feature extends JsonObject implements Typed {
    * @param id The ID; if {@code null}, then a random one is generated.
    */
   @JsonCreator
-  public Feature(@JsonProperty(ID) @Nullable String id) {
+  public XyzFeature(@JsonProperty(ID) @Nullable String id) {
     setId(id != null && id.length() > 0 ? id : RandomStringUtils.randomAlphabetic(12));
-    this.properties = new Properties();
+    this.properties = new XyzProperties();
   }
 
   @JsonProperty(ID)
@@ -96,10 +96,10 @@ public class Feature extends JsonObject implements Typed {
   protected BBox bbox;
 
   @JsonProperty(GEOMETRY)
-  protected Geometry geometry;
+  protected XyzGeometry geometry;
 
   @JsonProperty(PROPERTIES)
-  protected @NotNull Properties properties;
+  protected @NotNull XyzProperties properties;
 
   // These members can be set by the client (user or manager) and we internally serialize and deserialized them, but
   // we do not
@@ -176,21 +176,21 @@ public class Feature extends JsonObject implements Typed {
   }
 
   @JsonIgnore
-  public @Nullable Geometry getGeometry() {
+  public @Nullable XyzGeometry getGeometry() {
     return geometry;
   }
 
-  public void setGeometry(@Nullable Geometry geometry) {
+  public void setGeometry(@Nullable XyzGeometry geometry) {
     this.geometry = geometry;
   }
 
   @JsonGetter
-  public @NotNull Properties getProperties() {
+  public @NotNull XyzProperties getProperties() {
     return properties;
   }
 
   @JsonSetter
-  public void setProperties(@NotNull Properties properties) {
+  public void setProperties(@NotNull XyzProperties properties) {
     this.properties = properties;
   }
 
@@ -226,7 +226,7 @@ public class Feature extends JsonObject implements Typed {
       return;
     }
 
-    final Geometry geometry = getGeometry();
+    final XyzGeometry geometry = getGeometry();
     if (geometry == null) {
       setBbox(null);
     } else {
@@ -242,13 +242,13 @@ public class Feature extends JsonObject implements Typed {
    * @throws InvalidGeometryException if the geometry is invalid.
    */
   public void validateGeometry() throws InvalidGeometryException {
-    final Geometry geometry = getGeometry();
+    final XyzGeometry geometry = getGeometry();
     if (geometry == null) {
       // This is valid, the feature simply does not have any geometry.
       return;
     }
 
-    if (geometry instanceof GeometryCollection) {
+    if (geometry instanceof XyzGeometryCollection) {
       throw new InvalidGeometryException("GeometryCollection is not supported.");
     }
 

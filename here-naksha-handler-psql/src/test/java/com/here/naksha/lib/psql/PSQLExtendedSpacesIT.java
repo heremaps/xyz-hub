@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.here.naksha.handler.psql.PsqlHandlerParams;
 import com.here.naksha.handler.psql.query.ModifySpace;
 import com.here.naksha.lib.core.models.features.Space;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
@@ -150,7 +150,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
       SuccessResponse response = JsonSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
       assertEquals("OK", response.getStatus());
 
-      final List<Feature> features = new ArrayList<Feature>() {
+      final List<XyzFeature> features = new ArrayList<XyzFeature>() {
         {
           add(FeatureGenerator.generateFeature(
               new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L), null));

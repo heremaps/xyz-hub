@@ -23,8 +23,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.jayway.jsonpath.DocumentContext;
@@ -79,7 +79,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     currentLogger().info("Insert feature tested successfully");
 
     // =========== UPDATE ==========
-    FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
+    XyzFeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
     setPUUID(featureCollection);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
@@ -93,7 +93,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     updateRequest = updateRequest.replaceAll("Tesla", "Honda");
     String updateResponse = invokeLambda(updateRequest);
 
-    FeatureCollection responseCollection = JsonSerializable.deserialize(updateResponse);
+    XyzFeatureCollection responseCollection = JsonSerializable.deserialize(updateResponse);
     setPUUID(responseCollection);
 
     assertUpdate(updateRequest, updateResponse, true);
@@ -111,7 +111,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     currentLogger().info("Insert feature tested successfully");
 
     // =========== UPDATE ==========
-    FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
+    XyzFeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
     setPUUID(featureCollection);
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
@@ -181,9 +181,9 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     currentLogger().info("Search Properties feature tested successfully");
 
     // =========== UPDATE ==========
-    FeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
+    XyzFeatureCollection featureCollection = JsonSerializable.deserialize(insertResponse);
     String featuresList =
-        JsonSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {});
+        JsonSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<XyzFeature>>() {});
 
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     // mfevent.setConnectorParams(defaultTestConnectorParams);
@@ -230,10 +230,10 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
   protected void assertUpdate(String updateRequest, String response, boolean checkGuid) throws Exception {
     ModifyFeaturesEvent gsModifyFeaturesEvent = JsonSerializable.deserialize(updateRequest);
-    FeatureCollection featureCollection = JsonSerializable.deserialize(response);
+    XyzFeatureCollection featureCollection = JsonSerializable.deserialize(response);
     for (int i = 0; i < gsModifyFeaturesEvent.getUpdateFeatures().size(); i++) {
-      Feature expectedFeature = gsModifyFeaturesEvent.getUpdateFeatures().get(i);
-      Feature actualFeature = featureCollection.getFeatures().get(i);
+      XyzFeature expectedFeature = gsModifyFeaturesEvent.getUpdateFeatures().get(i);
+      XyzFeature actualFeature = featureCollection.getFeatures().get(i);
       Assertions.assertTrue(jsonCompare(expectedFeature.getGeometry(), actualFeature.getGeometry()));
       assertEquals(
           (String) expectedFeature.getProperties().get("name"),

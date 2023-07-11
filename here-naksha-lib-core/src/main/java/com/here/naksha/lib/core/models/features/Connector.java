@@ -28,7 +28,7 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.extension.ExtensionHandler;
 import com.here.naksha.lib.core.models.IPlugin;
 import com.here.naksha.lib.core.models.PluginCache;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.lang.reflect.InvocationTargetException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -38,7 +38,7 @@ import org.jetbrains.annotations.NotNull;
  */
 @AvailableSince(INaksha.v2_0_3)
 @JsonTypeName(value = "Connector")
-public class Connector extends Feature implements IPlugin<IEventHandler> {
+public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
 
   @AvailableSince(INaksha.v2_0_3)
   public static final String CLASS_NAME = "className";

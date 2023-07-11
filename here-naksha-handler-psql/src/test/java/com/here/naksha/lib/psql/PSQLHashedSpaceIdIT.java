@@ -21,7 +21,7 @@ package com.here.naksha.lib.psql;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.handler.psql.PsqlHandlerParams;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.util.Hasher;
@@ -62,7 +62,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     final String hashedSpaceId = Hasher.getHash(spaceId);
     final XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
 
-    final List<Feature> features = new ArrayList<Feature>() {
+    final List<XyzFeature> features = new ArrayList<XyzFeature>() {
       {
         add(FeatureGenerator.generateFeature(xyzNamespace, null));
       }
@@ -92,7 +92,7 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
     final String spaceId = "foo";
     final String hashedSpaceId = Hasher.getHash(spaceId);
 
-    final List<Feature> features =
+    final List<XyzFeature> features =
         FeatureGenerator.get11kFeatureCollection().getFeatures();
     ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent();
     // mfevent.setSpaceId(spaceId);

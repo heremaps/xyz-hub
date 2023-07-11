@@ -34,9 +34,9 @@ import org.junit.jupiter.api.Test;
 
 public class TestClone {
 
-  public static FeatureCollection generateRandomFeatures(int featureCount, int propertyCount)
+  public static XyzFeatureCollection generateRandomFeatures(int featureCount, int propertyCount)
       throws JsonProcessingException {
-    FeatureCollection collection = new FeatureCollection();
+    XyzFeatureCollection collection = new XyzFeatureCollection();
     Random random = new Random();
 
     List<String> pKeys = Stream.generate(() -> RandomStringUtils.randomAlphanumeric(10))
@@ -46,8 +46,8 @@ public class TestClone {
     collection
         .getFeatures()
         .addAll(Stream.generate(() -> {
-              final Feature f = new Feature(RandomStringUtils.randomAlphanumeric(8));
-              f.setGeometry(new Point()
+              final XyzFeature f = new XyzFeature(RandomStringUtils.randomAlphanumeric(8));
+              f.setGeometry(new XyzPoint()
                   .withCoordinates(new PointCoordinates(
                       360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)));
               pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
@@ -60,17 +60,17 @@ public class TestClone {
 
   @Test
   public void testAsMap() throws JsonProcessingException {
-    FeatureCollection collection = generateRandomFeatures(1, 1);
-    Feature feature = collection.getFeatures().get(0);
+    XyzFeatureCollection collection = generateRandomFeatures(1, 1);
+    XyzFeature feature = collection.getFeatures().get(0);
     feature.asMap();
   }
 
   @Test
   public void testClone() throws JsonProcessingException {
-    FeatureCollection collection = generateRandomFeatures(1, 1);
-    Feature feature = collection.getFeatures().get(0);
+    XyzFeatureCollection collection = generateRandomFeatures(1, 1);
+    XyzFeature feature = collection.getFeatures().get(0);
     feature.getProperties().setXyzNamespace(new XyzNamespace().setTags(Arrays.asList("a", "b", "c"), false));
-    Feature copy = feature.deepClone();
+    XyzFeature copy = feature.deepClone();
     copy.setId("changed");
     assertNotEquals(copy.getId(), feature.getId());
   }

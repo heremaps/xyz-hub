@@ -20,7 +20,7 @@ package com.here.naksha.lib.core.models.payload;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.responses.CountResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
@@ -57,7 +57,7 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = HistoryStatisticsResponse.class, name = "HistoryStatisticsResponse"),
   @JsonSubTypes.Type(value = SuccessResponse.class, name = "SuccessResponse"),
   @JsonSubTypes.Type(value = NotModifiedResponse.class, name = "NotModifiedResponse"),
-  @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
+  @JsonSubTypes.Type(value = XyzFeatureCollection.class, name = "FeatureCollection"),
   @JsonSubTypes.Type(value = Changeset.class, name = "Changeset"),
   @JsonSubTypes.Type(value = CompactChangeset.class, name = "CompactChangeset"),
   @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection"),

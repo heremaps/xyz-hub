@@ -31,10 +31,10 @@ import java.util.List;
 
 /** Implemented following: https://tools.ietf.org/html/rfc7946#section-3.1 */
 @JsonSubTypes({
-  @JsonSubTypes.Type(value = GeometryCollection.class, name = "GeometryCollection"),
-  @JsonSubTypes.Type(value = GeometryItem.class)
+  @JsonSubTypes.Type(value = XyzGeometryCollection.class, name = "GeometryCollection"),
+  @JsonSubTypes.Type(value = XyzGeometryItem.class)
 })
-public abstract class Geometry implements Typed {
+public abstract class XyzGeometry implements Typed {
 
   @JsonProperty
   @JsonInclude(Include.NON_NULL)
@@ -44,14 +44,14 @@ public abstract class Geometry implements Typed {
   private com.vividsolutions.jts.geom.Geometry geomCache;
 
   /**
-   * Convert a JTS geometry into a {@link Geometry Geo JSON geometry}.
+   * Convert a JTS geometry into a {@link XyzGeometry Geo JSON geometry}.
    *
    * @param jtsGeometry the JTS geometry to convert.
    * @param <T> the type of the Geo JSON geometry.
    * @return the Geo JSON geometry or null, if conversion is not possible or results in null.
    */
   @SuppressWarnings({"unchecked", "unused"})
-  public static <T extends Geometry> T convertJTSGeometry(com.vividsolutions.jts.geom.Geometry jtsGeometry) {
+  public static <T extends XyzGeometry> T convertJTSGeometry(com.vividsolutions.jts.geom.Geometry jtsGeometry) {
     if (jtsGeometry == null) {
       return null;
     }
@@ -284,7 +284,7 @@ public abstract class Geometry implements Typed {
     this.bbox = bbox;
   }
 
-  public Geometry withBBox(final BBox bbox) {
+  public XyzGeometry withBBox(final BBox bbox) {
     setBBox(bbox);
     return this;
   }

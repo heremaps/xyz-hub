@@ -19,7 +19,7 @@
 package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.sql.SQLException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -132,6 +132,6 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the feature writer.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  <F extends Feature> @NotNull IFeatureWriter<F> writeFeatures(
+  <F extends XyzFeature> @NotNull IFeatureWriter<F> writeFeatures(
       @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) throws Exception;
 }

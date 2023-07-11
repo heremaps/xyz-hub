@@ -21,36 +21,36 @@ package com.here.naksha.lib.core.models.geojson.implementation;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
-import com.here.naksha.lib.core.models.geojson.coordinates.MultiLineStringCoordinates;
+import com.here.naksha.lib.core.models.geojson.coordinates.PolygonCoordinates;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "MultiLineString")
-public class MultiLineString extends GeometryItem {
+@JsonTypeName(value = "Polygon")
+public class XyzPolygon extends XyzGeometryItem {
 
-  private MultiLineStringCoordinates coordinates = new MultiLineStringCoordinates();
+  private PolygonCoordinates coordinates = new PolygonCoordinates();
 
   @Override
-  public MultiLineStringCoordinates getCoordinates() {
+  public PolygonCoordinates getCoordinates() {
     return this.coordinates;
   }
 
-  public void setCoordinates(MultiLineStringCoordinates coordinates) {
+  public void setCoordinates(PolygonCoordinates coordinates) {
     this.coordinates = coordinates;
   }
 
-  public MultiLineString withCoordinates(MultiLineStringCoordinates coordinates) {
+  public XyzPolygon withCoordinates(PolygonCoordinates coordinates) {
     setCoordinates(coordinates);
     return this;
   }
 
   @Override
-  protected com.vividsolutions.jts.geom.MultiLineString convertToJTSGeometry() {
-    return JTSHelper.toMultiLineString(getCoordinates());
+  protected com.vividsolutions.jts.geom.Geometry convertToJTSGeometry() {
+    return JTSHelper.toPolygon(this.coordinates);
   }
 
   @Override
   public void validate() throws InvalidGeometryException {
-    validateMultiLineStringCoordinates(this.coordinates);
+    validatePolygonCoordinates(this.coordinates);
   }
 }

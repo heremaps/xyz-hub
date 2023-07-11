@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -26,7 +26,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * API to read features from a collection.
  */
-public interface IFeatureReader<FEATURE extends Feature> {
+public interface IFeatureReader<FEATURE extends XyzFeature> {
 
   /**
    * Returns a single feature by its identifier.

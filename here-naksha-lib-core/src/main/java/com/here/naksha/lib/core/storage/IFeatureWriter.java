@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -26,7 +26,7 @@ import org.jetbrains.annotations.NotNull;
  *
  * @param <FEATURE> the feature-type to modify.
  */
-public interface IFeatureWriter<FEATURE extends Feature> extends IFeatureReader<FEATURE> {
+public interface IFeatureWriter<FEATURE extends XyzFeature> extends IFeatureReader<FEATURE> {
 
   /**
    * Perform the given operations as bulk operation and return the results.

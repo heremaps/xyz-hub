@@ -33,16 +33,16 @@ public class FeatureGenerator {
 
   protected static Random RANDOM = new Random();
 
-  public static Feature generateFeature(XyzNamespace xyzNamespace, List<String> propertyKeys) {
+  public static XyzFeature generateFeature(XyzNamespace xyzNamespace, List<String> propertyKeys) {
     propertyKeys = propertyKeys == null ? Collections.emptyList() : propertyKeys;
 
-    final Feature f = new Feature(null);
-    f.setGeometry(new Point()
+    final XyzFeature f = new XyzFeature(null);
+    f.setGeometry(new XyzPoint()
         .withCoordinates(
             new PointCoordinates(360d * RANDOM.nextDouble() - 180d, 180d * RANDOM.nextDouble() - 90d)));
     propertyKeys.stream()
         .reduce(
-            new Properties(),
+            new XyzProperties(),
             (properties, k) -> {
               properties.put(k, RandomStringUtils.randomAlphanumeric(3));
               return properties;
@@ -51,13 +51,13 @@ public class FeatureGenerator {
     return f;
   }
 
-  public static FeatureCollection get11kFeatureCollection() throws Exception {
+  public static XyzFeatureCollection get11kFeatureCollection() throws Exception {
     final XyzNamespace xyzNamespace = new XyzNamespace().withSpace("foo").withCreatedAt(1517504700726L);
     final List<String> propertyKeys = Stream.generate(() -> RandomStringUtils.randomAlphanumeric(10))
         .limit(3)
         .collect(Collectors.toList());
 
-    FeatureCollection collection = new FeatureCollection();
+    XyzFeatureCollection collection = new XyzFeatureCollection();
     collection.setFeatures(new ArrayList<>());
     collection
         .getFeatures()

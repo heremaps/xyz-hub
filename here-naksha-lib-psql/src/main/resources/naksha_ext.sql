@@ -1336,8 +1336,8 @@ BEGIN
     --RAISE NOTICE 'ids, uuids: % %', existing_id_arr, existing_uuid_arr;
 
     --RAISE NOTICE 'Perform all actions';
-    insert_stmt := format('INSERT INTO %I (jsondata, geo) VALUES ($1, $2) RETURNING jsondata;', collection);
-    update_stmt := format('UPDATE %I SET jsondata=$1, geo=$2 WHERE jsondata->>''id''=$3 RETURNING jsondata;', collection);
+    insert_stmt := format('INSERT INTO %I (jsondata, geo) VALUES ($1, ST_Force3D($2)) RETURNING jsondata;', collection);
+    update_stmt := format('UPDATE %I SET jsondata=$1, geo=ST_Force3D($2) WHERE jsondata->>''id''=$3 RETURNING jsondata;', collection);
     delete_stmt := format('DELETE FROM %I WHERE jsondata->>''id''=$1 RETURNING jsondata, geo;', collection);
     i := 1;
     e_uuid_i := 1;

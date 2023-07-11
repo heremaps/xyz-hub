@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import org.junit.jupiter.api.Test;
@@ -36,11 +36,11 @@ public class JTSConverterTest {
         .getResource("/com/here/xyz/test/geometries.json")
         .toURI()));
     String featureText = new String(bytes);
-    Feature feature = new ObjectMapper().readValue(featureText, Feature.class);
+    XyzFeature feature = new ObjectMapper().readValue(featureText, XyzFeature.class);
 
-    Geometry sourceGeometry = feature.getGeometry();
+    XyzGeometry sourceGeometry = feature.getGeometry();
     com.vividsolutions.jts.geom.Geometry jtsGeometry = JTSHelper.toGeometry(sourceGeometry);
-    Geometry targetGeometry = JTSHelper.fromGeometry(jtsGeometry);
+    XyzGeometry targetGeometry = JTSHelper.fromGeometry(jtsGeometry);
 
     assertNotNull(targetGeometry);
   }

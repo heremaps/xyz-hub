@@ -21,8 +21,8 @@ package com.here.naksha.lib.core.util.modify;
 import static com.here.naksha.lib.core.util.modify.IfExists.MERGE;
 import static com.here.naksha.lib.core.util.modify.IfNotExists.CREATE;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Action;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.payload.events.feature.LoadFeaturesEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -32,13 +32,13 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** A list of features that should be modified. */
-public class FeatureModificationList<FEATURE extends Feature, ENTRY extends FeatureModificationEntry<FEATURE>>
+public class FeatureModificationList<FEATURE extends XyzFeature, ENTRY extends FeatureModificationEntry<FEATURE>>
     implements Iterable<ENTRY> {
 
   /**
    * All features by action. Filled after {@link FeatureModificationEntry#apply()} has been invoked.
    */
-  private final HashMap<@NotNull Action, @NotNull List<@NotNull ENTRY>> usedActions = new HashMap<>();
+  private final HashMap<@NotNull XyzAction, @NotNull List<@NotNull ENTRY>> usedActions = new HashMap<>();
 
   /** All features, wrapped into an entry. */
   private final ArrayList<@NotNull ENTRY> entries = new ArrayList<>();

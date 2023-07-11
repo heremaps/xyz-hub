@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -26,7 +26,7 @@ import org.jetbrains.annotations.NotNull;
  * underlying storage collection in memory using weak references or to keep all features of the
  * storage in memory.
  */
-public abstract class CollectionCache<FEATURE extends Feature> {
+public abstract class CollectionCache<FEATURE extends XyzFeature> {
   // TODO: Implement me!
 
   /**

@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IFeatureReader;
 import java.sql.SQLException;
@@ -26,18 +26,15 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class PsqlFeatureReader<FEATURE extends Feature> implements IFeatureReader<FEATURE> {
+public class PsqlFeatureReader<FEATURE extends XyzFeature, TX extends PsqlTxReader> implements IFeatureReader<FEATURE> {
 
-  PsqlFeatureReader(
-      @NotNull PsqlTxReader storageReader,
-      @NotNull Class<FEATURE> featureClass,
-      @NotNull CollectionInfo collection) {
-    this.storageReader = storageReader;
+  PsqlFeatureReader(@NotNull TX tx, @NotNull Class<FEATURE> featureClass, @NotNull CollectionInfo collection) {
+    this.tx = tx;
     this.featureClass = featureClass;
     this.collection = collection;
   }
 
-  final @NotNull PsqlTxReader storageReader;
+  final @NotNull TX tx;
   final @NotNull Class<FEATURE> featureClass;
   final @NotNull CollectionInfo collection;
 

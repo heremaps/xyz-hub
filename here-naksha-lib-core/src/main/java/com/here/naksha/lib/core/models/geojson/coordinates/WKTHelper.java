@@ -18,13 +18,13 @@
  */
 package com.here.naksha.lib.core.models.geojson.coordinates;
 
-import com.here.naksha.lib.core.models.geojson.implementation.Geometry;
-import com.here.naksha.lib.core.models.geojson.implementation.LineString;
-import com.here.naksha.lib.core.models.geojson.implementation.MultiLineString;
-import com.here.naksha.lib.core.models.geojson.implementation.MultiPoint;
-import com.here.naksha.lib.core.models.geojson.implementation.MultiPolygon;
-import com.here.naksha.lib.core.models.geojson.implementation.Point;
-import com.here.naksha.lib.core.models.geojson.implementation.Polygon;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzLineString;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzMultiLineString;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzMultiPoint;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzMultiPolygon;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzPoint;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzPolygon;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -52,38 +52,38 @@ public class WKTHelper {
     return ret.substring(0, ret.length() - 1) + ")";
   }
 
-  public static String geometryToWKB(Geometry geometry) {
+  public static String geometryToWKB(XyzGeometry geometry) {
     String wkbString = geometry.getClass().getSimpleName().toUpperCase();
 
-    if (geometry instanceof Point) {
+    if (geometry instanceof XyzPoint) {
       wkbString += coordinatesToWKB(new ArrayList<>(Arrays.asList(new Position(
-          ((Point) geometry).getCoordinates().getLongitude(),
-          ((Point) geometry).getCoordinates().getLatitude(),
-          ((Point) geometry).getCoordinates().getAltitude() == null
+          ((XyzPoint) geometry).getCoordinates().getLongitude(),
+          ((XyzPoint) geometry).getCoordinates().getLatitude(),
+          ((XyzPoint) geometry).getCoordinates().getAltitude() == null
               ? 0
-              : ((Point) geometry).getCoordinates().getAltitude()))));
-    } else if (geometry instanceof LineString) {
-      wkbString += coordinatesToWKB(((LineString) geometry).getCoordinates());
-    } else if (geometry instanceof Polygon) {
-      wkbString += linearRingsToWKB(((Polygon) geometry).getCoordinates());
-    } else if (geometry instanceof MultiPoint
-        || geometry instanceof MultiLineString
-        || geometry instanceof MultiPolygon) {
+              : ((XyzPoint) geometry).getCoordinates().getAltitude()))));
+    } else if (geometry instanceof XyzLineString) {
+      wkbString += coordinatesToWKB(((XyzLineString) geometry).getCoordinates());
+    } else if (geometry instanceof XyzPolygon) {
+      wkbString += linearRingsToWKB(((XyzPolygon) geometry).getCoordinates());
+    } else if (geometry instanceof XyzMultiPoint
+        || geometry instanceof XyzMultiLineString
+        || geometry instanceof XyzMultiPolygon) {
       wkbString += "(";
-      if (geometry instanceof MultiPoint) {
-        for (Position coordinates : ((MultiPoint) geometry).getCoordinates()) {
+      if (geometry instanceof XyzMultiPoint) {
+        for (Position coordinates : ((XyzMultiPoint) geometry).getCoordinates()) {
           wkbString += coordinatesToWKB(new ArrayList<>(Arrays.asList(new Position(
                   coordinates.getLongitude(),
                   coordinates.getLatitude(),
                   coordinates.getAltitude() == null ? 0 : coordinates.getAltitude()))))
               + ",";
         }
-      } else if (geometry instanceof MultiLineString) {
-        for (LineStringCoordinates coordinates : ((MultiLineString) geometry).getCoordinates()) {
+      } else if (geometry instanceof XyzMultiLineString) {
+        for (LineStringCoordinates coordinates : ((XyzMultiLineString) geometry).getCoordinates()) {
           wkbString += coordinatesToWKB(coordinates) + ",";
         }
-      } else if (geometry instanceof MultiPolygon) {
-        for (PolygonCoordinates coordinates : ((MultiPolygon) geometry).getCoordinates()) {
+      } else if (geometry instanceof XyzMultiPolygon) {
+        for (PolygonCoordinates coordinates : ((XyzMultiPolygon) geometry).getCoordinates()) {
           wkbString += linearRingsToWKB(coordinates) + ",";
         }
       }

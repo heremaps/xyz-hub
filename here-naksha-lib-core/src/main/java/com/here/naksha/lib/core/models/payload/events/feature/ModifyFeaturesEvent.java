@@ -22,9 +22,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection.ModificationFailure;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection.ModificationFailure;
 import com.here.naksha.lib.core.models.payload.events.FeatureEvent;
 import com.here.naksha.lib.core.models.payload.events.IfRowLock;
 import java.util.List;
@@ -36,17 +36,17 @@ import org.jetbrains.annotations.Nullable;
  * Ask the xyz storage connector to modify the state of features. For those features that do not
  * have an ID, the storage must generate unique identifiers.
  *
- * <p>The response to this event will be a {@link FeatureCollection} where the {@link
- * FeatureCollection#getFeatures()} list contains the new HEAD state of all successfully modified
+ * <p>The response to this event will be a {@link XyzFeatureCollection} where the {@link
+ * XyzFeatureCollection#getFeatures()} list contains the new HEAD state of all successfully modified
  * features.
  *
  * <p>For successfully inserted features their IDs are returned in the {@link
- * FeatureCollection#getInserted()} list. - For successfully updated features their IDs are returned
- * in the {@link FeatureCollection#getUpdated()} list. - For successfully deleted features their IDs
- * are returned in the {@link FeatureCollection#getDeleted()} list.
+ * XyzFeatureCollection#getInserted()} list. - For successfully updated features their IDs are returned
+ * in the {@link XyzFeatureCollection#getUpdated()} list. - For successfully deleted features their IDs
+ * are returned in the {@link XyzFeatureCollection#getDeleted()} list.
  *
  * <p>When the operation for a feature failed, then the reason is returned in the {@link
- * FeatureCollection#getFailed()} map, of which the key is the {@link Feature#getId()} and the value
+ * XyzFeatureCollection#getFailed()} map, of which the key is the {@link XyzFeature#getId()} and the value
  * is the error message (reason).
  *
  * @since 0.1.0
@@ -60,14 +60,14 @@ public final class ModifyFeaturesEvent extends FeatureEvent {
    *
    * @since 0.1.0
    */
-  private @Nullable List<@NotNull Feature> insertFeatures;
+  private @Nullable List<@NotNull XyzFeature> insertFeatures;
 
   /**
    * The features to update; if any.
    *
    * @since 0.1.0
    */
-  private @Nullable List<@NotNull Feature> updateFeatures;
+  private @Nullable List<@NotNull XyzFeature> updateFeatures;
 
   /**
    * The features for which to perform an upsert, this means no matter what the current state is, it
@@ -75,7 +75,7 @@ public final class ModifyFeaturesEvent extends FeatureEvent {
    *
    * @since 0.6.0
    */
-  private @Nullable List<@NotNull Feature> upsertFeatures;
+  private @Nullable List<@NotNull XyzFeature> upsertFeatures;
 
   /**
    * A map where the key is the identifier of the feature to delete, and the value optionally the
@@ -107,17 +107,17 @@ public final class ModifyFeaturesEvent extends FeatureEvent {
    * @return the list of all features to be inserted.
    */
   @SuppressWarnings("unused")
-  public List<Feature> getInsertFeatures() {
+  public List<XyzFeature> getInsertFeatures() {
     return this.insertFeatures;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setInsertFeatures(List<Feature> insertFeatures) {
+  public void setInsertFeatures(List<XyzFeature> insertFeatures) {
     this.insertFeatures = insertFeatures;
   }
 
   @SuppressWarnings("unused")
-  public ModifyFeaturesEvent withInsertFeatures(List<Feature> insertFeatures) {
+  public ModifyFeaturesEvent withInsertFeatures(List<XyzFeature> insertFeatures) {
     setInsertFeatures(insertFeatures);
     return this;
   }
@@ -128,17 +128,17 @@ public final class ModifyFeaturesEvent extends FeatureEvent {
    * @return the list of all features to be updated.
    */
   @SuppressWarnings("unused")
-  public List<Feature> getUpdateFeatures() {
+  public List<XyzFeature> getUpdateFeatures() {
     return this.updateFeatures;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setUpdateFeatures(List<Feature> updateFeatures) {
+  public void setUpdateFeatures(List<XyzFeature> updateFeatures) {
     this.updateFeatures = updateFeatures;
   }
 
   @SuppressWarnings("unused")
-  public ModifyFeaturesEvent withUpdateFeatures(List<Feature> updateFeatures) {
+  public ModifyFeaturesEvent withUpdateFeatures(List<XyzFeature> updateFeatures) {
     setUpdateFeatures(updateFeatures);
     return this;
   }
@@ -149,17 +149,17 @@ public final class ModifyFeaturesEvent extends FeatureEvent {
    * @return the list of all features to be updated.
    */
   @SuppressWarnings("unused")
-  public List<Feature> getUpsertFeatures() {
+  public List<XyzFeature> getUpsertFeatures() {
     return this.upsertFeatures;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setUpsertFeatures(List<Feature> upsertFeatures) {
+  public void setUpsertFeatures(List<XyzFeature> upsertFeatures) {
     this.upsertFeatures = upsertFeatures;
   }
 
   @SuppressWarnings("unused")
-  public ModifyFeaturesEvent withUpsertFeatures(List<Feature> upsertFeatures) {
+  public ModifyFeaturesEvent withUpsertFeatures(List<XyzFeature> upsertFeatures) {
     setUpsertFeatures(upsertFeatures);
     return this;
   }

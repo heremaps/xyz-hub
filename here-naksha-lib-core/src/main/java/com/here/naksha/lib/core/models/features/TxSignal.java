@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -42,7 +42,7 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = TxModifyFeatures.class),
   @JsonSubTypes.Type(value = TxModifyCollection.class)
 })
-public class TxSignal extends Feature {
+public class TxSignal extends XyzFeature {
 
   @AvailableSince(INaksha.v2_0_0)
   public static final String STORAGE_ID = "storageId";

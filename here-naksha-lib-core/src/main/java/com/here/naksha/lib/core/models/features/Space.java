@@ -29,7 +29,7 @@ import com.here.naksha.lib.core.models.Copyright;
 import com.here.naksha.lib.core.models.License;
 import com.here.naksha.lib.core.models.PipelineComponent;
 import com.here.naksha.lib.core.models.Typed;
-import com.here.naksha.lib.core.models.geojson.implementation.Properties;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.indexing.Constraint;
 import com.here.naksha.lib.core.models.indexing.Index;
@@ -209,7 +209,7 @@ public final class Space extends PipelineComponent implements Typed {
    * Arbitrary properties added to the space, this includes the standard {@link XyzNamespace}.
    */
   @JsonProperty
-  private Properties properties;
+  private XyzProperties properties;
 
   /**
    * Indicates if the space is in a read-only mode.

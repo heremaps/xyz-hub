@@ -20,7 +20,7 @@ package com.here.naksha.handler.psql.query;
 
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.handler.psql.SQLQueryBuilder;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.events.FeatureEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.QueryEvent;
@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
-public abstract class GetFeatures<E extends Event> extends ExtendedSpace<E, FeatureCollection> {
+public abstract class GetFeatures<E extends Event> extends ExtendedSpace<E, XyzFeatureCollection> {
 
   public GetFeatures(@NotNull E event, final @NotNull PsqlHandler psqlConnector) throws SQLException {
     super(event, psqlConnector);
@@ -122,7 +122,7 @@ public abstract class GetFeatures<E extends Event> extends ExtendedSpace<E, Feat
   }
 
   @Override
-  public @NotNull FeatureCollection handle(@NotNull ResultSet rs) throws SQLException {
+  public @NotNull XyzFeatureCollection handle(@NotNull ResultSet rs) throws SQLException {
     return processor.defaultFeatureResultSetHandler(rs);
   }
 

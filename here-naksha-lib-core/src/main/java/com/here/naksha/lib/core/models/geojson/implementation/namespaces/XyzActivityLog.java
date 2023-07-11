@@ -21,7 +21,7 @@ package com.here.naksha.lib.core.models.geojson.implementation.namespaces;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.naksha.lib.core.models.geojson.implementation.Action;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -59,7 +59,7 @@ public class XyzActivityLog extends JsonObject {
 
   /**
    * The operation that lead to the current state of the namespace. Should be a value from {@link
-   * Action}.
+   * XyzAction}.
    */
   @JsonProperty(ACTION)
   private String action;
@@ -80,7 +80,7 @@ public class XyzActivityLog extends JsonObject {
     this.diff = diff;
   }
 
-  public void setAction(@NotNull Action action) {
+  public void setAction(@NotNull XyzAction action) {
     this.action = action.toString();
   }
 
@@ -89,7 +89,7 @@ public class XyzActivityLog extends JsonObject {
     return this;
   }
 
-  public @NotNull XyzActivityLog withAction(@NotNull Action action) {
+  public @NotNull XyzActivityLog withAction(@NotNull XyzAction action) {
     setAction(action);
     return this;
   }
@@ -103,12 +103,12 @@ public class XyzActivityLog extends JsonObject {
   }
 
   public boolean isDeleted() {
-    return Action.DELETE.equals(getAction());
+    return XyzAction.DELETE.equals(getAction());
   }
 
   public void setDeleted(boolean deleted) {
     if (deleted) {
-      setAction(Action.DELETE);
+      setAction(XyzAction.DELETE);
     }
   }
 

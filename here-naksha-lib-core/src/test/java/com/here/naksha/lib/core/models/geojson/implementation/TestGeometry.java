@@ -29,26 +29,26 @@ public class TestGeometry {
   public void test_geometryOf() throws Exception {
     final ObjectMapper mp = new ObjectMapper();
 
-    Geometry geometry = mp.readValue("{\"type\":\"Point\"}", Geometry.class);
-    assertTrue(geometry instanceof Point);
+    XyzGeometry geometry = mp.readValue("{\"type\":\"Point\"}", XyzGeometry.class);
+    assertTrue(geometry instanceof XyzPoint);
 
-    geometry = mp.readValue("{\"type\":\"MultiPoint\"}", Geometry.class);
-    assertTrue(geometry instanceof MultiPoint);
+    geometry = mp.readValue("{\"type\":\"MultiPoint\"}", XyzGeometry.class);
+    assertTrue(geometry instanceof XyzMultiPoint);
 
-    geometry = mp.readValue("{\"type\":\"LineString\"}", Geometry.class);
-    assertTrue(geometry instanceof LineString);
+    geometry = mp.readValue("{\"type\":\"LineString\"}", XyzGeometry.class);
+    assertTrue(geometry instanceof XyzLineString);
 
-    geometry = mp.readValue("{\"type\":\"MultiLineString\"}", Geometry.class);
-    assertTrue(geometry instanceof MultiLineString);
+    geometry = mp.readValue("{\"type\":\"MultiLineString\"}", XyzGeometry.class);
+    assertTrue(geometry instanceof XyzMultiLineString);
 
-    geometry = mp.readValue("{\"type\":\"Polygon\"}", Geometry.class);
-    assertTrue(geometry instanceof Polygon);
+    geometry = mp.readValue("{\"type\":\"Polygon\"}", XyzGeometry.class);
+    assertTrue(geometry instanceof XyzPolygon);
 
-    geometry = mp.readValue("{\"type\":\"MultiPolygon\"}", Geometry.class);
-    assertTrue(geometry instanceof MultiPolygon);
+    geometry = mp.readValue("{\"type\":\"MultiPolygon\"}", XyzGeometry.class);
+    assertTrue(geometry instanceof XyzMultiPolygon);
 
-    geometry = mp.readValue("{\"type\":\"GeometryCollection\"}", Geometry.class);
-    assertTrue(geometry instanceof GeometryCollection);
+    geometry = mp.readValue("{\"type\":\"GeometryCollection\"}", XyzGeometry.class);
+    assertTrue(geometry instanceof XyzGeometryCollection);
   }
 
   @Test
@@ -56,7 +56,7 @@ public class TestGeometry {
     final ObjectMapper mp = new ObjectMapper();
 
     String json = "{\"type\":\"GeometryCollection\",\"geometries\":[]}";
-    GeometryCollection geometryCollection = mp.readValue(json, GeometryCollection.class);
+    XyzGeometryCollection geometryCollection = mp.readValue(json, XyzGeometryCollection.class);
     geometryCollection.validate();
 
     json = "{\"type\":\"GeometryCollection\",\"geometries\":["
@@ -68,7 +68,7 @@ public class TestGeometry {
         "{\"type\":\"MultiPoint\",\"coordinates\":[[0,0,0], [1,1,1]]}"
         + //
         "]}";
-    geometryCollection = mp.readValue(json, GeometryCollection.class);
+    geometryCollection = mp.readValue(json, XyzGeometryCollection.class);
     geometryCollection.validate();
   }
 }

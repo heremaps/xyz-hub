@@ -20,7 +20,7 @@ package com.here.naksha.lib.psql;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IMasterTransaction;
 import com.here.naksha.lib.core.storage.ITransactionSettings;
@@ -113,9 +113,8 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
   }
 
   @Override
-  public @NotNull <F extends Feature> PsqlFeatureWriter<F> writeFeatures(
+  public @NotNull <F extends XyzFeature> PsqlFeatureWriter<F> writeFeatures(
       @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) {
-    // TODO: Optimize by tracking the write, no need to create a new instance for every call!
     return new PsqlFeatureWriter<>(this, featureClass, collection);
   }
 
@@ -126,7 +125,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    */
   public void commit() throws SQLException {
     try {
-      connection().commit();
+      conn().commit();
     } finally {
       // start a new transaction, this ensures that the app_id and author are set.
       naksha_tx_start();
@@ -138,7 +137,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    */
   public void rollback() {
     try {
-      connection().rollback();
+      conn().rollback();
     } catch (SQLException ignore) {
     } finally {
       // start a new transaction, this ensures that the app_id and author are set.

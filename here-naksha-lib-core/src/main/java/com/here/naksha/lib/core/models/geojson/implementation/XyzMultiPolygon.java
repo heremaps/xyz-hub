@@ -21,36 +21,36 @@ package com.here.naksha.lib.core.models.geojson.implementation;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
-import com.here.naksha.lib.core.models.geojson.coordinates.PolygonCoordinates;
+import com.here.naksha.lib.core.models.geojson.coordinates.MultiPolygonCoordinates;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "Polygon")
-public class Polygon extends GeometryItem {
+@JsonTypeName(value = "MultiPolygon")
+public class XyzMultiPolygon extends XyzGeometryItem {
 
-  private PolygonCoordinates coordinates = new PolygonCoordinates();
+  private MultiPolygonCoordinates coordinates = new MultiPolygonCoordinates();
 
   @Override
-  public PolygonCoordinates getCoordinates() {
+  public MultiPolygonCoordinates getCoordinates() {
     return this.coordinates;
   }
 
-  public void setCoordinates(PolygonCoordinates coordinates) {
+  public void setCoordinates(MultiPolygonCoordinates coordinates) {
     this.coordinates = coordinates;
   }
 
-  public Polygon withCoordinates(PolygonCoordinates coordinates) {
+  public XyzMultiPolygon withCoordinates(MultiPolygonCoordinates coordinates) {
     setCoordinates(coordinates);
     return this;
   }
 
   @Override
   protected com.vividsolutions.jts.geom.Geometry convertToJTSGeometry() {
-    return JTSHelper.toPolygon(this.coordinates);
+    return JTSHelper.toMultiPolygon(this.coordinates);
   }
 
   @Override
   public void validate() throws InvalidGeometryException {
-    validatePolygonCoordinates(this.coordinates);
+    validateMultiPolygonCoordinates(this.coordinates);
   }
 }

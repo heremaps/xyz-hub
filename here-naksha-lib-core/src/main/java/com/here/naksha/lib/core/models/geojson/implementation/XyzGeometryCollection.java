@@ -28,20 +28,20 @@ import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GeometryCollection")
-public class GeometryCollection extends Geometry {
+public class XyzGeometryCollection extends XyzGeometry {
 
-  private List<GeometryItem> geometries = new ArrayList<>();
+  private List<XyzGeometryItem> geometries = new ArrayList<>();
 
-  public List<GeometryItem> getGeometries() {
+  public List<XyzGeometryItem> getGeometries() {
     return this.geometries;
   }
 
   @SuppressWarnings("WeakerAccess")
-  public void setGeometries(List<GeometryItem> geometries) {
+  public void setGeometries(List<XyzGeometryItem> geometries) {
     this.geometries = geometries;
   }
 
-  public GeometryCollection withGeometries(final List<GeometryItem> geometries) {
+  public XyzGeometryCollection withGeometries(final List<XyzGeometryItem> geometries) {
     setGeometries(geometries);
     return this;
   }
@@ -57,7 +57,7 @@ public class GeometryCollection extends Geometry {
     double maxLon = Double.MIN_VALUE;
     double maxLat = Double.MIN_VALUE;
 
-    for (GeometryItem geom : this.geometries) {
+    for (XyzGeometryItem geom : this.geometries) {
       BBox bbox = geom.calculateBBox();
       if (bbox != null) {
         if (bbox.minLon() < minLon) {
@@ -106,7 +106,7 @@ public class GeometryCollection extends Geometry {
       return;
     }
 
-    for (GeometryItem geometry : this.geometries) {
+    for (XyzGeometryItem geometry : this.geometries) {
       try {
         geometry.validate();
       } catch (InvalidGeometryException e) {

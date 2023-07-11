@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.IPlugin;
 import com.here.naksha.lib.core.models.PluginCache;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.IStorage;
 import java.lang.reflect.InvocationTargetException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -36,7 +36,7 @@ import org.jetbrains.annotations.NotNull;
  */
 @AvailableSince(INaksha.v2_0_0)
 @JsonTypeName(value = "Storage")
-public class Storage extends Feature implements IPlugin<IStorage> {
+public class Storage extends XyzFeature implements IPlugin<IStorage> {
 
   @AvailableSince(INaksha.v2_0_0)
   public static final String NUMBER = "number";

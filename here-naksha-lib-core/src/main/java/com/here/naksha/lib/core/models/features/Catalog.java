@@ -20,14 +20,14 @@ package com.here.naksha.lib.core.models.features;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * A catalog is simple a namespace that prefixes spaces.
  */
 @JsonTypeName(value = "Catalog")
-public class Catalog extends Feature {
+public class Catalog extends XyzFeature {
 
   /**
    * Create a new empty feature.

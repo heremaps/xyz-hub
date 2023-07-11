@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
-import com.here.naksha.lib.core.models.geojson.implementation.MultiPolygon;
-import com.here.naksha.lib.core.models.geojson.implementation.Point;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzMultiPolygon;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzPoint;
 import org.junit.jupiter.api.Test;
 
 public class BBoxTest {
@@ -31,7 +31,7 @@ public class BBoxTest {
   @Test
   public void pointCoordinates() throws Exception {
     String pointGJ = "{\"type\":\"Point\",\"coordinates\":[1,1]}";
-    Point point = new ObjectMapper().readValue(pointGJ, Point.class);
+    XyzPoint point = new ObjectMapper().readValue(pointGJ, XyzPoint.class);
     BBox bbox = point.calculateBBox();
 
     assertEquals(1d, bbox.minLon(), 0.0);
@@ -44,7 +44,7 @@ public class BBoxTest {
   public void multipolygonCoordinates() throws Exception {
     String multipolygonGJ =
         "{\"type\":\"MultiPolygon\",\"coordinates\":[[[[101.2,1.2],[101.8,1.2],[101.8,1.8],[101.2,1.8],[101.2,1.2]],[[101.2,1.2],[101.3,1.2],[101.3,1.3],[101.2,1.3],[101.2,1.2]],[[101.6,1.4],[101.7,1.4],[101.7,1.5],[101.6,1.5],[101.6,1.4]],[[101.5,1.6],[101.6,1.6],[101.6,1.7],[101.5,1.7],[101.5,1.6]]],[[[100.0,0.0],[101.0,0.0],[101.0,1.0],[100.0,1.0],[100.0,0.0]],[[100.35,0.35],[100.65,0.35],[100.65,0.65],[100.35,0.65],[100.35,0.35]]]]}";
-    MultiPolygon multipolygon = new ObjectMapper().readValue(multipolygonGJ, MultiPolygon.class);
+    XyzMultiPolygon multipolygon = new ObjectMapper().readValue(multipolygonGJ, XyzMultiPolygon.class);
     BBox bbox = multipolygon.calculateBBox();
 
     assertEquals(100.0, bbox.minLon(), 0.0);

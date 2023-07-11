@@ -28,7 +28,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** The standard properties of the standard feature store in the Naksha-Hub. */
-public class Properties extends JsonObject {
+public class XyzProperties extends JsonObject {
 
   /**
    * The internal management properties of the Naksha-Hub.
@@ -45,7 +45,7 @@ public class Properties extends JsonObject {
    */
   public static final String XYZ_ACTIVITY_LOG_NS = "@ns:com:here:xyz:log";
 
-  public Properties() {
+  public XyzProperties() {
     xyzNamespace = new XyzNamespace();
   }
 

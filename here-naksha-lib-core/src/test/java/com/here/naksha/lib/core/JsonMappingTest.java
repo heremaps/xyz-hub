@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.Json;
@@ -41,7 +41,7 @@ public class JsonMappingTest {
   public void testDeserializeFeature() throws Exception {
     final String json =
         "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}, \"otherProperty\": \"123\"}";
-    final Feature obj = new ObjectMapper().readValue(json, Feature.class);
+    final XyzFeature obj = new ObjectMapper().readValue(json, XyzFeature.class);
     assertNotNull(obj);
 
     assertEquals(5, (int) obj.getProperties().get("x"));
@@ -52,7 +52,7 @@ public class JsonMappingTest {
   public void testSerializeFeature() throws Exception {
     try (final Json json = Json.open()) {
       final String raw = "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}}";
-      final Feature obj = json.reader(All.class).readValue(raw, Feature.class);
+      final XyzFeature obj = json.reader(All.class).readValue(raw, XyzFeature.class);
       assertNotNull(obj);
 
       obj.getProperties().put("y", 7);

@@ -23,8 +23,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.models.features.Space;
-import com.here.naksha.lib.core.models.geojson.implementation.Action;
-import com.here.naksha.lib.core.models.geojson.implementation.Properties;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.util.json.JsonObject;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
@@ -34,7 +34,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The properties stored as value for the {@link Properties#XYZ_NAMESPACE @ns:com:here:xyz} key in the {@link Properties}.
+ * The properties stored as value for the {@link XyzProperties#XYZ_NAMESPACE @ns:com:here:xyz} key in the {@link XyzProperties}.
  */
 @SuppressWarnings("unused")
 public class XyzNamespace extends JsonObject {
@@ -117,7 +117,7 @@ public class XyzNamespace extends JsonObject {
 
   /**
    * The operation that lead to the current state of the namespace. Should be a value from {@link
-   * Action}.
+   * XyzAction}.
    */
   @JsonProperty(ACTION)
   @JsonInclude(Include.NON_EMPTY)
@@ -293,15 +293,15 @@ public class XyzNamespace extends JsonObject {
   }
 
   @JsonIgnore
-  public @Nullable Action getAction() {
-    return Action.get(action);
+  public @Nullable XyzAction getAction() {
+    return XyzAction.get(action);
   }
 
   public void setAction(@Nullable String action) {
     this.action = action;
   }
 
-  public void setAction(@NotNull Action action) {
+  public void setAction(@NotNull XyzAction action) {
     this.action = action.toString();
   }
 
@@ -310,7 +310,7 @@ public class XyzNamespace extends JsonObject {
     return this;
   }
 
-  public @NotNull XyzNamespace withAction(@NotNull Action action) {
+  public @NotNull XyzNamespace withAction(@NotNull XyzAction action) {
     setAction(action);
     return this;
   }
@@ -574,12 +574,12 @@ public class XyzNamespace extends JsonObject {
 
   @JsonIgnore
   public boolean isDeleted() {
-    return Action.DELETE.equals(getAction());
+    return XyzAction.DELETE.equals(getAction());
   }
 
   public void setDeleted(boolean deleted) {
     if (deleted) {
-      setAction(Action.DELETE);
+      setAction(XyzAction.DELETE);
     }
   }
 

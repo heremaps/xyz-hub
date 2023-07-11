@@ -20,13 +20,13 @@ package com.here.naksha.lib.psql;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.geojson.implementation.Properties;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /** A PostgresQL database configuration as used by the {@link PsqlStorage}. */
 @AvailableSince(INaksha.v2_0_0)
-public class PsqlStorageProperties extends Properties {
+public class PsqlStorageProperties extends XyzProperties {
 
   @AvailableSince(INaksha.v2_0_0)
   public static final String CONFIG = "config";

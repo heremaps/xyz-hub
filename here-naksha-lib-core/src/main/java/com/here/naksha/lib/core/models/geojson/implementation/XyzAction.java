@@ -24,9 +24,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** The actions that are supported by Naksha. */
-public final class Action {
+public final class XyzAction {
 
-  private Action(@NotNull String action) {
+  private XyzAction(@NotNull String action) {
     value = action;
   }
 
@@ -39,7 +39,7 @@ public final class Action {
    * @return the action instance matching or {@code null}.
    */
   @JsonCreator
-  public static @Nullable Action get(@Nullable String value) {
+  public static @Nullable XyzAction get(@Nullable String value) {
     if (value != null) {
       // Note:
       if (CREATE.value.equalsIgnoreCase(value)) {
@@ -59,19 +59,19 @@ public final class Action {
    * The feature has just been created, the {@link XyzNamespace#getVersion() version} will be {@code
    * 1}.
    */
-  public static final Action CREATE = new Action("CREATE");
+  public static final XyzAction CREATE = new XyzAction("CREATE");
 
   /**
    * The feature has been updated, the {@link XyzNamespace#getVersion() version} will be greater
    * than {@code 1}.
    */
-  public static final Action UPDATE = new Action("UPDATE");
+  public static final XyzAction UPDATE = new XyzAction("UPDATE");
 
   /**
    * The feature has been deleted, the {@link XyzNamespace#getVersion() version} will be greater
    * than {@code 1}. No other state with a higher version should be possible.
    */
-  public static final Action DELETE = new Action("DELETE");
+  public static final XyzAction DELETE = new XyzAction("DELETE");
 
   @Override
   public int hashCode() {

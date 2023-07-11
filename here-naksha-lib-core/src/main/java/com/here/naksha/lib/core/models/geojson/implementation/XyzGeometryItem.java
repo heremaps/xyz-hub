@@ -23,14 +23,14 @@ import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.geojson.declaration.IBoundedCoordinates;
 
 @JsonSubTypes({
-  @JsonSubTypes.Type(value = Point.class, name = "Point"),
-  @JsonSubTypes.Type(value = MultiPoint.class, name = "MultiPoint"),
-  @JsonSubTypes.Type(value = LineString.class, name = "LineString"),
-  @JsonSubTypes.Type(value = MultiLineString.class, name = "MultiLineString"),
-  @JsonSubTypes.Type(value = Polygon.class, name = "Polygon"),
-  @JsonSubTypes.Type(value = MultiPolygon.class, name = "MultiPolygon")
+  @JsonSubTypes.Type(value = XyzPoint.class, name = "Point"),
+  @JsonSubTypes.Type(value = XyzMultiPoint.class, name = "MultiPoint"),
+  @JsonSubTypes.Type(value = XyzLineString.class, name = "LineString"),
+  @JsonSubTypes.Type(value = XyzMultiLineString.class, name = "MultiLineString"),
+  @JsonSubTypes.Type(value = XyzPolygon.class, name = "Polygon"),
+  @JsonSubTypes.Type(value = XyzMultiPolygon.class, name = "MultiPolygon")
 })
-public abstract class GeometryItem extends Geometry {
+public abstract class XyzGeometryItem extends XyzGeometry {
 
   public abstract IBoundedCoordinates getCoordinates();
 

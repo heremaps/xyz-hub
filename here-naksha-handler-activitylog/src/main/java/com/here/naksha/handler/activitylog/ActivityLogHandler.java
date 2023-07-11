@@ -26,8 +26,8 @@ import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
-import com.here.naksha.lib.core.models.geojson.implementation.FeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
@@ -59,7 +59,7 @@ public class ActivityLogHandler implements IEventHandler {
 
   final @NotNull ActivityLogHandlerParams params;
 
-  protected static void toActivityLogFormat(@NotNull Feature feature, @Nullable Feature oldFeature) {
+  protected static void toActivityLogFormat(@NotNull XyzFeature feature, @Nullable XyzFeature oldFeature) {
     final XyzActivityLog xyzActivityLog = new XyzActivityLog();
     final Original original = new Original();
     final ObjectMapper mapper = new ObjectMapper();
@@ -95,7 +95,7 @@ public class ActivityLogHandler implements IEventHandler {
     // InvalidatedAt can be ignored for now.
   }
 
-  protected static void fromActivityLogFormat(@NotNull Feature activityLogFeature) {
+  protected static void fromActivityLogFormat(@NotNull XyzFeature activityLogFeature) {
     final XyzActivityLog xyzActivityLog = activityLogFeature.getProperties().getXyzActivityLog();
     final XyzNamespace xyzNamespace = activityLogFeature.getProperties().getXyzNamespace();
     if (xyzNamespace != null) {
@@ -134,14 +134,14 @@ public class ActivityLogHandler implements IEventHandler {
     // TODO: If necessary, perform pre-processing.
     // event.addOldFeatures() <-- we need to see
     XyzResponse response = eventContext.sendUpstream(event);
-    if (response instanceof FeatureCollection collection) {
+    if (response instanceof XyzFeatureCollection collection) {
       // TODO: Post-process the features so that they match the new stuff.
-      final List<Feature> oldFeatures = collection.getOldFeatures();
-      final List<@NotNull Feature> readFeatures = collection.getFeatures();
+      final List<XyzFeature> oldFeatures = collection.getOldFeatures();
+      final List<@NotNull XyzFeature> readFeatures = collection.getFeatures();
       for (int i = 0; i < readFeatures.size(); i++) {
         // TODO: Improve
-        final Feature feature = readFeatures.get(i);
-        final Feature oldFeature = oldFeatures.get(i);
+        final XyzFeature feature = readFeatures.get(i);
+        final XyzFeature oldFeature = oldFeatures.get(i);
         toActivityLogFormat(feature, oldFeature);
       }
     }

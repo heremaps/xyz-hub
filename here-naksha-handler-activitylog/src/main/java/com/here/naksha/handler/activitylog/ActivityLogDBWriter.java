@@ -21,7 +21,7 @@ package com.here.naksha.handler.activitylog;
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.naksha.lib.core.models.geojson.implementation.Feature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.psql.PsqlDataSource;
 import java.sql.Connection;
@@ -80,8 +80,8 @@ public class ActivityLogDBWriter {
             if (result != null) {
               while (result.next()) {
                 try {
-                  Feature activityLogFeature =
-                      JsonSerializable.deserialize(result.getString(1), Feature.class);
+                  XyzFeature activityLogFeature =
+                      JsonSerializable.deserialize(result.getString(1), XyzFeature.class);
                   geoList.add(result.getString(2));
                   iList.add(result.getInt(3));
                   ActivityLogHandler.fromActivityLogFormat(activityLogFeature);
