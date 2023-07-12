@@ -489,7 +489,9 @@ public class JDBCExporter extends JDBCClients{
     { 
       String tcast = "text";
 
-      if( o instanceof Integer || o instanceof Long)
+      if( o instanceof String )
+       tcast = "text";
+      else if( o instanceof Integer || o instanceof Long)
        tcast = "bigint";
       else if ( o instanceof Float || o instanceof Double ) 
        tcast = "double precision";
@@ -499,6 +501,8 @@ public class JDBCExporter extends JDBCClients{
        tcast = "text[]";
       else if (o instanceof Character[])
        tcast = "char[]";
+      else if( o instanceof Integer[] || o instanceof Long[] )
+       tcast = "bigint[]";
       else if ( o instanceof Float[] || o instanceof Double[] ) 
        tcast = "double precision[]";
 
