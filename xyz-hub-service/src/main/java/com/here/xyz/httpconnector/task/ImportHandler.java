@@ -63,7 +63,7 @@ public class ImportHandler extends JobHandler{
     }
 
     public static Future<Job> execute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                          boolean enableHashedSpaceId, boolean enableUUID, Marker marker){
+                                          boolean enableHashedSpaceId, boolean enableUUID, int urlCount, Marker marker){
 
         Promise<Job> p = Promise.promise();
 
@@ -81,7 +81,9 @@ public class ImportHandler extends JobHandler{
                                 p.fail(new HttpException(NOT_IMPLEMENTED,"NA"));
                                 return;
                             case CREATEUPLOADURL:
-                                importJob.addImportObject(CService.jobS3Client.generateUploadURL(importJob));
+                                for (int i = 0; i < urlCount; i++) {
+                                    importJob.addImportObject(CService.jobS3Client.generateUploadURL(importJob));
+                                }
 
                                 CService.jobConfigClient.update(marker, importJob)
                                         .onFailure( t-> p.fail(new HttpException(BAD_GATEWAY, t.getMessage())))
