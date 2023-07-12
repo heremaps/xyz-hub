@@ -64,6 +64,70 @@ import org.jetbrains.annotations.Nullable;
 @SuppressWarnings("unused")
 public final class Json implements AutoCloseable {
 
+  private static final String[] ESCAPE = new String[] {
+    "\\u0000", // null
+    "\\u0001", // start of heading
+    "\\u0002", // start of text
+    "\\u0003", // end of text
+    "\\u0004", // end of transmission
+    "\\u0005", // enquiry
+    "\\u0006", // ack
+    "\\u0007", // bell
+    "\\u0008", // backspace
+    "\\t", // tab
+    "\\n", // linefeed
+    "\\u000b", // vertical tab
+    "\\u000c", // form feed (new page)
+    "\\r", // carriage return
+    "\\u000e", // shift out
+    "\\u000f", // shift in
+    "\\u0010", // data link escape
+    "\\u0011", // device control 1
+    "\\u0012", // device control 2
+    "\\u0013", // device control 3
+    "\\u0014", // device control 4
+    "\\u0015", // negative acknowledge
+    "\\u0016", // idle
+    "\\u0017", // end of transaction block
+    "\\u0018", // cancel
+    "\\u0019", // end of medium
+    "\\u001a", // substitute
+    "\\u001b", // escape
+    "\\u001c", // file separator
+    "\\u001d", // group separator
+    "\\u001e", // record separator
+    "\\u001f" // unit separator
+  };
+
+  /**
+   * Escapes a string into JSON encoding.
+   *
+   * @param text the text to be escaped.
+   * @param sb the string-builder into which to add the escaped string; if {@code null}, then a new string builder is created.
+   * @return the string builder with the escaped string.
+   */
+  public static @NotNull StringBuilder toJsonString(final @NotNull CharSequence text, @Nullable StringBuilder sb) {
+    if (sb == null) {
+      sb = new StringBuilder();
+    }
+    final int length = text.length();
+    sb.append('"');
+    for (int i = 0; i < length; i++) {
+      final char c = text.charAt(i);
+      if (c == '"') {
+        sb.append('\\').append('"');
+      } else if (c == '\\') {
+        sb.append('\\').append('\\');
+      } else if (c < ESCAPE.length) {
+        sb.append(ESCAPE[c]);
+      } else {
+        sb.append(c);
+      }
+    }
+    sb.append('"');
+    return sb;
+  }
+
   /**
    * If this property set to {@code true}, then all serialization will be done in pretty-print.
    */
