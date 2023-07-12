@@ -55,8 +55,6 @@ import com.here.xyz.psql.query.ExtendedSpace;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.query.helpers.FetchExistingIds;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
-import com.here.xyz.psql.query.helpers.TableExists;
-import com.here.xyz.psql.query.helpers.TableExists.Table;
 import com.here.xyz.psql.query.helpers.versioning.GetNextVersion;
 import com.here.xyz.psql.query.helpers.versioning.SetVersion;
 import com.here.xyz.psql.query.helpers.versioning.SetVersion.SetVersionInput;
@@ -85,6 +83,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -521,8 +520,10 @@ public abstract class DatabaseHandler extends StorageConnector {
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
 
+        List<String> originalInserts = inserts.stream().map(Feature::getId).collect(Collectors.toList());
         List<String> originalUpdates = updates.stream().map(Feature::getId).collect(Collectors.toList());
         List<String> originalDeletes = new ArrayList<>(deletes.keySet());
+
         //Handle deletes / updates on extended spaces
         if (isForExtendingSpace(event) && event.getContext() == DEFAULT) {
             if (!deletes.isEmpty()) {
@@ -545,6 +546,33 @@ public abstract class DatabaseHandler extends StorageConnector {
                   }
                 }
             }
+
+            // TODO in case LFE updates the behaviour to include "hidden" features from composite spaces, the below statement is invalid
+            if (!inserts.isEmpty()) {
+              // transform the incoming inserts into upserts when the feature is marked in the database as "deleted"
+              if (event.getVersionsToKeep() == 1) {
+                List<String> existingIds = new FetchExistingIds(new FetchIdsInput(table, originalInserts), this).run();
+
+                /*
+                 * The inserts, updates and deletes are populated according to the existence of the feature on LFE,
+                 * When the space is extended, the feature may have been marked as "deleted" by the operations H or J,
+                 * respectively INSERT_HIDE_COMPOSITE and UPDATE_HIDE_COMPOSITE. In this case, the feature is not loaded during LFE.
+                 *
+                 * This means, from the user's perspective, the insertion of a feature with the same ID means an insert.
+                 * However, for the system, when using the v2k=1 (one row per feature) the operation to be performed is an update.
+                 * Converting the existing "hidden" feature (operations H or J), into a new (as of new) feature with the same previous ID
+                 * and operations = I (insert).
+                 */
+                for (Iterator<Feature> it = inserts.iterator(); it.hasNext();) {
+                  Feature feature = it.next();
+                  if (existingIds.contains(feature.getId())) {
+                    upserts.add(feature);
+                    it.remove();
+                  }
+                }
+              }
+            }
+
             if (!updates.isEmpty()) {
                 //Transform the incoming updates into upserts, because we don't know whether the object is existing in the extension already
                 upserts.addAll(updates);
