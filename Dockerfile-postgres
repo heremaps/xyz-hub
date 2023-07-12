@@ -19,3 +19,17 @@ psql -a -d postgres -U postgres -c \"SELECT pg_reload_conf();\" > /dev/null \n\
 " > /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
 
 RUN chmod 755 /docker-entrypoint-initdb.d/cfg_s3_dummy.sh
+
+#Increase Database Loglevel 
+RUN echo "#!/bin/sh -e\n\
+\n\n\
+sed -i.org \
+ -e \"s/#log_min_messages = warning/log_min_messages = info/\" \
+ -e \"s/#log_min_error_statement = error/log_min_error_statement = info/\" \
+ -e \"s/#log_statement = 'none'/log_statement = 'all'/\" \
+ /var/lib/postgresql/data/postgresql.conf\n\n\
+\n\n\
+" > /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh
+
+RUN chmod 755 /docker-entrypoint-initdb.d/cfg_postgresql.conf.sh
+
