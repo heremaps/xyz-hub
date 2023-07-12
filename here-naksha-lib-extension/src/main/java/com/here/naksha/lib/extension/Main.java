@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.extension;
 
+import com.here.naksha.lib.core.NakshaContext;
 import java.io.IOException;
 
 public class Main {
@@ -25,7 +26,9 @@ public class Main {
   static RemoteExtensionServer remoteExtensionServer;
 
   public static void main(String... args) throws IOException {
-    remoteExtensionServer = new RemoteExtensionServer(Integer.parseInt(args[0]));
+    final int port = Integer.parseInt(args[0]);
+    NakshaContext.currentLogger().info(String.format("Starting Naksha extension server on port %d"),port);
+    remoteExtensionServer = new RemoteExtensionServer(port);
     final ShutdownHook shutdownHook = new ShutdownHook();
     Runtime.getRuntime().addShutdownHook(new Thread(shutdownHook));
   }
@@ -39,6 +42,7 @@ public class Main {
       } catch (IOException e) {
       }
       remoteExtensionServer.stop();
+      NakshaContext.currentLogger().warn("Shutdown hook invoked.");
       System.out.println("Shutdown hook invoked.");
     }
   }

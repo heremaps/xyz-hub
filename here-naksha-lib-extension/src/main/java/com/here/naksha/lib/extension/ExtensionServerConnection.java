@@ -20,6 +20,7 @@ package com.here.naksha.lib.extension;
 
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.extension.NakshaExtSocket;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
 import com.here.naksha.lib.core.extension.messages.ProcessEventMsg;
@@ -49,12 +50,14 @@ class ExtensionServerConnection extends Thread implements IEventContext {
       msg = nakshaExtSocket.readMessage();
       if (msg instanceof ProcessEventMsg processEvent) {
         event = processEvent.event;
+        NakshaContext.currentLogger().info(String.format("Handling event with streamID %s",event.getStreamId()));
         final IEventHandler handler =
             Objects.requireNonNull(processEvent.connector).newInstance();
         final XyzResponse response = handler.processEvent(this);
         nakshaExtSocket.sendMessage(new ResponseMsg(response));
       }
     } catch (Exception e) {
+      NakshaContext.currentLogger().error(e.toString());
       e.printStackTrace();
     } finally {
       nakshaExtSocket.close();

@@ -19,6 +19,7 @@
 package com.here.naksha.lib.extension;
 
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaContext;
 import java.io.IOException;
 import java.net.ServerSocket;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -61,11 +62,13 @@ public class RemoteExtensionServer {
           new ExtensionServerConnection(serverSocket.accept());
         }
       } catch (Exception e) {
+        NakshaContext.currentLogger().error(String.format("Unexpected error: %s",e));
       }
     }
     try {
       serverSocket.close();
     } catch (IOException e) {
+      NakshaContext.currentLogger().warn(String.format("Failed to gracefully close the server socket: %s",e));
     }
   }
 }
