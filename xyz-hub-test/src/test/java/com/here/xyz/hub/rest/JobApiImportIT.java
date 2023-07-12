@@ -20,6 +20,7 @@ package com.here.xyz.hub.rest;
 
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.junit.After;
 import org.junit.Before;
@@ -32,6 +33,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 
@@ -136,6 +138,84 @@ public class JobApiImportIT extends JobApiIT {
                 .get("/spaces/" + testSpace +"/search")
                 .then()
                 .body("features.size()", equalTo(1));
+
+        /** Delete Job */
+        deleteJob(testImportJobId, testSpace);
+    }
+
+    @Test
+    public void validMultiUrlImport() throws Exception {
+
+        /** Create job */
+        createTestJobWithId(testSpace, testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+
+        /** Create single Upload URL */
+        String resp1 = given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post("/spaces/" + testSpace + "/job/"+testImportJobId+"/execute?command=createUploadUrl")
+                .getBody().asString();
+        String url = new JsonObject(resp1).getString("url");
+        uploadDummyFile(new URL(url), 0);
+
+        /** Create multiple upload URLs */
+        int urlCount = 2;
+        String resp2 = given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post("/spaces/" + testSpace + "/job/"+testImportJobId+"/execute?command=createUploadUrl&urlCount="+urlCount)
+                .getBody().asString();
+        JsonArray urls = new JsonObject(resp2).getJsonArray("urls");
+        assertEquals(urlCount, urls.size());
+
+        for(int i=0; i<urls.size(); i++)
+            uploadDummyFile(new URL(urls.getString(i)), 0);
+
+        /** Create single Upload URL */
+        String resp3 = given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post("/spaces/" + testSpace + "/job/"+testImportJobId+"/execute?command=createUploadUrl")
+                .getBody().asString();
+        urls = new JsonObject(resp3).getJsonArray("urls");
+        assertEquals(1, urls.size());
+        uploadDummyFile(new URL(urls.getString(0)), 0);
+
+        /** Check import objects size */
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .get("/spaces/" + testSpace + "/job/"+testImportJobId)
+                .then()
+                .statusCode(OK.code())
+                .body("importObjects.size()", equalTo(4));
+
+
+        /** start import */
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post("/spaces/" + testSpace + "/job/"+testImportJobId+"/execute?command=start")
+                .then()
+                .statusCode(NO_CONTENT.code());
+
+        /** Poll status */
+        pollStatus(testSpace, testImportJobId, Job.Status.finalized, Job.Status.failed);
+
+        /** Check Feature in Space */
+        given()
+                .accept(APPLICATION_GEO_JSON)
+                .contentType(APPLICATION_GEO_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+                .when()
+                .get("/spaces/" + testSpace +"/search")
+                .then()
+                .body("features.size()", equalTo(4));
 
         /** Delete Job */
         deleteJob(testImportJobId, testSpace);
