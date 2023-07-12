@@ -20,6 +20,7 @@ package com.here.naksha.lib.core.models;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
+import com.here.naksha.lib.core.lambdas.Fe1;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Enumeration;
@@ -53,40 +54,49 @@ public final class PluginCache {
    * @param <API> the API-type.
    * @param <PARAM> the parameter-type.
    * @return the constructor.
-   * @throws ClassNotFoundException if no such class exists, or the class does not implement the
-   *     requested API.
+   * @throws ClassNotFoundException if no such class exists.
    * @throws NoSuchMethodException if the class does not have the required constructor.
+   * @throws ClassCastException if the class does not implement the API.
    */
-  public static <API, PARAM> @NotNull Constructor<API> get(
-      @NotNull String className, @NotNull Class<API> apiClass, @NotNull Class<PARAM> paramClass)
-      throws ClassNotFoundException, NoSuchMethodException {
+  @SuppressWarnings("unchecked")
+  public static <API, PARAM> @NotNull Fe1<API, PARAM> get(
+      final @NotNull String className, final @NotNull Class<API> apiClass, final @NotNull Class<PARAM> paramClass)
+      throws ClassNotFoundException, NoSuchMethodException, ClassCastException {
     Object raw = instance.cache.get(className);
+    if (raw instanceof Fe1<?, ?> constructor) {
+      return (Fe1<API, PARAM>) constructor;
+    }
     if (raw == null) {
       try {
         final Class<?> theClass = Class.forName(className);
         if (!apiClass.isAssignableFrom(theClass)) {
           raw = API_NOT_SUPPORTED;
         } else {
-          // TODO: We can use any constructor that uses directly paramClass or any of its super classes!
-          // TODO: If there is only a parameterless constructor, use it!
-          raw = theClass.getConstructor(paramClass);
+          try {
+            final Constructor<?> constructor = theClass.getConstructor(paramClass);
+            final Fe1<API, PARAM> function = (param) -> (API) constructor.newInstance(param);
+            instance.cache.putIfAbsent(className, function);
+            return function;
+          } catch (NoSuchMethodException e) {
+            final Constructor<?> constructor = theClass.getConstructor();
+            final Fe1<API, PARAM> function = (param) -> (API) constructor.newInstance();
+            instance.cache.putIfAbsent(className, function);
+            return function;
+          }
         }
       } catch (ClassNotFoundException e) {
         raw = CLASS_NOT_FOUND;
       } catch (NoSuchMethodException e) {
         raw = NO_SUCH_METHOD;
       }
-    }
-    instance.cache.putIfAbsent(className, raw);
-    if (raw instanceof Constructor<?> constructor) {
-      //noinspection unchecked
-      return (Constructor<API>) constructor;
+      assert raw != null;
+      instance.cache.putIfAbsent(className, raw);
     }
     if (raw == NO_SUCH_METHOD) {
       throw new NoSuchMethodException(className + "(" + paramClass.getName() + ")");
     }
     if (raw == API_NOT_SUPPORTED) {
-      throw new ClassNotFoundException(className + " does not implement " + apiClass.getName());
+      throw new ClassCastException(className + " does not implement " + apiClass.getName());
     }
     throw new ClassNotFoundException(className);
   }
@@ -100,20 +110,20 @@ public final class PluginCache {
    * @param <API> the API-type.
    * @param <PARAM> the parameter-type.
    * @return the instance.
-   * @throws ClassNotFoundException if no such class exists, or the class does not implement the
-   *     requested API.
+   * @throws ClassNotFoundException if no such class exists.
+   * @throws ClassCastException if the class does not implement the requested API.
    * @throws NoSuchMethodException if the class does not have the required constructor.
-   * @throws InstantiationException if the creation of the instance fails for internal reasons.
-   * @throws InvocationTargetException if the constructor has thrown an exception, use {@link
-   *     Exception#getCause()} to query it.
+   * @throws InvocationTargetException if the constructor has thrown an exception, use {@link Exception#getCause()} to query it.
    */
   public static <API, PARAM> API newInstance(
       @NotNull String className, @NotNull Class<API> apiClass, @NotNull PARAM parameter)
-      throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException, InstantiationException {
+      throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException {
+    //noinspection unchecked
+    final Fe1<API, PARAM> constructor = get(className, apiClass, (Class<PARAM>) parameter.getClass());
     try {
-      return get(className, apiClass, parameter.getClass()).newInstance(parameter);
-    } catch (IllegalAccessException e) {
-      throw new InstantiationException(e.getMessage());
+      return constructor.call(parameter);
+    } catch (Exception e) {
+      throw new InvocationTargetException(e);
     }
   }
 
