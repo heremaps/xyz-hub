@@ -284,7 +284,11 @@ public class Event extends Payload {
    */
   public @NotNull Space getSpace() throws ParameterError {
     if (space == null && spaceId != null) {
-      space = INaksha.get().spaceReader().getFeatureById(spaceId);
+      try {
+        space = INaksha.get().spaceReader().getFeatureById(spaceId);
+      } catch (Exception e) {
+        throw new ParameterError("Failed to read space: " + spaceId);
+      }
     }
     if (space == null) {
       throw new ParameterError("Missing or invalid spaceId: " + spaceId);

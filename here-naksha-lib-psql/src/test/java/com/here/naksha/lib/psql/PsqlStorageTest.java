@@ -35,7 +35,10 @@ import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.DeleteOp;
 import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicReference;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
@@ -62,14 +65,17 @@ public class PsqlStorageTest {
    * Amount of threads to write features concurrently.
    */
   public static final int THREADS = 10;
+
   /**
    * Amount of features to write in each thread.
    */
   public static final int MANY_FEATURES_COUNT = 10_000;
+
   /**
    * If set to true, then the response of the mass-insertion of features is requested.
    */
   public static final boolean READ_RESPONSE = true;
+
   /**
    * Prevent that the test drops the database at the end (can be used to verify results of write many).
    */
@@ -81,6 +87,28 @@ public class PsqlStorageTest {
 
   static @Nullable PsqlStorage storage;
   static @Nullable PsqlTxWriter tx;
+  // Results in ["aaa", "bbb", ...]
+  static final String[] prefixes = new String[THREADS];
+  static final String[][] ids;
+  static final HashMap<String, String[]> idsByPrefix = new HashMap<>();
+
+  static String id(String prefix, int i) {
+    return String.format("%s_%06d", prefix, i);
+  }
+
+  static {
+    ids = new String[THREADS][MANY_FEATURES_COUNT];
+    for (int p = 0; p < prefixes.length; p++) {
+      final char c = (char) ((int) 'a' + p);
+      final String prefix;
+      prefixes[p] = prefix = "" + c + c + c;
+      final String[] prefixedIds = ids[p];
+      for (int i = 0; i < MANY_FEATURES_COUNT; i++) {
+        prefixedIds[i] = id(prefix, i);
+      }
+      idsByPrefix.put(prefix, prefixedIds);
+    }
+  }
 
   @Test
   @Order(1)
@@ -203,26 +231,32 @@ public class PsqlStorageTest {
 
     InsertionThread(@NotNull String name) {
       super(name);
-      this.name = name;
+      this.ids = idsByPrefix.get(name);
+      assertNotNull(ids);
+      assertEquals(MANY_FEATURES_COUNT, ids.length);
     }
 
-    private final @NotNull String name;
-    Exception e;
+    private final @NotNull String[] ids;
+    final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
     @Override
     @SuppressWarnings("SameParameterValue")
     public void run() {
       try {
+        final ThreadLocalRandom rand = ThreadLocalRandom.current();
         assertNotNull(storage);
         try (final var tx =
             storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
           final PsqlFeatureWriter<XyzFeature> writer =
               tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"));
           final ModifyFeaturesReq<XyzFeature> req = new ModifyFeaturesReq<>(READ_RESPONSE);
-          final @NotNull String[] ids = new String[MANY_FEATURES_COUNT];
           for (int i = 0; i < MANY_FEATURES_COUNT; i++) {
-            ids[i] = String.format("%s_%06d", name, i);
-            req.insert().add(new XyzFeature(ids[i]));
+            final XyzFeature feature = new XyzFeature(ids[i]);
+            final double longitude = rand.nextDouble(-180, +180);
+            final double latitude = rand.nextDouble(-90, +90);
+            final XyzGeometry geometry = new XyzPoint(longitude, latitude);
+            feature.setGeometry(geometry);
+            req.insert().add(feature);
           }
           final ModifyFeaturesResp response = writer.modifyFeatures(req);
           assertNotNull(response);
@@ -242,7 +276,46 @@ public class PsqlStorageTest {
           tx.commit();
         }
       } catch (Exception e) {
-        this.e = e;
+        exceptionRef.set(e);
+      }
+    }
+  }
+
+  static class ReadThread extends Thread {
+
+    ReadThread(@NotNull String prefix) {
+      super(prefix);
+      this.prefix = prefix;
+      this.ids = idsByPrefix.get(prefix);
+      assertNotNull(ids);
+      assertEquals(MANY_FEATURES_COUNT, ids.length);
+    }
+
+    private final String prefix;
+    private final @NotNull String[] ids;
+    final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+
+    @Override
+    @SuppressWarnings("SameParameterValue")
+    public void run() {
+      try {
+        assertNotNull(storage);
+        try (final var tx =
+            storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
+          final PsqlFeatureReader<XyzFeature, PsqlTxReader> reader =
+              tx.readFeatures(XyzFeature.class, new CollectionInfo("foo"));
+          final PsqlResultSet<XyzFeature> rs = reader.getFeaturesById(ids);
+          for (int i = 0; i < MANY_FEATURES_COUNT; i++) {
+            assertTrue(rs.next());
+            assertNotNull(rs.getId());
+            assertTrue(rs.getId().startsWith(prefix));
+            final XyzFeature feature = rs.getFeature();
+            assertNotNull(feature);
+            assertEquals(rs.getId(), feature.getId());
+          }
+        }
+      } catch (Exception e) {
+        exceptionRef.set(e);
       }
     }
   }
@@ -253,12 +326,6 @@ public class PsqlStorageTest {
   void writeManyFeaturesIntoFooCollection() throws Exception {
     assertNotNull(storage);
     assertNotNull(tx);
-    // Results in ["aaa", "bbb", ...]
-    final String[] prefixes = new String[THREADS];
-    for (int i = 0; i < prefixes.length; i++) {
-      final char c = (char) ((int) 'a' + i);
-      prefixes[i] = "" + c + c + c;
-    }
     final InsertionThread[] threads = new InsertionThread[prefixes.length];
     for (int i = 0; i < threads.length; i++) {
       final String name = prefixes[i];
@@ -269,10 +336,36 @@ public class PsqlStorageTest {
     }
     for (final var t : threads) {
       t.join();
+      final Exception exception = t.exceptionRef.get();
+      if (exception != null) {
+        throw exception;
+      }
     }
+    tx.commit();
   }
 
-  // (9) TODO: Read the features
+  @Test
+  @Order(9)
+  @EnabledIf("isEnabled")
+  void readFeaturesFromFooCollection() throws Exception {
+    assertNotNull(tx);
+    final ReadThread[] threads = new ReadThread[prefixes.length];
+    for (int i = 0; i < threads.length; i++) {
+      final String name = prefixes[i];
+      threads[i] = new ReadThread(name);
+    }
+    for (final var t : threads) {
+      t.start();
+    }
+    for (final var t : threads) {
+      t.join();
+      final Exception exception = t.exceptionRef.get();
+      if (exception != null) {
+        throw exception;
+      }
+    }
+    tx.commit();
+  }
 
   @Test
   @Order(10)
@@ -292,7 +385,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(9)
+  @Order(11)
   @EnabledIf("isEnabled")
   void dropCollection() throws Exception {
     assertNotNull(storage);

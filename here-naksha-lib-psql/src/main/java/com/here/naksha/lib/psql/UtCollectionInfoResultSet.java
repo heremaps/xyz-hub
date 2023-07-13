@@ -49,7 +49,7 @@ class UtCollectionInfoResultSet implements ClosableIterator<CollectionInfo> {
   }
 
   private void fetchNext() {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       //noinspection resource
       final ResultSet rs = rs();
       while (next == null && rs.next()) {

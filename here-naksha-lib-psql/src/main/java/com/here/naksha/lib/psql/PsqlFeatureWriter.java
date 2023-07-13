@@ -100,7 +100,7 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
 
   @Override
   public @NotNull ModifyFeaturesResp modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req) throws SQLException {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       final ObjectWriter writer = json.writer(ViewSerialize.Storage.class);
       final ObjectWriter featureWriter = writer.forType(XyzFeature.class);
 

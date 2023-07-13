@@ -50,7 +50,7 @@ public class JsonMappingTest {
 
   @Test
   public void testSerializeFeature() throws Exception {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       final String raw = "{\"type\":\"Feature\", \"id\": \"xyz123\", \"properties\":{\"x\":5}}";
       final XyzFeature obj = json.reader(All.class).readValue(raw, XyzFeature.class);
       assertNotNull(obj);

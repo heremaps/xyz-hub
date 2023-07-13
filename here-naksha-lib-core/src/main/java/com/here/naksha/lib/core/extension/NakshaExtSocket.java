@@ -123,7 +123,7 @@ public class NakshaExtSocket implements AutoCloseable {
       removeHttpHeader();
       isNew = false;
     }
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.reader(ViewDeserialize.Internal.class)
           .forType(ExtensionMessage.class)
           .readValue(in);
@@ -139,7 +139,7 @@ public class NakshaExtSocket implements AutoCloseable {
       }
       isNew = false;
     }
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       json.writer(ViewSerialize.Internal.class).writeValue(out, msg);
       out.flush();
     }

@@ -50,7 +50,7 @@ public class EventTest {
 
   @Test
   public void testClone() throws Exception {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       final Event event = json.reader(User.class).readValue(eventJson, Event.class);
       final Event clone = JsonSerializable.deepClone(event);
 
@@ -65,7 +65,7 @@ public class EventTest {
 
   @Test
   public void testDeepCopy() throws Exception {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       final Event event = json.reader(User.class).readValue(eventJson, Event.class);
       final Event clone = JsonSerializable.deepClone(event);
 

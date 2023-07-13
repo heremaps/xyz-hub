@@ -61,7 +61,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
       stmt.setBoolean(3, collection.getHistory());
       final ResultSet rs = stmt.executeQuery();
       rs.next();
-      try (final Json json = Json.open()) {
+      try (final Json json = Json.get()) {
         return json.reader(ViewDeserialize.Storage.class)
             .forType(CollectionInfo.class)
             .readValue(rs.getString(1));
@@ -94,7 +94,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
       stmt.setString(1, collection.getId());
       final ResultSet rs = stmt.executeQuery();
       rs.next();
-      try (final var json = Json.open()) {
+      try (final var json = Json.get()) {
         return json.reader(ViewDeserialize.class)
             .forType(CollectionInfo.class)
             .readValue(rs.getString(1));
@@ -125,6 +125,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    */
   public void commit() throws SQLException {
     try {
+      //noinspection resource
       conn().commit();
     } finally {
       // start a new transaction, this ensures that the app_id and author are set.
@@ -137,19 +138,12 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    */
   public void rollback() {
     try {
+      //noinspection resource
       conn().rollback();
     } catch (SQLException ignore) {
     } finally {
       // start a new transaction, this ensures that the app_id and author are set.
       naksha_tx_start();
     }
-  }
-
-  /**
-   * Close the transaction, which effectively will roll back the transaction.
-   */
-  @Override
-  public void close() {
-    rollback();
   }
 }

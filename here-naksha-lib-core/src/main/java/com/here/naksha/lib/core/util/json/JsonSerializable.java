@@ -56,7 +56,7 @@ public interface JsonSerializable {
   }
 
   static <T extends Typed> String serialize(T object) {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.writer(ViewSerialize.User.class, false).writeValueAsString(object);
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
@@ -64,7 +64,7 @@ public interface JsonSerializable {
   }
 
   static @NotNull String serialize(@Nullable Object object, @NotNull TypeReference<?> typeReference) {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.writer(ViewSerialize.User.class, false)
           .forType(typeReference)
           .writeValueAsString(object);
@@ -85,13 +85,13 @@ public interface JsonSerializable {
   }
 
   static <T> T deserialize(@NotNull InputStream is, @NotNull TypeReference<T> type) throws IOException {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.reader(User.class).forType(type).readValue(is);
     }
   }
 
   static <T> T deserialize(byte @NotNull [] bytes, @NotNull TypeReference<T> type) throws IOException {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.reader(User.class).forType(type).readValue(bytes);
     }
   }
@@ -105,7 +105,7 @@ public interface JsonSerializable {
     // from the lazy raw deserializer.
     // To circumvent that wrap the source string with a custom string reader, which provides access
     // to the input string.
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.reader(User.class).readValue(new ProxyStringReader(string), klass);
     } catch (IOException e) {
       throw new JsonProcessingIoException(e);
@@ -114,7 +114,7 @@ public interface JsonSerializable {
 
   @SuppressWarnings("unused")
   static <T> T deserialize(String string, TypeReference<T> type) throws JsonProcessingException {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.reader(User.class).forType(type).readValue(string);
     }
   }
@@ -149,7 +149,7 @@ public interface JsonSerializable {
     if (object == null) {
       return null;
     }
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       final byte[] bytes = json.writer(ViewSerialize.All.class, false)
           .forType(object.getClass())
           .writeValueAsBytes(object);
@@ -163,19 +163,19 @@ public interface JsonSerializable {
 
   @SuppressWarnings("unused")
   static <T extends JsonSerializable> T fromMap(Map<String, Object> map, Class<T> klass) {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.mapper.convertValue(map, klass);
     }
   }
 
   static <T> @NotNull T fromAnyMap(@NotNull Map<@NotNull String, @Nullable Object> map, @NotNull Class<T> klass) {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.mapper.convertValue(map, klass);
     }
   }
 
   default byte @NotNull [] toByteArray(@NotNull Class<? extends ViewSerialize> viewClass) {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.writer(viewClass).writeValueAsBytes(this);
     } catch (JsonProcessingException e) {
       throw new JsonProcessingFailed(e);
@@ -187,7 +187,7 @@ public interface JsonSerializable {
   }
 
   default @NotNull String serialize(boolean pretty) {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.writer(ViewSerialize.User.class, pretty).writeValueAsString(this);
     } catch (JsonProcessingException e) {
       throw new JsonProcessingFailed(e);
@@ -205,7 +205,7 @@ public interface JsonSerializable {
   }
 
   default Map<String, Object> asMap() {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.mapper.convertValue(this, Map.class);
     }
   }
@@ -221,7 +221,7 @@ public interface JsonSerializable {
    */
   static <TARGET extends JsonObject, OBJECT extends JsonObject> @NotNull TARGET convert(
       @NotNull OBJECT object, @NotNull Class<TARGET> targetClass) {
-    try (final Json json = Json.open()) {
+    try (final Json json = Json.get()) {
       return json.mapper.convertValue(object, targetClass);
     }
   }

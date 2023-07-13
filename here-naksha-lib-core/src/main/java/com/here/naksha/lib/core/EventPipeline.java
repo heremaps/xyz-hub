@@ -136,7 +136,15 @@ public class EventPipeline implements IEventContext {
       if (eventHandlerId == null) {
         throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
       }
-      final Connector eventHandler = INaksha.get().connectorReader().getFeatureById(eventHandlerId);
+      final Connector eventHandler;
+      try {
+        eventHandler = INaksha.get().connectorReader().getFeatureById(eventHandlerId);
+      } catch (Exception e) {
+        throw new XyzErrorException(
+            XyzError.EXCEPTION,
+            "The connector[" + i + "] with id " + eventHandlerId + " failed to read handler",
+            e);
+      }
       if (eventHandler == null) {
         throw new XyzErrorException(
             XyzError.EXCEPTION, "The connector[" + i + "] with id " + eventHandlerId + " does not exists");

@@ -35,6 +35,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.PSQLState;
 
 /**
  * A Naksha PostgresQL transaction that can be used to read data, optionally using a read-replica, if opened as read-only transaction.
@@ -94,21 +96,23 @@ public class PsqlTxReader implements IReadTransaction {
    * @return The underlying PostgresQL connection.
    * @throws IllegalStateException When the connection is closed.
    */
-  public @NotNull Connection conn() {
+  public @NotNull Connection conn() throws SQLException {
     final Connection connection = this.connection;
     if (connection == null) {
-      throw new IllegalStateException("Connection is closed");
+      throw new PSQLException("Connection is closed", PSQLState.CONNECTION_DOES_NOT_EXIST);
     }
     return connection;
   }
 
   @NotNull
   PreparedStatement preparedStatement(@NotNull String sql) throws SQLException {
+    //noinspection resource
     return conn().prepareStatement(sql);
   }
 
   @NotNull
   Statement createStatement() throws SQLException {
+    //noinspection resource
     return conn().createStatement();
   }
 
@@ -117,6 +121,7 @@ public class PsqlTxReader implements IReadTransaction {
    *
    * @return the client to which the transaction is bound.
    */
+  @SuppressWarnings("unused")
   public @NotNull PsqlStorage getPsqlClient() {
     return psqlClient;
   }
@@ -155,13 +160,14 @@ public class PsqlTxReader implements IReadTransaction {
   @Override
   public @Nullable CollectionInfo getCollectionById(@NotNull String id) throws SQLException {
     final String SQL = "SELECT naksha_collection_get(?);";
+    //noinspection resource
     try (final var stmt = conn().prepareStatement(SQL)) {
       stmt.setString(1, id);
       final ResultSet rs = stmt.executeQuery();
       if (rs.next()) {
         final String jsonText = rs.getString(1);
         if (jsonText != null) {
-          try (final Json json = Json.open()) {
+          try (final Json json = Json.get()) {
             return json.reader(ViewDeserialize.Storage.class)
                 .forType(CollectionInfo.class)
                 .readValue(jsonText);
@@ -177,7 +183,6 @@ public class PsqlTxReader implements IReadTransaction {
   @Override
   public @NotNull <F extends XyzFeature> PsqlFeatureReader<F, PsqlTxReader> readFeatures(
       @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) {
-    // TODO: Optimize by tracking the read, no need to create a new instance for every call!
     return new PsqlFeatureReader<>(this, featureClass, collection);
   }
 

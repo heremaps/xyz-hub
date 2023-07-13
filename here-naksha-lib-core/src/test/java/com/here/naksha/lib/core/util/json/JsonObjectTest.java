@@ -178,7 +178,7 @@ class JsonObjectTest {
   void test_serialization() throws JsonProcessingException {
     final TestObject map = new TestObject();
     map.put("newKey", "newValue");
-    try (var json = Json.open()) {
+    try (var json = Json.get()) {
       final String s = json.writer(ViewSerialize.User.class, false).writeValueAsString(map);
       assertEquals(SERIALIZED, s);
     }
@@ -186,7 +186,7 @@ class JsonObjectTest {
 
   @Test
   void test_deserialization() throws IOException {
-    try (var json = Json.open()) {
+    try (var json = Json.get()) {
       final TestObject map = json.reader(User.class).readValue(SERIALIZED, TestObject.class);
       assertEquals(3, map.size());
       Object foo = map.get("foo");

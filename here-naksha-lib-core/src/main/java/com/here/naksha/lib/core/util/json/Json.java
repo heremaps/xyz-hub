@@ -19,7 +19,6 @@
 package com.here.naksha.lib.core.util.json;
 
 import static com.fasterxml.jackson.databind.MapperFeature.DEFAULT_VIEW_INCLUSION;
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -35,11 +34,11 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
-import com.here.naksha.lib.core.view.ViewDeserialize.All;
 import com.here.naksha.lib.core.view.ViewSerialize;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.PrecisionModel;
 import com.vividsolutions.jts.io.WKBReader;
+import com.vividsolutions.jts.io.WKBWriter;
 import java.lang.ref.WeakReference;
 import java.util.Formatter;
 import java.util.HashMap;
@@ -167,15 +166,19 @@ public final class Json implements AutoCloseable {
         .configure(SerializationFeature.CLOSE_CLOSEABLE, false)
         .addModule(new JsonModule())
         .build();
-    this.serialize = ViewSerialize.All.class;
-    this.deserialize = All.class;
     this.wkbReader = new WKBReader(new GeometryFactory(new PrecisionModel(), 4326));
+    this.wkbWriter = new WKBWriter(3);
   }
 
   /**
    * The WKB reader for PostgresQL.
    */
   public final @NotNull WKBReader wkbReader;
+
+  /**
+   * The WKB writer for PostgresQL.
+   */
+  public final @NotNull WKBWriter wkbWriter;
 
   /**
    * The weak reference to this.
@@ -188,31 +191,16 @@ public final class Json implements AutoCloseable {
   private @Nullable Json next;
 
   /**
-   * If the same instance opened multiple times.
-   */
-  private int openCount;
-
-  /**
    * The Jackson mapper.
    */
   final @NotNull ObjectMapper mapper;
-
-  /**
-   * The serialization view to use.
-   */
-  private @NotNull Class<? extends ViewSerialize> serialize;
-
-  /**
-   * The deserialization view to use.
-   */
-  private @NotNull Class<? extends ViewDeserialize> deserialize;
 
   /**
    * Return a new dedicated thread local Json parser instance. Can be used recursive.
    *
    * @return The Json instance.
    */
-  public static @NotNull Json open() {
+  public static @NotNull Json get() {
     final JsonWeakRef weakRef = idleCache.get();
     Json json = null;
     if (weakRef != null) {
@@ -220,28 +208,9 @@ public final class Json implements AutoCloseable {
     }
     if (json != null) {
       idleCache.set(json.next != null ? json.next.weakRef : null);
-    } else {
-      json = new Json();
+      return json.reset();
     }
-    json.next = current.get();
-    current.set(json);
-    json.openCount++;
-    return json.reset();
-  }
-
-  /**
-   * If the current thread uses a Json parser instance, acquired by the caller, incrementing the open counter, and returning the same
-   * instance. Otherwise, create a new Json parser instance, or reusing an unused one, and return it.
-   *
-   * @return a Json instance.
-   */
-  public static @NotNull Json reuse() {
-    Json json = current.get();
-    if (json != null) {
-      json.openCount++;
-      return json;
-    }
-    return open();
+    return new Json();
   }
 
   /**
@@ -255,36 +224,15 @@ public final class Json implements AutoCloseable {
 
   @Override
   public void close() {
-    if (--openCount <= 0) {
-      current.set(next);
-      if (openCount < 0) {
-        currentLogger().warn("Released a Json instance too often", new IllegalStateException());
-      } else {
-        final JsonWeakRef weakRef = idleCache.get();
-        next = weakRef != null ? weakRef.get() : null;
-        idleCache.set(this.weakRef);
-      }
-    }
-  }
-
-  /**
-   * Returns the amount of references open to this Json parser instance.
-   *
-   * @return The amount of references open to this Json parser instance.
-   */
-  public int openCount() {
-    return openCount;
+    final JsonWeakRef weakRef = idleCache.get();
+    next = weakRef != null ? weakRef.get() : null;
+    idleCache.set(this.weakRef);
   }
 
   /**
    * The thread local cache with unused Json instances.
    */
   private static final ThreadLocal<@Nullable JsonWeakRef> idleCache = new ThreadLocal<>();
-
-  /**
-   * The currently used Json instance; if any.
-   */
-  private static final ThreadLocal<@Nullable Json> current = new ThreadLocal<>();
 
   private final HashMap<@NotNull Class<? extends ViewDeserialize>, @NotNull ObjectReader> readers = new HashMap<>();
   private final HashMap<@NotNull Class<? extends ViewSerialize>, @NotNull ObjectWriter> writers = new HashMap<>();

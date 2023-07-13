@@ -33,17 +33,38 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
    *
    * @param id the identifier.
    * @return the feature or null, if no such feature exists.
+   * @throws Exception if any error occurred.
    */
   @Nullable
-  FEATURE getFeatureById(@NotNull String id);
+  default FEATURE getFeatureById(@NotNull String id) throws Exception {
+    try (final IResultSet<FEATURE> rs = getFeaturesById(id)) {
+      if (rs.next()) {
+        return rs.getFeature();
+      }
+      return null;
+    }
+  }
 
   /**
-   * Returns a list of features with the given identifier from the HEAD collection.
+   * Returns a result reader for all features with the given identifier from the HEAD collection. Beware that the returned result-set has no
+   * specific order and may contain fewer features than requested.
    *
    * @param ids the identifiers of the features to read.
-   * @return the list of read features, the order is insignificant. Features that where not found, are simply not part of the result-set.
-   * @throws Exception if access to the storage failed or any other error occurred.
+   * @return the result-reader.
+   * @throws Exception if any error occurred.
+   */
+  default @NotNull IResultSet<FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids) throws Exception {
+    return getFeaturesById(ids.toArray(new String[0]));
+  }
+
+  /**
+   * Returns a result reader for all features with the given identifier from the HEAD collection. Beware that the returned result-set has no
+   * specific order and may contain fewer features than requested.
+   *
+   * @param ids the identifiers of the features to read.
+   * @return the result-reader.
+   * @throws Exception if any error occurred.
    */
   @NotNull
-  List<@NotNull FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids) throws Exception;
+  IResultSet<FEATURE> getFeaturesById(@NotNull String... ids) throws Exception;
 }
