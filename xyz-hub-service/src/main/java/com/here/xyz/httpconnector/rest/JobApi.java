@@ -37,7 +37,9 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
@@ -116,7 +118,7 @@ public class JobApi extends Api {
     boolean enableUUID = HQuery.getBoolean(context, HQuery.ENABLED_UUID , true);
     ContextAwareEvent.SpaceContext _context = HApiParam.Query.getContext(context);
     ApiParam.Query.Incremental incremental = HApiParam.Query.getIncremental(context);
-
+    int urlCount = HQuery.getInteger(context, HQuery.URL_COUNT, 1);
     String[] params = HApiParam.HQuery.parseMainParams(context);
 
     if(command == null) {
@@ -126,7 +128,7 @@ public class JobApi extends Api {
 
     String jobId = context.pathParam(Path.JOB_ID);
 
-    JobHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, enableUUID, incremental, _context, Api.Context.getMarker(context))
+    JobHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, enableUUID, incremental, urlCount, _context, Api.Context.getMarker(context))
             .onFailure(t -> this.sendErrorResponse(context, t))
             .onSuccess(job -> {
               switch (command){
@@ -138,11 +140,20 @@ public class JobApi extends Api {
                 case CREATEUPLOADURL:
                   Import importJob = (Import)job;
                   try{
-                    final String latestObject = "part_"+(importJob.getImportObjects().size()-1)+".csv";
+                    HashMap<String,Object> urlObj = new HashMap<>();
+                    List<URL> urlList = new ArrayList<>();
+                    int importObjectsSize = importJob.getImportObjects().size();
 
-                    HashMap<String,URL> urlObj = new HashMap<String,URL>(){{
-                      put("url",importJob.getImportObjects().get(latestObject).getUploadUrl());
-                    }};
+                    for(int i=urlCount; i>0; i--) {
+                      String objectKey = "part_"+(importObjectsSize-i)+".csv";
+                      urlList.add(importJob.getImportObjects().get(objectKey).getUploadUrl());
+                    }
+                    urlObj.put("urls", urlList);
+
+                    // When 'urlCount=1', include "url" along with "urls", for backward compatibility
+                    if(urlCount == 1)
+                      urlObj.put("url",importJob.getImportObjects().get("part_"+(importObjectsSize-1)+".csv").getUploadUrl());
+
                     this.sendResponse(context, CREATED, urlObj);
                   }catch (Exception e){
                     logger.error(Api.Context.getMarker(context), "Unexpected Error during create CREATEUPLOADURL", e);

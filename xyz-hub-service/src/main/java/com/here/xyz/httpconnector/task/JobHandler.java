@@ -103,7 +103,8 @@ public class JobHandler {
     }
 
     public static Future<Job> postExecute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                          boolean enableHashedSpaceId, boolean enableUUID, ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context, Marker marker){
+                                          boolean enableHashedSpaceId, boolean enableUUID, ApiParam.Query.Incremental incremental, int urlCount,
+                                          ContextAwareEvent.SpaceContext _context, Marker marker){
 
         /** Load JobConfig */
         return CService.jobConfigClient.get(marker, jobId)
@@ -115,7 +116,7 @@ public class JobHandler {
                     return Future.succeededFuture(job);
                 }).compose(job -> {
                     if(job instanceof Import)
-                        return ImportHandler.execute(jobId,connectorId,ecps,passphrase,command,enableHashedSpaceId,enableUUID,marker);
+                        return ImportHandler.execute(jobId,connectorId,ecps,passphrase,command,enableHashedSpaceId,enableUUID,urlCount,marker);
                     else //export
                         return ExportHandler.execute(jobId,connectorId,ecps,passphrase,command,enableHashedSpaceId,enableUUID,incremental,_context,marker);
                 });

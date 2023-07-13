@@ -225,6 +225,7 @@ public class JobProxyApi extends Api{
         ContextAwareEvent.SpaceContext _context = ApiParam.Query.getContext(context);
         ApiParam.Query.Incremental incremental = ApiParam.Query.getIncremental(context);
         String command = ApiParam.Query.getString(context, HApiParam.HQuery.H_COMMAND, null);
+        int urlCount = ApiParam.Query.getInteger(context, HApiParam.HQuery.URL_COUNT, 1);
 
         JobAuthorization.authorizeManageSpacesRights(context,spaceId)
                 .onSuccess(auth -> {
@@ -264,7 +265,8 @@ public class JobProxyApi extends Api{
                                                     +"&enableUUID={enableUUID}"
                                                     +"&incremental={incremental}"
                                                     +"&context={context}"
-                                                    +"&command={command}")
+                                                    +"&command={command}"
+                                                    +"&urlCount={urlCount}")
                                                         .replace("{jobId}",jobId)
                                                         .replace("{connectorId}",connector.id)
                                                         .replace("{ecps}",ecps)
@@ -273,7 +275,8 @@ public class JobProxyApi extends Api{
                                                         .replace("{context}",_context.toString().toLowerCase())
                                                         /**deprecated */
                                                         .replace("{enableUUID}","false")
-                                                        .replace("{command}",command);
+                                                        .replace("{command}",command)
+                                                        .replace("{urlCount}",Integer.toString(urlCount));
 
                                             Service.webClient
                                                     .postAbs(postUrl)
