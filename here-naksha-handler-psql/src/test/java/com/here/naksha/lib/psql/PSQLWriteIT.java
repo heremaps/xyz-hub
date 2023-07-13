@@ -232,7 +232,8 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     ModifyFeaturesEvent gsModifyFeaturesEvent = JsonSerializable.deserialize(updateRequest);
     XyzFeatureCollection featureCollection = JsonSerializable.deserialize(response);
     for (int i = 0; i < gsModifyFeaturesEvent.getUpdateFeatures().size(); i++) {
-      XyzFeature expectedFeature = gsModifyFeaturesEvent.getUpdateFeatures().get(i);
+      XyzFeature expectedFeature =
+          gsModifyFeaturesEvent.getUpdateFeatures().get(i);
       XyzFeature actualFeature = featureCollection.getFeatures().get(i);
       Assertions.assertTrue(jsonCompare(expectedFeature.getGeometry(), actualFeature.getGeometry()));
       assertEquals(

@@ -27,7 +27,7 @@ public class Main {
 
   public static void main(String... args) throws IOException {
     final int port = Integer.parseInt(args[0]);
-    NakshaContext.currentLogger().info(String.format("Starting Naksha extension server on port %d"),port);
+    NakshaContext.currentLogger().info(String.format("Starting Naksha extension server on port %d"), port);
     remoteExtensionServer = new RemoteExtensionServer(port);
     final ShutdownHook shutdownHook = new ShutdownHook();
     Runtime.getRuntime().addShutdownHook(new Thread(shutdownHook));

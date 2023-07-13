@@ -1195,9 +1195,12 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
     final XyzFeatureCollection collection = new XyzFeatureCollection();
     collection.setFeatures(new ArrayList<>());
 
-    List<XyzFeature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
-    List<XyzFeature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
-    List<XyzFeature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
+    List<XyzFeature> inserts =
+        Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
+    List<XyzFeature> updates =
+        Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
+    List<XyzFeature> upserts =
+        Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
     Map<String, String> deletes =
         Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
     List<XyzFeatureCollection.ModificationFailure> fails =

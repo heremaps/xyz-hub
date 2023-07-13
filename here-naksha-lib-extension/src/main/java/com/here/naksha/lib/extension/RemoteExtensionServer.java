@@ -62,13 +62,13 @@ public class RemoteExtensionServer {
           new ExtensionServerConnection(serverSocket.accept());
         }
       } catch (Exception e) {
-        NakshaContext.currentLogger().error(String.format("Unexpected error: %s",e));
+        NakshaContext.currentLogger().error(String.format("Unexpected error: %s", e));
       }
     }
     try {
       serverSocket.close();
     } catch (IOException e) {
-      NakshaContext.currentLogger().warn(String.format("Failed to gracefully close the server socket: %s",e));
+      NakshaContext.currentLogger().warn(String.format("Failed to gracefully close the server socket: %s", e));
     }
   }
 }

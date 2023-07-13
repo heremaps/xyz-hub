@@ -50,7 +50,8 @@ class ExtensionServerConnection extends Thread implements IEventContext {
       msg = nakshaExtSocket.readMessage();
       if (msg instanceof ProcessEventMsg processEvent) {
         event = processEvent.event;
-        NakshaContext.currentLogger().info(String.format("Handling event with streamID %s",event.getStreamId()));
+        NakshaContext.currentLogger()
+            .info(String.format("Handling event with streamID %s", event.getStreamId()));
         final IEventHandler handler =
             Objects.requireNonNull(processEvent.connector).newInstance();
         final XyzResponse response = handler.processEvent(this);

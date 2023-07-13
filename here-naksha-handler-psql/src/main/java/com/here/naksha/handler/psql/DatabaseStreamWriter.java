@@ -117,8 +117,9 @@ public class DatabaseStreamWriter extends DatabaseWriter {
           throw new SQLException(e);
         }
 
-        fails.add(
-            new XyzFeatureCollection.ModificationFailure().withId(fId).withMessage(INSERT_ERROR_GENERAL));
+        fails.add(new XyzFeatureCollection.ModificationFailure()
+            .withId(fId)
+            .withMessage(INSERT_ERROR_GENERAL));
         logException(e, processor, LOG_EXCEPTION_INSERT, table);
       }
     }
@@ -245,8 +246,9 @@ public class DatabaseStreamWriter extends DatabaseWriter {
         }
 
       } catch (Exception e) {
-        fails.add(
-            new XyzFeatureCollection.ModificationFailure().withId(fId).withMessage(UPDATE_ERROR_GENERAL));
+        fails.add(new XyzFeatureCollection.ModificationFailure()
+            .withId(fId)
+            .withMessage(UPDATE_ERROR_GENERAL));
         logException(e, processor, LOG_EXCEPTION_UPDATE, table);
       }
     }
