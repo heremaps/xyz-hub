@@ -24,6 +24,7 @@ import static com.here.xyz.models.hub.Space.DEFAULT_VERSIONS_TO_KEEP;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
+import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_DELETED;
 import static com.here.xyz.psql.QueryRunner.SCHEMA;
 import static com.here.xyz.psql.QueryRunner.TABLE;
 
@@ -517,6 +518,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(new ArrayList<>());
         List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(new ArrayList<>());
         List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(new ArrayList<>());
+        List<Feature> reinserts = new ArrayList<>();
+
         Map<String, String> deletes = Optional.ofNullable(event.getDeleteFeatures()).orElse(new HashMap<>());
         List<FeatureCollection.ModificationFailure> fails = Optional.ofNullable(event.getFailed()).orElse(new ArrayList<>());
 
@@ -566,7 +569,7 @@ public abstract class DatabaseHandler extends StorageConnector {
                 for (Iterator<Feature> it = inserts.iterator(); it.hasNext();) {
                   Feature feature = it.next();
                   if (existingIds.contains(feature.getId())) {
-                    upserts.add(feature);
+                    reinserts.add(feature);
                     it.remove();
                   }
                 }
@@ -635,6 +638,9 @@ public abstract class DatabaseHandler extends StorageConnector {
                 }
                 if (updates.size() > 0) {
                     DatabaseWriter.modifyFeatures(this, event, UPDATE, collection, fails, updates, connection, version);
+                }
+                if (reinserts.size() > 0) {
+                    DatabaseWriter.modifyFeatures(this, event, UPDATE_DELETED, collection, fails, reinserts, connection, version);
                 }
 
                 if (event.getTransaction()) {
