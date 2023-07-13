@@ -42,6 +42,7 @@ public class HApiParam extends ApiParam {
         static final String ENABLED_UUID = "enableUUID";
         static final String TARGET_SPACEID = "targetSpaceId";
         public static final String H_COMMAND = "command";
+        public static final String URL_COUNT = "urlCount";
 
         public enum Command {
             START,RETRY,ABORT,CREATEUPLOADURL;
