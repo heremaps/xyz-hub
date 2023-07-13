@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core.util.fib;
 
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Map;
@@ -29,7 +29,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A thread safe entry for the {@link FibSet}, can be used as concurrent hash-map.
  */
-@AvailableSince(INaksha.v2_0_5)
+@AvailableSince(NakshaVersion.v2_0_5)
 @SuppressWarnings("unchecked")
 public class FibMapEntry<K, V> extends FibEntry<K> implements Map.Entry<K, V> {
 
@@ -38,7 +38,7 @@ public class FibMapEntry<K, V> extends FibEntry<K> implements Map.Entry<K, V> {
    *
    * @param key the key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public FibMapEntry(@NotNull K key) {
     super(key);
     this.value = null;
@@ -50,7 +50,7 @@ public class FibMapEntry<K, V> extends FibEntry<K> implements Map.Entry<K, V> {
    * @param key   the key.
    * @param value the value.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public FibMapEntry(@NotNull K key, @Nullable V value) {
     super(key);
     this.value = value;
@@ -59,7 +59,7 @@ public class FibMapEntry<K, V> extends FibEntry<K> implements Map.Entry<K, V> {
   /**
    * The current value.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   @Nullable
   protected Object value;
 
@@ -89,7 +89,7 @@ public class FibMapEntry<K, V> extends FibEntry<K> implements Map.Entry<K, V> {
    * @param value    the new value to set.
    * @return {@code true}, if the operation succeeded; false otherwise.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public boolean compareAndSet(@Nullable V expected, @Nullable V value) {
     return VALUE.compareAndSet(this, expected, value);
   }
@@ -97,7 +97,7 @@ public class FibMapEntry<K, V> extends FibEntry<K> implements Map.Entry<K, V> {
   /**
    * The {@link VarHandle} to the value for atomic operations.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   protected static final @NotNull VarHandle VALUE;
 
   static {

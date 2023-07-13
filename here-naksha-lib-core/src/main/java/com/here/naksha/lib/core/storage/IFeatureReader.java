@@ -18,14 +18,18 @@
  */
 package com.here.naksha.lib.core.storage;
 
+import static com.here.naksha.lib.core.NakshaVersion.v2_0_5;
+
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * API to read features from a collection.
  */
+@AvailableSince(v2_0_5)
 public interface IFeatureReader<FEATURE extends XyzFeature> {
 
   /**
@@ -35,6 +39,7 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
    * @return the feature or null, if no such feature exists.
    * @throws Exception if any error occurred.
    */
+  @AvailableSince(v2_0_5)
   @Nullable
   default FEATURE getFeatureById(@NotNull String id) throws Exception {
     try (final IResultSet<FEATURE> rs = getFeaturesById(id)) {
@@ -53,6 +58,7 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
    * @return the result-reader.
    * @throws Exception if any error occurred.
    */
+  @AvailableSince(v2_0_5)
   default @NotNull IResultSet<FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids) throws Exception {
     return getFeaturesById(ids.toArray(new String[0]));
   }
@@ -65,6 +71,7 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
    * @return the result-reader.
    * @throws Exception if any error occurred.
    */
+  @AvailableSince(v2_0_5)
   @NotNull
   IResultSet<FEATURE> getFeaturesById(@NotNull String... ids) throws Exception;
 }

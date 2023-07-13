@@ -19,7 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IMasterTransaction;
@@ -76,7 +76,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
     throw new UnsupportedOperationException("updateCollection");
   }
 
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public @NotNull CollectionInfo upsertCollection(@NotNull CollectionInfo collection) throws SQLException {
     throw new UnsupportedOperationException("updateCollection");
   }

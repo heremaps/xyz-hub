@@ -26,7 +26,7 @@ class NakshaVersionTest {
 
   @Test
   void test_basics() {
-    NakshaVersion v = NakshaVersion.of(INaksha.v2_0_3);
+    NakshaVersion v = NakshaVersion.of(NakshaVersion.v2_0_3);
     assertNotNull(v);
     assertEquals(2, v.major());
     assertEquals(0, v.minor());

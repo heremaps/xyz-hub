@@ -18,21 +18,21 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** The read API of a transaction. */
-@AvailableSince(INaksha.v2_0_0)
+@AvailableSince(NakshaVersion.v2_0_0)
 public interface IReadTransaction extends AutoCloseable {
   /**
    * Returns the current transaction number, if none has been created yet, creating a new one.
    *
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   String transactionNumber() throws Exception;
 
@@ -43,7 +43,7 @@ public interface IReadTransaction extends AutoCloseable {
   @NotNull
   ITransactionSettings settings();
 
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @Override
   void close();
 
@@ -53,7 +53,7 @@ public interface IReadTransaction extends AutoCloseable {
    * @return the iterator above all storage collections.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   ClosableIterator<@NotNull CollectionInfo> iterateCollections() throws Exception;
 
@@ -64,7 +64,7 @@ public interface IReadTransaction extends AutoCloseable {
    * @return the collection or {@code null}, if no such collection exists.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @Nullable
   CollectionInfo getCollectionById(@NotNull String id) throws Exception;
 

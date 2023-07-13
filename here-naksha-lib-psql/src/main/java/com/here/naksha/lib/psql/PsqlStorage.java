@@ -20,7 +20,6 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 
-import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
@@ -221,7 +220,7 @@ public class PsqlStorage implements IStorage {
   // SELECT pg_catalog.obj_description('xyz_config.transactions'::regclass, 'pg_class');
   // We should simply store the NakshaCollection information in serialized form.
 
-  NakshaVersion latest = INaksha.latest;
+  NakshaVersion latest = NakshaVersion.latest;
 
   /**
    * Ensure that the administration tables exists, and the Naksha extension script installed in the latest version.

@@ -28,7 +28,7 @@ import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.features.Catalog;
 import com.here.naksha.lib.core.models.features.Connector;
@@ -75,7 +75,7 @@ public class XyzFeature extends JsonObject implements Typed {
   public static final String ON_FEATURE_EXISTS = "onFeatureExists";
   public static final String ON_MERGE_CONFLICT = "onMergeConflict";
 
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final String PACKAGES = "packages";
 
   /**
@@ -117,7 +117,7 @@ public class XyzFeature extends JsonObject implements Typed {
   protected @Nullable ConflictResolution onMergeConflict;
 
   /** List of packages to which this feature belongs to; if any. */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @JsonProperty(PACKAGES)
   @JsonInclude(Include.NON_EMPTY)
   private @Nullable List<@NotNull String> packages;
@@ -127,7 +127,7 @@ public class XyzFeature extends JsonObject implements Typed {
    *
    * @param packages the new package list.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public void setPackages(@Nullable List<@NotNull String> packages) {
     this.packages = packages;
   }
@@ -137,7 +137,7 @@ public class XyzFeature extends JsonObject implements Typed {
    *
    * @return the packages this features is part of.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public @NotNull List<@NotNull String> usePackages() {
     List<@NotNull String> packages = this.packages;
     if (packages == null) {
@@ -151,7 +151,7 @@ public class XyzFeature extends JsonObject implements Typed {
    *
    * @return the packages this features is part of.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public @Nullable List<@NotNull String> getPackages() {
     return packages;
   }

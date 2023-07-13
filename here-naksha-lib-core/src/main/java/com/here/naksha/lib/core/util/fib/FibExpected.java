@@ -18,35 +18,35 @@
  */
 package com.here.naksha.lib.core.util.fib;
 
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
 /**
  * Possible special expectations.
  */
-@AvailableSince(INaksha.v2_0_5)
+@AvailableSince(NakshaVersion.v2_0_5)
 public enum FibExpected {
   /**
    * Any value is okay, includes {@link #UNDEFINED} and {@code null}.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   ANY,
 
   /**
    * Expect the absence of the key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   UNDEFINED,
 
   /**
    * Expect that the key exists, but the value does not matter.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   DEFINED,
 
   /**
    * Expect either the absence of a key or the value {@code null}.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   UNDEFINED_OR_NULL
 }

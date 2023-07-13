@@ -21,7 +21,7 @@ package com.here.naksha.lib.core.view;
 // See: https://www.baeldung.com/jackson-json-view-annotation
 
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
 /**
@@ -44,98 +44,98 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
  * annotations, which declare import and export rules. Only for special cases do use individual fine-grained annotations.
  */
 @SuppressWarnings("unused")
-@AvailableSince(INaksha.v2_0_3)
+@AvailableSince(NakshaVersion.v2_0_3)
 public interface ViewMember {
 
   /**
    * The member can be read and written by all authenticated users, is stored in the storage and available for hashing.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   interface User extends Export.User, Import.User, Storage, Hashing {}
 
   /**
    * The member can only be read and written by managers, is stored in the storage and available for hashing.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   interface Manager extends Export.Manager, Import.Manager, Storage, Hashing {}
 
   /**
    * The member can only be read and written by internal trusted components, is stored in the storage and available for hashing.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   interface Internal extends Export.Internal, Import.Internal, Storage, Hashing {}
 
   /**
    * Fine-grained serialization control.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   interface Export {
 
     /**
      * The member is visible to users.
      */
-    @AvailableSince(INaksha.v2_0_3)
+    @AvailableSince(NakshaVersion.v2_0_3)
     interface User extends Export {}
 
     /**
      * The member is visible for managers.
      */
-    @AvailableSince(INaksha.v2_0_3)
+    @AvailableSince(NakshaVersion.v2_0_3)
     interface Manager extends Export {}
 
     /**
      * The member is visible for internal components.
      */
-    @AvailableSince(INaksha.v2_0_3)
+    @AvailableSince(NakshaVersion.v2_0_3)
     interface Internal extends Export {}
 
     /**
      * The member is visible for users, managers and internally.
      */
-    @AvailableSince(INaksha.v2_0_3)
+    @AvailableSince(NakshaVersion.v2_0_3)
     interface All extends User, Manager, Internal {}
   }
 
   /**
    * Fine-grained deserialization control.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   interface Import {
 
     /**
      * Read the member from user input.
      */
-    @AvailableSince(INaksha.v2_0_3)
+    @AvailableSince(NakshaVersion.v2_0_3)
     interface User extends Import {}
 
     /**
      * Read the member from manager input.
      */
-    @AvailableSince(INaksha.v2_0_3)
+    @AvailableSince(NakshaVersion.v2_0_3)
     interface Manager extends Import {}
 
     /**
      * Read the member from internal components.
      */
-    @AvailableSince(INaksha.v2_0_3)
+    @AvailableSince(NakshaVersion.v2_0_3)
     interface Internal extends Import {}
 
     /**
      * Read the member from users, managers and internal components.
      */
-    @AvailableSince(INaksha.v2_0_3)
+    @AvailableSince(NakshaVersion.v2_0_3)
     interface All extends User, Manager, Internal {}
   }
 
   /**
    * The member is present in the storage.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   interface Storage {}
 
   /**
    * If the member should be part of a serialization done for hashing.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   interface Hashing {}
 }

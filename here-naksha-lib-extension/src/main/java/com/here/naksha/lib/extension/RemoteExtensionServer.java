@@ -18,8 +18,8 @@
  */
 package com.here.naksha.lib.extension;
 
-import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.NakshaVersion;
 import java.io.IOException;
 import java.net.ServerSocket;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -27,7 +27,7 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 /**
  * The remote extension server that will be hosted separately from Naksha.
  */
-@AvailableSince(INaksha.v2_0_3)
+@AvailableSince(NakshaVersion.v2_0_3)
 public class RemoteExtensionServer {
 
   ServerSocket serverSocket;

@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.core.storage;
 
+import static com.here.naksha.lib.core.NakshaVersion.v2_0_5;
+
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
@@ -29,6 +31,7 @@ import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.WKBReader;
 import com.vividsolutions.jts.io.WKBWriter;
 import java.util.NoSuchElementException;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -39,6 +42,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * @param <FEATURE> The feature-type.
  */
+@AvailableSince(v2_0_5)
 public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements IResultSet<FEATURE> {
 
   /**
@@ -46,12 +50,15 @@ public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements I
    *
    * @param featureClass the class of the feature-type.
    */
+  @AvailableSince(v2_0_5)
   protected AbstractResultSet(@NotNull Class<FEATURE> featureClass) {
     this.featureClass = featureClass;
     this.json = Json.get();
   }
 
+  @AvailableSince(v2_0_5)
   protected @NotNull Class<FEATURE> featureClass;
+  @AvailableSince(v2_0_5)
   protected @NotNull Json json;
 
   /**
@@ -63,6 +70,7 @@ public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements I
    * @throws NoSuchElementException if no feature loaded.
    * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
+  @AvailableSince(v2_0_5)
   protected @NotNull FEATURE featureOf(@NotNull String jsondata, @Nullable String geo) throws Exception {
     final FEATURE f = json.reader(Storage.class).forType(featureClass).readValue(jsondata);
     if (f == null) {
@@ -75,6 +83,7 @@ public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements I
     return f;
   }
 
+  @AvailableSince(v2_0_5)
   protected @NotNull String jsonOf(@NotNull FEATURE feature) throws Exception {
     final XyzGeometry xyzGeometry = feature.getGeometry();
     feature.setGeometry(null);
@@ -87,6 +96,7 @@ public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements I
     }
   }
 
+  @AvailableSince(v2_0_5)
   protected @Nullable String geometryOf(@NotNull FEATURE feature) throws Exception {
     final XyzGeometry xyzGeometry = feature.getGeometry();
     feature.setGeometry(null);
@@ -103,6 +113,7 @@ public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements I
     }
   }
 
+  @AvailableSince(v2_0_5)
   protected static void assure3d(@NotNull Coordinate @NotNull [] coords) {
     for (final @NotNull Coordinate coord : coords) {
       if (coord.z != coord.z) { // if coord.z is NaN
@@ -111,6 +122,7 @@ public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements I
     }
   }
 
+  @AvailableSince(v2_0_5)
   @SuppressWarnings("ConstantConditions")
   @Override
   public void close() {

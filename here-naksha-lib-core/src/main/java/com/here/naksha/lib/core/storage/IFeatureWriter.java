@@ -18,7 +18,10 @@
  */
 package com.here.naksha.lib.core.storage;
 
+import static com.here.naksha.lib.core.NakshaVersion.v2_0_5;
+
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -26,6 +29,7 @@ import org.jetbrains.annotations.NotNull;
  *
  * @param <FEATURE> the feature-type to modify.
  */
+@AvailableSince(v2_0_5)
 public interface IFeatureWriter<FEATURE extends XyzFeature> extends IFeatureReader<FEATURE> {
 
   /**
@@ -35,6 +39,7 @@ public interface IFeatureWriter<FEATURE extends XyzFeature> extends IFeatureRead
    * @return the modification result with the features that have been inserted, update and deleted.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
+  @AvailableSince(v2_0_5)
   @NotNull
   ModifyFeaturesResp modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req) throws Exception;
 }

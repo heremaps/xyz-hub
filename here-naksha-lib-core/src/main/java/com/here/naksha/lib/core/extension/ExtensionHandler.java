@@ -23,6 +23,7 @@ import static com.here.naksha.lib.core.NakshaContext.currentLogger;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
 import com.here.naksha.lib.core.extension.messages.ProcessEventMsg;
@@ -42,7 +43,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A special proxy-handler that is internally used to forward events to a handler running in lib-extension component.
  */
-@AvailableSince(INaksha.v2_0_3)
+@AvailableSince(NakshaVersion.v2_0_3)
 public class ExtensionHandler implements IEventHandler {
   // extension: 1234
   // className: com.here.dcu.ValidationHandler <-- IEventHandler
@@ -52,7 +53,7 @@ public class ExtensionHandler implements IEventHandler {
    *
    * @param connector the connector that must have a valid extension number.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   public ExtensionHandler(@NotNull Connector connector) {
     final Extension config = INaksha.get().getExtension(connector.getExtension());
     if (config == null) {
@@ -68,7 +69,7 @@ public class ExtensionHandler implements IEventHandler {
    * @param connector the connector that must have a valid extension number.
    * @param config    the configuration to use.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   public ExtensionHandler(@NotNull Connector connector, @NotNull Extension config) {
     this.connector = connector;
     this.config = config;
@@ -77,7 +78,7 @@ public class ExtensionHandler implements IEventHandler {
   private final @NotNull Extension config;
   private final @NotNull Connector connector;
 
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   @Override
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
     final Event event = eventContext.getEvent();

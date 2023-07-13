@@ -18,30 +18,30 @@
  */
 package com.here.naksha.lib.core.util.fib;
 
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
 /**
  * Operations that can be done to a {@link FibSet}.
  */
-@AvailableSince(INaksha.v2_0_5)
+@AvailableSince(NakshaVersion.v2_0_5)
 public enum FibSetOp {
   /**
    * Return existing entry, but do not create, when no entry for the key exists.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   GET(true),
 
   /**
    * Return the existing entry or create a new one, when no entry exists for the key, upgrades references.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   PUT(false),
 
   /**
    * Remove existing entry and return it; if any exists.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   REMOVE(false);
 
   FibSetOp(boolean readOnly) {

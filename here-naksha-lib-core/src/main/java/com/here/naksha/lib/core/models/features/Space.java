@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.Copyright;
 import com.here.naksha.lib.core.models.License;
 import com.here.naksha.lib.core.models.PipelineComponent;
@@ -130,14 +130,14 @@ public final class Space extends PipelineComponent implements Typed {
   /**
    * The catalog identifier.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   @JsonProperty
   private @Nullable String catalogId;
 
   /**
    * The name of the space, must be unique within a given catalog.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   @JsonProperty
   private @NotNull String name;
 

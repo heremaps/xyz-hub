@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.sql.SQLException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -32,15 +32,15 @@ public interface IMasterTransaction extends IReadTransaction {
    *
    * @throws SQLException If any error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   void commit() throws Exception;
 
   /** Abort the transaction, revert all pending changes. */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   void rollback();
 
   /** Rollback everything that is still pending and close the writer. */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @Override
   void close();
 
@@ -51,7 +51,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the created collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo createCollection(@NotNull CollectionInfo collection) throws Exception;
 
@@ -62,7 +62,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the updated collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo updateCollection(@NotNull CollectionInfo collection) throws Exception;
 
@@ -73,7 +73,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the updated or inserted collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo upsertCollection(@NotNull CollectionInfo collection) throws Exception;
 
@@ -86,7 +86,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the dropped collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo deleteCollection(@NotNull CollectionInfo collection, long deleteAt) throws Exception;
 
@@ -97,7 +97,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the dropped collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_4)
+  @AvailableSince(NakshaVersion.v2_0_4)
   @NotNull
   CollectionInfo dropCollection(@NotNull CollectionInfo collection) throws Exception;
 
@@ -108,7 +108,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the modified collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo enableHistory(@NotNull CollectionInfo collection) throws Exception;
 
@@ -119,7 +119,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the modified collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo disableHistory(@NotNull CollectionInfo collection) throws Exception;
 

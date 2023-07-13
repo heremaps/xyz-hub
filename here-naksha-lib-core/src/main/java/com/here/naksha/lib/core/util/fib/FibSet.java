@@ -22,7 +22,7 @@ import static com.here.naksha.lib.core.util.fib.FibSetOp.GET;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.PUT;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.REMOVE;
 
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.F1;
 import com.here.naksha.lib.core.util.ILike;
 import java.lang.invoke.MethodHandles;
@@ -48,7 +48,7 @@ import org.jetbrains.annotations.Nullable;
  * <p>If there is a hash collision, this implementation will perform a linear probing, resulting in rather bad performance and memory
  * allocation behavior. The main idea behind this implementation is to be memory efficient with fair performance.
  */
-@AvailableSince(INaksha.v2_0_5)
+@AvailableSince(NakshaVersion.v2_0_5)
 @SuppressWarnings({"rawtypes", "unused"})
 public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
 
@@ -60,7 +60,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
   /**
    * The <a href="https://www.sciencedirect.com/science/article/pii/S089812210800031X">golden ratio (first 50 digits)</a>.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static final double GOLDEN_RATIO = 1.6180339887498948482045868343656381177203091798058d;
 
   /**
@@ -68,7 +68,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * href="https://keisan.casio.com/calculator">keisan.casio.com</a> and then converted into binary using <a
    * href="https://www.rapidtables.com/convert/number/decimal-to-binary.html">www.rapidtables.com</a>.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static final int MUL32 = 0b10011110001101110111100110111001;
 
   /**
@@ -76,13 +76,13 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * href="https://keisan.casio.com/calculator">keisan.casio.com</a> and then converted into binary using <a
    * href="https://www.rapidtables.com/convert/number/decimal-to-binary.html">www.rapidtables.com</a>.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static final long MUL64 = 0b1001111000110111011110011011100101111111010010100111110000010101L;
 
   /**
    * The default amount of bits to used for each segment.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static final int CAPACITY_bits = 4;
 
   /**
@@ -90,7 +90,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * amount of 16^8 (4,294,967,296, ~4 billion) distinct keys, when combined with the default {@link #CAPACITY_bits}. If that level reached,
    * the table will fall back to linear probing, when hash-codes collide.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static final int MAX_DEPTH = 32 / CAPACITY_bits;
 
   /**
@@ -98,13 +98,13 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * turn the hash into an index, we have to clear the lowest bit, to know the index of the key. We use this opportunity to mask the
    * sign-bit too.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static final int KEY_INDEX_MASK = 0x7ffffffe;
 
   /**
    * Default strong reference type.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static final FibRefType STRONG = new FibRefType() {
 
     @Override
@@ -126,7 +126,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
   /**
    * Default soft-reference type.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static final FibRefType SOFT = new FibRefType() {
 
     @Override
@@ -148,7 +148,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
   /**
    * Default weak-reference type.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static final FibRefType WEAK = new FibRefType() {
 
     @Override
@@ -176,7 +176,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param depth The depth, a value greater than or equal to zero, where zero means (root level).
    * @return The index for the hash in an array of the size 2^bits.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static int indexOf(int hash, int bits, int depth) {
     assert ((depth * bits) + bits) <= 32;
     hash = hash ^ (hash >>> bits);
@@ -189,7 +189,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param array the array.
    * @return The amount of bits that are available for use.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static int capacityBitsOf(Object @NotNull [] array) {
     // length 0 (empty) has 32 trailing zeros: 32 & 31 = 0 bits.
     // length 2 has 1 trailing zero: 1 bit.
@@ -205,7 +205,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    *
    * @param newEntry The constructor for new entries.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public FibSet(@NotNull F1<ENTRY, KEY> newEntry) {
     this.newEntry = newEntry;
     this.root = EMPTY;
@@ -220,7 +220,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
   /**
    * The constructor to create new entries.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   protected @NotNull F1<ENTRY, KEY> newEntry;
 
   /**
@@ -238,7 +238,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    *
    * @return the size.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public int size() {
     final long size = this.entries();
     return size > (long) Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) size;
@@ -250,7 +250,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    *
    * @return the maximal amount of valid references.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public long entries() {
     return this.size;
   }
@@ -261,7 +261,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param op the operation for which to return the root.
    * @return a mutable root.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   protected Object @NotNull [] root(@NotNull FibSetOp op) {
     Object[] root = this.root;
     if (op.readOnly) {
@@ -303,7 +303,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param key the key of the entry to lookup.
    * @return The entry for the given key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public @NotNull ENTRY put(final @NotNull KEY key) {
     final ENTRY entry = _execute(PUT, key, key.hashCode(), STRONG, root(PUT), 0);
     assert entry != null;
@@ -317,7 +317,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param key the key of the entry to lookup.
    * @return The entry for the given key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public @NotNull ENTRY putSoft(final @NotNull KEY key) {
     final ENTRY entry = _execute(PUT, key, key.hashCode(), SOFT, root(PUT), 0);
     assert entry != null;
@@ -330,7 +330,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param key the key of the entry to lookup.
    * @return The entry for the given key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public @NotNull ENTRY putWeak(final @NotNull KEY key) {
     final ENTRY entry = _execute(PUT, key, key.hashCode(), WEAK, root(PUT), 0);
     assert entry != null;
@@ -344,7 +344,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param refType the reference type to the entry.
    * @return The entry or {@code null}, if the set does not contain the key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public @Nullable ENTRY put(final @NotNull KEY key, @NotNull FibRefType refType) {
     return _execute(PUT, key, key.hashCode(), refType, root(PUT), 0);
   }
@@ -355,7 +355,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param key the key of the entry to lookup.
    * @return The entry or {@code null}, if the set does not contain the key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public @Nullable ENTRY get(final @NotNull KEY key) {
     return _execute(GET, key, key.hashCode(), STRONG, root(GET), 0);
   }
@@ -366,7 +366,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param key the key of the entry to lookup.
    * @return The removed entry or {@code null}, if the set did not contain the key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public @Nullable ENTRY remove(final @NotNull KEY key) {
     return _execute(REMOVE, key, key.hashCode(), STRONG, root(REMOVE), 0);
   }
@@ -380,7 +380,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    * @param refType the reference type to the entry.
    * @return The entry or {@code null}, value depends upon state and operation.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public @Nullable ENTRY execute(
       final @NotNull FibSetOp op, final @NotNull KEY key, final @NotNull FibRefType refType) {
     return _execute(op, key, key.hashCode(), refType, root(op), 0);

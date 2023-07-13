@@ -22,7 +22,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -30,22 +30,22 @@ import org.jetbrains.annotations.NotNull;
 /**
  * An extension is an administrative feature that allows to run proprietary code, outside the Naksha-Hub using proprietary libraries.
  */
-@AvailableSince(INaksha.v2_0_3)
+@AvailableSince(NakshaVersion.v2_0_3)
 public class Extension extends XyzFeature {
 
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   public static final String NUMBER = "number";
 
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   public static final String HOST = "host";
 
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   public static final String PORT = "port";
 
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   public static final String CONN_TIMEOUT = "connTimeout";
 
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   public static final String READ_TIMEOUT = "readTimeout";
 
   /**
@@ -54,7 +54,7 @@ public class Extension extends XyzFeature {
    * @param host   the host to contact.
    * @param number the number of the extension.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   @JsonCreator
   public Extension(@JsonProperty(HOST) @NotNull String host, @JsonProperty(NUMBER) int number) {
     this(Integer.toString(number), host, number, number);
@@ -67,7 +67,7 @@ public class Extension extends XyzFeature {
    * @param host   the host to contact.
    * @param number the number of the extension.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   @JsonCreator
   public Extension(
       @JsonProperty(ID) @NotNull String id,
@@ -84,7 +84,7 @@ public class Extension extends XyzFeature {
    * @param port   the port to contact.
    * @param number the number of the extension.
    */
-  @AvailableSince(INaksha.v2_0_3)
+  @AvailableSince(NakshaVersion.v2_0_3)
   @JsonCreator
   public Extension(
       @JsonProperty(ID) @NotNull String id,

@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core.util.fib;
 
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import java.lang.ref.Reference;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -26,7 +26,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A {@link FibSet} reference type.
  */
-@AvailableSince(INaksha.v2_0_5)
+@AvailableSince(NakshaVersion.v2_0_5)
 public interface FibRefType {
 
   /**
@@ -35,7 +35,7 @@ public interface FibRefType {
    * @param raw either the {@link FibEntry} or a {@link Reference} to the entry.
    * @return {@code true} if the reference should be upgraded; {@code false} otherwise.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   @SuppressWarnings({"rawtypes", "unchecked"})
   default boolean upgradeRaw(@NotNull Object raw) {
     if (raw instanceof Reference ref) {
@@ -55,7 +55,7 @@ public interface FibRefType {
    * @param entry the entry.
    * @return {@code true} if the reference should be upgraded; {@code false} otherwise.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   boolean upgradeStrong(@NotNull FibEntry<?> entry);
 
   /**
@@ -64,7 +64,7 @@ public interface FibRefType {
    * @param reference the reference to the entry.
    * @return {@code true} if the reference should be upgraded; {@code false} otherwise.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   boolean upgradeRef(@NotNull Reference<FibEntry<?>> reference);
 
   /**
@@ -73,7 +73,7 @@ public interface FibRefType {
    * @param entry the entry for which to return a new reference.
    * @return either a {@link Reference} or the given {@code entry} again, if a strong reference wanted.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   @NotNull
   Object newRef(@NotNull FibEntry<?> entry);
 }

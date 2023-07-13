@@ -23,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -35,7 +35,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
-@AvailableSince(INaksha.v2_0_0)
+@AvailableSince(NakshaVersion.v2_0_0)
 @JsonTypeName(value = "TxSignal")
 @JsonSubTypes({
   @JsonSubTypes.Type(value = TxMessage.class),
@@ -44,19 +44,19 @@ import org.jetbrains.annotations.Nullable;
 })
 public class TxSignal extends XyzFeature {
 
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final String STORAGE_ID = "storageId";
 
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final String COLLECTION = "collection";
 
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final String TS = "ts";
 
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final String PUBLISH_ID = "publishId";
 
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final String PUBLISH_TS = "publishTs";
 
   /**
@@ -67,7 +67,7 @@ public class TxSignal extends XyzFeature {
    * @param collection the collection impacted.
    * @param txn the transaction number.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @JsonCreator
   public TxSignal(
       @JsonProperty(ID) @NotNull String id,
@@ -84,7 +84,7 @@ public class TxSignal extends XyzFeature {
    * The unique transaction number, as stored within the XYZ namespace {@link XyzNamespace#getTxn()
    * txn}. All items of a transaction have the same transaction number.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @JsonProperty(XyzNamespace.TXN)
   public @NotNull String txn;
 

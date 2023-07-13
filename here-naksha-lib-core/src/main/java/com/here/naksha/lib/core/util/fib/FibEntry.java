@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core.util.fib;
 
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.util.ILike;
 import java.util.Objects;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -28,14 +28,14 @@ import org.jetbrains.annotations.Nullable;
 /**
  * An entry in the {@link FibSet}.
  */
-@AvailableSince(INaksha.v2_0_5)
+@AvailableSince(NakshaVersion.v2_0_5)
 public class FibEntry<K> implements ILike {
 
   /**
    * Create a new entry for a {@link FibSet}.
    * @param key the key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public FibEntry(@NotNull K key) {
     this.key = key;
   }
@@ -43,7 +43,7 @@ public class FibEntry<K> implements ILike {
   /**
    * The key of the entry.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public final @NotNull K key;
 
   /**
@@ -52,7 +52,7 @@ public class FibEntry<K> implements ILike {
    * @param key the key to compare this entry against.
    * @return {@code true}, if this entry is like the given key.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   @Override
   public boolean isLike(@Nullable Object key) {
     return ILike.equals(this.key, key);

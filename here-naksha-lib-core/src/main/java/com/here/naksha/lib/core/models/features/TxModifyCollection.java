@@ -21,18 +21,18 @@ package com.here.naksha.lib.core.models.features;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /** A signal, that a collection itself was modified. */
-@AvailableSince(INaksha.v2_0_0)
+@AvailableSince(NakshaVersion.v2_0_0)
 @JsonTypeName(value = "TxModifyCollection")
 public class TxModifyCollection extends TxSignal {
 
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final String ACTION = "action";
 
   /**
@@ -44,7 +44,7 @@ public class TxModifyCollection extends TxSignal {
    * @param txn the transaction number.
    * @param action the action.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   @JsonCreator
   public TxModifyCollection(
       @JsonProperty(ID) @NotNull String id,

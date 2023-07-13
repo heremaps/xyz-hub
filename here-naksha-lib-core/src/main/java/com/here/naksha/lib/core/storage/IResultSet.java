@@ -18,10 +18,13 @@
  */
 package com.here.naksha.lib.core.storage;
 
+import static com.here.naksha.lib.core.NakshaVersion.v2_0_5;
+
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -30,6 +33,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * @param <FEATURE> the feature-type.
  */
+@AvailableSince(v2_0_5)
 public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
 
   /**
@@ -37,6 +41,7 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
    *
    * @return {@code true} if another feature loaded; {@code false} otherwise.
    */
+  @AvailableSince(v2_0_5)
   boolean next();
 
   /**
@@ -46,6 +51,7 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
    * @throws NoSuchElementException if no feature loaded.
    * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
+  @AvailableSince(v2_0_5)
   @NotNull
   String getId() throws Exception;
 
@@ -56,6 +62,7 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
    * @throws NoSuchElementException if no feature loaded.
    * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
+  @AvailableSince(v2_0_5)
   @NotNull
   String getUuid() throws Exception;
 
@@ -66,6 +73,7 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
    * @throws NoSuchElementException if no feature loaded.
    * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
+  @AvailableSince(v2_0_5)
   @NotNull
   String getJson() throws Exception;
 
@@ -76,6 +84,7 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
    * @throws NoSuchElementException if no feature loaded.
    * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
+  @AvailableSince(v2_0_5)
   @Nullable
   String getGeometry() throws Exception;
 
@@ -86,6 +95,7 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
    * @throws NoSuchElementException if no feature loaded.
    * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
+  @AvailableSince(v2_0_5)
   @NotNull
   FEATURE getFeature() throws Exception;
 
@@ -98,6 +108,7 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
    * @throws NoSuchElementException if no feature loaded.
    * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
+  @AvailableSince(v2_0_5)
   default @NotNull List<@NotNull FEATURE> toList(int skip, int limit) throws Exception {
     final ArrayList<FEATURE> list = new ArrayList<>();
     int i = 0;
@@ -112,6 +123,7 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
     return list;
   }
 
+  @AvailableSince(v2_0_5)
   @Override
   void close();
 }

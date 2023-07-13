@@ -18,6 +18,9 @@
  */
 package com.here.naksha.lib.core;
 
+import static com.here.naksha.lib.core.NakshaVersion.v2_0_3;
+
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,7 +31,23 @@ import org.jetbrains.annotations.Nullable;
  * @param minor    the minor version (0-65535).
  * @param revision the revision (0-65535).
  */
+@AvailableSince(v2_0_3)
 public record NakshaVersion(int major, int minor, int revision) implements Comparable<NakshaVersion> {
+
+  /**
+   * Naksha version constant. The last version compatible with XYZ-Hub.
+   */
+  public static final String v0_6 = "0.6.0";
+  public static final String v2_0_0 = "2.0.0";
+  public static final String v2_0_3 = "2.0.3";
+  public static final String v2_0_4 = "2.0.4";
+  public static final String v2_0_5 = "2.0.5";
+  public static final String v2_0_6 = "2.0.6";
+
+  /**
+   * The latest version of the naksha-extension stored in the resources.
+   */
+  public static final NakshaVersion latest = of(v2_0_6);
 
   /**
    * Parses the given version string and returns the Naksha version.
@@ -37,6 +56,7 @@ public record NakshaVersion(int major, int minor, int revision) implements Compa
    * @return the Naksha version.
    * @throws NumberFormatException if the given string is no valid version.
    */
+  @AvailableSince(v2_0_3)
   public static @NotNull NakshaVersion of(@NotNull String version) throws NumberFormatException {
     final int majorEnd = version.indexOf('.');
     final int minorEnd = version.indexOf('.', majorEnd + 1);
@@ -46,10 +66,12 @@ public record NakshaVersion(int major, int minor, int revision) implements Compa
         Integer.parseInt(version.substring(minorEnd + 1)));
   }
 
+  @AvailableSince(v2_0_3)
   public NakshaVersion(long value) {
     this((int) ((value >>> 32) & 0xffff), (int) ((value >>> 16) & 0xffff), (int) (value & 0xffff));
   }
 
+  @AvailableSince(v2_0_3)
   public long toLong() {
     return ((major & 0xffffL) << 32) | ((minor & 0xffffL) << 16) | (revision & 0xffffL);
   }

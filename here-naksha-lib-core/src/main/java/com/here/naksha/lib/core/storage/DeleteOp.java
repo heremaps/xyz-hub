@@ -18,6 +18,9 @@
  */
 package com.here.naksha.lib.core.storage;
 
+import static com.here.naksha.lib.core.NakshaVersion.v2_0_5;
+
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -27,8 +30,10 @@ import org.jetbrains.annotations.Nullable;
  * @param id   the identifier of the feature to delete.
  * @param uuid the UUID of the state to delete, {@code null}, if any state is acceptable.
  */
+@AvailableSince(v2_0_5)
 public record DeleteOp(@NotNull String id, @Nullable String uuid) {
 
+  @AvailableSince(v2_0_5)
   public DeleteOp(@NotNull String id) {
     this(id, null);
   }

@@ -31,6 +31,7 @@ import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
@@ -227,7 +228,7 @@ public class Event extends Payload {
 
   @JsonProperty
   @JsonView(ExcludeFromHash.class)
-  private String version = INaksha.v2_0_3;
+  private String version = NakshaVersion.v2_0_3;
 
   @JsonProperty
   private @Nullable String author;

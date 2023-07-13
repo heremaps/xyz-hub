@@ -25,7 +25,7 @@ import static com.here.naksha.lib.core.util.fib.FibSetOp.GET;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.PUT;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.REMOVE;
 
-import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.util.fib.FibEntry;
 import com.here.naksha.lib.core.util.fib.FibRefType;
 import com.here.naksha.lib.core.util.fib.FibSet;
@@ -42,7 +42,7 @@ import org.jetbrains.annotations.Nullable;
  * @since 2.0.0
  */
 @SuppressWarnings("unused")
-@AvailableSince(INaksha.v2_0_0)
+@AvailableSince(NakshaVersion.v2_0_0)
 public final class StringCache {
 
   private StringCache() {}
@@ -56,7 +56,7 @@ public final class StringCache {
    * @throws NullPointerException if the character sequence is null.
    * @since 2.0.0
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static @Nullable String get(final @NotNull CharSequence chars) {
     return cache(GET, chars, STRONG);
   }
@@ -67,7 +67,7 @@ public final class StringCache {
    * @param string the string to remove.
    * @return {@code true} if the string removed; false if it was not cached.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static boolean remove(final @NotNull String string) {
     return cache(REMOVE, string, STRONG) != null;
   }
@@ -86,7 +86,7 @@ public final class StringCache {
    * @param chars the characters to intern.
    * @return the interned string.
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static @NotNull String intern(final @NotNull CharSequence chars) {
     final String string = cache(PUT, chars, STRONG);
     assert string != null;
@@ -107,7 +107,7 @@ public final class StringCache {
    * @param chars the characters to intern.
    * @return the interned string.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static @NotNull String internWeak(final @NotNull CharSequence chars) {
     final String string = cache(PUT, chars, WEAK);
     assert string != null;
@@ -129,7 +129,7 @@ public final class StringCache {
    * @param chars the characters to intern.
    * @return the interned string.
    */
-  @AvailableSince(INaksha.v2_0_5)
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static @NotNull String internSoft(final @NotNull CharSequence chars) {
     final String string = cache(PUT, chars, SOFT);
     assert string != null;
@@ -143,7 +143,7 @@ public final class StringCache {
    * @return the initial hash-code.
    * @since 2.0.0
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static int javaHash(char c) {
     return c;
   }
@@ -156,7 +156,7 @@ public final class StringCache {
    * @return the new hash-code.
    * @since 2.0.0
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static int javaHash(char c, int hashCode) {
     return hashCode * 31 + c;
   }
@@ -168,7 +168,7 @@ public final class StringCache {
    *
    * @since 2.0.0
    */
-  @AvailableSince(INaksha.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final @NotNull String EMPTY = "";
 
   static String cache(
