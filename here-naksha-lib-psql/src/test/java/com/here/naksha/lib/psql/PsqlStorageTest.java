@@ -18,18 +18,23 @@
  */
 package com.here.naksha.lib.psql;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzPoint;
 import com.here.naksha.lib.core.storage.CollectionInfo;
+import com.here.naksha.lib.core.storage.DeleteOp;
 import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
-import java.sql.SQLException;
 import java.util.Iterator;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -52,6 +57,23 @@ public class PsqlStorageTest {
           && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length())
       ? System.getenv("TEST_ADMIN_DB")
       : null;
+
+  /**
+   * Amount of threads to write features concurrently.
+   */
+  public static final int THREADS = 10;
+  /**
+   * Amount of features to write in each thread.
+   */
+  public static final int MANY_FEATURES_COUNT = 10_000;
+  /**
+   * If set to true, then the response of the mass-insertion of features is requested.
+   */
+  public static final boolean READ_RESPONSE = true;
+  /**
+   * Prevent that the test drops the database at the end (can be used to verify results of write many).
+   */
+  public static final boolean DO_NOT_DROP = true;
 
   private boolean isEnabled() {
     return TEST_ADMIN_DB != null;
@@ -121,39 +143,126 @@ public class PsqlStorageTest {
     tx.commit();
   }
 
-  private static void test_modifyFeatures(@NotNull PsqlTxWriter tx, @NotNull String name, final int count)
-      throws SQLException {
-    final PsqlFeatureWriter<XyzFeature> writer = tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"));
-    final ModifyFeaturesReq<XyzFeature> req = new ModifyFeaturesReq<>();
-    for (int i = 0; i < count; i++) {
-      req.insert().add(new XyzFeature(name + i));
-    }
-    final ModifyFeaturesResp<XyzFeature> resp = writer.modifyFeatures(req);
+  @Test
+  @Order(6)
+  @EnabledIf("isEnabled")
+  void writeSingleFeatureInFooCollection() throws Exception {
+    assertNotNull(storage);
+    assertNotNull(tx);
+    final ModifyFeaturesReq<XyzFeature> request = new ModifyFeaturesReq<>(true);
+    final XyzFeature single = new XyzFeature("single");
+    single.setGeometry(new XyzPoint(5d, 6d));
+    request.insert().add(single);
+    final ModifyFeaturesResp response =
+        tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo")).modifyFeatures(request);
+    assertNotNull(response);
+    assertEquals(1, response.inserted().size());
+    assertEquals(0, response.updated().size());
+    assertEquals(0, response.deleted().size());
+
+    final XyzFeature feature = response.inserted().get(0);
+    assertNotNull(feature);
+    assertEquals("single", feature.getId());
+    final XyzGeometry geometry = feature.getGeometry();
+    assertNotNull(geometry);
+    final XyzPoint point = assertInstanceOf(XyzPoint.class, geometry);
+    assertEquals(5d, point.getCoordinates().getLongitude());
+    assertEquals(6d, point.getCoordinates().getLatitude());
+    assertEquals(0d, point.getCoordinates().getAltitude());
     tx.commit();
   }
 
   @Test
-  @Order(6)
+  @Order(7)
   @EnabledIf("isEnabled")
-  void writeFeaturesIntoFooCollection() throws Exception {
+  void deleteDeleteSingleFeatureFromFooCollection() throws Exception {
     assertNotNull(storage);
     assertNotNull(tx);
-    final String[] prefixes = new String[] {"test", "bar", "fox", "xyz", "lol", "goo", "hey", "kuk"};
-    final Thread[] threads = new Thread[prefixes.length];
+    final ModifyFeaturesReq<XyzFeature> request = new ModifyFeaturesReq<>(true);
+    request.delete().add(new DeleteOp("single"));
+    final ModifyFeaturesResp response =
+        tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo")).modifyFeatures(request);
+    assertNotNull(response);
+    assertEquals(0, response.inserted().size());
+    assertEquals(0, response.updated().size());
+    assertEquals(1, response.deleted().size());
+
+    final XyzFeature feature = response.deleted().get(0);
+    assertNotNull(feature);
+    assertEquals("single", feature.getId());
+    final XyzGeometry geometry = feature.getGeometry();
+    assertNotNull(geometry);
+    final XyzPoint point = assertInstanceOf(XyzPoint.class, geometry);
+    assertEquals(5d, point.getCoordinates().getLongitude());
+    assertEquals(6d, point.getCoordinates().getLatitude());
+    assertEquals(0d, point.getCoordinates().getAltitude());
+    tx.commit();
+  }
+
+  static class InsertionThread extends Thread {
+
+    InsertionThread(@NotNull String name) {
+      super(name);
+      this.name = name;
+    }
+
+    private final @NotNull String name;
+    Exception e;
+
+    @Override
+    @SuppressWarnings("SameParameterValue")
+    public void run() {
+      try {
+        assertNotNull(storage);
+        try (final var tx =
+            storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
+          final PsqlFeatureWriter<XyzFeature> writer =
+              tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"));
+          final ModifyFeaturesReq<XyzFeature> req = new ModifyFeaturesReq<>(READ_RESPONSE);
+          final @NotNull String[] ids = new String[MANY_FEATURES_COUNT];
+          for (int i = 0; i < MANY_FEATURES_COUNT; i++) {
+            ids[i] = String.format("%s_%06d", name, i);
+            req.insert().add(new XyzFeature(ids[i]));
+          }
+          final ModifyFeaturesResp response = writer.modifyFeatures(req);
+          assertNotNull(response);
+          if (READ_RESPONSE) {
+            assertEquals(MANY_FEATURES_COUNT, response.inserted().size());
+            for (int i = 0; i < MANY_FEATURES_COUNT; i++) {
+              final String id = ids[i];
+              final XyzFeature feature = response.inserted().get(i);
+              assertNotNull(feature);
+              assertEquals(id, feature.getId());
+            }
+          } else {
+            assertEquals(0, response.inserted().size());
+          }
+          assertEquals(0, response.updated().size());
+          assertEquals(0, response.deleted().size());
+          tx.commit();
+        }
+      } catch (Exception e) {
+        this.e = e;
+      }
+    }
+  }
+
+  @Test
+  @Order(8)
+  @EnabledIf("isEnabled")
+  void writeManyFeaturesIntoFooCollection() throws Exception {
+    assertNotNull(storage);
+    assertNotNull(tx);
+    // Results in ["aaa", "bbb", ...]
+    final String[] prefixes = new String[THREADS];
+    for (int i = 0; i < prefixes.length; i++) {
+      final char c = (char) ((int) 'a' + i);
+      prefixes[i] = "" + c + c + c;
+    }
+    final InsertionThread[] threads = new InsertionThread[prefixes.length];
     for (int i = 0; i < threads.length; i++) {
       final String name = prefixes[i];
-      final Thread thread = new Thread(
-          () -> {
-            assertDoesNotThrow(() -> {
-              final var tx = storage.openMasterTransaction(
-                  storage.createSettings().withAppId("naksha_test"));
-              test_modifyFeatures(tx, name, 10_000);
-              tx.commit();
-              tx.close();
-            });
-          },
-          name);
-      threads[i] = thread;
+      threads[i] = new InsertionThread(name);
     }
     for (final var t : threads) {
       t.start();
@@ -161,20 +270,12 @@ public class PsqlStorageTest {
     for (final var t : threads) {
       t.join();
     }
-    //    final PsqlFeatureWriter<XyzFeature> writer = tx.writeFeatures(XyzFeature.class, new
-    // CollectionInfo("foo"));
-    //    final ModifyFeaturesReq<XyzFeature> req = new ModifyFeaturesReq<>();
-    //    for (int i = 0; i < 10000; i++) {
-    //      req.insert().add(new XyzFeature("test" + i));
-    //    }
-    //    final ModifyFeaturesResp<XyzFeature> resp = writer.modifyFeatures(req);
-    //    tx.commit();
-    //    // assertNotNull(resp);
-    //    tx.commit();
   }
 
+  // (9) TODO: Read the features
+
   @Test
-  @Order(7)
+  @Order(10)
   @EnabledIf("isEnabled")
   void listAllCollections() throws Exception {
     assertNotNull(storage);
@@ -190,24 +291,32 @@ public class PsqlStorageTest {
     assertFalse(it.hasNext());
   }
 
-  //  @Test
-  //  @Order(8)
-  //  @EnabledIf("isEnabled")
-  //  void dropCollection() throws Exception {
-  //    assertNotNull(storage);
-  //    assertNotNull(tx);
-  //    final CollectionInfo foo = tx.getCollectionById("foo");
-  //    assertNotNull(foo);
-  //    final CollectionInfo dropped = tx.dropCollection(foo);
-  //    tx.commit();
-  //    assertNotNull(dropped);
-  //    assertNotSame(foo, dropped);
-  //    assertEquals(foo.getId(), dropped.getId());
-  //    assertEquals(foo.getHistory(), dropped.getHistory());
-  //    assertEquals(foo.getMaxAge(), dropped.getMaxAge());
-  //    final CollectionInfo fooAgain = tx.getCollectionById("foo");
-  //    assertNull(fooAgain);
-  //  }
+  @Test
+  @Order(9)
+  @EnabledIf("isEnabled")
+  void dropCollection() throws Exception {
+    assertNotNull(storage);
+    assertNotNull(tx);
+    final CollectionInfo foo = tx.getCollectionById("foo");
+    assertNotNull(foo);
+    final CollectionInfo dropped = DO_NOT_DROP ? foo : tx.dropCollection(foo);
+    tx.commit();
+    assertNotNull(dropped);
+    if (DO_NOT_DROP) {
+      assertSame(foo, dropped);
+    } else {
+      assertNotSame(foo, dropped);
+    }
+    assertEquals(foo.getId(), dropped.getId());
+    assertEquals(foo.getHistory(), dropped.getHistory());
+    assertEquals(foo.getMaxAge(), dropped.getMaxAge());
+    final CollectionInfo fooAgain = tx.getCollectionById("foo");
+    if (DO_NOT_DROP) {
+      assertNotNull(fooAgain);
+    } else {
+      assertNull(fooAgain);
+    }
+  }
 
   @EnabledIf("isEnabled")
   @AfterAll

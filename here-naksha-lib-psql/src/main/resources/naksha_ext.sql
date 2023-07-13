@@ -1243,9 +1243,10 @@ CREATE OR REPLACE FUNCTION naksha_modify_features(
     feature_arr jsonb array, -- the new feature
     geometry_arr geometry array, -- if the geometry should be updated
     expected_uuid_arr text array, -- If atomic updates used, the expected state identifier
-    op_arr naksha_op array -- the operation to perform
+    op_arr naksha_op array, -- the operation to perform
+    return_results bool
 )
-    RETURNS TABLE (f jsonb, g geometry)
+    RETURNS TABLE (o naksha_op, f jsonb, g geometry)
     LANGUAGE 'plpgsql' VOLATILE
 AS
 $BODY$
@@ -1389,9 +1390,11 @@ BEGIN
             IF existing_uuid IS NOT NULL THEN
                 EXECUTE update_stmt USING feature, geo, id INTO feature;
                 feature_arr[index] = feature;
+                op[index] = 'UPDATE'::naksha_op;
             ELSE
                 EXECUTE insert_stmt USING feature, geo INTO feature;
                 feature_arr[index] = feature;
+                op[index] = 'INSERT'::naksha_op;
             END IF;
         ELSEIF op = 'DELETE' THEN
             IF expected_uuid IS NOT NULL THEN
@@ -1410,7 +1413,10 @@ BEGIN
 
         i = i + 1;
     END LOOP;
-    RETURN QUERY SELECT unnest(feature_arr) AS "f", unnest(geometry_arr) AS "g";
+    IF NOT return_results THEN
+        RETURN;
+    END IF;
+    RETURN QUERY SELECT unnest(op_arr) AS "o", unnest(feature_arr) AS "f", unnest(geometry_arr) AS "g";
 END
 $BODY$;
 

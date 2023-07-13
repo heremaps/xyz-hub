@@ -26,6 +26,7 @@ import com.here.naksha.lib.core.lambdas.F4;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.util.Arrays;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -337,7 +338,7 @@ public final class FibMap {
       final Object existing_key = array[i];
 
       if (existing_key == LOCK_OBJECT) {
-        Thread.yield();
+        // Thread.yield();
         continue;
       }
 
@@ -351,7 +352,7 @@ public final class FibMap {
             final Object sub_key = sub_array[j];
 
             if (sub_key == LOCK_OBJECT) {
-              Thread.yield();
+              // Thread.yield();
               continue;
             }
             if (ILike.equals(sub_key, key)) {
@@ -387,7 +388,7 @@ public final class FibMap {
       final Object existing_key = array[i];
 
       if (existing_key == LOCK_OBJECT) {
-        Thread.yield();
+        // Thread.yield();
         continue;
       }
 
@@ -399,6 +400,36 @@ public final class FibMap {
       i += 2;
     }
     return size;
+  }
+
+  /**
+   * Debug method to collect all linear probing tables from a fibonacci map.
+   * @param array the root of the map.
+   * @param lptList the list to put the linear probing tables into.
+   * @return the list.
+   */
+  public static @NotNull List<@Nullable Object @NotNull []> collectLPT(
+      @Nullable Object @NotNull [] array, @NotNull List<@Nullable Object @NotNull []> lptList) {
+    if (array.length > LPT_HEADER_SIZE && array[LPT_ID] == LPT_ID_OBJECT) {
+      lptList.add(array);
+      return lptList;
+    }
+    long size = 0L;
+    int i = 0;
+    while (i < array.length) {
+      final Object existing_key = array[i];
+
+      if (existing_key == LOCK_OBJECT) {
+        // Thread.yield();
+        continue;
+      }
+
+      if (existing_key instanceof Object[] sub_array) {
+        collectLPT(sub_array, lptList);
+      }
+      i += 2;
+    }
+    return lptList;
   }
 
   /**
@@ -520,7 +551,7 @@ public final class FibMap {
           && !(existing_value instanceof FibMapConflict);
 
       if (existing_key == LOCK_OBJECT) {
-        Thread.yield();
+        // Thread.yield();
         continue;
       }
 
@@ -615,7 +646,7 @@ public final class FibMap {
             return existing_value;
           }
           // Race condition, another thread modifies concurrently.
-          Thread.yield();
+          // Thread.yield();
           continue;
         }
 

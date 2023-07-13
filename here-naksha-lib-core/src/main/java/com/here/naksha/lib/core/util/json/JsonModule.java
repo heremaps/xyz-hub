@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core.util.json;
 
-import static com.here.naksha.lib.core.util.StringCache.intern;
+import static com.here.naksha.lib.core.util.StringCache.internSoft;
 
 import com.fasterxml.jackson.core.JacksonException;
 import com.fasterxml.jackson.core.JsonGenerator;
@@ -35,6 +35,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.here.naksha.lib.core.util.StringCache;
 import java.io.IOException;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -55,7 +56,7 @@ public class JsonModule extends SimpleModule {
 
     @Override
     public Object deserializeKey(String key, @NotNull DeserializationContext ctxt) throws IOException {
-      return key != null ? intern(key) : null;
+      return key != null ? internSoft(key) : null;
     }
   }
 
@@ -88,6 +89,8 @@ public class JsonModule extends SimpleModule {
     }
   }
 
+  private static final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
+
   private static final class StringDeserializer extends StdDeserializer<String> {
 
     private StringDeserializer() {
@@ -108,7 +111,7 @@ public class JsonModule extends SimpleModule {
       } else {
         s = null;
       }
-      return s != null ? intern(s) : null;
+      return s != null ? internSoft(s) : null;
     }
   }
 }

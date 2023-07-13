@@ -36,5 +36,5 @@ public interface IFeatureWriter<FEATURE extends XyzFeature> extends IFeatureRead
    * @throws Exception if access to the storage failed or any other error occurred.
    */
   @NotNull
-  ModifyFeaturesResp<FEATURE> modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req) throws Exception;
+  ModifyFeaturesResp modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req) throws Exception;
 }

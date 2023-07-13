@@ -25,6 +25,8 @@ import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonFactory.Feature;
+import com.fasterxml.jackson.core.JsonFactoryBuilder;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +37,9 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.core.view.ViewDeserialize.All;
 import com.here.naksha.lib.core.view.ViewSerialize;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.PrecisionModel;
+import com.vividsolutions.jts.io.WKBReader;
 import java.lang.ref.WeakReference;
 import java.util.Formatter;
 import java.util.HashMap;
@@ -50,7 +55,7 @@ import org.jetbrains.annotations.Nullable;
  *   var result = json.deserialize(input, type, view);
  * }
  * }</pre>
- *
+ * <p>
  * If you want to use the current thread local instance, for whatever reason, do:
  *
  * <pre>{@code
@@ -103,7 +108,7 @@ public final class Json implements AutoCloseable {
    * Escapes a string into JSON encoding.
    *
    * @param text the text to be escaped.
-   * @param sb the string-builder into which to add the escaped string; if {@code null}, then a new string builder is created.
+   * @param sb   the string-builder into which to add the escaped string; if {@code null}, then a new string builder is created.
    * @return the string builder with the escaped string.
    */
   public static @NotNull StringBuilder toJsonString(final @NotNull CharSequence text, @Nullable StringBuilder sb) {
@@ -140,10 +145,16 @@ public final class Json implements AutoCloseable {
     }
   }
 
-  /** Create a new Json instance. */
+  /**
+   * Create a new Json instance.
+   */
   Json() {
     this.weakRef = new JsonWeakRef(this);
-    final JsonFactory jsonFactory = new JsonFactory();
+    final JsonFactory jsonFactory = new JsonFactoryBuilder()
+        .configure(Feature.INTERN_FIELD_NAMES, false)
+        .configure(Feature.CANONICALIZE_FIELD_NAMES, false)
+        .configure(Feature.USE_THREAD_LOCAL_FOR_BUFFER_RECYCLING, true)
+        .build();
     jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
     jsonFactory.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false);
     this.mapper = JsonMapper.builder(jsonFactory)
@@ -158,24 +169,42 @@ public final class Json implements AutoCloseable {
         .build();
     this.serialize = ViewSerialize.All.class;
     this.deserialize = All.class;
+    this.wkbReader = new WKBReader(new GeometryFactory(new PrecisionModel(), 4326));
   }
 
-  /** The weak reference to this. */
+  /**
+   * The WKB reader for PostgresQL.
+   */
+  public final @NotNull WKBReader wkbReader;
+
+  /**
+   * The weak reference to this.
+   */
   private final @NotNull JsonWeakRef weakRef;
 
-  /** The reference to the next thread local Json. */
+  /**
+   * The reference to the next thread local Json.
+   */
   private @Nullable Json next;
 
-  /** If the same instance opened multiple times. */
+  /**
+   * If the same instance opened multiple times.
+   */
   private int openCount;
 
-  /** The Jackson mapper. */
+  /**
+   * The Jackson mapper.
+   */
   final @NotNull ObjectMapper mapper;
 
-  /** The serialization view to use. */
+  /**
+   * The serialization view to use.
+   */
   private @NotNull Class<? extends ViewSerialize> serialize;
 
-  /** The deserialization view to use. */
+  /**
+   * The deserialization view to use.
+   */
   private @NotNull Class<? extends ViewDeserialize> deserialize;
 
   /**
@@ -201,9 +230,8 @@ public final class Json implements AutoCloseable {
   }
 
   /**
-   * If the current thread uses a Json parser instance, acquired by the caller, incrementing the
-   * open counter, and returning the same instance. Otherwise, create a new Json parser instance, or
-   * reusing an unused one, and return it.
+   * If the current thread uses a Json parser instance, acquired by the caller, incrementing the open counter, and returning the same
+   * instance. Otherwise, create a new Json parser instance, or reusing an unused one, and return it.
    *
    * @return a Json instance.
    */
@@ -248,10 +276,14 @@ public final class Json implements AutoCloseable {
     return openCount;
   }
 
-  /** The thread local cache with unused Json instances. */
+  /**
+   * The thread local cache with unused Json instances.
+   */
   private static final ThreadLocal<@Nullable JsonWeakRef> idleCache = new ThreadLocal<>();
 
-  /** The currently used Json instance; if any. */
+  /**
+   * The currently used Json instance; if any.
+   */
   private static final ThreadLocal<@Nullable Json> current = new ThreadLocal<>();
 
   private final HashMap<@NotNull Class<? extends ViewDeserialize>, @NotNull ObjectReader> readers = new HashMap<>();
@@ -267,7 +299,7 @@ public final class Json implements AutoCloseable {
    * Format a string using the {@link Formatter}.
    *
    * @param format The format string.
-   * @param args The arguments.
+   * @param args   The arguments.
    * @return The formatted string.
    */
   public @NotNull String format(@NotNull String format, Object... args) {
@@ -302,9 +334,8 @@ public final class Json implements AutoCloseable {
   /**
    * Returns the writer for the given view.
    *
-   * @param view the view to write.
-   * @param pretty {@code true} if the writer should pretty print (human-readable); {@code false}
-   *     otherwise (compact machine optimized).
+   * @param view   the view to write.
+   * @param pretty {@code true} if the writer should pretty print (human-readable); {@code false} otherwise (compact machine optimized).
    * @return the writer for this view.
    */
   public @NotNull ObjectWriter writer(@NotNull Class<? extends ViewSerialize> view, boolean pretty) {

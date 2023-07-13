@@ -21,10 +21,14 @@ package com.here.naksha.lib.core.util;
 import java.lang.reflect.Field;
 import org.jetbrains.annotations.NotNull;
 
-/** Grant access to the unsafe. */
+/**
+ * Grant access to the unsafe.
+ */
 public class Unsafe {
 
-  /** The unsafe. */
+  /**
+   * The unsafe.
+   */
   public static final @NotNull sun.misc.Unsafe unsafe;
 
   static {
@@ -38,5 +42,21 @@ public class Unsafe {
     } catch (Exception e) {
       throw new InternalError(e);
     }
+  }
+
+  /**
+   * Returns the offset of the field with the given name.
+   * @param objectClass the class to query.
+   * @param fieldName the name of the field to query.
+   * @return the offset.
+   */
+  public static long fieldOffset(@NotNull Class<?> objectClass, @NotNull String fieldName) {
+    final Field field;
+    try {
+      field = objectClass.getDeclaredField(fieldName);
+    } catch (NoSuchFieldException e) {
+      throw new Error("No such field: " + objectClass.getName() + "::" + fieldName, e);
+    }
+    return unsafe.objectFieldOffset(field);
   }
 }

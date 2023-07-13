@@ -23,12 +23,30 @@ import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * Creates a modify features request.
+ * @param insert the feature to insert.
+ * @param update the features to update.
+ * @param upsert the features to insert or update.
+ * @param delete the features to delete.
+ * @param read_results {@code true} to request results from the database; {@code false} if the database should not send back results.
+ * @param <FEATURE> the feature type store.
+ */
 public record ModifyFeaturesReq<FEATURE extends XyzFeature>(
     @NotNull List<@NotNull FEATURE> insert,
     @NotNull List<@NotNull FEATURE> update,
     @NotNull List<@NotNull FEATURE> upsert,
-    @NotNull List<@NotNull DeleteOp> delete) {
-  public ModifyFeaturesReq() {
-    this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+    @NotNull List<@NotNull DeleteOp> delete,
+    boolean read_results) {
+  public ModifyFeaturesReq(boolean read_results) {
+    this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), read_results);
+  }
+
+  /**
+   * Returns the total size, amount of features to insert, update, upsert and/or delete.
+   * @return the total size.
+   */
+  public int totalSize() {
+    return insert.size() + update.size() + upsert.size() + delete.size();
   }
 }

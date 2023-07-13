@@ -42,6 +42,7 @@ import org.postgresql.util.PSQLException;
  * The Naksha PostgresQL storage client. This client does implement low level access to manage collections and the features within these
  * collections. It as well grants access to transactions.
  */
+@SuppressWarnings({"unused", "SqlResolve"})
 public class PsqlStorage implements IStorage {
 
   /**
@@ -349,8 +350,8 @@ public class PsqlStorage implements IStorage {
       boolean needUpdate = false;
       ResultSet rs;
       if ((rs = stmt.executeQuery("select count(1)::integer from pg_catalog.pg_proc r inner join"
-              + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where 1 = 1"
-              + " and l.nspname = 'h3' and r.proname = 'h3_version'"))
+              + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where "
+              + "l.nspname = 'h3' and r.proname = 'h3_version'"))
           .next()) {
         needUpdate = (0 == rs.getInt(1));
       }

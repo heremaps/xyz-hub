@@ -24,10 +24,23 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
+import org.jetbrains.annotations.NotNull;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "Point")
 public class XyzPoint extends XyzGeometryItem {
+
+  public XyzPoint() {}
+
+  public XyzPoint(double longitude, double latitude) {
+    this(longitude, latitude, 0d);
+  }
+
+  public XyzPoint(double longitude, double latitude, double altitude) {
+    coordinates.add(longitude);
+    coordinates.add(latitude);
+    coordinates.add(altitude);
+  }
 
   private PointCoordinates coordinates = new PointCoordinates();
 
@@ -40,7 +53,7 @@ public class XyzPoint extends XyzGeometryItem {
     this.coordinates = coordinates;
   }
 
-  public XyzPoint withCoordinates(PointCoordinates coordinates) {
+  public @NotNull XyzPoint withCoordinates(PointCoordinates coordinates) {
     setCoordinates(coordinates);
     return this;
   }

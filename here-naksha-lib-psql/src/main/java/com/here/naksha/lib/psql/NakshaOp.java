@@ -16,19 +16,20 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.storage;
+package com.here.naksha.lib.psql;
 
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import java.util.ArrayList;
-import java.util.List;
-import org.jetbrains.annotations.NotNull;
+import com.here.naksha.lib.core.util.ILike;
+import com.here.naksha.lib.core.util.StringHelper;
 import org.jetbrains.annotations.Nullable;
 
-public record ModifyFeaturesResp(
-    @NotNull List<@Nullable XyzFeature> inserted,
-    @NotNull List<@Nullable XyzFeature> updated,
-    @NotNull List<@Nullable XyzFeature> deleted) {
-  public ModifyFeaturesResp() {
-    this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+public enum NakshaOp implements ILike {
+  INSERT,
+  UPDATE,
+  UPSERT,
+  DELETE;
+
+  @Override
+  public boolean isLike(@Nullable Object other) {
+    return this == other || ((other instanceof CharSequence chars) && StringHelper.equals(name(), chars));
   }
 }

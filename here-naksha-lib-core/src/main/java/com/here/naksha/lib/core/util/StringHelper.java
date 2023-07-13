@@ -179,25 +179,6 @@ public final class StringHelper {
     if (a == null || b == null) {
       return false;
     }
-    // Unwrap NString instance “a”.
-    if (a instanceof StringCache an) {
-      // Note: We know that instances of NString can be compared by reference, and this has been
-      // done already above!
-      if (b instanceof StringCache) {
-        return false;
-      }
-      a = an.toString();
-      if (a == b) {
-        return true;
-      }
-    }
-    // Unwrap NString instance “b”.
-    if (b instanceof StringCache bn) {
-      b = bn.toString();
-      if (a == b) {
-        return true;
-      }
-    }
     final int len;
     if ((len = a.length()) != b.length() || a.hashCode() != b.hashCode()) {
       return false;
