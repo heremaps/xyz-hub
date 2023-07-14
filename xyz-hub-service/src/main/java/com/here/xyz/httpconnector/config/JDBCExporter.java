@@ -465,12 +465,23 @@ public class JDBCExporter extends JDBCClients{
            if( partitionKey != null && !"id".equalsIgnoreCase(partitionKey) )
            {  String converted = ApiParam.getConvertedKey(partitionKey);
               partitionKey =  String.join(",",(converted != null ? converted : partitionKey).split("\\."));
-              partQry = "select "
-                      + String.format(" coalesce( jsondata#>>'{%s}', 'CSVNULL') as id,", partitionKey)
-                      + " replace( encode( json_build_object('type','FeatureCollection', 'features', jsonb_agg( jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb) ))::text::bytea,'base64') ,chr(10),'') as data"
-                      + " from ( ${{contentQuery}}) X"
-                      + (( omitOnNull == null || !omitOnNull ) ? "" : String.format(" where not jsondata#>>'{%s}' isnull", partitionKey ))
-                      + " group by 1";
+              partQry = String.format(
+                 " with indata as "
+                +" ( select jsondata#>>'{id}' as id, jsondata#>>'{%1$s}' as key, jsondata, geo "
+                +" 	from "
+                +"   ( select * from ( ${{contentQuery}} ) X "
+                +      (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata#>>'{%1$s}' isnull " )
+                +"   ) i "
+                +" ), "
+                +" iidata as ( select (( row_number() over ( partition by key ) )/ 100000)::integer as chunk, id, key, jsondata, geo from indata ), "
+                +" iiidata as "
+                +" ( select coalesce( key, 'CSVNULL' ) as id, (count(1) over ()) as buckets, count(1) as nrfeatures, "
+                +"   replace( encode( json_build_object('type','FeatureCollection', 'features', jsonb_agg( jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb) ))::text::bytea,'base64') ,chr(10),'') as data "
+                +"   from iidata "
+                +"   group by 1, chunk "
+                +"   order by 1, 3 desc "
+                +" ) "
+                +" select id, data from iiidata ", partitionKey ) ;
            }
 
            SQLQuery geoJson = new SQLQuery( partQry );
