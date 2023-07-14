@@ -64,6 +64,10 @@ public class Export extends Job {
     @JsonView({Public.class})
     private Integer targetLevel;
 
+    /** Only used by type VML */
+    @JsonView({Public.class})
+    private String partitionKey;
+
     @JsonView({Public.class})
     private String targetVersion;
 
@@ -143,6 +147,14 @@ public class Export extends Job {
 
     public void setTargetLevel(Integer targetLevel) {
         this.targetLevel = targetLevel;
+    }
+
+    public String getPartitionKey() {
+        return partitionKey;
+    }
+
+    public void setPartitionKey(String partitionKey) {
+        this.partitionKey = partitionKey;
     }
 
     public String getTargetVersion() {
@@ -293,6 +305,10 @@ public class Export extends Job {
         return this;
     }
 
+    public Export withOmitOnNull(final boolean omitOnNull) {
+        setOmitOnNull(omitOnNull);
+        return this;
+    }
 
     public Export withFilters(final Filters filters) {
         setFilters(filters);
@@ -306,6 +322,11 @@ public class Export extends Job {
 
     public Export withTargetLevel(final Integer targetLevel) {
         setTargetLevel(targetLevel);
+        return this;
+    }
+
+    public Export withPartitionKey(final String partitionKey) {
+        setPartitionKey(partitionKey);
         return this;
     }
 

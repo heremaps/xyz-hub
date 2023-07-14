@@ -25,6 +25,7 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
+import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.PSQLXyzConnector;
@@ -59,7 +60,7 @@ public class JDBCExporter extends JDBCClients{
             String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
             Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
             SQLQuery exportQuery = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-                    j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+                    j.getTargetVersion(), j.getParams(), j.getCsvFormat(),null,j.getPartitionKey(),j.getOmitOnNull());
 
             switch (j.getExportTarget().getType()){
                 case DOWNLOAD:
@@ -71,8 +72,7 @@ public class JDBCExporter extends JDBCClients{
 
                                     for (int i = 0; i < threads; i++) {
                                         String s3Prefix = i + "_";
-                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region,
-                                                new SQLQuery("AND i%% " + threads + " = "+i));
+                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, (threads > 1 ? new SQLQuery("AND i%% " + threads + " = "+i) : null) );
                                         exportFutures.add( exportTypeDownload(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
@@ -94,8 +94,7 @@ public class JDBCExporter extends JDBCClients{
 
                                     for (int i = 0; i < threads; i++) {
                                         String s3Prefix = i + "_";
-                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region,
-                                                new SQLQuery("AND i%% " + threads + " = "+i));
+                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, (threads > 1 ? new SQLQuery("AND i%% " + threads + " = "+i) : null) );
                                         exportFutures.add( exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
@@ -126,7 +125,7 @@ public class JDBCExporter extends JDBCClients{
                                 }
                             });
             }
-        }catch (SQLException e){
+        }catch (Exception e){
             return Future.failedFuture(e);
         }
     }
@@ -307,7 +306,9 @@ public class JDBCExporter extends JDBCClients{
         Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
-        SQLQuery exportSelectString = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition);
+        SQLQuery exportSelectString = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, 
+                                                                   j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition,
+                                                                   j.getPartitionKey(), j.getOmitOnNull());
 
         SQLQuery q = new SQLQuery("SELECT * /* iml_s3_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
@@ -360,11 +361,11 @@ public class JDBCExporter extends JDBCClients{
 
     private static SQLQuery generateFilteredExportQuery(String schema, String spaceId, String propertyFilter,
         Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
-        return generateFilteredExportQuery(schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null);
+        return generateFilteredExportQuery(schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, null, false);
     }
 
     private static SQLQuery generateFilteredExportQuery(String schema, String spaceId, String propertyFilter,
-        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition)
+        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, String partitionKey, Boolean omitOnNull )
         throws SQLException {
         //TODO: Re-use existing QR rather than the following duplicated code
         SQLQuery geoFragment;
@@ -457,14 +458,26 @@ public class JDBCExporter extends JDBCClients{
           }
 
          case PARTITIONID_FC_B64 :
-         {
-           SQLQuery geoJson = new SQLQuery(
-                    "select jsondata->>'id' as id, replace( encode(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text::bytea,'base64') ,chr(10),'') as data " +
-                    "from ( ${{contentQuery}}) X"
-           );
-            geoJson.setQueryFragment("contentQuery",sqlQuery);
-            geoJson.substitute();
-            return queryToText(geoJson, false);
+         { 
+           String partQry =   "select jsondata->>'id' as id, replace( encode(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text::bytea,'base64') ,chr(10),'') as data " 
+                            + "from ( ${{contentQuery}}) X";
+
+           if( partitionKey != null && !"id".equalsIgnoreCase(partitionKey) )
+           {  String converted = ApiParam.getConvertedKey(partitionKey);
+              partitionKey =  String.join(",",(converted != null ? converted : partitionKey).split("\\."));
+              partQry = "select "
+                      + String.format(" coalesce( jsondata#>>'{%s}', 'CSVNULL') as id,", partitionKey)
+                      + " replace( encode( json_build_object('type','FeatureCollection', 'features', jsonb_agg( jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb) ))::text::bytea,'base64') ,chr(10),'') as data"
+                      + " from ( ${{contentQuery}}) X"
+                      + (( omitOnNull == null || !omitOnNull ) ? "" : String.format(" where not jsondata#>>'{%s}' isnull", partitionKey ))
+                      + " group by 1";
+           }
+
+           SQLQuery geoJson = new SQLQuery( partQry );
+
+           geoJson.setQueryFragment("contentQuery",sqlQuery);
+           geoJson.substitute();
+           return queryToText(geoJson, false);
          }
 
          default:
