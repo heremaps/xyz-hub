@@ -530,7 +530,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         //Handle deletes / updates on extended spaces
         if (isForExtendingSpace(event) && event.getContext() == DEFAULT) {
             if (!deletes.isEmpty()) {
-                //Transform the incoming deletes into upserts with deleted flag for features which don't exist in the extended layer (base)
+                //Transform the incoming deletes into upserts with deleted flag for features which exist in the extended layer (base)
                 List<String> existingIdsInBase = new FetchExistingIds(
                     new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes), this).run();
 
@@ -542,7 +542,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
                     try {
                       toDelete.getProperties().getXyzNamespace().setVersion(Long.parseLong(deletes.get(featureId)));
-                    } catch (Exception ignore) {}
+                    }
+                    catch (Exception ignore) {}
 
                     upserts.add(toDelete);
                     deletes.remove(featureId);
