@@ -21,7 +21,6 @@ package com.here.naksha.lib.core.storage;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import java.io.Closeable;
-import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
 
 /** Storage API to gain access to storages. */
@@ -35,7 +34,7 @@ public interface IStorage extends Closeable {
    * guaranteed that this is only executed on one Naksha instances at a given time, so there is no
    * concurrent execution.
    *
-   * @throws Exception if access to the storage failed or any other error occurred.
+   * @throws Exception If any error occurred.
    */
   void maintain() throws Exception;
 
@@ -51,7 +50,7 @@ public interface IStorage extends Closeable {
    * the master node.
    *
    * @return the read transaction.
-   * @throws Exception if access to the storage failed or any other error occurred.
+   * @throws Exception If any error occurred.
    */
   default @NotNull IReadTransaction openReplicationTransaction() throws Exception {
     return openReplicationTransaction(createSettings());
@@ -63,7 +62,7 @@ public interface IStorage extends Closeable {
    *
    * @param settings Optional settings for the transaction.
    * @return the read transaction.
-   * @throws Exception if access to the storage failed or any other error occurred.
+   * @throws Exception If any error occurred.
    */
   @NotNull
   IReadTransaction openReplicationTransaction(@NotNull ITransactionSettings settings) throws Exception;
@@ -71,8 +70,8 @@ public interface IStorage extends Closeable {
   /**
    * Opens a read/write transaction to the master node.
    *
-   * @return the mutator transaction.
-   * @throws Exception if access to the storage failed or any other error occurred.
+   * @return The mutator transaction.
+   * @throws Exception If any error occurred.
    */
   default @NotNull IMasterTransaction openMasterTransaction() throws Exception {
     return openMasterTransaction(createSettings());
@@ -82,8 +81,8 @@ public interface IStorage extends Closeable {
    * Opens a read/write transaction to the master node.
    *
    * @param settings Optional settings for the transaction.
-   * @return the mutator transaction.
-   * @throws Exception if access to the storage failed or any other error occurred.
+   * @return The mutator transaction.
+   * @throws Exception If any error occurred.
    */
   @NotNull
   IMasterTransaction openMasterTransaction(@NotNull ITransactionSettings settings) throws Exception;
@@ -91,10 +90,11 @@ public interface IStorage extends Closeable {
   /**
    * Add a listener to be called, when something changes in the storage.
    *
-   * @param listener the change listener to invoke, receiving the transaction set. If the listener
+   * @param listener The change listener to invoke, receiving the transaction set. If the listener
    *     throws an exception, it should be called again after some time.
+   * @throws Exception If any error occurred.
    */
-  void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener);
+  void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener) throws Exception;
 
   /**
    * Remove the given listener.
@@ -106,8 +106,6 @@ public interface IStorage extends Closeable {
 
   /**
    * Closes the storage, may block for cleanup work.
-   *
-   * @throws IOException if access to the storage failed or any other error occurred.
    */
-  void close() throws IOException;
+  void close();
 }

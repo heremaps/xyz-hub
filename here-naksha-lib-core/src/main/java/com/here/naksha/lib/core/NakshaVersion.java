@@ -38,6 +38,7 @@ public record NakshaVersion(int major, int minor, int revision) implements Compa
    * Naksha version constant. The last version compatible with XYZ-Hub.
    */
   public static final String v0_6 = "0.6.0";
+
   public static final String v2_0_0 = "2.0.0";
   public static final String v2_0_3 = "2.0.3";
   public static final String v2_0_4 = "2.0.4";

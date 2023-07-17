@@ -58,6 +58,7 @@ public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements I
 
   @AvailableSince(v2_0_5)
   protected @NotNull Class<FEATURE> featureClass;
+
   @AvailableSince(v2_0_5)
   protected @NotNull Json json;
 

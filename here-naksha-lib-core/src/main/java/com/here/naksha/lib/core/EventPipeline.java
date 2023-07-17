@@ -122,7 +122,7 @@ public class EventPipeline implements IEventContext {
    * @throws XyzErrorException If any error occurred.
    */
   public @NotNull EventPipeline addSpaceHandler(@NotNull Space space) throws XyzErrorException {
-    final @Nullable List<@NotNull String> connectorIds = space.getEventHandlers();
+    final @Nullable List<@NotNull String> connectorIds = space.getConnectorIds();
     final int SIZE;
     if (connectorIds == null || (SIZE = connectorIds.size()) == 0) {
       throw new XyzErrorException(

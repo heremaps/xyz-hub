@@ -26,7 +26,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.PipelineComponent;
+import com.here.naksha.lib.core.models.ConnectorComponent;
 import com.here.naksha.lib.core.view.ViewMember.Manager;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +41,7 @@ import org.jetbrains.annotations.Nullable;
 @SuppressWarnings("unused")
 @JsonTypeName(value = "Subscription")
 @AvailableSince(NakshaVersion.v2_0_0)
-public final class Subscription extends PipelineComponent {
+public final class Subscription extends ConnectorComponent {
 
   @AvailableSince(NakshaVersion.v2_0_0)
   public static final String STORAGE_ID = "storageId";

@@ -285,8 +285,8 @@ public class PsqlStorage implements IStorage {
    * @throws SQLException If any error occurred.
    */
   @Override
-  public void maintain() throws SQLException {
-    throw new UnsupportedOperationException("maintain");
+  public void maintain() {
+    // throw new UnsupportedOperationException("maintain");
   }
 
   /**

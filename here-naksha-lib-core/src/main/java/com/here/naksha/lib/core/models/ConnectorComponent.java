@@ -30,12 +30,12 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * All configurations that represent an event-pipeline component must extend this class. A pipelined
- * component is a component, that acts on events send through an event-pipeline.
+ * All configurations that represent a component with an event-pipeline must extend this class. A connector component is a component, that
+ * acts on events send through an event-pipeline into which connectors added.
  */
 @SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_0)
-public abstract class PipelineComponent extends XyzFeature {
+public abstract class ConnectorComponent extends XyzFeature {
 
   @AvailableSince(NakshaVersion.v2_0_0)
   public static final String EVENT_HANDLERS = "eventHandlers";
@@ -43,67 +43,68 @@ public abstract class PipelineComponent extends XyzFeature {
   /**
    * Create a new empty pipeline.
    *
-   * @param id the identifier of this component.
-   * @param eventHandlers the list of event handler identifiers to form the event-pipeline.
+   * @param id           The identifier of this component.
+   * @param connectorIds The IDs of all connectors to add to the event-pipeline.
    */
   @AvailableSince(NakshaVersion.v2_0_0)
-  public PipelineComponent(@NotNull String id, @NotNull List<@NotNull String> eventHandlers) {
+  public ConnectorComponent(@NotNull String id, @NotNull List<@NotNull String> connectorIds) {
     super(id);
-    this.eventHandlers = eventHandlers;
+    this.connectorIds = connectorIds;
   }
 
   /**
    * Create a new empty pipeline.
    *
-   * @param id the ID.
-   * @param eventHandlers the list of event-handler identifier of the event handlers that form the
-   *     event-pipeline.
-   * @param packages the packages this feature is part of.
+   * @param id            the ID.
+   * @param eventHandlers the list of event-handler identifier of the event handlers that form the event-pipeline.
+   * @param packages      the packages this feature is part of.
    */
   @AvailableSince(NakshaVersion.v2_0_0)
-  public PipelineComponent(
+  public ConnectorComponent(
       @NotNull String id,
       @NotNull List<@NotNull String> eventHandlers,
       @Nullable List<@NotNull String> packages) {
     super(id);
-    setEventHandlers(eventHandlers);
+    setConnectorIds(eventHandlers);
     setPackages(packages);
   }
 
-  /** The list of event-handler identifiers to be added to the event pipeline, in order. */
-  @AvailableSince(NakshaVersion.v2_0_0)
+  /**
+   * The list of event-handler identifiers to be added to the event pipeline, in order.
+   */
+  @AvailableSince(NakshaVersion.v2_0_6)
   @JsonProperty(EVENT_HANDLERS)
-  public @NotNull List<@NotNull String> eventHandlers;
+  public @NotNull List<@NotNull String> connectorIds;
 
   /**
-   * Returns all event-handler identifiers.
+   * Returns the identifiers of all connectors.
    *
-   * @return all event-handler identifiers.
+   * @return The identifiers of all connectors.
    */
-  @AvailableSince(NakshaVersion.v2_0_0)
+  @AvailableSince(NakshaVersion.v2_0_6)
   @JsonIgnore
-  public @NotNull List<@NotNull String> getEventHandlers() {
-    return eventHandlers;
+  public @NotNull List<@NotNull String> getConnectorIds() {
+    return connectorIds;
   }
 
   /**
-   * Replace the event-handler identifiers.
+   * Replace the identifiers of the connectors.
    *
-   * @param eventHandlers the event-handler identifiers.
+   * @param connectorIds The identifiers of all connectors.
    */
-  @AvailableSince(NakshaVersion.v2_0_0)
-  public void setEventHandlers(@NotNull List<@NotNull String> eventHandlers) {
-    this.eventHandlers = eventHandlers;
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public void setConnectorIds(@NotNull List<@NotNull String> connectorIds) {
+    this.connectorIds = connectorIds;
   }
 
   /**
-   * Replace the event-handler identifiers.
+   * Replace the identifiers of the connectors.
    *
-   * @param eventHandlerIds the new event-handler identifiers.
+   * @param connectorIds The identifiers of all connectors.
    */
-  @AvailableSince(NakshaVersion.v2_0_0)
-  public void setEventHandlerIds(@NotNull String... eventHandlerIds) {
-    this.eventHandlers = new ArrayList<>(eventHandlerIds.length);
-    Collections.addAll(this.eventHandlers, eventHandlerIds);
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public void setConnectorIds(@NotNull String... connectorIds) {
+    this.connectorIds = new ArrayList<>(connectorIds.length);
+    Collections.addAll(this.connectorIds, connectorIds);
   }
 }

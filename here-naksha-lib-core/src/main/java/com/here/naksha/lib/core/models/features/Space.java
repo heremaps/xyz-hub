@@ -27,7 +27,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.Copyright;
 import com.here.naksha.lib.core.models.License;
-import com.here.naksha.lib.core.models.PipelineComponent;
+import com.here.naksha.lib.core.models.ConnectorComponent;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
@@ -45,7 +45,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 @JsonTypeName(value = "Space")
-public final class Space extends PipelineComponent implements Typed {
+public final class Space extends ConnectorComponent implements Typed {
 
   /**
    * Create new space initialized with the given identifier.
