@@ -28,6 +28,8 @@ import com.here.xyz.httpconnector.util.jobs.validate.ExportValidator;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
+
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import org.apache.logging.log4j.LogManager;
@@ -35,6 +37,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
+
+import java.util.HashMap;
 
 public class ExportHandler extends JobHandler{
     private static final Logger logger = LogManager.getLogger();
@@ -59,6 +63,22 @@ public class ExportHandler extends JobHandler{
                     if(value != null && value != 0) {
                         job.setEstimatedFeatureCount(value);
                     }
+                    
+                    HashMap<String, Long> srchProp = new HashMap<String, Long>();
+                    for ( PropertyStatistics pStat : statistics.getProperties().getValue())
+                     if( pStat.isSearchable() )
+                      srchProp.put(pStat.getKey(), pStat.getCount() );
+
+                    if( !srchProp.isEmpty() )
+                     job.setSearchableProperties(srchProp);
+
+                    if(   job.getEstimatedFeatureCount() > 1000000 /** searchable limit without index*/
+                       && job.getPartitionKey() != null 
+                       && !"id".equals(job.getPartitionKey()) 
+                       && !srchProp.containsKey(job.getPartitionKey().replaceFirst("^(p|properties)\\." ,""))
+                       )
+                        return Future.failedFuture(new HttpException(BAD_REQUEST, "partitionKey ["+ job.getPartitionKey() +"] is not a searchable property"));  
+
                     return CService.jobConfigClient.store(marker, job);
                 });
     }

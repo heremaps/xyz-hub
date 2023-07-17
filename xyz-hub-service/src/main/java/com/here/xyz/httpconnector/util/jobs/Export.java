@@ -50,6 +50,9 @@ public class Export extends Job {
     private long estimatedFeatureCount;
 
     @JsonView({Internal.class})
+    private Map<String,Long> searchableProperties;
+
+    @JsonView({Internal.class})
     private List<String> processingList;
 
     /** Only used by type VML */
@@ -105,6 +108,14 @@ public class Export extends Job {
 
     public void setEstimatedFeatureCount(long estimatedFeatureCount) {
         this.estimatedFeatureCount = estimatedFeatureCount;
+    }
+
+    public Map<String,Long> getSearchableProperties() { 
+        return searchableProperties;
+    }
+
+    public void setSearchableProperties( Map<String,Long> searchableProperties ) { 
+        this.searchableProperties = searchableProperties;
     }
 
     public ExportStatistic getStatistic(){
@@ -207,6 +218,11 @@ public class Export extends Job {
 
     public Export withEstimatedFeatureCount(long estimatedFeatureCount){
         setEstimatedFeatureCount(estimatedFeatureCount);
+        return this;
+    }
+
+    public Export withSearchableProperties(Map<String,Long> searchableProperties) {
+        setSearchableProperties(searchableProperties);
         return this;
     }
 
