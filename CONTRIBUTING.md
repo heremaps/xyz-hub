@@ -56,7 +56,7 @@ cp xyz-hub-service/src/main/resources/connector-config.json .vertx/
 
 Adjust the settings to your needs.
 
-Create run profiles for the [XYZ-Hub Service](xyz-hub-service/src/main/java/com/here/xyz/hub/Core.java) and the [HTTP PSQL-Connector](xyz-hub-service/src/main/java/com/here/xyz/hub/HttpConnector.java), setting the environment variables `XYZ_CONFIG_PATH=$PROJECT_DIR$/.vertx/;FS_WEB_ROOT=$PROJECT_DIR$/static/`. When running the tests in the IDE, ensure that the service and connector are running and that you provide the same environment variable to the tests.
+Create run profiles for the [XYZ-Hub Service](here-naksha-app-service/src/main/java/com/here/xyz/hub/Core.java) and the [HTTP PSQL-Connector](here-naksha-app-service/src/main/java/com/here/xyz/hub/HttpConnector.java), setting the environment variables `XYZ_CONFIG_PATH=$PROJECT_DIR$/.vertx/;FS_WEB_ROOT=$PROJECT_DIR$/static/`. When running the tests in the IDE, ensure that the service and connector are running and that you provide the same environment variable to the tests.
 
 If you do not run Redis, change the settings in the `config.json`:
 
