@@ -2,8 +2,6 @@
 
 This document clarifies the needs when contributing to Naksha.
 
-TBD
-
 ## Error handling
 
 There are discussions ongoing about checked exceptions vs unchecked exceptions, for example Kotlin does not supported checked exceptions at all. Links:
@@ -79,3 +77,60 @@ public class Demo extends Something {
 ```
 
 Another thing this is example shows is that our request to JetBrains is not trivial, because a caller of the `foo()` method potentially might not expose by itself that it throws an `SQLException` or an `IOExeception`, therefore the IDE need to recursively trace the call to detect all the possible exceptions. No method ever need to be reviewed twice, which at least avoids endless loops or endless recursions, but still it can be time-consuming to collect all exceptions possible. Additionally, all consumed exceptions must be removed, when a method in the call-stack handles it. However, I believe it is doable and hope someone at JetBrains will do it. If not, we still have the option to develop our own plugin for IntelliJ.
+
+## Logging
+
+Naksha uses [SLF4J](https://www.slf4j.org/manual.html) as logging interface. To avoid logging exceptions multiple times you have two options:
+
+1) Handle the error.
+2) Suppress the error and log it.
+3) Rethrow the error.
+
+All errors that are not handled or suppressed, will automatically be logged, before returning an error to client. The Naksha framework or Naksha-Hub will take care of logging unhandled errors eventually. This is possible due to that we decided to generally handle errors as unchecked exceptions.
+
+Please always use the 2.x SLF4J syntax, so logging should happen like this:
+
+```java
+import static com.here.naksha.lib.core.exceptions.CheckedException.unchecked;
+import static com.here.naksha.lib.core.exceptions.CheckedException.cause;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+
+import java.sql.SQLException;
+
+public class Demo extends Something implements AutoCloseable {
+
+  @Override
+  public void close() {
+    try {
+      return super.close();
+    } catch (final Throwable t) {
+      // Suppress everything.
+      currentLogger().atWarn("Failed to close connection").setCause(e).log();
+    }
+  }
+
+  public void open() {
+    try {
+      super.open();
+    } catch (final Throwable t) {
+      // Rethrow everything unchecked.
+      throw unchecked(t);
+    }
+  }
+
+  public @Nullable String doSomething() {
+    try {
+      return super.doSomething();
+    } catch (final Throwable o) {
+      final Throwable t = cause(o);
+      if (t instanceof NullPointerException e) {
+        // Suppress NPE.
+        currentLogger().atWarn("Failed to do something").setCause(e).log();
+        return null;
+      }
+      // Everything unhandled, simply re-throw.
+      throw unchecked(o);
+    }
+  }
+}
+```
