@@ -18,7 +18,7 @@
  */
 package com.here.naksha.handler.psql;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -347,23 +347,31 @@ public class DatabaseTransactionalWriter extends DatabaseWriter {
     try {
       final long startTS = System.currentTimeMillis();
       if (idList.size() > 0) {
-        currentLogger().debug("batch execution [{}]: {} ", type, batchStmt);
+        currentLogger()
+            .atDebug("batch execution [{}]: {} ")
+            .add(type)
+            .add(batchStmt)
+            .log();
 
         batchStmt.setQueryTimeout((int) processor.calculateTimeout());
         batchStmt.execute();
         ResultSet rs = batchStmt.getResultSet();
         fillFeatureListAndFailList(rs, featureList, fails, idList, handleUUID, type);
-        if (rs != null) rs.close();
+        rs.close();
       }
 
       if (idList2.size() > 0) {
-        currentLogger().debug("batch2 execution [{}]: {} ", type, batchStmt2);
+        currentLogger()
+            .atDebug("batch2 execution [{}]: {} ")
+            .add(type)
+            .add(batchStmt2)
+            .log();
 
         batchStmt2.setQueryTimeout((int) processor.calculateTimeout());
         batchStmt2.execute();
         ResultSet rs = batchStmt2.getResultSet();
         fillFeatureListAndFailList(rs, featureWithoutGeoList, fails, idList2, handleUUID, type);
-        if (rs != null) rs.close();
+        rs.close();
       }
       final long duration = System.currentTimeMillis() - startTS;
       currentLogger()

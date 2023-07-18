@@ -19,6 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.psql.SQL.escapeId;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
@@ -33,7 +34,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Arrays;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLException;
 
@@ -118,97 +118,6 @@ public class PsqlStorage implements IStorage {
    */
   public final long getStorageNumber() {
     return storageNumber;
-  }
-
-  static final boolean[] ESCAPE = new boolean[128];
-
-  static {
-    Arrays.fill(ESCAPE, true);
-    for (int c = '0'; c <= '9'; c++) {
-      ESCAPE[c] = false;
-    }
-    for (int c = 'a'; c <= 'z'; c++) {
-      ESCAPE[c] = false;
-    }
-    for (int c = 'A'; c <= 'Z'; c++) {
-      ESCAPE[c] = false;
-    }
-    ESCAPE['_'] = false;
-  }
-
-  /**
-   * Tests if the given identifier must be escaped.
-   *
-   * @param id the identifier to test.
-   * @return true if the identifier must be escaped; false otherwise.
-   */
-  static boolean shouldEscape(@NotNull CharSequence id) {
-    for (int i = 0; i < id.length(); i++) {
-      final char c = id.charAt(i);
-      // We signal that every less than the space must be escaped. The escape method then will throw
-      // an SQLException!
-      if (c < 32 || c > 126 || ESCAPE[c]) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  static void escapeWrite(@NotNull CharSequence chars, @NotNull StringBuilder sb) throws SQLException {
-    // See: https://www.asciitable.com/
-    // We only allows characters between 32 (space) and 126 (~).
-    for (int i = 0; i < chars.length(); i++) {
-      final char c = chars.charAt(i);
-      if (c < 32 || c > 126) {
-        throw new SQLException("Illegal character in identifier: " + chars);
-      }
-      if (c == '"') {
-        sb.append('"').append('"');
-      } else {
-        sb.append(c);
-      }
-    }
-  }
-
-  /**
-   * Escape the given identifier.
-   *
-   * @param sb The string builder into which to write the escaped identifier.
-   * @param id The identifier to escape.
-   * @return The given string builder.
-   * @throws SQLException If the identifier contains illegal characters, for example the ASCII-0.
-   */
-  static @NotNull StringBuilder escapeId(@NotNull StringBuilder sb, @NotNull CharSequence id) throws SQLException {
-    sb.append('"');
-    escapeWrite(id, sb);
-    sb.append('"');
-    return sb;
-  }
-
-  /**
-   * Escape all given identifiers together, not individually, for example:
-   *
-   * <pre>{@code
-   * String prefix = "hello";
-   * String postfix = "world";
-   * escapeId(prefix, "_", postfix);
-   * }</pre>
-   * <p>
-   * will result in the code generated being: {@code "hello_world"}.
-   *
-   * @param sb  The string builder into which to write the escaped identifiers.
-   * @param ids The identifiers to escape.
-   * @return The given string builder.
-   * @throws SQLException If any identifier contains illegal characters, for example the ASCII-0.
-   */
-  static @NotNull StringBuilder escapeId(@NotNull StringBuilder sb, @NotNull CharSequence... ids)
-      throws SQLException {
-    sb.append('"');
-    for (final CharSequence id : ids) {
-      escapeWrite(id, sb);
-    }
-    sb.append('"');
-    return sb;
   }
 
   static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()"; // TODO: Why to we need this?

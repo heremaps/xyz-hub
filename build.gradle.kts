@@ -170,6 +170,15 @@ subprojects {
         compileJava {
             finalizedBy(spotlessApply)
         }
+
+        // Suppress Javadoc errors (we document our checked exceptions).
+        javadoc {
+            options {
+                this as StandardJavadocDocletOptions
+                addBooleanOption("Xdoclint:none", true)
+                addStringOption("Xmaxwarns", "1")
+            }
+        }
     }
 
     java {

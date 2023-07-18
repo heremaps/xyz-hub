@@ -205,8 +205,7 @@ public class QueryParameter {
   }
 
   /**
-   * Returns the next query parameter with the same {@link #key() key}. To iterate all parameters
-   * use {@link }
+   * Returns the next query parameter with the same {@link #key() key}.
    *
    * @return The next query parameter with the same {@link #key() key}; {@code null} if no parameter
    *     with the same key exists.

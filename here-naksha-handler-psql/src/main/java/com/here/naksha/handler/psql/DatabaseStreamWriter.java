@@ -18,7 +18,7 @@
  */
 package com.here.naksha.handler.psql;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
@@ -128,13 +128,12 @@ public class DatabaseStreamWriter extends DatabaseWriter {
     insertWithoutGeometryStmt.close();
     final long duration = System.currentTimeMillis() - startTS;
     currentLogger()
-        .info(
-            "NonTransactional DB Operation Stats [format => eventType,table,opType,timeTakenMs] - {} {} {} {}",
-            "DBOperationStats",
-            table,
-            TYPE_INSERT,
-            duration);
-
+        .atInfo("NonTransactional DB Operation Stats: eventType={}, table={}, opType={}, time={}ms")
+        .add("DBOperationStats")
+        .add(table)
+        .add(TYPE_INSERT)
+        .add(duration)
+        .log();
     return collection;
   }
 

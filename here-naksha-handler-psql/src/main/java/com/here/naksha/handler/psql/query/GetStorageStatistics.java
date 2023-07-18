@@ -18,7 +18,7 @@
  */
 package com.here.naksha.handler.psql.query;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.handler.psql.SQLQueryExt;
@@ -61,7 +61,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
     event.getSpaceIds().forEach(spaceId -> {
       final PsqlCollection space = processor.getSpaceById(spaceId);
       if (space == null) {
-        currentLogger().info("Unknown space: {}", spaceId);
+        currentLogger().atInfo("Unknown space: {}").add(spaceId).log();
       } else if (!schema.equals(space.schema)) {
         currentLogger()
             .error(

@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.psql.PsqlStorage.escapeId;
+import static com.here.naksha.lib.psql.SQL.escapeId;
 
 import com.here.naksha.lib.core.storage.ITransactionSettings;
 import java.io.PrintWriter;

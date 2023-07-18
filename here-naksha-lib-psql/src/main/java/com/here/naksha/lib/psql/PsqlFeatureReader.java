@@ -19,6 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.psql.SQL.escapeId;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
@@ -45,7 +46,7 @@ public class PsqlFeatureReader<FEATURE extends XyzFeature, TX extends PsqlTxRead
       final StringBuilder sb = new StringBuilder();
       sb.append(
           "SELECT jsondata->>'id', jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', jsondata::jsonb, geo::geometry FROM ");
-      PsqlStorage.escapeId(sb, collection.getId());
+      escapeId(sb, collection.getId());
       sb.append(" WHERE jsondata->>'id' = ANY(?)");
       final String SQL = sb.toString();
       final PreparedStatement stmt = tx.preparedStatement(SQL);

@@ -18,7 +18,7 @@
  */
 package com.here.naksha.handler.psql;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -202,8 +202,20 @@ public class DatabaseWriter {
       @Nullable Exception e, @NotNull PsqlHandler processor, @Nullable String action, @NotNull String table) {
     if (e != null && e.getMessage() != null && e.getMessage().contains("does not exist")) {
       /* If table not yet exist */
-      currentLogger().info("{Failed to perform {} - table {} does not exists {}", action, table, e);
-    } else currentLogger().info("Failed to perform {} on table {} {}", action, table, e);
+      currentLogger()
+          .atInfo("Failed to perform {} - table {} does not exists")
+          .add(action)
+          .add(table)
+          .setCause(e)
+          .log();
+    } else {
+      currentLogger()
+          .atInfo("Failed to perform {} on table {}")
+          .add(action)
+          .add(table)
+          .setCause(e)
+          .log();
+    }
   }
 
   protected static void saveXyzNamespaceInFeature(final XyzFeature f, final String xyzNsJson) {

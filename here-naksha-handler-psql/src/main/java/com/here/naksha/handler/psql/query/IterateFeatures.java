@@ -18,7 +18,7 @@
  */
 package com.here.naksha.handler.psql.query;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

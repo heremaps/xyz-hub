@@ -21,13 +21,14 @@ package com.here.naksha.lib.psql;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** A fully pre-configured PostgresQL data-source. */
+/**
+ * A fully pre-configured PostgresQL data-source.
+ */
 public class PsqlDataSource extends AbstractPsqlDataSource<PsqlDataSource> {
-
   /**
    * Create a new data source for the given connection pool and application.
    *
-   * @param pool the PSQL pool.
+   * @param pool    the PSQL pool.
    * @param appName The application name to set, when connecting to the database.
    */
   public PsqlDataSource(@NotNull PsqlPool pool, @NotNull String appName) {
@@ -48,7 +49,9 @@ public class PsqlDataSource extends AbstractPsqlDataSource<PsqlDataSource> {
     setRole(config.role);
   }
 
-  /** The PostgresQL configuration. */
+  /**
+   * The PostgresQL configuration.
+   */
   private final @Nullable PsqlConfig config;
 
   @Override

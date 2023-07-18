@@ -127,14 +127,12 @@ public class PsqlStorageTest {
   @Order(2)
   @EnabledIf("isEnabled")
   void dropSchemaIfExists() throws Exception {
-    final StringBuilder sb = new StringBuilder();
-    sb.append("DROP SCHEMA IF EXISTS ");
-    assert storage != null;
-    PsqlStorage.escapeId(sb, storage.getSchema());
-    sb.append(" CASCADE;");
-    final String SQL = sb.toString();
     try (final var conn = storage.dataSource.getConnection()) {
-      conn.createStatement().execute(SQL);
+      conn.createStatement()
+          .execute(new SQL("DROP SCHEMA IF EXISTS ")
+              .escape(storage.getSchema())
+              .append(" CASCADE;")
+              .toString());
       conn.commit();
     }
   }

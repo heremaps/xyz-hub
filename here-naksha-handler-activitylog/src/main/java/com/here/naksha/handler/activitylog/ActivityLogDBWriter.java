@@ -18,132 +18,139 @@
  */
 package com.here.naksha.handler.activitylog;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.psql.PsqlDataSource;
+import com.here.naksha.lib.psql.SQL;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
 
 public class ActivityLogDBWriter {
+
   public static void fromActicityLogDBToFeature(
-      PsqlDataSource dataSourceLocalHost, PsqlDataSource dataSourceActivityLog, String tableName, Integer limit) {
+      final @NotNull PsqlDataSource dataSourceLocalHost,
+      final @NotNull PsqlDataSource dataSourceActivityLog,
+      final @NotNull String tableName,
+      final int pageSize) {
+    assert pageSize >= 1;
     long startTime = System.currentTimeMillis();
-    currentLogger().info("Activity Log table is " + tableName + " and value of limit is " + limit);
+    currentLogger()
+        .atInfo("Activity Log table is {} and page size is {}")
+        .add(tableName)
+        .add(pageSize)
+        .log();
     String schema = dataSourceActivityLog.getSchema();
     List<String> featureList = new ArrayList<>();
     List<String> geoList = new ArrayList<>();
     List<Integer> iList = new ArrayList<>();
-    int intMaxIFeaturesTable = 0;
-    int intMaxIActivityTable = 0;
-    try (Connection conn = dataSourceActivityLog.getConnection()) {
-      String SQLMaxIActivityTable = sqlQueryMaxIActivity(schema, tableName);
-      try (final PreparedStatement stmt = conn.prepareStatement(SQLMaxIActivityTable)) {
+    long maxFirstActivityTable;
+    try (final Connection conn = dataSourceActivityLog.getConnection()) {
+      try (final PreparedStatement stmt = conn.prepareStatement(new SQL("SELECT i FROM ")
+          .escape(schema)
+          .append(".")
+          .escape(tableName)
+          .append(" ORDER BY i DESC LIMIT 1;")
+          .toString())) {
         final ResultSet result = stmt.executeQuery();
         if (result != null && result.next()) {
-          intMaxIActivityTable = result.getInt(1);
+          maxFirstActivityTable = result.getInt(1);
         } else {
-          currentLogger().error("Make sure that source table Activity Log is not empty.");
+          throw new SQLException("Empty result-set returned from activity-log table.");
         }
-      } catch (SQLException throwables) {
-        currentLogger().info("Unable to get max I value from an activity table.");
-        throwables.printStackTrace();
       }
-      currentLogger().info("Maximum I value present in Activity table is " + intMaxIActivityTable);
+      currentLogger()
+          .atInfo("Maximum first value present in activity-log table is: {}")
+          .add(maxFirstActivityTable)
+          .log();
       // Assigning this value for testing purpose
-      intMaxIActivityTable = 100;
-      try (Connection connLocalHost = dataSourceLocalHost.getConnection()) {
-        String queryPreRequisite = sqlQueryPreRequisites(schema);
+      maxFirstActivityTable = 100;
+      long maxFirstFeaturesTable = 0;
+      try (final Connection connLocalHost = dataSourceLocalHost.getConnection()) {
+        final String queryPreRequisite = new SQL("CREATE SCHEMA IF NOT EXISTS ")
+            .escape(schema)
+            .append("; CREATE TABLE IF NOT EXISTS ")
+            .escape(schema)
+            .append(".Features_Original_Format")
+            .append(
+                """
+(
+jsondata      jsonb,"
+geo           varchar,"
+i             int8 PRIMARY KEY"
+);""")
+            .append("CREATE SEQUENCE IF NOT EXISTS ")
+            .escape(schema)
+            .append(".Features_Original_Format_i_seq")
+            .append(" AS int8 OWNED BY ")
+            .escape(schema)
+            .append(".Features_Original_Format.i;")
+            .toString();
         sqlExecute(connLocalHost, queryPreRequisite);
-        String SQLMaxIFeaturesTable = sqlQuerySelectMaxIFeatures();
-        try (final PreparedStatement stmt = connLocalHost.prepareStatement(SQLMaxIFeaturesTable)) {
+        try (final PreparedStatement stmt =
+            connLocalHost.prepareStatement("SELECT MAX(i) FROM activity.Features_Original_Format;")) {
           final ResultSet result = stmt.executeQuery();
-          if (result != null && result.next()) {
-            intMaxIFeaturesTable = result.getInt(1);
+          if (result.next()) {
+            maxFirstFeaturesTable = result.getInt(1);
           }
-        } catch (SQLException throwables) {
-          currentLogger().info("Unable to get max I value from an features table.");
-          throwables.printStackTrace();
         }
-        currentLogger().info("Maximum I value present in Features table is " + intMaxIFeaturesTable);
-        Integer batchNumber = intMaxIFeaturesTable + limit;
-        while (batchNumber < (intMaxIActivityTable + limit)) {
-          String SQLSelectActiLog = sqlQuerySelectFromActivityLog(schema, tableName, batchNumber, limit);
-          try (final PreparedStatement stmt = conn.prepareStatement(SQLSelectActiLog)) {
+        currentLogger()
+            .atInfo("Maximum first value present in features table is: {}")
+            .add(maxFirstFeaturesTable)
+            .log();
+        long batchNumber = maxFirstFeaturesTable + pageSize;
+        while (batchNumber < (maxFirstActivityTable + pageSize)) {
+          try (final PreparedStatement stmt = conn.prepareStatement(new SQL("SELECT jsondata,geo,i FROM ")
+              .escape(schema)
+              .append(".")
+              .escape(tableName)
+              .append(" WHERE i >= ? ORDER BY i DESC LIMIT ?")
+              .toString())) {
+            stmt.setLong(1, pageSize * batchNumber);
+            stmt.setInt(2, pageSize);
             final ResultSet result = stmt.executeQuery();
             if (result != null) {
               while (result.next()) {
-                try {
-                  XyzFeature activityLogFeature =
-                      JsonSerializable.deserialize(result.getString(1), XyzFeature.class);
-                  geoList.add(result.getString(2));
-                  iList.add(result.getInt(3));
-                  ActivityLogHandler.fromActivityLogFormat(activityLogFeature);
-                  featureList.add(activityLogFeature.serialize());
-                } catch (JsonProcessingException e) {
-                  currentLogger().info("Error while processing/converting activity log json.");
-                  e.printStackTrace();
-                }
+                final XyzFeature activityLogFeature =
+                    JsonSerializable.deserialize(result.getString(1), XyzFeature.class);
+                assert activityLogFeature != null;
+                geoList.add(result.getString(2));
+                iList.add(result.getInt(3));
+                ActivityLogHandler.fromActivityLogFormat(activityLogFeature);
+                featureList.add(activityLogFeature.serialize());
               }
             }
-          } catch (SQLException throwables) {
-            currentLogger().info("Error while selecting activity log records from activity table.");
-            throwables.printStackTrace();
           }
           if (featureList.size() != 0) {
-            String sqlBulkInsertQuery =
+            final String sqlBulkInsertQuery =
                 sqlQueryInsertConvertedFeatures(featureList, schema, geoList, iList);
             currentLogger().info("Inserting " + iList.size() + " records with ids " + iList);
             sqlExecute(connLocalHost, sqlBulkInsertQuery);
           }
           connLocalHost.commit();
-          batchNumber += limit;
+          batchNumber += pageSize;
           geoList.clear();
           iList.clear();
           featureList.clear();
         }
-        currentLogger().info("Total Time to process : " + (System.currentTimeMillis() - startTime));
-      } catch (SQLException throwables) {
-        currentLogger().info("Error while connecting to destination database.");
-        throwables.printStackTrace();
+        currentLogger()
+            .atInfo("Total time to process: {}")
+            .add(System.currentTimeMillis() - startTime)
+            .log();
       }
-    } catch (SQLException throwables) {
-      currentLogger().info("Error while connecting to source database.");
-      throwables.printStackTrace();
+    } catch (SQLException e) {
+      throw unchecked(e);
     }
   }
 
-  public static String sqlQuerySelectFromActivityLog(String schema, String tableName, int batchNumber, int limit) {
-    String SQLSelectActiLog = "SELECT jsondata,geo,i FROM "
-        + schema
-        + ".\""
-        + tableName
-        + "\" Where i>"
-        + (batchNumber - limit)
-        + " And i<="
-        + batchNumber
-        + " limit "
-        + limit
-        + ";";
-    return SQLSelectActiLog;
-  }
-
-  public static String sqlQuerySelectMaxIFeatures() {
-    String SQLMaxIFeaturesTable = "select i from activity.\"Features_Original_Format\" order by i desc limit 1;";
-    return SQLMaxIFeaturesTable;
-  }
-
-  public static String sqlQueryMaxIActivity(String schema, String tableName) {
-    String SQLMaxIActivityTable = "select i from " + schema + ".\"" + tableName + "\"" + "order by i desc limit 1;";
-    return SQLMaxIActivityTable;
-  }
-
+  // TODO: Change to prepared statement to prevent possible SQL injections.
   public static String sqlQueryInsertConvertedFeatures(
       List<String> featureList, String schema, List<String> geoList, List<Integer> iList) {
     String firstPart = "INSERT INTO " + schema + ".\"Features_Original_Format\"(jsondata,geo,i) VALUES ";
@@ -162,28 +169,6 @@ public class ActivityLogDBWriter {
       }
     }
     return firstPart;
-  }
-
-  public static String sqlQueryPreRequisites(String schema) {
-    String sqlQuery = "CREATE SCHEMA IF NOT EXISTS "
-        + schema
-        + ";"
-        + "CREATE TABLE IF NOT EXISTS "
-        + schema
-        + ".\"Features_Original_Format\""
-        + "(\n"
-        + "    jsondata      jsonb,"
-        + "    geo           varchar,"
-        + "    i             int8 PRIMARY KEY"
-        + ");"
-        + "CREATE SEQUENCE IF NOT EXISTS "
-        + schema
-        + "."
-        + "Features_Original_Format_i_seq"
-        + " AS int8 OWNED BY "
-        + schema
-        + ".\"Features_Original_Format\".i;";
-    return sqlQuery;
   }
 
   public static void sqlExecute(Connection conn, String sqlQuery) {
