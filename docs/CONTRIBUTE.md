@@ -13,7 +13,7 @@ There are discussions ongoing about checked exceptions vs unchecked exceptions, 
 - [The Trouble with Checked Exceptions(Anders Hejlsberg)](https://www.artima.com/intv/handcuffs.html)
 - [Exception Tunneling](http://wiki.c2.com/?ExceptionTunneling)
 
-The basic problem that checked exceptions should solve is that we want to understand, when a function can produce an error and when not. We want the caller to either handle the error, or return the error to the caller, so the caller handles the error. In an ideal world we want to know either, which errors are possible, so we can decide, which ones we want to handle.
+The basic problem that checked exceptions should solve is that we want to understand, when a function can produce an error and when not. We want the caller to either handle the error, or return the error to the caller, so the caller handles the error. In an ideal world we want to know as well, which errors are possible, so we can decide, which ones we want to handle.
 
 However, there are major gaps for this as soon as interfaces are used:
 
