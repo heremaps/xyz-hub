@@ -20,7 +20,6 @@ package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import java.sql.SQLException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -29,11 +28,9 @@ public interface IMasterTransaction extends IReadTransaction {
 
   /**
    * Commit all changes.
-   *
-   * @throws SQLException If any error occurred.
    */
   @AvailableSince(NakshaVersion.v2_0_0)
-  void commit() throws Exception;
+  void commit();
 
   /** Abort the transaction, revert all pending changes. */
   @AvailableSince(NakshaVersion.v2_0_0)
@@ -49,11 +46,10 @@ public interface IMasterTransaction extends IReadTransaction {
    *
    * @param collection the collection to create.
    * @return the created collection.
-   * @throws Exception if access to the storage failed or any other error occurred.
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
-  CollectionInfo createCollection(@NotNull CollectionInfo collection) throws Exception;
+  CollectionInfo createCollection(@NotNull CollectionInfo collection);
 
   /**
    * Update the collection.

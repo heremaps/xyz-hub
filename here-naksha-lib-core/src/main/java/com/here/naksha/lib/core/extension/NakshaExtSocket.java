@@ -18,6 +18,9 @@
  */
 package com.here.naksha.lib.core.extension;
 
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.util.json.Json;
@@ -40,24 +43,28 @@ public class NakshaExtSocket implements AutoCloseable {
   /**
    * Creates a new client and connect it to the extension.
    *
-   * @param config     the extension configuration.
+   * @param config the extension configuration.
    * @return the established socket.
    * @throws IOException          if any error occurs.
    * @throws UnknownHostException if the host name configured is unknown.
    */
-  public static @NotNull NakshaExtSocket connect(@NotNull Extension config) throws IOException {
-    final InetAddress hostAddress = InetAddress.getByName(config.getHost());
-    final int port = config.getPort();
-    if (port <= 0 || port > 65535) {
-      throw new IOException("Invalid port: " + port);
+  public static @NotNull NakshaExtSocket connect(@NotNull Extension config) {
+    try {
+      final InetAddress hostAddress = InetAddress.getByName(config.getHost());
+      final int port = config.getPort();
+      if (port <= 0 || port > 65535) {
+        throw unchecked(new IOException("Invalid port: " + port));
+      }
+      final InetSocketAddress inetSocketAddress = new InetSocketAddress(hostAddress, port);
+      final Socket socket = new Socket();
+      socket.connect(inetSocketAddress, config.getConnTimeout());
+      socket.setTcpNoDelay(true);
+      return new NakshaExtSocket(socket)
+          .withReadTimeout(config.getReadTimeout())
+          .asClient();
+    } catch (IOException e) {
+      throw unchecked(e);
     }
-    final InetSocketAddress inetSocketAddress = new InetSocketAddress(hostAddress, port);
-    final Socket socket = new Socket();
-    socket.connect(inetSocketAddress, config.getConnTimeout());
-    socket.setTcpNoDelay(true);
-    return new NakshaExtSocket(socket)
-        .withReadTimeout(config.getReadTimeout())
-        .asClient();
   }
 
   /**
@@ -66,11 +73,15 @@ public class NakshaExtSocket implements AutoCloseable {
    * @param socket the TCP/IP socket to wrap.
    * @throws IOException if acquiring the input and output streams of the socket fails.
    */
-  public NakshaExtSocket(@NotNull Socket socket) throws IOException {
-    this.socket = socket;
-    in = new BufferedInputStream(socket.getInputStream());
-    out = new BufferedOutputStream(socket.getOutputStream());
-    isNew = true;
+  public NakshaExtSocket(@NotNull Socket socket) {
+    try {
+      this.socket = socket;
+      in = new BufferedInputStream(socket.getInputStream());
+      out = new BufferedOutputStream(socket.getOutputStream());
+      isNew = true;
+    } catch (IOException e) {
+      throw unchecked(e);
+    }
   }
 
   public @NotNull NakshaExtSocket withReadTimeout(int timeoutInMillis) throws IOException {
@@ -89,7 +100,7 @@ public class NakshaExtSocket implements AutoCloseable {
     return this;
   }
 
-  private void sendHttpRequestHeader() throws IOException {
+  private void sendHttpRequestHeader() {
     //      final StringBuilder sb = new StringBuilder();
     //      sb.append("POST /naksha/extension/ HTTP/1.1\n")
     //          .append("Host: ").append(host).append('\n')
@@ -107,7 +118,7 @@ public class NakshaExtSocket implements AutoCloseable {
     //      out.flush();
   }
 
-  private void sendHttpResponseHeader() throws IOException {
+  private void sendHttpResponseHeader() {
     // Remove HTTP header
     //      public static final String SWITCH_STRING = "HTTP/1.1 101 Switching Protocols\n"
     //          + "Upgrade: naksha/1.0\n"
@@ -116,9 +127,9 @@ public class NakshaExtSocket implements AutoCloseable {
     //      public static final byte[] SWITCH_BYTES = SWITCH_STRING.getBytes(StandardCharsets.UTF_8);
   }
 
-  private void removeHttpHeader() throws IOException {}
+  private void removeHttpHeader() {}
 
-  public @NotNull ExtensionMessage readMessage() throws IOException {
+  public @NotNull ExtensionMessage readMessage() {
     if (isNew) {
       removeHttpHeader();
       isNew = false;
@@ -127,10 +138,12 @@ public class NakshaExtSocket implements AutoCloseable {
       return json.reader(ViewDeserialize.Internal.class)
           .forType(ExtensionMessage.class)
           .readValue(in);
+    } catch (IOException e) {
+      throw unchecked(e);
     }
   }
 
-  public void sendMessage(@NotNull ExtensionMessage msg) throws IOException {
+  public void sendMessage(@NotNull ExtensionMessage msg) {
     if (isNew) {
       if (isClient) {
         sendHttpRequestHeader();
@@ -142,6 +155,8 @@ public class NakshaExtSocket implements AutoCloseable {
     try (final Json json = Json.get()) {
       json.writer(ViewSerialize.Internal.class).writeValue(out, msg);
       out.flush();
+    } catch (IOException e) {
+      throw unchecked(e);
     }
   }
 
@@ -152,8 +167,11 @@ public class NakshaExtSocket implements AutoCloseable {
       out.close();
       in.close();
       socket.close();
-    } catch (IOException ignore) {
-
+    } catch (Throwable t) {
+      currentLogger()
+          .atWarn("Failed to close Naksha extension socket")
+          .setCause(t)
+          .log();
     }
   }
 }

@@ -18,9 +18,9 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.json.Json.toJsonString;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
@@ -69,10 +69,8 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
       final @NotNull ArrayList<String> features,
       final @NotNull ArrayList<Geometry> geometries,
       final @NotNull ArrayList<String> expected_uuids,
-      final @NotNull ArrayList<String> ops)
-      throws SQLException {
-    for (int i = 0; i < source.size(); i++) {
-      final @NotNull FEATURE feature = source.get(i);
+      final @NotNull ArrayList<String> ops) {
+    for (final FEATURE feature : source) {
       final XyzGeometry nkGeometry = feature.getGeometry();
       feature.setGeometry(null);
       try {
@@ -90,8 +88,8 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
                 ? null
                 : feature.getProperties().getXyzNamespace().getUuid());
         ops.add(op.toString());
-      } catch (JsonProcessingException e) {
-        throw new SQLException("Failed to serialize feature in insert list at index " + i, e);
+      } catch (final Throwable t) {
+        throw unchecked(t);
       } finally {
         feature.setGeometry(nkGeometry);
       }
@@ -99,7 +97,7 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
   }
 
   @Override
-  public @NotNull ModifyFeaturesResp modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req) throws SQLException {
+  public @NotNull ModifyFeaturesResp modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req) {
     try (final Json json = Json.get()) {
       final ObjectWriter writer = json.writer(ViewSerialize.Storage.class);
       final ObjectWriter featureWriter = writer.forType(XyzFeature.class);
@@ -139,47 +137,42 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
           final ObjectReader reader = json.reader(ViewDeserialize.Storage.class);
           while (rs.next()) {
             i++;
-            try {
-              final String op = rs.getString(1);
-              final PGobject pgFeature = (PGobject) rs.getObject(2);
-              assert pgFeature != null && pgFeature.getValue() != null;
-              final XyzFeature feature = reader.readValue(pgFeature.getValue(), XyzFeature.class);
-              if (ILike.equals(op, NakshaOp.INSERT)) {
-                final Geometry geometry = geometries.get(i);
-                if (geometry != null) {
-                  feature.setGeometry(JTSHelper.fromGeometry(geometry));
-                }
-                response.inserted().add(feature);
-              } else if (ILike.equals(op, NakshaOp.UPDATE)) {
-                final Geometry geometry = geometries.get(i);
-                if (geometry != null) {
-                  feature.setGeometry(JTSHelper.fromGeometry(geometry));
-                }
-                response.updated().add(feature);
-              } else if (ILike.equals(op, NakshaOp.DELETE)) {
-                final PGobject pgGeometry = (PGobject) rs.getObject(3);
-                if (pgGeometry != null) {
-                  final String hex = pgGeometry.getValue();
-                  if (hex != null) {
-                    final Geometry geometry = json.wkbReader.read(WKBReader.hexToBytes(hex));
-                    feature.setGeometry(JTSHelper.fromGeometry(geometry));
-                  }
-                }
-                response.deleted().add(feature);
-              } else {
-                throw new SQLException(
-                    "Unexpected operation returned by naksha_modify_features at index " + i + ": "
-                        + op);
+            final String op = rs.getString(1);
+            final PGobject pgFeature = (PGobject) rs.getObject(2);
+            assert pgFeature != null && pgFeature.getValue() != null;
+            final XyzFeature feature = reader.readValue(pgFeature.getValue(), XyzFeature.class);
+            if (ILike.equals(op, NakshaOp.INSERT)) {
+              final Geometry geometry = geometries.get(i);
+              if (geometry != null) {
+                feature.setGeometry(JTSHelper.fromGeometry(geometry));
               }
-            } catch (SQLException e) {
-              throw e;
-            } catch (Exception e) {
-              throw new SQLException("Unexpected exception while retrieving response", e);
+              response.inserted().add(feature);
+            } else if (ILike.equals(op, NakshaOp.UPDATE)) {
+              final Geometry geometry = geometries.get(i);
+              if (geometry != null) {
+                feature.setGeometry(JTSHelper.fromGeometry(geometry));
+              }
+              response.updated().add(feature);
+            } else if (ILike.equals(op, NakshaOp.DELETE)) {
+              final PGobject pgGeometry = (PGobject) rs.getObject(3);
+              if (pgGeometry != null) {
+                final String hex = pgGeometry.getValue();
+                if (hex != null) {
+                  final Geometry geometry = json.wkbReader.read(WKBReader.hexToBytes(hex));
+                  feature.setGeometry(JTSHelper.fromGeometry(geometry));
+                }
+              }
+              response.deleted().add(feature);
+            } else {
+              throw new SQLException("Unexpected operation returned by naksha_modify_features at index "
+                  + i + ": " + op);
             }
           }
         }
+        return response;
+      } catch (final Throwable t) {
+        throw unchecked(t);
       }
-      return response;
     }
   }
 }

@@ -54,7 +54,7 @@ class ActivityLogHandlerTest {
   static IoEventPipeline eventPipeline;
 
   @BeforeAll
-  static void setup() throws Exception {
+  static void setup() {
     eventHandler = new Connector("test:activity-log", ActivityLogHandler.class);
     eventPipeline = new IoEventPipeline();
     eventPipeline.addEventHandler(eventHandler.newInstance());

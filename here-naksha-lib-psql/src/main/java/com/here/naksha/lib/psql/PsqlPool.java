@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.zaxxer.hikari.HikariConfig;
@@ -84,7 +84,10 @@ public final class PsqlPool implements AutoCloseable {
       if (pool == null) {
         Thread.currentThread().getUncaughtExceptionHandler();
         cache.remove(config, poolRef);
-        currentLogger().info("Remove garbage collected connection pool {}", config);
+        currentLogger()
+            .atInfo("Remove garbage collected connection pool {}")
+            .add(config)
+            .log();
       }
     }
   }

@@ -18,7 +18,9 @@
  */
 package com.here.naksha.lib.psql;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
@@ -44,7 +46,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    * @param settings   The transaction settings.
    * @throws SQLException if creation of the writer failed.
    */
-  PsqlTxWriter(@NotNull PsqlStorage psqlClient, @NotNull ITransactionSettings settings) throws SQLException {
+  PsqlTxWriter(@NotNull PsqlStorage psqlClient, @NotNull ITransactionSettings settings) {
     super(psqlClient, settings);
   }
 
@@ -54,7 +56,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
   }
 
   @Override
-  public @NotNull CollectionInfo createCollection(@NotNull CollectionInfo collection) throws SQLException {
+  public @NotNull CollectionInfo createCollection(@NotNull CollectionInfo collection) {
     try (final PreparedStatement stmt = preparedStatement("SELECT naksha_collection_upsert(?, ?, ?);")) {
       stmt.setString(1, collection.getId());
       stmt.setLong(2, collection.getMaxAge());
@@ -65,19 +67,19 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
         return json.reader(ViewDeserialize.Storage.class)
             .forType(CollectionInfo.class)
             .readValue(rs.getString(1));
-      } catch (JsonProcessingException e) {
-        throw new SQLException(e);
       }
+    } catch (final Throwable t) {
+      throw unchecked(t);
     }
   }
 
   @Override
-  public @NotNull CollectionInfo updateCollection(@NotNull CollectionInfo collection) throws SQLException {
+  public @NotNull CollectionInfo updateCollection(@NotNull CollectionInfo collection) {
     throw new UnsupportedOperationException("updateCollection");
   }
 
   @AvailableSince(NakshaVersion.v2_0_0)
-  public @NotNull CollectionInfo upsertCollection(@NotNull CollectionInfo collection) throws SQLException {
+  public @NotNull CollectionInfo upsertCollection(@NotNull CollectionInfo collection) {
     throw new UnsupportedOperationException("updateCollection");
   }
 
@@ -103,12 +105,12 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
   }
 
   @Override
-  public @NotNull CollectionInfo enableHistory(@NotNull CollectionInfo collection) throws SQLException {
+  public @NotNull CollectionInfo enableHistory(@NotNull CollectionInfo collection) {
     throw new UnsupportedOperationException("enableHistory");
   }
 
   @Override
-  public @NotNull CollectionInfo disableHistory(@NotNull CollectionInfo collection) throws SQLException {
+  public @NotNull CollectionInfo disableHistory(@NotNull CollectionInfo collection) {
     throw new UnsupportedOperationException("disableHistory");
   }
 
@@ -123,10 +125,11 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    *
    * @throws SQLException If any error occurred.
    */
-  public void commit() throws SQLException {
+  public void commit() {
     try {
-      //noinspection resource
       conn().commit();
+    } catch (final Throwable t) {
+      throw unchecked(t);
     } finally {
       // start a new transaction, this ensures that the app_id and author are set.
       naksha_tx_start();
@@ -138,9 +141,9 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
    */
   public void rollback() {
     try {
-      //noinspection resource
       conn().rollback();
-    } catch (SQLException ignore) {
+    } catch (final Throwable t) {
+      currentLogger().atWarn("Automatic rollback failed").setCause(t).log();
     } finally {
       // start a new transaction, this ensures that the app_id and author are set.
       naksha_tx_start();

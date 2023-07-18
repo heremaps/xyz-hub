@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.core.storage.ITransactionSettings;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
@@ -63,12 +65,13 @@ class PsqlTransactionSettings implements ITransactionSettings {
   }
 
   @Override
-  public @NotNull ITransactionSettings withStatementTimeout(long timeout, @NotNull TimeUnit timeUnit)
-      throws Exception {
+  public @NotNull ITransactionSettings withStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) {
     final long stmtTimeout = TimeUnit.MILLISECONDS.convert(timeout, timeUnit);
     if (reader != null) {
       try (final var stmt = reader.createStatement()) {
         stmt.execute("SET SESSION statement_timeout TO " + stmtTimeout);
+      } catch (final Throwable t) {
+        throw unchecked(t);
       }
     }
     this.stmtTimeout = stmtTimeout;
@@ -81,11 +84,13 @@ class PsqlTransactionSettings implements ITransactionSettings {
   }
 
   @Override
-  public @NotNull ITransactionSettings withLockTimeout(long timeout, @NotNull TimeUnit timeUnit) throws Exception {
+  public @NotNull ITransactionSettings withLockTimeout(long timeout, @NotNull TimeUnit timeUnit) {
     final long lockTimeout = TimeUnit.MILLISECONDS.convert(timeout, timeUnit);
     if (reader != null) {
       try (final var stmt = reader.createStatement()) {
         stmt.execute("SET SESSION lock_timeout TO " + lockTimeout);
+      } catch (final Throwable t) {
+        throw unchecked(t);
       }
     }
     this.lockTimeout = lockTimeout;
@@ -93,24 +98,24 @@ class PsqlTransactionSettings implements ITransactionSettings {
   }
 
   @Override
-  public @NotNull String getAppId() throws Exception {
+  public @NotNull String getAppId() {
     if (appId == null) throw new NullPointerException();
     return appId;
   }
 
   @Override
-  public @NotNull ITransactionSettings withAppId(@NotNull String app_id) throws Exception {
+  public @NotNull ITransactionSettings withAppId(@NotNull String app_id) {
     this.appId = app_id;
     return this;
   }
 
   @Override
-  public @Nullable String getAuthor() throws Exception {
+  public @Nullable String getAuthor() {
     return author;
   }
 
   @Override
-  public @NotNull ITransactionSettings withAuthor(@Nullable String author) throws Exception {
+  public @NotNull ITransactionSettings withAuthor(@Nullable String author) {
     this.author = author;
     return this;
   }

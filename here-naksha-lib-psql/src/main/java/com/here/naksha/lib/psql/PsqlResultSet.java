@@ -108,7 +108,7 @@ public class PsqlResultSet<FEATURE extends XyzFeature> extends AbstractResultSet
   }
 
   @Override
-  public @NotNull FEATURE getFeature() throws Exception {
+  public @NotNull FEATURE getFeature() {
     return featureOf(getJson(), getGeometry());
   }
 

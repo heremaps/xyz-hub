@@ -18,17 +18,20 @@
  */
 package com.here.naksha.lib.core.models;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
-import com.here.naksha.lib.core.lambdas.Fe1;
+import com.here.naksha.lib.core.exceptions.UncheckedException;
+import com.here.naksha.lib.core.lambdas.F1;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.Enumeration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 
-/** Cache for plug-ins. */
+/**
+ * Cache for plug-ins.
+ */
 @SuppressWarnings("StringOperationCanBeSimplified")
 public final class PluginCache {
 
@@ -48,23 +51,24 @@ public final class PluginCache {
   /**
    * Returns the constructor for the given plugin class, implementing the given API.
    *
-   * @param className the full qualified name of the class.
-   * @param apiClass the API that need to be implemented.
+   * @param className  the full qualified name of the class.
+   * @param apiClass   the API that need to be implemented.
    * @param paramClass the class of the parameter.
-   * @param <API> the API-type.
-   * @param <PARAM> the parameter-type.
+   * @param <API>      the API-type.
+   * @param <PARAM>    the parameter-type.
    * @return the constructor.
    * @throws ClassNotFoundException if no such class exists.
-   * @throws NoSuchMethodException if the class does not have the required constructor.
-   * @throws ClassCastException if the class does not implement the API.
+   * @throws NoSuchMethodException  if the class does not have the required constructor.
+   * @throws ClassCastException     if the class does not implement the API.
    */
-  @SuppressWarnings("unchecked")
-  public static <API, PARAM> @NotNull Fe1<API, PARAM> get(
-      final @NotNull String className, final @NotNull Class<API> apiClass, final @NotNull Class<PARAM> paramClass)
-      throws ClassNotFoundException, NoSuchMethodException, ClassCastException {
+  @SuppressWarnings({"unchecked", "JavadocDeclaration"})
+  public static <API, PARAM> @NotNull F1<API, PARAM> get(
+      final @NotNull String className,
+      final @NotNull Class<API> apiClass,
+      final @NotNull Class<PARAM> paramClass) {
     Object raw = instance.cache.get(className);
-    if (raw instanceof Fe1<?, ?> constructor) {
-      return (Fe1<API, PARAM>) constructor;
+    if (raw instanceof F1<?, ?> constructor) {
+      return (F1<API, PARAM>) constructor;
     }
     if (raw == null) {
       try {
@@ -74,12 +78,24 @@ public final class PluginCache {
         } else {
           try {
             final Constructor<?> constructor = theClass.getConstructor(paramClass);
-            final Fe1<API, PARAM> function = (param) -> (API) constructor.newInstance(param);
+            final F1<API, PARAM> function = (param) -> {
+              try {
+                return (API) constructor.newInstance(param);
+              } catch (Throwable t) {
+                throw unchecked(t);
+              }
+            };
             instance.cache.putIfAbsent(className, function);
             return function;
           } catch (NoSuchMethodException e) {
             final Constructor<?> constructor = theClass.getConstructor();
-            final Fe1<API, PARAM> function = (param) -> (API) constructor.newInstance();
+            final F1<API, PARAM> function = (param) -> {
+              try {
+                return (API) constructor.newInstance();
+              } catch (Throwable t) {
+                throw unchecked(t);
+              }
+            };
             instance.cache.putIfAbsent(className, function);
             return function;
           }
@@ -93,38 +109,34 @@ public final class PluginCache {
       instance.cache.putIfAbsent(className, raw);
     }
     if (raw == NO_SUCH_METHOD) {
-      throw new NoSuchMethodException(className + "(" + paramClass.getName() + ")");
+      throw unchecked(new NoSuchMethodException(className + "(" + paramClass.getName() + ")"));
     }
     if (raw == API_NOT_SUPPORTED) {
       throw new ClassCastException(className + " does not implement " + apiClass.getName());
     }
-    throw new ClassNotFoundException(className);
+    throw unchecked(new ClassNotFoundException(className));
   }
 
   /**
    * Create a new instance of the given plugin class, implementing the given API.
    *
    * @param className the full qualified name of the class implementing the API.
-   * @param apiClass the API that need to be implemented.
+   * @param apiClass  the API that need to be implemented.
    * @param parameter the class of the parameter.
-   * @param <API> the API-type.
-   * @param <PARAM> the parameter-type.
+   * @param <API>     the API-type.
+   * @param <PARAM>   the parameter-type.
    * @return the instance.
-   * @throws ClassNotFoundException if no such class exists.
-   * @throws ClassCastException if the class does not implement the requested API.
-   * @throws NoSuchMethodException if the class does not have the required constructor.
-   * @throws InvocationTargetException if the constructor has thrown an exception, use {@link Exception#getCause()} to query it.
+   * @throws ClassNotFoundException If no such class exists.
+   * @throws ClassCastException     If the class does not implement the requested API.
+   * @throws NoSuchMethodException  If the class does not have the required constructor.
+   * @throws UncheckedException     If the constructor has thrown an exception, use {@link UncheckedException#cause(Throwable)} to unpack.
    */
+  @SuppressWarnings("JavadocDeclaration")
   public static <API, PARAM> API newInstance(
-      @NotNull String className, @NotNull Class<API> apiClass, @NotNull PARAM parameter)
-      throws ClassNotFoundException, NoSuchMethodException, InvocationTargetException {
+      @NotNull String className, @NotNull Class<API> apiClass, @NotNull PARAM parameter) {
     //noinspection unchecked
-    final Fe1<API, PARAM> constructor = get(className, apiClass, (Class<PARAM>) parameter.getClass());
-    try {
-      return constructor.call(parameter);
-    } catch (Exception e) {
-      throw new InvocationTargetException(e);
-    }
+    final F1<API, PARAM> constructor = get(className, apiClass, (Class<PARAM>) parameter.getClass());
+    return constructor.call(parameter);
   }
 
   private void cleanup() {
@@ -143,7 +155,10 @@ public final class PluginCache {
         Thread.sleep(TimeUnit.MINUTES.toMillis(5));
       } catch (InterruptedException ignore) {
       } catch (Throwable t) {
-        currentLogger().error("Unexpected exception in plugin cache cleaner", t);
+        currentLogger()
+            .atError("Unexpected exception in plugin cache cleaner")
+            .setCause(t)
+            .log();
       }
     }
   }

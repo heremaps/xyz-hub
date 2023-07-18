@@ -18,7 +18,6 @@
  */
 package com.here.naksha.lib.core;
 
-import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import org.jetbrains.annotations.NotNull;
@@ -40,8 +39,7 @@ public interface IEventHandler {
    *
    * @param eventContext the event context to process.
    * @return the response to send.
-   * @throws XyzErrorException if any error occurred.
    */
   @NotNull
-  XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException;
+  XyzResponse processEvent(@NotNull IEventContext eventContext);
 }

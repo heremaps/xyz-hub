@@ -18,9 +18,9 @@
  */
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.ClosableIterator;
 import com.here.naksha.lib.core.storage.CollectionInfo;
@@ -47,14 +47,19 @@ public class PsqlTxReader implements IReadTransaction {
    * Creates a new transaction for the given PostgresQL client.
    *
    * @param psqlClient The PostgresQL client for which to create a new transaction.
-   * @param settings The transaction settings.
+   * @param settings   The transaction settings.
    * @throws SQLException if creation of the reader failed.
    */
-  PsqlTxReader(@NotNull PsqlStorage psqlClient, @NotNull ITransactionSettings settings) throws SQLException {
-    this.psqlClient = psqlClient;
-    this.settings = PsqlTransactionSettings.of(settings, this);
-    this.connection = psqlClient.dataSource.getConnection(this.settings);
-    naksha_tx_start();
+  @SuppressWarnings("JavadocDeclaration")
+  PsqlTxReader(@NotNull PsqlStorage psqlClient, @NotNull ITransactionSettings settings) {
+    try {
+      this.psqlClient = psqlClient;
+      this.settings = PsqlTransactionSettings.of(settings, this);
+      this.connection = psqlClient.dataSource.getConnection(this.settings);
+      naksha_tx_start();
+    } catch (final Throwable t) {
+      throw unchecked(t);
+    }
   }
 
   protected boolean naksha_tx_start_write() {
@@ -62,16 +67,13 @@ public class PsqlTxReader implements IReadTransaction {
   }
 
   protected void naksha_tx_start() {
-    String app_id = null;
-    String author = null;
     try (final PreparedStatement stmt = preparedStatement("SELECT naksha_tx_start(?, ?, ?);")) {
-      stmt.setString(1, app_id = settings.getAppId());
-      stmt.setString(2, author = settings.getAuthor());
+      stmt.setString(1, settings.getAppId());
+      stmt.setString(2, settings.getAuthor());
       stmt.setBoolean(3, naksha_tx_start_write());
       stmt.execute();
-    } catch (Exception e) {
-      currentLogger()
-          .error("Failed to call naksha_tx_start({}, {}, {})", app_id, author, naksha_tx_start_write(), e);
+    } catch (final Exception e) {
+      throw unchecked(e);
     }
   }
 
@@ -93,26 +95,25 @@ public class PsqlTxReader implements IReadTransaction {
 
   /**
    * Returns the underlying PostgresQL connection.
+   *
    * @return The underlying PostgresQL connection.
-   * @throws IllegalStateException When the connection is closed.
+   * @throws PSQLException When the connection is closed.
    */
-  public @NotNull Connection conn() throws SQLException {
+  public @NotNull Connection conn() {
     final Connection connection = this.connection;
     if (connection == null) {
-      throw new PSQLException("Connection is closed", PSQLState.CONNECTION_DOES_NOT_EXIST);
+      throw unchecked(new PSQLException("Connection is closed", PSQLState.CONNECTION_DOES_NOT_EXIST));
     }
     return connection;
   }
 
   @NotNull
   PreparedStatement preparedStatement(@NotNull String sql) throws SQLException {
-    //noinspection resource
     return conn().prepareStatement(sql);
   }
 
   @NotNull
   Statement createStatement() throws SQLException {
-    //noinspection resource
     return conn().createStatement();
   }
 
@@ -151,16 +152,17 @@ public class PsqlTxReader implements IReadTransaction {
   }
 
   @Override
-  public @NotNull ClosableIterator<@NotNull CollectionInfo> iterateCollections() throws SQLException {
+  public @NotNull ClosableIterator<@NotNull CollectionInfo> iterateCollections() {
     try (final var stmt = conn().prepareStatement(UtCollectionInfoResultSet.STATEMENT)) {
       return new UtCollectionInfoResultSet(stmt.executeQuery());
+    } catch (final SQLException e) {
+      throw unchecked(e);
     }
   }
 
   @Override
-  public @Nullable CollectionInfo getCollectionById(@NotNull String id) throws SQLException {
+  public @Nullable CollectionInfo getCollectionById(@NotNull String id) {
     final String SQL = "SELECT naksha_collection_get(?);";
-    //noinspection resource
     try (final var stmt = conn().prepareStatement(SQL)) {
       stmt.setString(1, id);
       final ResultSet rs = stmt.executeQuery();
@@ -171,12 +173,12 @@ public class PsqlTxReader implements IReadTransaction {
             return json.reader(ViewDeserialize.Storage.class)
                 .forType(CollectionInfo.class)
                 .readValue(jsonText);
-          } catch (JsonProcessingException e) {
-            throw new SQLException("Failed to parse JSON", e);
           }
         }
       }
       return null;
+    } catch (final Throwable t) {
+      throw unchecked(t);
     }
   }
 
@@ -191,13 +193,19 @@ public class PsqlTxReader implements IReadTransaction {
     if (connection != null) {
       try {
         connection.rollback();
-      } catch (SQLException e) {
-        currentLogger().info("Failed to execute rollback on JDBC connection", e);
+      } catch (final Throwable t) {
+        currentLogger()
+            .atWarn("Automatic rollback failed for JDBC connection")
+            .setCause(t)
+            .log();
       }
       try {
         connection.close();
-      } catch (SQLException e) {
-        currentLogger().info("Failed to close a JDBC connection", e);
+      } catch (final Throwable t) {
+        currentLogger()
+            .atWarn("Automatic closing of PostgresQL connection failed")
+            .setCause(t)
+            .log();
       }
       connection = null;
     }

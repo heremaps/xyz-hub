@@ -19,60 +19,50 @@
 package com.here.naksha.lib.core;
 
 import java.util.function.Supplier;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Marker;
+import org.slf4j.helpers.CheckReturnValue;
 import org.slf4j.spi.LoggingEventBuilder;
 
 /**
  * Improved event builder interface.
  */
-public interface NakshaLoggingEventBuilder extends LoggingEventBuilder, AutoCloseable {
+@SuppressWarnings("ResultOfMethodCallIgnored")
+public class NakshaLoggingEventBuilder implements LoggingEventBuilder {
 
+  NakshaLoggingEventBuilder() {}
+
+  LoggingEventBuilder eventBuilder;
+
+  @CheckReturnValue
   @Override
-  @NotNull
-  NakshaLoggingEventBuilder setCause(@Nullable Throwable cause);
+  public @NotNull NakshaLoggingEventBuilder setCause(@Nullable Throwable cause) {
+    eventBuilder.setCause(cause);
+    return this;
+  }
 
+  @CheckReturnValue
   @Override
-  @NotNull
-  NakshaLoggingEventBuilder addMarker(@Nullable Marker marker);
+  public @NotNull NakshaLoggingEventBuilder addMarker(@Nullable Marker marker) {
+    eventBuilder.addMarker(marker);
+    return this;
+  }
 
+  @CheckReturnValue
   @Override
-  @NotNull
-  NakshaLoggingEventBuilder addArgument(@Nullable Object p);
+  public @NotNull NakshaLoggingEventBuilder addArgument(@Nullable Object p) {
+    eventBuilder.addArgument(p);
+    return this;
+  }
 
+  @CheckReturnValue
   @Override
-  @NotNull
-  NakshaLoggingEventBuilder addArgument(@NotNull Supplier<?> objectSupplier);
-
-  @Override
-  @NotNull
-  NakshaLoggingEventBuilder addKeyValue(String key, Object value);
-
-  @Override
-  @NotNull
-  NakshaLoggingEventBuilder addKeyValue(String key, Supplier<Object> valueSupplier);
-
-  @Override
-  @NotNull
-  NakshaLoggingEventBuilder setMessage(String message);
-
-  @Override
-  @NotNull
-  NakshaLoggingEventBuilder setMessage(Supplier<String> messageSupplier);
-
-  // -----------------------------------------------------------------------------------------------------------------------------------
-  // --------------------------------------------< Extensions
-  // >-------------------------------------------------------------------------
-  // -----------------------------------------------------------------------------------------------------------------------------------
-
-  /**
-   *  Sets the message of the logging event.
-   *
-   *  @since 2.0.0-beta0
-   */
-  @NotNull
-  NakshaLoggingEventBuilder msg(@NotNull String message);
+  public @NotNull NakshaLoggingEventBuilder addArgument(@NotNull Supplier<?> objectSupplier) {
+    eventBuilder.addArgument(objectSupplier);
+    return this;
+  }
 
   /**
    * Add an argument to the event being built.
@@ -80,8 +70,27 @@ public interface NakshaLoggingEventBuilder extends LoggingEventBuilder, AutoClos
    * @param p an Object to add.
    * @return a LoggingEventBuilder, usually <b>this</b>.
    */
-  @NotNull
-  NakshaLoggingEventBuilder add(@Nullable Object p);
+  @CheckReturnValue
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public @NotNull NakshaLoggingEventBuilder add(@Nullable Object p) {
+    eventBuilder.addArgument(p);
+    return this;
+  }
+
+  @CheckReturnValue
+  @Override
+  public @NotNull NakshaLoggingEventBuilder addKeyValue(@NotNull String key, @Nullable Object value) {
+    eventBuilder.addKeyValue(key, value);
+    return this;
+  }
+
+  @CheckReturnValue
+  @Override
+  public @NotNull NakshaLoggingEventBuilder addKeyValue(
+      @NotNull String key, @NotNull Supplier<@Nullable Object> valueSupplier) {
+    eventBuilder.addKeyValue(key, valueSupplier);
+    return this;
+  }
 
   /**
    * Add a {@link org.slf4j.event.KeyValuePair key value pair} to the event being built.
@@ -90,14 +99,54 @@ public interface NakshaLoggingEventBuilder extends LoggingEventBuilder, AutoClos
    * @param value the value of the key value pair.
    * @return a LoggingEventBuilder, usually <b>this</b>.
    */
-  @NotNull
-  NakshaLoggingEventBuilder put(@NotNull String key, @Nullable Object value);
+  @CheckReturnValue
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public @NotNull NakshaLoggingEventBuilder put(@NotNull String key, @Nullable Object value) {
+    eventBuilder.addKeyValue(key, value);
+    return this;
+  }
 
-  /**
-   * Close the logger.
-   */
+  @CheckReturnValue
   @Override
-  default void close() {
-    log();
+  public @NotNull NakshaLoggingEventBuilder setMessage(@NotNull String message) {
+    eventBuilder.setMessage(message);
+    return this;
+  }
+
+  @CheckReturnValue
+  @Override
+  public @NotNull NakshaLoggingEventBuilder setMessage(@NotNull Supplier<@NotNull String> messageSupplier) {
+    eventBuilder.setMessage(messageSupplier);
+    return this;
+  }
+
+  @Override
+  public void log() {
+    eventBuilder.log();
+  }
+
+  @Override
+  public void log(@NotNull String message) {
+    eventBuilder.log(message);
+  }
+
+  @Override
+  public void log(@NotNull String message, @Nullable Object arg) {
+    eventBuilder.log(message, arg);
+  }
+
+  @Override
+  public void log(@NotNull String message, @Nullable Object arg0, @Nullable Object arg1) {
+    eventBuilder.log(message, arg0, arg1);
+  }
+
+  @Override
+  public void log(@NotNull String message, @Nullable Object... args) {
+    eventBuilder.log(message, args);
+  }
+
+  @Override
+  public void log(@NotNull Supplier<@NotNull String> messageSupplier) {
+    eventBuilder.log(messageSupplier);
   }
 }

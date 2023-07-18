@@ -23,7 +23,6 @@ import com.fasterxml.jackson.annotation.JsonCreator.Mode;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonDeserializer;
@@ -65,12 +64,7 @@ public class LazyParsableFeatureList {
   @JsonValue
   public @NotNull List<@NotNull XyzFeature> get() {
     if (valueString != null) {
-      // TODO: Make generic
-      try {
-        value = JsonSerializable.deserialize(valueString, FEATURE_LIST);
-      } catch (JsonProcessingException e) {
-        throw new RuntimeException(e);
-      }
+      value = JsonSerializable.deserialize(valueString, FEATURE_LIST);
       valueString = null;
     }
     if (value == null) {

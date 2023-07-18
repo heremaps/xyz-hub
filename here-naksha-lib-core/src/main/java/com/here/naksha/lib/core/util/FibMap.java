@@ -52,8 +52,11 @@ import org.jetbrains.annotations.Nullable;
  * expands when a hash collision happens. As long as only some part of the hash-code collides this
  * is solved with just a small amount of memory, but for a full hash collision a rather big amount
  * of memory is used.
+ *
+ * @deprecated Replaces with {@link com.here.naksha.lib.core.util.fib.FibSet}
  */
 @SuppressWarnings({"unused", "StringOperationCanBeSimplified"})
+@Deprecated
 public final class FibMap {
   //
   // Note: Even while LoadLoad barriers are not needed on Intel:

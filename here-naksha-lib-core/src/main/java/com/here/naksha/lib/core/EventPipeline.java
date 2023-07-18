@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.features.Connector;
@@ -34,12 +34,14 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Default implementation of an event pipeline that provides an event context. This can be used to
- * send events through a pipeline to be handled by {@link IEventHandler event handlers}.
+ * Default implementation of an event pipeline that provides an event context. This can be used to send events through a pipeline to be
+ * handled by {@link IEventHandler event handlers}.
  */
 public class EventPipeline implements IEventContext {
 
-  /** Creates a new uninitialized event pipeline. */
+  /**
+   * Creates a new uninitialized event pipeline.
+   */
   public EventPipeline() {
     pipeline = EMPTY;
   }
@@ -60,10 +62,14 @@ public class EventPipeline implements IEventContext {
 
   private @Nullable Consumer<XyzResponse> callback;
 
-  /** The creation time of the pipeline. */
+  /**
+   * The creation time of the pipeline.
+   */
   private static final IEventHandler[] EMPTY = new IEventHandler[0];
 
-  /** The event that is currently processed. */
+  /**
+   * The event that is currently processed.
+   */
   private Event event;
 
   private @NotNull IEventHandler @NotNull [] pipeline;
@@ -80,8 +86,7 @@ public class EventPipeline implements IEventContext {
   }
 
   /**
-   * Sets the callback, should not be called while the pipeline is executing, otherwise the behavior
-   * is undefined.
+   * Sets the callback, should not be called while the pipeline is executing, otherwise the behavior is undefined.
    *
    * @param callback The callback to invoke, when the response is available.
    * @return this.
@@ -121,9 +126,10 @@ public class EventPipeline implements IEventContext {
    * @return this.
    * @throws XyzErrorException If any error occurred.
    */
-  public @NotNull EventPipeline addSpaceHandler(@NotNull Space space) throws XyzErrorException {
+  public @NotNull EventPipeline addSpaceHandler(@NotNull Space space) {
     final @Nullable List<@NotNull String> connectorIds = space.getConnectorIds();
     final int SIZE;
+    //noinspection ConstantConditions
     if (connectorIds == null || (SIZE = connectorIds.size()) == 0) {
       throw new XyzErrorException(
           XyzError.ILLEGAL_ARGUMENT,
@@ -171,10 +177,8 @@ public class EventPipeline implements IEventContext {
    *
    * @param connector the connector for which to add the event handler.
    * @return this.
-   * @throws XyzErrorException If creating a new instance of the connector failed, leaves the
-   *     pipeline in the state it had before calling this method.
    */
-  public @NotNull EventPipeline addConnectorHandler(@NotNull Connector connector) throws Exception {
+  public @NotNull EventPipeline addConnectorHandler(@NotNull Connector connector) {
     addEventHandler(connector.newInstance());
     return this;
   }
@@ -197,7 +201,10 @@ public class EventPipeline implements IEventContext {
     try {
       response = sendUpstream(event);
     } catch (Throwable t) {
-      currentLogger().error("Uncaught exception in event pipeline", t);
+      currentLogger()
+          .atError("Uncaught exception in event pipeline")
+          .setCause(t)
+          .log();
       response = new ErrorResponse()
           .withStreamId(event.getStreamId())
           .withError(XyzError.EXCEPTION)
@@ -209,7 +216,10 @@ public class EventPipeline implements IEventContext {
         callback.accept(response);
       }
     } catch (Throwable t) {
-      currentLogger().error("Uncaught exception in event pipeline callback", t);
+      currentLogger()
+          .atError("Uncaught exception in event pipeline callback")
+          .setCause(t)
+          .log();
     } finally {
       callback = null;
       this.event = null;
@@ -258,7 +268,10 @@ public class EventPipeline implements IEventContext {
    * @return an unimplemented error response.
    */
   private @NotNull XyzResponse pipelineEnd(@NotNull IEventContext eventContext) {
-    currentLogger().info("End of pipeline reached and no handle created a response", new NullPointerException());
+    currentLogger()
+        .atInfo("End of pipeline reached and no handle created a response")
+        .setCause(new NullPointerException())
+        .log();
     return notImplemented();
   }
 

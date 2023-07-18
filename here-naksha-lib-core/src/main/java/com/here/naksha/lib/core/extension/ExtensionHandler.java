@@ -18,7 +18,8 @@
  */
 package com.here.naksha.lib.core.extension;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.cause;
 
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
@@ -35,8 +36,6 @@ import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
-import java.io.IOException;
-import java.net.UnknownHostException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -80,42 +79,42 @@ public class ExtensionHandler implements IEventHandler {
 
   @AvailableSince(NakshaVersion.v2_0_3)
   @Override
-  public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
+  public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
     final Event event = eventContext.getEvent();
-    final String host = config.getHost();
     try (final NakshaExtSocket nakshaExtSocket = NakshaExtSocket.connect(config)) {
       nakshaExtSocket.sendMessage(new ProcessEventMsg(connector, event));
       while (true) {
-        final ExtensionMessage extMsg = nakshaExtSocket.readMessage();
-        if (extMsg instanceof ResponseMsg extResponse) {
+        final ExtensionMessage message = nakshaExtSocket.readMessage();
+        if (message instanceof ResponseMsg extResponse) {
           return extResponse.response;
         }
-        if (extMsg instanceof SendUpstreamMsg sendUpstream) {
+        if (message instanceof SendUpstreamMsg sendUpstream) {
           final XyzResponse xyzResponse = eventContext.sendUpstream(sendUpstream.event);
           nakshaExtSocket.sendMessage(new ResponseMsg(xyzResponse));
           // We then need to read the response again.
         } else {
-          currentLogger().info("Received invalid response from Naksha extension: {}", extMsg);
+          currentLogger()
+              .atInfo("Received invalid response from Naksha extension '{}': {}")
+              .add(connector.getId())
+              .add(message)
+              .log();
           throw new XyzErrorException(XyzError.EXCEPTION, "Received invalid response from Naksha extension");
         }
       }
-    } catch (UnknownHostException e) {
-      return new ErrorResponse()
-          .withError(XyzError.EXCEPTION)
-          .withErrorMessage("Unknown host: " + host)
-          .withStreamId(event.getStreamId());
-    } catch (XyzErrorException e) {
-      throw e;
-    } catch (IOException e) {
-      return new ErrorResponse()
-          .withError(XyzError.EXCEPTION)
-          .withErrorMessage("Communication to Naksha extension " + connector.getExtension() + " failed")
-          .withStreamId(event.getStreamId());
-    } catch (Exception e) {
+    } catch (final Throwable o) {
+      final Throwable t = cause(o);
+      if (t instanceof XyzErrorException e) {
+        return e.toErrorResponse(event.getStreamId());
+      }
+      currentLogger()
+          .atError("Uncaught exception in extension handler '{}'")
+          .add(connector.getId())
+          .setCause(t)
+          .log();
       return new ErrorResponse()
           .withStreamId(event.getStreamId())
-          .withError(XyzError.ILLEGAL_ARGUMENT)
-          .withErrorMessage(e.toString());
+          .withError(XyzError.EXCEPTION)
+          .withErrorMessage(t.getMessage());
     }
   }
 }

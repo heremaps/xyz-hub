@@ -18,13 +18,13 @@
  */
 package com.here.naksha.lib.core.util.json;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.models.payload.responses.XyzError.EXCEPTION;
 import static com.here.naksha.lib.core.models.payload.responses.XyzError.TIMEOUT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.naksha.lib.core.LazyParsableFeatureList.ProxyStringReader;
-import com.here.naksha.lib.core.exceptions.JsonProcessingFailed;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.view.ViewDeserialize.All;
@@ -59,7 +59,7 @@ public interface JsonSerializable {
     try (final Json json = Json.get()) {
       return json.writer(ViewSerialize.User.class, false).writeValueAsString(object);
     } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
+      throw unchecked(e);
     }
   }
 
@@ -69,57 +69,62 @@ public interface JsonSerializable {
           .forType(typeReference)
           .writeValueAsString(object);
     } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
+      throw unchecked(e);
     }
   }
 
-  static <T extends Typed> @Nullable T deserialize(@NotNull InputStream is) throws JsonProcessingException {
+  static <T extends Typed> @Nullable T deserialize(@NotNull InputStream is) {
     return (T) deserialize(is, Typed.class);
   }
 
-  static <T> @Nullable T deserialize(@NotNull InputStream is, @NotNull Class<T> klass)
-      throws JsonProcessingException {
+  static <T> @Nullable T deserialize(@NotNull InputStream is, @NotNull Class<T> klass) {
     try (final Scanner scanner = new java.util.Scanner(is)) {
       return deserialize(scanner.useDelimiter("\\A").next(), klass);
     }
   }
 
-  static <T> T deserialize(@NotNull InputStream is, @NotNull TypeReference<T> type) throws IOException {
+  static <T> T deserialize(@NotNull InputStream is, @NotNull TypeReference<T> type) {
     try (final Json json = Json.get()) {
       return json.reader(User.class).forType(type).readValue(is);
+    } catch (IOException e) {
+      throw unchecked(e);
     }
   }
 
-  static <T> T deserialize(byte @NotNull [] bytes, @NotNull TypeReference<T> type) throws IOException {
+  static <T> T deserialize(byte @NotNull [] bytes, @NotNull TypeReference<T> type) {
     try (final Json json = Json.get()) {
       return json.reader(User.class).forType(type).readValue(bytes);
+    } catch (IOException e) {
+      throw unchecked(e);
     }
   }
 
-  static <T extends Typed> @Nullable T deserialize(@NotNull String string) throws JsonProcessingException {
+  static <T extends Typed> @Nullable T deserialize(@NotNull String string) {
     return (T) deserialize(string, Typed.class);
   }
 
-  static <T> @Nullable T deserialize(@NotNull String string, @NotNull Class<T> klass) throws JsonProcessingException {
+  static <T> @Nullable T deserialize(@NotNull String string, @NotNull Class<T> klass) {
     // Jackson always wraps larger strings, with a string reader, which hides the original string
     // from the lazy raw deserializer.
     // To circumvent that wrap the source string with a custom string reader, which provides access
     // to the input string.
     try (final Json json = Json.get()) {
       return json.reader(User.class).readValue(new ProxyStringReader(string), klass);
-    } catch (IOException e) {
-      throw new JsonProcessingIoException(e);
+    } catch (final IOException e) {
+      throw unchecked(e);
     }
   }
 
   @SuppressWarnings("unused")
-  static <T> T deserialize(String string, TypeReference<T> type) throws JsonProcessingException {
+  static <T> T deserialize(String string, TypeReference<T> type) {
     try (final Json json = Json.get()) {
       return json.reader(User.class).forType(type).readValue(string);
+    } catch (IOException e) {
+      throw unchecked(e);
     }
   }
 
-  static <T> T deserialize(byte[] bytes, Class<T> klass) throws JsonProcessingException {
+  static <T> T deserialize(byte[] bytes, Class<T> klass) {
     return deserialize(new String(bytes), klass);
   }
 
@@ -157,7 +162,7 @@ public interface JsonSerializable {
           json.reader(All.class).forType(object.getClass()).readValue(bytes);
       return (OBJECT) clone;
     } catch (IOException e) {
-      throw new JsonProcessingFailed(e);
+      throw unchecked(e);
     }
   }
 
@@ -178,7 +183,7 @@ public interface JsonSerializable {
     try (final Json json = Json.get()) {
       return json.writer(viewClass).writeValueAsBytes(this);
     } catch (JsonProcessingException e) {
-      throw new JsonProcessingFailed(e);
+      throw unchecked(e);
     }
   }
 
@@ -190,7 +195,7 @@ public interface JsonSerializable {
     try (final Json json = Json.get()) {
       return json.writer(ViewSerialize.User.class, pretty).writeValueAsString(this);
     } catch (JsonProcessingException e) {
-      throw new JsonProcessingFailed(e);
+      throw unchecked(e);
     }
   }
 

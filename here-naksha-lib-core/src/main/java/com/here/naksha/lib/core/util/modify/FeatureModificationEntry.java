@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core.util.modify;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.util.diff.Patcher.calculateDifferenceOfPartialUpdate;
 import static com.here.naksha.lib.core.util.modify.IfExists.REPLACE;
 
@@ -181,9 +181,9 @@ public class FeatureModificationEntry<FEATURE extends XyzFeature> {
   }
 
   /**
-   * Calling this method requires that all states filled correctly, so {@link #input}, {@link #head}
-   * and {@link #base}. It will generate the {@link #result}, which then can be sent to the storage.
-   * The {@link XyzNamespace#getAction()} can be used to detect, which action must be done.
+   * Calling this method requires that all states filled correctly, so {@link #input}, {@link #head} and {@link #base}. It will generate
+   * the {@link #result}, which then can be sent to the storage. The {@link XyzNamespace#getAction()} can be used to detect, which action
+   * must be done.
    *
    * @return the action to perform.
    * @throws MergeConflictException If a merge failed.
@@ -239,7 +239,7 @@ public class FeatureModificationEntry<FEATURE extends XyzFeature> {
     assert false;
     final var e =
         new ModificationException("Reached unexpected step while processing feature {" + input.getId() + "}");
-    currentLogger().error(e.getMessage(), e);
+    currentLogger().atError(e.getMessage()).setCause(e).log();
     throw e;
   }
 

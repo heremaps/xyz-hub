@@ -33,6 +33,8 @@ import org.jetbrains.annotations.Nullable;
  * @param expected_value The value expected.
  * @param new_value The value to be set.
  * @param value The value found (will not the expected).
+ * @deprecated Replaced with {@link com.here.naksha.lib.core.util.fib.FibSet}.
  */
+@Deprecated
 public record FibMapConflict(
     @NotNull Object key, @Nullable Object expected_value, @Nullable Object new_value, @Nullable Object value) {}

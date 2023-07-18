@@ -24,7 +24,10 @@ import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** An iterator above a fibonacci map. */
+/** An iterator above a fibonacci map.
+ * @deprecated Replaced with {@link com.here.naksha.lib.core.util.fib.FibSet}.
+ */
+@Deprecated
 @SuppressWarnings("unused")
 public class FibMapIterator implements Iterator<Entry<@NotNull Object, @Nullable Object>> {
 

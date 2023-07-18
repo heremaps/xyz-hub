@@ -37,9 +37,8 @@ public interface IFeatureWriter<FEATURE extends XyzFeature> extends IFeatureRead
    *
    * @param req the modification request.
    * @return the modification result with the features that have been inserted, update and deleted.
-   * @throws Exception if access to the storage failed or any other error occurred.
    */
   @AvailableSince(v2_0_5)
   @NotNull
-  ModifyFeaturesResp modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req) throws Exception;
+  ModifyFeaturesResp modifyFeatures(@NotNull ModifyFeaturesReq<FEATURE> req);
 }

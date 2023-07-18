@@ -19,7 +19,7 @@
 package com.here.naksha.lib.core;
 
 import static com.here.naksha.lib.core.NakshaContext.currentContext;
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.payload.Event;
@@ -100,11 +100,11 @@ public class IoEventPipeline extends EventPipeline {
         final String expected = Event.class.getSimpleName();
         final String deserialized = typed.getClass().getSimpleName();
         currentLogger()
-            .info(
-                "Event parsed in {}ms, but expected {}, deserialized {}",
-                parsedInMillis,
-                expected,
-                deserialized);
+            .atInfo("Event parsed in {}ms, but expected {}, deserialized {}")
+            .add(parsedInMillis)
+            .add(expected)
+            .add(deserialized)
+            .log();
         response = new ErrorResponse()
             .withStreamId(currentContext().streamId())
             .withError(XyzError.EXCEPTION)
@@ -116,8 +116,8 @@ public class IoEventPipeline extends EventPipeline {
       }
       event = (Event) typed;
       event.setStartNanos(START);
-      currentLogger().info("Event parsed in {}ms", parsedInMillis);
-      currentLogger().debug("Event raw string: {}", rawEvent);
+      currentLogger().atInfo("Event parsed in {}ms").add(parsedInMillis).log();
+      currentLogger().atDebug("Event raw string: {}").add(rawEvent).log();
       //noinspection UnusedAssignment
       rawEvent = null;
       // Note: We explicitly set the rawEvent to null to ensure that the garbage collector can
@@ -129,7 +129,10 @@ public class IoEventPipeline extends EventPipeline {
         writeDataOut(output, response, event.getIfNoneMatch());
       }
     } catch (Throwable e) {
-      currentLogger().warn("Exception while processing the event", e);
+      currentLogger()
+          .atWarn("Exception while processing the event")
+          .setCause(e)
+          .log();
       response = new ErrorResponse()
           .withStreamId(currentContext().streamId())
           .withError(XyzError.EXCEPTION)
@@ -152,9 +155,9 @@ public class IoEventPipeline extends EventPipeline {
       //       because {"a":1,"b":2} is semantically equals to {"b":2,"a":1} !
       byte @NotNull [] bytes = dataOut.toByteArray(ViewSerialize.Internal.class);
       currentLogger()
-          .info(
-              "Write data out for response with type: {}",
-              dataOut.getClass().getSimpleName());
+          .atInfo("Write data out for response with type: {}")
+          .add(dataOut.getClass().getSimpleName())
+          .log();
 
       // All this effort does not make sense for small responses.
       if (bytes.length >= ETAG_THRESHOLD_SIZE) {
@@ -192,16 +195,19 @@ public class IoEventPipeline extends EventPipeline {
               bytes = os.toByteArray();
             } catch (Exception e) {
               currentLogger()
-                  .error(
-                      "Unexpected exception while trying to generate response bytes with e-tag",
-                      e);
+                  .atError("Unexpected exception while trying to generate response bytes with e-tag")
+                  .setCause(e)
+                  .log();
             }
           }
         }
       }
       output.write(bytes);
     } catch (Exception e) {
-      currentLogger().error("Unexpected exception while writing to output stream:", e);
+      currentLogger()
+          .atError("Unexpected exception while writing to output stream")
+          .setCause(e)
+          .log();
     }
   }
 }

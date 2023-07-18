@@ -102,7 +102,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
   public static final int KEY_INDEX_MASK = 0x7ffffffe;
 
   /**
-   * Default strong reference type.
+   * Strong reference.
    */
   @AvailableSince(NakshaVersion.v2_0_5)
   public static final FibRefType STRONG = new FibRefType() {
@@ -124,7 +124,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
   };
 
   /**
-   * Default soft-reference type.
+   * Soft-reference.
    */
   @AvailableSince(NakshaVersion.v2_0_5)
   public static final FibRefType SOFT = new FibRefType() {
@@ -146,7 +146,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
   };
 
   /**
-   * Default weak-reference type.
+   * Weak-reference.
    */
   @AvailableSince(NakshaVersion.v2_0_5)
   public static final FibRefType WEAK = new FibRefType() {
@@ -342,11 +342,13 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
    *
    * @param key     the key of the entry to lookup.
    * @param refType the reference type to the entry.
-   * @return The entry or {@code null}, if the set does not contain the key.
+   * @return The entry.
    */
   @AvailableSince(NakshaVersion.v2_0_5)
-  public @Nullable ENTRY put(final @NotNull KEY key, @NotNull FibRefType refType) {
-    return _execute(PUT, key, key.hashCode(), refType, root(PUT), 0);
+  public @NotNull ENTRY put(final @NotNull KEY key, @NotNull FibRefType refType) {
+    final ENTRY entry = _execute(PUT, key, key.hashCode(), refType, root(PUT), 0);
+    assert entry != null;
+    return entry;
   }
 
   /**

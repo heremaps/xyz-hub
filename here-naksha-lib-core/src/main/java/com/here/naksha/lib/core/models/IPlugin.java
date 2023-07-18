@@ -31,8 +31,7 @@ public interface IPlugin<API> {
    * Create a new instance of the plugin.
    *
    * @return the API.
-   * @throws Exception if creating the instance failed.
    */
   @NotNull
-  API newInstance() throws Exception;
+  API newInstance();
 }

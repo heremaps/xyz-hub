@@ -18,13 +18,14 @@
  */
 package com.here.naksha.lib.core.util.diff;
 
+import org.jetbrains.annotations.NotNull;
+
 /**
- * An exception thrown if applying a patch fails, the creation of a difference fails or any other
- * merge error occurs.
+ * An exception thrown if applying a patch fails, the creation of a difference fails or any other merge error occurs.
  */
 public class MergeConflictException extends Exception {
 
-  MergeConflictException(String msg) {
+  MergeConflictException(@NotNull String msg) {
     super(msg);
   }
 }

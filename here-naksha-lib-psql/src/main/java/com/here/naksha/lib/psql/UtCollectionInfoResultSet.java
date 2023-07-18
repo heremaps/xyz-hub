@@ -18,14 +18,14 @@
  */
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.lib.core.storage.ClosableIterator;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -53,24 +53,13 @@ class UtCollectionInfoResultSet implements ClosableIterator<CollectionInfo> {
       //noinspection resource
       final ResultSet rs = rs();
       while (next == null && rs.next()) {
-        String id = null, jsondata = null;
-        try {
-          id = rs.getString(1);
-          jsondata = rs.getString(2);
-          next = json.reader(ViewDeserialize.Storage.class)
-              .forType(CollectionInfo.class)
-              .readValue(jsondata);
-        } catch (Exception e) {
-          currentLogger()
-              .warn(
-                  "Failed to deserialize collection information for id '{}', json: {}",
-                  id,
-                  jsondata,
-                  e);
-        }
+        final String jsondata = rs.getString(2);
+        next = json.reader(ViewDeserialize.Storage.class)
+            .forType(CollectionInfo.class)
+            .readValue(jsondata);
       }
-    } catch (SQLException e) {
-      currentLogger().warn("Unexpected exception while iterating result-set", e);
+    } catch (final Throwable t) {
+      throw unchecked(t);
     }
   }
 
@@ -97,8 +86,8 @@ class UtCollectionInfoResultSet implements ClosableIterator<CollectionInfo> {
     if (rs != null) {
       try {
         rs.close();
-      } catch (Exception e) {
-        currentLogger(getClass()).warn("Failed to close result-set", e);
+      } catch (final Throwable t) {
+        currentLogger().atWarn("Failed to close result-set").setCause(t).log();
       } finally {
         rs = null;
       }

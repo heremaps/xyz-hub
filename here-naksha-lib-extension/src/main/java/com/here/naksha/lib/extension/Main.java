@@ -18,7 +18,8 @@
  */
 package com.here.naksha.lib.extension;
 
-import com.here.naksha.lib.core.NakshaContext;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+
 import java.io.IOException;
 
 public class Main {
@@ -27,7 +28,10 @@ public class Main {
 
   public static void main(String... args) throws IOException {
     final int port = Integer.parseInt(args[0]);
-    NakshaContext.currentLogger().info(String.format("Starting Naksha extension server on port %d"), port);
+    currentLogger()
+        .atInfo("Starting Naksha extension server on port {}")
+        .add(port)
+        .log();
     remoteExtensionServer = new RemoteExtensionServer(port);
     final ShutdownHook shutdownHook = new ShutdownHook();
     Runtime.getRuntime().addShutdownHook(new Thread(shutdownHook));
@@ -37,12 +41,9 @@ public class Main {
     @Override
     public void run() {
       // Perform cleanup tasks or actions here
-      try {
-        remoteExtensionServer.forceCloseSocket();
-      } catch (IOException e) {
-      }
+      remoteExtensionServer.forceCloseSocket();
       remoteExtensionServer.stop();
-      NakshaContext.currentLogger().warn("Shutdown hook invoked.");
+      currentLogger().info("Shutdown hook invoked.");
       System.out.println("Shutdown hook invoked.");
     }
   }

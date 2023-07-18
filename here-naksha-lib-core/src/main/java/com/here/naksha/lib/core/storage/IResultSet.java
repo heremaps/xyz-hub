@@ -49,55 +49,50 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
    *
    * @return the identifier of the feature.
    * @throws NoSuchElementException if no feature loaded.
-   * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
   @AvailableSince(v2_0_5)
   @NotNull
-  String getId() throws Exception;
+  String getId();
 
   /**
    * Returns the state UUID of the feature.
    *
    * @return the state UUID of the feature.
    * @throws NoSuchElementException if no feature loaded.
-   * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
   @AvailableSince(v2_0_5)
   @NotNull
-  String getUuid() throws Exception;
+  String getUuid();
 
   /**
    * Returns the JSON of the feature without the geometry, including the ID and UUID.
    *
    * @return the JSON of the feature without the geometry.
    * @throws NoSuchElementException if no feature loaded.
-   * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
   @AvailableSince(v2_0_5)
   @NotNull
-  String getJson() throws Exception;
+  String getJson();
 
   /**
    * Returns the hex-encoded WKB (well-known binary) of the feature or {@code null}, if the feature has no geometry.
    *
    * @return the hex-encoded WKB of the geometry or {@code null}, if the feature does not have a geometry.
    * @throws NoSuchElementException if no feature loaded.
-   * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
   @AvailableSince(v2_0_5)
   @Nullable
-  String getGeometry() throws Exception;
+  String getGeometry();
 
   /**
    * Decodes the feature and returns it.
    *
    * @return the decoded feature.
    * @throws NoSuchElementException if no feature loaded.
-   * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
   @AvailableSince(v2_0_5)
   @NotNull
-  FEATURE getFeature() throws Exception;
+  FEATURE getFeature();
 
   /**
    * Decode features into a list.
@@ -106,10 +101,9 @@ public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
    * @param limit the maximal amount of features to return.
    * @return the list with the read features, less or equal to {@code limit}.
    * @throws NoSuchElementException if no feature loaded.
-   * @throws Exception              if any error occurred while parsing the feature or geometry.
    */
   @AvailableSince(v2_0_5)
-  default @NotNull List<@NotNull FEATURE> toList(int skip, int limit) throws Exception {
+  default @NotNull List<@NotNull FEATURE> toList(int skip, int limit) {
     final ArrayList<FEATURE> list = new ArrayList<>();
     int i = 0;
     while (i < skip && next()) {

@@ -34,7 +34,7 @@ val vertx_auth_jwt = "io.vertx:vertx-auth-jwt:4.4.0"
 val vertx_redis_client = "io.vertx:vertx-redis-client:4.4.0"
 val vertx_jdbc_client = "io.vertx:vertx-jdbc-client:4.4.0"
 val vertx_web = "io.vertx:vertx-web:4.4.0"
-val vertx_web_openai = "io.vertx:vertx-web-openapi:4.4.0"
+val vertx_web_openapi = "io.vertx:vertx-web-openapi:4.4.0"
 val vertx_web_client = "io.vertx:vertx-web-client:4.4.0"
 val vertx_web_templ = "io.vertx:vertx-web-templ-handlebars:4.4.0"
 
@@ -307,6 +307,24 @@ project(":here-naksha-handler-psql") {
         }
     }
 }
+
+//project(":here-naksha-app-service") {
+//    description = "Naksha Service"
+//    dependencies {
+//        implementation(project(":here-naksha-lib-core"))
+//        implementation(project(":here-naksha-lib-psql"))
+//        implementation(project(":here-naksha-lib-extension"))
+//
+//        implementation(commons_lang3)
+//        implementation(vividsolutions_jts_core)
+//        implementation(postgres)
+//        implementation(vertx_core)
+//        implementation(vertx_auth_jwt)
+//        implementation(vertx_web)
+//        implementation(vertx_web_client)
+//        implementation(vertx_web_openapi)
+//    }
+//}
 
 // Ensure that libraries published to artifactory, while the application generates a shadow-jar.
 subprojects {

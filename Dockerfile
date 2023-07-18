@@ -14,7 +14,7 @@ ENV PSQL_HOST postgres
 ENV XYZ_HUB_REDIS_URI redis://redis
 ENV PSQL_HTTP_CONNECTOR_HOST xyz-http-connector
 
-COPY xyz-hub-service/target/xyz-hub-service.jar .
+COPY here-naksha-app-service/target/xyz-hub-service.jar .
 ADD Dockerfile /
 
 EXPOSE 8080 9090

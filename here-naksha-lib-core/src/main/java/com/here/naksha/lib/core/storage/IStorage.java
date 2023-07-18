@@ -50,9 +50,8 @@ public interface IStorage extends Closeable {
    * the master node.
    *
    * @return the read transaction.
-   * @throws Exception If any error occurred.
    */
-  default @NotNull IReadTransaction openReplicationTransaction() throws Exception {
+  default @NotNull IReadTransaction openReplicationTransaction() {
     return openReplicationTransaction(createSettings());
   }
 
@@ -62,18 +61,16 @@ public interface IStorage extends Closeable {
    *
    * @param settings Optional settings for the transaction.
    * @return the read transaction.
-   * @throws Exception If any error occurred.
    */
   @NotNull
-  IReadTransaction openReplicationTransaction(@NotNull ITransactionSettings settings) throws Exception;
+  IReadTransaction openReplicationTransaction(@NotNull ITransactionSettings settings);
 
   /**
    * Opens a read/write transaction to the master node.
    *
    * @return The mutator transaction.
-   * @throws Exception If any error occurred.
    */
-  default @NotNull IMasterTransaction openMasterTransaction() throws Exception {
+  default @NotNull IMasterTransaction openMasterTransaction() {
     return openMasterTransaction(createSettings());
   }
 
@@ -82,19 +79,16 @@ public interface IStorage extends Closeable {
    *
    * @param settings Optional settings for the transaction.
    * @return The mutator transaction.
-   * @throws Exception If any error occurred.
    */
   @NotNull
-  IMasterTransaction openMasterTransaction(@NotNull ITransactionSettings settings) throws Exception;
+  IMasterTransaction openMasterTransaction(@NotNull ITransactionSettings settings);
 
   /**
    * Add a listener to be called, when something changes in the storage.
    *
-   * @param listener The change listener to invoke, receiving the transaction set. If the listener
-   *     throws an exception, it should be called again after some time.
-   * @throws Exception If any error occurred.
+   * @param listener The change listener to invoke, receiving the transaction set.
    */
-  void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener) throws Exception;
+  void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener);
 
   /**
    * Remove the given listener.

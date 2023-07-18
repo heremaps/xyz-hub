@@ -21,7 +21,7 @@ package com.here.naksha.lib.core.exceptions;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class ParameterError extends Exception {
+public class ParameterError extends RuntimeException {
 
   public ParameterError(@NotNull String message) {
     super(message);

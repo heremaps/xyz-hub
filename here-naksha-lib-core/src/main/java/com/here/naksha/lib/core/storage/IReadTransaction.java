@@ -51,22 +51,20 @@ public interface IReadTransaction extends AutoCloseable {
    * Iterate all collections from the storage.
    *
    * @return the iterator above all storage collections.
-   * @throws Exception if access to the storage failed or any other error occurred.
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
-  ClosableIterator<@NotNull CollectionInfo> iterateCollections() throws Exception;
+  ClosableIterator<@NotNull CollectionInfo> iterateCollections();
 
   /**
    * Returns the collection with the given id.
    *
    * @param id the identifier of the collection to return.
    * @return the collection or {@code null}, if no such collection exists.
-   * @throws Exception if access to the storage failed or any other error occurred.
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @Nullable
-  CollectionInfo getCollectionById(@NotNull String id) throws Exception;
+  CollectionInfo getCollectionById(@NotNull String id);
 
   /**
    * Returns the reader for the given feature-type and collection.
@@ -75,8 +73,7 @@ public interface IReadTransaction extends AutoCloseable {
    * @param collection the collection to read.
    * @param <FEATURE> the feature-type.
    * @return the feature reader.
-   * @throws Exception if access to the storage failed or any other error occurred.
    */
   <FEATURE extends XyzFeature> @NotNull IFeatureReader<FEATURE> readFeatures(
-      @NotNull Class<FEATURE> featureClass, @NotNull CollectionInfo collection) throws Exception;
+      @NotNull Class<FEATURE> featureClass, @NotNull CollectionInfo collection);
 }

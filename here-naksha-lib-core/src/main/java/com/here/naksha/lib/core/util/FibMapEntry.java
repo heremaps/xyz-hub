@@ -22,13 +22,18 @@ import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** An map entry implementation. */
+/**
+ * An map entry implementation.
+ *
+ * @deprecated Replaced with {@link com.here.naksha.lib.core.util.fib.FibSet}.
+ */
+@Deprecated
 public final class FibMapEntry implements Map.Entry<Object, Object> {
 
   /**
    * Creates a new fibonacci map entry.
    *
-   * @param key The key.
+   * @param key   The key.
    * @param value The value.
    */
   public FibMapEntry(@NotNull Object key, @Nullable Object value) {
@@ -36,11 +41,15 @@ public final class FibMapEntry implements Map.Entry<Object, Object> {
     this.value = value;
   }
 
-  /** The key we refer to. */
+  /**
+   * The key we refer to.
+   */
   @NotNull
   Object key;
 
-  /** The value we refer to. */
+  /**
+   * The value we refer to.
+   */
   @Nullable
   Object value;
 
@@ -57,7 +66,7 @@ public final class FibMapEntry implements Map.Entry<Object, Object> {
   /**
    * Change the key and value and return this.
    *
-   * @param key The next key.
+   * @param key   The next key.
    * @param value The new value.
    * @return this.
    */

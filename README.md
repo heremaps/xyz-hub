@@ -62,7 +62,7 @@ java -jar xyz-hub-service/target/xyz-hub-service.jar
 
 ### Configuration
 
-The service persists out of modules with a bootstrap code to start the service. All configuration is done in the [config.json](./xyz-hub-service/src/main/resources/config.json).
+The service persists out of modules with a bootstrap code to start the service. All configuration is done in the [config.json](here-naksha-app-service/src/main/resources/config.json).
 
 The bootstrap code could be used to run only the `hub-verticle` or only the `connector-verticle` or it can be used to run both as a single monolith. In a microservice deployment you run one cluster with only `hub-verticle` deployment and another cluster with only `connector-verticle` deployment. It is as well possible to mix this, so running a monolith deployment that optionally can use connector configurations to use foreign connectors for individual spaces.
 

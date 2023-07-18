@@ -29,7 +29,6 @@ import com.here.naksha.lib.core.extension.ExtensionHandler;
 import com.here.naksha.lib.core.models.IPlugin;
 import com.here.naksha.lib.core.models.PluginCache;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import java.lang.reflect.InvocationTargetException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -102,15 +101,8 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
   private boolean active;
 
   @Override
-  public @NotNull IEventHandler newInstance() throws Exception {
-    try {
-      return PluginCache.newInstance(className, IEventHandler.class, this);
-    } catch (InvocationTargetException ite) {
-      if (ite.getCause() instanceof Exception e) {
-        throw e;
-      }
-      throw ite;
-    }
+  public @NotNull IEventHandler newInstance() {
+    return PluginCache.newInstance(className, IEventHandler.class, this);
   }
 
   /**
@@ -118,21 +110,13 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
    * is a connector being part of an extension.
    *
    * @return the event-handler.
-   * @throws Exception if any error occurred.
    */
   @NotNull
-  IEventHandler newInstanceOrExtensionHandler() throws Exception {
-    try {
-      if (extension > 0) {
-        return new ExtensionHandler(this);
-      }
-      return PluginCache.newInstance(className, IEventHandler.class, this);
-    } catch (InvocationTargetException ite) {
-      if (ite.getCause() instanceof Exception e) {
-        throw e;
-      }
-      throw ite;
+  IEventHandler newInstanceOrExtensionHandler() {
+    if (extension > 0) {
+      return new ExtensionHandler(this);
     }
+    return PluginCache.newInstance(className, IEventHandler.class, this);
   }
 
   public @NotNull String getClassName() {

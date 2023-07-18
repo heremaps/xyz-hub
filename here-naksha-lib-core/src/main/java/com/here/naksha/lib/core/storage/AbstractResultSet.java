@@ -19,7 +19,9 @@
 package com.here.naksha.lib.core.storage;
 
 import static com.here.naksha.lib.core.NakshaVersion.v2_0_5;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
@@ -28,6 +30,7 @@ import com.here.naksha.lib.core.view.ViewDeserialize.Storage;
 import com.here.naksha.lib.core.view.ViewSerialize;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.io.ParseException;
 import com.vividsolutions.jts.io.WKBReader;
 import com.vividsolutions.jts.io.WKBWriter;
 import java.util.NoSuchElementException;
@@ -65,55 +68,83 @@ public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements I
   /**
    * Convert the JSON and geometry into a real feature.
    *
-   * @param jsondata the JSON-string of the feature.
-   * @param geo      the hex-string of the WKB of the geometry; if the feature does have a geometry.
-   * @return the feature.
-   * @throws NoSuchElementException if no feature loaded.
-   * @throws Exception              if any error occurred while parsing the feature or geometry.
+   * @param jsondata The JSON-string of the feature.
+   * @param geo      The hex-string of the WKB of the geometry; if the feature does have a geometry.
+   * @return The feature.
+   * @throws NoSuchElementException   If no feature loaded.
+   * @throws IllegalArgumentException If parsing the JSON does not return the expected value.
+   * @throws ParseException           If the WKB of the geometry is ill-formed.
+   * @throws JsonProcessingException  If some error happened while parsing the JSON.
    */
+  @SuppressWarnings("JavadocDeclaration")
   @AvailableSince(v2_0_5)
-  protected @NotNull FEATURE featureOf(@NotNull String jsondata, @Nullable String geo) throws Exception {
-    final FEATURE f = json.reader(Storage.class).forType(featureClass).readValue(jsondata);
-    if (f == null) {
-      throw new IllegalArgumentException("Parsing the jsondata returned null");
+  protected @NotNull FEATURE featureOf(@NotNull String jsondata, @Nullable String geo) {
+    try {
+      final FEATURE f = json.reader(Storage.class).forType(featureClass).readValue(jsondata);
+      if (f == null) {
+        throw new IllegalArgumentException("Parsing the jsondata returned null");
+      }
+      if (geo != null) {
+        final Geometry geometry = json.wkbReader.read(WKBReader.hexToBytes(geo));
+        f.setGeometry(JTSHelper.fromGeometry(geometry));
+      }
+      return f;
+    } catch (ParseException | JsonProcessingException e) {
+      throw unchecked(e);
     }
-    if (geo != null) {
-      final Geometry geometry = json.wkbReader.read(WKBReader.hexToBytes(geo));
-      f.setGeometry(JTSHelper.fromGeometry(geometry));
-    }
-    return f;
   }
 
+  /**
+   * Return the JSON of the given feature.
+   *
+   * @param feature The feature to serialize.
+   * @return the serialized feature.
+   * @throws JsonProcessingException If some error happened while parsing the JSON.
+   */
+  @SuppressWarnings("JavadocDeclaration")
   @AvailableSince(v2_0_5)
-  protected @NotNull String jsonOf(@NotNull FEATURE feature) throws Exception {
+  protected @NotNull String jsonOf(@NotNull FEATURE feature) {
     final XyzGeometry xyzGeometry = feature.getGeometry();
     feature.setGeometry(null);
     try {
       return json.writer(ViewSerialize.Storage.class)
           .forType(featureClass)
           .writeValueAsString(feature);
+    } catch (JsonProcessingException e) {
+      throw unchecked(e);
     } finally {
       feature.setGeometry(xyzGeometry);
     }
   }
 
+  /**
+   * Returns the HEX encoded WKB geometry of the given feature. In the returned form, this can be used with PostgresQL {@code PgObject}
+   * using the type {@code geometry}.
+   *
+   * @param feature The feature from which to extract the geometry in PostgresQL compatible WKB encoding.
+   * @return The geometry in PostgresQL compatible WKB encoding or {@code null}, if the feature does not have a geometry.
+   */
   @AvailableSince(v2_0_5)
-  protected @Nullable String geometryOf(@NotNull FEATURE feature) throws Exception {
+  protected @Nullable String geometryOf(@NotNull FEATURE feature) {
     final XyzGeometry xyzGeometry = feature.getGeometry();
+    if (xyzGeometry == null) {
+      return null;
+    }
     feature.setGeometry(null);
     try {
-      if (xyzGeometry != null) {
-        final Geometry jtsGeometry = xyzGeometry.getJTSGeometry();
-        assure3d(jtsGeometry.getCoordinates());
-        final byte[] geometryBytes = json.wkbWriter.write(jtsGeometry);
-        return WKBWriter.toHex(geometryBytes);
-      }
-      return null;
+      final Geometry jtsGeometry = xyzGeometry.getJTSGeometry();
+      assure3d(jtsGeometry.getCoordinates());
+      final byte[] geometryBytes = json.wkbWriter.write(jtsGeometry);
+      return WKBWriter.toHex(geometryBytes);
     } finally {
       feature.setGeometry(xyzGeometry);
     }
   }
 
+  /**
+   * Ensures that the given coordinate array does have valid 3D coordinates and does not contain any {@link Double#NaN} values.
+   * @param coords The coordinates to verify.
+   */
   @AvailableSince(v2_0_5)
   protected static void assure3d(@NotNull Coordinate @NotNull [] coords) {
     for (final @NotNull Coordinate coord : coords) {

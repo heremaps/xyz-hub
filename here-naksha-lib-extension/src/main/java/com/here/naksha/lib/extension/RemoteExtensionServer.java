@@ -18,7 +18,9 @@
  */
 package com.here.naksha.lib.extension;
 
-import com.here.naksha.lib.core.NakshaContext;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.core.NakshaVersion;
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -48,8 +50,12 @@ public class RemoteExtensionServer {
     notifyAll();
   }
 
-  void forceCloseSocket() throws IOException {
-    serverSocket.close();
+  void forceCloseSocket() {
+    try {
+      serverSocket.close();
+    } catch (final Throwable t) {
+      throw unchecked(t);
+    }
   }
 
   private volatile boolean doStop;
@@ -61,14 +67,20 @@ public class RemoteExtensionServer {
         synchronized (this) {
           new ExtensionServerConnection(serverSocket.accept());
         }
-      } catch (Exception e) {
-        NakshaContext.currentLogger().error(String.format("Unexpected error: %s", e));
+      } catch (final Throwable t) {
+        currentLogger()
+            .atError("Uncaught exception while accepting connection")
+            .setCause(t)
+            .log();
       }
     }
     try {
       serverSocket.close();
-    } catch (IOException e) {
-      NakshaContext.currentLogger().warn(String.format("Failed to gracefully close the server socket: %s", e));
+    } catch (final Throwable t) {
+      currentLogger()
+          .atWarn("Failed to gracefully close the server socket")
+          .setCause(t)
+          .log();
     }
   }
 }

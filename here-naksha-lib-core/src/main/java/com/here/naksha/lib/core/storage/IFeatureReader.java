@@ -37,11 +37,10 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
    *
    * @param id the identifier.
    * @return the feature or null, if no such feature exists.
-   * @throws Exception if any error occurred.
    */
   @AvailableSince(v2_0_5)
   @Nullable
-  default FEATURE getFeatureById(@NotNull String id) throws Exception {
+  default FEATURE getFeatureById(@NotNull String id) {
     try (final IResultSet<FEATURE> rs = getFeaturesById(id)) {
       if (rs.next()) {
         return rs.getFeature();
@@ -56,10 +55,9 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
    *
    * @param ids the identifiers of the features to read.
    * @return the result-reader.
-   * @throws Exception if any error occurred.
    */
   @AvailableSince(v2_0_5)
-  default @NotNull IResultSet<FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids) throws Exception {
+  default @NotNull IResultSet<FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids) {
     return getFeaturesById(ids.toArray(new String[0]));
   }
 
@@ -69,9 +67,8 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
    *
    * @param ids the identifiers of the features to read.
    * @return the result-reader.
-   * @throws Exception if any error occurred.
    */
   @AvailableSince(v2_0_5)
   @NotNull
-  IResultSet<FEATURE> getFeaturesById(@NotNull String... ids) throws Exception;
+  IResultSet<FEATURE> getFeaturesById(@NotNull String... ids);
 }

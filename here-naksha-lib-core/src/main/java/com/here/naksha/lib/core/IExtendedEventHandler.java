@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.core;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.payload.Event;
@@ -53,8 +53,7 @@ import org.jetbrains.annotations.NotNull;
 public interface IExtendedEventHandler extends IEventHandler {
 
   /**
-   * The method invoked by the XYZ-Hub directly (embedded) or indirectly, when running in an HTTP
-   * vertx or as AWS lambda.
+   * The method invoked by the XYZ-Hub directly (embedded) or indirectly, when running in an HTTP vertx or as AWS lambda.
    *
    * @param eventContext the event context to process.
    * @return the response to send.
@@ -133,7 +132,10 @@ public interface IExtendedEventHandler extends IEventHandler {
     } catch (XyzErrorException e) {
       return e.toErrorResponse(event.getStreamId());
     } catch (Exception e) {
-      currentLogger().error("Uncaught exception in event processor", e);
+      currentLogger()
+          .atError("Uncaught exception in event processor")
+          .setCause(e)
+          .log();
       return new ErrorResponse()
           .withStreamId(event.getStreamId())
           .withError(XyzError.EXCEPTION)

@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.core;
 
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.payload.Event;
@@ -81,15 +83,6 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
   }
 
   /**
-   * Returns the thread local logger configured to this task.
-   *
-   * @return the thread local logger configured to this task.
-   */
-  public @NotNull NakshaContext logger() {
-    return NakshaContext.currentContext().with(streamId, startNanos);
-  }
-
-  /**
    * Returns the start time of the task in nanoseconds.
    *
    * @return The start time of the task in nanoseconds.
@@ -105,7 +98,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
    * @param t the exception.
    */
   public void uncaughtException(Thread thread, Throwable t) {
-    logger().error("Uncaught exception", t);
+    currentLogger().atError("Uncaught exception").setCause(t).log();
   }
 
   /**
@@ -209,7 +202,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
    *     parallel tasks limit.
    * @throws IllegalStateException If the task is not in the state {@link State#NEW}.
    */
-  public void setInternal(boolean internal) throws IllegalStateException {
+  public void setInternal(boolean internal) {
     lock();
     try {
       this.internal = internal;
@@ -369,14 +362,14 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
   }
 
   /**
-   * Creates a new thread, attach this task to the new thread, then call {@link #init()} followed by
-   * an invocation of {@link #execute()} to generate the response.
+   * Creates a new thread, attach this task to the new thread, then call {@link #init()} followed by an invocation of {@link #execute()} to
+   * generate the response.
    *
    * @return The future to the result.
    * @throws IllegalStateException If the {@link #state()} is not {@link State#NEW}.
    * @throws XyzErrorException If any error occurred, for example too many concurrent tasks.
    */
-  public @NotNull Future<@NotNull XyzResponse> start() throws XyzErrorException {
+  public @NotNull Future<@NotNull XyzResponse> start() {
     final long LIMIT = AbstractTask.SOFT_LIMIT.get();
     lock();
     try {
@@ -395,7 +388,10 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
             return future;
           } catch (Throwable t) {
             AbstractTask.threadCount.decrementAndGet();
-            logger().error("Unexpected exception while trying to fork a new thread", t);
+            currentLogger()
+                .atError("Unexpected exception while trying to fork a new thread")
+                .setCause(t)
+                .log();
             throw new XyzErrorException(
                 XyzError.EXCEPTION, "Internal error while forking new worker thread");
           }
@@ -426,7 +422,10 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
         try {
           listener.accept(response);
         } catch (Throwable t) {
-          logger().error("Uncaught exception in listener", t);
+          currentLogger()
+              .atError("Uncaught exception in listener")
+              .setCause(t)
+              .log();
         }
       }
       return response;
@@ -547,10 +546,11 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
     } else if (t instanceof ParameterError e) {
       response = errorResponse(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
     } else {
-      logger().error(
-              "Unexpected exception (not XyzErrorException or ParameterError): {}",
-              t.getClass().getName(),
-              t);
+      currentLogger()
+          .atError("Unexpected exception (not XyzErrorException or ParameterError): {}")
+          .add(t.getClass().getName())
+          .setCause(t)
+          .log();
       response = errorResponse(
           XyzError.EXCEPTION,
           "Uncaught exception in task " + getClass().getSimpleName());

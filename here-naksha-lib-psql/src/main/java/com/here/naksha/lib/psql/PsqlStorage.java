@@ -18,7 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaContext.currentLogger;
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
@@ -254,10 +254,16 @@ public class PsqlStorage implements IStorage {
         }
         if (latest.toLong() != version) {
           if (version == 0L) {
-            currentLogger().info("Install and initialize Naksha extension v{}", latest);
+            currentLogger()
+                .atInfo("Install and initialize Naksha extension v{}")
+                .add(latest)
+                .log();
           } else {
             currentLogger()
-                .info("Upgrade Naksha extension from v{} to v{}", new NakshaVersion(version), latest);
+                .atInfo("Upgrade Naksha extension from v{} to v{}")
+                .add(new NakshaVersion(version))
+                .add(latest)
+                .log();
           }
           SQL = IoHelp.readResource("naksha_ext.sql")
               .replaceAll("\\$\\{schema}", getSchema())
@@ -299,23 +305,22 @@ public class PsqlStorage implements IStorage {
   }
 
   @Override
-  public @NotNull PsqlTxReader openReplicationTransaction() throws SQLException {
+  public @NotNull PsqlTxReader openReplicationTransaction() {
     return new PsqlTxReader(this, createSettings());
   }
 
   @Override
-  public @NotNull PsqlTxReader openReplicationTransaction(@NotNull ITransactionSettings settings)
-      throws SQLException {
+  public @NotNull PsqlTxReader openReplicationTransaction(@NotNull ITransactionSettings settings) {
     return new PsqlTxReader(this, settings);
   }
 
   @Override
-  public @NotNull PsqlTxWriter openMasterTransaction() throws SQLException {
+  public @NotNull PsqlTxWriter openMasterTransaction() {
     return new PsqlTxWriter(this, createSettings());
   }
 
   @Override
-  public @NotNull PsqlTxWriter openMasterTransaction(@NotNull ITransactionSettings settings) throws SQLException {
+  public @NotNull PsqlTxWriter openMasterTransaction(@NotNull ITransactionSettings settings) {
     return new PsqlTxWriter(this, settings);
   }
 

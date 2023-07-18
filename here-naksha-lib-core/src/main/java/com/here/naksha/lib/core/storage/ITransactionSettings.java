@@ -41,10 +41,9 @@ public interface ITransactionSettings {
    * @param timeout  The timeout to set.
    * @param timeUnit The unit of the timeout.
    * @return this.
-   * @throws Exception If any error occurred.
    */
   @NotNull
-  ITransactionSettings withStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) throws Exception;
+  ITransactionSettings withStatementTimeout(long timeout, @NotNull TimeUnit timeUnit);
 
   /**
    * Returns the lock timeout.
@@ -60,42 +59,35 @@ public interface ITransactionSettings {
    * @param timeout  The timeout to set.
    * @param timeUnit The unit of the timeout.
    * @return this.
-   * @throws Exception If any error occurred.
    */
   @NotNull
-  ITransactionSettings withLockTimeout(long timeout, @NotNull TimeUnit timeUnit) throws Exception;
+  ITransactionSettings withLockTimeout(long timeout, @NotNull TimeUnit timeUnit);
 
   /**
    * Returns the currently set application identifier.
-   *
-   * @throws Exception If any error occurred, for example no application identifier set.
    */
   @NotNull
-  String getAppId() throws Exception;
+  String getAppId();
 
   /**
    * Returns the currently set application identifier.
    *
    * @param app_id The application identifier to set.
-   * @throws Exception If any error occurred, for example no application identifier set.
    */
   @NotNull
-  ITransactionSettings withAppId(@NotNull String app_id) throws Exception;
+  ITransactionSettings withAppId(@NotNull String app_id);
 
   /**
    * Returns the currently set author.
-   *
-   * @throws Exception If any error occurred.
    */
   @Nullable
-  String getAuthor() throws Exception;
+  String getAuthor();
 
   /**
    * Returns the currently set application identifier.
    *
    * @param author The application identifier to set.
-   * @throws Exception If any error occurred, for example no application identifier set.
    */
   @NotNull
-  ITransactionSettings withAuthor(@Nullable String author) throws Exception;
+  ITransactionSettings withAuthor(@Nullable String author);
 }
