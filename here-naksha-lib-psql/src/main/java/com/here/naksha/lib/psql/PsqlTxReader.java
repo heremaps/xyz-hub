@@ -153,30 +153,42 @@ public class PsqlTxReader implements IReadTransaction {
 
   @Override
   public @NotNull ClosableIterator<@NotNull CollectionInfo> iterateCollections() {
-    try (final var stmt = conn().prepareStatement(UtCollectionInfoResultSet.STATEMENT)) {
-      return new UtCollectionInfoResultSet(stmt.executeQuery());
-    } catch (final SQLException e) {
-      throw unchecked(e);
+    try {
+      final var stmt = conn().prepareStatement(UtCollectionInfoResultSet.STATEMENT);
+      try {
+        return new UtCollectionInfoResultSet(stmt, stmt.executeQuery());
+      } catch (final Throwable t) {
+        stmt.close();
+        throw t;
+      }
+    } catch (Throwable t) {
+      throw unchecked(t);
     }
   }
 
   @Override
   public @Nullable CollectionInfo getCollectionById(@NotNull String id) {
     final String SQL = "SELECT naksha_collection_get(?);";
-    try (final var stmt = conn().prepareStatement(SQL)) {
-      stmt.setString(1, id);
-      final ResultSet rs = stmt.executeQuery();
-      if (rs.next()) {
-        final String jsonText = rs.getString(1);
-        if (jsonText != null) {
-          try (final Json json = Json.get()) {
-            return json.reader(ViewDeserialize.Storage.class)
-                .forType(CollectionInfo.class)
-                .readValue(jsonText);
+    try {
+      final var stmt = conn().prepareStatement(SQL);
+      try {
+        stmt.setString(1, id);
+        final ResultSet rs = stmt.executeQuery();
+        if (rs.next()) {
+          final String jsonText = rs.getString(1);
+          if (jsonText != null) {
+            try (final Json json = Json.get()) {
+              return json.reader(ViewDeserialize.Storage.class)
+                  .forType(CollectionInfo.class)
+                  .readValue(jsonText);
+            }
           }
         }
+        return null;
+      } catch (Throwable t) {
+        stmt.close();
+        throw t;
       }
-      return null;
     } catch (final Throwable t) {
       throw unchecked(t);
     }

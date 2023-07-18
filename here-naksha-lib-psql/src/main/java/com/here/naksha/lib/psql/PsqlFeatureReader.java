@@ -50,9 +50,14 @@ public class PsqlFeatureReader<FEATURE extends XyzFeature, TX extends PsqlTxRead
       sb.append(" WHERE jsondata->>'id' = ANY(?)");
       final String SQL = sb.toString();
       final PreparedStatement stmt = tx.preparedStatement(SQL);
-      stmt.setArray(1, tx.conn().createArrayOf("text", ids));
-      final ResultSet rs = stmt.executeQuery();
-      return new PsqlResultSet<>(stmt, rs, featureClass);
+      try {
+        stmt.setArray(1, tx.conn().createArrayOf("text", ids));
+        final ResultSet rs = stmt.executeQuery();
+        return new PsqlResultSet<>(stmt, rs, featureClass);
+      } catch (Throwable t) {
+        stmt.close();
+        throw t;
+      }
     } catch (final Throwable t) {
       throw unchecked(t);
     }

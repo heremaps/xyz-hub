@@ -127,6 +127,7 @@ public class PsqlStorageTest {
   @Order(2)
   @EnabledIf("isEnabled")
   void dropSchemaIfExists() throws Exception {
+    assertNotNull(storage);
     try (final var conn = storage.dataSource.getConnection()) {
       conn.createStatement()
           .execute(new SQL("DROP SCHEMA IF EXISTS ")

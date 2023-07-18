@@ -18,11 +18,12 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.AbstractResultSet;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -66,11 +67,18 @@ public class PsqlResultSet<FEATURE extends XyzFeature> extends AbstractResultSet
             this.geometry = geometry.getValue();
           }
           return loaded = true;
-        } catch (Exception e) {
-          throw new IllegalStateException(e);
+        } catch (Throwable t) {
+          currentLogger()
+              .atWarn("Unexpected exception while processing next row from result-set")
+              .setCause(t)
+              .log();
         }
       }
-    } catch (SQLException ignore) {
+    } catch (Throwable t) {
+      currentLogger()
+          .atWarn("Unexpected exception while reading next row from result-set")
+          .setCause(t)
+          .log();
     }
     return loaded = false;
   }
@@ -114,16 +122,18 @@ public class PsqlResultSet<FEATURE extends XyzFeature> extends AbstractResultSet
 
   @Override
   public void close() {
-    if (rs != null) {
-      try {
-        rs.close();
-      } catch (SQLException ignore) {
-      }
-      try {
-        stmt.close();
-      } catch (SQLException ignore) {
-      }
+    try {
+      rs.close();
+    } catch (Throwable t) {
+      currentLogger().atWarn("Failed to close result-set").setCause(t).log();
+    } finally {
       rs = null;
+    }
+    try {
+      stmt.close();
+    } catch (Throwable t) {
+      currentLogger().atWarn("Failed to close statement").setCause(t).log();
+    } finally {
       stmt = null;
     }
   }

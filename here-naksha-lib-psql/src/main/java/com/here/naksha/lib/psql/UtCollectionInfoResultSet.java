@@ -26,6 +26,7 @@ import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,12 +35,14 @@ class UtCollectionInfoResultSet implements ClosableIterator<CollectionInfo> {
 
   static final String STATEMENT = "SELECT id, jsondata FROM naksha_collection_get_all();";
 
-  UtCollectionInfoResultSet(@NotNull ResultSet rs) {
+  UtCollectionInfoResultSet(@NotNull Statement stmt, @NotNull ResultSet rs) {
+    this.stmt = stmt;
     this.rs = rs;
     fetchNext();
   }
 
-  private @Nullable ResultSet rs;
+  private Statement stmt;
+  private ResultSet rs;
 
   private @NotNull ResultSet rs() {
     if (rs == null) {
@@ -83,14 +86,19 @@ class UtCollectionInfoResultSet implements ClosableIterator<CollectionInfo> {
 
   @Override
   public void close() {
-    if (rs != null) {
-      try {
-        rs.close();
-      } catch (final Throwable t) {
-        currentLogger().atWarn("Failed to close result-set").setCause(t).log();
-      } finally {
-        rs = null;
-      }
+    try {
+      rs.close();
+    } catch (final Throwable t) {
+      currentLogger().atWarn("Failed to close result-set").setCause(t).log();
+    } finally {
+      rs = null;
+    }
+    try {
+      stmt.close();
+    } catch (Throwable t) {
+      currentLogger().atWarn("Failed to close statement").setCause(t).log();
+    } finally {
+      stmt = null;
     }
   }
 }
