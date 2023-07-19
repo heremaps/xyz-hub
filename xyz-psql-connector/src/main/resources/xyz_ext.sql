@@ -4119,6 +4119,7 @@ CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
 	iqk text,
 	mlevel integer,
 	sql_with_jsondata_geo text,
+    sql_qk_tileqry_with_geo text,
 	esitmated_count bigint,
 	tbl regclass)
 RETURNS  TABLE(tilelist text[])
@@ -4148,17 +4149,19 @@ begin
 
     if esitmated_count < start_parallelization_threshold THEN
         return query select ARRAY[''];
-    else
-		calc_weighted_fc := esitmated_count * _weight;
-
-		if calc_weighted_fc > max_features_in_tile then
-			_weight := (max_features_in_tile / esitmated_count) ;
-        end if;
-
-        return query select ARRAY_AGG(qk) from (
-			select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbl, sql_with_jsondata_geo
-	    ) order by weight DESC) a;
+    elseif sql_qk_tileqry_with_geo is not null and length(sql_qk_tileqry_with_geo) > 0 THEN
+        sql_with_jsondata_geo := sql_qk_tileqry_with_geo;
     end if;
+
+    calc_weighted_fc := esitmated_count * _weight;
+
+    if calc_weighted_fc > max_features_in_tile then
+            _weight := (max_features_in_tile / esitmated_count) ;
+    end if;
+
+    return query select ARRAY_AGG(qk) from (
+        select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbl, sql_with_jsondata_geo
+    ) order by weight DESC) a;
 end
 $BODY$;
 ------------------------------------------------
