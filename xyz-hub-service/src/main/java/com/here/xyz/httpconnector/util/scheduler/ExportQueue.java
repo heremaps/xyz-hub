@@ -122,9 +122,8 @@ public class ExportQueue extends JobQueue{
 
         String s3Path = CService.jobS3Client.getS3Path(j);
 
-        boolean persistExport = j.getParams().containsKey("persistExport") ? (boolean) j.getParam("persistExport") : false;
-        if(persistExport && ((Export) j).getExportTarget().getType() == Export.ExportTarget.Type.VML && ((Export) j).getFilters() == null ) {
-            Export existingJob = CService.jobS3Client.readMetaFile((Export) j);
+        if(((Export) j).readParamPersistExport() ) {
+            Export existingJob = CService.jobS3Client.readMetaFileFromJob((Export) j);
             if(existingJob != null) {
                 if(existingJob.getExportObjects() == null || existingJob.getExportObjects().isEmpty()) {
                     String message = String.format("Another job already started for %s and targetLevel %s with status %s",
@@ -165,8 +164,14 @@ public class ExportQueue extends JobQueue{
 
     protected void addFileData(Job j){
         /** Add file statistics and downloadLinks */
-        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath(j, true);
+        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
         ((Export) j).setExportObjects(exportObjects);
+
+        if(((Export)j).readParamSuperExportPath() != null) {
+            /** Add exportObjects including fresh download links for persistent base exports */
+            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath((Export) j, true, true);
+            ((Export) j).setSuperExportObjects(superExportObjects);
+        }
 
         /** Write MetaFile to S3 */
         CService.jobS3Client.writeMetaFile((Export) j);

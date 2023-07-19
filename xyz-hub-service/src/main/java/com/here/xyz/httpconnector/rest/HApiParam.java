@@ -41,8 +41,10 @@ public class HApiParam extends ApiParam {
         static final String ENABLED_HASHED_SPACE_ID = "enableHashedSpaceId";
         static final String ENABLED_UUID = "enableUUID";
         static final String TARGET_SPACEID = "targetSpaceId";
+        public static final String FORCE = "force";
         public static final String H_COMMAND = "command";
         public static final String URL_COUNT = "urlCount";
+        public static final String INCREMENTAL = "incremental";
 
         public enum Command {
             START,RETRY,ABORT,CREATEUPLOADURL;
@@ -131,6 +133,10 @@ public class HApiParam extends ApiParam {
 
         protected static void addStreamInfo(final RoutingContext context, String key, Object value){
             context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>(){{put(key, value);}});
+        }
+
+        public static Incremental getIncremental(RoutingContext context){
+            return Incremental.of(Query.getString(context, INCREMENTAL, Incremental.DEACTIVATED.toString()).toUpperCase());
         }
     }
 }
