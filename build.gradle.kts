@@ -70,7 +70,7 @@ val gt_referencing = "org.geotools:gt-referencing:19.1"
 val gt_epsg_hsql = "org.geotools:gt-epsg-hsql:19.1"
 val gt_epsg_extension = "org.geotools:gt-epsg-extension:19.1"
 
-val slf4j = "org.slf4j:slf4j-api:2.0.6"
+val slf4j_api = "org.slf4j:slf4j-api:2.0.6"
 val log4j_core = "org.apache.logging.log4j:log4j-core:2.20.0"
 val log4j_api = "org.apache.logging.log4j:log4j-api:2.20.0"
 val log4j_jcl = "org.apache.logging.log4j:log4j-jcl:2.20.0"
@@ -197,7 +197,7 @@ subprojects {
         // TODO: We need to expose JTS, but actually we need to upgrade it first.
         dependencies {
             api(jetbrains_annotations)
-            api(slf4j)
+            api(slf4j_api)
             api(jackson_core)
             api(jackson_core_databind)
             api(jackson_core_dataformat)
@@ -206,7 +206,7 @@ subprojects {
     } else {
         dependencies {
             implementation(jetbrains_annotations)
-            implementation(slf4j)
+            implementation(slf4j_api)
             implementation(jackson_core)
             implementation(jackson_core_databind)
             implementation(jackson_core_dataformat)
@@ -317,23 +317,26 @@ project(":here-naksha-handler-psql") {
     }
 }
 
-//project(":here-naksha-app-service") {
-//    description = "Naksha Service"
-//    dependencies {
-//        implementation(project(":here-naksha-lib-core"))
-//        implementation(project(":here-naksha-lib-psql"))
-//        implementation(project(":here-naksha-lib-extension"))
-//
-//        implementation(commons_lang3)
-//        implementation(vividsolutions_jts_core)
-//        implementation(postgres)
-//        implementation(vertx_core)
-//        implementation(vertx_auth_jwt)
-//        implementation(vertx_web)
-//        implementation(vertx_web_client)
-//        implementation(vertx_web_openapi)
-//    }
-//}
+try {
+    project(":here-naksha-app-service") {
+        description = "Naksha Service"
+        dependencies {
+            implementation(project(":here-naksha-lib-core"))
+            implementation(project(":here-naksha-lib-psql"))
+            implementation(project(":here-naksha-lib-extension"))
+
+            implementation(commons_lang3)
+            implementation(vividsolutions_jts_core)
+            implementation(postgres)
+            implementation(vertx_core)
+            implementation(vertx_auth_jwt)
+            implementation(vertx_web)
+            implementation(vertx_web_client)
+            implementation(vertx_web_openapi)
+        }
+    }
+} catch (ignore: UnknownProjectException) {
+}
 
 // Ensure that libraries published to artifactory, while the application generates a shadow-jar.
 subprojects {

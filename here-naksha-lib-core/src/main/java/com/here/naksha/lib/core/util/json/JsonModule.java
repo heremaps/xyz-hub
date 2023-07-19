@@ -35,7 +35,6 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.here.naksha.lib.core.util.StringCache;
 import java.io.IOException;
-import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -89,8 +88,6 @@ public class JsonModule extends SimpleModule {
     }
   }
 
-  private static final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
-
   private static final class StringDeserializer extends StdDeserializer<String> {
 
     private StringDeserializer() {
@@ -111,6 +108,7 @@ public class JsonModule extends SimpleModule {
       } else {
         s = null;
       }
+      // ((com.fasterxml.jackson.databind.ObjectMapper)p.getCodec()).treeToValue(node, Object.class);
       return s != null ? internSoft(s) : null;
     }
   }

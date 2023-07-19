@@ -44,34 +44,37 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A configurable event task, that executes one or more events in an own dedicated thread. Basically
- * a task is {@link #attachToCurrentThread() attached} to a dedicated thread and sends events
- * through a private pipeline with handlers added. All handlers added to the pipeline of the task
- * can query the current task simply via {@link #currentTask()}.
+ * A configurable event task, that executes one or more events in an own dedicated thread. Basically a task is
+ * {@link #attachToCurrentThread() attached} to a dedicated thread and sends events through a private pipeline with handlers added. All
+ * handlers added to the pipeline of the task can query the current task simply via {@link #currentTask()}.
  *
  * <p>A task may send multiple events through the attached pipeline and modify the pipeline between
- * these events. For example to modify features at least a {@link LoadFeaturesEvent} is needed to
- * fetch the current state of the features and then to (optionally) perform a merge and execute the
- * {@link ModifyFeaturesEvent}. Other combinations are possible.
+ * these events. For example to modify features at least a {@link LoadFeaturesEvent} is needed to fetch the current state of the features
+ * and then to (optionally) perform a merge and execute the {@link ModifyFeaturesEvent}. Other combinations are possible.
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public abstract class AbstractTask<EVENT extends Event> implements UncaughtExceptionHandler {
 
-  /** The constructor to use, when creating new task instances on demand. */
+  /**
+   * The constructor to use, when creating new task instances on demand.
+   */
   public static final AtomicReference<@Nullable Supplier<@NotNull AbstractTask<?>>> FACTORY = new AtomicReference<>();
 
-  /** The soft-limit of tasks to run concurrently. */
+  /**
+   * The soft-limit of tasks to run concurrently.
+   */
   public static final AtomicLong SOFT_LIMIT =
       new AtomicLong(Math.max(1000, Runtime.getRuntime().availableProcessors() * 50L));
 
-  /** A thread pool to execute tasks. */
+  /**
+   * A thread pool to execute tasks.
+   */
   private static final ThreadPoolExecutor threadPool = (ThreadPoolExecutor) Executors.newCachedThreadPool();
 
   /**
-   * Creates a new task. If no stream-id is given, and the thread creating this task does have a
-   * task attached, then this task will derive the stream-id. If no stream-id is given, and the
-   * thread creating this task does <b>NOT</b> have an own task bound, then a new random stream-id
-   * is generated.
+   * Creates a new task. If no stream-id is given, and the thread creating this task does have a task attached, then this task will derive
+   * the stream-id. If no stream-id is given, and the thread creating this task does <b>NOT</b> have an own task bound, then a new random
+   * stream-id is generated.
    *
    * @param event The event.
    */
@@ -95,7 +98,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
    * The uncaught exception handler for the thread that executes.
    *
    * @param thread the thread.
-   * @param t the exception.
+   * @param t      the exception.
    */
   public void uncaughtException(Thread thread, Throwable t) {
     currentLogger().atError("Uncaught exception").setCause(t).log();
@@ -114,7 +117,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
    * Returns the value for the give type; if it exists.
    *
    * @param valueClass the class of the value type.
-   * @param <T> the value type.
+   * @param <T>        the value type.
    * @return the value or {@code null}.
    */
   public <T> @Nullable T getAttachment(@NotNull Class<T> valueClass) {
@@ -124,13 +127,12 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
   }
 
   /**
-   * Returns the value for the give type. This method simply uses the given class as key in the
-   * {@link #attachments()} and expects that the value is of the same type. If the value is {@code
-   * null} or of a wrong type, the method will create a new instance of the given value class and
-   * store it in the attachments, returning the new instance.
+   * Returns the value for the give type. This method simply uses the given class as key in the {@link #attachments()} and expects that the
+   * value is of the same type. If the value is {@code null} or of a wrong type, the method will create a new instance of the given value
+   * class and store it in the attachments, returning the new instance.
    *
    * @param valueClass the class of the value type.
-   * @param <T> the value type.
+   * @param <T>        the value type.
    * @return the value.
    * @throws NullPointerException if creating a new value instance failed.
    */
@@ -179,27 +181,35 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
     return (Class<T>) value.getClass();
   }
 
-  /** The attachments of this context. */
+  /**
+   * The attachments of this context.
+   */
   private final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments;
 
-  /** The steam-id of this context. */
+  /**
+   * The steam-id of this context.
+   */
   protected final @NotNull String streamId;
 
-  /** The nano-time when creating the context. */
+  /**
+   * The nano-time when creating the context.
+   */
   protected final long startNanos;
 
-  /** The main event to be processed by the task, created by the constructor. */
+  /**
+   * The main event to be processed by the task, created by the constructor.
+   */
   private @NotNull EVENT event;
 
-  /** A flag to signal that this task is internal. */
+  /**
+   * A flag to signal that this task is internal.
+   */
   protected boolean internal;
 
   /**
-   * Flag this task as internal, so when starting the task, the maximum amount of parallel tasks
-   * limit should be ignored.
+   * Flag this task as internal, so when starting the task, the maximum amount of parallel tasks limit should be ignored.
    *
-   * @param internal {@code true} if this task is internal and therefore bypassing the maximum
-   *     parallel tasks limit.
+   * @param internal {@code true} if this task is internal and therefore bypassing the maximum parallel tasks limit.
    * @throws IllegalStateException If the task is not in the state {@link State#NEW}.
    */
   public void setInternal(boolean internal) {
@@ -230,9 +240,9 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
   }
 
   /**
-   * Returns the main event of this task. Internally a task may generate multiple sub-events and
-   * send them through the pipeline. For example a {@link ModifyFeaturesEvent} requires a {@link
-   * LoadFeaturesEvent} pre-flight event, some other events may require other pre-flight request.
+   * Returns the main event of this task. Internally a task may generate multiple sub-events and send them through the pipeline. For example
+   * a {@link ModifyFeaturesEvent} requires a {@link LoadFeaturesEvent} pre-flight event, some other events may require other pre-flight
+   * request.
    *
    * @return the main event of this task.
    */
@@ -255,11 +265,15 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
     return old;
   }
 
-  /** The thread to which this context is currently bound; if any. */
+  /**
+   * The thread to which this context is currently bound; if any.
+   */
   @Nullable
   Thread thread;
 
-  /** The previously set uncaught exception handler. */
+  /**
+   * The previously set uncaught exception handler.
+   */
   @Nullable
   Thread.UncaughtExceptionHandler oldUncaughtExceptionHandler;
 
@@ -269,8 +283,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
   /**
    * Returns the task attached to the current thread; if any.
    *
-   * @return The task attached to the current thread or {@code null}, if the current thread has no
-   *     task attached.
+   * @return The task attached to the current thread or {@code null}, if the current thread has no task attached.
    * @throws ClassCastException if the task is not of the expected type.
    */
   @SuppressWarnings("unchecked")
@@ -295,8 +308,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
   /**
    * Binds this task to the current thread.
    *
-   * @throws IllegalStateException if this task bound to another thread, or the current thread bound
-   *     to another task.
+   * @throws IllegalStateException if this task bound to another thread, or the current thread bound to another task.
    */
   public void attachToCurrentThread() {
     if (thread != null) {
@@ -336,10 +348,14 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
     this.oldUncaughtExceptionHandler = null;
   }
 
-  /** The event pipeline of this task. */
+  /**
+   * The event pipeline of this task.
+   */
   protected final EventPipeline pipeline = new EventPipeline();
 
-  /** A lock to be used to modify the task thread safe. */
+  /**
+   * A lock to be used to modify the task thread safe.
+   */
   private final ReentrantLock mutex = new ReentrantLock();
 
   /**
@@ -356,7 +372,9 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
     }
   }
 
-  /** Unlocks a lock acquired previously via {@link #lock()}. */
+  /**
+   * Unlocks a lock acquired previously via {@link #lock()}.
+   */
   protected final void unlock() {
     mutex.unlock();
   }
@@ -367,7 +385,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
    *
    * @return The future to the result.
    * @throws IllegalStateException If the {@link #state()} is not {@link State#NEW}.
-   * @throws XyzErrorException If any error occurred, for example too many concurrent tasks.
+   * @throws XyzErrorException     If any error occurred, for example too many concurrent tasks.
    */
   public @NotNull Future<@NotNull XyzResponse> start() {
     final long LIMIT = AbstractTask.SOFT_LIMIT.get();
@@ -449,7 +467,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
    *
    * @return the response.
    * @throws XyzErrorException If an expected error occurred (will not be logged).
-   * @throws Throwable If any unexpected error occurred (will be logged as error).
+   * @throws Throwable         If any unexpected error occurred (will be logged as error).
    */
   protected abstract @NotNull XyzResponse execute() throws Throwable;
 
@@ -462,21 +480,33 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
     return false;
   }
 
-  /** The state of the task. */
+  /**
+   * The state of the task.
+   */
   public enum State {
-    /** The task is new. */
+    /**
+     * The task is new.
+     */
     NEW,
 
-    /** The task is starting. */
+    /**
+     * The task is starting.
+     */
     START,
 
-    /** The task is executing. */
+    /**
+     * The task is executing.
+     */
     EXECUTE,
 
-    /** Done executing and notifying listener. */
+    /**
+     * Done executing and notifying listener.
+     */
     CALLING_LISTENER,
 
-    /** Fully done. */
+    /**
+     * Fully done.
+     */
     DONE
   }
 
@@ -561,7 +591,7 @@ public abstract class AbstractTask<EVENT extends Event> implements UncaughtExcep
   /**
    * Helper method to create a new error response.
    *
-   * @param error the XYZ error to return.
+   * @param error   the XYZ error to return.
    * @param message the message to return.
    * @return the error response.
    */

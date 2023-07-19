@@ -126,7 +126,7 @@ public class EventPipeline implements IEventContext {
    * @return this.
    * @throws XyzErrorException If any error occurred.
    */
-  public @NotNull EventPipeline addSpaceHandler(@NotNull Space space) {
+  public @NotNull EventPipeline addAllConnectorsOfSpace(@NotNull Space space) {
     final @Nullable List<@NotNull String> connectorIds = space.getConnectorIds();
     final int SIZE;
     //noinspection ConstantConditions
@@ -178,7 +178,7 @@ public class EventPipeline implements IEventContext {
    * @param connector the connector for which to add the event handler.
    * @return this.
    */
-  public @NotNull EventPipeline addConnectorHandler(@NotNull Connector connector) {
+  public @NotNull EventPipeline addConnector(@NotNull Connector connector) {
     addEventHandler(connector.newInstance());
     return this;
   }

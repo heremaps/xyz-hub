@@ -102,7 +102,7 @@ public class Demo extends Something implements AutoCloseable {
   @Override
   public void close() {
     try {
-      return super.close();
+      super.close();
     } catch (final Throwable t) {
       // Suppress everything.
       currentLogger().atWarn("Failed to close connection").setCause(e).log();

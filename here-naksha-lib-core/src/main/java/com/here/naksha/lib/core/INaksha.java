@@ -106,15 +106,13 @@ public interface INaksha {
    * @return The created task.
    * @throws XyzErrorException If the creation of the task failed for some reason.
    */
-  <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newTask(@NotNull Class<EVENT> eventClass)
-      throws XyzErrorException;
+  <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newTask(@NotNull Class<EVENT> eventClass);
 
   /**
    * Returns the administration storage that is guaranteed to have all the {@link AdminCollections admin collections}. This storage does
    * have the storage number 0.
    *
    * @return the administration storage.
-   * @throws UnsupportedOperationException if the operation is not supported.
    */
   @NotNull
   IStorage adminStorage();

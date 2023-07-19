@@ -33,10 +33,8 @@ public interface IStorage extends Closeable {
    * {@link CollectionInfo#getMaxAge()}. This task is at least called ones every 12 hours. It is
    * guaranteed that this is only executed on one Naksha instances at a given time, so there is no
    * concurrent execution.
-   *
-   * @throws Exception If any error occurred.
    */
-  void maintain() throws Exception;
+  void maintain();
 
   /**
    * Create default transaction settings.
