@@ -130,7 +130,7 @@ public interface IExtendedEventHandler extends IEventHandler {
           .withError(XyzError.NOT_IMPLEMENTED)
           .withErrorMessage("Unknown event type '" + event.getClass().getSimpleName() + "'");
     } catch (XyzErrorException e) {
-      return e.toErrorResponse(event.getStreamId());
+      return new ErrorResponse(e, event.getStreamId());
     } catch (Exception e) {
       currentLogger()
           .atError("Uncaught exception in event processor")

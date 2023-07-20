@@ -198,26 +198,14 @@ public class EventPipeline implements IEventContext {
     addEventHandler(this::pipelineEnd);
     this.next = 0;
     XyzResponse response;
-    try {
-      response = sendUpstream(event);
-    } catch (Throwable t) {
-      currentLogger()
-          .atError("Uncaught exception in event pipeline")
-          .setCause(t)
-          .log();
-      response = new ErrorResponse()
-          .withStreamId(event.getStreamId())
-          .withError(XyzError.EXCEPTION)
-          .withErrorMessage("Unexpected exception in storage connector: " + t.getMessage());
-    }
-    assert response != null;
+    response = sendUpstream(event);
     try {
       if (callback != null) {
         callback.accept(response);
       }
     } catch (Throwable t) {
       currentLogger()
-          .atError("Uncaught exception in event pipeline callback")
+          .atWarn("Uncaught exception in event pipeline callback")
           .setCause(t)
           .log();
     } finally {
@@ -250,14 +238,22 @@ public class EventPipeline implements IEventContext {
     final IEventHandler handler = this.pipeline[next];
     next++;
     if (handler == null) {
-      currentLogger().error("Pipeline handler[{}] is null, skip it", next - 1, new NullPointerException());
+      currentLogger()
+          .atWarn("Pipeline handler[{}] is null, skip it")
+          .add(next - 1)
+          .setCause(new NullPointerException())
+          .log();
       return sendUpstream(event);
     }
     try {
       return handler.processEvent(this);
-    } catch (XyzErrorException e) {
-      currentLogger().info("Event processing failed at handler #{}", next - 1, e);
-      return e.toErrorResponse(event.getStreamId());
+    } catch (Throwable t) {
+      currentLogger()
+          .atWarn("Event processing failed at handler #{}")
+          .add(next - 1)
+          .setCause(t)
+          .log();
+      return new ErrorResponse(t, event.getStreamId());
     }
   }
 

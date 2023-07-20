@@ -49,8 +49,4 @@ public class XyzErrorException extends RuntimeException {
 
   /** The XYZ error to return. */
   public final @NotNull XyzError xyzError;
-
-  public @NotNull ErrorResponse toErrorResponse(@NotNull String streamId) {
-    return new ErrorResponse().withStreamId(streamId).withError(xyzError).withErrorMessage(getMessage());
-  }
 }

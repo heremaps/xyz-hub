@@ -104,7 +104,7 @@ public class ExtensionHandler implements IEventHandler {
     } catch (final Throwable o) {
       final Throwable t = cause(o);
       if (t instanceof XyzErrorException e) {
-        return e.toErrorResponse(event.getStreamId());
+        return new ErrorResponse(e, event.getStreamId());
       }
       currentLogger()
           .atError("Uncaught exception in extension handler '{}'")

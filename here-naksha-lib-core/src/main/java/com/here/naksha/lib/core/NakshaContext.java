@@ -18,33 +18,36 @@
  */
 package com.here.naksha.lib.core;
 
-import com.here.naksha.lib.core.lambdas.F0;
+import static java.lang.ThreadLocal.withInitial;
+
 import com.here.naksha.lib.core.util.NanoTime;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A class implementing the logger interface that is thread local and exposes all kind of context information.
+ * A context that is virtually attached to all threads in the JVM.
  */
 public class NakshaContext {
 
   /**
-   * A supplied that can be modified by an extending class, all instances of the logger then will be turned into the application class. This
+   * A supplier that can be modified by an extending class, all instances of the logger then will be turned into the application class. This
    * can be used to redirect all logging. The default implementation will redirect all logging to SLF4j.
    */
-  protected static final AtomicReference<F0<NakshaContext>> constructor = new AtomicReference<>(NakshaContext::new);
+  public static final AtomicReference<Supplier<@NotNull NakshaContext>> constructor =
+      new AtomicReference<>(NakshaContext::new);
 
   /**
    * The thread local instance.
    */
   protected static final ThreadLocal<NakshaContext> instance =
-      ThreadLocal.withInitial(() -> constructor.get().call());
+      withInitial(() -> constructor.get().get());
 
   /**
-   * Returns the current thread local context.
+   * Returns the {@link NakshaContext} of the current thread. If the thread does not have a context yet, attach a new context and return it.
    *
-   * @return The current thread local context.
+   * @return The {@link NakshaContext} of the current thread.
    */
   public static @NotNull NakshaContext currentContext() {
     final NakshaContext logger = instance.get();
@@ -61,12 +64,12 @@ public class NakshaContext {
   }
 
   /**
-   * A special string that, when used as stream-id by the constructor, is replaced by the getter with a random string.
+   * A special string that, when used as stream-id, is replaced by the {@link #streamId()}-getter with a random string.
    */
   protected static final String CREATE_STREAM_ID = "";
 
   /**
-   * Create a new thread local logger.
+   * Create a new context with defaults.
    */
   protected NakshaContext() {
     streamId = CREATE_STREAM_ID;
@@ -75,7 +78,7 @@ public class NakshaContext {
   }
 
   /**
-   * Create a new thread local logger.
+   * Create a thread local context.
    *
    * @param streamId   The initial stream-id.
    * @param startNanos The start nanos to use.

@@ -18,18 +18,93 @@
  */
 package com.here.naksha.lib.core.models.payload.responses;
 
+import static com.here.naksha.lib.core.AbstractTask.currentTask;
+import static com.here.naksha.lib.core.NakshaContext.currentContext;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.naksha.lib.core.AbstractTask;
+import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.exceptions.ParameterError;
+import com.here.naksha.lib.core.exceptions.TooManyTasks;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import java.util.HashMap;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** An error response. */
+/**
+ * An error response.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "ErrorResponse")
 public class ErrorResponse extends XyzResponse {
+
+  /**
+   * Create a new empty error-response, the stream-id is set calling {@link NakshaContext#streamId()} of the current context.
+   */
+  public ErrorResponse() {
+    setError(XyzError.EXCEPTION);
+    final AbstractTask<?> task = currentTask();
+    if (task != null) {
+      setErrorMessage("Error in task " + task.getClass().getName());
+    } else {
+      setErrorMessage("Internal Naksha-Hub error");
+    }
+    setStreamId(currentContext().streamId());
+  }
+
+  /**
+   * Create a new error-response with the given values.
+   *
+   * @param error    The XYZ error to return.
+   * @param message  The message to return.
+   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#streamId()} of the current context.
+   */
+  public ErrorResponse(@NotNull XyzError error, @NotNull String message, @Nullable String streamId) {
+    if (streamId == null) {
+      streamId = currentContext().streamId();
+    }
+    setError(error);
+    setErrorMessage(message);
+    setStreamId(streamId);
+  }
+
+  /**
+   * Create an error-response for the given exception.
+   *
+   * @param t        The exception for which to create an error response.
+   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#streamId()} of the current context.
+   */
+  public ErrorResponse(@NotNull Throwable t, @Nullable String streamId) {
+    if (streamId == null) {
+      streamId = currentContext().streamId();
+    }
+    if (t instanceof XyzErrorException e) {
+      setStreamId(streamId);
+      setError(e.xyzError);
+      setErrorMessage(t.getMessage());
+    } else if (t instanceof ParameterError) {
+      setStreamId(streamId);
+      setError(XyzError.ILLEGAL_ARGUMENT);
+      setErrorMessage(t.getMessage());
+    } else if (t instanceof TooManyTasks) {
+      setStreamId(streamId);
+      setError(XyzError.TOO_MANY_REQUESTS);
+      setErrorMessage(t.getMessage());
+    } else {
+      setStreamId(streamId);
+      setError(XyzError.EXCEPTION);
+      final AbstractTask<?> task = currentTask();
+      if (task != null) {
+        setErrorMessage("Exception in task " + task.getClass().getName() + ": " + t.getMessage());
+      } else {
+        setErrorMessage("Exception in service: " + t.getMessage());
+      }
+    }
+  }
 
   @JsonProperty
   private XyzError error;
@@ -44,11 +119,11 @@ public class ErrorResponse extends XyzResponse {
   private @Nullable Map<@NotNull String, @Nullable Object> errorDetails;
 
   /**
-   * Returns the errorDetails which can contains additional detail information.
+   * Returns the {@link #errorDetails error-details}, which can contains additional information.
    *
-   * @return the errorDetails map.
+   * @return the error-details map.
    */
-  public Map<String, Object> getErrorDetails() {
+  public @Nullable Map<@NotNull String, @Nullable Object> getErrorDetails() {
     return this.errorDetails;
   }
 
@@ -57,12 +132,33 @@ public class ErrorResponse extends XyzResponse {
    *
    * @param errorDetails the map with detailed information to be set.
    */
-  public void setErrorDetails(final Map<String, Object> errorDetails) {
+  public void setErrorDetails(final @Nullable Map<@NotNull String, @Nullable Object> errorDetails) {
     this.errorDetails = errorDetails;
   }
 
-  public ErrorResponse withErrorDetails(final Map<String, Object> errorDetails) {
+  /**
+   * Set the errorDetails map to the provided value.
+   *
+   * @param errorDetails the map with detailed information to be set.
+   * @return this.
+   */
+  public ErrorResponse withErrorDetails(final @Nullable Map<@NotNull String, @Nullable Object> errorDetails) {
     setErrorDetails(errorDetails);
+    return this;
+  }
+
+  /**
+   * Sets some arbitrary error-detail information.
+   *
+   * @param key   The key of the detail.
+   * @param value The value of detail.
+   * @return this.
+   */
+  public ErrorResponse with(@NotNull String key, @Nullable Object value) {
+    if (errorDetails == null) {
+      errorDetails = new HashMap<>();
+    }
+    errorDetails.put(key, value);
     return this;
   }
 
@@ -116,8 +212,8 @@ public class ErrorResponse extends XyzResponse {
   }
 
   /**
-   * The unique stream-identifier of this request used to search in log files across the XYZ
-   * platform what happened while processing the request.
+   * The unique stream-identifier of this request used to search in log files across the XYZ platform what happened while processing the
+   * request.
    *
    * @return the unique stream-identifier of this request
    */
@@ -126,8 +222,8 @@ public class ErrorResponse extends XyzResponse {
   }
 
   /**
-   * Set the unique stream-identifier of this request used to search in log files across the XYZ
-   * platform what happened while processing the request.
+   * Set the unique stream-identifier of this request used to search in log files across the XYZ platform what happened while processing the
+   * request.
    *
    * @param streamId the unique stream-identifier to be set.
    */
