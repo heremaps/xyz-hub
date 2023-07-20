@@ -1632,7 +1632,7 @@ DECLARE
     app_id      text;
     author      text;
 BEGIN
-    id := format('naksha.tx_set_%s_%s',action,collection);
+    id := format('naksha.tx_set_%s_%s',action,md5(collection));
     IF coalesce(current_setting(id, true), '') = '' THEN
         part_id = naksha_part_id_from_ts(current_timestamp);
         txn = naksha_tx_current();
