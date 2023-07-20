@@ -2412,7 +2412,7 @@ with indata as ( select xyz_statistic_space_v2.schema as s, xyz_statistic_space_
 --with indata as ( select 'public' as s, 'x-psql-test' as t ),
 iindata as 
 ( select row_number() over () as idx, r.* from 
-	(	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m, indata i where m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' ) ) r 
+	(	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' ))  ) r 
 ),
 iiindata as ( select * from iindata i, lateral ( select * from public.xyz_statistic_space_v1(i.schem,i.tbl) ) l ),
 c1 as ( select jsonb_build_object( 'value', sum( (tablesize->'value')::bigint ), 'estimated', max( (tablesize->>'estimated') )::boolean) as tablesize from iiindata ),
