@@ -28,6 +28,10 @@ recipes:
       - paths.'/spaces/{spaceId}/features/{featureId}'.delete.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/spatial'.get.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/spatial'.post.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/search'.get.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/job/{jobId}/execute'.post.parameters.$ref~=^.*Context$
       - components.parameters.Context
       - components.schemas.Extension
@@ -35,7 +39,6 @@ recipes:
   - name: stable
     extends: base,no-e-ne-cr-params,no-extension
     exclude:
-      - tags.name=Manage Changesets
       - tags.name=Manage Tags
       - tags.name=Manage Connectors
       - tags.name=Manage Subscriptions
@@ -52,7 +55,6 @@ recipes:
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TweaksParams$
       - paths.'/spaces/{spaceId}/history'
       - paths.'/spaces/{spaceId}/history/statistics'
-      - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Version$
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Sort$
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Part$
       - paths.'/spaces/{spaceId}/subscriptions'
@@ -62,15 +64,8 @@ recipes:
       - paths.'/spaces/{spaceId}/job/{jobId}/execute'
       - paths.'/connectors'
       - paths.'/connectors/{connectorId}'
-      - paths.'/spaces/{spaceId}/changesets'
-      - paths.'/spaces/{spaceId}/changesets/{version}'
-      - paths.'/spaces/{spaceId}/changesets/statistics'
       - components.parameters.ConnectorId
-      - components.parameters.PageToken
-      - components.parameters.Version
-      - components.parameters.StartVersion
       - components.parameters.StartVersionNotRequired
-      - components.parameters.EndVersion
       - components.parameters.EndVersionNotRequired
       - components.parameters.Tweaks
       - components.parameters.TweaksParams
@@ -78,7 +73,6 @@ recipes:
       - components.parameters.Transactional
       - components.parameters.SubscriptionId
       - components.parameters.TagId
-      - components.parameters.VersionPath
       - components.responses.ConnectorResponse
       - components.responses.ConnectorsResponse
       - components.responses.HistoryResponse
@@ -86,7 +80,6 @@ recipes:
       - components.responses.SubscriptionsResponse
       - components.responses.JobResponse
       - components.responses.JobsResponse
-      - components.responses.ChangesetStatisticsResponse
       - components.requestBodies.ConnectorConfig
       - components.requestBodies.SubscriptionRequest
       - components.schemas.AWSLambda
@@ -110,10 +103,6 @@ recipes:
       - components.schemas.SpaceStorage
       - components.schemas.SpaceStorageParams
       - components.schemas.StorageCapabilities
-      - components.schemas.Changeset
-      - components.schemas.ChangesetCollection
-      - components.schemas.CompactChangeset
-      - components.schemas.ChangesetStatisticsResponse
       - components.schemas.Tag
       - components.schemas.Connector
       - components.schemas.Subscription
