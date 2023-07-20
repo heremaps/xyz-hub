@@ -99,7 +99,9 @@ class PsqlTransactionSettings implements ITransactionSettings {
 
   @Override
   public @NotNull String getAppId() {
-    if (appId == null) throw new NullPointerException();
+    if (appId == null) {
+      throw new NullPointerException();
+    }
     return appId;
   }
 

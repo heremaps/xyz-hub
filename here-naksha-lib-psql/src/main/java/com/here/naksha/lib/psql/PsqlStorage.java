@@ -19,6 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.psql.SQL.escapeId;
 
 import com.here.naksha.lib.core.NakshaVersion;
@@ -62,13 +63,13 @@ public class PsqlStorage implements IStorage {
   /**
    * Constructor to manually create a new PostgresQL storage client.
    *
-   * @param config        the PSQL configuration to use for this client.
-   * @param storageNumber the unique 40-bit unsigned integer storage number to use. Except for the main database (which always has the
+   * @param config        The PSQL configuration to use for this client.
+   * @param storageNumber The unique 40-bit unsigned integer storage number to use. Except for the main database (which always has the
    *                      number 0), normally this number is given by the Naksha-Hub, when creating a storage.
-   * @throws SQLException if any error occurred while accessing the database.
-   * @throws IOException  if reading the SQL extensions from the resources fail.
+   * @throws SQLException If any error occurred while accessing the database.
+   * @throws IOException  If reading the SQL extensions from the resources fail.
    */
-  public PsqlStorage(@NotNull PsqlConfig config, long storageNumber) throws SQLException, IOException {
+  public PsqlStorage(@NotNull PsqlConfig config, long storageNumber) {
     this.dataSource = new PsqlDataSource(config);
     this.storageNumber = storageNumber;
   }
@@ -137,7 +138,7 @@ public class PsqlStorage implements IStorage {
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
-  public void init() throws SQLException, IOException {
+  public void init() {
     String SQL;
     try (final Connection conn = dataSource.getConnection()) {
       try (final Statement stmt = conn.createStatement()) {
@@ -190,6 +191,8 @@ public class PsqlStorage implements IStorage {
           // setupH3();
         }
       }
+    } catch (Throwable t) {
+      throw unchecked(t);
     }
   }
 

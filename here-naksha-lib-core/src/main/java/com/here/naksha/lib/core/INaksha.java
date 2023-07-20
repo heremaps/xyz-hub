@@ -48,34 +48,44 @@ public interface INaksha {
   final class AdminCollections {
 
     /**
+     * The admin-database is the last database (1,099,511,627,775).
+     */
+    public static final long ADMIN_DB_NUMBER = 0x0000_00ff_ffff_ffffL;
+
+    /**
+     * The Naksha-Hub configurations.
+     */
+    public static CollectionInfo CONFIGS = new CollectionInfo("naksha:configs", ADMIN_DB_NUMBER);
+
+    /**
      * The collections for all catalogs.
      */
-    public static final CollectionInfo CATALOGS = new CollectionInfo("naksha:catalogs", 0L);
+    public static CollectionInfo CATALOGS = new CollectionInfo("naksha:catalogs", ADMIN_DB_NUMBER);
 
     /**
      * The collections for all spaces.
      */
-    public static final CollectionInfo SPACES = new CollectionInfo("naksha:spaces", 0L);
+    public static CollectionInfo SPACES = new CollectionInfo("naksha:spaces", ADMIN_DB_NUMBER);
 
     /**
      * The collections for all subscriptions.
      */
-    public static final CollectionInfo SUBSCRIPTIONS = new CollectionInfo("naksha:subscriptions", 0L);
+    public static CollectionInfo SUBSCRIPTIONS = new CollectionInfo("naksha:subscriptions", ADMIN_DB_NUMBER);
 
     /**
      * The collections for all connectors.
      */
-    public static final CollectionInfo CONNECTORS = new CollectionInfo("naksha:connectors", 0L);
+    public static CollectionInfo CONNECTORS = new CollectionInfo("naksha:connectors", ADMIN_DB_NUMBER);
 
     /**
      * The collections for all storages.
      */
-    public static final CollectionInfo STORAGES = new CollectionInfo("naksha:storages", 0L);
+    public static CollectionInfo STORAGES = new CollectionInfo("naksha:storages", ADMIN_DB_NUMBER);
 
     /**
      * The collections for all extensions.
      */
-    public static final CollectionInfo EXTENSIONS = new CollectionInfo("naksha:extensions", 0L);
+    public static CollectionInfo EXTENSIONS = new CollectionInfo("naksha:extensions", ADMIN_DB_NUMBER);
   }
 
   /**

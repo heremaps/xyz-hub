@@ -149,7 +149,7 @@ public class PsqlStorageTest {
   @Test
   @Order(4)
   @EnabledIf("isEnabled")
-  void startTransaction() throws Exception {
+  void startTransaction() {
     assertNotNull(storage);
     tx = storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"));
     assertNotNull(tx);
@@ -158,7 +158,7 @@ public class PsqlStorageTest {
   @Test
   @Order(5)
   @EnabledIf("isEnabled")
-  void createFooCollection() throws Exception {
+  void createFooCollection() {
     assertNotNull(storage);
     assertNotNull(tx);
     final CollectionInfo collection = tx.createCollection(new CollectionInfo("foo"));
@@ -173,7 +173,7 @@ public class PsqlStorageTest {
   @Test
   @Order(6)
   @EnabledIf("isEnabled")
-  void writeSingleFeatureInFooCollection() throws Exception {
+  void writeSingleFeatureInFooCollection() {
     assertNotNull(storage);
     assertNotNull(tx);
     final ModifyFeaturesReq<XyzFeature> request = new ModifyFeaturesReq<>(true);
@@ -202,7 +202,7 @@ public class PsqlStorageTest {
   @Test
   @Order(7)
   @EnabledIf("isEnabled")
-  void deleteDeleteSingleFeatureFromFooCollection() throws Exception {
+  void deleteDeleteSingleFeatureFromFooCollection() {
     assertNotNull(storage);
     assertNotNull(tx);
     final ModifyFeaturesReq<XyzFeature> request = new ModifyFeaturesReq<>(true);
@@ -369,7 +369,7 @@ public class PsqlStorageTest {
   @Test
   @Order(10)
   @EnabledIf("isEnabled")
-  void listAllCollections() throws Exception {
+  void listAllCollections() {
     assertNotNull(storage);
     assertNotNull(tx);
     final Iterator<@NotNull CollectionInfo> it = tx.iterateCollections();
@@ -386,7 +386,7 @@ public class PsqlStorageTest {
   @Test
   @Order(11)
   @EnabledIf("isEnabled")
-  void dropCollection() throws Exception {
+  void dropCollection() {
     assertNotNull(storage);
     assertNotNull(tx);
     final CollectionInfo foo = tx.getCollectionById("foo");

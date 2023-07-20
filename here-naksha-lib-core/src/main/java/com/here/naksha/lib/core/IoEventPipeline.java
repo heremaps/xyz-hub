@@ -22,8 +22,8 @@ import static com.here.naksha.lib.core.NakshaContext.currentContext;
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.here.naksha.lib.core.models.Typed;
-import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.Event;
+import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.BinaryResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;

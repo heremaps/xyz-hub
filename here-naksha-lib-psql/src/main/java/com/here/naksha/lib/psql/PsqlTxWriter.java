@@ -91,7 +91,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
 
   @Override
   @NotNull
-  public CollectionInfo dropCollection(@NotNull CollectionInfo collection) throws Exception {
+  public CollectionInfo dropCollection(@NotNull CollectionInfo collection) {
     try (final PreparedStatement stmt = preparedStatement("SELECT naksha_collection_drop(?);")) {
       stmt.setString(1, collection.getId());
       final ResultSet rs = stmt.executeQuery();
@@ -101,6 +101,8 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
             .forType(CollectionInfo.class)
             .readValue(rs.getString(1));
       }
+    } catch (Throwable t) {
+      throw unchecked(t);
     }
   }
 
