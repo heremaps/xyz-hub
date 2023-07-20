@@ -120,13 +120,13 @@ public class EventPipeline implements IEventContext {
   }
 
   /**
-   * Add all declared event handler, and the storage connector to this pipeline.
+   * Add all connectors declared for the given space.
    *
    * @param space The space for which to add the handler.
    * @return this.
    * @throws XyzErrorException If any error occurred.
    */
-  public @NotNull EventPipeline addAllConnectorsOfSpace(@NotNull Space space) {
+  public @NotNull EventPipeline addSpaceConnectors(@NotNull Space space) {
     final @Nullable List<@NotNull String> connectorIds = space.getConnectorIds();
     final int SIZE;
     //noinspection ConstantConditions

@@ -19,7 +19,10 @@
 package com.here.naksha.lib.core.storage;
 
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A closable iterator.
@@ -32,4 +35,51 @@ public interface ClosableIterator<E> extends Iterator<E>, Closeable {
    */
   @Override
   void close();
+
+  /**
+   * Helper method to read all elements from the iterator.
+   *
+   * @return The read elements, maybe empty.
+   */
+  default @NotNull List<E> readAll() {
+    return read(0, Integer.MAX_VALUE);
+  }
+
+  /**
+   * Helper method to read all elements from the iterator.
+   *
+   * @param skip The amount of elements to skip before reading.
+   * @return The read elements, maybe empty.
+   */
+  default @NotNull List<E> readAll(int skip) {
+    return read(skip, Integer.MAX_VALUE);
+  }
+
+  /**
+   * Helper method to read all elements from the iterator.
+   *
+   * @param limit The maximum amount of elements to read.
+   * @return The read elements, maybe empty.
+   */
+  default @NotNull List<E> read(int limit) {
+    return read(0, limit);
+  }
+
+  /**
+   * Helper method to read all elements from the iterator.
+   *
+   * @param skip The amount of elements to skip before reading.
+   * @param limit The maximum amount of elements to read.
+   * @return The read elements, maybe empty.
+   */
+  default @NotNull List<E> read(int skip, int limit) {
+    final ArrayList<E> list = new ArrayList<>();
+    while (hasNext() && skip > 0) {
+      next();
+    }
+    while (hasNext() && list.size() < limit) {
+      list.add(next());
+    }
+    return list;
+  }
 }
