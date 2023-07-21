@@ -1,0 +1,11 @@
+{
+  "id": "default",
+  "type": "Config",
+
+  "httpPort": 8080,
+  "//hostname": "some-instance.aws.com",
+  "//endpoint": "https://foo.api.here.com",
+  "env": "local",
+  "//webRoot": "/home/foo-user/web/",
+  "jwtKeyName": "jwt"
+}
