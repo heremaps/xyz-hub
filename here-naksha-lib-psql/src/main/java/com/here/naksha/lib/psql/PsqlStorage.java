@@ -217,18 +217,8 @@ public class PsqlStorage implements IStorage {
   }
 
   @Override
-  public @NotNull PsqlTxReader openReplicationTransaction() {
-    return new PsqlTxReader(this, createSettings());
-  }
-
-  @Override
   public @NotNull PsqlTxReader openReplicationTransaction(@NotNull ITransactionSettings settings) {
     return new PsqlTxReader(this, settings);
-  }
-
-  @Override
-  public @NotNull PsqlTxWriter openMasterTransaction() {
-    return new PsqlTxWriter(this, createSettings());
   }
 
   @Override

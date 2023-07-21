@@ -16,12 +16,13 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha;
+package com.here.naksha.lib.psql.demo;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzPoint;
 import com.here.naksha.lib.core.storage.CollectionInfo;
+import com.here.naksha.lib.core.storage.ITransactionSettings;
 import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import com.here.naksha.lib.core.util.json.Json;
@@ -33,7 +34,7 @@ import com.here.naksha.lib.psql.PsqlStorage;
 import com.here.naksha.lib.psql.PsqlTxWriter;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class Demo {
+public class DemoMain {
 
   public static void main(String... args) throws Exception {
     // Create config.
@@ -41,14 +42,17 @@ public class Demo {
         .withAppName("Naksha-Psql-Test")
         .parseUrl("jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=demo")
         .build();
-    // Create connection pool.
-    try (final PsqlStorage storage = new PsqlStorage(config, 1L)) {
+    // Get the connection pool (in the background shared between all storages that use the same data-source).
+    final PsqlStorage storage = new PsqlStorage(config, 0L);
+    try {
       // Connect and initialize the database.
       storage.init();
 
+      // Create settings for the transaction, we need at least an app-id, optional as well an author.
+      final ITransactionSettings txDemoApp = storage.createSettings().withAppId("demo_app");
+
       // Start a new write transaction and get a new Jackson Json parser.
-      try (final PsqlTxWriter tx = storage.openMasterTransaction(
-              storage.createSettings().withAppId("demo_app"));
+      try (final PsqlTxWriter tx = storage.openMasterTransaction(txDemoApp);
           final Json json = Json.get()) {
         // Create the demo collection.
         final CollectionInfo demo = tx.createCollection(new CollectionInfo("demo"));
@@ -86,6 +90,8 @@ public class Demo {
         System.out.println(json.writer(ViewSerialize.Storage.class, true)
             .writeValueAsString(response.inserted().get(0)));
       }
+    } finally {
+      storage.close();
     }
   }
 }

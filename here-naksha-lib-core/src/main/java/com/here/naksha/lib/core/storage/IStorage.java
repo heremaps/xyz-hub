@@ -20,24 +20,25 @@ package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
-import java.io.Closeable;
 import org.jetbrains.annotations.NotNull;
 
-/** Storage API to gain access to storages. */
-public interface IStorage extends Closeable {
+/**
+ * Storage API to gain access to storages.
+ */
+public interface IStorage {
   // TODO: - Add transaction log access.
   //       - Add history access.
 
   /**
-   * Perform maintenance tasks, for example garbage collect features that are older than the set
-   * {@link CollectionInfo#getMaxAge()}. This task is at least called ones every 12 hours. It is
-   * guaranteed that this is only executed on one Naksha instances at a given time, so there is no
-   * concurrent execution.
+   * Perform maintenance tasks, for example garbage collect features that are older than the set {@link CollectionInfo#getMaxAge()}. This
+   * task is at least called ones every 12 hours. It is guaranteed that this is only executed on one Naksha instances at a given time, so
+   * there is no concurrent execution.
    */
   void maintain();
 
   /**
    * Create default transaction settings.
+   *
    * @return New transaction settings.
    */
   @NotNull
@@ -45,7 +46,7 @@ public interface IStorage extends Closeable {
 
   /**
    * Opens a read-only transaction, preferably from a replication node; if no replication node is available, then returns a transaction to
-   * the master node.
+   * the master node. This performs the reads anonymous without setting up any application-id or author.
    *
    * @return the read transaction.
    */
@@ -64,16 +65,8 @@ public interface IStorage extends Closeable {
   IReadTransaction openReplicationTransaction(@NotNull ITransactionSettings settings);
 
   /**
-   * Opens a read/write transaction to the master node.
-   *
-   * @return The mutator transaction.
-   */
-  default @NotNull IMasterTransaction openMasterTransaction() {
-    return openMasterTransaction(createSettings());
-  }
-
-  /**
-   * Opens a read/write transaction to the master node.
+   * Opens a read/write transaction to the master node, all writes require at least a valid
+   * {@link ITransactionSettings#withAppId(String) application-id} being set in the {@link ITransactionSettings}.
    *
    * @param settings Optional settings for the transaction.
    * @return The mutator transaction.

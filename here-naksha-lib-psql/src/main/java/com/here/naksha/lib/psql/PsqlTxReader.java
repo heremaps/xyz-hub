@@ -33,6 +33,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.postgresql.util.PSQLException;
@@ -194,10 +195,23 @@ public class PsqlTxReader implements IReadTransaction {
     }
   }
 
+  @SuppressWarnings("rawtypes")
+  private final ConcurrentHashMap<Class, PsqlFeatureReader> cachedReaders = new ConcurrentHashMap<>();
+
+  @SuppressWarnings("unchecked")
   @Override
   public @NotNull <F extends XyzFeature> PsqlFeatureReader<F, PsqlTxReader> readFeatures(
       @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) {
-    return new PsqlFeatureReader<>(this, featureClass, collection);
+    PsqlFeatureReader<F, PsqlTxReader> reader = cachedReaders.get(featureClass);
+    if (reader != null) {
+      return reader;
+    }
+    reader = new PsqlFeatureReader<>(this, featureClass, collection);
+    final PsqlFeatureReader<F, PsqlTxReader> existing = cachedReaders.putIfAbsent(featureClass, reader);
+    if (existing != null) {
+      return existing;
+    }
+    return reader;
   }
 
   @Override

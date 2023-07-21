@@ -19,14 +19,8 @@
 package com.here.naksha.lib.core;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Extension;
-import com.here.naksha.lib.core.models.features.Space;
-import com.here.naksha.lib.core.models.features.Storage;
-import com.here.naksha.lib.core.models.features.Subscription;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.storage.CollectionInfo;
-import com.here.naksha.lib.core.storage.IFeatureReader;
 import com.here.naksha.lib.core.storage.IStorage;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -116,68 +110,15 @@ public interface INaksha {
    * @return The created task.
    * @throws XyzErrorException If the creation of the task failed for some reason.
    */
-  <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newTask(@NotNull Class<EVENT> eventClass);
+  <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newEventTask(
+      @NotNull Class<EVENT> eventClass);
 
   /**
    * Returns the administration storage that is guaranteed to have all the {@link AdminCollections admin collections}. This storage does
-   * have the storage number 0.
+   * have the storage number {@link AdminCollections#ADMIN_DB_NUMBER}.
    *
    * @return the administration storage.
    */
   @NotNull
   IStorage adminStorage();
-
-  /**
-   * Returns the extension with the given extension number.
-   *
-   * @param number the extension number.
-   * @return the extension, if such an extension exists.
-   */
-  @Nullable
-  Extension getExtension(int number);
-
-  /**
-   * Returns the cached reader for spaces.
-   *
-   * @return the reader.
-   * @throws UnsupportedOperationException if the operation is not supported.
-   */
-  @NotNull
-  IFeatureReader<Space> spaceReader();
-
-  /**
-   * Returns the cached reader for subscriptions.
-   *
-   * @return the reader.
-   * @throws UnsupportedOperationException if the operation is not supported.
-   */
-  @NotNull
-  IFeatureReader<Subscription> subscriptionReader();
-
-  /**
-   * Returns the cached reader for connectors.
-   *
-   * @return the reader.
-   * @throws UnsupportedOperationException if the operation is not supported.
-   */
-  @NotNull
-  IFeatureReader<Connector> connectorReader();
-
-  /**
-   * Returns the cached reader for storages.
-   *
-   * @return the reader.
-   * @throws UnsupportedOperationException if the operation is not supported.
-   */
-  @NotNull
-  IFeatureReader<Storage> storageReader();
-
-  /**
-   * Returns the cached reader for extensions.
-   *
-   * @return the reader.
-   * @throws UnsupportedOperationException if the operation is not supported.
-   */
-  @NotNull
-  IFeatureReader<Extension> extensionReader();
 }

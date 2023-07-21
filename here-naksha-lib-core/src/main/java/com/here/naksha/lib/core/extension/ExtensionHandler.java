@@ -24,6 +24,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.cause;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.INaksha.AdminCollections;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
@@ -36,6 +37,7 @@ import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
+import com.here.naksha.lib.core.storage.IReadTransaction;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -54,9 +56,14 @@ public class ExtensionHandler implements IEventHandler {
    */
   @AvailableSince(NakshaVersion.v2_0_3)
   public ExtensionHandler(@NotNull Connector connector) {
-    final Extension config = INaksha.get().getExtension(connector.getExtension());
-    if (config == null) {
-      throw new IllegalArgumentException("No such extension exists: " + connector.getId());
+    final INaksha naksha = INaksha.get();
+    final Extension config;
+    try (final IReadTransaction tx = naksha.adminStorage().openReplicationTransaction()) {
+      config = tx.readFeatures(Extension.class, AdminCollections.EXTENSIONS)
+          .getFeatureById(connector.getId());
+      if (config == null) {
+        throw new IllegalArgumentException("No such extension exists: " + connector.getId());
+      }
     }
     this.connector = connector;
     this.config = config;

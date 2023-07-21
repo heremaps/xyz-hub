@@ -25,14 +25,8 @@ import static java.lang.System.exit;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Extension;
-import com.here.naksha.lib.core.models.features.Space;
-import com.here.naksha.lib.core.models.features.Storage;
-import com.here.naksha.lib.core.models.features.Subscription;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.storage.CollectionInfo;
-import com.here.naksha.lib.core.storage.IFeatureReader;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlConfigBuilder;
@@ -138,7 +132,7 @@ public class NakshaHub implements INaksha {
   /**
    * The admin storage.
    */
-  public final @Nullable PsqlStorage adminStorage;
+  private final @NotNull PsqlStorage adminStorage;
 
   /**
    * Discover or generate a unique instance identifier.
@@ -146,49 +140,21 @@ public class NakshaHub implements INaksha {
    * @return The unique instance identifier.
    */
   protected @NotNull String discoverInstanceId() {
-    // TODO: We may use the MAC address of the network interface and try to detect the instance ID from EC2 metadata
-    // and more.
+    // TODO: We may use the MAC address of the network interface.
+    //       We may try to detect the instance ID from EC2 metadata.
+    //       ...
     return UUID.randomUUID().toString();
   }
 
   @Override
-  public <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newTask(
+  public <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newEventTask(
       @NotNull Class<EVENT> eventClass) {
+    // TODO: Implement me!
     return null;
   }
 
   @Override
   public @NotNull IStorage adminStorage() {
-    return null;
-  }
-
-  @Override
-  public @Nullable Extension getExtension(int number) {
-    return null;
-  }
-
-  @Override
-  public @NotNull IFeatureReader<Space> spaceReader() {
-    return null;
-  }
-
-  @Override
-  public @NotNull IFeatureReader<Subscription> subscriptionReader() {
-    return null;
-  }
-
-  @Override
-  public @NotNull IFeatureReader<Connector> connectorReader() {
-    return null;
-  }
-
-  @Override
-  public @NotNull IFeatureReader<Storage> storageReader() {
-    return null;
-  }
-
-  @Override
-  public @NotNull IFeatureReader<Extension> extensionReader() {
-    return null;
+    return adminStorage;
   }
 }

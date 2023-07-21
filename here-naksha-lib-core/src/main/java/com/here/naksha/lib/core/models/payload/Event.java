@@ -31,6 +31,7 @@ import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.INaksha.AdminCollections;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.models.features.Connector;
@@ -51,6 +52,7 @@ import com.here.naksha.lib.core.models.payload.events.info.GetStatisticsEvent;
 import com.here.naksha.lib.core.models.payload.events.info.GetStorageStatisticsEvent;
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
+import com.here.naksha.lib.core.storage.IReadTransaction;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.view.ViewMember;
@@ -283,10 +285,11 @@ public class Event extends Payload {
    * @return The space; if the referred space exists.
    * @throws ParameterError If no such space exists (so space-id given, but no such space exists).
    */
-  public @NotNull Space getSpace() throws ParameterError {
+  public @NotNull Space getSpace() {
     if (space == null && spaceId != null) {
-      try {
-        space = INaksha.get().spaceReader().getFeatureById(spaceId);
+      final INaksha naksha = INaksha.get();
+      try (final IReadTransaction tx = naksha.adminStorage().openReplicationTransaction()) {
+        space = tx.readFeatures(Space.class, AdminCollections.SPACES).getFeatureById(spaceId);
       } catch (Exception e) {
         throw new ParameterError("Failed to read space: " + spaceId);
       }

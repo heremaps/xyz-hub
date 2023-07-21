@@ -20,6 +20,7 @@ package com.here.naksha.lib.core;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
+import com.here.naksha.lib.core.INaksha.AdminCollections;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
@@ -27,6 +28,7 @@ import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.XyzError;
+import com.here.naksha.lib.core.storage.IReadTransaction;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -136,32 +138,36 @@ public class EventPipeline implements IEventContext {
           "The configuration of space " + space.getId() + " is missing the 'connectors'");
     }
     final @NotNull IEventHandler @NotNull [] handlers = new IEventHandler[SIZE];
-    for (int i = 0; i < SIZE; i++) {
-      final String eventHandlerId = connectorIds.get(i);
-      //noinspection ConstantConditions
-      if (eventHandlerId == null) {
-        throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
-      }
-      final Connector eventHandler;
-      try {
-        eventHandler = INaksha.get().connectorReader().getFeatureById(eventHandlerId);
-      } catch (Exception e) {
-        throw new XyzErrorException(
-            XyzError.EXCEPTION,
-            "The connector[" + i + "] with id " + eventHandlerId + " failed to read handler",
-            e);
-      }
-      if (eventHandler == null) {
-        throw new XyzErrorException(
-            XyzError.EXCEPTION, "The connector[" + i + "] with id " + eventHandlerId + " does not exists");
-      }
-      try {
-        handlers[i] = eventHandler.newInstance();
-      } catch (Exception e) {
-        throw new XyzErrorException(
-            XyzError.EXCEPTION,
-            "Failed to create an instance of the connector[" + i + "]: " + connectorIds,
-            e);
+    final INaksha naksha = INaksha.get();
+    try (final IReadTransaction tx = naksha.adminStorage().openReplicationTransaction()) {
+      for (int i = 0; i < SIZE; i++) {
+        final String connectorId = connectorIds.get(i);
+        //noinspection ConstantConditions
+        if (connectorId == null) {
+          throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
+        }
+        final Connector connector;
+        try {
+          connector = tx.readFeatures(Connector.class, AdminCollections.CONNECTORS)
+              .getFeatureById(connectorId);
+        } catch (Exception e) {
+          throw new XyzErrorException(
+              XyzError.EXCEPTION,
+              "The connector[" + i + "] with id " + connectorId + " failed to read handler",
+              e);
+        }
+        if (connector == null) {
+          throw new XyzErrorException(
+              XyzError.EXCEPTION, "The connector[" + i + "] with id " + connectorId + " does not exists");
+        }
+        try {
+          handlers[i] = connector.newInstance();
+        } catch (Exception e) {
+          throw new XyzErrorException(
+              XyzError.EXCEPTION,
+              "Failed to create an instance of the connector[" + i + "]: " + connectorIds,
+              e);
+        }
       }
     }
 

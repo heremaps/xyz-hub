@@ -31,6 +31,7 @@ import com.here.naksha.lib.core.view.ViewDeserialize;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -116,10 +117,23 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
     throw new UnsupportedOperationException("disableHistory");
   }
 
+  @SuppressWarnings("rawtypes")
+  private final ConcurrentHashMap<Class, PsqlFeatureWriter> cachedWriters = new ConcurrentHashMap<>();
+
+  @SuppressWarnings("unchecked")
   @Override
   public @NotNull <F extends XyzFeature> PsqlFeatureWriter<F> writeFeatures(
       @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) {
-    return new PsqlFeatureWriter<>(this, featureClass, collection);
+    PsqlFeatureWriter<F> writer = cachedWriters.get(featureClass);
+    if (writer != null) {
+      return writer;
+    }
+    writer = new PsqlFeatureWriter<>(this, featureClass, collection);
+    final PsqlFeatureWriter<F> existing = cachedWriters.putIfAbsent(featureClass, writer);
+    if (existing != null) {
+      return existing;
+    }
+    return writer;
   }
 
   /**
