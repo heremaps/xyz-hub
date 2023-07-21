@@ -85,8 +85,7 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
   }
 
   @Override
-  public @NotNull CollectionInfo deleteCollection(@NotNull CollectionInfo collection, long deleteAt)
-      throws SQLException {
+  public @NotNull CollectionInfo deleteCollection(@NotNull CollectionInfo collection, long deleteAt) {
     throw new UnsupportedOperationException("dropCollection");
   }
 

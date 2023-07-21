@@ -60,7 +60,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
-  CollectionInfo updateCollection(@NotNull CollectionInfo collection) throws Exception;
+  CollectionInfo updateCollection(@NotNull CollectionInfo collection);
 
   /**
    * Update or insert the collection.
@@ -71,7 +71,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
-  CollectionInfo upsertCollection(@NotNull CollectionInfo collection) throws Exception;
+  CollectionInfo upsertCollection(@NotNull CollectionInfo collection);
 
   /**
    * Deletes the collection, including the history, at the given point in time.
@@ -84,7 +84,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
-  CollectionInfo deleteCollection(@NotNull CollectionInfo collection, long deleteAt) throws Exception;
+  CollectionInfo deleteCollection(@NotNull CollectionInfo collection, long deleteAt);
 
   /**
    * Deletes the collection including the history instantly and not revertable.
@@ -95,7 +95,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(NakshaVersion.v2_0_4)
   @NotNull
-  CollectionInfo dropCollection(@NotNull CollectionInfo collection) throws Exception;
+  CollectionInfo dropCollection(@NotNull CollectionInfo collection);
 
   /**
    * Enable the history for the given collection.
@@ -106,7 +106,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
-  CollectionInfo enableHistory(@NotNull CollectionInfo collection) throws Exception;
+  CollectionInfo enableHistory(@NotNull CollectionInfo collection);
 
   /**
    * Disable the history for the given collection.
@@ -117,7 +117,7 @@ public interface IMasterTransaction extends IReadTransaction {
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
-  CollectionInfo disableHistory(@NotNull CollectionInfo collection) throws Exception;
+  CollectionInfo disableHistory(@NotNull CollectionInfo collection);
 
   /**
    * Returns the writer for the given feature-type and collection.
@@ -129,5 +129,5 @@ public interface IMasterTransaction extends IReadTransaction {
    * @throws Exception if access to the storage failed or any other error occurred.
    */
   <F extends XyzFeature> @NotNull IFeatureWriter<F> writeFeatures(
-      @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) throws Exception;
+      @NotNull Class<F> featureClass, @NotNull CollectionInfo collection);
 }

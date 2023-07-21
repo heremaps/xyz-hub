@@ -233,6 +233,19 @@ project(":here-naksha-lib-core") {
     }
 }
 
+project(":here-naksha-lib-heapcache") {
+    description = "Naksha Heap Caching Library"
+    java {
+        withJavadocJar()
+        withSourcesJar()
+    }
+    dependencies {
+        api(project(":here-naksha-lib-core"))
+
+        implementation(vividsolutions_jts_core)
+    }
+}
+
 project(":here-naksha-lib-psql") {
     description = "Naksha PostgresQL Storage Library"
     java {

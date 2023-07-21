@@ -37,7 +37,7 @@ public interface IReadTransaction extends AutoCloseable {
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
-  String transactionNumber() throws Exception;
+  String transactionNumber();
 
   /**
    * Returns the settings of the transaction.

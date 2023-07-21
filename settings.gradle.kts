@@ -1,6 +1,7 @@
 rootProject.name = "naksha"
 
 include(":here-naksha-lib-core")
+include(":here-naksha-lib-heapcache")
 include(":here-naksha-lib-psql")
 include(":here-naksha-lib-extension")
 include(":here-naksha-handler-activitylog")

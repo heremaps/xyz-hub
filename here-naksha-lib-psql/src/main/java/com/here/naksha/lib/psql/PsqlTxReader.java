@@ -143,7 +143,7 @@ public class PsqlTxReader implements IReadTransaction {
   }
 
   @Override
-  public @NotNull String transactionNumber() throws SQLException {
+  public @NotNull String transactionNumber() {
     throw new UnsupportedOperationException("getTransactionNumber");
   }
 
