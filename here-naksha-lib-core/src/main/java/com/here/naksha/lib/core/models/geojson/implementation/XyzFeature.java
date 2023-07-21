@@ -32,6 +32,7 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.features.Catalog;
 import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.NakshaConfig;
 import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.models.features.Subscription;
@@ -51,7 +52,9 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** A standard GeoJson feature. */
+/**
+ * A standard GeoJson feature.
+ */
 @SuppressWarnings({"unused", "WeakerAccess"})
 @JsonTypeName(value = "Feature")
 @JsonSubTypes({
@@ -63,6 +66,7 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = Connector.class),
   @JsonSubTypes.Type(value = Storage.class),
   @JsonSubTypes.Type(value = CollectionInfo.class),
+  @JsonSubTypes.Type(value = NakshaConfig.class),
   @JsonSubTypes.Type(value = TxSignal.class)
 })
 public class XyzFeature extends JsonObject implements Typed {
@@ -116,7 +120,9 @@ public class XyzFeature extends JsonObject implements Typed {
   @JsonView({ViewMember.Import.User.class, ViewMember.Import.Manager.class, ViewMember.Internal.class})
   protected @Nullable ConflictResolution onMergeConflict;
 
-  /** List of packages to which this feature belongs to; if any. */
+  /**
+   * List of packages to which this feature belongs to; if any.
+   */
   @AvailableSince(NakshaVersion.v2_0_0)
   @JsonProperty(PACKAGES)
   @JsonInclude(Include.NON_EMPTY)
@@ -235,9 +241,8 @@ public class XyzFeature extends JsonObject implements Typed {
   }
 
   /**
-   * Validates the geometry of the feature and throws an exception if the geometry is invalid. This
-   * method will not throw an exception if the geometry is missing, so null or undefined, but will
-   * do so, when the geometry is somehow broken.
+   * Validates the geometry of the feature and throws an exception if the geometry is invalid. This method will not throw an exception if
+   * the geometry is missing, so null or undefined, but will do so, when the geometry is somehow broken.
    *
    * @throws InvalidGeometryException if the geometry is invalid.
    */

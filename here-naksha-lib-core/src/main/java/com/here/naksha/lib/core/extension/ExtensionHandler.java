@@ -24,7 +24,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.cause;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.INaksha.AdminCollections;
+import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
@@ -59,7 +59,7 @@ public class ExtensionHandler implements IEventHandler {
     final INaksha naksha = INaksha.get();
     final Extension config;
     try (final IReadTransaction tx = naksha.adminStorage().openReplicationTransaction()) {
-      config = tx.readFeatures(Extension.class, AdminCollections.EXTENSIONS)
+      config = tx.readFeatures(Extension.class, NakshaAdminCollection.EXTENSIONS)
           .getFeatureById(connector.getId());
       if (config == null) {
         throw new IllegalArgumentException("No such extension exists: " + connector.getId());

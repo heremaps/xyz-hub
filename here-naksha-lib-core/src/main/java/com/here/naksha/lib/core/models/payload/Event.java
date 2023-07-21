@@ -31,7 +31,7 @@ import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.INaksha.AdminCollections;
+import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.models.features.Connector;
@@ -289,7 +289,8 @@ public class Event extends Payload {
     if (space == null && spaceId != null) {
       final INaksha naksha = INaksha.get();
       try (final IReadTransaction tx = naksha.adminStorage().openReplicationTransaction()) {
-        space = tx.readFeatures(Space.class, AdminCollections.SPACES).getFeatureById(spaceId);
+        space = tx.readFeatures(Space.class, NakshaAdminCollection.SPACES)
+            .getFeatureById(spaceId);
       } catch (Exception e) {
         throw new ParameterError("Failed to read space: " + spaceId);
       }

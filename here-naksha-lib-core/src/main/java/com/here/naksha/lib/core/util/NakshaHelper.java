@@ -20,6 +20,8 @@ package com.here.naksha.lib.core.util;
 
 import static com.here.naksha.lib.core.NakshaVersion.v2_0_6;
 
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,26 @@ import org.jetbrains.annotations.NotNull;
  * Some utility functions.
  */
 public final class NakshaHelper {
+
+  private static Boolean usesZGC;
+
+  /**
+   * Tests whether ZGC is used as garbage collector.
+   *
+   * @return {@code true} if ZGC is used as garbage collector; {@code false} otherwise.
+   */
+  public static boolean isUsingZgc() {
+    if (usesZGC != null) {
+      return usesZGC;
+    }
+    final List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
+    for (final GarbageCollectorMXBean gcMxBean : gcMxBeans) {
+      if (gcMxBean.getName().startsWith("ZGC")) {
+        return usesZGC = Boolean.TRUE;
+      }
+    }
+    return usesZGC = Boolean.FALSE;
+  }
 
   /**
    * Convert the given list into a map, ignore duplicates.

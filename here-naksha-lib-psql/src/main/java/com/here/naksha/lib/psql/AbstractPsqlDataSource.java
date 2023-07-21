@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.psql.SQL.escapeId;
 
 import com.here.naksha.lib.core.storage.ITransactionSettings;
@@ -254,7 +255,7 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
    * @return the connection.
    * @throws SQLException if the init failed.
    */
-  public final @NotNull Connection initConnection(@NotNull Connection conn) throws SQLException {
+  public final @NotNull Connection initConnection(@NotNull Connection conn) {
     return initConnection(conn, null);
   }
 
@@ -266,18 +267,21 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
    * @return the connection.
    * @throws SQLException if the init failed.
    */
-  public @NotNull Connection initConnection(@NotNull Connection conn, @Nullable ITransactionSettings settings)
-      throws SQLException {
-    conn.setAutoCommit(false);
-    try (final Statement stmt = conn.createStatement()) {
-      final StringBuilder sb = new StringBuilder();
-      initSession(sb, settings);
-      final String sql = sb.toString();
-      logger.debug("{} - Init connection: {}", applicationName, sql);
-      stmt.execute(sql);
-      conn.commit();
+  public @NotNull Connection initConnection(@NotNull Connection conn, @Nullable ITransactionSettings settings) {
+    try {
+      conn.setAutoCommit(false);
+      try (final Statement stmt = conn.createStatement()) {
+        final StringBuilder sb = new StringBuilder();
+        initSession(sb, settings);
+        final String sql = sb.toString();
+        logger.debug("{} - Init connection: {}", applicationName, sql);
+        stmt.execute(sql);
+        conn.commit();
+      }
+      return conn;
+    } catch (Exception e) {
+      throw unchecked(e);
     }
-    return conn;
   }
 
   /**
@@ -297,7 +301,7 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
    * @param sb The string builder in which to create the query.
    * @throws SQLException If any error occurred.
    */
-  protected void initSession(@NotNull StringBuilder sb, @Nullable ITransactionSettings settings) throws SQLException {
+  protected void initSession(@NotNull StringBuilder sb, @Nullable ITransactionSettings settings) {
     sb.append("SET SESSION application_name TO '").append(applicationName).append("';\n");
     sb.append("SET SESSION work_mem TO '256 MB';\n");
     sb.append("SET SESSION enable_seqscan TO OFF;\n");

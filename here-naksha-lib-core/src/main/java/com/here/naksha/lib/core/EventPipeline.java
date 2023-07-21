@@ -20,7 +20,6 @@ package com.here.naksha.lib.core;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
-import com.here.naksha.lib.core.INaksha.AdminCollections;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
@@ -148,7 +147,7 @@ public class EventPipeline implements IEventContext {
         }
         final Connector connector;
         try {
-          connector = tx.readFeatures(Connector.class, AdminCollections.CONNECTORS)
+          connector = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
               .getFeatureById(connectorId);
         } catch (Exception e) {
           throw new XyzErrorException(

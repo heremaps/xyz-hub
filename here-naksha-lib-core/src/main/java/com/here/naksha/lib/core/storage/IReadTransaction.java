@@ -24,9 +24,12 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** The read API of a transaction. */
+/**
+ * The read API of a transaction.
+ */
 @AvailableSince(NakshaVersion.v2_0_0)
 public interface IReadTransaction extends AutoCloseable {
+
   /**
    * Returns the current transaction number, if none has been created yet, creating a new one.
    *
@@ -38,6 +41,7 @@ public interface IReadTransaction extends AutoCloseable {
 
   /**
    * Returns the settings of the transaction.
+   *
    * @return The settings of the transaction.
    */
   @NotNull
@@ -70,8 +74,8 @@ public interface IReadTransaction extends AutoCloseable {
    * Returns the reader for the given feature-type and collection.
    *
    * @param featureClass the class of the feature-type to read.
-   * @param collection the collection to read.
-   * @param <FEATURE> the feature-type.
+   * @param collection   the collection to read.
+   * @param <FEATURE>    the feature-type.
    * @return the feature reader.
    */
   <FEATURE extends XyzFeature> @NotNull IFeatureReader<FEATURE> readFeatures(
