@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2013 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,10 +27,13 @@ import com.here.xyz.models.hub.Subscription;
 @JsonTypeName(value = "ModifySubscriptionEvent")
 public class ModifySubscriptionEvent extends Event<ModifySubscriptionEvent> {
 
+  public enum Operation {
+    CREATE,
+    UPDATE,
+    DELETE
+  }
   private Operation operation;
   private Subscription subscription;
-  private boolean hasNoActiveSubscriptions;
-
 
   @SuppressWarnings("unused")
   public Operation getOperation() {
@@ -61,22 +64,5 @@ public class ModifySubscriptionEvent extends Event<ModifySubscriptionEvent> {
   public ModifySubscriptionEvent withSubscription(Subscription subscription) {
     setSubscription(subscription);
     return this;
-  }
-
-  public boolean getHasNoActiveSubscriptions() {
-    return hasNoActiveSubscriptions;
-  }
-
-  public void setHasNoActiveSubscriptions(boolean hasNoActiveSubscriptions) {
-    this.hasNoActiveSubscriptions = hasNoActiveSubscriptions;
-  }
-
-  public ModifySubscriptionEvent withHasNoActiveSubscriptions(boolean hasNoActiveSubscriptions) {
-    this.hasNoActiveSubscriptions = hasNoActiveSubscriptions;
-    return this;
-  }
-
-  public enum Operation {
-    CREATE, UPDATE, DELETE
   }
 }

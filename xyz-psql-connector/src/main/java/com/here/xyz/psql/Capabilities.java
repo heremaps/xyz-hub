@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 
+import com.here.xyz.psql.query.ModifySpace;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -34,6 +35,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class Capabilities {
+
+  private static final Integer BIG_SPACE_THRESHOLD = 10000;
 
   /**
    * Determines if PropertiesQuery can be executed. Check if required Indices are created.
@@ -103,6 +106,10 @@ public class Capabilities {
     }
   }
 
+  private static SQLQuery generateIDXStatusQuery(final String space){
+      return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE_FQN +" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
+  }
+
   public static class IndexList {
     /** Cache indexList for 3 Minutes  */
     static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
@@ -114,7 +121,7 @@ public class Capabilities {
         return indexList.indices;
       }
 
-      indexList = dbHandler.executeQuery(SQLQueryBuilder.generateIDXStatusQuery(space),
+      indexList = dbHandler.executeQuery(generateIDXStatusQuery(space),
               Capabilities::rsHandler);
 
       cachedIndices.put(space, indexList);

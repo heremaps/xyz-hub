@@ -237,8 +237,7 @@ public class SubscriptionHandler {
                 .withSubscription(subscription)
                 .withStreamId(marker.getName())
                 .withIfNoneMatch(context.request().headers().get("If-None-Match"))
-                .withSpace(subscription.getSource())
-                .withHasNoActiveSubscriptions(hasNoActiveSubscriptions);
+                .withSpace(subscription.getSource());
 
         logger.info(marker, "ModifySubscriptionEvent to be sent to the connector: " + JsonObject.mapFrom(event));
         ModifySubscriptionQuery query = new ModifySubscriptionQuery(event, context, ApiResponseType.EMPTY);

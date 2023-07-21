@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ public class ConnectorParameters {
     public final static String MVT_SUPPORT = "mvtSupport";
     public final static String AUTO_INDEXING = "autoIndexing";
     public final static String ENABLE_HASHED_SPACEID = "enableHashedSpaceId";
-    public final static String COMPACT_HISTORY = "compactHistory";
     public final static String ON_DEMAND_IDX_LIMIT = "onDemandIdxLimit";
     public final static String HRN_SHORTENING = "hrnShortening";
     public final static String IGNORE_CREATE_MSE = "ignoreCreateMse";
@@ -58,7 +57,6 @@ public class ConnectorParameters {
     private boolean mvtSupport = false;
     private boolean autoIndexing = false;
     private boolean enableHashedSpaceId = false;
-    private boolean compactHistory = true;
     private int onDemandIdxLimit = 4;
     private boolean hrnShortening = false;
     private boolean ignoreCreateMse = false;
@@ -87,7 +85,6 @@ public class ConnectorParameters {
             this.propertySearch = parseValue(connectorParams, Boolean.class, propertySearch, PROPERTY_SEARCH);
             this.mvtSupport = parseValue(connectorParams, Boolean.class, mvtSupport, MVT_SUPPORT);
             this.enableHashedSpaceId = parseValue(connectorParams, Boolean.class, enableHashedSpaceId, ENABLE_HASHED_SPACEID);
-            this.compactHistory = parseValue(connectorParams, Boolean.class, compactHistory, COMPACT_HISTORY);
             this.onDemandIdxLimit = parseValue(connectorParams, Integer.class, onDemandIdxLimit, ON_DEMAND_IDX_LIMIT);
             hrnShortening = parseValue(connectorParams, Boolean.class, hrnShortening, HRN_SHORTENING);
             ignoreCreateMse = parseValue(connectorParams, Boolean.class, ignoreCreateMse, IGNORE_CREATE_MSE);
@@ -153,10 +150,6 @@ public class ConnectorParameters {
         return enableHashedSpaceId;
     }
 
-    public boolean isCompactHistory() {
-        return compactHistory;
-    }
-
     public int getOnDemandIdxLimit() {
         return onDemandIdxLimit;
     }
@@ -218,7 +211,6 @@ public class ConnectorParameters {
                 ", mvtSuppoert=" + mvtSupport +
                 ", autoIndexing=" + autoIndexing +
                 ", enableHashedSpaceId=" + enableHashedSpaceId +
-                ", compactHistory=" + compactHistory +
                 ", onDemandIdxLimit=" + onDemandIdxLimit +
                 ", dbInitialPoolSize=" + dbInitialPoolSize +
                 ", dbMinPoolSize=" + dbMinPoolSize +

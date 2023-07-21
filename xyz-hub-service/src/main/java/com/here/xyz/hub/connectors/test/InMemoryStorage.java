@@ -21,19 +21,17 @@ package com.here.xyz.hub.connectors.test;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.StorageConnector;
-import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -70,11 +68,6 @@ public class InMemoryStorage extends StorageConnector {
 
   @Override
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
-    throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
-  }
-
-  @Override
-  protected XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception {
     throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
@@ -123,11 +116,6 @@ public class InMemoryStorage extends StorageConnector {
     return new FeatureCollection()
         .withFeatures(event.getInsertFeatures())
         .withInserted(event.getInsertFeatures().stream().map(f -> f.getId()).collect(Collectors.toList()));
-  }
-
-  @Override
-  protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) throws Exception {
-    throw new UnsupportedOperationException(event.getClass().getSimpleName() + " not implemented.");
   }
 
   @Override

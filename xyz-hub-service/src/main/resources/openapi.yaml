@@ -532,7 +532,7 @@ paths:
         If an object with the provided ID exists, and _history_ is enabled for
         the space, there are 2 states which could be taken into account:
 
-            1. The __ORIGIN__ state - the state that the client received and modified. The state is retrieved by using the value of the root attribute _guid_.
+            1. The __ORIGIN__ state - the state that the client received and modified. The state is retrieved by using the value of the NS attribute _version_.
 
             2. The __HEAD__ state - the current state of the object in the space, including any changes applied to it in the meantime.
 
@@ -982,65 +982,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-  '/spaces/{spaceId}/history':
-    get:
-      tags:
-        - Read Features
-      summary: Get historical data
-      description: |
-        Get  all features in a given version range.
-
-        Based on the Accept-Header (vnd.here.changeset-collection or vnd.here.compact-changeset)
-        the result will be a Changeset-Collection or a CompactChangeset.
-
-        The former result type contains each of the changes between start version and end version
-        grouped by version which can be used for easily navigate across all modifications which
-        happened on the referring space.
-
-        While the latter contains only the latest state of each feature which is within the start
-        and end version range.
-
-        The Space must have "enableHistory=true" setting.
-      operationId: iterateHistory
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/StartVersionNotRequired'
-        - $ref: '#/components/parameters/EndVersionNotRequired'
-        - $ref: '#/components/parameters/PageToken'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/SkipCache'
-      responses:
-        '200':
-          $ref: '#/components/responses/HistoryResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
-        '513':
-          $ref: '#/components/responses/ErrorResponse513'
-  '/spaces/{spaceId}/history/statistics':
-    get:
-      tags:
-        - Read Features
-      summary: Get history statistics
-      description: |
-        Returns statistical information about the history.
-        The Space must have "enableGlobalVersioning=true" setting.
-      operationId: getHistoryStatistics
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/SkipCache'
-      responses:
-        '200':
-          $ref: '#/components/responses/HistoryStatisticsResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
   '/connectors':
     get:
       tags:
@@ -2320,21 +2261,6 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/Feature'
-    HistoryResponse:
-      description: Changesets which are containing FeatureCollections grouped by operation/versions.
-      content:
-        application/vnd.here.changeset-collection:
-          schema:
-            $ref: '#/components/schemas/ChangesetCollection'
-        application/vnd.here.compact-changeset:
-          schema:
-            $ref: '#/components/schemas/CompactChangeset'
-    HistoryStatisticsResponse:
-      description: Statistical information about a history.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/HistoryStatisticsResponse'
     ChangesetStatisticsResponse:
       description: Statistical information about a Changesets.
       content:
@@ -3193,58 +3119,6 @@ components:
         type: ChangesetStatisticsResponse
         minVersion: 0
         maxVersion: 112
-    HistoryStatisticsResponse:
-      description: The response returned to when counting features in a history.
-      properties:
-        type:
-          type: string
-        count:
-          type: object
-          readOnly: true
-          properties:
-            value:
-              type: integer
-              description: The amount of features being in the history.
-              format: int64
-              minimum: 0
-            estimated:
-              $ref: '#/components/schemas/Estimated'
-        dataSize:
-          type: object
-          readOnly: true
-          properties:
-            value:
-              type: integer
-              description: >-
-                The amount of bytes that are allocated in the storage for
-                this history.
-              format: int64
-              minimum: 0
-            estimated:
-              $ref: '#/components/schemas/Estimated'
-        maxVersion:
-          type: object
-          readOnly: true
-          properties:
-            value:
-              type: integer
-              description: >-
-                The last version which got written into the history.
-              format: int32
-              minimum: 0
-            estimated:
-              $ref: '#/components/schemas/Estimated'
-      example:
-        type: HistoryStatisticsResponse
-        count:
-          value: 29208
-          estimated: true
-        dataSize:
-          value: 108364
-          estimated: true
-        maxVersion:
-          value: 112
-          estimated: true
     Http:
       allOf:
         - $ref: '#/components/schemas/RemoteFunctionConfig'
@@ -3351,8 +3225,8 @@ components:
           type: integer
         version:
           description: >-
-            The version number groups the feature modification transactions in the space history
-            this feature is part of.
+            The version of the transaction as part of which this feature has been edited the last
+            time.
           example: 1
           format: int64
           readOnly: true
@@ -3546,20 +3420,6 @@ components:
             Whether the uuid should be added to the response or not.
           example: true
           type: boolean
-        enableHistory:
-          deprecated: true
-          default: false
-          description: >-
-            Whether the feature's modification history should be saved.
-          example: true
-          type: boolean
-        maxVersionCount:
-          deprecated: true
-          default: 0
-          description: >-
-            Used to control how many versions should be kept in the history. -1 means infinite.
-          example: -1
-          type: integer
         packages:
           description: List of packages that this space belongs to.
           items:

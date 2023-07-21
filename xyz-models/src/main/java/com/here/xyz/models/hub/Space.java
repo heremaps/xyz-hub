@@ -140,35 +140,12 @@ public class Space {
 
   /**
    * If true, every state of the feature, will be assigned a UUID value.
+   * @deprecated Will be removed once there exists a new flag for version-based conflict-detection.
    */
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_DEFAULT)
   @Deprecated
   private boolean enableUUID = false;
-
-  /**
-   * If true, history gets created
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_DEFAULT)
-  @Deprecated
-  private boolean enableHistory = false;
-
-  /**
-   * If true, global versioning gets activated
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_DEFAULT)
-  @Deprecated
-  private boolean enableGlobalVersioning = false;
-
-  /**
-   * Can be used to control how many versions should get hold in the history. -1 means infinite
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_EMPTY)
-  @Deprecated
-  private Integer maxVersionCount;
 
   /**
    * Defines how many versions will be kept before the automatic purging of old versions is starting.
@@ -179,6 +156,10 @@ public class Space {
   @JsonInclude(Include.ALWAYS) //NOTE: This is only needed temporary to keep backwards compatibility for non-versioned spaces (see: DynamoSpaceConfigClient#getSpace() and JDBCSpaceConfigClient#getSpace())
   private int versionsToKeep = DEFAULT_VERSIONS_TO_KEEP;
 
+  /**
+   * Depicts the minimum (oldest) existing version of this space.
+   * This value will increase depending on the value having been defined for {@link #versionsToKeep}.
+   */
   @JsonView({Internal.class, Static.class})
   private long minVersion = 0;
 
@@ -432,54 +413,6 @@ public class Space {
   @Deprecated
   public Space withEnableUUID(final boolean enableUUID) {
     setEnableUUID(enableUUID);
-    return this;
-  }
-
-  @Deprecated
-  public boolean isEnableHistory() {
-    return enableHistory;
-  }
-
-  @Deprecated
-  public void setEnableHistory(final boolean enableHistory) {
-    this.enableHistory = enableHistory;
-  }
-
-  @Deprecated
-  public Space withEnableHistory(final boolean enableHistory) {
-    setEnableHistory(enableHistory);
-    return this;
-  }
-
-  @Deprecated
-  public boolean isEnableGlobalVersioning() {
-    return enableGlobalVersioning;
-  }
-
-  @Deprecated
-  public void setEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    this.enableGlobalVersioning = enableGlobalVersioning;
-  }
-
-  @Deprecated
-  public Space withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    setEnableGlobalVersioning(enableGlobalVersioning);
-    return this;
-  }
-
-  @Deprecated
-  public Integer getMaxVersionCount() {
-    return maxVersionCount;
-  }
-
-  @Deprecated
-  public void setMaxVersionCount(final Integer maxVersionCount) {
-    this.maxVersionCount = maxVersionCount;
-  }
-
-  @Deprecated
-  public Space withMaxVersionCount(final Integer maxVersionCount) {
-    setMaxVersionCount(maxVersionCount);
     return this;
   }
 

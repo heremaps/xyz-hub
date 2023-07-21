@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,14 +53,8 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
   @JsonInclude(Include.ALWAYS)
   private Map<String, String> deleteFeatures;
   private boolean transaction;
-
-  private boolean enableHistory;
-
   private boolean enableUUID;
-
-  private boolean enableGlobalVersioning;
   private List<ModificationFailure> failed;
-  private Integer maxVersionCount;
 
   /**
    * Returns the list of all features to be inserted.
@@ -174,32 +168,6 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
   }
 
   /**
-   * Returns true if the history should be maintained.
-   *
-   * @return true if the history should be maintained, false otherwise.
-   */
-  @SuppressWarnings("unused")
-  public boolean isEnableHistory() {
-    return this.enableHistory;
-  }
-
-  /**
-   * Sets the history.
-   *
-   * @param enableHistory if true, then the store history.
-   */
-  @SuppressWarnings("WeakerAccess")
-  public void setEnableHistory(boolean enableHistory) {
-    this.enableHistory = enableHistory;
-  }
-
-  @SuppressWarnings("unused")
-  public ModifyFeaturesEvent withEnableHistory(boolean enableHistory) {
-    setEnableHistory(enableHistory);
-    return this;
-  }
-
-  /**
    * Returns true if the hash should be maintained.
    *
    * @return true if the hash should be maintained, false otherwise.
@@ -241,32 +209,6 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
   @SuppressWarnings("unused")
   public ModifyFeaturesEvent withFailed(List<ModificationFailure> failed) {
     setFailed(failed);
-    return this;
-  }
-
-  public Integer getMaxVersionCount() {
-    return maxVersionCount;
-  }
-
-  public void setMaxVersionCount(Integer maxVersionCount) {
-    this.maxVersionCount = maxVersionCount;
-  }
-
-  public ModifyFeaturesEvent withMaxVersionCount(Integer maxVersionCount) {
-    setMaxVersionCount(maxVersionCount);
-    return this;
-  }
-
-  public boolean isEnableGlobalVersioning() {
-    return enableGlobalVersioning;
-  }
-
-  public void setEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    this.enableGlobalVersioning = enableGlobalVersioning;
-  }
-
-  public ModifyFeaturesEvent withEnableGlobalVersioning(final boolean enableGlobalVersioning) {
-    this.enableGlobalVersioning = enableGlobalVersioning;
     return this;
   }
 }

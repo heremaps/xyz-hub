@@ -19,8 +19,6 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
-
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.psql.DatabaseHandler;
@@ -69,7 +67,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
                             + " AND nspname = '" + getSchema() + "'"
                             + " AND relname LIKE ANY (array[" + tableNames
                                                       .stream()
-                                                      .map(tableName -> "'" + tableName + "%'") //TODO: replace % by _% once all tables have been migrated to new partitioned table style
+                                                      .map(tableName -> "'" + tableName + "_%'")
                                                       .collect(Collectors.joining(",")) + "])");
   }
 
@@ -93,9 +91,7 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
     while (rs.next()) {
       String tableName = rs.getString(TABLE_NAME);
       boolean isHistoryTable = isHistoryTable(tableName);
-      int suffixPos = tableName.lastIndexOf('_');
-      //TODO: The following is a backwards-compatibility implementation for the old table style and can be removed once all tables have been migrated to the new partitioned table style
-      tableName = suffixPos != -1 ? tableName.substring(0, suffixPos) : tableName;
+      tableName = tableName.substring(0, tableName.lastIndexOf('_'));
       String spaceId = tableName2SpaceId.containsKey(tableName) ? tableName2SpaceId.get(tableName) : tableName;
 
       long tableBytes = rs.getLong(TABLE_BYTES),
@@ -123,8 +119,8 @@ public class GetStorageStatistics extends XyzQueryRunner<GetStorageStatisticsEve
     if (suffixPos == -1)
       return false;
     String suffix = tableName.substring(suffixPos);
-    if (suffix.startsWith("_p"))
+    if (suffix.startsWith("_p")) //The table is a history partition
       return true;
-    return tableName.endsWith(HISTORY_TABLE_SUFFIX);
+    return false;
   }
 }

@@ -21,12 +21,12 @@ package com.here.xyz.connectors;
 
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
@@ -37,8 +37,6 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.OneTimeActionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
-import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
@@ -58,60 +56,38 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
   }
 
   private XyzResponse _processEvent(Event event) throws Exception {
-    if (event instanceof ModifySpaceEvent) {
+    if (event instanceof ModifySpaceEvent)
       return processModifySpaceEvent((ModifySpaceEvent) event);
-    }
-    if (event instanceof ModifySubscriptionEvent) {
+    if (event instanceof ModifySubscriptionEvent)
       return processModifySubscriptionEvent((ModifySubscriptionEvent) event);
-    }
-    if (event instanceof ModifyFeaturesEvent) {
+    if (event instanceof ModifyFeaturesEvent)
       return processModifyFeaturesEvent((ModifyFeaturesEvent) event);
-    }
-    if (event instanceof GetFeaturesByGeometryEvent) {
+    if (event instanceof GetFeaturesByGeometryEvent)
       return processGetFeaturesByGeometryEvent((GetFeaturesByGeometryEvent) event);
-    }
-    if (event instanceof GetFeaturesByTileEvent) {
+    if (event instanceof GetFeaturesByTileEvent)
       return processGetFeaturesByTileEvent((GetFeaturesByTileEvent) event);
-    }
-    if (event instanceof GetFeaturesByBBoxEvent) {
+    if (event instanceof GetFeaturesByBBoxEvent)
       return processGetFeaturesByBBoxEvent((GetFeaturesByBBoxEvent) event);
-    }
-    if (event instanceof IterateFeaturesEvent) {
+    if (event instanceof IterateFeaturesEvent)
       return processIterateFeaturesEvent((IterateFeaturesEvent) event);
-    }
-    if (event instanceof IterateHistoryEvent) {
-      return processIterateHistoryEvent((IterateHistoryEvent) event);
-    }
-    if (event instanceof IterateChangesetsEvent) {
+    if (event instanceof IterateChangesetsEvent)
       return processIterateChangesetsEvent((IterateChangesetsEvent) event);
-    }
-    if (event instanceof GetChangesetStatisticsEvent) {
+    if (event instanceof GetChangesetStatisticsEvent)
       return processGetChangesetsStatisticsEvent((GetChangesetStatisticsEvent) event);
-    }
-    if (event instanceof SearchForFeaturesEvent) {
+    if (event instanceof SearchForFeaturesEvent)
       return processSearchForFeaturesEvent((SearchForFeaturesEvent) event);
-    }
-    if (event instanceof GetStatisticsEvent) {
+    if (event instanceof GetStatisticsEvent)
       return processGetStatistics((GetStatisticsEvent) event);
-    }
-    if (event instanceof GetHistoryStatisticsEvent) {
-      return processGetHistoryStatisticsEvent((GetHistoryStatisticsEvent) event);
-    }
-    if (event instanceof HealthCheckEvent) {
+    if (event instanceof HealthCheckEvent)
       return processHealthCheckEvent((HealthCheckEvent) event);
-    }
-    if (event instanceof GetFeaturesByIdEvent) {
+    if (event instanceof GetFeaturesByIdEvent)
       return processGetFeaturesByIdEvent((GetFeaturesByIdEvent) event);
-    }
-    if (event instanceof LoadFeaturesEvent) {
+    if (event instanceof LoadFeaturesEvent)
       return processLoadFeaturesEvent((LoadFeaturesEvent) event);
-    }
-    if (event instanceof GetStorageStatisticsEvent) {
+    if (event instanceof GetStorageStatisticsEvent)
       return processGetStorageStatisticsEvent((GetStorageStatisticsEvent) event);
-    }
-    if (event instanceof DeleteChangesetsEvent) {
+    if (event instanceof DeleteChangesetsEvent)
       return processDeleteChangesetsEvent((DeleteChangesetsEvent) event);
-    }
     if (event instanceof OneTimeActionEvent)
       return processOneTimeActionEvent((OneTimeActionEvent) event);
 
@@ -126,12 +102,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception;
-
-  /**
-   * Processes a GetStatistics event.
-   */
-  @SuppressWarnings("WeakerAccess")
-  protected abstract XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception;
 
   /**
    * Processes a GetFeaturesById event.
@@ -192,12 +162,6 @@ public abstract class StorageConnector extends AbstractConnectorHandler {
    */
   @SuppressWarnings("WeakerAccess")
   protected abstract XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception;
-
-  /**
-   * Processes a IterateFeatures event.
-   */
-  @SuppressWarnings("WeakerAccess")
-  protected abstract XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) throws Exception;
 
   protected abstract XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception;
 

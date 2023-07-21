@@ -240,33 +240,14 @@ public class SpaceTaskHandler {
     if (task.isUpdate()) {
       /*
        * Validate immutable settings which are only can get set during the space creation:
-       * enableUUID, enableHistory, enableGlobalVersioning, maxVersionCount, extension
+       * enableUUID, extension
        * */
       Space head = task.modifyOp.entries.get(0).head;
 
-      if(head != null && head.isEnableUUID() == Boolean.TRUE && input.get("enableUUID") == Boolean.TRUE )
+      if (head != null && head.isEnableUUID() == Boolean.TRUE && input.get("enableUUID") == Boolean.TRUE )
         input.put("enableUUID",true);
-      else if(head != null && input.get("enableUUID") != null )
+      else if (head != null && input.get("enableUUID") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' can only get set on space creation!");
-
-      // enableHistory is immutable and it is only allowed to set it during the space creation
-      if(head != null && head.isEnableHistory() == Boolean.TRUE && input.get("enableHistory") == Boolean.TRUE )
-        input.put("enableHistory",true);
-      else if(head != null && input.get("enableHistory") != null )
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableHistory' can only get set on space creation!");
-
-      // enableGlobalVersioning is immutable and it is only allowed to set it during the space creation
-      if(head != null && head.isEnableGlobalVersioning() == Boolean.TRUE && input.get("enableGlobalVersioning") == Boolean.TRUE )
-        input.put("enableGlobalVersioning",true);
-      else if(head != null && input.get("enableGlobalVersioning") != null )
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableGlobalVersioning' can only get set on space creation!");
-
-      // getMaxVersionCount is immutable and it is only allowed to set it during the space creation
-      if(head != null && head.isEnableGlobalVersioning() && head.getMaxVersionCount() != null && input.get("maxVersionCount") != null
-              && (head.getMaxVersionCount().compareTo((Integer)input.get("maxVersionCount")) == 0))
-        input.put("maxVersionCount" , head.getMaxVersionCount());
-      else if(head != null && head.isEnableGlobalVersioning() && input.get("maxVersionCount") != null )
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set, in combination of enableGlobalVersioning, on space creation!");
 
       if (head != null && head.getVersionsToKeep() > 1 && input.get("versionsToKeep") != null && Objects.equals(1, input.get("versionsToKeep")))
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'versionsToKeep' cannot be changed to 1 when its value is bigger than 1");
@@ -276,27 +257,9 @@ public class SpaceTaskHandler {
     }
 
     if (task.isCreate()) {
-      //Automatic activation of enableHistory in case of enableGlobalVersioning
-      if(result.isEnableGlobalVersioning() && !result.isEnableHistory())
-        task.modifyOp.entries.get(0).result.setEnableHistory(true);
-      //Automatic activation of UUID in case of enableHistory
-      if(result.isEnableHistory() && !result.isEnableUUID())
-        task.modifyOp.entries.get(0).result.setEnableUUID(true);
       if (result.getVersionsToKeep() == 0)
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" cannot be set to zero");
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" cannot be set to 0");
     }
-
-    if(result.getMaxVersionCount() != null){
-      if(!result.isEnableHistory() && !result.isEnableGlobalVersioning())
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set if 'enableHistory' is set.");
-      if(result.getMaxVersionCount() < -1)
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' must be greater or equal to -1.");
-    }
-
-    //NOTE: The following is a temporary implementation for backwards compatibility for the legacy history implementation
-    if ((result.isEnableGlobalVersioning() || result.isEnableHistory()) && result.getVersionsToKeep() > 1)
-      throw new HttpException(BAD_REQUEST, "Validation failed. History can not be activated in combination with legacy history. "
-          + "Either set property \"enableGlobalVersioning\" to true OR \"versionsToKeep\" to a value greater than 1 but not both.");
 
     if (result.getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");

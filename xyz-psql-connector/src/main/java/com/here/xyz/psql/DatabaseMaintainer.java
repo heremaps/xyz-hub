@@ -293,37 +293,6 @@ public class DatabaseMaintainer {
         }
     }
 
-    public SQLQuery maintainHistory(TraceItem traceItem, String schema, String table, long currentVersion, int maxVersionCount){
-        long maxAllowedVersion = currentVersion - maxVersionCount;
-
-        if(maxAllowedVersion <= 0)
-            return null;
-
-        if(config.getMaintenanceEndpoint() != null){
-            try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()){
-
-                HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
-                        +"/maintain/space/"+table+"/history?connectorId="+traceItem.getConnectorId()
-                        +"&ecps="+config.getEcps()+"&maxVersionCount="+maxVersionCount+"&currentVersion="+currentVersion
-                );
-
-                HttpResponse response = client.execute(request);
-                if(response.getStatusLine().getStatusCode() >= 400)
-                    logger.warn("{} Could not maintain history! {}/{} {}", traceItem, schema, table, EntityUtils.toString(response.getEntity()));
-            }catch (SocketTimeoutException | ConnectTimeoutException e){
-                logger.info("{} Do not further wait for a response {}",traceItem,e);
-            }catch (Exception e){
-                logger.error("{} Could not maintain history! {}/{}", traceItem, schema, table);
-            }
-            return null;
-        }else {
-            SQLQuery q = new SQLQuery(SQLQueryBuilder.deleteOldHistoryEntries(schema, table + "_hst", maxAllowedVersion));
-            q.append(new SQLQuery(SQLQueryBuilder.flagOutdatedHistoryEntries(schema, table + "_hst", maxAllowedVersion)));
-            q.append(new SQLQuery(SQLQueryBuilder.deleteHistoryEntriesWithDeleteFlag(schema, table + "_hst")));
-            return q;
-        }
-    }
-
     public void maintainSpace(TraceItem traceItem, String schema, String table){
         if(config.getMaintenanceEndpoint() != null){
             try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()){

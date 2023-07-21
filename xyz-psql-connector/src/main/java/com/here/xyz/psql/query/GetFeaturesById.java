@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,11 +34,8 @@ public class GetFeaturesById extends GetFeatures<GetFeaturesByIdEvent, FeatureCo
 
   @Override
   protected SQLQuery buildQuery(GetFeaturesByIdEvent event) throws SQLException, ErrorResponseException {
-    String[] idArray = event.getIds().toArray(new String[0]);
-    String filterWhereClause = "id = ANY(#{ids})";
-
     return super.buildQuery(event)
-        .withQueryFragment("filterWhereClause", filterWhereClause)
-        .withNamedParameter("ids", idArray);
+        .withQueryFragment("filterWhereClause", "id = ANY(#{ids})")
+        .withNamedParameter("ids", event.getIds().toArray(new String[0]));
   }
 }

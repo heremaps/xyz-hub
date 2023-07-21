@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,13 +52,11 @@ import com.here.xyz.models.hub.Space.WithConnectors;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
 import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.HistoryStatisticsResponse;
 import com.here.xyz.responses.NotModifiedResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.changesets.ChangesetCollection;
-import com.here.xyz.responses.changesets.CompactChangeset;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -252,20 +250,8 @@ public abstract class Api {
             return;
           }
 
-        case COMPACT_CHANGESET:
-          if (response instanceof CompactChangeset) {
-            sendJsonResponse(task, Json.encode(response));
-            return;
-          }
-
         case STATISTICS_RESPONSE:
           if (response instanceof StatisticsResponse) {
-            sendJsonResponse(task, Json.encode(response));
-            return;
-          }
-
-        case HISTORY_STATISTICS_RESPONSE:
-          if (response instanceof HistoryStatisticsResponse) {
             sendJsonResponse(task, Json.encode(response));
             return;
           }
