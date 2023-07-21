@@ -26,18 +26,16 @@ import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
+import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.GetFeaturesByIdEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
-import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetStorageStatisticsEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -46,16 +44,18 @@ import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.query.DeleteChangesets;
+import com.here.xyz.psql.query.GetChangesetStatistics;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
 import com.here.xyz.psql.query.GetFeaturesByBBoxClustered;
 import com.here.xyz.psql.query.GetFeaturesByBBoxTweaked;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.GetFeaturesById;
-import com.here.xyz.psql.query.GetChangesetStatistics;
+import com.here.xyz.psql.query.GetStatistics;
 import com.here.xyz.psql.query.GetStorageStatistics;
 import com.here.xyz.psql.query.IterateChangesets;
 import com.here.xyz.psql.query.IterateFeatures;
 import com.here.xyz.psql.query.LoadFeatures;
+import com.here.xyz.psql.query.ModifySubscription;
 import com.here.xyz.psql.query.SearchForFeatures;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.ErrorResponse;
@@ -91,28 +91,17 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} Finished HealthCheckEvent", traceItem);
     }
   }
-  @Override
-  protected XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception {
-    try {
-      logger.info("{} Received HistoryStatisticsEvent", traceItem);
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event, config, true),
-                this::getHistoryStatisticsResultSetHandler, true);
-    }catch (SQLException e){
-      return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
-      logger.info("{} Finished GetHistoryStatisticsEvent", traceItem);
-    }
-  }
 
   @Override
-  protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws Exception {
+  protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws ErrorResponseException {
     try {
       logger.info("{} Received GetStatisticsEvent", traceItem);
-      return executeQueryWithRetry(SQLQueryBuilder.buildGetStatisticsQuery(event, config, false),
-              this::getStatisticsResultSetHandler, true);
-    }catch (SQLException e){
+      return new GetStatistics(event, this).run();
+    }
+    catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
+    }
+    finally {
       logger.info("{} Finished GetStatisticsEvent", traceItem);
     }
   }
@@ -185,8 +174,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
       if (isOrderByEvent(event))
         return IterateFeatures.findFeaturesSort(event, this);
-      if (event.getV() != null && event.isEnableGlobalVersioning())
-        return iterateVersions(event);
 
       return new IterateFeatures(event, this).run();
     }
@@ -297,38 +284,16 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-    try{
+    try {
       logger.info("{} Received ModifySpaceEvent", traceItem);
-
-      this.validateModifySubscriptionEvent(event);
-
-      return executeModifySubscription(event);
-    }catch (SQLException e){
-      return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
-      logger.info("{} Finished ModifySpaceEvent", traceItem);
+      new ModifySubscription(event, this).write();
+      return new FeatureCollection().withCount(1L); //TODO: Fix return type of this operation should not be a FeatureCollection but simply a SuccessResponse
     }
-  }
-
-  private void validateModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
-
-   switch(event.getOperation())
-   { case CREATE : case UPDATE : case DELETE : break;
-     default:
-      throw new ErrorResponseException(streamId, XyzError.ILLEGAL_ARGUMENT, "Modify Subscription - Operation (" + event.getOperation() + ") not supported" );
-   }
-
-  }
-
-  @Override
-  protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) {
-    logger.info("{} Received IterateHistoryEvent", traceItem);
-    try{
-      return executeIterateHistory(event);
-    }catch (SQLException e){
+    catch (SQLException e) {
       return checkSQLException(e, config.readTableFromEvent(event));
-    }finally {
-      logger.info("{} Finished IterateHistoryEvent", traceItem);
+    }
+    finally {
+      logger.info("{} Finished ModifySpaceEvent", traceItem);
     }
   }
 
@@ -387,10 +352,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }finally {
       logger.info("{} Finished GetChangesetsStatisticsEvent", traceItem);
     }
-  }
-
-  protected XyzResponse iterateVersions(IterateFeaturesEvent event) throws SQLException {
-    return executeIterateVersions(event);
   }
 
   private void validateModifySpaceEvent(ModifySpaceEvent event) throws Exception{

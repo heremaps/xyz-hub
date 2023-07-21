@@ -47,10 +47,7 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
-import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -512,7 +509,7 @@ public class FeatureTaskHandler {
   }
 
   static void setLatestSeenContentVersion(Space space, long version) {
-    if ((space.isEnableHistory() || space.isEnableGlobalVersioning()) && version > 0)
+    if (version > -1)
       latestSeenContentVersions.compute(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion != null ? currentVersion : 0L,
           version));
   }
@@ -789,19 +786,13 @@ public class FeatureTaskHandler {
 
                     task.getEvent().setParams(storageParams);
 
-                    if (task.getEvent() instanceof SelectiveEvent) {
-                      //Inject the minVersion from the space config
+                    //Inject the minVersion from the space config
+                    if (task.getEvent() instanceof SelectiveEvent)
                       ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
-                    }
 
-                    if (task.getEvent() instanceof ContextAwareEvent) {
-                      //Inject the versionsToKeep from the space config
+                    //Inject the versionsToKeep from the space config
+                    if (task.getEvent() instanceof ContextAwareEvent)
                       ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
-                    }
-
-                    if (task.getEvent() instanceof IterateFeaturesEvent) {
-                      ((IterateFeaturesEvent) task.getEvent()).setEnableGlobalVersioning(space.isEnableGlobalVersioning());
-                    }
 
                     return Future.succeededFuture(space);
                   });
@@ -1137,9 +1128,7 @@ public class FeatureTaskHandler {
         // decide whether to use uuid or version for checking
         entry.useVersion = false;
         if (task.space.getVersionsToKeep() > 1) {
-          if (!task.space.isEnableGlobalVersioning()) {
-            entry.useVersion = true;
-          }
+          entry.useVersion = true;
           if (!task.space.isEnableUUID()) {
             entry.skipConflictDetection = true;
           }
@@ -1268,8 +1257,9 @@ public class FeatureTaskHandler {
     nsXyz.setCreatedAt(isInsert ? now : entry.head.getProperties().getXyzNamespace().getCreatedAt());
     nsXyz.setUpdatedAt(now);
 
+    //TODO: Remove UUID generation and enableUUID flag, once we have a new flag for the versioned-base conflict-detection
     // UUID fields
-    if (task.space.isEnableUUID() && (task.space.getVersionsToKeep() <= 1 || task.space.isEnableGlobalVersioning())) {
+    if (task.space.isEnableUUID() && task.space.getVersionsToKeep() == 1) {
       nsXyz.setUuid(UUID.randomUUID().toString());
 
       if (!isInsert) {
@@ -1352,15 +1342,11 @@ public class FeatureTaskHandler {
 
   static <X extends FeatureTask> void injectSpaceParams(final X task, final Callback<X> callback) {
     try {
-      if(task.getEvent() instanceof ModifyFeaturesEvent) {
-         ((ModifyFeaturesEvent) task.getEvent()).setMaxVersionCount(task.space.getMaxVersionCount());
-        ((ModifyFeaturesEvent) task.getEvent()).setEnableGlobalVersioning(task.space.isEnableGlobalVersioning());
-        ((ModifyFeaturesEvent) task.getEvent()).setEnableHistory(task.space.isEnableHistory());
-      }
       if (task.getEvent() instanceof ContextAwareEvent)
         ((ContextAwareEvent) task.getEvent()).setVersionsToKeep(task.space.getVersionsToKeep());
       callback.call(task);
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
   }
@@ -1472,34 +1458,10 @@ public class FeatureTaskHandler {
       }
     }
 
-    if (task.getEvent() instanceof IterateHistoryEvent) {
-      if (!task.space.isEnableGlobalVersioning()) {
-        callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
-        return;
-      }
-      int startVersion = ((IterateHistoryEvent) task.getEvent()).getStartVersion();
-      int endVersion = ((IterateHistoryEvent) task.getEvent()).getEndVersion();
-      if(startVersion != 0 && startVersion < 1) {
-        callback.exception(new HttpException(BAD_REQUEST, "startVersion is out or range [1-n]."));
-        return;
-      }
-      if(startVersion != 0 && endVersion != 0 && endVersion < startVersion) {
-        callback.exception(new HttpException(BAD_REQUEST, "endVersion has to be smaller than startVersion."));
-        return;
-      }
-    }
-
-    if (task.getEvent() instanceof GetHistoryStatisticsEvent) {
-      if (!task.space.isEnableGlobalVersioning()) {
-        callback.exception(new HttpException(BAD_REQUEST, "This space [" + task.space.getId() + "] does not support history."));
-        return;
-      }
-    }
-
+    //TODO: Remove that validation once the GetFeatures-QR is fixed
     if (task.getEvent() instanceof SelectiveEvent
         && StringUtils.isNotBlank(((SelectiveEvent) task.getEvent()).getRef())
-        && task.space.getVersionsToKeep() < 2
-        && !task.space.isEnableGlobalVersioning()) {
+        && task.space.getVersionsToKeep() == 1) {
       callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support queries with version parameter."));
       return;
     }
@@ -1539,14 +1501,9 @@ public class FeatureTaskHandler {
   }
 
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
-    if (task.space.isReadOnly() && (task instanceof ConditionalOperation )) {
+    if (task.space.isReadOnly() && (task instanceof ConditionalOperation ))
       throw new HttpException(METHOD_NOT_ALLOWED,
           "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
-    }
-    if (task.space.isEnableGlobalVersioning() && task.getEvent() instanceof  ModifyFeaturesEvent && ((ModifyFeaturesEvent) task.getEvent()).getTransaction() == false) {
-      throw new HttpException(METHOD_NOT_ALLOWED,
-           "The method is not allowed, because the resource \"" + task.space.getId() + "\" has enabledGlobalVersioning. Due to that, stream writing is not allowed.");
-    }
     callback.call(task);
   }
 
@@ -1632,8 +1589,6 @@ public class FeatureTaskHandler {
         .withSpace(task.space.getId())
         .withParams(task.getEvent().getParams())
         .withContext(task.getEvent().getContext())
-        .withEnableGlobalVersioning(task.space.isEnableGlobalVersioning())
-        .withEnableHistory(task.space.isEnableHistory())
         .withIdsMap(idsMap)
         .withVersionsToKeep(task.space.getVersionsToKeep());
 

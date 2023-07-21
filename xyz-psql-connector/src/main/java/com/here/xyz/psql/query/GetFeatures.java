@@ -241,7 +241,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private static String injectVersionIntoNS(ContextAwareEvent event, String wrappedJsondata) {
     //NOTE: The following is a temporary implementation for backwards compatibility for spaces without versioning
-    if (DatabaseHandler.readVersionsToKeep(event) > 1 || (DatabaseHandler.readVersionsToKeep(event) > 0 && event instanceof LoadFeaturesEvent))
+    //TODO: Re-activate for v2k=1 in general
+    if (DatabaseHandler.readVersionsToKeep(event) > 1 || (DatabaseHandler.readVersionsToKeep(event) >= 1 && event instanceof LoadFeaturesEvent))
       return "jsonb_set(" + wrappedJsondata + ", '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
     return wrappedJsondata;
   }

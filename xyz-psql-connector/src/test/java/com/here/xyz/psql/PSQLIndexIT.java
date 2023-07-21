@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,12 +99,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
             .withOperation(CREATE)
             .withConnectorParams(connectorParams)
+            //Table gets created also without features
             .withSpaceDefinition(new Space()
                     .withId("foo")
                     .withSearchableProperties(searchableProperties)
-                    /** Table gets created also without features */
-                    .withEnableHistory(true)
-                    .withEnableUUID(true)
             );
 
         SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
@@ -161,16 +159,12 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
     @Test
     public void testOnDemandIdxCreation() throws Exception {
-        //Create space with history
+        //Create space
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
                 .withOperation(CREATE)
                 .withConnectorParams(connectorParams)
-                .withSpaceDefinition(new Space()
-                        .withId("foo")
-                        /** Table gets created also without features */
-                        .withEnableHistory(true)
-                        .withEnableUUID(true)
-                );
+                //Table gets created also without features
+                .withSpaceDefinition(new Space().withId("foo"));
 
         SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
@@ -187,12 +181,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
             .withOperation(UPDATE)
             .withConnectorParams(connectorParams)
+            //Table gets created also without features
             .withSpaceDefinition(new Space()
                 .withId("foo")
                 .withSearchableProperties(searchableProperties)
-                /** Table gets created also without features */
-                .withEnableHistory(true)
-                .withEnableUUID(true)
             );
 
         response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
@@ -259,16 +251,12 @@ public class PSQLIndexIT extends PSQLAbstractIT {
 
     @Test
     public void testOnDemandIndexContent() throws Exception {
-        //Create space with history
+        //Create space
         ModifySpaceEvent modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
             .withOperation(CREATE)
             .withConnectorParams(connectorParams)
-            .withSpaceDefinition(new Space()
-                .withId("foo")
-                /** Table gets created also without features */
-                .withEnableHistory(true)
-                .withEnableUUID(true)
-            );
+            //Table gets created also without features
+            .withSpaceDefinition(new Space().withId("foo"));
 
         SuccessResponse response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));
         assertEquals("OK",response.getStatus());
@@ -288,12 +276,10 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         modifySpaceEvent = new ModifySpaceEvent().withSpace("foo")
                 .withOperation(UPDATE)
                 .withConnectorParams(connectorParams)
+                //Table gets created also without features
                 .withSpaceDefinition(new Space()
                         .withId("foo")
                         .withSearchableProperties(searchableProperties)
-                        /** Table gets created also without features */
-                        .withEnableHistory(true)
-                        .withEnableUUID(true)
                 );
 
         response = deserializeResponse(invokeLambda(modifySpaceEvent.serialize()));

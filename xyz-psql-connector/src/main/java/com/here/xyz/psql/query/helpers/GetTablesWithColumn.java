@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,6 @@ public class GetTablesWithColumn extends QueryRunner<GetTablesWithColumnInput, L
         + "t.table_schema = #{schema} AND "
         + "t.table_type = 'BASE TABLE' AND "
         + "t.table_name != 'spatial_ref_sys' AND "
-        + "t.table_name NOT LIKE '%_hst' "
         + "LIMIT #{limit}")
         .withNamedParameter("column", input.columnName)
         .withNamedParameter("schema", getSchema())

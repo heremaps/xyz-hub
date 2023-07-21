@@ -1,5 +1,5 @@
 --
--- Copyright (C) 2017-2022 HERE Europe B.V.
+-- Copyright (C) 2017-2023 HERE Europe B.V.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 172
+ select 173
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -231,75 +231,6 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_statistic_history(
-    IN schema text,
-    IN spaceid text)
-  RETURNS TABLE(tablesize jsonb, count jsonb, maxversion jsonb, minversion jsonb) AS
-$BODY$
-	/**
-	* Description: Returns complete statistic about a big xyz-space. Therefore the results are including estimated values to reduce
-	*		the runtime of the query.
-	*
-	* Parameters:
-	*   @schema		- schema in which the XYZ-spaces are located
-	*   @spaceid		- id of the XYZ-space (tablename)
-	*
-	* Returns (table):
-	*   tabelsize		- storage size of space
-	*   count		- number of records found in space
-	*/
-
-	/**  Defines how much records a big table has */
-	DECLARE big_space_threshold integer := 10000;
-
-	/** used for big-spaces and get filled via pg_class */
-	DECLARE estimate_cnt bigint;
-
-    BEGIN
-        IF substring(spaceid,length(spaceid)-3) != '_hst' THEN
-            RETURN;
-        END IF;
-
-        SELECT reltuples into estimate_cnt FROM pg_class WHERE oid = concat('"',$1, '"."', $2, '"')::regclass;
-
-        IF estimate_cnt > big_space_threshold THEN
-                RETURN QUERY EXECUTE
-                'SELECT    format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
-                ||'    format(''{"value": %s, "estimated" : true}'', count)::jsonb as count,  '
-                ||'    format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion, '
-                ||'    format(''{"value": %s, "estimated" : false}'', COALESCE(minversion,0))::jsonb as minversion  '
-                ||'    FROM ('
-                ||'        SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
-                ||'            (SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'" where jsondata->''properties''->''@ns:com:here:xyz''->''version'' is not null'
-                ||'                order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
-                ||'            (SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
-                ||'                WHERE jsondata->''properties''->''@ns:com:here:xyz''->''version'' > to_jsonb(0::numeric) '
-                ||'            order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' ASC limit 1 )::TEXT::INTEGER as minversion,'
-                ||'            reltuples AS count '
-                ||'        FROM pg_class '
-                ||'    WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
-        ELSE
-                RETURN QUERY EXECUTE
-                'SELECT    format(''{"value": %s, "estimated" : true}'', tablesize)::jsonb as tablesize,  '
-                ||'    format(''{"value": %s, "estimated" : false}'', count)::jsonb as count,  '
-                ||'    format(''{"value": %s, "estimated" : false}'', COALESCE(maxversion,0))::jsonb as maxversion, '
-                ||'    format(''{"value": %s, "estimated" : false}'', COALESCE(minversion,0))::jsonb as minversion  '
-                ||'    FROM ('
-                ||'        SELECT pg_total_relation_size('''||schema||'."'||spaceid||'"'') AS tablesize, '
-                ||'            (SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'" where jsondata->''properties''->''@ns:com:here:xyz''->''version'' is not null'
-                ||'                order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' DESC limit 1 )::TEXT::INTEGER as maxversion,'
-                ||'            (SELECT jsondata->''properties''->''@ns:com:here:xyz''->''version'' FROM "'||schema||'"."'||spaceid||'"'
-                ||'                WHERE jsondata->''properties''->''@ns:com:here:xyz''->''version'' > to_jsonb(0::numeric) '
-                ||'            order by jsondata->''properties''->''@ns:com:here:xyz''->''version'' ASC limit 1 )::TEXT::INTEGER as minversion,'
-                ||'            (SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count '
-                ||'        FROM pg_class '
-                ||'    WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
-        END IF;
-    END;
-$BODY$
-LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_index_get_plain_propkey(propkey text)
   RETURNS text AS
 $BODY$
@@ -327,72 +258,6 @@ $BODY$
 	END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_legacy_history_create_vid(id TEXT, version TEXT) RETURNS TEXT AS
-$BODY$
-BEGIN
-    RETURN substring('0000000000'::TEXT, 0, 10 - length(version)) || version || '_' || id;
-END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_legacy_history_get_previous_uuid(schema TEXT, tableName TEXT, id TEXT, newVersion TEXT) RETURNS TEXT AS
-$BODY$
-DECLARE
-    uuid TEXT;
-BEGIN
-    EXECUTE format('SELECT uuid FROM %I.%I WHERE vid LIKE %L ORDER BY vid DESC LIMIT 1', schema, tableName || '_hst', '%_' || id) INTO uuid;
-    RETURN uuid;
-END
-$BODY$
-LANGUAGE plpgsql VOLATILE;
-------------------------------------------------
---@Deprecated
-CREATE OR REPLACE FUNCTION xyz_trigger_historywriter_versioned()
-  RETURNS trigger AS
-$BODY$
-	DECLARE
-	    v TEXT := (NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'version');
-	    uuidValue TEXT := '%L';
-	BEGIN
-	    IF TG_OP = 'DELETE' OR TG_OP = 'TRUNCATE' THEN
-	        -- Ignore.
-            RETURN NEW;
-        END IF;
-
-	    IF TG_OP = 'UPDATE' THEN
-	        IF NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' THEN
-                -- NOTE: no user data has been changed in the record.
-                -- The UPDATE was performed as part of a migration or only the next_version field was changed.
-                -- Ignoring trigger call.
-                RETURN NEW;
-            END IF;
-        END IF;
-
-	    IF TG_OP = 'INSERT' AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb THEN
-	        -- NOTE: This is for backwards compatibility of deletions in the legacy history in combination with new history being activated
-            uuidValue := 'CASE WHEN %3$L IS NULL THEN xyz_legacy_history_get_previous_uuid(%1$L, %2$L, %7$L, %6$L) || ''_deleted'' ELSE %3$L END';
-        END IF;
-
-	    v = CASE WHEN v IS NULL THEN NEW.version::TEXT ELSE v END;
-
-        EXECUTE
-            format('INSERT INTO'
-                       || ' %s."%s_hst" (uuid, jsondata, geo, vid)'
-                       || ' VALUES(' || uuidValue || ', %L, %L, xyz_legacy_history_create_vid(%7$L, %6$L))',
-                        TG_TABLE_SCHEMA, xyz_get_root_table(TG_TABLE_NAME), NEW.jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', NEW.jsondata, NEW.geo, v, NEW.id);
-
-		IF TG_OP = 'UPDATE' THEN
-		    -- NOTE: Kept for backwards compatibility. For TG_OP == 'INSERT' AND op == 'D' we don't want to delete any row from the main table anymore!
-			IF NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' IS NOT null AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'deleted' = 'true'::jsonb THEN
-				EXECUTE
-					format('DELETE FROM %s."%s" WHERE jsondata->>''id'' = %L',TG_TABLE_SCHEMA, TG_TABLE_NAME, NEW.id);
-			END IF;
-		END IF;
-        RETURN NEW;
-	END;
-$BODY$
-LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_count_estimation(query text)
@@ -1445,7 +1310,7 @@ $BODY$
 		BEGIN
 			spaceid := xyz_get_root_table(xyz_spaces.spaceid);
 
-			--skip history tables
+			--Skip history-, head-, system-tables
             IF NOT xyz_is_space_table(schema, spaceid) THEN
                 CONTINUE;
             END IF;
@@ -1466,11 +1331,10 @@ CREATE OR REPLACE FUNCTION xyz_is_space_table(schema TEXT, tableName TEXT) RETUR
 $BODY$
 BEGIN
     -- TODO: Improve this function to not rely on the table's name anymore
-    IF length(tableName) < 5 THEN
+    IF length(tableName) < 6 THEN
         RETURN TRUE;
     END IF;
     RETURN tableName != 'spatial_ref_sys' AND -- It's the spatial reference system table fro postGIS (system table)
-           substring(tableName, length(tableName) - 3) != '_hst' AND -- It's a legacy history table
            substring(tableName, length(tableName) - 4) != '_head' AND -- It's a HEAD partition
            tableName  !~ '.+\_p[0-9]'; -- It's a history partition
 END
@@ -2411,29 +2275,29 @@ $BODY$
 with indata as ( select xyz_statistic_space_v2.schema as s, xyz_statistic_space_v2.spaceid as t ),
 --with indata as ( select 'public' as s, 'exportTestdata03' as t ),
 --with indata as ( select 'public' as s, 'x-psql-test' as t ),
-iindata as 
-( select row_number() over () as idx, r.* from 
-	(	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' ))  ) r 
+iindata as
+( select row_number() over () as idx, r.* from
+	(	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' ))  ) r
 ),
 iiindata as ( select * from iindata i, lateral ( select * from public.xyz_statistic_space_v1(i.schem,i.tbl) ) l ),
 c1 as ( select jsonb_build_object( 'value', sum( (tablesize->'value')::bigint ), 'estimated', max( (tablesize->>'estimated') )::boolean) as tablesize from iiindata ),
-c2 as 
+c2 as
 ( select jsonb_build_object( 'value', coalesce( jsonb_agg( distinct e1 ),'[]'::jsonb ), 'estimated', coalesce( max( e2::text )::boolean, false ) ) as geometrytypes
   from ( select jsonb_array_elements( geometrytypes->'value' ) as e1, geometrytypes->'estimated' as e2 from iiindata ) o
 ),
 c3 as
 ( select jsonb_build_object('value',coalesce( jsonb_agg( v ),'[]'::jsonb ),'estimated', coalesce( max( e::text )::boolean, false ) ) as properties
   from
-  ( select jsonb_build_object('key',e1->>'key','count', sum( (e1->'count')::bigint ),'datatype', max( e1->>'datatype' )) || case when max( e1->>'searchable' ) isnull then '{}'::jsonb else jsonb_build_object( 'searchable', max( e1->>'searchable' )::boolean ) end as v, max( e2::text ) as e 
+  ( select jsonb_build_object('key',e1->>'key','count', sum( (e1->'count')::bigint ),'datatype', max( e1->>'datatype' )) || case when max( e1->>'searchable' ) isnull then '{}'::jsonb else jsonb_build_object( 'searchable', max( e1->>'searchable' )::boolean ) end as v, max( e2::text ) as e
     from ( select jsonb_array_elements( properties->'value' ) as e1, properties->'estimated' as e2 from iiindata ) o
     group by o.e1->>'key'
-  ) oo 
+  ) oo
 ),
-c4 as 
+c4 as
 ( select jsonb_build_object( 'value', coalesce( jsonb_agg( distinct e1 ),'[]'::jsonb ), 'estimated', coalesce( max( e2::text )::boolean, true ) ) as tags
   from ( select jsonb_array_elements( tags->'value' ) as e1, tags->'estimated' as e2 from iiindata ) oo
 ),
-c5 as 
+c5 as
 (	select jsonb_build_object( 'value', e1 , 'estimated', e2 ) as count
   from
   ( select  sum((count->>'value')::bigint)::bigint as e1, max( count->>'estimated' )::boolean as e2 from iiindata ) oo

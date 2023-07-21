@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,24 +140,6 @@ public class MaintenanceHandler {
         return;
       }
       checkException(e, handler, connectorId);
-    }catch (Exception e) {
-      checkException(e, handler, connectorId);
-    }
-  }
-
-  public static void maintainHistory(String connectorId, String ecps, String passphrase, String spaceId, int currentVersion, int maxVersionCount,
-                                   Handler<AsyncResult<XyzResponse>> handler) {
-
-    try {
-      CService.maintenanceClient.maintainHistory(connectorId, ecps, passphrase, spaceId, currentVersion, maxVersionCount);
-      handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
-    }catch (SQLException e){
-      if(e.getSQLState() != null && e.getSQLState().equals("42P01")){
-        logger.warn("History Table does not exits {}/{}", spaceId, connectorId);
-        handler.handle(Future.failedFuture(new HttpException(CONFLICT, "History Table does not exists!")));
-        return;
-      }else
-        checkException(e, handler, connectorId);
     }catch (Exception e) {
       checkException(e, handler, connectorId);
     }

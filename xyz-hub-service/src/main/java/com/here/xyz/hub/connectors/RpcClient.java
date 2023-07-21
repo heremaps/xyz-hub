@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
-import com.here.xyz.responses.HistoryStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
@@ -609,13 +608,6 @@ public class RpcClient {
       final StatisticsResponse sr = (StatisticsResponse) payload;
       // TODO copy byteSize property over dataSize, when byteSize is finally removed, this code won't be necessary anymore
       sr.setDataSize(sr.getByteSize());
-      return;
-    }
-
-    if (payload instanceof HistoryStatisticsResponse) {
-      final HistoryStatisticsResponse hsr = (HistoryStatisticsResponse) payload;
-      // TODO copy byteSize property over dataSize, when byteSize is finally removed, this code won't be necessary anymore
-      hsr.setDataSize(hsr.getByteSize());
       return;
     }
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql;
 
+import static com.here.xyz.psql.DatabaseHandler.PARTITION_SIZE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
@@ -47,6 +48,68 @@ import org.apache.logging.log4j.Logger;
 import org.postgresql.util.PGobject;
 
 public class DatabaseWriter {
+
+    private static SQLQuery buildMultiModalInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+        return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
+            + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion})")
+            .withNamedParameter("schema", dbHandler.config.getDatabaseSettings().getSchema())
+            .withNamedParameter("table", dbHandler.config.readTableFromEvent(event))
+            .withNamedParameter("concurrencyCheck", event.getEnableUUID())
+            .withNamedParameter("partitionSize", PARTITION_SIZE)
+            .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
+            .withNamedParameter("pw", dbHandler.getConfig().getDatabaseSettings().getPassword());
+    }
+
+    private static SQLQuery buildInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+      return setWriteQueryComponents(new SQLQuery("${{geoWith}} INSERT INTO ${schema}.${table} (id, version, operation, jsondata, geo) "
+          + "VALUES("
+          + "#{id}, "
+          + "#{version}, "
+          + "#{operation}, "
+          + "#{jsondata}::jsonb, "
+          + "${{geo}}"
+          + ")"), dbHandler, event);
+    }
+
+    private static SQLQuery buildUpdateStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+        return setWriteQueryComponents(new SQLQuery("${{geoWith}} UPDATE ${schema}.${table} SET "
+            + "version = #{version}, "
+            + "operation = #{operation}, "
+            + "jsondata = #{jsondata}::jsonb, "
+            + "geo = (${{geo}}) "
+            + "WHERE id = #{id} ${{uuidCheck}}"), dbHandler, event)
+            .withQueryFragment("uuidCheck", buildUuidCheckFragment(event));
+    }
+
+    private static SQLQuery setWriteQueryComponents(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+        return setTableVariables(writeQuery
+            .withQueryFragment("geoWith", "WITH in_params AS (SELECT #{geo} as geo)")
+            .withQueryFragment("geo", "CASE WHEN (SELECT geo FROM in_params)::geometry IS NULL THEN NULL ELSE "
+                + "ST_Force3D(ST_GeomFromWKB((SELECT geo FROM in_params)::BYTEA, 4326)) END"), dbHandler, event);
+    }
+
+    private static SQLQuery setTableVariables(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+      return writeQuery
+          .withVariable("schema", dbHandler.config.getDatabaseSettings().getSchema())
+          .withVariable("table", dbHandler.config.readTableFromEvent(event));
+    }
+
+    private static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
+        SQLQuery query = new SQLQuery("DELETE FROM ${schema}.${table} WHERE id = #{id} ${{uuidCheck}}")
+            .withQueryFragment("uuidCheck", buildUuidCheckFragment(event));
+
+        return setTableVariables(
+            query,
+            dbHandler,
+            event);
+    }
+
+    private static SQLQuery buildUuidCheckFragment(ModifyFeaturesEvent event) {
+      //NOTE: The following is a temporary implementation for backwards compatibility for old spaces
+      return new SQLQuery("");
+      //TODO: Activate conflict check below
+      //return new SQLQuery(event.getEnableUUID() ? (DatabaseHandler.readVersionsToKeep(event) > 0 ? " AND (CASE WHEN #{baseVersion}::BIGINT IS NULL THEN next_version = #{MAX_BIGINT} ELSE version = #{baseVersion} END)" : " AND (#{puuid}::TEXT IS NULL OR jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid})") : "").withNamedParameter("MAX_BIGINT", MAX_BIGINT);
+    }
 
     public enum XyzSqlErrors {
 
@@ -113,12 +176,8 @@ public class DatabaseWriter {
 
         final String json;
         try {
-            //Remove the version from the JSON data, because it should not be written into the "jsondata" column. The version has its own column.
+            //Remove the version from the JSON data, because it should not be written into the "jsondata" column.
             feature.getProperties().getXyzNamespace().setVersion(-1);
-
-            //NOTE: The following is a temporary implementation for backwards compatibility for old table structures with legacy history
-            if (event.isEnableGlobalVersioning() && version != -1)
-                feature.getProperties().getXyzNamespace().setVersion(version);
 
             if (event.getVersionsToKeep() <= 1)
               feature.getProperties().getXyzNamespace().setAuthor(null);
@@ -138,7 +197,7 @@ public class DatabaseWriter {
     private static void fillDeleteQueryFromDeletion(SQLQuery query, Entry<String, String> deletion, ModifyFeaturesEvent event, long version)
         throws SQLException {
         /*
-        NOTE: If versioning is activated for the space, always only inserts are performed,
+        NOTE: If history is activated for the space, always only inserts are performed,
         but special parameters are necessary to handle conflicts in deletion case.
         Also, the feature to be written during the insert operation has to be "mocked" to only contain the necessary information.
          */
@@ -152,15 +211,10 @@ public class DatabaseWriter {
             fillInsertQueryFromFeature(query, DELETE, deletedFeature, event, version);
         }
         else {
-            //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-            boolean oldTableStyle = true; //DatabaseHandler.readVersionsToKeep(event) < 1;
             query.setNamedParameter("id", deletion.getKey());
-            if (event.getEnableUUID()) {
-              if (oldTableStyle)
-                query.setNamedParameter("puuid", deletion.getValue());
-              else //TODO: Check if we should not throw an exception in that case
-                query.setNamedParameter("baseVersion", deletion.getValue() != null ? Long.parseLong(deletion.getValue()) : null);
-            }
+            if (event.getEnableUUID())
+              //TODO: Check if we should not throw an exception in the case of a missing baseVersion
+              query.setNamedParameter("baseVersion", deletion.getValue() != null ? Long.parseLong(deletion.getValue()) : null);
         }
     }
 
@@ -168,23 +222,13 @@ public class DatabaseWriter {
         if (feature.getId() == null)
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
-        //NOTE: The following is a temporary implementation for backwards compatibility for old table structures
-        boolean oldTableStyle = true; //DatabaseHandler.readVersionsToKeep(event) < 1;
-        final String puuid = feature.getProperties().getXyzNamespace().getPuuid();
-        if (event.getEnableUUID() && (event.getVersionsToKeep() <= 1 || event.isEnableGlobalVersioning())) {
-          if (puuid == null && oldTableStyle)
-            throw new WriteFeatureException(UPDATE_ERROR_PUUID_MISSING);
-          else if (oldTableStyle)
-            query.setNamedParameter("puuid", puuid);
-          else
+        if (event.getEnableUUID() && event.getVersionsToKeep() == 1)
             query.setNamedParameter("baseVersion", feature.getProperties().getXyzNamespace().getVersion());
-        }
 
         /*
         NOTE: If versioning is activated for the space, always only inserts are performed,
         but special parameters are necessary to handle conflicts in update case.
          */
-
         fillInsertQueryFromFeature(query, action, feature, event, version);
     }
 
@@ -205,7 +249,6 @@ public class DatabaseWriter {
     }
 
     private static void fillInsertQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, long version) throws SQLException {
-        //TODO: The following is a backwards compatibility workaround for the legacy history in combination with new history being activated
         long baseVersion = feature.getProperties().getXyzNamespace().getVersion();
 
         query
@@ -237,7 +280,7 @@ public class DatabaseWriter {
         long version) throws SQLException, JsonProcessingException {
         boolean transactional = event.getTransaction();
         connection.setAutoCommit(!transactional);
-        SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action, version);
+        SQLQuery modificationQuery = buildModificationStmtQuery(dbh, event, action);
 
         List<String> idList = transactional ? new ArrayList<>() : null;
 
@@ -326,19 +369,18 @@ public class DatabaseWriter {
         return null;
     }
 
-    private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action,
-        long version) {
+    private static SQLQuery buildModificationStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event, ModificationType action) {
         //If versioning is activated for the space, always only perform inserts
         if (event.getVersionsToKeep() > 1)
-            return SQLQueryBuilder.buildMultiModalInsertStmtQuery(dbHandler, event);
+            return buildMultiModalInsertStmtQuery(dbHandler, event);
         switch (action) {
             case INSERT:
-                return SQLQueryBuilder.buildInsertStmtQuery(dbHandler, event);
+                return buildInsertStmtQuery(dbHandler, event);
             case UPDATE:
             case UPDATE_DELETED:
-                return SQLQueryBuilder.buildUpdateStmtQuery(dbHandler, event);
+                return buildUpdateStmtQuery(dbHandler, event);
             case DELETE:
-                return SQLQueryBuilder.buildDeleteStmtQuery(dbHandler, event, version);
+                return buildDeleteStmtQuery(dbHandler, event);
         }
         return null;
     }

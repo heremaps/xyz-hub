@@ -72,11 +72,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected static void createSpace() {
-    createSpace(false);
-  }
-
-  protected static void createSpace(boolean useHistory) {
-    String path = useHistory ? "/xyz/hub/createSpaceWithGlobalVersioning.json" :"/xyz/hub/createSpace.json";
+    String path = "/xyz/hub/createSpace.json";
     String content = usedStorageId == embeddedStorageId ? content(path) : content(path, usedStorageId);
     createSpace(content)
             .body("id", equalTo(getSpaceId()))

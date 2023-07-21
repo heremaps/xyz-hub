@@ -33,7 +33,6 @@ import com.here.xyz.hub.Core;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.psql.DatabaseMaintainer;
 import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.SQLQueryBuilder;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.factory.MaintenanceSQL;
@@ -274,22 +273,6 @@ public class MaintenanceClient {
         SQLQuery maintainSpace = new SQLQuery(MaintenanceSQL.maintainIDXOfSpace,dbSettings.getSchema(), spaceId);
         logger.info("{}: Start maintaining space '{}'..", connectorId, spaceId);
         executeQueryWithoutResults(maintainSpace, source);
-    }
-
-    public void maintainHistory(String connectorId, String ecps, String passphrase, String spaceId, int currentVersion, int maxVersionCount) throws SQLException,DecodeException {
-        MaintenanceInstance dbInstance = getClient(connectorId, ecps, passphrase);
-        DatabaseSettings dbSettings = dbInstance.getDbSettings();
-        DataSource source = dbInstance.getSource();
-        String historyTable = spaceId + "_hst";
-
-        long v_diff = currentVersion - maxVersionCount;
-        if(v_diff >= 0) {
-            SQLQuery q = new SQLQuery(SQLQueryBuilder.deleteOldHistoryEntries(dbSettings.getSchema(), historyTable , v_diff));
-            q.append(new SQLQuery(SQLQueryBuilder.flagOutdatedHistoryEntries(dbSettings.getSchema(), historyTable, v_diff)));
-            q.append(new SQLQuery(SQLQueryBuilder.deleteHistoryEntriesWithDeleteFlag(dbSettings.getSchema(), historyTable)));
-            logger.info("{}: Start maintaining history '{}'..", connectorId, spaceId);
-            executeQueryWithoutResults(q, source);
-        }
     }
 
     public void purgeOldVersions(String connectorId, String ecps, String passphrase, String spaceId, Integer versionsToKeep, Long minTagVersion) throws SQLException,DecodeException {

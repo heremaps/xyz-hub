@@ -41,12 +41,6 @@ replace:
     path: paths.'/spaces/{spaceId}/count'
     replace: paths.'/hub/spaces/{spaceId}/count'
   - type: key
-    path: paths.'/spaces/{spaceId}/history'
-    replace: paths.'/hub/spaces/{spaceId}/history'
-  - type: key
-    path: paths.'/spaces/{spaceId}/history/statistics'
-    replace: paths.'/hub/spaces/{spaceId}/history/statistics'
-  - type: key
     path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
     replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema
   - type: key

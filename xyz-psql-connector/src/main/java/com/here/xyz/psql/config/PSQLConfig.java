@@ -162,7 +162,6 @@ public class PSQLConfig {
             connectorParams.isDbTestConnectionOnCheckout()+
             connectorParams.isEnableHashedSpaceId()+
             connectorParams.getOnDemandIdxLimit()+
-            connectorParams.isCompactHistory()+
             connectorParams.isPropertySearch()+
             connectorParams.isMvtSupport()+
             connectorParams.isAutoIndexing() +

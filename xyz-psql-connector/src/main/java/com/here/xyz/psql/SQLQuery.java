@@ -20,7 +20,6 @@
 package com.here.xyz.psql;
 
 import static com.here.xyz.psql.DatabaseHandler.HEAD_TABLE_SUFFIX;
-import static com.here.xyz.psql.DatabaseHandler.HISTORY_TABLE_SUFFIX;
 
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.SelectiveEvent;
@@ -29,16 +28,13 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,9 +54,7 @@ public class SQLQuery {
   private static final String VAR_SCHEMA = "schema";
   private static final String VAR_TABLE = "table";
   private static final String VAR_TABLE_HEAD = "table_head";
-  private static final String VAR_HST_TABLE = "hsttable";
   private static final String VAR_TABLE_SEQ = "table_seq";
-  private static final String VAR_HST_TABLE_SEQ = "hsttable_seq";
 
   private boolean async = false;
 
@@ -249,9 +243,7 @@ public class SQLQuery {
         .withVariable(VAR_SCHEMA, schema)
         .withVariable(VAR_TABLE, table)
         .withVariable(VAR_TABLE_HEAD, table + HEAD_TABLE_SUFFIX)
-        .withVariable(VAR_HST_TABLE, table + HISTORY_TABLE_SUFFIX)
-        .withVariable(VAR_TABLE_SEQ, table != null ? table.replaceAll("-", "_") + "_i_seq\";" : "")
-        .withVariable(VAR_HST_TABLE_SEQ, table != null ? (table + HISTORY_TABLE_SUFFIX + "_seq").replaceAll("-", "_") : " ");
+        .withVariable(VAR_TABLE_SEQ, table != null ? table.replaceAll("-", "_") + "_i_seq\";" : "");
     q.substitute();
     return q.text();
   }

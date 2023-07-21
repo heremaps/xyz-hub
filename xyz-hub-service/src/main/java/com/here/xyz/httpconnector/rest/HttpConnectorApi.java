@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
+import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.Hasher;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -55,11 +56,11 @@ public class HttpConnectorApi extends Api {
     rb.operation("getStatus").handler(this::getConnectorStatus);
     rb.operation("postInitialization").handler(this::postDatabaseInitialization);
     rb.operation("postMaintainIndices").handler(this::postMaintainIndices);
-    rb.operation("postPurgeVersions").handler(this::postPurgeVersions);
+    rb.operation("postPurgeVersions").handler(this::postPurgeVersions); //TODO: Move responsibility back to connector
 
     rb.operation("getMaintenanceStatusSpace").handler(this::getMaintenanceStatusSpace);
     rb.operation("postMaintainSpace").handler(this::postMaintainSpace);
-    rb.operation("postMaintainHistory").handler(this::postMaintainHistory);
+    rb.operation("postMaintainHistory").handler(this::postMaintainHistory); //TODO: Remove this endpoint
   }
 
   private void getHealthCheck(final RoutingContext context) {
@@ -216,29 +217,10 @@ public class HttpConnectorApi extends Api {
     }
   }
 
+  //TODO: Remove this endpoint
+  @Deprecated
   private void postMaintainHistory(final RoutingContext context) {
-    String[] params = HApiParam.HQuery.parseMainParams(context);
-    final int maxVersionCount = HQuery.getInteger(context, "maxVersionCount", -1);
-    final int currentVersion = HQuery.getInteger(context, "currentVersion", -1);
-
-    String spaceId = null;
-    if (context.pathParam(HApiParam.Path.SPACE_ID) != null) {
-      spaceId = context.pathParam(HApiParam.Path.SPACE_ID);
-    }
-
-    try {
-      MaintenanceHandler.maintainHistory(params[0],params[1], params[2], spaceId, currentVersion, maxVersionCount, ar -> {
-        if (ar.failed()) {
-          sendErrorResponse(context, ar.cause());
-        }
-        else {
-          sendResponse(context, OK, ar.result());
-        }
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
+    sendResponse(context, OK, new SuccessResponse().withStatus("Ok"));
   }
 
 

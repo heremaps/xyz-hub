@@ -197,26 +197,22 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
             updateReferencedTables.setQueryFragment("idx_manual_sub2", idx_ext_q);
         }
 
-        q.setQueryFragment("upsertIDX",upsertIDX);
-        q.setQueryFragment("updateReferencedTables",updateReferencedTables);
-
-        return q;
+        return q
+            .withQueryFragment("upsertIDX", upsertIDX)
+            .withQueryFragment("updateReferencedTables", updateReferencedTables);
     }
 
-    public SQLQuery buildCleanUpQuery(ModifySpaceEvent event)
-    {
-        SQLQuery q = new SQLQuery("DELETE FROM "+SPACE_META_TABLE+" WHERE h_id=#{table} AND schem=#{schema};");
-        q.append("DELETE FROM "+ IDX_STATUS_TABLE_FQN +" WHERE spaceid=#{table} AND schem=#{schema};");
+    public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
+        SQLQuery q = new SQLQuery("DELETE FROM " + SPACE_META_TABLE + " WHERE h_id = #{table} AND schem = #{schema};");
+        q.append("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid = #{table} AND schem = #{schema};");
         q.append("DROP TABLE IF EXISTS ${schema}.${table};");
-        q.append("DROP TABLE IF EXISTS ${schema}.${hsttable};");
-        q.append("DROP SEQUENCE IF EXISTS ${schema}.${hsttable_seq};");
         q.append("DROP SEQUENCE IF EXISTS ${schema}.${table_seq};");
         q.append("DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
 
-        q.withNamedParameter("table", getDefaultTable(event))
-            .withNamedParameter("schema", getSchema())
+        return q
+            .withNamedParameter(TABLE, getDefaultTable(event))
+            .withNamedParameter(SCHEMA, getSchema())
             .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
-        return q;
     }
 
 
