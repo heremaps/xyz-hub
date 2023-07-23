@@ -18,41 +18,119 @@
  */
 package com.here.naksha.lib.core;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
-
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.EventFeature;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.storage.IReadTransaction;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Default implementation of an event pipeline that provides an event context. This can be used to send events through a pipeline to be
- * handled by {@link IEventHandler event handlers}.
+ * Default implementation of an event pipeline that provides an event context.
+ *
+ * <p>Note: The event-pipeline must not be used concurrently by multiple threads, but it is fine if one thread initializes the pipeline and
+ * another sends the event. The thread that invokes {@link #sendEvent(Event)} will acquire a lock to the pipeline until the event has
+ * finished processing. While processing an event, any other thread that tries to perform any modification to the pipeline will be facing a
+ * {@link IllegalStateException}. When multiple threads concurrently try to modify the pipeline this may lead to the same exception!
  */
-public class EventPipeline implements IEventContext {
+@SuppressWarnings({"unused", "UnusedReturnValue"})
+public class EventPipeline extends NakshaBound {
+
+  class EventContext implements IEventContext {
+
+    EventContext(@NotNull Event event) {
+      this.event = event;
+    }
+
+    @NotNull
+    Event event;
+
+    @Override
+    public @NotNull Event getEvent() {
+      // This must only be called from within the pipeline, prevent calling from outside!
+      if (!mutex.isHeldByCurrentThread()) {
+        throw new IllegalStateException(LOCKED_MSG);
+      }
+      return event;
+    }
+
+    @Override
+    public @NotNull Event setEvent(@NotNull Event event) {
+      // This must only be called from within the pipeline, prevent calling from outside!
+      if (!mutex.isHeldByCurrentThread()) {
+        throw new IllegalStateException(LOCKED_MSG);
+      }
+      final Event oldEvent = this.event;
+      this.event = event;
+      return oldEvent;
+    }
+
+    @Override
+    public @NotNull XyzResponse sendUpstream() {
+      // This must only be called from within the pipeline, prevent calling from outside!
+      if (!mutex.isHeldByCurrentThread()) {
+        throw new IllegalStateException(LOCKED_MSG);
+      }
+      if (next >= pipeline.length) {
+        return notImplemented(this);
+      }
+      final IEventHandler handler = pipeline[next];
+      next++;
+      if (handler == null) {
+        log.atWarn()
+            .setMessage("Pipeline handler[{}] is null, skip it")
+            .addArgument(next - 1)
+            .setCause(new NullPointerException())
+            .log();
+        return sendUpstream(event);
+      }
+      try {
+        return handler.processEvent(this);
+      } catch (Throwable t) {
+        log.atWarn()
+            .setMessage("Event processing failed at handler #{}")
+            .addArgument(next - 1)
+            .setCause(t)
+            .log();
+        return new ErrorResponse(t, event.getStreamId());
+      }
+    }
+  }
+
+  private static final Logger log = LoggerFactory.getLogger(EventPipeline.class);
+  private static final String LOCKED_MSG = "The pipeline is locked";
+  private static final long TRY_TIME = 10;
+  private static final TimeUnit TRY_TIME_UNIT = TimeUnit.MILLISECONDS;
 
   /**
    * Creates a new uninitialized event pipeline.
+   *
+   * @param naksha The reference to the Naksha host.
    */
-  public EventPipeline() {
+  public EventPipeline(@NotNull INaksha naksha) {
+    super(naksha);
     pipeline = EMPTY;
   }
 
   /**
    * Creates a new initialized event pipeline.
    *
+   * @param naksha   The reference to the Naksha host.
    * @param handlers all events handlers to be added upfront.
    */
-  public EventPipeline(IEventHandler... handlers) {
+  public EventPipeline(@NotNull INaksha naksha, @NotNull IEventHandler... handlers) {
+    super(naksha);
     if (handlers != null && handlers.length > 0) {
       pipeline = Arrays.copyOf(handlers, handlers.length + 8);
       end = handlers.length;
@@ -60,6 +138,11 @@ public class EventPipeline implements IEventContext {
       pipeline = EMPTY;
     }
   }
+
+  /**
+   * The reentrant lock for this pipeline, hold by the thread that calls {@link #sendEvent(Event)}.
+   */
+  private final ReentrantLock mutex = new ReentrantLock();
 
   private @Nullable Consumer<XyzResponse> callback;
 
@@ -71,7 +154,7 @@ public class EventPipeline implements IEventContext {
   /**
    * The event that is currently processed.
    */
-  private Event event;
+  private EventContext eventContext;
 
   private @NotNull IEventHandler @NotNull [] pipeline;
   private int next;
@@ -83,7 +166,7 @@ public class EventPipeline implements IEventContext {
    * @return true if this pipeline processing an event; false otherwise.
    */
   public boolean isRunning() {
-    return this.event != null;
+    return eventContext != null;
   }
 
   /**
@@ -93,8 +176,13 @@ public class EventPipeline implements IEventContext {
    * @return this.
    */
   public @NotNull EventPipeline setCallback(@Nullable Consumer<XyzResponse> callback) {
-    this.callback = callback;
-    return this;
+    lock();
+    try {
+      this.callback = callback;
+      return this;
+    } finally {
+      mutex.unlock();
+    }
   }
 
   /**
@@ -109,156 +197,144 @@ public class EventPipeline implements IEventContext {
   /**
    * Add the given handler to the pipeline.
    *
-   * @param handler the handler to add.
-   * @return this.
+   * @param handler The handler to add.
+   * @return This.
    */
   public @NotNull EventPipeline addEventHandler(@NotNull IEventHandler handler) {
-    if (end >= pipeline.length) {
-      pipeline = Arrays.copyOf(pipeline, pipeline.length + 16);
+    lock();
+    try {
+      if (end >= pipeline.length) {
+        pipeline = Arrays.copyOf(pipeline, pipeline.length + 16);
+      }
+      pipeline[end++] = handler;
+      return this;
+    } finally {
+      mutex.unlock();
     }
-    pipeline[end++] = handler;
-    return this;
   }
 
   /**
-   * Add all connectors declared for the given space.
+   * Add the event handler for the given connector.
    *
-   * @param space The space for which to add the handler.
-   * @return this.
+   * @param connector The connector for which to add the event handler.
+   * @return This.
+   */
+  public @NotNull EventPipeline addEventHandler(@NotNull Connector connector) {
+    lock();
+    try {
+      addEventHandler(connector.newInstance());
+      return this;
+    } finally {
+      mutex.unlock();
+    }
+  }
+
+  /**
+   * Add all connectors declared for the given event-feature.
+   *
+   * @param eventFeature The feature that is logically an event sink.
+   * @return This.
    * @throws XyzErrorException If any error occurred.
    */
-  public @NotNull EventPipeline addSpaceConnectors(@NotNull Space space) {
-    final @Nullable List<@NotNull String> connectorIds = space.getConnectorIds();
-    final int SIZE;
-    //noinspection ConstantConditions
-    if (connectorIds == null || (SIZE = connectorIds.size()) == 0) {
-      throw new XyzErrorException(
-          XyzError.ILLEGAL_ARGUMENT,
-          "The configuration of space " + space.getId() + " is missing the 'connectors'");
-    }
-    final @NotNull IEventHandler @NotNull [] handlers = new IEventHandler[SIZE];
-    final INaksha naksha = INaksha.get();
-    try (final IReadTransaction tx = naksha.adminStorage().openReplicationTransaction()) {
-      for (int i = 0; i < SIZE; i++) {
-        final String connectorId = connectorIds.get(i);
-        //noinspection ConstantConditions
-        if (connectorId == null) {
-          throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
-        }
-        final Connector connector;
-        try {
-          connector = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
-              .getFeatureById(connectorId);
-        } catch (Exception e) {
-          throw new XyzErrorException(
-              XyzError.EXCEPTION,
-              "The connector[" + i + "] with id " + connectorId + " failed to read handler",
-              e);
-        }
-        if (connector == null) {
-          throw new XyzErrorException(
-              XyzError.EXCEPTION, "The connector[" + i + "] with id " + connectorId + " does not exists");
-        }
-        try {
-          handlers[i] = connector.newInstance();
-        } catch (Exception e) {
-          throw new XyzErrorException(
-              XyzError.EXCEPTION,
-              "Failed to create an instance of the connector[" + i + "]: " + connectorIds,
-              e);
+  public @NotNull EventPipeline addEventHandler(@NotNull EventFeature eventFeature) {
+    lock();
+    try {
+      final @Nullable List<@NotNull String> connectorIds = eventFeature.getConnectorIds();
+      final int SIZE;
+      //noinspection ConstantConditions
+      if (connectorIds == null || (SIZE = connectorIds.size()) == 0) {
+        throw new XyzErrorException(
+            XyzError.ILLEGAL_ARGUMENT,
+            "The configuration of space " + eventFeature.getId() + " is missing the 'connectors'");
+      }
+      final @NotNull IEventHandler @NotNull [] handlers = new IEventHandler[SIZE];
+      try (final IReadTransaction tx = naksha().adminStorage().openReplicationTransaction()) {
+        for (int i = 0; i < SIZE; i++) {
+          final String connectorId = connectorIds.get(i);
+          //noinspection ConstantConditions
+          if (connectorId == null) {
+            throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
+          }
+          final Connector connector;
+          try {
+            connector = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
+                .getFeatureById(connectorId);
+          } catch (Exception e) {
+            throw new XyzErrorException(
+                XyzError.EXCEPTION,
+                "The connector[" + i + "] with id " + connectorId + " failed to read handler",
+                e);
+          }
+          if (connector == null) {
+            throw new XyzErrorException(
+                XyzError.EXCEPTION,
+                "The connector[" + i + "] with id " + connectorId + " does not exists");
+          }
+          try {
+            handlers[i] = connector.newInstance();
+          } catch (Exception e) {
+            throw new XyzErrorException(
+                XyzError.EXCEPTION,
+                "Failed to create an instance of the connector[" + i + "]: " + connectorIds,
+                e);
+          }
         }
       }
-    }
 
-    // Add the handlers and done.
-    for (final IEventHandler handler : handlers) {
-      addEventHandler(handler);
+      // Add the handlers and done.
+      for (final IEventHandler handler : handlers) {
+        addEventHandler(handler);
+      }
+      return this;
+    } finally {
+      mutex.unlock();
     }
-    return this;
-  }
-
-  /**
-   * Add the event handlers for the given connector.
-   *
-   * @param connector the connector for which to add the event handler.
-   * @return this.
-   */
-  public @NotNull EventPipeline addConnector(@NotNull Connector connector) {
-    addEventHandler(connector.newInstance());
-    return this;
   }
 
   /**
    * Send a new event through the pipeline.
    *
-   * @param event the event to send.
-   * @return the generated response.
-   * @throws IllegalStateException if the pipeline is already in use.
+   * @param event The event to send.
+   * @return The generated response.
+   * @throws IllegalStateException If the pipeline is already in use.
    */
   public @NotNull XyzResponse sendEvent(@NotNull Event event) {
-    if (this.event != null) {
-      throw new IllegalStateException("Event already sent");
-    }
-    this.event = event;
-    addEventHandler(this::pipelineEnd);
-    this.next = 0;
-    XyzResponse response;
-    response = sendUpstream(event);
+    lock();
     try {
-      if (callback != null) {
-        callback.accept(response);
+      XyzResponse response;
+      this.eventContext = new EventContext(event);
+      addEventHandler(this::pipelineEnd);
+      this.next = 0;
+      response = eventContext.sendUpstream(event);
+      try {
+        if (callback != null) {
+          callback.accept(response);
+        }
+      } catch (Throwable t) {
+        log.atWarn()
+            .setMessage("Uncaught exception in event pipeline callback")
+            .setCause(t)
+            .log();
+      } finally {
+        callback = null;
+        this.eventContext = null;
+        pipeline = EMPTY;
+        next = 0;
+        end = 0;
       }
-    } catch (Throwable t) {
-      currentLogger()
-          .atWarn("Uncaught exception in event pipeline callback")
-          .setCause(t)
-          .log();
+      return response;
     } finally {
-      callback = null;
-      this.event = null;
-      pipeline = EMPTY;
-      next = 0;
-      end = 0;
+      mutex.unlock();
     }
-    return response;
   }
 
-  @Override
-  public final @NotNull Event getEvent() {
-    return event;
-  }
-
-  @Override
-  public final @NotNull Event setEvent(@NotNull Event newEvent) {
-    final Event oldEvent = this.event;
-    this.event = newEvent;
-    return oldEvent;
-  }
-
-  @Override
-  public @NotNull XyzResponse sendUpstream() {
-    if (next >= pipeline.length) {
-      return notImplemented();
-    }
-    final IEventHandler handler = this.pipeline[next];
-    next++;
-    if (handler == null) {
-      currentLogger()
-          .atWarn("Pipeline handler[{}] is null, skip it")
-          .add(next - 1)
-          .setCause(new NullPointerException())
-          .log();
-      return sendUpstream(event);
-    }
+  void lock() {
     try {
-      return handler.processEvent(this);
-    } catch (Throwable t) {
-      currentLogger()
-          .atWarn("Event processing failed at handler #{}")
-          .add(next - 1)
-          .setCause(t)
-          .log();
-      return new ErrorResponse(t, event.getStreamId());
+      if (!mutex.tryLock(TRY_TIME, TRY_TIME_UNIT)) {
+        throw new IllegalStateException(LOCKED_MSG);
+      }
+    } catch (InterruptedException e) {
+      throw new IllegalStateException(LOCKED_MSG);
     }
   }
 
@@ -268,18 +344,20 @@ public class EventPipeline implements IEventContext {
    * @param eventContext this.
    * @return an unimplemented error response.
    */
-  private @NotNull XyzResponse pipelineEnd(@NotNull IEventContext eventContext) {
-    currentLogger()
-        .atInfo("End of pipeline reached and no handle created a response")
+  @NotNull
+  XyzResponse pipelineEnd(@NotNull IEventContext eventContext) {
+    log.atInfo()
+        .setMessage("End of pipeline reached and no handle created a response")
         .setCause(new NullPointerException())
         .log();
-    return notImplemented();
+    return notImplemented(eventContext);
   }
 
-  private @NotNull XyzResponse notImplemented() {
+  @NotNull
+  XyzResponse notImplemented(@NotNull IEventContext eventContext) {
     return new ErrorResponse()
-        .withStreamId(event.getStreamId())
         .withError(XyzError.NOT_IMPLEMENTED)
-        .withErrorMessage("Event '" + event.getClass().getSimpleName() + "' is not supported");
+        .withErrorMessage("Event '" + eventContext.getClass().getSimpleName() + "' is not supported")
+        .withStreamId(eventContext.getEvent().getStreamId());
   }
 }

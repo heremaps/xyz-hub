@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
@@ -31,7 +32,6 @@ import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEve
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.view.ViewSerialize;
 import com.here.naksha.lib.extension.MockHttpServer;
@@ -64,7 +64,8 @@ class HttpHandlerTest {
     }
     eventHandler.getProperties().put(HttpHandlerParams.URL, url);
     eventHandler.getProperties().put(HttpHandlerParams.HTTP_METHOD, HttpHandlerParams.HTTP_GET);
-    eventPipeline = new IoEventPipeline();
+    //noinspection ConstantConditions
+    eventPipeline = new IoEventPipeline(null);
     httpHandler = new HttpHandler(eventHandler);
     eventPipeline.addEventHandler(httpHandler);
     fakeWebserver = new MockHttpServer(9999);

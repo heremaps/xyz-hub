@@ -16,47 +16,68 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.extension;
+package com.here.naksha.lib.extension;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.cause;
 
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
+import com.here.naksha.lib.core.NakshaBound;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
-import com.here.naksha.lib.core.extension.messages.ProcessEventMsg;
-import com.here.naksha.lib.core.extension.messages.ResponseMsg;
-import com.here.naksha.lib.core.extension.messages.SendUpstreamMsg;
+import com.here.naksha.lib.core.models.PluginCache;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.storage.IReadTransaction;
+import com.here.naksha.lib.extension.messages.ExtensionMessage;
+import com.here.naksha.lib.extension.messages.ProcessEventMsg;
+import com.here.naksha.lib.extension.messages.ResponseMsg;
+import com.here.naksha.lib.extension.messages.SendUpstreamMsg;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A special proxy-handler that is internally used to forward events to a handler running in lib-extension component.
  */
+@SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_3)
-public class ExtensionHandler implements IEventHandler {
+public class ExtensionHandler extends NakshaBound implements IEventHandler {
+
+  private static final Logger log = LoggerFactory.getLogger(ExtensionHandler.class);
   // extension: 1234
   // className: com.here.dcu.ValidationHandler <-- IEventHandler
 
   /**
+   * Internally used by Naksha-Hub as replacement for {@link Connector#newInstance()}, because this will return an internal proxy handler,
+   * when this is an extension connector.
+   *
+   * @return the event-handler.
+   */
+  public static @NotNull IEventHandler newInstanceOrExtensionHandler(
+      @NotNull INaksha naksha, @NotNull Connector connector) {
+    if (connector.getExtension() > 0) {
+      return new ExtensionHandler(naksha, connector);
+    }
+    return PluginCache.newInstance(connector.getClassName(), IEventHandler.class, connector);
+  }
+
+  /**
    * Creates a new extension handler.
    *
+   * @param naksha    The naksha host.
    * @param connector the connector that must have a valid extension number.
    */
   @AvailableSince(NakshaVersion.v2_0_3)
-  public ExtensionHandler(@NotNull Connector connector) {
-    final INaksha naksha = INaksha.get();
+  public ExtensionHandler(@NotNull INaksha naksha, @NotNull Connector connector) {
+    super(naksha);
     final Extension config;
     try (final IReadTransaction tx = naksha.adminStorage().openReplicationTransaction()) {
       config = tx.readFeatures(Extension.class, NakshaAdminCollection.EXTENSIONS)
@@ -72,11 +93,13 @@ public class ExtensionHandler implements IEventHandler {
   /**
    * Creates a new extension handler.
    *
+   * @param naksha    The naksha host.
    * @param connector the connector that must have a valid extension number.
    * @param config    the configuration to use.
    */
   @AvailableSince(NakshaVersion.v2_0_3)
-  public ExtensionHandler(@NotNull Connector connector, @NotNull Extension config) {
+  public ExtensionHandler(@NotNull INaksha naksha, @NotNull Connector connector, @NotNull Extension config) {
+    super(naksha);
     this.connector = connector;
     this.config = config;
   }
@@ -100,10 +123,10 @@ public class ExtensionHandler implements IEventHandler {
           nakshaExtSocket.sendMessage(new ResponseMsg(xyzResponse));
           // We then need to read the response again.
         } else {
-          currentLogger()
-              .atInfo("Received invalid response from Naksha extension '{}': {}")
-              .add(connector.getId())
-              .add(message)
+          log.atInfo()
+              .setMessage("Received invalid response from Naksha extension '{}': {}")
+              .addArgument(connector.getId())
+              .addArgument(message)
               .log();
           throw new XyzErrorException(XyzError.EXCEPTION, "Received invalid response from Naksha extension");
         }
@@ -113,9 +136,9 @@ public class ExtensionHandler implements IEventHandler {
       if (t instanceof XyzErrorException e) {
         return new ErrorResponse(e, event.getStreamId());
       }
-      currentLogger()
-          .atError("Uncaught exception in extension handler '{}'")
-          .add(connector.getId())
+      log.atError()
+          .setMessage("Uncaught exception in extension handler '{}'")
+          .addArgument(connector.getId())
           .setCause(t)
           .log();
       return new ErrorResponse()

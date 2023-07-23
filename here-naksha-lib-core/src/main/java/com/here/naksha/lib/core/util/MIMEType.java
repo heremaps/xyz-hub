@@ -122,8 +122,7 @@ public class MIMEType {
   }
 
   /**
-   * Tests whether the given parameterless mime type is a TEXT. Note that JSON is always TEXT, but
-   * not all TEXT is as well JSON.
+   * Tests whether the given parameterless mime type is a TEXT. Note that JSON is always TEXT, but not all TEXT is as well JSON.
    *
    * @param mimeType the mime-type to test.
    * @return true if this mime type is TEXT.
@@ -161,9 +160,9 @@ public class MIMEType {
   }
 
   /**
-   * Marks the provided mime type as JSON and returns it.
+   * Marks the provided mime type as JSON and TEXT and returns it.
    *
-   * @param mimeType the mime type to mark as being JSON.
+   * @param mimeType the mime type to mark as being JSON (and intrinsically as TEXT).
    * @return the mime type as provided.
    */
   protected static String json(final String mimeType) {

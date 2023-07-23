@@ -18,8 +18,8 @@
  */
 package com.here.naksha.lib.core.exceptions;
 
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

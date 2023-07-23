@@ -16,14 +16,18 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.models.features;
+package com.here.naksha.app.service;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -32,14 +36,30 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The XYZ-Hub service configuration.
+ * The Naksha-Hub service configuration.
  */
 @JsonTypeName(value = "Config")
-public final class NakshaConfig extends XyzFeature {
+public final class NakshaHubConfig extends XyzFeature implements JsonSerializable {
+
+  /**
+   * The default application name, used for example as identifier when accessing the PostgresQL database and to read the configuration file
+   * using the <a href="https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html">XGD</a> standard, therefore from
+   * directory ({@code ~/.config/<APP_NAME>/...}).
+   */
+  public static final @NotNull String APP_NAME = "naksha";
+
+  /**
+   * Returns a default application name used at many placed.
+   * @return The default application name.
+   */
+  public static @NotNull String defaultAppName() {
+    return APP_NAME + "/v" + NakshaVersion.latest;
+  }
 
   @JsonCreator
-  NakshaConfig(
+  NakshaHubConfig(
       @JsonProperty("id") @NotNull String id,
+      @JsonProperty("userAgent") @Nullable String userAgent,
       @JsonProperty("appId") @Nullable String appId,
       @JsonProperty("author") @Nullable String author,
       @JsonProperty("httpPort") @Nullable Integer httpPort,
@@ -112,51 +132,88 @@ public final class NakshaConfig extends XyzFeature {
     this.env = env;
     this.webRoot = webRoot;
     this.jwtName = jwtName != null && !jwtName.isEmpty() ? jwtName : "jwt";
+    this.userAgent = userAgent != null && !userAgent.isEmpty() ? userAgent : defaultAppName();
     this.debug = Boolean.TRUE.equals(debug);
   }
+
+  public static final String HTTP_PORT = "httpPort";
 
   /**
    * The port at which to listen for HTTP requests.
    */
+  @JsonProperty(HTTP_PORT)
   public final int httpPort;
+
+  public static final String HOSTNAME = "hostname";
 
   /**
    * The hostname to use to refer to this instance, if {@code null}, then auto-detected.
    */
+  @JsonProperty(HOSTNAME)
   public final @NotNull String hostname;
+
+  public static final String APP_ID = "appId";
 
   /**
    * The application-id to be used when modifying the admin-database.
    */
+  @JsonProperty(APP_ID)
   public final @NotNull String appId;
+
+  public static final String AUTHOR = "author";
 
   /**
    * The author to be used when modifying the admin-database.
    */
+  @JsonProperty(AUTHOR)
   public final @Nullable String author;
+
+  public static final String ENDPOINT = "endpoint";
 
   /**
    * The public endpoint, for example "https://naksha.foo.com/". If {@code null}, then the hostname and HTTP port used.
    */
+  @JsonProperty(ENDPOINT)
   public @NotNull URL endpoint;
+
+  public static final String ENV = "env";
 
   /**
    * The environment, for example "local", "dev", "e2e" or "prd".
    */
+  @JsonProperty(ENV)
   public final @NotNull String env;
+
+  public static final String WEB_ROOT = "webRoot";
 
   /**
    * If set, then serving static files from this directory.
    */
+  @JsonProperty(WEB_ROOT)
   public final @Nullable String webRoot;
+
+  public static final String JWT_NAME = "jwtName";
 
   /**
    * The JWT key files to be read from the disk ({@code "~/.config/naksha/auth/$<jwtName>.(key|pub)"}).
    */
+  @JsonProperty(JWT_NAME)
   public final @NotNull String jwtName;
+
+  public static final String USER_AGENT = "userAgent";
+
+  /**
+   * The user-agent to be used for external communication.
+   */
+  @JsonProperty(USER_AGENT)
+  public final @NotNull String userAgent;
+
+  public static final String DEBUG = "debug";
 
   /**
    * If debugging mode is enabled.
    */
+  @JsonProperty(DEBUG)
+  @JsonInclude(Include.NON_DEFAULT)
   public boolean debug;
 }

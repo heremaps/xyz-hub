@@ -19,8 +19,8 @@
 package com.here.naksha.lib.core.util.json;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-import static com.here.naksha.lib.core.models.payload.responses.XyzError.EXCEPTION;
-import static com.here.naksha.lib.core.models.payload.responses.XyzError.TIMEOUT;
+import static com.here.naksha.lib.core.models.XyzError.EXCEPTION;
+import static com.here.naksha.lib.core.models.XyzError.TIMEOUT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -194,6 +194,19 @@ public interface JsonSerializable {
   default @NotNull String serialize(boolean pretty) {
     try (final Json json = Json.get()) {
       return json.writer(ViewSerialize.User.class, pretty).writeValueAsString(this);
+    } catch (JsonProcessingException e) {
+      throw unchecked(e);
+    }
+  }
+
+  /**
+   * Implementation of {@link Object#toString()} for all classes that simply want to serialize to JSON.
+   * @param object The object that should be serialized.
+   * @return The serialize (JSON).
+   */
+  static @NotNull String toString(@Nullable Object object) {
+    try (final Json json = Json.get()) {
+      return json.writer(ViewSerialize.Internal.class, true).writeValueAsString(object);
     } catch (JsonProcessingException e) {
       throw unchecked(e);
     }

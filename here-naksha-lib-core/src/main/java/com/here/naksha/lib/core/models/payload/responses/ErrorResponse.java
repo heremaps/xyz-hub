@@ -29,6 +29,7 @@ import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.exceptions.TooManyTasks;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,7 +44,7 @@ import org.jetbrains.annotations.Nullable;
 public class ErrorResponse extends XyzResponse {
 
   /**
-   * Create a new empty error-response, the stream-id is set calling {@link NakshaContext#streamId()} of the current context.
+   * Create a new empty error-response, the stream-id is set calling {@link NakshaContext#getStreamId()} of the current context.
    */
   public ErrorResponse() {
     setError(XyzError.EXCEPTION);
@@ -53,7 +54,7 @@ public class ErrorResponse extends XyzResponse {
     } else {
       setErrorMessage("Internal Naksha-Hub error");
     }
-    setStreamId(currentContext().streamId());
+    setStreamId(currentContext().getStreamId());
   }
 
   /**
@@ -61,41 +62,32 @@ public class ErrorResponse extends XyzResponse {
    *
    * @param error    The XYZ error to return.
    * @param message  The message to return.
-   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#streamId()} of the current context.
+   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#getStreamId()} of the current context.
    */
   public ErrorResponse(@NotNull XyzError error, @NotNull String message, @Nullable String streamId) {
-    if (streamId == null) {
-      streamId = currentContext().streamId();
-    }
+    super(streamId);
     setError(error);
     setErrorMessage(message);
-    setStreamId(streamId);
   }
 
   /**
    * Create an error-response for the given exception.
    *
    * @param t        The exception for which to create an error response.
-   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#streamId()} of the current context.
+   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#getStreamId()} of the current context.
    */
   public ErrorResponse(@NotNull Throwable t, @Nullable String streamId) {
-    if (streamId == null) {
-      streamId = currentContext().streamId();
-    }
+    super(streamId);
     if (t instanceof XyzErrorException e) {
-      setStreamId(streamId);
       setError(e.xyzError);
       setErrorMessage(t.getMessage());
     } else if (t instanceof ParameterError) {
-      setStreamId(streamId);
       setError(XyzError.ILLEGAL_ARGUMENT);
       setErrorMessage(t.getMessage());
     } else if (t instanceof TooManyTasks) {
-      setStreamId(streamId);
       setError(XyzError.TOO_MANY_REQUESTS);
       setErrorMessage(t.getMessage());
     } else {
-      setStreamId(streamId);
       setError(XyzError.EXCEPTION);
       final AbstractTask<?> task = currentTask();
       if (task != null) {
@@ -111,9 +103,6 @@ public class ErrorResponse extends XyzResponse {
 
   @JsonProperty
   private String errorMessage;
-
-  @JsonProperty
-  private String streamId;
 
   @JsonProperty
   private @Nullable Map<@NotNull String, @Nullable Object> errorDetails;
@@ -200,39 +189,21 @@ public class ErrorResponse extends XyzResponse {
    *
    * @param errorMessage the error message to be set.
    */
-  @SuppressWarnings("WeakerAccess")
   public void setErrorMessage(String errorMessage) {
     this.errorMessage = errorMessage;
   }
 
-  @SuppressWarnings("unused")
-  public ErrorResponse withErrorMessage(String errorMessage) {
+  public @NotNull ErrorResponse withErrorMessage(String errorMessage) {
     setErrorMessage(errorMessage);
     return this;
   }
 
   /**
-   * The unique stream-identifier of this request used to search in log files across the XYZ platform what happened while processing the
-   * request.
-   *
-   * @return the unique stream-identifier of this request
+   * Set the stream-id and return this object again.
+   * @param streamId The stream-id to set.
+   * @return this.
    */
-  public String getStreamId() {
-    return this.streamId;
-  }
-
-  /**
-   * Set the unique stream-identifier of this request used to search in log files across the XYZ platform what happened while processing the
-   * request.
-   *
-   * @param streamId the unique stream-identifier to be set.
-   */
-  public void setStreamId(String streamId) {
-    this.streamId = streamId;
-  }
-
-  @SuppressWarnings({"unused"})
-  public ErrorResponse withStreamId(String streamId) {
+  public @NotNull ErrorResponse withStreamId(@NotNull String streamId) {
     setStreamId(streamId);
     return this;
   }

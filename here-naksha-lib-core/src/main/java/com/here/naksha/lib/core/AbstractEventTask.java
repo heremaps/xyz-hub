@@ -20,45 +20,32 @@ package com.here.naksha.lib.core;
 
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.payload.XyzResponseType;
 import com.here.naksha.lib.core.models.payload.events.feature.LoadFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import java.util.ArrayList;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * A task processing an {@link Event} and producing an {@link XyzResponse}. The task may send multiple events through the attached
- * event-pipeline and modify the pipeline while processing the events. For example to modify features at least a
- * {@link LoadFeaturesEvent} is needed to fetch the current state of the features and then (optionally) performing a merge, and executing
- * eventually the {@link ModifyFeaturesEvent}. Other combinations are possible.
+ * event-pipeline and modify the pipeline while processing the events. For example to modify features at least a {@link LoadFeaturesEvent}
+ * is needed to fetch the current state of the features and then (optionally) performing a merge, and executing eventually the
+ * {@link ModifyFeaturesEvent}. Other combinations are possible.
  */
+@SuppressWarnings("unused")
 public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTask<XyzResponse> {
 
   /**
-   * The constructor to use, when creating new event-task instances.
-   */
-  public static final AtomicReference<@Nullable Supplier<@NotNull AbstractEventTask<?>>> eventTaskFactory =
-      new AtomicReference<>();
-
-  /**
    * Creates a new even-task.
    *
-   * @param streamId The stream-id for which to create a task.
+   * @param naksha The reference to the Naksha host.
    */
-  protected AbstractEventTask(@Nullable String streamId) {
-    super(streamId);
-  }
-
-  /**
-   * Creates a new even-task.
-   *
-   * @param streamId The stream-id for which to create a task.
-   * @param startNanos The start time in nanoseconds, see {@link com.here.naksha.lib.core.util.NanoTime}.
-   */
-  protected AbstractEventTask(@Nullable String streamId, long startNanos) {
-    super(streamId, startNanos);
+  protected AbstractEventTask(@NotNull INaksha naksha) {
+    super(naksha);
+    pipeline = new EventPipeline(naksha());
   }
 
   /**
@@ -69,18 +56,32 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    */
   @Override
   protected @NotNull XyzResponse errorResponse(@NotNull Throwable throwable) {
-    return new ErrorResponse(throwable, streamId);
+    return new ErrorResponse(throwable, getStreamId());
   }
 
   /**
-   * The main event to be processed by the task, created by the constructor.
+   * The main event to be processed by the task.
    */
   private EVENT event;
 
   /**
+   * The response types.
+   */
+  private @NotNull List<@NotNull XyzResponseType> responseTypes = new ArrayList<>();
+
+  /**
    * The event pipeline of this task.
    */
-  protected final EventPipeline pipeline = new EventPipeline();
+  private final @NotNull EventPipeline pipeline;
+
+  /**
+   * Returns the event-pipeline.
+   *
+   * @return The event-pipeline.
+   */
+  public @NotNull EventPipeline pipeline() {
+    return pipeline;
+  }
 
   /**
    * Returns the main event of this task. Internally a task may generate multiple sub-events and send them through the pipeline. For example
@@ -90,23 +91,39 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    * @return the main event of this task.
    * @throws IllegalStateException If the event is {@code null}.
    */
-  protected final @NotNull EVENT getEvent() {
-    if (event == null) throw new IllegalStateException();
+  public final @NotNull EVENT getEvent() {
+    if (event == null) {
+      throw new IllegalStateException();
+    }
     return event;
   }
 
   /**
-   * Set the event of this task.
+   * Set the event for this task.
    *
    * @param event The event to set.
    * @return the previously set event.
    * @throws IllegalStateException If the task has been started already.
    */
-  protected final @Nullable EVENT setEvent(@NotNull EVENT event) {
+  public final @Nullable EVENT setEvent(@NotNull EVENT event) {
     final EVENT old = this.event;
-    lock();
+    final Thread thread = Thread.currentThread();
+    if (this.thread == thread) {
+      this.event = event;
+      return old;
+    }
+    lockAndRequireNew();
     this.event = event;
     unlock();
     return old;
+  }
+
+  /**
+   * Returns the preferred response types.
+   *
+   * @return The preferred response types.
+   */
+  public @NotNull List<? extends XyzResponseType> responseTypes() {
+    return responseTypes;
   }
 }

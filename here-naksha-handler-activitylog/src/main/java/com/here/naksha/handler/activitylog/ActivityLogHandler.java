@@ -25,6 +25,7 @@ import com.flipkart.zjsonpatch.JsonDiff;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
@@ -33,7 +34,6 @@ import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActi
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.util.List;
 import java.util.Map;

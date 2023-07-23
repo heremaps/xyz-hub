@@ -135,7 +135,8 @@ public abstract class PSQLAbstractIT extends Helper {
   protected String invokeLambdaFromFile(String file) throws Exception {
     InputStream jsonStream = PSQLAbstractIT.class.getResourceAsStream(file);
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    final IoEventPipeline pipeline = new IoEventPipeline();
+    //noinspection ConstantConditions
+    final IoEventPipeline pipeline = new IoEventPipeline(null);
     // TODO: We need to create a pre-configured connector for the test, because the connector is the
     // PSQL storage for a specific db!
     pipeline.addEventHandler(
@@ -151,7 +152,8 @@ public abstract class PSQLAbstractIT extends Helper {
     currentLogger().info("Request to lambda - {}", request);
     InputStream jsonStream = new ByteArrayInputStream(request.getBytes(StandardCharsets.UTF_8));
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    final IoEventPipeline pipeline = new IoEventPipeline();
+    //noinspection ConstantConditions
+    final IoEventPipeline pipeline = new IoEventPipeline(null);
     // TODO: We need to create a pre-configured connector for the test, because the connector is the
     // PSQL storage for a specific db!
     pipeline.addEventHandler(

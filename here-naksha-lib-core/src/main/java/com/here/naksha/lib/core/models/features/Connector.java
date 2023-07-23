@@ -25,7 +25,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.extension.ExtensionHandler;
 import com.here.naksha.lib.core.models.IPlugin;
 import com.here.naksha.lib.core.models.PluginCache;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -102,20 +101,6 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
 
   @Override
   public @NotNull IEventHandler newInstance() {
-    return PluginCache.newInstance(className, IEventHandler.class, this);
-  }
-
-  /**
-   * Internally used by Naksha-Hub as replacement for {@link #newInstance()}, because this will return an internal proxy handler, when this
-   * is a connector being part of an extension.
-   *
-   * @return the event-handler.
-   */
-  @NotNull
-  IEventHandler newInstanceOrExtensionHandler() {
-    if (extension > 0) {
-      return new ExtensionHandler(this);
-    }
     return PluginCache.newInstance(className, IEventHandler.class, this);
   }
 

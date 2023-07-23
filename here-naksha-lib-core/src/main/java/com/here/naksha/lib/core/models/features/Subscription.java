@@ -26,7 +26,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.ConnectorComponent;
+import com.here.naksha.lib.core.models.EventFeature;
 import com.here.naksha.lib.core.view.ViewMember.Manager;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +41,7 @@ import org.jetbrains.annotations.Nullable;
 @SuppressWarnings("unused")
 @JsonTypeName(value = "Subscription")
 @AvailableSince(NakshaVersion.v2_0_0)
-public final class Subscription extends ConnectorComponent {
+public final class Subscription extends EventFeature {
 
   @AvailableSince(NakshaVersion.v2_0_0)
   public static final String STORAGE_ID = "storageId";
@@ -57,7 +57,7 @@ public final class Subscription extends ConnectorComponent {
   @AvailableSince(NakshaVersion.v2_0_0)
   public Subscription(
       @JsonProperty(ID) @NotNull String id,
-      @JsonProperty(EVENT_HANDLERS) @NotNull List<@NotNull String> eventHandlers,
+      @JsonProperty(CONNECTOR_IDS) @NotNull List<@NotNull String> eventHandlers,
       @JsonProperty(STORAGE_ID) @NotNull String storageId) {
     super(id, eventHandlers, null);
     this.storageId = storageId;
@@ -75,7 +75,7 @@ public final class Subscription extends ConnectorComponent {
   @AvailableSince(NakshaVersion.v2_0_0)
   public Subscription(
       @JsonProperty(ID) @NotNull String id,
-      @JsonProperty(EVENT_HANDLERS) @NotNull List<@NotNull String> eventHandlers,
+      @JsonProperty(CONNECTOR_IDS) @NotNull List<@NotNull String> eventHandlers,
       @JsonProperty(STORAGE_ID) @NotNull String storageId,
       @Nullable List<@NotNull String> packages) {
     super(id, eventHandlers, packages);

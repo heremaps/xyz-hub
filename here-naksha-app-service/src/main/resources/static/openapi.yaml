@@ -35,7 +35,20 @@ tags:
     description: Read and write endpoints for features.
   - name: Manage Connectors
     description: Read and write endpoints for connectors.
+  - name: Other
+    description: Other special requests.
 paths:
+  '/health-status':
+    get:
+      tags:
+        - Other
+      summary: Test if the service is healthy.
+      description: >-
+        Returns 200 OK, if the service is working correctly. Any other response represents an error.
+      operationId: getHealthStatus
+      responses:
+        '200':
+          $ref: '#/components/responses/EmptyResponse'
   '/spaces':
     get:
       tags:

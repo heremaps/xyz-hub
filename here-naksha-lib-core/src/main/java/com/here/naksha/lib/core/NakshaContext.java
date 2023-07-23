@@ -21,9 +21,6 @@ package com.here.naksha.lib.core;
 import static java.lang.ThreadLocal.withInitial;
 
 import com.here.naksha.lib.core.util.NanoTime;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -32,89 +29,48 @@ import org.jetbrains.annotations.NotNull;
 public class NakshaContext {
 
   /**
-   * A supplier that can be modified by an extending class, all instances of the logger then will be turned into the application class. This
-   * can be used to redirect all logging. The default implementation will redirect all logging to SLF4j.
-   */
-  public static final AtomicReference<Supplier<@NotNull NakshaContext>> constructor =
-      new AtomicReference<>(NakshaContext::new);
-
-  /**
    * The thread local instance.
    */
-  protected static final ThreadLocal<NakshaContext> instance =
-      withInitial(() -> constructor.get().get());
+  private static final ThreadLocal<NakshaContext> instance = withInitial(NakshaContext::new);
 
   /**
-   * Returns the {@link NakshaContext} of the current thread. If the thread does not have a context yet, attach a new context and return it.
+   * Returns the {@link NakshaContext} of the current thread. If the thread does not have a context yet, create a new context, attach it to
+   * the current thread and return it.
    *
    * @return The {@link NakshaContext} of the current thread.
    */
   public static @NotNull NakshaContext currentContext() {
-    final NakshaContext logger = instance.get();
+    final NakshaContext context = instance.get();
     final AbstractTask<?> task = AbstractTask.currentTask();
     if (task != null) {
-      return logger.with(task.streamId(), task.startNanos());
+      return task;
     }
-    final String threadName = Thread.currentThread().getName();
-    //noinspection StringEquality
-    if (logger.streamId() != threadName) {
-      logger.with(threadName, NanoTime.now());
-    }
-    return logger;
+    return context;
   }
-
-  /**
-   * A special string that, when used as stream-id, is replaced by the {@link #streamId()}-getter with a random string.
-   */
-  protected static final String CREATE_STREAM_ID = "";
 
   /**
    * Create a new context with defaults.
    */
   protected NakshaContext() {
-    streamId = CREATE_STREAM_ID;
     startNanos = NanoTime.now();
     logger = new NakshaLogger(this);
   }
 
-  /**
-   * Create a thread local context.
-   *
-   * @param streamId   The initial stream-id.
-   * @param startNanos The start nanos to use.
-   */
-  protected NakshaContext(@NotNull String streamId, long startNanos) {
-    this.streamId = streamId;
-    this.startNanos = startNanos;
-    logger = new NakshaLogger(this);
-  }
-
-  /**
-   * The logger.
-   */
+  @Deprecated
   public final @NotNull NakshaLogger logger;
-
-  /**
-   * The stream-id.
-   */
-  private @NotNull String streamId;
 
   /**
    * The start nano time for time measurements.
    */
-  private long startNanos;
+  protected long startNanos;
 
   /**
    * Returns the stream-id.
    *
    * @return The stream-id.
    */
-  public @NotNull String streamId() {
-    //noinspection StringEquality
-    if (streamId == CREATE_STREAM_ID) {
-      streamId = RandomStringUtils.randomAlphanumeric(12);
-    }
-    return streamId;
+  public @NotNull String getStreamId() {
+    return Thread.currentThread().getName();
   }
 
   /**
@@ -126,20 +82,20 @@ public class NakshaContext {
    *
    * @return The start nanoseconds.
    */
-  public long startNanos() {
+  public long getStartNanos() {
     return startNanos;
   }
 
   /**
-   * Binds the thread local logger to the given stream and start time.
+   * Sets the start-nanos.
    *
-   * @param streamId   The stream.
-   * @param startNanos The start-time.
-   * @return this.
+   * @param startNanos The start-nanos to set.
+   * @throws IllegalArgumentException If the given value lies before the {@link NanoTime#systemStart()}.
    */
-  public @NotNull NakshaContext with(@NotNull String streamId, long startNanos) {
-    this.streamId = streamId;
+  public void setStartNanos(long startNanos) {
+    if (startNanos < NanoTime.systemStart()) {
+      throw new IllegalArgumentException("The start nanos must be greater or equal to the system start time");
+    }
     this.startNanos = startNanos;
-    return this;
   }
 }

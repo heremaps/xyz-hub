@@ -21,10 +21,10 @@ package com.here.naksha.lib.psql;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.lib.core.models.Typed;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.events.feature.IterateFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.util.HashMap;
 import java.util.Map;

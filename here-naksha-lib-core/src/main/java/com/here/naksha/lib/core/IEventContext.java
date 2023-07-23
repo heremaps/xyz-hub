@@ -39,6 +39,7 @@ public interface IEventContext {
    *
    * @param event The new event.
    * @return The previous event.
+   * @throws IllegalStateException If the thread calling the method does not hold the pipeline lock.
    */
   @NotNull
   Event setEvent(@NotNull Event event);
@@ -49,6 +50,7 @@ public interface IEventContext {
    * response.
    *
    * @return the generated response.
+   * @throws IllegalStateException If the thread calling the method does not hold the pipeline lock.
    */
   @NotNull
   XyzResponse sendUpstream();
@@ -67,6 +69,7 @@ public interface IEventContext {
    *
    * @param event the event to send upstream.
    * @return the generated response.
+   * @throws IllegalStateException If the thread calling the method does not hold the pipeline lock.
    */
   default @NotNull XyzResponse sendUpstream(@NotNull Event event) {
     setEvent(event);

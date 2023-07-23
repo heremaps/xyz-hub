@@ -18,7 +18,13 @@
  */
 package com.here.naksha.lib.core.models.payload;
 
+import static com.here.naksha.lib.core.NakshaContext.currentContext;
+
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.responses.CountResponse;
@@ -42,8 +48,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * All classes that represent a valid response of any remote procedure to the XYZ Hub need to extend
- * this class.
+ * All classes that represent a valid response of any remote procedure to the XYZ Hub need to extend this class.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonSubTypes({
@@ -66,11 +71,57 @@ import org.jetbrains.annotations.Nullable;
 })
 public abstract class XyzResponse extends Payload {
 
+  /**
+   * Empty response creator.
+   */
+  protected XyzResponse() {
+    this.streamId = currentContext().getStreamId();
+  }
+
+  /**
+   * Create a new XYZ response.
+   *
+   * @param streamId The stream-identifier for the response.
+   */
+  @JsonCreator
+  protected XyzResponse(@JsonProperty(STREAM_ID) @Nullable String streamId) {
+    this.streamId = streamId != null ? streamId : currentContext().getStreamId();
+  }
+
+  public static final String STREAM_ID = "streamId";
+
+  /**
+   * The stream-identifier.
+   */
+  @JsonProperty(STREAM_ID)
+  private @NotNull String streamId;
+
+  /**
+   * The unique stream-identifier of this request used to search in log files across the XYZ platform what happened while processing the
+   * request.
+   *
+   * @return the unique stream-identifier of this request
+   */
+  @JsonGetter
+  public @NotNull String getStreamId() {
+    return this.streamId;
+  }
+
+  /**
+   * Set the unique stream-identifier of this request used to search in log files across the XYZ platform what happened while processing the
+   * request.
+   *
+   * @param streamId the unique stream-identifier to be set.
+   */
+  @JsonSetter
+  public void setStreamId(@NotNull String streamId) {
+    this.streamId = streamId;
+  }
+
   private String etag;
 
   /**
-   * An optional set e-tag which should be some value that allows the storage to check if the
-   * content of the response has changed.
+   * An optional set e-tag which should be some value that allows the storage to check if the content of the response has changed.
    *
    * @return the e-tag, when it was calculated.
    */
@@ -100,7 +151,9 @@ public abstract class XyzResponse extends Payload {
   }
 
   public static boolean etagMatches(@Nullable String ifNoneMatch, @Nullable String etag) {
-    if (ifNoneMatch == null || ifNoneMatch.length() == 0 || etag == null || etag.length() == 0) return false;
+    if (ifNoneMatch == null || ifNoneMatch.length() == 0 || etag == null || etag.length() == 0) {
+      return false;
+    }
     // Note: Be resilient against clients that do not follow the spec accordingly.
     //       Some clients may not add the quotation marks around e-tags or use weak e-tags.
     //       We currently treat weak and normal e-tags the same, so ignore W/ and leading/ending
@@ -108,15 +161,27 @@ public abstract class XyzResponse extends Payload {
     // See:  https://en.wikipedia.org/wiki/HTTP_ETag
     int etagStart = 0;
     int etagEnd = etag.length();
-    if (etag.startsWith("W/") || etag.startsWith("w/")) etagStart += 2;
-    if (etagStart < etag.length() && etag.charAt(etagStart) == '"') etagStart += 1;
-    if (etag.charAt(etagEnd - 1) == '"') etagEnd -= 1;
+    if (etag.startsWith("W/") || etag.startsWith("w/")) {
+      etagStart += 2;
+    }
+    if (etagStart < etag.length() && etag.charAt(etagStart) == '"') {
+      etagStart += 1;
+    }
+    if (etag.charAt(etagEnd - 1) == '"') {
+      etagEnd -= 1;
+    }
 
     int inmStart = 0;
     int inmEnd = ifNoneMatch.length();
-    if (ifNoneMatch.startsWith("W/") || ifNoneMatch.startsWith("w/")) inmStart += 2;
-    if (inmStart < ifNoneMatch.length() && ifNoneMatch.charAt(inmStart) == '"') inmStart += 1;
-    if (ifNoneMatch.charAt(inmEnd - 1) == '"') inmEnd -= 1;
+    if (ifNoneMatch.startsWith("W/") || ifNoneMatch.startsWith("w/")) {
+      inmStart += 2;
+    }
+    if (inmStart < ifNoneMatch.length() && ifNoneMatch.charAt(inmStart) == '"') {
+      inmStart += 1;
+    }
+    if (ifNoneMatch.charAt(inmEnd - 1) == '"') {
+      inmEnd -= 1;
+    }
     return StringHelper.equals(etag, etagStart, etagEnd, ifNoneMatch, inmStart, inmEnd);
   }
 }

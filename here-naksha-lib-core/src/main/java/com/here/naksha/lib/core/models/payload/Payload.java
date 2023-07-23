@@ -72,8 +72,8 @@ public class Payload extends JsonObject implements Typed {
   }
 
   /**
-   * Determines if a byte array is compressed. The java.util.zip GZip implementation does not expose
-   * the GZip header so it is difficult to determine if a string is compressed.
+   * Determines if a byte array is compressed. The java.util.zip GZip implementation does not expose the GZip header so it is difficult to
+   * determine if a string is compressed.
    *
    * @param is an input stream
    * @return true if the array is compressed or false otherwise
@@ -120,8 +120,7 @@ public class Payload extends JsonObject implements Typed {
   /**
    * @param versionA
    * @param versionB
-   * @return -1 if versionA is smaller than versionB, 0 if versionA equals versionB, 1 if versionA
-   *     is larger than versionB.
+   * @return -1 if versionA is smaller than versionB, 0 if versionA equals versionB, 1 if versionA is larger than versionB.
    */
   public static int compareVersions(String versionA, String versionB) {
     String[] partsA = versionA.split(".");
@@ -140,7 +139,9 @@ public class Payload extends JsonObject implements Typed {
     return 0;
   }
 
-  /** Returns the hash of the event as a base64 string. */
+  /**
+   * Returns the hash of the event as a base64 string.
+   */
   @JsonIgnore
   public String getHash() {
     try {

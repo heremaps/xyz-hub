@@ -16,29 +16,41 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.extension.messages;
+package com.here.naksha.lib.extension.messages;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.payload.Event;
-import com.here.naksha.lib.core.models.payload.XyzResponse;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Send by the extension when Naksha should forward an event through the event-pipeline. Naksha will respond with a
- * {@link ResponseMsg response message} holding the {@link XyzResponse}.
+ * Send from Naksha, when the extension should process an event.
  */
 @AvailableSince(NakshaVersion.v2_0_3)
-@JsonTypeName(value = "naksha.ext.rpc.v1.sendUpdate")
-public class SendUpstreamMsg extends ExtensionMessage {
+@JsonTypeName(value = "naksha.ext.rpc.v1.processEvent")
+public class ProcessEventMsg extends ExtensionMessage {
 
+  @AvailableSince(NakshaVersion.v2_0_3)
+  public static final String CONNECTOR = "connector";
+
+  @AvailableSince(NakshaVersion.v2_0_3)
   public static final String EVENT = "event";
 
-  public SendUpstreamMsg(@JsonProperty(EVENT) @NotNull Event event) {
+  @JsonCreator
+  @AvailableSince(NakshaVersion.v2_0_3)
+  public ProcessEventMsg(
+      @JsonProperty(CONNECTOR) @NotNull Connector connector, @JsonProperty(EVENT) @NotNull Event event) {
+    this.connector = connector;
     this.event = event;
   }
+
+  @AvailableSince(NakshaVersion.v2_0_3)
+  @JsonProperty(CONNECTOR)
+  public final @NotNull Connector connector;
 
   @AvailableSince(NakshaVersion.v2_0_3)
   @JsonProperty(EVENT)

@@ -24,6 +24,7 @@ import static com.here.naksha.lib.psql.SQL.escapeId;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IFeatureReader;
+import com.here.naksha.lib.core.storage.IResultSet;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import org.jetbrains.annotations.NotNull;
@@ -52,6 +53,30 @@ public class PsqlFeatureReader<FEATURE extends XyzFeature, TX extends PsqlTxRead
       final PreparedStatement stmt = tx.preparedStatement(SQL);
       try {
         stmt.setArray(1, tx.conn().createArrayOf("text", ids));
+        final ResultSet rs = stmt.executeQuery();
+        return new PsqlResultSet<>(stmt, rs, featureClass);
+      } catch (Throwable t) {
+        stmt.close();
+        throw t;
+      }
+    } catch (final Throwable t) {
+      throw unchecked(t);
+    }
+  }
+
+  @Override
+  public @NotNull IResultSet<FEATURE> getAll(int skip, int limit) {
+    try {
+      final StringBuilder sb = new StringBuilder();
+      sb.append(
+          "SELECT jsondata->>'id', jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', jsondata::jsonb, geo::geometry FROM ");
+      escapeId(sb, collection.getId());
+      sb.append(" ORDER BY id OFFSET ? LIMIT ?");
+      final String SQL = sb.toString();
+      final PreparedStatement stmt = tx.preparedStatement(SQL);
+      try {
+        stmt.setInt(1, skip);
+        stmt.setInt(2, limit);
         final ResultSet rs = stmt.executeQuery();
         return new PsqlResultSet<>(stmt, rs, featureClass);
       } catch (Throwable t) {

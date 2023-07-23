@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import java.net.URI;
@@ -54,46 +56,50 @@ abstract class PsqlAbstractConfigBuilder<TARGET, SELF extends PsqlAbstractConfig
    *
    * @param postgresUrl the PostgresQL URL.
    * @return this.
-   * @throws URISyntaxException if the given URL is invalid.
-   * @throws ParameterError if the given parameters are invalid.
+   * @throws URISyntaxException If the given URL is invalid.
+   * @throws ParameterError If the given parameters are invalid.
    */
-  public @NotNull SELF parseUrl(@NotNull String postgresUrl) throws URISyntaxException, ParameterError {
-    // Syntax: jdbc:postgresql://host[:port]/db
-    final URI root = new URI(postgresUrl);
-    if (!"jdbc".equalsIgnoreCase(root.getScheme())) {
-      throw new URISyntaxException(
-          postgresUrl, "Expect scheme to be 'jdbc', but found: '" + root.getScheme() + "'");
-    }
-    final URI uri = new URI(root.getSchemeSpecificPart());
-    if (!"postgresql".equalsIgnoreCase(uri.getScheme())) {
-      throw new URISyntaxException(
-          postgresUrl,
-          "Expect scheme of specific part to be 'postgresql', but found: '" + uri.getScheme() + "'");
-    }
-    String path = uri.getPath();
-    while (path != null && path.length() > 0 && path.charAt(0) == '/') {
-      path = path.substring(1);
-    }
-    if (path == null || path.length() == 0) {
-      throw new URISyntaxException(postgresUrl, "Missing database name as path");
-    }
-    if (path.contains("/")) {
-      throw new URISyntaxException(postgresUrl, "Invalid database name: " + path);
-    }
+  public @NotNull SELF parseUrl(@NotNull String postgresUrl) {
+    try {
+      // Syntax: jdbc:postgresql://host[:port]/db
+      final URI root = new URI(postgresUrl);
+      if (!"jdbc".equalsIgnoreCase(root.getScheme())) {
+        throw new URISyntaxException(
+            postgresUrl, "Expect scheme to be 'jdbc', but found: '" + root.getScheme() + "'");
+      }
+      final URI uri = new URI(root.getSchemeSpecificPart());
+      if (!"postgresql".equalsIgnoreCase(uri.getScheme())) {
+        throw new URISyntaxException(
+            postgresUrl,
+            "Expect scheme of specific part to be 'postgresql', but found: '" + uri.getScheme() + "'");
+      }
+      String path = uri.getPath();
+      while (path != null && path.length() > 0 && path.charAt(0) == '/') {
+        path = path.substring(1);
+      }
+      if (path == null || path.length() == 0) {
+        throw new URISyntaxException(postgresUrl, "Missing database name as path");
+      }
+      if (path.contains("/")) {
+        throw new URISyntaxException(postgresUrl, "Invalid database name: " + path);
+      }
 
-    if (uri.getHost() != null) {
-      this.host = uri.getHost();
-    }
-    if (uri.getPort() >= 0) {
-      this.port = uri.getPort();
-    }
-    this.db = path;
+      if (uri.getHost() != null) {
+        this.host = uri.getHost();
+      }
+      if (uri.getPort() >= 0) {
+        this.port = uri.getPort();
+      }
+      this.db = path;
 
-    final String query = uri.getQuery();
-    if (query != null && query.length() > 0) {
-      setFromUrlParams(new QueryParameterList(query));
+      final String query = uri.getQuery();
+      if (query != null && query.length() > 0) {
+        setFromUrlParams(new QueryParameterList(query));
+      }
+      return self();
+    } catch (Throwable t) {
+      throw unchecked(t);
     }
-    return self();
   }
 
   @SuppressWarnings("PatternVariableHidesField")

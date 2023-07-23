@@ -32,7 +32,6 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.features.Catalog;
 import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.NakshaConfig;
 import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.models.features.Subscription;
@@ -42,6 +41,7 @@ import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryExcepti
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.util.diff.ConflictResolution;
 import com.here.naksha.lib.core.util.json.JsonObject;
+import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.util.modify.IfExists;
 import com.here.naksha.lib.core.util.modify.IfNotExists;
 import com.here.naksha.lib.core.view.ViewMember;
@@ -66,18 +66,9 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = Connector.class),
   @JsonSubTypes.Type(value = Storage.class),
   @JsonSubTypes.Type(value = CollectionInfo.class),
-  @JsonSubTypes.Type(value = NakshaConfig.class),
   @JsonSubTypes.Type(value = TxSignal.class)
 })
 public class XyzFeature extends JsonObject implements Typed {
-
-  public static final String ID = "id";
-  public static final String BBOX = "bbox";
-  public static final String GEOMETRY = "geometry";
-  public static final String PROPERTIES = "properties";
-  public static final String ON_FEATURE_NOT_EXISTS = "onFeatureNotExists";
-  public static final String ON_FEATURE_EXISTS = "onFeatureExists";
-  public static final String ON_MERGE_CONFLICT = "onMergeConflict";
 
   @AvailableSince(NakshaVersion.v2_0_0)
   public static final String PACKAGES = "packages";
@@ -93,14 +84,22 @@ public class XyzFeature extends JsonObject implements Typed {
     this.properties = new XyzProperties();
   }
 
+  public static final String ID = "id";
+
   @JsonProperty(ID)
   protected @NotNull String id;
+
+  public static final String BBOX = "bbox";
 
   @JsonProperty(BBOX)
   protected BBox bbox;
 
+  public static final String GEOMETRY = "geometry";
+
   @JsonProperty(GEOMETRY)
   protected XyzGeometry geometry;
+
+  public static final String PROPERTIES = "properties";
 
   @JsonProperty(PROPERTIES)
   protected @NotNull XyzProperties properties;
@@ -108,13 +107,19 @@ public class XyzFeature extends JsonObject implements Typed {
   // These members can be set by the client (user or manager) and we internally serialize and deserialized them, but
   // we do not
   // export them for users or managers. Basically they are for internal purpose and write-only for the end-user.
+  public static final String ON_FEATURE_NOT_EXISTS = "onFeatureNotExists";
+
   @JsonProperty(ON_FEATURE_NOT_EXISTS)
   @JsonView({ViewMember.Import.User.class, ViewMember.Import.Manager.class, ViewMember.Internal.class})
   protected @Nullable IfNotExists onFeatureNotExists;
 
+  public static final String ON_FEATURE_EXISTS = "onFeatureExists";
+
   @JsonProperty(ON_FEATURE_EXISTS)
   @JsonView({ViewMember.Import.User.class, ViewMember.Import.Manager.class, ViewMember.Internal.class})
   protected @Nullable IfExists onFeatureExists;
+
+  public static final String ON_MERGE_CONFLICT = "onMergeConflict";
 
   @JsonProperty(ON_MERGE_CONFLICT)
   @JsonView({ViewMember.Import.User.class, ViewMember.Import.Manager.class, ViewMember.Internal.class})
@@ -258,5 +263,10 @@ public class XyzFeature extends JsonObject implements Typed {
     }
 
     geometry.validate();
+  }
+
+  @Override
+  public @NotNull String toString() {
+    return JsonSerializable.toString(this);
   }
 }

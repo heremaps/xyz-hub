@@ -28,23 +28,25 @@ version = rootProject.properties["version"] as String
 
 val jetbrains_annotations = "org.jetbrains:annotations:24.0.1"
 
-val vertx_core = "io.vertx:vertx-core:4.4.0"
-val vertx_config = "io.vertx:vertx-config:4.4.0"
-val vertx_auth_jwt = "io.vertx:vertx-auth-jwt:4.4.0"
-val vertx_redis_client = "io.vertx:vertx-redis-client:4.4.0"
-val vertx_jdbc_client = "io.vertx:vertx-jdbc-client:4.4.0"
-val vertx_web = "io.vertx:vertx-web:4.4.0"
-val vertx_web_openapi = "io.vertx:vertx-web-openapi:4.4.0"
-val vertx_web_client = "io.vertx:vertx-web-client:4.4.0"
-val vertx_web_templ = "io.vertx:vertx-web-templ-handlebars:4.4.0"
+val vertx_core = "io.vertx:vertx-core:4.4.4"
+val vertx_config = "io.vertx:vertx-config:4.4.4"
+val vertx_auth_jwt = "io.vertx:vertx-auth-jwt:4.4.4"
+val vertx_redis_client = "io.vertx:vertx-redis-client:4.4.4"
+val vertx_jdbc_client = "io.vertx:vertx-jdbc-client:4.4.4"
+val vertx_web = "io.vertx:vertx-web:4.4.4"
+val vertx_web_openapi = "io.vertx:vertx-web-openapi:4.4.4"
+val vertx_web_client = "io.vertx:vertx-web-client:4.4.4"
+val vertx_web_templ = "io.vertx:vertx-web-templ-handlebars:4.4.4"
 
 val netty_transport_native_kqueue = "io.netty:netty-transport-native-kqueue:4.1.90.Final"
 val netty_transport_native_epoll = "io.netty:netty-transport-native-epoll:4.1.90.Final"
 
-val jackson_core = "com.fasterxml.jackson.core:jackson-core:2.15.1"
-val jackson_core_annotations = "com.fasterxml.jackson.core:jackson-annotations:2.15.1"
-val jackson_core_databind = "com.fasterxml.jackson.core:jackson-databind:2.15.1"
-val jackson_core_dataformat = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.1"
+val jackson_core = "com.fasterxml.jackson.core:jackson-core:2.15.2"
+val jackson_core_annotations = "com.fasterxml.jackson.core:jackson-annotations:2.15.2"
+val jackson_core_databind = "com.fasterxml.jackson.core:jackson-databind:2.15.2"
+val jackson_core_dataformat = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.15.2"
+
+var snakeyaml = "org.yaml:snakeyaml:1.33";
 
 val google_flatbuffers = "com.google.flatbuffers:flatbuffers-java:23.5.9"
 val google_protobuf = "com.google.protobuf:protobuf-java:3.16.3"
@@ -71,6 +73,8 @@ val gt_epsg_hsql = "org.geotools:gt-epsg-hsql:19.1"
 val gt_epsg_extension = "org.geotools:gt-epsg-extension:19.1"
 
 val slf4j_api = "org.slf4j:slf4j-api:2.0.6"
+val slf4j_console = "org.slf4j:slf4j-simple:2.0.6";
+
 val log4j_core = "org.apache.logging.log4j:log4j-core:2.20.0"
 val log4j_api = "org.apache.logging.log4j:log4j-api:2.20.0"
 val log4j_jcl = "org.apache.logging.log4j:log4j-jcl:2.20.0"
@@ -185,14 +189,26 @@ subprojects {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-}
+    
+    testing {
+        dependencies {
+            implementation(slf4j_console)
+        } 
+    }
 
-// Note: We normally would want to move these settings into dedicated files in the subprojects,
-//       but if we do that, the shared section at the end (about publishing and shadow-jar) are
-//       not that easy AND, worse: We can't share the constants for the dependencies.
+    // Fix transitive dependencies.
 
-// Shared dependencies
-subprojects {
+    dependencies {
+        implementation(snakeyaml) {
+            // https://stackoverflow.com/questions/70154082/getting-java-lang-nosuchmethoderror-org-yaml-snakeyaml-yaml-init-while-runnin
+            version {
+                strictly("1.33")
+            }
+        }
+    }
+
+    // Shared dependencies.
+
     if (name.startsWith("here-naksha-lib")) {
         // TODO: We need to expose JTS, but actually we need to upgrade it first.
         dependencies {
@@ -217,6 +233,10 @@ subprojects {
         testImplementation(junit_jupiter)
     }
 }
+
+// Note: We normally would want to move these settings into dedicated files in the subprojects,
+//       but if we do that, the shared section at the end (about publishing and shadow-jar) are
+//       not that easy AND, worse: We can't share the constants for the dependencies.
 
 project(":here-naksha-lib-core") {
     description = "Naksha Core Library"

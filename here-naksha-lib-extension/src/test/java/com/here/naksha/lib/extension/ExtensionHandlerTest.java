@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.models.hub.plugins;
+package com.here.naksha.lib.extension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -25,17 +25,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.extension.ExtensionHandler;
-import com.here.naksha.lib.core.extension.NakshaExtSocket;
-import com.here.naksha.lib.core.extension.messages.ExtensionMessage;
-import com.here.naksha.lib.core.extension.messages.ProcessEventMsg;
-import com.here.naksha.lib.core.extension.messages.ResponseMsg;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Extension;
-import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
 import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.extension.messages.ExtensionMessage;
+import com.here.naksha.lib.extension.messages.ProcessEventMsg;
+import com.here.naksha.lib.extension.messages.ResponseMsg;
 import java.net.ServerSocket;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -56,9 +53,7 @@ class ExtensionHandlerTest {
   static final int EXTENSION_ID = 2323;
   static final String CLASS_NAME = "com.here.some.Handler";
 
-  static class SimulatedNakshaHub extends Thread {
-
-    SimulatedNakshaHub() {}
+  static class Hub extends AbstractSimulatedNakshaHub {
 
     @Override
     public void run() {
@@ -67,8 +62,8 @@ class ExtensionHandlerTest {
         final Connector testConnector = new Connector("test", CLASS_NAME);
         testConnector.setExtension(EXTENSION_ID);
         final Extension config = new Extension("localhost", EXTENSION_ID);
-        final IEventHandler eventHandler = new ExtensionHandler(testConnector, config);
-        final EventPipeline eventPipeline = new EventPipeline();
+        final IEventHandler eventHandler = new ExtensionHandler(this, testConnector, config);
+        final EventPipeline eventPipeline = new EventPipeline(this);
         eventPipeline.addEventHandler(eventHandler);
         final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent();
         // This sends the event through the pipeline.
@@ -79,16 +74,13 @@ class ExtensionHandlerTest {
         exception = e;
       }
     }
-
-    XyzResponse response;
-    Exception exception;
   }
 
   @Test
   void test_basics() throws Exception {
     try (final ServerSocket serverSocket = new ServerSocket(EXTENSION_ID); ) {
       // Start the Naksha-Hub.
-      final SimulatedNakshaHub hub = new SimulatedNakshaHub();
+      final Hub hub = new Hub();
       hub.start();
 
       // Accept incoming connection from the Naksha-Hub.

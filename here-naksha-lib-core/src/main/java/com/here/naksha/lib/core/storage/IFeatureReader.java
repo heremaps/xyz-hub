@@ -35,8 +35,8 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
   /**
    * Returns a single feature by its identifier.
    *
-   * @param id the identifier.
-   * @return the feature or null, if no such feature exists.
+   * @param id The identifier.
+   * @return The feature or null, if no such feature exists.
    */
   @AvailableSince(v2_0_5)
   @Nullable
@@ -53,8 +53,8 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
    * Returns a result reader for all features with the given identifier from the HEAD collection. Beware that the returned result-set has no
    * specific order and may contain fewer features than requested.
    *
-   * @param ids the identifiers of the features to read.
-   * @return the result-reader.
+   * @param ids The identifiers of the features to read.
+   * @return The result-reader.
    */
   @AvailableSince(v2_0_5)
   default @NotNull IResultSet<FEATURE> getFeaturesById(@NotNull List<@NotNull String> ids) {
@@ -65,10 +65,20 @@ public interface IFeatureReader<FEATURE extends XyzFeature> {
    * Returns a result reader for all features with the given identifier from the HEAD collection. Beware that the returned result-set has no
    * specific order and may contain fewer features than requested.
    *
-   * @param ids the identifiers of the features to read.
-   * @return the result-reader.
+   * @param ids The identifiers of the features to read.
+   * @return The result-reader.
    */
   @AvailableSince(v2_0_5)
   @NotNull
   IResultSet<FEATURE> getFeaturesById(@NotNull String... ids);
+
+  /**
+   * Returns all features.
+   *
+   * @param skip  The amount of features to skip.
+   * @param limit The maximal amount of feature to return.
+   * @return The result-reader.
+   */
+  @NotNull
+  IResultSet<FEATURE> getAll(int skip, int limit);
 }

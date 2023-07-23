@@ -41,7 +41,12 @@ public interface ViewSerialize {
 
   /** Serialized for storage only. */
   @AvailableSince(NakshaVersion.v2_0_3)
-  interface Storage extends ViewSerialize, ViewMember.Storage {}
+  interface Storage
+      extends ViewSerialize,
+          ViewMember.Export.User,
+          ViewMember.Export.Manager,
+          ViewMember.Export.Internal,
+          ViewMember.Storage {}
 
   /** Serialized for hashing only. */
   @AvailableSince(NakshaVersion.v2_0_3)

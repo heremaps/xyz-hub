@@ -25,8 +25,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.ConnectorComponent;
 import com.here.naksha.lib.core.models.Copyright;
+import com.here.naksha.lib.core.models.EventFeature;
 import com.here.naksha.lib.core.models.License;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
@@ -45,7 +45,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 @JsonTypeName(value = "Space")
-public final class Space extends ConnectorComponent implements Typed {
+public final class Space extends EventFeature implements Typed {
 
   /**
    * Create new space initialized with the given identifier.
@@ -57,7 +57,7 @@ public final class Space extends ConnectorComponent implements Typed {
   @JsonCreator
   public Space(
       @JsonProperty(ID) @NotNull String id,
-      @JsonProperty(EVENT_HANDLERS) @NotNull List<@NotNull String> eventHandlers,
+      @JsonProperty(CONNECTOR_IDS) @NotNull List<@NotNull String> eventHandlers,
       @JsonProperty(PACKAGES) @Nullable List<@NotNull String> packages) {
     super(id, eventHandlers, packages);
   }

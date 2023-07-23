@@ -38,6 +38,14 @@ public class NanoTime {
    */
   protected static final long __startNanos;
 
+  /**
+   * Returns the system start nanos.
+   * @return The system start nanos.
+   */
+  public static long systemStart() {
+    return __startNanos;
+  }
+
   // Note: We grab the current millis, knowing the value is cached.
   //       Then we run in a tight loop to wait for the OS or underlying to update the millis.
   //       When that happens, we take a precise nano-time, so that we know that we have the nano-time for an exact
@@ -69,7 +77,7 @@ public class NanoTime {
    */
   public NanoTime() {
     this.startNanos = System.nanoTime();
-    this.startMillis = __startMillis + TimeUnit.NANOSECONDS.toMillis(startNanos - __startMillis);
+    this.startMillis = __startMillis + TimeUnit.NANOSECONDS.toMillis(startNanos - __startNanos);
   }
 
   /**
@@ -138,7 +146,7 @@ public class NanoTime {
    * @return the time passed till the given nano time-stamp.
    */
   public final long till(long nanos, @NotNull TimeUnit timeUnit) {
-    return TimeUnit.NANOSECONDS.convert(nanos - startNanos, timeUnit);
+    return timeUnit.convert(nanos - startNanos, TimeUnit.NANOSECONDS);
   }
 
   /**
@@ -168,6 +176,17 @@ public class NanoTime {
    * @return the elapsed time.
    */
   public static long timeSince(long startNanos, @NotNull TimeUnit timeUnit) {
-    return TimeUnit.NANOSECONDS.convert(System.nanoTime() - startNanos, timeUnit);
+    return timeUnit.convert(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
+  }
+
+  /**
+   * Returns the time passed since the service state, or more detailed since loading this class. It is recommended to call
+   * {@link NanoTime#now()} as soon as possible to get this class to be initialized.
+   *
+   * @param timeUnit the time-unit in which to calculate the elapsed time.
+   * @return the elapsed time.
+   */
+  public static long timeSinceStart(@NotNull TimeUnit timeUnit) {
+    return timeUnit.convert(System.nanoTime() - __startNanos, TimeUnit.NANOSECONDS);
   }
 }

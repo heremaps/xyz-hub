@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.extension.messages;
+package com.here.naksha.lib.extension.messages;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.here.naksha.lib.core.NakshaVersion;

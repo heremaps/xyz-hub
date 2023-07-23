@@ -41,7 +41,7 @@ public interface ViewDeserialize {
 
   /** Deserialize from the database. */
   @AvailableSince(NakshaVersion.v2_0_3)
-  interface Storage extends ViewDeserialize, ViewMember.Storage {}
+  interface Storage extends ViewDeserialize, Import.User, Import.Manager, Import.Internal, ViewMember.Storage {}
 
   /** Deserialize all members, even those normally only for hashing purpose. */
   @AvailableSince(NakshaVersion.v2_0_3)

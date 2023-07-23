@@ -103,7 +103,7 @@ public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfi
   private String searchPath;
 
   @Override
-  public @NotNull PsqlConfig build() throws NullPointerException {
+  public @NotNull PsqlConfig build() {
     if (schema == null) {
       throw new NullPointerException("schema");
     }

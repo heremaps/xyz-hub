@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.models.Typed;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
@@ -31,7 +32,6 @@ import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzName
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.psql.PsqlConfig;
@@ -56,7 +56,8 @@ class ActivityLogHandlerTest {
   @BeforeAll
   static void setup() {
     eventHandler = new Connector("test:activity-log", ActivityLogHandler.class);
-    eventPipeline = new IoEventPipeline();
+    //noinspection ConstantConditions
+    eventPipeline = new IoEventPipeline(null);
     eventPipeline.addEventHandler(eventHandler.newInstance());
   }
 

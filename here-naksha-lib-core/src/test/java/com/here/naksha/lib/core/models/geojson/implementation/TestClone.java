@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.jupiter.api.Test;
@@ -41,20 +40,17 @@ public class TestClone {
 
     List<String> pKeys = Stream.generate(() -> RandomStringUtils.randomAlphanumeric(10))
         .limit(propertyCount)
-        .collect(Collectors.toList());
-    collection.setFeatures(new ArrayList<>());
-    collection
-        .getFeatures()
-        .addAll(Stream.generate(() -> {
-              final XyzFeature f = new XyzFeature(RandomStringUtils.randomAlphanumeric(8));
-              f.setGeometry(new XyzPoint()
-                  .withCoordinates(new PointCoordinates(
-                      360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)));
-              pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
-              return f;
-            })
-            .limit(featureCount)
-            .collect(Collectors.toList()));
+        .toList();
+    final ArrayList<XyzFeature> features = new ArrayList<>();
+    for (int i = 0; i < featureCount; i++) {
+      final XyzFeature f = new XyzFeature(RandomStringUtils.randomAlphanumeric(8));
+      f.setGeometry(new XyzPoint()
+          .withCoordinates(
+              new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)));
+      pKeys.forEach(p -> f.getProperties().put(p, RandomStringUtils.randomAlphanumeric(8)));
+      features.add(f);
+    }
+    collection.setFeatures(features);
     return collection;
   }
 

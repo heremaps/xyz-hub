@@ -18,56 +18,57 @@
  */
 package com.here.naksha.lib.core;
 
-import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.EventFeature;
+import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.payload.Event;
+import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.storage.IStorage;
-import java.util.concurrent.atomic.AtomicReference;
-import org.jetbrains.annotations.ApiStatus.AvailableSince;
+import java.util.concurrent.Future;
+import java.util.function.Supplier;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
- * The Naksha host interface. When an application bootstraps, it creates a Naksha host implementation and exposes it via the
- * {@link #instance} reference. The reference implementation is based upon the PostgresQL database, but alternative implementations are
- * possible, for example the Naksha extension library will fake a Naksha-Hub.
+ * The Naksha host interface. When an application bootstraps, it creates a Naksha host implementation and exposes it to the Naksha API. The
+ * reference implementation is based upon the PostgresQL database, but alternative implementations are possible, for example the Naksha
+ * extension library will fake a Naksha-Hub.
  */
 @SuppressWarnings("unused")
 public interface INaksha {
 
   /**
-   * The reference to the Naksha implementation provided by the host. Rather use the {@link #get()} method to get the instance.
-   */
-  @AvailableSince(NakshaVersion.v2_0_0)
-  AtomicReference<@Nullable INaksha> instance = new AtomicReference<>();
-
-  /**
-   * Returns the reference to the Naksha implementation provided by the host.
+   * Ask the Naksha-Hub to generate an error response.
    *
-   * @return the reference to the Naksha implementation provided by the host.
-   * @throws NullPointerException if the Naksha interface is not available (no host registered).
+   * @param throwable The exception to convert.
+   * @return The error response.
    */
-  static @NotNull INaksha get() {
-    final INaksha hub = instance.getPlain();
-    if (hub == null) {
-      throw new NullPointerException();
-    }
-    return hub;
-  }
+  @NotNull
+  ErrorResponse toErrorResponse(@NotNull Throwable throwable);
 
   /**
-   * Create a new task for the given event.
+   * Create a new task and execute the given method.
    *
-   * @param eventClass the class of the event-type to create a task for.
-   * @param <EVENT>    the event-type.
-   * @return The created task.
-   * @throws XyzErrorException If the creation of the task failed for some reason.
+   * @param <RESPONSE>    The response-type.
+   * @param execute       The method to be executed in an {@link AbstractTask<RESPONSE>}.
+   * @return The future of the response.
    */
-  <EVENT extends Event, TASK extends AbstractTask<EVENT>> @NotNull TASK newEventTask(
-      @NotNull Class<EVENT> eventClass);
+  <RESPONSE> @NotNull Future<@NotNull RESPONSE> executeTask(@NotNull Supplier<@NotNull RESPONSE> execute);
 
   /**
-   * Returns the administration storage that is guaranteed to have all the {@link NakshaAdminCollection admin collections}. This storage does
-   * have the storage number {@link NakshaAdminCollection#ADMIN_DB_NUMBER}.
+   * Ask the Naksha host to send the given event to the given event-feature. Note that the event-feature is just the configuration a logical
+   * component, the business logic of the event-feature is constructed out of the {@link Connector}'s configured and added into an
+   * event-pipeline.
+   *
+   * @param event        The event to be sent.
+   * @param eventFeature The feature to which to send the event.
+   * @return The response future.
+   */
+  @NotNull
+  Future<@NotNull XyzResponse> executeEvent(@NotNull Event event, @NotNull EventFeature eventFeature);
+
+  /**
+   * Returns the administration storage that is guaranteed to have all the {@link NakshaAdminCollection admin collections}. This storage
+   * does have the storage number {@link NakshaAdminCollection#ADMIN_DB_NUMBER}.
    *
    * @return the administration storage.
    */

@@ -81,7 +81,10 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
         } else {
           jtsGeometry = null;
         }
-        features.add(featureWriter.writeValueAsString(feature));
+        // TODO: Fix this !!!
+        // final String serialized = featureWriter.writeValueAsString(feature);
+        final String serialized = feature.serialize();
+        features.add(serialized);
         geometries.add(jtsGeometry);
         expected_uuids.add(
             op == NakshaOp.INSERT

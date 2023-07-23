@@ -52,6 +52,12 @@ BEGIN
     return ${storage_id};
 END $BODY$;
 
+-- Returns the storage-id of this storage, this is created when the Naksha extension is installed and never changes.
+CREATE OR REPLACE FUNCTION naksha_schema() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+BEGIN
+    return '${schema}';
+END $BODY$;
+
 -- Returns a packed Naksha extension version from the given parameters (major, minor, revision).
 CREATE OR REPLACE FUNCTION naksha_version_of(major int, minor int, revision int) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
@@ -864,7 +870,7 @@ BEGIN
 
     -- Primary index to avoid that two features with the same "id" are created.
     sql = format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I '
-              || 'USING btree ((jsondata->>''id'') DESC) '
+              || 'USING btree ((jsondata->>''id'')) '
               || 'WITH (fillfactor=50)',
                  format('%s_id_idx', _table), _table);
     -- RAISE NOTICE '%', sql;
@@ -872,7 +878,7 @@ BEGIN
 
     -- Index to search for one specific feature by its state UUID.
     sql = format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I '
-              || 'USING btree ((jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'') ASC) '
+              || 'USING btree ((jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'')) '
               || 'WITH (fillfactor=50)',
                  format('%s_uuid_idx', _table), _table);
     -- RAISE NOTICE '%', sql;
@@ -1128,8 +1134,8 @@ AS $BODY$
 DECLARE
   j jsonb;
 BEGIN
-    j = obj_description(collection::regclass, 'pg_class')::jsonb;
-    IF j->>'id' = (collection::regclass)::text THEN
+    j = obj_description((SELECT oid FROM pg_class where relname = collection), 'pg_class')::jsonb;
+    IF j IS NOT NULL AND j->>'id' = collection THEN
       RETURN j;
     END IF;
     RETURN NULL;
@@ -1144,10 +1150,15 @@ CREATE OR REPLACE FUNCTION naksha_collection_get_all()
     LANGUAGE 'plpgsql' IMMUTABLE
 AS
 $BODY$
+DECLARE
+    ns_oid oid;
 BEGIN
+    SELECT oid FROM pg_namespace WHERE nspname = naksha_schema() INTO ns_oid;
+    RAISE INFO '"%"', ns_oid;
     RETURN QUERY
-    SELECT (oid::regclass)::text AS "id", obj_description(oid)::jsonb AS "jsondata" FROM pg_class
-    WHERE relkind='r' AND naksha_json_id(obj_description(oid)) = (oid::regclass)::text;
+	WITH tabinfo AS (SELECT oid, relname::text FROM pg_class WHERE relkind='r' AND relnamespace = ns_oid)
+    SELECT relname as "id", obj_description(oid)::jsonb AS "jsondata" FROM tabinfo
+    WHERE naksha_json_id(obj_description(oid)) = relname;
 END
 $BODY$;
 

@@ -42,8 +42,15 @@ public final class NakshaLogger implements Logger {
    * Returns the current thread local logger.
    *
    * @return The current thread local logger.
+   * @deprecated Please use LoggerFactory.getLogger().
    */
+  @Deprecated
   public static @NotNull NakshaLogger currentLogger() {
+    // TODO: Replace all calls with:
+    // private static final Logger log = LoggerFactory.getLogger(My.class);
+    // ...
+    // log.atInfo().setMessage("Hello {}").addArgument("World!").log();
+    // This is not what we hopped for, but when we not directly access the logger, the stack-trace does not fit!
     return currentContext().logger;
   }
 
@@ -68,20 +75,60 @@ public final class NakshaLogger implements Logger {
    */
   private final @NotNull StringBuilder sb = new StringBuilder();
 
+  private static final long DAY = TimeUnit.DAYS.toMicros(1);
+  private static final long HOUR = TimeUnit.HOURS.toMicros(1);
+  private static final long MINUTE = TimeUnit.MINUTES.toMicros(1);
+  private static final long SECOND = TimeUnit.SECONDS.toMicros(1);
+  private static final long MILLISECOND = TimeUnit.MILLISECONDS.toMicros(1);
+
   private @NotNull String prefix(@NotNull String message) {
     final StringBuilder sb = this.sb;
     sb.setLength(0);
-    sb.append(context.streamId());
-    sb.append(':');
-    sb.append(NanoTime.timeSince(context.startNanos(), TimeUnit.MICROSECONDS));
-    sb.append("us - ");
+    sb.append("[");
+    sb.append(context.getStreamId());
+    sb.append("] ");
+    long micros = NanoTime.timeSinceStart(TimeUnit.MICROSECONDS);
+    assert micros >= 0;
+
+    final long days = micros / DAY;
+    micros -= days * DAY;
+    assert micros >= 0 && micros < DAY;
+
+    final long hours = micros / HOUR;
+    micros -= hours * HOUR;
+    assert micros >= 0 && micros < HOUR;
+
+    final long minutes = micros / MINUTE;
+    micros -= minutes * MINUTE;
+    assert micros >= 0 && micros < MINUTE;
+
+    final long seconds = micros / SECOND;
+    micros -= seconds * SECOND;
+    assert micros >= 0 && micros < SECOND;
+
+    final long millis = micros / MILLISECOND;
+    micros -= millis * MILLISECOND;
+    assert micros >= 0 && micros < MILLISECOND;
+
+    sb.append(days);
+    sb.append("/");
+    sb.append(hours);
+    sb.append(":");
+    sb.append(minutes);
+    sb.append(":");
+    sb.append(seconds);
+    sb.append(":");
+    sb.append(millis);
+    sb.append("ms.");
+    sb.append(micros);
+    sb.append("us ");
     sb.append(message);
     return sb.toString();
   }
 
   @Override
   public String getName() {
-    return context.streamId();
+    return context.getStreamId();
   }
 
   @Override

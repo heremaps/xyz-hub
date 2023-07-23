@@ -20,6 +20,7 @@ package com.here.naksha.lib.core.util;
 
 import static com.here.naksha.lib.core.NakshaVersion.v2_0_6;
 
+import com.here.naksha.lib.core.lambdas.F1;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.LinkedHashMap;
@@ -65,6 +66,24 @@ public final class NakshaHelper {
     final LinkedHashMap<KEY, Boolean> map = new LinkedHashMap<>();
     for (final KEY k : list) {
       map.put(k, Boolean.TRUE);
+    }
+    return map;
+  }
+
+  /**
+   * Convert the given list into a map, duplicates override previously added values.
+   *
+   * @param list  The list to convert.
+   * @param unpack The method to unpack the key from the elements.
+   * @param <KEY> The key-type.
+   * @param <E> The element-type found in the list.
+   * @return The map with the key being extracted from the element, the value is the element.
+   */
+  @AvailableSince(v2_0_6)
+  public static <KEY, E> Map<KEY, E> listToMap(@NotNull List<E> list, @NotNull F1<KEY, E> unpack) {
+    final LinkedHashMap<KEY, E> map = new LinkedHashMap<>();
+    for (final E e : list) {
+      map.put(unpack.call(e), e);
     }
     return map;
   }

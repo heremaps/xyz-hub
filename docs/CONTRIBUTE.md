@@ -98,6 +98,7 @@ import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import java.sql.SQLException;
 
 public class Demo extends Something implements AutoCloseable {
+  private static final Logger log = LoggerFactory.getLogger(Demo.class);
 
   @Override
   public void close() {
@@ -105,7 +106,7 @@ public class Demo extends Something implements AutoCloseable {
       super.close();
     } catch (final Throwable t) {
       // Suppress everything.
-      currentLogger().atWarn("Failed to close connection").setCause(e).log();
+      log.atWarn().setMessage("Failed to close connection").setCause(e).log();
     }
   }
 
@@ -125,7 +126,7 @@ public class Demo extends Something implements AutoCloseable {
       final Throwable t = cause(o);
       if (t instanceof NullPointerException e) {
         // Suppress NPE.
-        currentLogger().atWarn("Failed to do something").setCause(e).log();
+        log.atWarn().setMessage("Failed to do something").setCause(e).log();
         return null;
       }
       // Everything unhandled, simply re-throw.

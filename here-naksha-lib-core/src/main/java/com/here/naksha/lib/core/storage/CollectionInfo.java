@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.features.Storage;
+import com.here.naksha.lib.core.util.StringHelper;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -202,7 +203,7 @@ public class CollectionInfo {
 
   @Override
   public int hashCode() {
-    return id.hashCode() ^ (int) number;
+    return id.hashCode();
   }
 
   @Override
@@ -212,6 +213,9 @@ public class CollectionInfo {
     }
     if (other instanceof CollectionInfo otherInfo) {
       return number == otherInfo.number && id.equals(otherInfo.id);
+    }
+    if (other instanceof CharSequence chars) {
+      return StringHelper.equals(id, chars);
     }
     return false;
   }

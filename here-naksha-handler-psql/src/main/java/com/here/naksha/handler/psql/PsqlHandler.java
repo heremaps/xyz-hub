@@ -20,11 +20,11 @@ package com.here.naksha.handler.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentContext;
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.models.XyzError.EXCEPTION;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
 import static com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent.Operation.CREATE;
 import static com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent.Operation.UPDATE;
-import static com.here.naksha.lib.core.models.payload.responses.XyzError.EXCEPTION;
 import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_ESTIMATED;
 import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_MIXED;
 import static com.here.naksha.lib.psql.sql.QuadbinSQL.COUNTMODE_REAL;
@@ -45,6 +45,7 @@ import com.here.naksha.handler.psql.query.helpers.FetchExistingIds.FetchIdsInput
 import com.here.naksha.lib.core.ExtendedEventHandler;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.geojson.HQuad;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
@@ -86,7 +87,6 @@ import com.here.naksha.lib.core.models.payload.responses.HistoryStatisticsRespon
 import com.here.naksha.lib.core.models.payload.responses.StatisticsResponse;
 import com.here.naksha.lib.core.models.payload.responses.StatisticsResponse.Value;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.models.payload.responses.changesets.Changeset;
 import com.here.naksha.lib.core.models.payload.responses.changesets.ChangesetCollection;
 import com.here.naksha.lib.core.models.payload.responses.changesets.CompactChangeset;
@@ -189,7 +189,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
   }
 
   public final @NotNull String streamId() {
-    return currentContext().streamId();
+    return currentContext().getStreamId();
   }
 
   public final @NotNull DataSource masterDataSource() {
@@ -1173,7 +1173,8 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
         executeQueryWithRetry(SQLQueryBuilder.generateLoadOldFeaturesQuery(idsToFetch));
 
     if (oldFeaturesCollection != null) {
-      oldFeatures = oldFeaturesCollection.getFeatures();
+      //noinspection unchecked
+      oldFeatures = (List<XyzFeature>) oldFeaturesCollection.getFeatures();
     }
 
     return oldFeatures;

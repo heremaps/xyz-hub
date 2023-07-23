@@ -152,11 +152,11 @@ public class XyzFeatureCollection extends XyzResponse {
     return this;
   }
 
-  public @NotNull List<@NotNull XyzFeature> getFeatures() {
-    return features.get();
+  public @NotNull List<XyzFeature> getFeatures() {
+    return (List<XyzFeature>) features.get();
   }
 
-  public void setFeatures(@NotNull List<@NotNull XyzFeature> features) {
+  public void setFeatures(@NotNull List<? extends XyzFeature> features) {
     this.features.set(features);
   }
 

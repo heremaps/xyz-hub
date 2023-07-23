@@ -19,16 +19,15 @@
 package com.here.naksha.lib.core;
 
 import static com.here.naksha.lib.core.NakshaContext.currentContext;
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
 import com.here.naksha.lib.core.models.Typed;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.BinaryResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.NotModifiedResponse;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.view.ViewSerialize;
@@ -42,37 +41,44 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Base implementation for an event pipeline that read the event from an {@link InputStream} and
- * write the response to an {@link OutputStream}; using JSON representation.
+ * Base implementation for an event pipeline that read the event from an {@link InputStream} and write the response to an
+ * {@link OutputStream}; using JSON representation.
  */
 public class IoEventPipeline extends EventPipeline {
 
-  /** The maximal size of uncompressed bytes, exceeding leads to the response getting gzipped. */
+  private static final Logger log = LoggerFactory.getLogger(IoEventPipeline.class);
+
+  /**
+   * The maximal size of uncompressed bytes, exceeding leads to the response getting gzipped.
+   */
   protected int GZIP_THRESHOLD_SIZE = 128 * 1024;
 
   /**
-   * The minimal size of uncompressed bytes before starting the if-none-match/e-tag handling. Note
-   * that e-tag handling is expensive as it requires to re-encode buffers (so it stresses the
-   * garbage collector).
+   * The minimal size of uncompressed bytes before starting the if-none-match/e-tag handling. Note that e-tag handling is expensive as it
+   * requires to re-encode buffers (so it stresses the garbage collector).
    */
   protected int ETAG_THRESHOLD_SIZE = 32 * 1024;
 
   /**
-   * Create a new IO bound event pipeline. Requires invoking {@link #sendEvent(InputStream,
-   * OutputStream)} to start the event processing.
+   * Create a new IO bound event pipeline. Requires invoking {@link #sendEvent(InputStream, OutputStream)} to start the event processing.
+   *
+   * @param naksha The naksha host.
    */
-  public IoEventPipeline() {}
+  public IoEventPipeline(@NotNull INaksha naksha) {
+    super(naksha);
+  }
 
   private final AtomicBoolean sendEvent = new AtomicBoolean();
 
   /**
-   * To be invoked to process the event. Start reading the event form the given input stream, invoke
-   * the {@link EventPipeline#sendEvent(Event)} method and then encode the response and write it to
-   * the output.
+   * To be invoked to process the event. Start reading the event form the given input stream, invoke the
+   * {@link EventPipeline#sendEvent(Event)} method and then encode the response and write it to the output.
    *
-   * @param input the input stream to read the event from.
+   * @param input  the input stream to read the event from.
    * @param output the output stream to write the response to.
    * @return the response that was encoded to the output stream.
    * @throws IllegalStateException if this method has already been called.
@@ -99,14 +105,14 @@ public class IoEventPipeline extends EventPipeline {
       if (!(typed instanceof Event)) {
         final String expected = Event.class.getSimpleName();
         final String deserialized = typed.getClass().getSimpleName();
-        currentLogger()
-            .atInfo("Event parsed in {}ms, but expected {}, deserialized {}")
-            .add(parsedInMillis)
-            .add(expected)
-            .add(deserialized)
+        log.atInfo()
+            .setMessage("Event parsed in {}ms, but expected {}, deserialized {}")
+            .addArgument(parsedInMillis)
+            .addArgument(expected)
+            .addArgument(deserialized)
             .log();
         response = new ErrorResponse()
-            .withStreamId(currentContext().streamId())
+            .withStreamId(currentContext().getStreamId())
             .withError(XyzError.EXCEPTION)
             .withErrorMessage("Invalid event, expected " + expected + ", but found " + deserialized);
         if (output != null) {
@@ -116,8 +122,14 @@ public class IoEventPipeline extends EventPipeline {
       }
       event = (Event) typed;
       event.setStartNanos(START);
-      currentLogger().atInfo("Event parsed in {}ms").add(parsedInMillis).log();
-      currentLogger().atDebug("Event raw string: {}").add(rawEvent).log();
+      log.atInfo()
+          .setMessage("Event parsed in {}ms")
+          .addArgument(parsedInMillis)
+          .log();
+      log.atDebug()
+          .setMessage("Event raw string: {}")
+          .addArgument(rawEvent)
+          .log();
       //noinspection UnusedAssignment
       rawEvent = null;
       // Note: We explicitly set the rawEvent to null to ensure that the garbage collector can
@@ -129,12 +141,12 @@ public class IoEventPipeline extends EventPipeline {
         writeDataOut(output, response, event.getIfNoneMatch());
       }
     } catch (Throwable e) {
-      currentLogger()
-          .atWarn("Exception while processing the event")
+      log.atWarn()
+          .setMessage("Exception while processing the event")
           .setCause(e)
           .log();
       response = new ErrorResponse()
-          .withStreamId(currentContext().streamId())
+          .withStreamId(currentContext().getStreamId())
           .withError(XyzError.EXCEPTION)
           .withErrorMessage(e.getMessage());
       if (output != null) {
@@ -146,7 +158,9 @@ public class IoEventPipeline extends EventPipeline {
     return response;
   }
 
-  /** Write the output object to the output stream. */
+  /**
+   * Write the output object to the output stream.
+   */
   private void writeDataOut(@NotNull OutputStream output, @NotNull Typed dataOut, @Nullable String ifNoneMatch) {
     try {
       // Note: https://en.wikipedia.org/wiki/HTTP_ETag
@@ -154,9 +168,9 @@ public class IoEventPipeline extends EventPipeline {
       //       the JSON document is not significant, therefore we should implement weak e-tags,
       //       because {"a":1,"b":2} is semantically equals to {"b":2,"a":1} !
       byte @NotNull [] bytes = dataOut.toByteArray(ViewSerialize.Internal.class);
-      currentLogger()
-          .atInfo("Write data out for response with type: {}")
-          .add(dataOut.getClass().getSimpleName())
+      log.atInfo()
+          .setMessage("Write data out for response with type: {}")
+          .addArgument(dataOut.getClass().getSimpleName())
           .log();
 
       // All this effort does not make sense for small responses.
@@ -194,8 +208,9 @@ public class IoEventPipeline extends EventPipeline {
               os.close();
               bytes = os.toByteArray();
             } catch (Exception e) {
-              currentLogger()
-                  .atError("Unexpected exception while trying to generate response bytes with e-tag")
+              log.atError()
+                  .setMessage(
+                      "Unexpected exception while trying to generate response bytes with e-tag")
                   .setCause(e)
                   .log();
             }
@@ -204,8 +219,8 @@ public class IoEventPipeline extends EventPipeline {
       }
       output.write(bytes);
     } catch (Exception e) {
-      currentLogger()
-          .atError("Unexpected exception while writing to output stream")
+      log.atError()
+          .setMessage("Unexpected exception while writing to output stream")
           .setCause(e)
           .log();
     }

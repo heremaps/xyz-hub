@@ -47,7 +47,7 @@ public class LazyParsableFeatureList {
 
   private static final String FEATURE_TYPE = "Feature";
   private String valueString;
-  private List<@NotNull XyzFeature> value;
+  private List<@NotNull ? extends XyzFeature> value;
 
   public LazyParsableFeatureList() {}
 
@@ -62,7 +62,7 @@ public class LazyParsableFeatureList {
   }
 
   @JsonValue
-  public @NotNull List<@NotNull XyzFeature> get() {
+  public @NotNull List<? extends XyzFeature> get() {
     if (valueString != null) {
       value = JsonSerializable.deserialize(valueString, FEATURE_LIST);
       valueString = null;
@@ -73,7 +73,7 @@ public class LazyParsableFeatureList {
     return value;
   }
 
-  public void set(@NotNull List<@NotNull XyzFeature> value) {
+  public void set(@NotNull List<@NotNull ? extends XyzFeature> value) {
     this.value = value;
     this.valueString = null;
   }

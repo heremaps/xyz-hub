@@ -23,13 +23,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.amazonaws.util.IOUtils;
 import com.here.naksha.handler.psql.DatabaseWriter;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.SearchForFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
-import com.here.naksha.lib.core.models.payload.responses.XyzError;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.util.*;
 import java.util.stream.Collectors;

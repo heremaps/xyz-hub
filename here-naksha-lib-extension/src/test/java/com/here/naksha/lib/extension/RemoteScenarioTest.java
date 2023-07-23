@@ -20,10 +20,8 @@ package com.here.naksha.lib.extension;
 
 import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.extension.ExtensionHandler;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Extension;
-import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
 import com.here.naksha.lib.core.util.json.Json;
@@ -46,9 +44,7 @@ public class RemoteScenarioTest {
 
   static final int EXTENSION_ID = 2323;
 
-  static class SimulatedNakshaHub extends Thread {
-
-    SimulatedNakshaHub() {}
+  static class Hub extends ExtensionHandlerTest.Hub {
 
     @Override
     public void run() {
@@ -57,8 +53,8 @@ public class RemoteScenarioTest {
         final Connector testConnector = new Connector("test", TestRemoteCustomerHandler.class);
         testConnector.setExtension(EXTENSION_ID);
         final Extension config = new Extension("localhost", EXTENSION_ID);
-        final IEventHandler eventHandler = new ExtensionHandler(testConnector, config);
-        final EventPipeline eventPipeline = new EventPipeline();
+        final IEventHandler eventHandler = new ExtensionHandler(this, testConnector, config);
+        final EventPipeline eventPipeline = new EventPipeline(this);
         eventPipeline.addEventHandler(eventHandler);
         final HealthCheckEvent event = new HealthCheckEvent();
         //        event.setConnector(testConnector);
@@ -70,14 +66,11 @@ public class RemoteScenarioTest {
         exception = e;
       }
     }
-
-    XyzResponse response;
-    Exception exception;
   }
 
   @Test
   public void testRemote() throws Exception {
-    final SimulatedNakshaHub hub = new SimulatedNakshaHub();
+    final Hub hub = new Hub();
     hub.start();
 
     final RemoteExtensionServer remoteExtensionServer = new RemoteExtensionServer(EXTENSION_ID);
