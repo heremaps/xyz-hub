@@ -55,7 +55,7 @@ public interface JsonSerializable {
     return String.format(Locale.US, format, args);
   }
 
-  static <T extends Typed> String serialize(T object) {
+  static String serialize(Object object) {
     try (final Json json = Json.get()) {
       return json.writer(ViewSerialize.User.class, false).writeValueAsString(object);
     } catch (JsonProcessingException e) {

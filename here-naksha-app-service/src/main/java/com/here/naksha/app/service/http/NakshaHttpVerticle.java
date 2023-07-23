@@ -44,6 +44,8 @@ import com.here.naksha.app.service.AbstractNakshaHubVerticle;
 import com.here.naksha.app.service.NakshaHub;
 import com.here.naksha.app.service.http.apis.ConnectorApi;
 import com.here.naksha.app.service.http.apis.HealthApi;
+import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
+import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
@@ -65,6 +67,7 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.RequestBody;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.AuthenticationHandler;
 import io.vertx.ext.web.handler.CorsHandler;
 import io.vertx.ext.web.handler.FileSystemAccess;
 import io.vertx.ext.web.handler.HttpException;
@@ -163,15 +166,9 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         //                .setPreallocateBodyBuffer(true));
 
         // TODO: Port the JWT authentication handler.
-        // final AuthenticationHandler jwtHandler = new NakshaJwtAuthHandler(new NakshaAuthProvider(vertx,
-        // naksha.authOptions), null);
-        // rb.securityHandler("Bearer", jwtHandler);
-        //    new FeatureApi(rb);
-        //    new FeatureQueryApi(rb);
-        //    new SpaceApi(rb);
-        //    new HistoryQueryApi(rb);
-        //    new ConnectorApi(rb);
-        //    new SubscriptionApi(rb);
+        final AuthenticationHandler jwtHandler =
+            new NakshaJwtAuthHandler(new NakshaAuthProvider(vertx, naksha().authOptions), null);
+        rb.securityHandler("Bearer", jwtHandler);
 
         // Add automatic routes.
         healthApi.addOperations(rb);

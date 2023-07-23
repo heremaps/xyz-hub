@@ -79,7 +79,7 @@ public class ExtensionHandler extends NakshaBound implements IEventHandler {
   public ExtensionHandler(@NotNull INaksha naksha, @NotNull Connector connector) {
     super(naksha);
     final Extension config;
-    try (final IReadTransaction tx = naksha.adminStorage().openReplicationTransaction()) {
+    try (final IReadTransaction tx = naksha.storage().openReplicationTransaction(naksha.settings())) {
       config = tx.readFeatures(Extension.class, NakshaAdminCollection.EXTENSIONS)
           .getFeatureById(connector.getId());
       if (config == null) {

@@ -24,6 +24,7 @@ import static com.here.naksha.lib.core.util.NakshaHelper.listToMap;
 import static java.lang.System.err;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
+import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
@@ -47,9 +48,13 @@ import com.here.naksha.lib.psql.PsqlTxReader;
 import com.here.naksha.lib.psql.PsqlTxWriter;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
+import io.vertx.ext.auth.JWTOptions;
+import io.vertx.ext.auth.PubSecKeyOptions;
+import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.Map;
@@ -268,6 +273,38 @@ public final class NakshaHub extends Thread implements INaksha {
       }
       vertx = Vertx.vertx(vertxOptions);
 
+      //      if (config.jwtPubKey != null) {
+      //        final String jwtPubKey = jwtPubKey(config.jwtPubKey);
+      //        authOptions = new JWTAuthOptions()
+      //            .addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtPubKey));
+      //      } else {
+      final String jwtKey;
+      final String jwtPub;
+      {
+        final String path = "auth/" + config.jwtName + ".key";
+        final LoadedBytes loaded = IoHelp.readBytesFromHomeOrResource(path, false, NakshaHubConfig.APP_NAME);
+        log.atInfo()
+            .setMessage("Loaded JWT key file {}")
+            .addArgument(loaded.path())
+            .log();
+        jwtKey = new String(loaded.bytes(), StandardCharsets.UTF_8);
+      }
+      {
+        final String path = "auth/" + config.jwtName + ".pub";
+        final LoadedBytes loaded = IoHelp.readBytesFromHomeOrResource(path, false, NakshaHubConfig.APP_NAME);
+        log.atInfo()
+            .setMessage("Loaded JWT key file {}")
+            .addArgument(loaded.path())
+            .log();
+        jwtPub = new String(loaded.bytes(), StandardCharsets.UTF_8);
+      }
+      authOptions = new JWTAuthOptions()
+          .setJWTOptions(new JWTOptions().setAlgorithm("RS256"))
+          .addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtKey))
+          .addPubSecKey(new PubSecKeyOptions().setAlgorithm("RS256").setBuffer(jwtPub));
+      //      }
+      authProvider = new NakshaAuthProvider(vertx, authOptions);
+
       final WebClientOptions webClientOptions = new WebClientOptions();
       webClientOptions.setUserAgent(config.userAgent);
       webClientOptions.setTcpKeepAlive(true).setTcpQuickAck(true).setTcpFastOpen(true);
@@ -357,8 +394,13 @@ public final class NakshaHub extends Thread implements INaksha {
   private final @NotNull PsqlStorage adminStorage;
 
   @Override
-  public @NotNull IStorage adminStorage() {
+  public @NotNull IStorage storage() {
     return adminStorage;
+  }
+
+  @Override
+  public @NotNull ITransactionSettings settings() {
+    return adminStorage.createSettings().withAppId(config().appId);
   }
 
   private final @NotNull ITransactionSettings txSettings;
@@ -404,12 +446,12 @@ public final class NakshaHub extends Thread implements INaksha {
   /**
    * The authentication options used to generate the {@link #authProvider}.
    */
-  // public final @NotNull JWTAuthOptions authOptions;
+  public final @NotNull JWTAuthOptions authOptions;
 
   /**
    * The auth-provider.
    */
-  // public final @NotNull NakshaAuthProvider authProvider;
+  public final @NotNull NakshaAuthProvider authProvider;
 
   /**
    * Start the server.

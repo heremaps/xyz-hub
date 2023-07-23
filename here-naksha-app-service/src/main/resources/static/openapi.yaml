@@ -1,21 +1,21 @@
 openapi: "3.0.2"
 
 servers:
-  - url: "/hub/"
+  - url: "/"
     description: "Current host"
-  - url: "https://naksha.ext.mapcreator.here.com/hub/"
+  - url: "https://naksha.ext.mapcreator.here.com/"
     description: "PRD"
-  - url: "https://naksha-e2e.ext.mapcreator.here.com/hub/"
+  - url: "https://naksha-e2e.ext.mapcreator.here.com/"
     description: "E2E"
-  - url: "https://naksha-e2e-kasa.ext.mapcreator.here.com/hub/"
+  - url: "https://naksha-e2e-kasa.ext.mapcreator.here.com/"
     description: "E2E - Kasa"
-  - url: "https://naksha-e2e-kotori.ext.mapcreator.here.com/hub/"
+  - url: "https://naksha-e2e-kotori.ext.mapcreator.here.com/"
     description: "E2E - Kotori"
-  - url: "https://naksha-dev.ext.mapcreator.here.com/hub/"
+  - url: "https://naksha-dev.ext.mapcreator.here.com/"
     description: "DEV"
-  - url: "https://naksha-local.ext.mapcreator.here.com:8443/hub/"
+  - url: "https://naksha-local.ext.mapcreator.here.com:8443/"
     description: "LOCAL"
-  - url: "https://xyz.api.here.com/hub/"
+  - url: "https://xyz.api.here.com/"
     description: "XYZ (deprecated)"
 
 info:
@@ -38,7 +38,7 @@ tags:
   - name: Other
     description: Other special requests.
 paths:
-  '/health-status':
+  '/hub/health-status':
     get:
       tags:
         - Other
@@ -49,7 +49,7 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/EmptyResponse'
-  '/spaces':
+  '/hub/spaces':
     get:
       tags:
         - Manage Spaces
@@ -156,7 +156,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse409'
         '413':
           $ref: '#/components/responses/ErrorResponse413'
-  '/spaces/{spaceId}':
+  '/hub/spaces/{spaceId}':
     get:
       tags:
         - Manage Spaces
@@ -220,7 +220,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/features':
+  '/hub/spaces/{spaceId}/features':
     get:
       tags:
         - Read Features
@@ -436,7 +436,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/features/{featureId}':
+  '/spaces/hub/{spaceId}/features/{featureId}':
     get:
       tags:
         - Read Features
@@ -535,7 +535,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/statistics':
+  '/spaces/hub/{spaceId}/statistics':
     get:
       tags:
         - Read Features
@@ -554,7 +554,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/bbox':
+  '/spaces/hub/{spaceId}/bbox':
     get:
       tags:
         - Read Features
@@ -593,7 +593,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-  '/spaces/{spaceId}/tile/{type}/{tileId}':
+  '/spaces/hub/{spaceId}/tile/{type}/{tileId}':
     get:
       tags:
         - Read Features
@@ -638,7 +638,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-  '/spaces/{spaceId}/spatial':
+  '/spaces/hub/{spaceId}/spatial':
     get:
       tags:
         - Read Features
@@ -710,7 +710,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-  '/spaces/{spaceId}/search':
+  '/spaces/hub/{spaceId}/search':
     get:
       tags:
         - Read Features
@@ -741,7 +741,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-  '/spaces/{spaceId}/iterate':
+  '/spaces/hub/{spaceId}/iterate':
     get:
       tags:
         - Read Features
@@ -777,7 +777,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-  '/spaces/{spaceId}/count':
+  '/spaces/hub/{spaceId}/count':
     x-deprecated: true
     get:
       tags:
@@ -801,7 +801,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/spaces/{spaceId}/history':
+  '/spaces/hub/{spaceId}/history':
     get:
       tags:
         - Read Features
@@ -841,7 +841,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-  '/spaces/{spaceId}/history/statistics':
+  '/spaces/hub/{spaceId}/history/statistics':
     get:
       tags:
         - Read Features
@@ -860,7 +860,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse400'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/connectors':
+  '/hub/connectors':
     get:
       tags:
         - Manage Connectors
@@ -905,7 +905,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
-  '/connectors/{connectorId}':
+  '/hub/connectors/{connectorId}':
     get:
       tags:
         - Manage Connectors

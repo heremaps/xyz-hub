@@ -29,11 +29,13 @@ import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
+import com.here.naksha.lib.core.storage.ITransactionSettings;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.extension.messages.ExtensionMessage;
 import com.here.naksha.lib.extension.messages.ProcessEventMsg;
 import com.here.naksha.lib.extension.messages.ResponseMsg;
 import java.net.ServerSocket;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -73,6 +75,11 @@ class ExtensionHandlerTest {
       } catch (Exception e) {
         exception = e;
       }
+    }
+
+    @Override
+    public @NotNull ITransactionSettings settings() {
+      return null;
     }
   }
 

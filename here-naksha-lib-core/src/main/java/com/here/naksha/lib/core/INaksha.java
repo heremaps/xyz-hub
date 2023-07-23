@@ -24,6 +24,7 @@ import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.storage.IStorage;
+import com.here.naksha.lib.core.storage.ITransactionSettings;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
 import org.jetbrains.annotations.NotNull;
@@ -48,8 +49,8 @@ public interface INaksha {
   /**
    * Create a new task and execute the given method.
    *
-   * @param <RESPONSE>    The response-type.
-   * @param execute       The method to be executed in an {@link AbstractTask<RESPONSE>}.
+   * @param <RESPONSE> The response-type.
+   * @param execute    The method to be executed in an {@link AbstractTask<RESPONSE>}.
    * @return The future of the response.
    */
   <RESPONSE> @NotNull Future<@NotNull RESPONSE> executeTask(@NotNull Supplier<@NotNull RESPONSE> execute);
@@ -73,5 +74,13 @@ public interface INaksha {
    * @return the administration storage.
    */
   @NotNull
-  IStorage adminStorage();
+  IStorage storage();
+
+  /**
+   * Returns the transaction settings with the application-id and author of the Naksha host.
+   *
+   * @return The transaction settings.
+   */
+  @NotNull
+  ITransactionSettings settings();
 }

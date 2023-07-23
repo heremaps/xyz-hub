@@ -47,7 +47,7 @@ public class ConnectorApi extends Api {
 
   private void getConnectors(final @NotNull RoutingContext routingContext) {
     naksha().executeTask(() -> {
-      try (final IReadTransaction tx = naksha().adminStorage().openReplicationTransaction()) {
+      try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
         final IResultSet<Connector> rs = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
             .getAll(0, Integer.MAX_VALUE);
         final List<@NotNull Connector> featureList = rs.toList(0, Integer.MAX_VALUE);

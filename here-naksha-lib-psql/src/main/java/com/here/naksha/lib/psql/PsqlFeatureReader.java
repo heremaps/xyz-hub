@@ -71,7 +71,7 @@ public class PsqlFeatureReader<FEATURE extends XyzFeature, TX extends PsqlTxRead
       sb.append(
           "SELECT jsondata->>'id', jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', jsondata::jsonb, geo::geometry FROM ");
       escapeId(sb, collection.getId());
-      sb.append(" ORDER BY id OFFSET ? LIMIT ?");
+      sb.append(" ORDER BY jsondata->>'id' OFFSET ? LIMIT ?");
       final String SQL = sb.toString();
       final PreparedStatement stmt = tx.preparedStatement(SQL);
       try {

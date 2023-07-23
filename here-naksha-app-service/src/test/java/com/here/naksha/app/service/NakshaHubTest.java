@@ -20,7 +20,6 @@ package com.here.naksha.app.service;
 
 import static com.here.naksha.app.service.NakshaHub.newHub;
 
-import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -45,6 +44,6 @@ class NakshaHubTest {
   static void close() throws InterruptedException {
     // TODO: Find a way to gracefully shutdown the server.
     //       To do some manual testing with the running service, uncomment this:
-    // hub.join(TimeUnit.SECONDS.toMillis(60));
+    hub.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(60));
   }
 }

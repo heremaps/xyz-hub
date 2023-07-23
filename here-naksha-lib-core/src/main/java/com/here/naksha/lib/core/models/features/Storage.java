@@ -108,11 +108,11 @@ public class Storage extends XyzFeature implements IPlugin<IStorage> {
     this.number = number;
   }
 
-  public String getClassName() {
+  public @NotNull String getClassName() {
     return className;
   }
 
-  public void setClassName(String className) {
+  public void setClassName(@NotNull String className) {
     this.className = className;
   }
 }

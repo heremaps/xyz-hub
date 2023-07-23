@@ -46,16 +46,6 @@ public interface IStorage {
 
   /**
    * Opens a read-only transaction, preferably from a replication node; if no replication node is available, then returns a transaction to
-   * the master node. This performs the reads anonymous without setting up any application-id or author.
-   *
-   * @return the read transaction.
-   */
-  default @NotNull IReadTransaction openReplicationTransaction() {
-    return openReplicationTransaction(createSettings());
-  }
-
-  /**
-   * Opens a read-only transaction, preferably from a replication node; if no replication node is available, then returns a transaction to
    * the master node.
    *
    * @param settings Optional settings for the transaction.

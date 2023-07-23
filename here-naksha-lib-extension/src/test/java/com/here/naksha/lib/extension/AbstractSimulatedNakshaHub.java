@@ -54,7 +54,7 @@ public abstract class AbstractSimulatedNakshaHub extends Thread implements INaks
   }
 
   @Override
-  public @NotNull IStorage adminStorage() {
+  public @NotNull IStorage storage() {
     throw new UnsupportedOperationException("adminStorage");
   }
 }

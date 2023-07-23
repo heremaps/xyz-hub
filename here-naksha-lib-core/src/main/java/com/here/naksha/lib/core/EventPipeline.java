@@ -248,7 +248,7 @@ public class EventPipeline extends NakshaBound {
             "The configuration of space " + eventFeature.getId() + " is missing the 'connectors'");
       }
       final @NotNull IEventHandler @NotNull [] handlers = new IEventHandler[SIZE];
-      try (final IReadTransaction tx = naksha().adminStorage().openReplicationTransaction()) {
+      try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
         for (int i = 0; i < SIZE; i++) {
           final String connectorId = connectorIds.get(i);
           //noinspection ConstantConditions
