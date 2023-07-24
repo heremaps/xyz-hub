@@ -2166,6 +2166,10 @@ components:
     EmptyResponse:
       description: >-
         An empty response as a result of a user-request with accepted MIME type application/x-empty.
+      content:
+        application/x-empty:
+          schema:
+            type: string
     ErrorResponse400:
       description: Malformed or Bad Request.
       content:
@@ -2365,7 +2369,7 @@ components:
             $ref: '#/components/schemas/Statistics'
     TileResponse:
       description: >-
-        A FeatureCollection in GeoJSON or MVT response format. The response format can be selected by using the header "Accept". Possible values for the header "Accept" are: "application/json" and "application/vnd.mapbox-vector-tile". When the header "Accept" is not informed, the default response type GeoJSON is assumed. Appending ".mvt" to the end of the tile address selects automatically the MVT response type.
+        A FeatureCollection in GeoJSON or MVT response format. The response format can be selected by using the header "Accept". Possible values for the header "Accept" are: "application/geo+json" and "application/vnd.mapbox-vector-tile". When the header "Accept" is not informed, the default response type GeoJSON is assumed. Appending ".mvt" to the end of the tile address selects automatically the MVT response type.
       content:
         application/geo+json:
           schema:
