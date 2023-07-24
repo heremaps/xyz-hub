@@ -18,9 +18,13 @@
  */
 package com.here.xyz.httpconnector.util.jobs;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.httpconnector.rest.HApiParam;
+import com.here.xyz.hub.rest.ApiParam;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.implementation.Geometry;
 
 import java.util.HashMap;
@@ -39,6 +43,9 @@ public class Export extends Job {
 
     @JsonView({Public.class})
     private Map<String,ExportObject> exportObjects;
+
+    @JsonView({Public.class})
+    private Map<String,ExportObject> superExportObjects;
 
     @JsonView({Public.class})
     private ExportStatistic statistic;
@@ -120,6 +127,16 @@ public class Export extends Job {
         }
     }
 
+    public Map<String,ExportObject> getSuperExportObjects() {
+        if(superExportObjects == null)
+            superExportObjects = new HashMap<>();
+        return superExportObjects;
+    }
+
+    public void setSuperExportObjects(Map<String, ExportObject> superExportObjects) {
+        this.superExportObjects = superExportObjects;
+    }
+
     public Map<String,ExportObject> getExportObjects() {
         if(exportObjects == null)
             exportObjects = new HashMap<>();
@@ -129,6 +146,7 @@ public class Export extends Job {
     public void setExportObjects(Map<String, ExportObject> exportObjects) {
         this.exportObjects = exportObjects;
     }
+
     public ExportTarget getExportTarget() {
         return exportTarget;
     }
@@ -322,6 +340,61 @@ public class Export extends Job {
     public Export withTriggerId(String triggerId) {
         setTriggerId(triggerId);
         return this;
+    }
+
+    @JsonIgnore
+    public String readParamSuperExportPath(){
+        return this.params.containsKey("superExportPath") ? (String) this.getParam("superExportPath") : null;
+    }
+
+    @JsonIgnore
+    public boolean readParamPersistExport(){
+        return this.params.containsKey("persistExport") ? (boolean) this.getParam("persistExport") : false;
+    }
+
+    @JsonIgnore
+    public boolean includesSecondLevelExtension() {
+        if(this.params == null)
+            return false;
+
+        Map extension = (Map) this.params.get("extends");
+
+        if(extension != null && extension.get("extends") != null)
+            return true;
+        return false;
+    }
+
+    @JsonIgnore
+    public boolean isSuperSpacePersistent() throws HttpException {
+        Map extension = (Map) this.params.get("extends");
+        if(this.params == null && extension == null)
+            return false;
+
+        Map recursiveExtension = (Map) extension.get("extends");
+        if(recursiveExtension != null) {
+            return (boolean) recursiveExtension.get("persistExport");
+        }
+        return (boolean) extension.get("persistExport");
+    }
+
+    @JsonIgnore
+    public String extractSuperSpaceId() throws HttpException {
+        Map extension = (Map) this.params.get("extends");
+        if(this.params == null && extension == null)
+            return null;
+
+        Map recursiveExtension = (Map) extension.get("extends");
+        if(recursiveExtension != null) {
+            return (String) recursiveExtension.get("spaceId");
+        }
+        return (String) extension.get("spaceId");
+    }
+
+    @JsonIgnore
+    public ApiParam.Query.Incremental readParamIncremental(){
+        return this.params.containsKey("incremental") ?
+                ApiParam.Query.Incremental.valueOf((String)this.params.get(HApiParam.HQuery.INCREMENTAL)) :
+                ApiParam.Query.Incremental.DEACTIVATED;
     }
 
     public static class ExportStatistic{
