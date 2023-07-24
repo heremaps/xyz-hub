@@ -110,7 +110,7 @@ public class HApiParam extends ApiParam {
 
         public static Job getJobInput(final RoutingContext context) throws HttpException{
             try {
-                Job job = Json.decodeValue(context.getBodyAsString(), Job.class);
+                Job job = Json.decodeValue(context.body().asString(), Job.class);
                 return job;
             }
             catch (DecodeException e) {

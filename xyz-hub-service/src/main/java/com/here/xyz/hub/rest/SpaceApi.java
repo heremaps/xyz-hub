@@ -37,7 +37,7 @@ import com.here.xyz.models.hub.Space.Copyright;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -45,11 +45,11 @@ import java.util.Map;
 public class SpaceApi extends SpaceBasedApi {
 
   public SpaceApi(RouterBuilder rb) {
-    rb.operation("getSpace").handler(this::getSpace);
-    rb.operation("getSpaces").handler(this::getSpaces);
-    rb.operation("postSpace").handler(this::postSpace);
-    rb.operation("patchSpace").handler(this::patchSpace);
-    rb.operation("deleteSpace").handler(this::deleteSpace);
+    rb.getRoute("getSpace").setDoValidation(false).addHandler(this::getSpace);
+    rb.getRoute("getSpaces").setDoValidation(false).addHandler(this::getSpaces);
+    rb.getRoute("postSpace").setDoValidation(false).addHandler(this::postSpace);
+    rb.getRoute("patchSpace").setDoValidation(false).addHandler(this::patchSpace);
+    rb.getRoute("deleteSpace").setDoValidation(false).addHandler(this::deleteSpace);
   }
 
   /**
@@ -85,7 +85,7 @@ public class SpaceApi extends SpaceBasedApi {
   public void postSpace(final RoutingContext context) {
     JsonObject input;
     try {
-      input = context.getBodyAsJson();
+      input = context.body().asJsonObject();
     } catch (DecodeException e) {
       context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
       return;
@@ -102,7 +102,7 @@ public class SpaceApi extends SpaceBasedApi {
   public void patchSpace(final RoutingContext context) {
     JsonObject input;
     try {
-      input = context.getBodyAsJson();
+      input = context.body().asJsonObject();
     } catch (DecodeException e) {
       context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
       return;

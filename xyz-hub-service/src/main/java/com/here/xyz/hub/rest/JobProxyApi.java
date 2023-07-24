@@ -35,7 +35,7 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.HttpResponse;
-import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -50,12 +50,12 @@ public class JobProxyApi extends Api{
     private static int JOB_API_TIMEOUT = 29_000;
 
     public JobProxyApi(RouterBuilder rb) {
-        rb.operation("postJob").handler(this::postJob);
-        rb.operation("patchJob").handler(this::patchJob);
-        rb.operation("getJobs").handler(this::getJobs);
-        rb.operation("getJob").handler(this::getJob);
-        rb.operation("deleteJob").handler(this::deleteJob);
-        rb.operation("postExecute").handler(this::postExecute);
+        rb.getRoute("postJob").setDoValidation(false).addHandler(this::postJob);
+        rb.getRoute("patchJob").setDoValidation(false).addHandler(this::patchJob);
+        rb.getRoute("getJobs").setDoValidation(false).addHandler(this::getJobs);
+        rb.getRoute("getJob").setDoValidation(false).addHandler(this::getJob);
+        rb.getRoute("deleteJob").setDoValidation(false).addHandler(this::deleteJob);
+        rb.getRoute("postExecute").setDoValidation(false).addHandler(this::postExecute);
     }
 
     private void postJob(final RoutingContext context) {

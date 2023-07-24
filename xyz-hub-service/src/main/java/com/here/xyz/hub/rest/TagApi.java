@@ -31,23 +31,24 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Marker;
 
 public class TagApi extends SpaceBasedApi {
 
     public TagApi(RouterBuilder rb) {
-        rb.operation("createTag").handler(this::createTag);
-        rb.operation("updateTag").handler(this::updateTag);
-        rb.operation("getTag").handler(this::getTag);
-        rb.operation("deleteTag").handler(this::deleteTag);
+        rb.getRoute("createTag").setDoValidation(false).addHandler(this::createTag);
+        rb.getRoute("updateTag").setDoValidation(false).addHandler(this::updateTag);
+        rb.getRoute("getTag").setDoValidation(false).addHandler(this::getTag);
+        rb.getRoute("deleteTag").setDoValidation(false).addHandler(this::deleteTag);
     }
 
     // TODO auth
     private void createTag(RoutingContext context) {
         final String spaceId = context.pathParam(Path.SPACE_ID);
 
-        deserializeTag(context.getBodyAsString())
+        deserializeTag(context.body().asString())
                 .flatMap(tag -> createTag(Api.Context.getMarker(context), spaceId, tag.getId(), tag.getVersion()))
                 .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
                 .onFailure(t -> sendHttpErrorResponse(context, t));
@@ -89,7 +90,7 @@ public class TagApi extends SpaceBasedApi {
                 .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
         final Future<Tag> tagFuture = TagConfigClient.getInstance().getTag(marker, tagId, spaceId)
                 .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found")) : Future.succeededFuture(r));
-        final Future<Long> inputFuture = deserializeTag(context.getBodyAsString())
+        final Future<Long> inputFuture = deserializeTag(context.body().asString())
                 .map(Tag::getVersion);
 
         final Long version = inputFuture.result();
@@ -133,11 +134,15 @@ public class TagApi extends SpaceBasedApi {
     }
 
     private static Future<Tag> deserializeTag(String body) {
-        try {
-            return Future.succeededFuture(XyzSerializable.deserialize(body, Tag.class));
-        } catch (JsonProcessingException e) {
-            return Future.failedFuture("Unable to parse body");
-        }
+      if (StringUtils.isBlank(body)) {
+        return Future.failedFuture("Unable to parse body");
+      }
+
+      try {
+          return Future.succeededFuture(XyzSerializable.deserialize(body, Tag.class));
+      } catch (JsonProcessingException e) {
+          return Future.failedFuture("Unable to parse body");
+      }
     }
 
     private void sendHttpErrorResponse(RoutingContext context, Throwable t) {

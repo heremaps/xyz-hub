@@ -28,6 +28,7 @@ import java.sql.*;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.jayway.restassured.RestAssured.given;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -52,6 +53,24 @@ public class ReadFeatureApiClusteringIT extends TestSpaceWithFeature {
     removeSpace(SPACE_ID);
   }
 
+  @Test
+  public void testBBoxAndTileClusteringParamNegative() {
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get("/spaces/"+ SPACE_ID + "/bbox?west=179&north=89&east=-179&south=-89&clustering=abc123")
+        .then()
+        .statusCode(BAD_REQUEST.code()).extract().body().asString();
+
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get("/spaces/"+ SPACE_ID + "/tile/quadkey/120?clustering=abc123")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
 
   @Test
   public void readByBoundingBoxWithQuadbinClustering() {

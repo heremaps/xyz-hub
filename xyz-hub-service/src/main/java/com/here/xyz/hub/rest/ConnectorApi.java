@@ -34,7 +34,7 @@ import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -46,16 +46,16 @@ public class ConnectorApi extends Api {
   private static final Logger logger = LogManager.getLogger();
 
   public ConnectorApi(RouterBuilder rb) {
-    rb.operation("getConnectors").handler(this::getConnectors);
-    rb.operation("postConnector").handler(this::createConnector);
-    rb.operation("getConnector").handler(this::getConnector);
-    rb.operation("patchConnector").handler(this::updateConnector);
-    rb.operation("deleteConnector").handler(this::deleteConnector);
+    rb.getRoute("getConnectors").setDoValidation(false).addHandler(this::getConnectors);
+    rb.getRoute("postConnector").setDoValidation(false).addHandler(this::createConnector);
+    rb.getRoute("getConnector").setDoValidation(false).addHandler(this::getConnector);
+    rb.getRoute("patchConnector").setDoValidation(false).addHandler(this::updateConnector);
+    rb.getRoute("deleteConnector").setDoValidation(false).addHandler(this::deleteConnector);
   }
 
   private JsonObject getInput(final RoutingContext context) throws HttpException {
     try {
-      return context.getBodyAsJson();
+      return context.body().asJsonObject();
     }
     catch (DecodeException e) {
       throw new HttpException(BAD_REQUEST, "Invalid JSON string");

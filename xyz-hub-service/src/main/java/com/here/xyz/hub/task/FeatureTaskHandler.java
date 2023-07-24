@@ -47,6 +47,7 @@ import com.here.xyz.events.Event;
 import com.here.xyz.events.Event.TrustedParams;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
 import com.here.xyz.events.IterateFeaturesEvent;
@@ -113,6 +114,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -1042,14 +1044,14 @@ public class FeatureTaskHandler {
   private static List<Map<String, Object>> getObjectsAsList(final RoutingContext context) throws HttpException {
     final Marker logMarker = Context.getMarker(context);
     try {
-      JsonObject json = context.getBodyAsJson();
+      JsonObject json = context.body().asJsonObject();
       return getJsonObjects(json, context);
     }
     catch (DecodeException e) {
       logger.warn(logMarker, "Invalid input encoding.", e);
       try {
         //Some types of exceptions could be avoided by reading the entire string.
-        JsonObject json = new JsonObject(context.getBodyAsString());
+        JsonObject json = new JsonObject(context.body().asString());
         return getJsonObjects(json, context);
       }
       catch (DecodeException ex) {
@@ -1464,10 +1466,25 @@ public class FeatureTaskHandler {
     if (task.getEvent() instanceof GetFeaturesByBBoxEvent) {
       GetFeaturesByBBoxEvent event = (GetFeaturesByBBoxEvent) task.getEvent();
       String clusteringType = event.getClusteringType();
+      if (clusteringType != null && !Arrays.asList("hexbin", "quadbin").contains(clusteringType)) {
+        callback.exception(new HttpException(BAD_REQUEST, "Clustering of type \"" + clusteringType + "\" is not"
+            + "valid. Supported values are hexbin or quadbin."));
+        return;
+      }
       if (clusteringType != null && (task.storage.capabilities.clusteringTypes == null
           || !task.storage.capabilities.clusteringTypes.contains(clusteringType))) {
         callback.exception(new HttpException(BAD_REQUEST, "Clustering of type \"" + clusteringType + "\" is not"
             + "supported by storage connector \"" + task.storage.id + "\"."));
+        return;
+      }
+    }
+
+    if (task.getEvent() instanceof GetFeaturesByTileEvent) {
+      GetFeaturesByTileEvent event = (GetFeaturesByTileEvent) task.getEvent();
+      String clusteringType = event.getClusteringType();
+      if (clusteringType != null && !Arrays.asList("hexbin", "quadbin").contains(clusteringType)) {
+        callback.exception(new HttpException(BAD_REQUEST, "Clustering of type \"" + clusteringType + "\" is not"
+            + "valid. Supported values are hexbin or quadbin."));
         return;
       }
     }

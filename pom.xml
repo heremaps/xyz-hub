@@ -88,7 +88,7 @@
 
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.128</aws-sdk-version>
-    <vertx-version>4.1.7</vertx-version>
+    <vertx-version>4.4.4</vertx-version>
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
     <jackson-version>2.15.2</jackson-version>
@@ -229,7 +229,17 @@
         <version>${vertx-version}</version>
       </dependency>
       <dependency>
+        <artifactId>vertx-openapi</artifactId>
+        <groupId>io.vertx</groupId>
+        <version>${vertx-version}</version>
+      </dependency>
+      <dependency>
         <artifactId>vertx-web-openapi</artifactId>
+        <groupId>io.vertx</groupId>
+        <version>${vertx-version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>vertx-web-openapi-router</artifactId>
         <groupId>io.vertx</groupId>
         <version>${vertx-version}</version>
       </dependency>

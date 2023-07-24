@@ -207,7 +207,15 @@
       <groupId>io.vertx</groupId>
     </dependency>
     <dependency>
+      <artifactId>vertx-openapi</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
+    <dependency>
       <artifactId>vertx-web-openapi</artifactId>
+      <groupId>io.vertx</groupId>
+    </dependency>
+    <dependency>
+      <artifactId>vertx-web-openapi-router</artifactId>
       <groupId>io.vertx</groupId>
     </dependency>
     <dependency>
@@ -331,6 +339,24 @@
     <dependency>
       <groupId>org.caffinitas.ohc</groupId>
       <artifactId>ohc-core</artifactId>
+    </dependency>
+
+    <!-- Jackson -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.dataformat</groupId>
+      <artifactId>jackson-dataformat-yaml</artifactId>
     </dependency>
 
     <!-- External libraries -->

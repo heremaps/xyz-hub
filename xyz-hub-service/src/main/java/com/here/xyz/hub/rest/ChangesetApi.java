@@ -35,7 +35,7 @@ import com.here.xyz.responses.changesets.ChangesetCollection;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.function.Function;
 import org.apache.logging.log4j.Marker;
 
@@ -45,10 +45,10 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 public class ChangesetApi extends SpaceBasedApi {
 
   public ChangesetApi(RouterBuilder rb) {
-    rb.operation("getChangesets").handler(this::getChangesets);
-    rb.operation("getChangeset").handler(this::getChangeset);
-    rb.operation("deleteChangesets").handler(this::deleteChangesets);
-    rb.operation("getChangesetStatistics").handler(this::getChangesetStatistics);
+    rb.getRoute("getChangesets").setDoValidation(false).addHandler(this::getChangesets);
+    rb.getRoute("getChangeset").setDoValidation(false).addHandler(this::getChangeset);
+    rb.getRoute("deleteChangesets").setDoValidation(false).addHandler(this::deleteChangesets);
+    rb.getRoute("getChangesetStatistics").setDoValidation(false).addHandler(this::getChangesetStatistics);
   }
 
   /**

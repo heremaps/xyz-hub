@@ -31,7 +31,7 @@ import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -43,16 +43,20 @@ public class SubscriptionApi extends Api {
   private static final Logger logger = LogManager.getLogger();
 
   public SubscriptionApi(RouterBuilder rb) {
-    rb.operation("getSubscriptions").handler(this::getSubscriptions);
-    rb.operation("postSubscription").handler(this::postSubscription);
-    rb.operation("getSubscription").handler(this::getSubscription);
-    rb.operation("putSubscription").handler(this::putSubscription);
-    rb.operation("deleteSubscription").handler(this::deleteSubscription);
+    rb.getRoute("getSubscriptions").setDoValidation(false).addHandler(this::getSubscriptions);
+    rb.getRoute("postSubscription").setDoValidation(false).addHandler(this::postSubscription);
+    rb.getRoute("getSubscription").setDoValidation(false).addHandler(this::getSubscription);
+    rb.getRoute("putSubscription").setDoValidation(false).addHandler(this::putSubscription);
+    rb.getRoute("deleteSubscription").setDoValidation(false).addHandler(this::deleteSubscription);
   }
 
   private Subscription getSubscriptionInput(final RoutingContext context) throws HttpException {
+    JsonObject input = context.body().asJsonObject();
+    if (input == null)
+      throw new HttpException(BAD_REQUEST, "Invalid JSON string");
+
     try {
-      return DatabindCodec.mapper().convertValue(context.getBodyAsJson(), Subscription.class);
+      return DatabindCodec.mapper().convertValue(input, Subscription.class);
     }
     catch (DecodeException e) {
       throw new HttpException(BAD_REQUEST, "Invalid JSON string");

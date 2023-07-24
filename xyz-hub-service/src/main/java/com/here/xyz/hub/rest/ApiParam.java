@@ -306,9 +306,9 @@ public class ApiParam {
 
       List<String> input = Query.queryParam(Query.SELECTION, context);
 
-      if(input.size() == 1 && "*".equals( input.get(0).toLowerCase() )) return input;
+      if (input.size() == 1 && "*".equalsIgnoreCase(input.get(0))) return new ArrayList<>(input);
 
-      HashSet<String> selection = new HashSet<String>(Arrays.asList("id","type"));
+      HashSet<String> selection = new HashSet<String>(Arrays.asList("id", "type"));
 
       for (String s : input)
        switch( s )

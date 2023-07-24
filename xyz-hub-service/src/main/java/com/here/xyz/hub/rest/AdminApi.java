@@ -65,6 +65,7 @@ import io.vertx.core.http.HttpMethod;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthenticationHandler;
+import io.vertx.ext.web.handler.BodyHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -85,10 +86,12 @@ public class AdminApi extends Api {
 
   public AdminApi(Vertx vertx, Router router, AuthenticationHandler auth) {
     router.route(HttpMethod.POST, ADMIN_MESSAGES_ENDPOINT)
+        .handler(BodyHandler.create())
         .handler(auth)
         .handler(this::onMessage);
 
     router.route(HttpMethod.POST, ADMIN_EVENTS_ENDPOINT)
+        .handler(BodyHandler.create())
         .handler(auth)
         .handler(this::onEvent);
 
@@ -173,11 +176,11 @@ public class AdminApi extends Api {
    */
   private void onEvent(final RoutingContext context) {
     final Marker marker = Context.getMarker(context);
-    final String body = context.getBodyAsString();
+    final String body = context.body().asString();
     final boolean skipCache = Query.getBoolean(context, SKIP_CACHE, false);
 
     try {
-      final Event event = XyzSerializable.deserialize(context.getBodyAsString());
+      final Event event = XyzSerializable.deserialize(context.body().asString());
       logger.info("Event is " + event.getClass().getSimpleName());
       if (event instanceof LoadFeaturesEvent) {
         new LoadFeaturesQuery((LoadFeaturesEvent) event, context, ApiResponseType.FEATURE_COLLECTION, skipCache)

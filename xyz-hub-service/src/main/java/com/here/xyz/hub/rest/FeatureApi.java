@@ -44,7 +44,7 @@ import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -55,14 +55,14 @@ import java.util.Set;
 public class FeatureApi extends SpaceBasedApi {
 
   public FeatureApi(RouterBuilder rb) {
-    rb.operation("getFeature").handler(this::getFeature);
-    rb.operation("getFeatures").handler(this::getFeatures);
-    rb.operation("putFeature").handler(this::putFeature);
-    rb.operation("putFeatures").handler(this::putFeatures);
-    rb.operation("postFeatures").handler(this::postFeatures);
-    rb.operation("patchFeature").handler(this::patchFeature);
-    rb.operation("deleteFeature").handler(this::deleteFeature);
-    rb.operation("deleteFeatures").handler(this::deleteFeatures);
+    rb.getRoute("getFeature").setDoValidation(false).addHandler(this::getFeature);
+    rb.getRoute("getFeatures").setDoValidation(false).addHandler(this::getFeatures);
+    rb.getRoute("putFeature").setDoValidation(false).addHandler(this::putFeature);
+    rb.getRoute("putFeatures").setDoValidation(false).addHandler(this::putFeatures);
+    rb.getRoute("postFeatures").setDoValidation(false).addHandler(this::postFeatures);
+    rb.getRoute("patchFeature").setDoValidation(false).addHandler(this::patchFeature);
+    rb.getRoute("deleteFeature").setDoValidation(false).addHandler(this::deleteFeature);
+    rb.getRoute("deleteFeatures").setDoValidation(false).addHandler(this::deleteFeatures);
   }
 
   /**
@@ -211,8 +211,8 @@ public class FeatureApi extends SpaceBasedApi {
     try {
       ConditionalOperation task = buildConditionalOperation(event, context, apiResponseTypeType, featureModifications, ifNotExists,
           ifExists, transactional, cr, requireResourceExists, bodySize);
-      final List<String> addTags = Query.queryParam(Query.ADD_TAGS, context);
-      final List<String> removeTags = Query.queryParam(Query.REMOVE_TAGS, context);
+      final List<String> addTags = new ArrayList<>(Query.queryParam(Query.ADD_TAGS, context));
+      final List<String> removeTags = new ArrayList<>(Query.queryParam(Query.REMOVE_TAGS, context));
       task.addTags = XyzNamespace.normalizeTags(addTags);
       task.removeTags = XyzNamespace.normalizeTags(removeTags);
       XyzNamespace.fixNormalizedTags(task.addTags);

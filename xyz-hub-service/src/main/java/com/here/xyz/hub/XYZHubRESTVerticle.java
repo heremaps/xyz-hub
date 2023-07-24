@@ -29,30 +29,34 @@ import com.google.common.io.Files;
 import com.here.xyz.hub.auth.ExtendedJWTAuthHandler;
 import com.here.xyz.hub.auth.XyzAuthProvider;
 import com.here.xyz.hub.rest.AdminApi;
+import com.here.xyz.hub.rest.ChangesetApi;
 import com.here.xyz.hub.rest.ConnectorApi;
 import com.here.xyz.hub.rest.FeatureApi;
 import com.here.xyz.hub.rest.FeatureQueryApi;
 import com.here.xyz.hub.rest.HistoryQueryApi;
-import com.here.xyz.hub.rest.ChangesetApi;
-import com.here.xyz.hub.rest.TagApi;
+import com.here.xyz.hub.rest.JobProxyApi;
 import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.SubscriptionApi;
-import com.here.xyz.hub.rest.JobProxyApi;
+import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.task.Task;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
+import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.auth.PubSecKeyOptions;
 import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthenticationHandler;
+import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.ext.web.handler.StaticHandler;
-import io.vertx.ext.web.openapi.RouterBuilder;
-import io.vertx.ext.web.openapi.RouterBuilderOptions;
+import io.vertx.ext.web.openapi.router.OpenAPIRoute;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
+import io.vertx.openapi.contract.OpenAPIContract;
 import java.io.File;
 import java.util.Hashtable;
 import java.util.Objects;
@@ -82,7 +86,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
       final File tempFile = File.createTempFile("contract-", ".yaml");
       Files.write(CONTRACT_API.getBytes(), tempFile);
-      CONTRACT_LOCATION = tempFile.toURI().toString();
+      CONTRACT_LOCATION = tempFile.getCanonicalPath();
     } catch (Exception e) {
       logger.error("Unable to generate OpenApi specs.", e);
     }
@@ -100,114 +104,120 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
-    RouterBuilder.create(vertx, CONTRACT_LOCATION).onComplete(ar -> {
-      if (ar.succeeded()) {
-        try {
-          //Add the handlers
-          final RouterBuilder rb = ar.result()
-              .setOptions(new RouterBuilderOptions()
-                  .setContractEndpoint(RouterBuilderOptions.STANDARD_CONTRACT_ENDPOINT)
-                  .setRequireSecurityHandlers(false));
-          new FeatureApi(rb);
-          new FeatureQueryApi(rb);
-          new SpaceApi(rb);
-          new HistoryQueryApi(rb);
-          new ConnectorApi(rb);
-          new SubscriptionApi(rb);
-          new ChangesetApi(rb);
-          new JobProxyApi(rb);
-          new TagApi(rb);
+    OpenAPIContract.from(vertx, CONTRACT_LOCATION)
+        .flatMap(this::buildRoutes)
+        .onSuccess(none -> startPromise.complete())
+        .onFailure(throwable -> {
+          startPromise.fail(throwable);
+          routerFailure(throwable);
+        });
+  }
 
-          final AuthenticationHandler jwtHandler = createJWTHandler();
-          rb.securityHandler("Bearer", jwtHandler);
+  private Future<Void> buildRoutes(OpenAPIContract contract) {
 
-          final Router router = rb.createRouter();
+    try {
+      RouterBuilder rb = RouterBuilder.create(vertx, contract);
 
-          new HealthApi(vertx, router);
-          new AdminApi(vertx, router, jwtHandler);
-
-          //OpenAPI resources
-          router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
-            final HttpServerResponse res = routingContext.response();
-            res.putHeader("content-type", "application/yaml");
-            final String path = routingContext.request().path();
-            if (path.endsWith("full.yaml")) {
-              res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
-              res.write(FULL_API);
-            } else if (path.endsWith("stable.yaml")) {
-              res.headers().add(CONTENT_LENGTH, String.valueOf(STABLE_API.getBytes().length));
-              res.write(STABLE_API);
-            } else if (path.endsWith("experimental.yaml")) {
-              res.headers().add(CONTENT_LENGTH, String.valueOf(EXPERIMENTAL_API.getBytes().length));
-              res.write(EXPERIMENTAL_API);
-            } else if (path.endsWith("contract.yaml")) {
-              res.headers().add(CONTENT_LENGTH, String.valueOf(CONTRACT_API.getBytes().length));
-              res.write(CONTRACT_API);
-            } else {
-              res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
-            }
-
-            res.end();
-          }));
-
-          //Static resources
-          router.route("/hub/static/*")
-              .handler(
-                  new DelegatingHandler<>(StaticHandler.create().setIndexPage("index.html"), context -> context.addHeadersEndHandler(v -> {
-                    //This handler implements a workaround for an issue with CloudFront, which removes slashes at the end of the request-URL's path
-                    MultiMap headers = context.response().headers();
-                    if (headers.contains(LOCATION)) {
-                      String headerValue = headers.get(LOCATION);
-                      if (headerValue.endsWith("/")) {
-                        headers.set(LOCATION, headerValue + "index.html");
-                      }
-                    }
-                  }), null))
-              .handler(createCorsHandler());
-          if (Service.configuration.FS_WEB_ROOT != null) {
-            logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
-            //noinspection ResultOfMethodCallIgnored
-            new File(Service.configuration.FS_WEB_ROOT).mkdirs();
-            router.route("/hub/static/*")
-                .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));
-          }
-
-          //Add default handlers
-          addDefaultHandlers(router);
-
-          vertx.sharedData().<String, Hashtable<String, Object>>getAsyncMap(Service.SHARED_DATA, sharedDataResult -> {
-            sharedDataResult.result().get(Service.SHARED_DATA, hashtableResult -> {
-              final Hashtable<String, Object> sharedData = hashtableResult.result();
-              final Router globalRouter = (Router) sharedData.get(Service.GLOBAL_ROUTER);
-
-              globalRouter.mountSubRouter("/", router);
-
-              vertx.eventBus().localConsumer(Service.SHARED_DATA, event -> {
-                //Create the main service listener
-                createHttpServer(Service.configuration.HTTP_PORT, globalRouter);
-
-                //Create the main service TLS listener
-                if (Service.configuration.XYZ_HUB_HTTPS_PORT > 0
-                    && Service.configuration.XYZ_HUB_SERVER_TLS_KEY != null && Service.configuration.XYZ_HUB_SERVER_TLS_CERT != null)
-                  createHttpServerWithMutualTls(Service.configuration.XYZ_HUB_HTTPS_PORT, globalRouter, Service.configuration.XYZ_HUB_SERVER_TLS_KEY,
-                      Service.configuration.XYZ_HUB_SERVER_TLS_CERT, Service.configuration.XYZ_HUB_CLIENT_TLS_TRUSTSTORE);
-
-                //Create the admin messaging listener
-                if (Service.configuration.HTTP_PORT != Service.configuration.ADMIN_MESSAGE_PORT) {
-                  createHttpServer(Service.configuration.ADMIN_MESSAGE_PORT, globalRouter);
-                }
-              });
-
-              startPromise.complete();
-            });
-          });
-        } catch (Exception e) {
-          routerFailure(e);
-        }
-      } else {
-        routerFailure(ar.cause());
+      final AuthenticationHandler jwtHandler = createJWTHandler();
+      for (OpenAPIRoute route : rb.getRoutes()) {
+        route.addHandler(BodyHandler.create());
+        route.addHandler(jwtHandler);
       }
-    });
+
+      new FeatureApi(rb);
+      new FeatureQueryApi(rb);
+      new SpaceApi(rb);
+      new HistoryQueryApi(rb);
+      new ConnectorApi(rb);
+      new SubscriptionApi(rb);
+      new ChangesetApi(rb);
+      new JobProxyApi(rb);
+      new TagApi(rb);
+
+      final Router router = rb.createRouter();
+
+      new HealthApi(vertx, router);
+      new AdminApi(vertx, router, jwtHandler);
+
+      //OpenAPI resources
+      router.route(HttpMethod.GET, "/openapi").handler(ctx -> ctx.reroute("/hub/static/openapi/contract.yaml"));
+      router.route("/hub/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
+        final HttpServerResponse res = routingContext.response();
+        res.putHeader("content-type", "application/yaml");
+        final String path = routingContext.request().path();
+        if (path.endsWith("full.yaml")) {
+          res.headers().add(CONTENT_LENGTH, String.valueOf(FULL_API.getBytes().length));
+          res.write(FULL_API);
+        } else if (path.endsWith("stable.yaml")) {
+          res.headers().add(CONTENT_LENGTH, String.valueOf(STABLE_API.getBytes().length));
+          res.write(STABLE_API);
+        } else if (path.endsWith("experimental.yaml")) {
+          res.headers().add(CONTENT_LENGTH, String.valueOf(EXPERIMENTAL_API.getBytes().length));
+          res.write(EXPERIMENTAL_API);
+        } else if (path.endsWith("contract.yaml")) {
+          res.headers().add(CONTENT_LENGTH, String.valueOf(CONTRACT_API.getBytes().length));
+          res.write(CONTRACT_API);
+        } else {
+          res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
+        }
+
+        res.end();
+      }));
+
+      //Static resources
+      router.route("/hub/static/*")
+          .handler(createCorsHandler())
+          .handler(
+              new DelegatingHandler<>(StaticHandler.create().setIndexPage("index.html"), context -> context.addHeadersEndHandler(v -> {
+                //This handler implements a workaround for an issue with CloudFront, which removes slashes at the end of the request-URL's path
+                MultiMap headers = context.response().headers();
+                if (headers.contains(LOCATION)) {
+                  String headerValue = headers.get(LOCATION);
+                  if (headerValue.endsWith("/")) {
+                    headers.set(LOCATION, headerValue + "index.html");
+                  }
+                }
+              }), null));
+      if (Service.configuration.FS_WEB_ROOT != null) {
+        logger.debug("Serving extra web-root folder in file-system with location: {}", Service.configuration.FS_WEB_ROOT);
+        //noinspection ResultOfMethodCallIgnored
+        new File(Service.configuration.FS_WEB_ROOT).mkdirs();
+        router.route("/hub/static/*")
+            .handler(StaticHandler.create(Service.configuration.FS_WEB_ROOT).setIndexPage("index.html"));
+      }
+
+      //Add default handlers
+      addDefaultHandlers(router);
+
+      vertx.sharedData().<String, Hashtable<String, Object>>getAsyncMap(Service.SHARED_DATA, sharedDataResult -> {
+        sharedDataResult.result().get(Service.SHARED_DATA, hashtableResult -> {
+          final Hashtable<String, Object> sharedData = hashtableResult.result();
+          final Router globalRouter = (Router) sharedData.get(Service.GLOBAL_ROUTER);
+
+          globalRouter.mountSubRouter("/", router);
+
+          vertx.eventBus().localConsumer(Service.SHARED_DATA, event -> {
+            //Create the main service listener
+            createHttpServer(Service.configuration.HTTP_PORT, globalRouter);
+
+            //Create the main service TLS listener
+            if (Service.configuration.XYZ_HUB_HTTPS_PORT > 0
+                && Service.configuration.XYZ_HUB_SERVER_TLS_KEY != null && Service.configuration.XYZ_HUB_SERVER_TLS_CERT != null)
+              createHttpServerWithMutualTls(Service.configuration.XYZ_HUB_HTTPS_PORT, globalRouter, Service.configuration.XYZ_HUB_SERVER_TLS_KEY,
+                  Service.configuration.XYZ_HUB_SERVER_TLS_CERT, Service.configuration.XYZ_HUB_CLIENT_TLS_TRUSTSTORE);
+
+            //Create the admin messaging listener
+            if (Service.configuration.HTTP_PORT != Service.configuration.ADMIN_MESSAGE_PORT) {
+              createHttpServer(Service.configuration.ADMIN_MESSAGE_PORT, globalRouter);
+            }
+          });
+        });
+      });
+    } catch (Exception e) {
+      return Future.failedFuture(e);
+    }
+
+    return Future.succeededFuture();
   }
 
   private static void routerFailure(Throwable t) {

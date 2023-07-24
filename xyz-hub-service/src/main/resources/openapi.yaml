@@ -6,7 +6,7 @@ info:
   contact: {}
   version: 1.0.0
 servers:
-  - url: /hub
+  - url: http://localhost:8080/hub
 security:
   - AccessToken: []
   - Bearer: []
@@ -1490,12 +1490,12 @@ components:
       style: form
       explode: true
       schema:
-        type: object
+        type: array
+        items:
+          type: string
         example:
           clustering.resolution: 3
           clustering.property: 'a.nested.property'
-        additionalProperties:
-          type: string
     ConflictResolution:
       name: cr
       in: query
@@ -1774,13 +1774,15 @@ components:
           - "<" or "=lt=" - less than
           - "@>" or "=cs=" - Array contains
       explode: true
+      style: form
+      allowReserved: true
       schema:
-        type: object
+        type: array
+        items:
+          type: string
         example:
           p.myProperty: 'someValue'
           p.otherProperty: 5
-        additionalProperties:
-          type: string
     PropertiesSelection:
       name: selection
       in: query
@@ -1999,11 +2001,11 @@ components:
       style: form
       explode: true
       schema:
-        type: object
+        type: array
+        items:
+          type: string
         example:
           tweaks.strength: "1-100 | [low,lowmed,med,medhigh,high]"
-        additionalProperties:
-          type: string
     Version:
       name: version
       in: query
@@ -2138,13 +2140,13 @@ components:
     ChangesetCollectionResponse:
       description: A collection of Changesets which contains FeatureCollections grouped by operation.
       content:
-        application/vnd.here.changeset-collection:
+        application/json:
           schema:
             $ref: '#/components/schemas/ChangesetCollection'
     ChangesetResponse:
       description: One Changeset which contains FeatureCollections grouped by operation.
       content:
-        application/vnd.here.changeset:
+        application/json:
           schema:
             $ref: '#/components/schemas/Changeset'
     ConnectorResponse:
@@ -2164,10 +2166,6 @@ components:
     EmptyResponse:
       description: >-
         An empty response as a result of a user-request with accepted MIME type application/x-empty.
-      content:
-        application/x-empty:
-          schema:
-            type: string
     ErrorResponse400:
       description: Malformed or Bad Request.
       content:
@@ -2232,7 +2230,7 @@ components:
     ErrorResponse413:
       description: Request entity too large.
       content:
-        text/plain:
+        application/json:
           schema:
             $ref: '#/components/schemas/Error'
           example:
@@ -2254,7 +2252,7 @@ components:
     FeatureCollectionModificationResponse:
       description: An array of features and their modifications response.
       content:
-        application/geo+json:
+        application/json:
           schema:
             $ref: '#/components/schemas/FeatureCollectionModification'
           example:
@@ -2283,22 +2281,22 @@ components:
     FeatureCollectionResponse:
       description: An array of features response.
       content:
-        application/geo+json:
+        application/json:
           schema:
             $ref: '#/components/schemas/FeatureCollection'
     FeatureResponse:
       description: A feature response.
       content:
-        application/geo+json:
+        application/json:
           schema:
             $ref: '#/components/schemas/Feature'
     HistoryResponse:
       description: Changesets which are containing FeatureCollections grouped by operation/versions.
       content:
-        application/vnd.here.changeset-collection:
+        application/json:
           schema:
             $ref: '#/components/schemas/ChangesetCollection'
-        application/vnd.here.compact-changeset:
+        application/json:
           schema:
             $ref: '#/components/schemas/CompactChangeset'
     HistoryStatisticsResponse:
@@ -2316,7 +2314,7 @@ components:
     IterateResponse:
       description: A FeatureCollection with handle response.
       content:
-        application/geo+json:
+        application/json:
           schema:
             $ref: '#/components/schemas/FeatureCollectionIterable'
     TagResponse:
@@ -2367,16 +2365,11 @@ components:
             $ref: '#/components/schemas/Statistics'
     TileResponse:
       description: >-
-        A FeatureCollection in GeoJSON or MVT response format. The response format can be selected by using the header "Accept". Possible values for the header "Accept" are: "application/geo+json" and "application/vnd.mapbox-vector-tile". When the header "Accept" is not informed, the default response type GeoJSON is assumed. Appending ".mvt" to the end of the tile address selects automatically the MVT response type.
+        A FeatureCollection in GeoJSON or MVT response format. The response format can be selected by using the header "Accept". Possible values for the header "Accept" are: "application/json" and "application/vnd.mapbox-vector-tile". When the header "Accept" is not informed, the default response type GeoJSON is assumed. Appending ".mvt" to the end of the tile address selects automatically the MVT response type.
       content:
-        application/geo+json:
+        application/json:
           schema:
             $ref: '#/components/schemas/FeatureCollection'
-        application/vnd.mapbox-vector-tile:
-          schema:
-            type: string
-            format: binary
-          example: ''
     SubscriptionResponse:
       description: The subscription
       content:
@@ -2401,6 +2394,7 @@ components:
       content:
         application/json:
           schema:
+            type: array
             items:
               $ref: '#/components/schemas/Job'
   requestBodies:
@@ -2414,30 +2408,27 @@ components:
       description: A FeatureCollection object or a FeatureModificationList object.
       required: true
       content:
-        application/geo+json:
+        application/json:
           schema:
             $ref: '#/components/schemas/FeatureCollection'
-        application/vnd.here.feature-modification-list:
-          schema:
-            $ref: '#/components/schemas/FeatureModificationList'
     FeatureCollectionRequest:
       description: A feature collection request.
       required: true
       content:
-        application/geo+json:
+        application/json:
           schema:
             $ref: '#/components/schemas/FeatureCollection'
     FeatureRequest:
       description: A feature request.
       required: true
       content:
-        application/geo+json:
+        application/json:
           schema:
             $ref: '#/components/schemas/Feature'
     GeometryRequest:
       description: A geometry request.
       content:
-        application/geo+json:
+        application/json:
           schema:
             $ref: '#/components/schemas/Geometry'
     TagRequest:

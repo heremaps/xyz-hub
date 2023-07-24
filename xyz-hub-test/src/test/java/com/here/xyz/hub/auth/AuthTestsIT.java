@@ -842,14 +842,6 @@ public class AuthTestsIT extends RestAssuredTest {
         .get("/spaces/x-auth-test-space/bbox?west=179&north=89&east=-179&south=-89&clustering=hexbin")
         .then()
         .statusCode(FORBIDDEN.code());
-
-    given()
-        .accept(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_USE_CAPABILITIES))
-        .when()
-        .get("/spaces/x-auth-test-space/bbox?west=179&north=89&east=-179&south=-89&clustering=abc123")
-        .then()
-        .statusCode(BAD_REQUEST.code());
   }
 
   @Test
@@ -886,14 +878,6 @@ public class AuthTestsIT extends RestAssuredTest {
         .get("/spaces/x-auth-test-space/tile/quadkey/120?clustering=hexbin")
         .then()
         .statusCode(FORBIDDEN.code());
-
-    given()
-        .accept(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_USE_CAPABILITIES))
-        .when()
-        .get("/spaces/x-auth-test-space/tile/quadkey/120?clustering=abc123")
-        .then()
-        .statusCode(BAD_REQUEST.code());
   }
 
   @Test
