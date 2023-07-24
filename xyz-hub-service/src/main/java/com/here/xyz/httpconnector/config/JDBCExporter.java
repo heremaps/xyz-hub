@@ -60,7 +60,7 @@ public class JDBCExporter extends JDBCClients{
             String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
             Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
             SQLQuery exportQuery = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-                    j.getTargetVersion(), j.getParams(), j.getCsvFormat(),null,j.getPartitionKey(),j.getOmitOnNull());
+                    j.getTargetVersion(), j.getParams(), j.getCsvFormat(),null,false, j.getPartitionKey(),j.getOmitOnNull());
 
             switch (j.getExportTarget().getType()){
                 case DOWNLOAD:
@@ -389,7 +389,7 @@ public class JDBCExporter extends JDBCClients{
     }
 
     private static SQLQuery generateFilteredExportQuery(String schema, String spaceId, String propertyFilter,
-        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull ))
+        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
         throws SQLException {
         //TODO: Re-use existing QR rather than the following duplicated code
         SQLQuery geoFragment;
