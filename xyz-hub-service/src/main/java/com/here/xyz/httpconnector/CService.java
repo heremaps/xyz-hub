@@ -174,6 +174,11 @@ public class CService extends Core {
      * Whether the service should use InstanceProviderCredentialsProfile with cached credential when utilizing AWS clients.
      */
     public boolean USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH;
+
+    /**
+     * The task role arn.
+     */
+    public String IAM_SERVICE_ROLE;
     /**
      * The port of the HTTP server.
      */

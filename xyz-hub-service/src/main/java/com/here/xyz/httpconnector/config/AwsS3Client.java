@@ -23,7 +23,7 @@ import com.amazonaws.HttpMethod;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -40,6 +40,7 @@ import java.util.Date;
  * A client for reading and writing from and to S3
  */
 public class AwsS3Client {
+    private static final int ROLE_SESSION_DURATION_SECONDS = 43200;
     protected static final int PRESIGNED_URL_EXPIRATION_SECONDS = 7 * 24 * 60 * 60;
     protected static AWSCredentialsProvider customCredentialsProvider;
 
@@ -58,10 +59,12 @@ public class AwsS3Client {
             builder.setRegion(region);
         }
 
-        if (CService.configuration != null && CService.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {
+        if (CService.configuration != null && CService.configuration.IAM_SERVICE_ROLE != null) {
             synchronized(AwsS3Client.class) {
                 if (customCredentialsProvider == null) {
-                    customCredentialsProvider = InstanceProfileCredentialsProvider.createAsyncRefreshingProvider(true);
+                    customCredentialsProvider = new STSAssumeRoleSessionCredentialsProvider.Builder(CService.configuration.IAM_SERVICE_ROLE,"job-api")
+                            .withRoleSessionDurationSeconds(ROLE_SESSION_DURATION_SECONDS)
+                            .build();
                 }
                 builder.setCredentials(customCredentialsProvider);
             }
