@@ -121,6 +121,9 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
 
   @SuppressWarnings("unchecked")
   @Override
+  /* TODO HP_QUERY : Should this function internally decide which type of `collection` to use (for given featureClass)?
+   * Accepting `collection` as argument has possibility of breaking the behaviour when incorrect value is passed.
+   */
   public @NotNull <F extends XyzFeature> PsqlFeatureWriter<F> writeFeatures(
       @NotNull Class<F> featureClass, @NotNull CollectionInfo collection) {
     PsqlFeatureWriter<F> writer = cachedWriters.get(featureClass);

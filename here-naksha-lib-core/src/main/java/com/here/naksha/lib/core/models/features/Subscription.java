@@ -46,6 +46,8 @@ public final class Subscription extends EventFeature {
   @AvailableSince(NakshaVersion.v2_0_0)
   public static final String STORAGE_ID = "storageId";
 
+  // TODO HP_QUERY : How do we attach subscription to a specific collection (/ spaceId)?
+
   /**
    * Create a new subscription.
    *

@@ -215,6 +215,7 @@ public final class NakshaHub extends Thread implements INaksha {
       } else {
         config = tx.readFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
             .getFeatureById(configId);
+        // TODO HP_QUERY : Why this way instead of direct call `log.info()` ?
         log.atInfo()
             .setMessage("Loaded configuration '{}' from admin-db is: {}")
             .addArgument(configId)
@@ -224,6 +225,7 @@ public final class NakshaHub extends Thread implements INaksha {
 
       // Read the configuration.
       try (final Json json = Json.get()) {
+        // TODO HP_QUERY : Reason for not supporting custom config path?
         final LoadedBytes loaded =
             IoHelp.readBytesFromHomeOrResource(configId + ".json", false, adminDbConfig.appName);
         final NakshaHubConfig cfg = json.reader(ViewDeserialize.Storage.class)

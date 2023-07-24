@@ -201,6 +201,7 @@ public final class Json implements AutoCloseable {
    * @return The Json instance.
    */
   public static @NotNull Json get() {
+    // TODO HP_QUERY : Reason for recreating ObjectMapper class (instead of using it as singleton)?
     final JsonWeakRef weakRef = idleCache.get();
     Json json = null;
     if (weakRef != null) {
