@@ -230,6 +230,36 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
   }
 
   @Test
+  public void deleteFromDeltaAndReinsert() {
+    Feature feature = newFeature();
+    postFeature("x-psql-test", feature);
+    feature.withProperties(new Properties().with("name", "aaa"));
+    postFeature("x-psql-test-ext", feature);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .delete("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .then()
+        .statusCode(NO_CONTENT.code());
+
+    // reinsert
+    postFeature("x-psql-test-ext", feature);
+
+    // update
+    feature.withProperties(new Properties().with("name", "bbb"));
+    postFeature("x-psql-test-ext", feature);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/x-psql-test-ext/features/" + feature.getId())
+        .then()
+        .statusCode(OK.code())
+        .body("properties.name", equalTo("bbb"));
+  }
+
+  @Test
   public void getOnDeltaOfDelta() {
     Feature feature = newFeature();
     postFeature("x-psql-test", feature.withProperties(new Properties().with("name", "a").with("level", "base")));

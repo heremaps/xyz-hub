@@ -153,7 +153,6 @@ public class ApiParam {
     static final String H3_INDEX = "h3Index";
     static final String CONTENT_UPDATED_AT = "contentUpdatedAt";
     static final String CONTEXT = "context";
-    static final String INCREMENTAL = "incremental";
 
     static final String CLUSTERING_PARAM_RESOLUTION = "resolution";
     static final String CLUSTERING_PARAM_RESOLUTION_RELATIVE = "relativeResolution";
@@ -665,9 +664,6 @@ public class ApiParam {
           return null;
         }
       }
-    }
-    public static Incremental getIncremental(RoutingContext context){
-      return Incremental.of(Query.getString(context, INCREMENTAL, Incremental.DEACTIVATED.toString()).toUpperCase());
     }
 
     public static Integer getRadius(RoutingContext context) {

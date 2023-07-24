@@ -19,23 +19,33 @@
 package com.here.xyz.hub.rest;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.XyzResponse;
 import com.jayway.restassured.response.Response;
 import com.jayway.restassured.response.ValidatableResponse;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.jackson.DatabindCodec;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -176,14 +186,14 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     protected static void deleteJob(String jobId) {
-        deleteJob(jobId, testSpaceId1);
+        deleteJob(jobId, testSpaceId1, true);
     }
-    protected static void deleteJob(String jobId, String spaceId) {
+    protected static void deleteJob(String jobId, String spaceId, Boolean force) {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .delete("/spaces/" + spaceId + "/job/"+jobId)
+                .delete("/spaces/" + spaceId + "/job/"+jobId+(force == null ? "" :"?force="+force))
                 .then()
                 .statusCode(OK.code());
     }
@@ -191,7 +201,7 @@ public class JobApiIT extends TestSpaceWithFeature {
     protected static void deleteAllJobsOnSpace(String spaceId){
         List<String> allJobsOnSpace = getAllJobsOnSpace(spaceId);
         for (String id : allJobsOnSpace) {
-            deleteJob(id,spaceId);
+            deleteJob(id,spaceId, true);
         }
     }
 
@@ -297,5 +307,131 @@ public class JobApiIT extends TestSpaceWithFeature {
 
         connection.getResponseCode();
         System.out.println("Upload finished with: " + connection.getResponseCode());
+    }
+
+    /** ------------------- HELPER EXPORT  -------------------- */
+    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus) throws Exception {
+        return performExport(job, spaceId, expectedStatus, failStatus, null, null);
+    }
+
+    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus,
+                                      ContextAwareEvent.SpaceContext context, ApiParam.Query.Incremental incremental) throws Exception {
+        /** Create job */
+        Response resp = given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .body(job)
+                .post("/spaces/" + spaceId + "/jobs");
+
+        if(resp.getStatusCode() != 201){
+            XyzResponse xyzResponse = XyzSerializable.deserialize(resp.getBody().asString());
+            if(xyzResponse instanceof ErrorResponse)
+                throw new HttpException(HttpResponseStatus.valueOf(resp.getStatusCode()), ((ErrorResponse) xyzResponse).getErrorMessage());
+        }
+
+
+        String postUrl = "/spaces/{spaceId}/job/{jobId}/execute?command=start&{context}&{incremental}"
+                .replace("{spaceId}", spaceId)
+                .replace("{jobId}", job.getId())
+                .replace("{context}", context == null ? "" : "context="+context.toString().toLowerCase())
+                .replace("{incremental}", incremental == null ? "" : "incremental="+incremental.toString().toLowerCase());
+
+        /** start import */
+        resp = given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post(postUrl);
+
+        if(resp.getStatusCode() != 204) { //NO_CONTENT
+            XyzResponse xyzResponse = XyzSerializable.deserialize(resp.getBody().asString());
+            if(xyzResponse instanceof ErrorResponse)
+                throw new HttpException(HttpResponseStatus.valueOf(resp.getStatusCode()), ((ErrorResponse) xyzResponse).getErrorMessage());
+        }
+
+        /** Poll status */
+        pollStatus(spaceId, job.getId(), expectedStatus, failStatus);
+        job = (Export) getJob(spaceId, job.getId());
+
+        ArrayList<URL> urlList = new ArrayList<>();
+        if(job.getExportObjects() != null) {
+            for (String key : job.getExportObjects().keySet()) {
+                urlList.add(job.getExportObjects().get(key).getDownloadUrl());
+            }
+        }
+
+        if(job.getSuperExportObjects() != null) {
+            for (String key : job.getSuperExportObjects().keySet()) {
+                urlList.add(job.getSuperExportObjects().get(key).getDownloadUrl());
+            }
+        }
+        return urlList;
+    }
+
+    protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContains) throws IOException {
+        String result = "";
+        long totalByteSize = 0;
+
+        for (URL url : urls) {
+            System.out.println("Download: "+url);
+            url = new URL(url.toString().replace("localstack","localhost"));
+            BufferedInputStream bis = new BufferedInputStream(url.openStream());
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+
+            byte[] buffer = new byte[1024];
+            int count=0;
+            while((count = bis.read(buffer,0,1024)) != -1)
+            {
+                bos.write(buffer, 0, count);
+            }
+            bos.close();
+            bis.close();
+            totalByteSize += bos.size();
+            result += new String(bos.toByteArray(), StandardCharsets.UTF_8);
+        }
+
+        if(expectedByteSize != null)
+            assertEquals(expectedByteSize.intValue(), totalByteSize);
+
+        if(expectedFeatureCount != null)
+            assertEquals(expectedFeatureCount.intValue(), result.split("'\"id'\"", -1).length-1);
+
+        for (String word : csvMustContains) {
+            assertNotEquals(-1, result.indexOf(word));
+        }
+
+        return result;
+    }
+
+    protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContains, Integer expectedTileCount) throws IOException {
+        List<String> tileIds = new ArrayList<>();
+        int featureCount = 0;
+
+        String result = downloadAndCheck(urls, expectedByteSize, 0, csvMustContains);
+        for (String fc64: result.split("\n")) {
+            tileIds.add(fc64.substring(0,fc64.lastIndexOf("\t")));
+            FeatureCollection fc = XyzSerializable.deserialize(new String(Base64.getDecoder().decode((fc64.substring(fc64.lastIndexOf("\t")+1)))));
+            featureCount += fc.getFeatures().size();
+        }
+
+        if(expectedTileCount != null)
+            assertEquals(expectedTileCount.intValue(), tileIds.size());
+
+        assertEquals(expectedFeatureCount, featureCount);
+    }
+
+    protected Export buildTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format){
+        return new Export()
+                .withId(id)
+                .withFilters(filters)
+                .withExportTarget(target)
+                .withCsvFormat(format);
+    }
+
+    protected Export buildVMTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format, int targetLevel, int maxTilesPerFile){
+        return buildTestJob(id, filters, target, format)
+                .withMaxTilesPerFile(maxTilesPerFile)
+                .withTargetLevel(targetLevel);
     }
 }

@@ -274,7 +274,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
 
     try
     {
-     String normalizedSortProp = "o:" + IdxMaintenance.normalizedSortProperies(sort);
+     String normalizedSortProp = "o:" + IdxMaintenance.normalizedSortProperties(sort);
 
      switch( normalizedSortProp.toLowerCase() ) { case "o:f.id" : case "o:f.createdat" : case "o:f.updatedat" : return true; }
 
@@ -648,7 +648,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
      }
   */
 
-     public static String normalizedSortProperies(List<String> sortby) // retuns feld1,feld2:ord2,feld3:ord3 where sortorder feld1 is always ":asc"
+     public static String normalizedSortProperties(List<String> sortby) // retuns feld1,feld2:ord2,feld3:ord3 where sortorder feld1 is always ":asc"
      { if (sortby == null || sortby.size() == 0) return null;
 
        String normalizedSortProp = "";

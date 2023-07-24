@@ -300,6 +300,7 @@ paths:
       operationId: deleteJob
       parameters:
         - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/Force'
       responses:
         '200':
           $ref: '#/components/responses/JobResponse'
@@ -321,6 +322,8 @@ paths:
         - $ref: '#/components/parameters/EnableHashedSpaceId'
         - $ref: '#/components/parameters/EnableUUID'
         - $ref: '#/components/parameters/Context'
+        - $ref: '#/components/parameters/Incremental'
+        - $ref: '#/components/parameters/UrlCount'
         - $ref: '#/components/parameters/Command'
       responses:
         '204':
@@ -411,6 +414,43 @@ components:
           - retry
           - abort
           - createUploadUrl
+    UrlCount:
+      name: urlCount
+      in: query
+      description: >-
+        The number of upload URLs need to be created. It is only applicable when command=createUploadUrl.
+        
+        
+        *Allowed range* : 1-1000
+      required: false
+      schema:
+        type: number
+        default: 1
+        minimum: 1
+        maximum: 1000
+    Incremental:
+      name: incremental
+      in: query
+      description: >-
+        Available for composite spaces where the super space has a "persistExport" configuration.
+        Full: reuse existing super export and add changed tiles of composite compound on top.
+        Changes: changed tiles of composite compound.
+      required: false
+      schema:
+        type: string
+        enum:
+          - deactivated
+          - full
+          - changes
+        default: deactivated
+    Force:
+      name: force
+      in: query
+      description: >-
+        With force also persistent job data gets deleted.
+      required: false
+      schema:
+        type: boolean
     SpaceId:
       name: spaceId
       in: path

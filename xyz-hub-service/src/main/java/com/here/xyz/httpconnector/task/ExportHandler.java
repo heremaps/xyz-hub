@@ -93,13 +93,12 @@ public class ExportHandler extends JobHandler{
                 .onSuccess(j -> {
                     /** Check State */
                     try{
-                        isJobStateValid(j, jobId, command, p);
-
                         Export exportJob = (Export) j;
+                        ExportValidator.validateExportExecution(exportJob, command, incremental, p);
                         loadClientAndInjectDefaults(exportJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, null, incremental, _context);
 
                         switch (command){
-                            case ABORT: abbortJob(marker, exportJob, p); break;
+                            case ABORT: abortJob(marker, exportJob, p); break;
                                 
                             case CREATEUPLOADURL:
                                 p.fail(new HttpException(NOT_IMPLEMENTED, "For Export not required!"));
@@ -115,28 +114,7 @@ public class ExportHandler extends JobHandler{
         return p.future();
     }
 
-    private static void isJobStateValid(Job job, String jobId, HApiParam.HQuery.Command command, Promise<Job> p) throws HttpException {
-        if (job == null) {
-            throw new HttpException(NOT_FOUND, "Job with Id " + jobId + " not found");
-        }
-
-        switch (command){
-            case CREATEUPLOADURL: throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
-            case ABORT: isValidForAbort(job); break;
-            case RETRY:  throw new HttpException(NOT_IMPLEMENTED, "TBD");
-            case START: isValidForStart(job); break;
-            default: throw new HttpException(BAD_REQUEST, "unknown command [" + command + "]");
-        }
-    }
-
-    private static void isValidForAbort(Job job) throws HttpException {
-        switch (job.getStatus()){
-            case executing: break;
-            default: throw new HttpException(PRECONDITION_FAILED, "Job is not in executing state - current status: "+job.getStatus());
-        }
-    }    
-
-    private static void abbortJob(Marker marker, Job job, Promise<Job> p)
+    private static void abortJob(Marker marker, Job job, Promise<Job> p)
     {
       JDBCExporter.abortJobsByJobId((Export) job)
        .onComplete(f -> p.complete());

@@ -40,6 +40,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.nio.charset.Charset;
+import java.util.HashMap;
 import java.util.Map;
 
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
@@ -81,9 +82,11 @@ public class JobProxyApi extends Api{
                                     job.setTargetConnector(headSpace.getStorage().getId());
                                     job.addParam("versionsToKeep",headSpace.getVersionsToKeep());
                                     job.addParam("persistExport", headSpace.isPersistExport());
+
                                     Promise<Map> p = Promise.promise();
+
                                     if (headSpace.getExtension() != null) {
-                                        /** Evaluate if we have 2nd extension */
+                                        /** Resolve Extension */
                                         Service.spaceConfigClient.get(Api.Context.getMarker(context), headSpace.getExtension().getSpaceId())
                                                 .onSuccess(baseSpace -> {
                                                     p.complete(headSpace.resolveCompositeParams(baseSpace));
@@ -92,9 +95,28 @@ public class JobProxyApi extends Api{
                                     }else
                                         p.complete(null);
                                     return p.future();
-                                }).compose(extension -> {
+                                })
+                                .compose(extension -> {
+                                    Promise<Map> p = Promise.promise();
+                                    if (extension != null && extension.get("extends") != null  && ((Map)extension.get("extends")).get("extends") != null) {
+                                        /** Resolve 2nd Level Extension */
+                                        Service.spaceConfigClient.get(Api.Context.getMarker(context), (String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
+                                                .onSuccess(baseSpace -> {
+                                                    /** Add persistExport flag to Parameters */
+                                                    Map<String, Object> ext = new HashMap<>();
+                                                    ext.putAll(extension);
+                                                    ((Map)((Map)ext.get("extends")).get("extends")).put("persistExport", baseSpace.isPersistExport());
+
+                                                    p.complete(ext);
+                                                })
+                                                .onFailure(e -> p.fail(e));
+                                    }else
+                                        p.complete(extension);
+                                    return p.future();
+                                })
+                                .compose(extension -> {
                                     if(extension != null) {
-                                        /** Add extends to jobConfig */
+                                        /** Add extends to jobConfig params  */
                                         job.addParam("extends",extension.get("extends"));
                                     }
                                     return Future.succeededFuture();
@@ -190,6 +212,7 @@ public class JobProxyApi extends Api{
     private void deleteJob(final RoutingContext context) {
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
+        boolean force = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.FORCE, false);
 
         JobAuthorization.authorizeManageSpacesRights(context,spaceId)
                 .onSuccess(auth -> {
@@ -207,7 +230,7 @@ public class JobProxyApi extends Api{
                                         this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
                                         return;
                                     }
-                                    Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId)
+                                    Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId+"?force="+force)
                                             .timeout(JOB_API_TIMEOUT)
                                             .send()
                                             .onSuccess(res2 -> jobAPIResultHandler(context,res2,spaceId))
@@ -223,8 +246,9 @@ public class JobProxyApi extends Api{
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
         ContextAwareEvent.SpaceContext _context = ApiParam.Query.getContext(context);
-        ApiParam.Query.Incremental incremental = ApiParam.Query.getIncremental(context);
+        ApiParam.Query.Incremental incremental = HApiParam.HQuery.getIncremental(context);
         String command = ApiParam.Query.getString(context, HApiParam.HQuery.H_COMMAND, null);
+        int urlCount = ApiParam.Query.getInteger(context, HApiParam.HQuery.URL_COUNT, 1);
 
         JobAuthorization.authorizeManageSpacesRights(context,spaceId)
                 .onSuccess(auth -> {
@@ -264,7 +288,8 @@ public class JobProxyApi extends Api{
                                                     +"&enableUUID={enableUUID}"
                                                     +"&incremental={incremental}"
                                                     +"&context={context}"
-                                                    +"&command={command}")
+                                                    +"&command={command}"
+                                                    +"&urlCount={urlCount}")
                                                         .replace("{jobId}",jobId)
                                                         .replace("{connectorId}",connector.id)
                                                         .replace("{ecps}",ecps)
@@ -273,7 +298,8 @@ public class JobProxyApi extends Api{
                                                         .replace("{context}",_context.toString().toLowerCase())
                                                         /**deprecated */
                                                         .replace("{enableUUID}","false")
-                                                        .replace("{command}",command);
+                                                        .replace("{command}",command)
+                                                        .replace("{urlCount}",Integer.toString(urlCount));
 
                                             Service.webClient
                                                     .postAbs(postUrl)
@@ -310,7 +336,7 @@ public class JobProxyApi extends Api{
             }catch (Exception e){}
         }
 
-        this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, "Job-Api not ready!"));
+        this.sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(res.statusCode()), "Job-Api not ready!"));
     }
 
     private void jobAPIListResultHandler(final RoutingContext context, HttpResponse<Buffer> res, String spaceId){
@@ -326,7 +352,7 @@ public class JobProxyApi extends Api{
             }catch (Exception e){}
         }
 
-        this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, "Job-Api not ready!"));
+        this.sendErrorResponse(context, new HttpException(HttpResponseStatus.valueOf(res.statusCode()), "Job-Api not ready!"));
     }
 
     private Boolean checkSpaceId(HttpResponse<Buffer> res, String spaceId) throws DecodeException{

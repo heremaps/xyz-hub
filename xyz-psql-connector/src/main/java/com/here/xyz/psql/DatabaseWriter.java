@@ -69,9 +69,13 @@ public class DatabaseWriter {
 
     public enum ModificationType {
         INSERT("I"),
+
         INSERT_HIDE_COMPOSITE("H"),
 
         UPDATE("U"),
+
+        UPDATE_DELETED("X"),
+
         UPDATE_HIDE_COMPOSITE("J"),
 
         DELETE("D");
@@ -160,7 +164,7 @@ public class DatabaseWriter {
         }
     }
 
-    private static void fillUpdateQueryFromFeature(SQLQuery query, Feature feature, ModifyFeaturesEvent event, long version) throws SQLException {
+    private static void fillUpdateQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, long version) throws SQLException {
         if (feature.getId() == null)
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
@@ -181,17 +185,33 @@ public class DatabaseWriter {
         but special parameters are necessary to handle conflicts in update case.
          */
 
-        fillInsertQueryFromFeature(query, UPDATE, feature, event, version);
+        fillInsertQueryFromFeature(query, action, feature, event, version);
+    }
+
+    private static ModificationType resolveOperation(ModificationType action, Feature feature) {
+      if (action == ModificationType.UPDATE_DELETED)
+        return ModificationType.INSERT;
+
+      if (action == DELETE || !getDeletedFlagFromFeature(feature))
+        return action;
+
+      if (action == INSERT)
+        return INSERT_HIDE_COMPOSITE;
+
+      if (action == UPDATE)
+        return UPDATE_HIDE_COMPOSITE;
+
+      return action;
     }
 
     private static void fillInsertQueryFromFeature(SQLQuery query, ModificationType action, Feature feature, ModifyFeaturesEvent event, long version) throws SQLException {
         //TODO: The following is a backwards compatibility workaround for the legacy history in combination with new history being activated
         long baseVersion = feature.getProperties().getXyzNamespace().getVersion();
+
         query
             .withNamedParameter("id", feature.getId())
             .withNamedParameter("version", version)
-            .withNamedParameter("operation", (action == DELETE || !getDeletedFlagFromFeature(feature) ? action
-                : action == INSERT ? INSERT_HIDE_COMPOSITE : UPDATE_HIDE_COMPOSITE).shortValue)
+            .withNamedParameter("operation", resolveOperation(action, feature).shortValue)
             .withNamedParameter("jsondata", featureToPGobject(event, feature, version))
             .withNamedParameter("baseVersion", baseVersion);
 
@@ -273,6 +293,7 @@ public class DatabaseWriter {
             case INSERT:
                 return getGeneralErrorMsg(action);
             case UPDATE:
+            case UPDATE_DELETED:
                 return event.getEnableUUID() ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS;
             case DELETE:
                 return event.getEnableUUID() ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS;
@@ -285,6 +306,7 @@ public class DatabaseWriter {
             case INSERT:
                 return INSERT_ERROR_GENERAL;
             case UPDATE:
+            case UPDATE_DELETED:
                 return UPDATE_ERROR_GENERAL;
             case DELETE:
                 return DELETE_ERROR_GENERAL;
@@ -296,6 +318,7 @@ public class DatabaseWriter {
         switch (action) {
             case INSERT:
             case UPDATE:
+            case UPDATE_DELETED:
                 return ((Feature) inputDatum).getId();
             case DELETE:
                 return ((Entry<String, String>) inputDatum).getKey();
@@ -312,6 +335,7 @@ public class DatabaseWriter {
             case INSERT:
                 return SQLQueryBuilder.buildInsertStmtQuery(dbHandler, event);
             case UPDATE:
+            case UPDATE_DELETED:
                 return SQLQueryBuilder.buildUpdateStmtQuery(dbHandler, event);
             case DELETE:
                 return SQLQueryBuilder.buildDeleteStmtQuery(dbHandler, event, version);
@@ -326,8 +350,9 @@ public class DatabaseWriter {
                 fillInsertQueryFromFeature(query, action, (Feature) inputDatum, event, version);
                 break;
             }
-            case UPDATE: {
-                fillUpdateQueryFromFeature(query, (Feature) inputDatum, event, version);
+            case UPDATE:
+            case UPDATE_DELETED: {
+                fillUpdateQueryFromFeature(query, action, (Feature) inputDatum, event, version);
                 break;
             }
             case DELETE: {

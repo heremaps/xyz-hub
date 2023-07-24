@@ -18,32 +18,17 @@
  */
 package com.here.xyz.hub.rest;
 
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
-import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
-import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 
 public class JobApiExportIT extends JobApiIT {
 
@@ -65,7 +50,7 @@ public class JobApiExportIT extends JobApiIT {
     @Test
     public void testFullWKBExport() throws Exception {
         /** Create job */
-        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.JSON_WKB);
+        Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -92,7 +77,7 @@ public class JobApiExportIT extends JobApiIT {
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD);
 
-        Export job = buildTestJob(filters, exportTarget, Job.CSVFormat.JSON_WKB);
+        Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -113,7 +98,7 @@ public class JobApiExportIT extends JobApiIT {
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD);
 
-        Export job = buildTestJob(filters, exportTarget, Job.CSVFormat.JSON_WKB);
+        Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -132,7 +117,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withPropertyFilter(propertyFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD);
 
-        Export job = buildTestJob(filters, exportTarget, Job.CSVFormat.JSON_WKB);
+        Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -156,7 +141,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withPropertyFilter(propertyFilter);
         Export.ExportTarget exportTarget = new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD);
 
-        Export job = buildTestJob(filters, exportTarget, Job.CSVFormat.JSON_WKB);
+        Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -175,7 +160,7 @@ public class JobApiExportIT extends JobApiIT {
     @Test
     public void testFullGEOJSONExport() throws Exception {
         /** Create job */
-        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -197,7 +182,7 @@ public class JobApiExportIT extends JobApiIT {
     @Test
     public void testFullGEOJSONCompositeL1Export() throws Exception {
         /** Create job */
-        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, testSpaceId2Ext, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -222,7 +207,7 @@ public class JobApiExportIT extends JobApiIT {
     @Test
     public void testFullGEOJSONCompositeL1SuperExport() throws Exception {
         /** Create job */
-        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, testSpaceId2Ext, Job.Status.finalized, Job.Status.failed, ContextAwareEvent.SpaceContext.SUPER, null);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -245,7 +230,7 @@ public class JobApiExportIT extends JobApiIT {
     @Test
     public void testFullGEOJSONCompositeL1ExtensionExport() throws Exception {
         /** Create job */
-        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, testSpaceId2Ext, Job.Status.finalized, Job.Status.failed, ContextAwareEvent.SpaceContext.EXTENSION, null);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -266,7 +251,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withRadius(550000);
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
 
-        Export job = buildTestJob(filters, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        Export job = buildTestJob(testExportJobId, filters, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, testSpaceId2Ext, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -290,7 +275,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
 
-        Export job = buildTestJob(filters, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        Export job = buildTestJob(testExportJobId, filters, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls= performExport(job, testSpaceId2Ext, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -312,7 +297,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withSpatialFilter(spatialFilter);
 
         /** Create job */
-        Export job = buildTestJob(filters, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        Export job = buildTestJob(testExportJobId, filters, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, testSpaceId2ExtExt, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -328,7 +313,7 @@ public class JobApiExportIT extends JobApiIT {
     @Test
     public void testFullGEOJSONCompositeL2Export() throws Exception {
         /** Create job */
-        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, testSpaceId2ExtExt, Job.Status.finalized, Job.Status.failed);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -348,7 +333,7 @@ public class JobApiExportIT extends JobApiIT {
     @Test
     public void testFullGEOJSONCompositeL2SuperExport() throws Exception {
         /** Create job */
-        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
+        Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, testSpaceId2ExtExt, Job.Status.finalized, Job.Status.failed, ContextAwareEvent.SpaceContext.SUPER, null);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -378,7 +363,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(testSpaceId2+":dummy");
 
-        Export job =  buildVMTestJob(null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         /** VML Trigger cant get tested here - so its okay that the job will fail in Triggerstate */
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.failed, Job.Status.finalized);
 
@@ -405,7 +390,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withType(Export.ExportTarget.Type.VML)
                 .withTargetId(testSpaceId2+":dummy");
 
-        Export job =  buildVMTestJob(null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         /** VML Trigger cant get tested here - so its okay that the job will fail in Triggerstate */
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.failed, Job.Status.finalized);
 
@@ -440,7 +425,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withRadius(5500);
 
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
-        Export job =  buildVMTestJob(filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.failed, Job.Status.finalized);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -466,7 +451,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withRadius(5500);
 
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
-        Export job =  buildVMTestJob(filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.failed, Job.Status.finalized);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -489,7 +474,7 @@ public class JobApiExportIT extends JobApiIT {
         Export.Filters filters = new Export.Filters()
                 .withPropertyFilter(propertyFilter);
 
-        Export job =  buildVMTestJob(filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.failed, Job.Status.finalized);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -518,7 +503,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
 
-        Export job =  buildVMTestJob(filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, testSpaceId2, Job.Status.failed, Job.Status.finalized);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -543,7 +528,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withTargetId(testSpaceId2Ext+":dummy");
 
         /** Create job */
-        Export job =  buildVMTestJob(null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, testSpaceId2Ext, Job.Status.failed, Job.Status.finalized);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -565,7 +550,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withTargetId(testSpaceId2ExtExt+":dummy");
 
         /** Create job */
-        Export job =  buildVMTestJob(null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, testSpaceId2ExtExt, Job.Status.failed, Job.Status.finalized);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -592,7 +577,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withRadius(550000);
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
 
-        Export job =  buildVMTestJob(filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, testSpaceId2Ext, Job.Status.failed, Job.Status.finalized);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -621,7 +606,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withSpatialFilter(spatialFilter)
                 .withPropertyFilter(propertyFilter);
 
-        Export job =  buildVMTestJob(filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, testSpaceId2Ext, Job.Status.failed, Job.Status.finalized);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -649,7 +634,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withSpatialFilter(spatialFilter);
 
         /** Create job */
-        Export job =  buildVMTestJob(filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, testSpaceId2ExtExt, Job.Status.failed, Job.Status.finalized);
 
         ArrayList<String> mustContains = new ArrayList<String>(){{
@@ -667,7 +652,7 @@ public class JobApiExportIT extends JobApiIT {
         String spaceId = "test-space";
         deleteAllJobsOnSpace(spaceId);
 
-        Export job = buildTestJob(null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.JSON_WKB);
+        Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.JSON_WKB);
         List<URL> urls =  performExport(job, spaceId, Job.Status.finalized, Job.Status.failed);
         System.out.println(urls.size());
     }
@@ -686,118 +671,10 @@ public class JobApiExportIT extends JobApiIT {
                 .withTargetId(spaceId+":dummy");
 
         deleteAllJobsOnSpace(spaceId);
-        Export job =  buildVMTestJob(null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
 
         List<URL> urls =  performExport(job, spaceId, Job.Status.failed, Job.Status.finalized);
         System.out.println(urls.size());
     }
 
-    /** ------------------- HELPER -------------------- */
-    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus) throws Exception {
-        return performExport(job, spaceId, expectedStatus, failStatus, null, null);
-    }
-
-    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus,
-                                      ContextAwareEvent.SpaceContext context, ApiParam.Query.Incremental incremental) throws Exception {
-        /** Create job */
-        postJob(job, spaceId)
-                .body("status", equalTo(Job.Status.waiting.toString()))
-                .statusCode(CREATED.code());
-
-        String postUrl = "/spaces/{spaceId}/job/{jobId}/execute?command=start&{context}&{incremental}"
-                .replace("{spaceId}", spaceId)
-                .replace("{jobId}", job.getId())
-                .replace("{context}", context == null ? "" : "context="+context.toString().toLowerCase())
-                .replace("{incremental}", incremental == null ? "" : "incremental="+incremental.toString().toLowerCase());
-
-        /** start import */
-        given()
-                .accept(APPLICATION_JSON)
-                .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .post(postUrl)
-                .then()
-                .statusCode(NO_CONTENT.code());
-
-        /** Poll status */
-        pollStatus(spaceId, job.getId(), expectedStatus, failStatus);
-
-        job = (Export) getJob(spaceId, job.getId());
-
-        ArrayList<URL> urlList = new ArrayList<>();
-        if(job.getExportObjects() != null) {
-            for (String key : job.getExportObjects().keySet()) {
-                urlList.add(job.getExportObjects().get(key).getDownloadUrl());
-            }
-        }
-        return urlList;
-    }
-
-    protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContains) throws IOException {
-        String result = "";
-        long totalByteSize = 0;
-
-        for (URL url : urls) {
-            System.out.println("Download: "+url);
-            url = new URL(url.toString().replace("localstack","localhost"));
-            BufferedInputStream bis = new BufferedInputStream(url.openStream());
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-
-            byte[] buffer = new byte[1024];
-            int count=0;
-            while((count = bis.read(buffer,0,1024)) != -1)
-            {
-                bos.write(buffer, 0, count);
-            }
-            bos.close();
-            bis.close();
-            totalByteSize += bos.size();
-            result += new String(bos.toByteArray(), StandardCharsets.UTF_8);
-        }
-
-        if(expectedByteSize != null)
-            assertEquals(expectedByteSize.intValue(), totalByteSize);
-
-        if(expectedFeatureCount != null)
-            assertEquals(expectedFeatureCount.intValue(), result.split("'\"id'\"", -1).length-1);
-
-        for (String word : csvMustContains) {
-            assertNotEquals(-1, result.indexOf(word));
-        }
-
-        return result;
-    }
-
-    protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContains, Integer expectedTileCount) throws IOException {
-        List<String> tileIds = new ArrayList<>();
-        int lineCount = 0;
-        int featureCount = 0;
-
-        String result = downloadAndCheck(urls, expectedByteSize, 0, csvMustContains);
-        for (String fc64: result.split("\n")) {
-            tileIds.add(fc64.substring(0,fc64.lastIndexOf("\t")));
-            FeatureCollection fc = XyzSerializable.deserialize(new String(Base64.getDecoder().decode((fc64.substring(fc64.lastIndexOf("\t")+1)))));
-            featureCount += fc.getFeatures().size();
-            lineCount++;
-        }
-
-        if(expectedTileCount != null)
-            assertEquals(expectedTileCount.intValue(), tileIds.size());
-
-        assertEquals(expectedFeatureCount, featureCount);
-    }
-
-    protected Export buildTestJob(Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format){
-        return new Export()
-                .withId(testExportJobId)
-                .withFilters(filters)
-                .withExportTarget(target)
-                .withCsvFormat(format);
-    }
-
-    private Export buildVMTestJob(Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format, int targetLevel, int maxTilesPerFile){
-        return buildTestJob(filters, target, format)
-                .withMaxTilesPerFile(maxTilesPerFile)
-                .withTargetLevel(targetLevel);
-    }
 }
