@@ -81,6 +81,7 @@ public class JobS3Client extends AwsS3Client{
                 .replace("${currentPart}",Integer.toString(currentPart))
                 .replace("${extension}",extension);
 
+        customCredentialsProvider.refresh();
         URL url = generateUploadURL(bucketName, key);
         return new ImportObject(key,url);
     }
@@ -261,6 +262,9 @@ public class JobS3Client extends AwsS3Client{
                 .withBucketName(bucketName);
 
         ObjectListing objectListing = client.listObjects(listObjects);
+
+        if(createDownloadUrl)
+            customCredentialsProvider.refresh();
 
         for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
             //Skip empty files
