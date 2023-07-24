@@ -79,7 +79,7 @@ public class ApiParam {
     return rawValue;
   }
 
-  private static String getConvertedKey(String rawKey) {
+  public static String getConvertedKey(String rawKey) {
     if (rawKey.startsWith("p.")) {
       return rawKey.replaceFirst("p.", "properties.");
     }

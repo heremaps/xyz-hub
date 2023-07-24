@@ -2358,7 +2358,8 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_statistic_space(
+
+CREATE OR REPLACE FUNCTION xyz_statistic_space_v1(
     IN schema text,
     IN spaceid text)
   RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
@@ -2400,6 +2401,64 @@ $BODY$
         END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
+
+CREATE OR REPLACE FUNCTION xyz_statistic_space_v2(
+    IN schema text,
+    IN spaceid text)
+  RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
+$BODY$
+
+with indata as ( select xyz_statistic_space_v2.schema as s, xyz_statistic_space_v2.spaceid as t ),
+--with indata as ( select 'public' as s, 'exportTestdata03' as t ),
+--with indata as ( select 'public' as s, 'x-psql-test' as t ),
+iindata as 
+( select row_number() over () as idx, r.* from 
+	(	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' ))  ) r 
+),
+iiindata as ( select * from iindata i, lateral ( select * from public.xyz_statistic_space_v1(i.schem,i.tbl) ) l ),
+c1 as ( select jsonb_build_object( 'value', sum( (tablesize->'value')::bigint ), 'estimated', max( (tablesize->>'estimated') )::boolean) as tablesize from iiindata ),
+c2 as 
+( select jsonb_build_object( 'value', coalesce( jsonb_agg( distinct e1 ),'[]'::jsonb ), 'estimated', coalesce( max( e2::text )::boolean, false ) ) as geometrytypes
+  from ( select jsonb_array_elements( geometrytypes->'value' ) as e1, geometrytypes->'estimated' as e2 from iiindata ) o
+),
+c3 as
+( select jsonb_build_object('value',coalesce( jsonb_agg( v ),'[]'::jsonb ),'estimated', coalesce( max( e::text )::boolean, false ) ) as properties
+  from
+  ( select jsonb_build_object('key',e1->>'key','count', sum( (e1->'count')::bigint ),'datatype', max( e1->>'datatype' )) || case when max( e1->>'searchable' ) isnull then '{}'::jsonb else jsonb_build_object( 'searchable', max( e1->>'searchable' )::boolean ) end as v, max( e2::text ) as e 
+    from ( select jsonb_array_elements( properties->'value' ) as e1, properties->'estimated' as e2 from iiindata ) o
+    group by o.e1->>'key'
+  ) oo 
+),
+c4 as 
+( select jsonb_build_object( 'value', coalesce( jsonb_agg( distinct e1 ),'[]'::jsonb ), 'estimated', coalesce( max( e2::text )::boolean, true ) ) as tags
+  from ( select jsonb_array_elements( tags->'value' ) as e1, tags->'estimated' as e2 from iiindata ) oo
+),
+c5 as 
+(	select jsonb_build_object( 'value', e1 , 'estimated', e2 ) as count
+  from
+  ( select  sum((count->>'value')::bigint)::bigint as e1, max( count->>'estimated' )::boolean as e2 from iiindata ) oo
+),
+c6 as
+( select jsonb_build_object( 'value', coalesce(e1,'') , 'estimated', coalesce(e2,false) ) as bbox
+  from ( select  st_extent( (bbox->>'value')::box2d::geometry )::text as e1, max( bbox->>'estimated' )::boolean as e2 from iiindata where strpos(bbox->>'value','BOX(') > 0 ) oo
+),
+c7 as ( select max( searchable ) as searchable from iiindata ),
+outdata as ( select * from c1,c2,c3,c4,c5,c6,c7 )
+select * from outdata
+--select * from iiindata
+$BODY$
+LANGUAGE sql VOLATILE;
+
+CREATE OR REPLACE FUNCTION xyz_statistic_space(
+    IN schema text,
+    IN spaceid text)
+  RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
+$BODY$
+ select * from xyz_statistic_space_v2( schema, spaceid )
+$BODY$
+LANGUAGE sql VOLATILE;
+
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_statistic_xs_space(

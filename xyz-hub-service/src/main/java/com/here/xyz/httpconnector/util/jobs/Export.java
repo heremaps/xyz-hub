@@ -57,6 +57,9 @@ public class Export extends Job {
     private long estimatedFeatureCount;
 
     @JsonView({Internal.class})
+    private Map<String,Long> searchableProperties;
+
+    @JsonView({Internal.class})
     private List<String> processingList;
 
     /** Only used by type VML */
@@ -70,6 +73,10 @@ public class Export extends Job {
     /** Only used by type VML */
     @JsonView({Public.class})
     private Integer targetLevel;
+
+    /** Only used by type VML */
+    @JsonView({Public.class})
+    private String partitionKey;
 
     @JsonView({Public.class})
     private String targetVersion;
@@ -108,6 +115,14 @@ public class Export extends Job {
 
     public void setEstimatedFeatureCount(long estimatedFeatureCount) {
         this.estimatedFeatureCount = estimatedFeatureCount;
+    }
+
+    public Map<String,Long> getSearchableProperties() { 
+        return searchableProperties;
+    }
+
+    public void setSearchableProperties( Map<String,Long> searchableProperties ) { 
+        this.searchableProperties = searchableProperties;
     }
 
     public ExportStatistic getStatistic(){
@@ -163,6 +178,14 @@ public class Export extends Job {
         this.targetLevel = targetLevel;
     }
 
+    public String getPartitionKey() {
+        return partitionKey;
+    }
+
+    public void setPartitionKey(String partitionKey) {
+        this.partitionKey = partitionKey;
+    }
+
     public String getTargetVersion() {
         return targetVersion;
     }
@@ -213,6 +236,11 @@ public class Export extends Job {
 
     public Export withEstimatedFeatureCount(long estimatedFeatureCount){
         setEstimatedFeatureCount(estimatedFeatureCount);
+        return this;
+    }
+
+    public Export withSearchableProperties(Map<String,Long> searchableProperties) {
+        setSearchableProperties(searchableProperties);
         return this;
     }
 
@@ -311,6 +339,10 @@ public class Export extends Job {
         return this;
     }
 
+    public Export withOmitOnNull(final boolean omitOnNull) {
+        setOmitOnNull(omitOnNull);
+        return this;
+    }
 
     public Export withFilters(final Filters filters) {
         setFilters(filters);
@@ -324,6 +356,11 @@ public class Export extends Job {
 
     public Export withTargetLevel(final Integer targetLevel) {
         setTargetLevel(targetLevel);
+        return this;
+    }
+
+    public Export withPartitionKey(final String partitionKey) {
+        setPartitionKey(partitionKey);
         return this;
     }
 
