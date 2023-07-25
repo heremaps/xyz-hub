@@ -88,7 +88,7 @@ public class JobS3Client extends AwsS3Client{
     public Map<String, ImportObject> scanImportPath(Import job, Job.CSVFormat csvFormat){
         /** if we cant find a upload url read from IMPORT_MANUAL_UPLOAD_FOLDER */
         String firstKey = (String) job.getImportObjects().keySet().toArray()[0];
-        String path = IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
+        String path = getS3Path(job);
 
         /** manual uploaded files are not allowed to be named as part_*.csv */
         if(!firstKey.matches("part_\\d*.csv"))
@@ -247,11 +247,11 @@ public class JobS3Client extends AwsS3Client{
             throw new UnsupportedEncodingException("Not able to find EOL!");
     }
 
-    public Map<String, ExportObject> scanExportPath(Job job, boolean createDownloadUrl){
-        /** if we cant find a upload url read from IMPORT_MANUAL_UPLOAD_FOLDER */
-        String path = getS3Path(job);
-
-        return scanExportPath(path, CService.configuration.JOBS_S3_BUCKET, createDownloadUrl);
+    public Map<String, ExportObject> scanExportPath(Export job, boolean isSuperPath, boolean createDownloadUrl){
+        Map<String, ExportObject> exportObjectMap = new HashMap<>();
+        String path = isSuperPath ? job.readParamSuperExportPath() : getS3Path(job);
+        exportObjectMap.putAll(scanExportPath(path, CService.configuration.JOBS_S3_BUCKET, createDownloadUrl));
+        return exportObjectMap;
     }
 
     public Map<String,ExportObject> scanExportPath(String prefix, String bucketName, boolean createDownloadUrl){
@@ -305,24 +305,38 @@ public class JobS3Client extends AwsS3Client{
         }
     }
 
-    public Export readMetaFile(Export job) {
-        String bucketName = CService.configuration.JOBS_S3_BUCKET;
-        String path = getS3Path(job) + "/manifest.json";
+    public String checkPersistentS3ExportOfSuperLayer(String superLayer, Export sourceJob) {
+        String path = getS3Path(superLayer, sourceJob.getTargetLevel());
+        Export superExport = readMetaFileFromPath(path);
+        if(superExport == null)
+            return null;
+        return path;
+    }
+
+    public Export readMetaFileFromJob(Export job) {
+        return readMetaFileFromPath(getS3Path(job));
+    }
+
+    public Export readMetaFileFromPath(String path) {
         try {
-            S3Object s3Object = client.getObject(bucketName, path);
+            path += "/manifest.json";
+            S3Object s3Object = client.getObject(CService.configuration.JOBS_S3_BUCKET, path);
             if(s3Object != null)
                 return new ObjectMapper().readValue(s3Object.getObjectContent(), Export.class);
         } catch (Exception e) {
-            logger.error("[{}] Cant read Metafile {}", job.getId(), e);
+            logger.error("[{}] Cant read Metafile {}", e);
         }
         return null;
     }
 
     public String getS3Path(Job job) {
-        boolean persistExport = job.getParams().containsKey("persistExport") ? (boolean) job.getParam("persistExport") : false;
+        if(job instanceof Import){
+            return IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
+        }
+
         String s3Path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER + "/" + job.getId();
 
-        if(job instanceof Export && persistExport) {
+        if(job instanceof Export && ((Export) job).readParamPersistExport()) {
             Export exportJob = (Export) job;
             if(exportJob.getExportTarget().getType() == Export.ExportTarget.Type.VML && exportJob.getFilters() == null) {
                 String hashedSpaceId = Hasher.getHash(job.getTargetSpaceId());
@@ -332,7 +346,22 @@ public class JobS3Client extends AwsS3Client{
         return s3Path;
     }
 
-    public void cleanJobData(String jobId){
-        this.deleteS3Folder(CService.configuration.JOBS_S3_BUCKET, CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER+"/"+jobId+"/");
+    public String getS3Path(String targetSpaceId, int targetLevel) {
+        String hashedSpaceId = Hasher.getHash(targetSpaceId);
+        return CService.jobS3Client.EXPORT_PERSIST_FOLDER + "/" + hashedSpaceId + "/" + targetLevel;
+    }
+
+    public void cleanJobData(Job job, boolean force){
+        String path = getS3Path(job);
+
+        if(job instanceof Export && ((Export) job).readParamPersistExport() && !force){
+            //force is required!
+            return;
+        }else if(job instanceof Import && !force){
+            //force is required!
+            return;
+        }
+
+        this.deleteS3Folder(CService.configuration.JOBS_S3_BUCKET, path + "/");
     }
 }

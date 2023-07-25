@@ -28,6 +28,8 @@ import com.here.xyz.httpconnector.util.jobs.validate.ExportValidator;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
+
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import org.apache.logging.log4j.LogManager;
@@ -35,6 +37,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
+
+import java.util.HashMap;
 
 public class ExportHandler extends JobHandler{
     private static final Logger logger = LogManager.getLogger();
@@ -59,6 +63,22 @@ public class ExportHandler extends JobHandler{
                     if(value != null && value != 0) {
                         job.setEstimatedFeatureCount(value);
                     }
+                    
+                    HashMap<String, Long> srchProp = new HashMap<String, Long>();
+                    for ( PropertyStatistics pStat : statistics.getProperties().getValue())
+                     if( pStat.isSearchable() )
+                      srchProp.put(pStat.getKey(), pStat.getCount() );
+
+                    if( !srchProp.isEmpty() )
+                     job.setSearchableProperties(srchProp);
+
+                    if(   job.getEstimatedFeatureCount() > 1000000 /** searchable limit without index*/
+                       && job.getPartitionKey() != null 
+                       && !"id".equals(job.getPartitionKey()) 
+                       && !srchProp.containsKey(job.getPartitionKey().replaceFirst("^(p|properties)\\." ,""))
+                       )
+                        return Future.failedFuture(new HttpException(BAD_REQUEST, "partitionKey ["+ job.getPartitionKey() +"] is not a searchable property"));  
+
                     return CService.jobConfigClient.store(marker, job);
                 });
     }
@@ -73,13 +93,12 @@ public class ExportHandler extends JobHandler{
                 .onSuccess(j -> {
                     /** Check State */
                     try{
-                        isJobStateValid(j, jobId, command, p);
-
                         Export exportJob = (Export) j;
+                        ExportValidator.validateExportExecution(exportJob, command, incremental, p);
                         loadClientAndInjectDefaults(exportJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, null, incremental, _context);
 
                         switch (command){
-                            case ABORT: abbortJob(marker, exportJob, p); break;
+                            case ABORT: abortJob(marker, exportJob, p); break;
                                 
                             case CREATEUPLOADURL:
                                 p.fail(new HttpException(NOT_IMPLEMENTED, "For Export not required!"));
@@ -95,28 +114,7 @@ public class ExportHandler extends JobHandler{
         return p.future();
     }
 
-    private static void isJobStateValid(Job job, String jobId, HApiParam.HQuery.Command command, Promise<Job> p) throws HttpException {
-        if (job == null) {
-            throw new HttpException(NOT_FOUND, "Job with Id " + jobId + " not found");
-        }
-
-        switch (command){
-            case CREATEUPLOADURL: throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
-            case ABORT: isValidForAbort(job); break;
-            case RETRY:  throw new HttpException(NOT_IMPLEMENTED, "TBD");
-            case START: isValidForStart(job); break;
-            default: throw new HttpException(BAD_REQUEST, "unknown command [" + command + "]");
-        }
-    }
-
-    private static void isValidForAbort(Job job) throws HttpException {
-        switch (job.getStatus()){
-            case executing: break;
-            default: throw new HttpException(PRECONDITION_FAILED, "Job is not in executing state - current status: "+job.getStatus());
-        }
-    }    
-
-    private static void abbortJob(Marker marker, Job job, Promise<Job> p)
+    private static void abortJob(Marker marker, Job job, Promise<Job> p)
     {
       JDBCExporter.abortJobsByJobId((Export) job)
        .onComplete(f -> p.complete());

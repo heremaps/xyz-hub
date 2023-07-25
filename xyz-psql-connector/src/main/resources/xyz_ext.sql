@@ -20,7 +20,8 @@
 -- CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 -- CREATE EXTENSION IF NOT EXISTS postgis_topology;
 -- CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
+DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt(boolean, text[], text, boolean);
+DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text, text, integer, boolean);
 --
 ------ SAMPLE QUERIES ----
 ------ ENV: XYZ-CIT ; SPACE: QgQCHStH ; OWNER: psql
@@ -110,7 +111,7 @@ DROP FUNCTION IF EXISTS xyz_statistic_history(text, text);
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 170
+ select 171
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2357,7 +2358,8 @@ $BODY$
   LANGUAGE plpgsql VOLATILE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_statistic_space(
+
+CREATE OR REPLACE FUNCTION xyz_statistic_space_v1(
     IN schema text,
     IN spaceid text)
   RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
@@ -2399,6 +2401,64 @@ $BODY$
         END;
 $BODY$
   LANGUAGE plpgsql VOLATILE;
+
+CREATE OR REPLACE FUNCTION xyz_statistic_space_v2(
+    IN schema text,
+    IN spaceid text)
+  RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
+$BODY$
+
+with indata as ( select xyz_statistic_space_v2.schema as s, xyz_statistic_space_v2.spaceid as t ),
+--with indata as ( select 'public' as s, 'exportTestdata03' as t ),
+--with indata as ( select 'public' as s, 'x-psql-test' as t ),
+iindata as 
+( select row_number() over () as idx, r.* from 
+	(	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' ))  ) r 
+),
+iiindata as ( select * from iindata i, lateral ( select * from public.xyz_statistic_space_v1(i.schem,i.tbl) ) l ),
+c1 as ( select jsonb_build_object( 'value', sum( (tablesize->'value')::bigint ), 'estimated', max( (tablesize->>'estimated') )::boolean) as tablesize from iiindata ),
+c2 as 
+( select jsonb_build_object( 'value', coalesce( jsonb_agg( distinct e1 ),'[]'::jsonb ), 'estimated', coalesce( max( e2::text )::boolean, false ) ) as geometrytypes
+  from ( select jsonb_array_elements( geometrytypes->'value' ) as e1, geometrytypes->'estimated' as e2 from iiindata ) o
+),
+c3 as
+( select jsonb_build_object('value',coalesce( jsonb_agg( v ),'[]'::jsonb ),'estimated', coalesce( max( e::text )::boolean, false ) ) as properties
+  from
+  ( select jsonb_build_object('key',e1->>'key','count', sum( (e1->'count')::bigint ),'datatype', max( e1->>'datatype' )) || case when max( e1->>'searchable' ) isnull then '{}'::jsonb else jsonb_build_object( 'searchable', max( e1->>'searchable' )::boolean ) end as v, max( e2::text ) as e 
+    from ( select jsonb_array_elements( properties->'value' ) as e1, properties->'estimated' as e2 from iiindata ) o
+    group by o.e1->>'key'
+  ) oo 
+),
+c4 as 
+( select jsonb_build_object( 'value', coalesce( jsonb_agg( distinct e1 ),'[]'::jsonb ), 'estimated', coalesce( max( e2::text )::boolean, true ) ) as tags
+  from ( select jsonb_array_elements( tags->'value' ) as e1, tags->'estimated' as e2 from iiindata ) oo
+),
+c5 as 
+(	select jsonb_build_object( 'value', e1 , 'estimated', e2 ) as count
+  from
+  ( select  sum((count->>'value')::bigint)::bigint as e1, max( count->>'estimated' )::boolean as e2 from iiindata ) oo
+),
+c6 as
+( select jsonb_build_object( 'value', coalesce(e1,'') , 'estimated', coalesce(e2,false) ) as bbox
+  from ( select  st_extent( (bbox->>'value')::box2d::geometry )::text as e1, max( bbox->>'estimated' )::boolean as e2 from iiindata where strpos(bbox->>'value','BOX(') > 0 ) oo
+),
+c7 as ( select max( searchable ) as searchable from iiindata ),
+outdata as ( select * from c1,c2,c3,c4,c5,c6,c7 )
+select * from outdata
+--select * from iiindata
+$BODY$
+LANGUAGE sql VOLATILE;
+
+CREATE OR REPLACE FUNCTION xyz_statistic_space(
+    IN schema text,
+    IN spaceid text)
+  RETURNS TABLE(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
+$BODY$
+ select * from xyz_statistic_space_v2( schema, spaceid )
+$BODY$
+LANGUAGE sql VOLATILE;
+
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_statistic_xs_space(
@@ -3126,7 +3186,7 @@ BEGIN
 		RETURN;
     END IF;
 
-	calculated_min_version := greatest(statistic.user_min_version, statistic.max_version - statistic.versions_to_keep + 1);
+	calculated_min_version := COALESCE(greatest(statistic.user_min_version, statistic.max_version - statistic.versions_to_keep + 1),0);
 
 	IF min_tag_version >= 0 THEN
 		-- Tag has priority. Delete nothing below the minTagVersion!
@@ -3438,8 +3498,8 @@ $body$
 $body$
     language sql immutable strict;
 
-CREATE OR REPLACE FUNCTION tile_bbox(htile boolean, qk text) returns geometry 
-LANGUAGE plpgsql immutable AS 
+CREATE OR REPLACE FUNCTION tile_bbox(htile boolean, qk text) returns geometry
+LANGUAGE plpgsql immutable AS
 $_$
 begin
     if not htile then
@@ -3824,10 +3884,74 @@ end
 $_$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean ) RETURNS TABLE(tile_id text, tile_content text)
+CREATE OR REPLACE FUNCTION public.qk_s_get_fc_of_tiles_txt_v3(
+	here_tile_qk boolean,
+	tile_list text[],
+	sql_with_jsondata_geo text,
+	base64enc boolean,
+	clipped boolean,
+    includeEmpty boolean)
+    RETURNS TABLE(tile_id text, tile_content text)
+    LANGUAGE 'plpgsql' stable
+AS $BODY$
+declare
+result record;
+    tile text;
+    fkt_qk2box text := 'xyz_qk_qk2bbox';
+	plainjs text 	:= 'replace(''{"type": "FeatureCollection", "features":['' ||	substring(xx.fc, 3, (xx.fc).length - 4) || '']}'',''\'',''\\'')';
+    plaingeo text   := 'geo';
+begin
+    if here_tile_qk then
+        fkt_qk2box = 'htile_bbox';
+    end if;
+
+    if clipped then
+         plaingeo = 'ST_Intersection(ST_MakeValid( geo ),' || fkt_qk2box || '((%2$L)))';
+    end if;
+
+    if base64enc then
+         plainjs = 'replace( encode( replace(' || plainjs || ',''\\'',''\'')::bytea, ''base64'' ),chr(10),'''')';
+    end if;
+
+    foreach tile in array tile_list
+    loop
+        begin
+            execute format(
+                'SELECT %2$L,' || plainjs
+                ||' from( '
+                ||'   select replace(replace(array_agg(feature)::text, ''\"'',''"''), ''","'','','') as fc '
+                ||'   from( '
+                ||'    select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||', 8)::jsonb) as feature'
+                ||'	     from ( %1$s ) o '
+                ||'    where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
+                ||'   ) oo '
+                ||')xx ', sql_with_jsondata_geo, tile)
+             INTO tile_id, tile_content;
+
+            if tile_content IS NOT null then
+				return next;
+            else
+                if includeEmpty then
+                    tile_id := tile;
+                    if base64enc then
+                        --empty b64_fc
+                        tile_content := 'eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0=';
+                    else
+                        tile_content := '{"type": "FeatureCollection", "features":[]}';
+                    end if;
+                    return next;
+                end if;
+            end if;
+        end;
+    end loop;
+end
+$BODY$;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean, includeEmpty boolean) RETURNS TABLE(tile_id text, tile_content text)
 LANGUAGE sql stable
 AS $_$
-    select tile_id, tile_content from qk_s_get_fc_of_tiles_txt_v1( here_tile_qk, tile_list, sql_with_jsondata_geo, base64enc, clipped )
+    select tile_id, tile_content from qk_s_get_fc_of_tiles_txt_v3( here_tile_qk, tile_list, sql_with_jsondata_geo, base64enc, clipped, includeEmpty )
 $_$;
 ------------------------------------------------
 ------------------------------------------------
@@ -3864,13 +3988,14 @@ $_$;
 ------------------------------------------------
 ------------------------------------------------
 
-create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text, max_tiles integer, base64enc boolean, clipped boolean )
+create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, sql_qk_tileqry_with_geo text, max_tiles integer, base64enc boolean, clipped boolean, includeEmpty boolean)
  returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
 language plpgsql stable
 as $_$
 declare
     v_clipped   text := 'false';
     v_base64enc text := 'false';
+    v_includeEmpty text := 'false';
 begin
 
     if clipped then
@@ -3879,6 +4004,10 @@ begin
 
     if base64enc then
        v_base64enc = 'true';
+    end if;
+
+    if includeEmpty then
+       v_includeEmpty = 'true';
     end if;
 
     if not htile then
@@ -3896,7 +4025,7 @@ begin
             group by rr.bucket, rr.tiles_total
         )
         select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
-		       format('select tile_id, tile_content from qk_s_get_fc_of_tiles_txt(false,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped) as s3sql
+		       format('select tile_id, tile_content from qk_s_get_fc_of_tiles_txt(false,%1$L::text[],%2$L,%3$s,%4$s,%5$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped,v_includeEmpty) as s3sql
         from ibuckets l, indata r
         order by bucket;
     else
@@ -3914,7 +4043,7 @@ begin
             group by rr.bucket, rr.tiles_total
         )
         select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
-		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, tile_content from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped) as s3sql
+		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, tile_content from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s,%5$s)',l.tlist,r.sql_export_data,v_base64enc,v_clipped,v_includeEmpty) as s3sql
         from ibuckets l, indata r
         order by bucket;
     end if;
@@ -3928,7 +4057,7 @@ create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, 
 language sql stable
 as $_$
     select qk, mlev, sql_with_jsdata_geo, max_tls, bucket, nrbuckets, nrsubtiles, tiles_total, tile_list, s3sql
-	from exp_build_sql_inhabited_txt(htile, iqk, mlevel, sql_with_jsondata_geo, sql_qk_tileqry_with_geo, max_tiles, true, false )
+	from exp_build_sql_inhabited_txt(htile, iqk, mlevel, sql_with_jsondata_geo, sql_qk_tileqry_with_geo, max_tiles, true, false, false )
 $_$;
 
 create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, mlevel integer, sql_with_jsondata_geo text, max_tiles integer)
@@ -3942,7 +4071,7 @@ create or replace function exp_build_sql_inhabited_txt(htile boolean, iqk text, 
  returns table(qk text, mlev integer, sql_with_jsdata_geo text, max_tls integer, bucket integer, nrbuckets integer, nrsubtiles integer, tiles_total integer, tile_list text[], s3sql text)
 language sql stable
 as $_$
-    select qk, mlev, sql_with_jsdata_geo, max_tls, bucket, nrbuckets, nrsubtiles, tiles_total, tile_list, s3sql from exp_build_sql_inhabited_txt(htile, iqk, mlevel, sql_with_jsondata_geo, null::text, max_tiles, base64enc, clipped)
+    select qk, mlev, sql_with_jsdata_geo, max_tls, bucket, nrbuckets, nrsubtiles, tiles_total, tile_list, s3sql from exp_build_sql_inhabited_txt(htile, iqk, mlevel, sql_with_jsondata_geo, null::text, max_tiles, base64enc, clipped, false)
 $_$;
 
 
@@ -4049,6 +4178,7 @@ CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
 	iqk text,
 	mlevel integer,
 	sql_with_jsondata_geo text,
+    sql_qk_tileqry_with_geo text,
 	esitmated_count bigint,
 	tbl regclass)
 RETURNS  TABLE(tilelist text[])
@@ -4064,10 +4194,10 @@ declare
 	max_tiles integer := 5000;
 	calc_weighted_fc decimal;
 begin
-	--if esitmated_count is null or esitmated_count = 0 THEN
+	if esitmated_count is null or esitmated_count = 0 THEN
         select c.reltuples::bigint from pg_class c where oid = tbl
             into esitmated_count;
-    --end if;
+    end if;
 
     if esitmated_count = -1 THEN
 		RAISE NOTICE 'ANALYSE NEEDED % - %',esitmated_count, tbl;
@@ -4078,17 +4208,19 @@ begin
 
     if esitmated_count < start_parallelization_threshold THEN
         return query select ARRAY[''];
-    else
-		calc_weighted_fc := esitmated_count * _weight;
-
-		if calc_weighted_fc > max_features_in_tile then
-			_weight := (max_features_in_tile / esitmated_count) ;
-        end if;
-
-        return query select ARRAY_AGG(qk) from (
-			select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbl, sql_with_jsondata_geo
-	    ) order by weight DESC) a;
+    elseif sql_qk_tileqry_with_geo is not null and length(sql_qk_tileqry_with_geo) > 0 THEN
+        sql_with_jsondata_geo := sql_qk_tileqry_with_geo;
     end if;
+
+    calc_weighted_fc := esitmated_count * _weight;
+
+    if calc_weighted_fc > max_features_in_tile then
+            _weight := (max_features_in_tile / esitmated_count) ;
+    end if;
+
+    return query select ARRAY_AGG(qk) from (
+        select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbl, sql_with_jsondata_geo
+    ) order by weight DESC) a;
 end
 $BODY$;
 ------------------------------------------------

@@ -106,8 +106,12 @@ public class JobApi extends Api {
 
   private void deleteJob(final RoutingContext context) {
     String jobId = context.pathParam(Path.JOB_ID);
+    boolean force = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.FORCE, false);
 
-    JobHandler.deleteJob(jobId, Api.Context.getMarker(context))
+    JobHandler.getJob(jobId, Api.Context.getMarker(context))
+            .compose(
+                    job -> JobHandler.deleteJob(job, force, Api.Context.getMarker(context))
+            )
             .onFailure(e -> this.sendError(e, context))
             .onSuccess(job -> this.sendResponse(context, OK, job));
   }
@@ -116,8 +120,8 @@ public class JobApi extends Api {
     Command command = HQuery.getCommand(context);
     boolean enableHashedSpaceId = HQuery.getBoolean(context, HApiParam.HQuery.ENABLED_HASHED_SPACE_ID , true);
     boolean enableUUID = HQuery.getBoolean(context, HQuery.ENABLED_UUID , true);
-    ContextAwareEvent.SpaceContext _context = HApiParam.Query.getContext(context);
-    ApiParam.Query.Incremental incremental = HApiParam.Query.getIncremental(context);
+    ContextAwareEvent.SpaceContext _context = HApiParam.HQuery.getContext(context);
+    HApiParam.HQuery.Incremental incremental = HApiParam.HQuery.getIncremental(context);
     int urlCount = HQuery.getInteger(context, HQuery.URL_COUNT, 1);
     String[] params = HApiParam.HQuery.parseMainParams(context);
 

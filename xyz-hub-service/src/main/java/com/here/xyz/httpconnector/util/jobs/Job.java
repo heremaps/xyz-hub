@@ -191,6 +191,9 @@ public abstract class Job {
     @JsonView({Public.class})
     protected Boolean clipped;
 
+    @JsonView({Public.class})
+    protected Boolean omitOnNull;
+
 
     /**
      * Arbitrary parameters to be provided from hub
@@ -340,6 +343,14 @@ public abstract class Job {
 
     public void setClipped(Boolean clipped) {
         this.clipped = clipped;
+    }
+
+    public Boolean getOmitOnNull() {
+        return omitOnNull;
+    }
+
+    public void setOmitOnNull(Boolean omitOnNull) {
+        this.omitOnNull = omitOnNull;
     }
 
     public Object getParam(String key) {

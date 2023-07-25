@@ -97,7 +97,7 @@ public class JobApiImportIT extends JobApiIT {
                 .body("features.size()", equalTo(1));
 
         /** Delete Job */
-        deleteJob(testImportJobId, testSpace);
+        deleteJob(testImportJobId, testSpace, true);
     }
 
     @Test
@@ -140,7 +140,7 @@ public class JobApiImportIT extends JobApiIT {
                 .body("features.size()", equalTo(1));
 
         /** Delete Job */
-        deleteJob(testImportJobId, testSpace);
+        deleteJob(testImportJobId, testSpace, true);
     }
 
     @Test
@@ -218,7 +218,7 @@ public class JobApiImportIT extends JobApiIT {
                 .body("features.size()", equalTo(4));
 
         /** Delete Job */
-        deleteJob(testImportJobId, testSpace);
+        deleteJob(testImportJobId, testSpace, false);
     }
 
     @Test
@@ -282,7 +282,7 @@ public class JobApiImportIT extends JobApiIT {
         pollStatus(testSpace, testImportJobId, Job.Status.failed, Job.Status.finalized);
 
         /** Delete Job */
-        deleteJob(testImportJobId, testSpace);
+        deleteJob(testImportJobId, testSpace, true);
     }
 
     @Test
@@ -304,6 +304,6 @@ public class JobApiImportIT extends JobApiIT {
         assertEquals(job.getErrorType(), Import.ERROR_TYPE_VALIDATION_FAILED);
 
         /** Delete Job */
-        deleteJob(testImportJobId, testSpace);
+        deleteJob(testImportJobId, testSpace, true);
     }
 }

@@ -21,7 +21,11 @@ package com.here.xyz.httpconnector.util.jobs.validate;
 
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Core;
+import com.here.xyz.hub.rest.HttpException;
 import org.apache.commons.lang3.RandomStringUtils;
+
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 public class Validator {
 
@@ -41,12 +45,34 @@ public class Validator {
         }
     }
 
-    public static void validateJobCreation(Job job) throws Exception {
+    public static void validateJobCreation(Job job) throws HttpException {
         if(job.getTargetSpaceId() == null){
-            throw new Exception("Please specify 'targetSpaceId'!");
+            throw new HttpException(BAD_REQUEST,("Please specify 'targetSpaceId'!"));
         }
         if(job.getCsvFormat() == null){
-            throw new Exception("Please specify 'csvFormat'!");
+            throw new HttpException(BAD_REQUEST,("Please specify 'csvFormat'!"));
+        }
+    }
+
+    protected static void isValidForStart(Job job) throws HttpException{
+        switch (job.getStatus()){
+            case finalized:
+                throw new HttpException(PRECONDITION_FAILED, "Job is already finalized !");
+            case failed:
+                throw new HttpException(PRECONDITION_FAILED, "Failed - check error and retry!");
+            case queued:
+            case validating:
+            case validated:
+            case preparing:
+            case prepared:
+            case executing:
+            case executed:
+            case executing_trigger:
+            case trigger_executed:
+            case collectiong_trigger_status:
+            case trigger_status_collected:
+            case finalizing:
+                throw new HttpException(PRECONDITION_FAILED, "Job is already running - current status: "+job.getStatus());
         }
     }
 }

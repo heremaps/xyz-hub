@@ -25,6 +25,7 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
+import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.PSQLXyzConnector;
@@ -59,7 +60,7 @@ public class JDBCExporter extends JDBCClients{
             String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
             Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
             SQLQuery exportQuery = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-                    j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+                    j.getTargetVersion(), j.getParams(), j.getCsvFormat(),null,false, j.getPartitionKey(),j.getOmitOnNull());
 
             switch (j.getExportTarget().getType()){
                 case DOWNLOAD:
@@ -71,8 +72,7 @@ public class JDBCExporter extends JDBCClients{
 
                                     for (int i = 0; i < threads; i++) {
                                         String s3Prefix = i + "_";
-                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region,
-                                                new SQLQuery("AND i%% " + threads + " = "+i));
+                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, (threads > 1 ? new SQLQuery("AND i%% " + threads + " = "+i) : null) );
                                         exportFutures.add( exportTypeDownload(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
@@ -84,30 +84,40 @@ public class JDBCExporter extends JDBCClients{
                             });
                 case VML:
                 default:
+                    /** Is used for incremental exports - here we have to export modified tiles. Those tiles we need
+                     * to calculate separately */
+                    final SQLQuery qkQuery;
 
-                    if( j.getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64))
-                     return calculateThreadCountForDownload(j, schema, exportQuery)
-                            .compose(threads -> {
-                                try{
-                                    Promise<Export.ExportStatistic> promise = Promise.promise();
-                                    List<Future> exportFutures = new ArrayList<>();
+                    if(j.readParamIncremental().equals(ApiParam.Query.Incremental.CHANGES)){
+                        /** Create query which calculate all Tiles which are effected from delta changes */
+                        qkQuery = generateFilteredExportQueryForCompositeTileCalculation(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+                    }else {
+                        qkQuery = null;
+                    }
+
+                    if( j.getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64)) {
+                        return calculateThreadCountForDownload(j, schema, exportQuery)
+                                .compose(threads -> {
+                                    try {
+                                        Promise<Export.ExportStatistic> promise = Promise.promise();
+                                        List<Future> exportFutures = new ArrayList<>();
 
                                     for (int i = 0; i < threads; i++) {
                                         String s3Prefix = i + "_";
-                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region,
-                                                new SQLQuery("AND i%% " + threads + " = "+i));
+                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, (threads > 1 ? new SQLQuery("AND i%% " + threads + " = "+i) : null) );
                                         exportFutures.add( exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
-                                    return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
-                                }catch (SQLException e){
-                                    logger.warn(e);
-                                    return Future.failedFuture(e);
-                                }
-                            });
+                                        return executeParallelExportAndCollectStatistics(j, promise, exportFutures);
+                                    } catch (SQLException e) {
+                                        logger.warn(e);
+                                        return Future.failedFuture(e);
+                                    }
+                                });
+                    }
 
-
-                    return calculateTileListForVMLExport(j, schema, exportQuery)
+                    return calculateTileListForVMLExport(j, schema, exportQuery, qkQuery)
                             .compose(tileList-> {
                                 try{
                                     Promise<Export.ExportStatistic> promise = Promise.promise();
@@ -115,7 +125,8 @@ public class JDBCExporter extends JDBCClients{
                                     j.setProcessingList(tileList);
 
                                     for (int i = 0; i < tileList.size() ; i++) {
-                                        SQLQuery q2 = buildVMLExportQuery(j, schema, s3Bucket, s3Path, s3Region, tileList.get(i));
+                                        /** Build export for each tile of the weighted tile list */
+                                        SQLQuery q2 = buildVMLExportQuery(j, schema, s3Bucket, s3Path, s3Region, tileList.get(i), qkQuery);
                                         exportFutures.add(exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
@@ -126,7 +137,7 @@ public class JDBCExporter extends JDBCClients{
                                 }
                             });
             }
-        }catch (SQLException e){
+        }catch (Exception e){
             return Future.failedFuture(e);
         }
     }
@@ -181,11 +192,11 @@ public class JDBCExporter extends JDBCClients{
                 });
     }
 
-    private static Future<List<String>> calculateTileListForVMLExport(Export j, String schema, SQLQuery exportQuery) throws SQLException {
+    private static Future<List<String>> calculateTileListForVMLExport(Export j, String schema, SQLQuery exportQuery, SQLQuery qkQuery) throws SQLException {
         if(j.getProcessingList() != null)
             return Future.succeededFuture(j.getProcessingList());
 
-        SQLQuery q = buildVMLCalculateQuery(j, schema, exportQuery);
+        SQLQuery q = buildVMLCalculateQuery(j, schema, exportQuery, qkQuery);
         logger.info("[{}] Calculate VML-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 
         return getClient(j.getTargetConnector())
@@ -282,17 +293,18 @@ public class JDBCExporter extends JDBCClients{
         return q.substituteAndUseDollarSyntax(q);
     }
 
-    public static SQLQuery buildVMLCalculateQuery(Export job, String schema, SQLQuery query) {
+    public static SQLQuery buildVMLCalculateQuery(Export job, String schema, SQLQuery exportQuery, SQLQuery qkQuery) {
         int exportCalcLevel = 12;
 
         SQLQuery q = new SQLQuery("select tilelist from ${schema}.exp_type_vml_precalc(" +
-                "#{htile}, '', #{mlevel}, ${{exportSelectString}}, #{estimated_count}, #{tbl}::regclass)");
+                "#{htile}, '', #{mlevel}, ${{exportSelectString}}, ${{qkQuery}}, #{estimated_count}, #{tbl}::regclass)");
 
         q.setVariable("schema", schema);
         q.setNamedParameter("htile",true);
         q.setNamedParameter("idk","''");
         q.setNamedParameter("mlevel", exportCalcLevel);
-        q.setQueryFragment("exportSelectString", query);
+        q.setQueryFragment("exportSelectString", exportQuery);
+        q.setQueryFragment("qkQuery", qkQuery == null ?  new SQLQuery("null::text") : qkQuery);
         q.setNamedParameter("estimated_count", job.getEstimatedFeatureCount());
         q.setNamedParameter("tbl", schema+".\""+job.getTargetTable()+"\"");
 
@@ -307,7 +319,9 @@ public class JDBCExporter extends JDBCClients{
         Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
-        SQLQuery exportSelectString = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition);
+        SQLQuery exportSelectString = generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, 
+                                                                   j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, false,
+                                                                   j.getPartitionKey(), j.getOmitOnNull());
 
         SQLQuery q = new SQLQuery("SELECT * /* iml_s3_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
                 " ${{exportSelectString}},"+
@@ -324,7 +338,8 @@ public class JDBCExporter extends JDBCClients{
     }
 
     public static SQLQuery buildVMLExportQuery(Export j, String schema,
-                                               String s3Bucket, String s3Path, String s3Region, String parentQk) throws SQLException {
+                                               String s3Bucket, String s3Path, String s3Region, String parentQk,
+                                               SQLQuery qkTileQry) throws SQLException {
 
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
         Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
@@ -333,6 +348,9 @@ public class JDBCExporter extends JDBCClients{
         String bClipped = ( j.getClipped() != null && j.getClipped() ? "true" : "false" );
 
         SQLQuery exportSelectString =  generateFilteredExportQuery(schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+
+        /** QkTileQuery gets used if we are exporting in an incremental way. In this case we need to also include empty tiles to our export. */
+        boolean includeEmpty = qkTileQry != null;
 
         SQLQuery q = new SQLQuery(
                 "select ("+
@@ -343,16 +361,18 @@ public class JDBCExporter extends JDBCClients{
                         "   'format csv')).* " +
                         "  /* iml_vml_export_hint m499#jobId(" + j.getId() + ") */ " +
                         " from" +
-                        "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, null::text, #{maxTilesPerFile}::int, true, "+ bClipped +" ) o"
+                        "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, ${{qkTileQry}}, #{maxTilesPerFile}::int, true, "+ bClipped +","+includeEmpty+") o"
         );
 
         q.setQueryFragment("exportSelectString", exportSelectString);
+        q.setQueryFragment("qkTileQry", qkTileQry == null ? new SQLQuery("null::text") : qkTileQry );
 
         q.setNamedParameter("s3Bucket",s3Bucket);
         q.setNamedParameter("s3Path",s3Path);
         q.setNamedParameter("s3Region",s3Region);
         q.setNamedParameter("targetLevel", j.getTargetLevel());
         q.setNamedParameter("parentQK", parentQk);
+
         q.setNamedParameter("maxTilesPerFile", maxTilesPerFile);
 
         return q.substituteAndUseDollarSyntax(q);
@@ -360,11 +380,16 @@ public class JDBCExporter extends JDBCClients{
 
     private static SQLQuery generateFilteredExportQuery(String schema, String spaceId, String propertyFilter,
         Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
-        return generateFilteredExportQuery(schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null);
+        return generateFilteredExportQuery(schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, false, null, false);
+    }
+
+    private static SQLQuery generateFilteredExportQueryForCompositeTileCalculation(String schema, String spaceId, String propertyFilter,
+                                                        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
+        return generateFilteredExportQuery(schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false);
     }
 
     private static SQLQuery generateFilteredExportQuery(String schema, String spaceId, String propertyFilter,
-        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition)
+        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
         throws SQLException {
         //TODO: Re-use existing QR rather than the following duplicated code
         SQLQuery geoFragment;
@@ -440,7 +465,7 @@ public class JDBCExporter extends JDBCClients{
         /** Remove Limit */
         sqlQuery.setQueryFragment("limit", "");
 
-        if (customWhereCondition != null)
+        if (customWhereCondition != null && csvFormat != CSVFormat.PARTITIONID_FC_B64 )
             addCustomWhereClause(sqlQuery, customWhereCondition);
 
         switch(csvFormat)
@@ -453,24 +478,59 @@ public class JDBCExporter extends JDBCClients{
             );
             geoJson.setQueryFragment("contentQuery",sqlQuery);
             geoJson.substitute();
-            return queryToText(geoJson, false);
+            return queryToText(geoJson, isForCompositeContentDetection);
           }
 
          case PARTITIONID_FC_B64 :
-         {
-           SQLQuery geoJson = new SQLQuery(
-                    "select jsondata->>'id' as id, replace( encode(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text::bytea,'base64') ,chr(10),'') as data " +
-                    "from ( ${{contentQuery}}) X"
-           );
-            geoJson.setQueryFragment("contentQuery",sqlQuery);
-            geoJson.substitute();
-            return queryToText(geoJson, false);
+         { 
+            boolean partById = true;
+            String partQry =   "select jsondata->>'id' as id, replace( encode(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text::bytea,'base64') ,chr(10),'') as data " 
+                            + "from ( ${{contentQuery}}) X";
+
+           if( partitionKey != null && !"id".equalsIgnoreCase(partitionKey) )
+           {  partById = false;
+              String converted = ApiParam.getConvertedKey(partitionKey);
+              partitionKey =  String.join(",",(converted != null ? converted : partitionKey).split("\\."));
+              partQry = String.format(
+                 " with indata as "
+                +" ( select jsondata#>>'{id}' as id, jsondata#>>'{%1$s}' as key, jsondata, geo "
+                +" 	from "
+                +"   ( select * from ( ${{contentQuery}} ) X "
+                +      (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata#>>'{%1$s}' isnull " )
+                +"   ) i "
+                +" ), "
+                +" iidata as ( select (( row_number() over ( partition by key ) )/ 100000)::integer as chunk, "
+                +"                    ( dense_rank() over ( order by key) )::integer as ikey, "
+                +"                    id, key, jsondata, geo "
+                +"             from indata "
+                +"           ), "
+                +" iiidata as "
+                +" ( select coalesce( key, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, ikey as i, count(1) as nrfeatures, "
+                +"   replace( encode( json_build_object('type','FeatureCollection', 'features', jsonb_agg( jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb) ))::text::bytea,'base64') ,chr(10),'') as data "
+                +"   from iidata "
+                +"   group by 1, chunk, ikey "
+                +"   order by 1, 3 desc "
+                +" ) "
+                +" select id, data from iiidata where true ", partitionKey ) ;
+           }
+
+           SQLQuery geoJson = new SQLQuery( partQry );
+
+           if (  partById && customWhereCondition != null )
+            addCustomWhereClause(sqlQuery, customWhereCondition);
+
+           if ( !partById && customWhereCondition != null )
+             geoJson.append(customWhereCondition);
+
+           geoJson.setQueryFragment("contentQuery",sqlQuery);
+           geoJson.substitute();
+           return queryToText(geoJson, isForCompositeContentDetection);
          }
 
          default:
          {
             sqlQuery.substitute();
-            return queryToText(sqlQuery, false);
+            return queryToText(sqlQuery, isForCompositeContentDetection);
          }
         }
 
@@ -483,7 +543,6 @@ public class JDBCExporter extends JDBCClients{
             .withQueryFragment("customWhereClause", customWhereClause);
         query.setQueryFragment("filterWhereClause", customizedWhereClause);
     }
-
 
     private static String sqlType(Object o)
     { 
