@@ -1489,6 +1489,7 @@ components:
         |             |         |           |     The returned count property set to 1, for non empty tiles |
       style: form
       explode: true
+      allowReserved: true
       schema:
         type: array
         items:
@@ -2000,6 +2001,7 @@ components:
 
       style: form
       explode: true
+      allowReserved: true
       schema:
         type: array
         items:
