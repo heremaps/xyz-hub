@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 172
+ select 173
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2888,33 +2888,11 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_lrc2bbox(rowY integer, colX integer, level integer)
-	RETURNS geometry AS $$
-DECLARE
- numRowsCols constant integer := 1 << level;
- tileSize    constant numeric := 2.0 * pi() / numRowsCols;
-
- RAD_TO_WGS84 constant numeric := 180. / pi();
- DELTA constant numeric := 0.000000000001;
-
- maxX numeric;
- maxY numeric;
- minX numeric;
- minY numeric;
-
-BEGIN
-
-  maxX = round( (((-pi()) + tileSize * (colX + 1)) * RAD_TO_WGS84)::numeric, 12 ) - DELTA;
-  minX = round( (((-pi()) + tileSize * colX) * RAD_TO_WGS84)::numeric, 12);
-  maxY = pi() - tileSize * rowY;
-  minY = pi() - tileSize * (rowY + 1);
-
-  maxY = round( (atan( (exp(maxY) - exp(-maxY)) / 2  ) * RAD_TO_WGS84)::numeric, 12 )  - DELTA;
-  minY = round( (atan( (exp(minY) - exp(-minY)) / 2  ) * RAD_TO_WGS84)::numeric, 12 );
-
-  return ST_MakeEnvelope( minX, minY, maxX, maxY, 4326 );
-
-END;
-$$ LANGUAGE plpgsql IMMUTABLE;
+	RETURNS geometry AS 
+$$
+ select st_transform( ST_TileEnvelope( level, colX, rowY ), 4326 ) 
+$$ 
+LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_qk2bbox( qid text )
