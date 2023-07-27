@@ -374,6 +374,10 @@ public abstract class Job {
         this.params.put(key,value);
     }
 
+    public void resetToPreviousState(){
+
+    }
+
     public static class Public {
     }
 
