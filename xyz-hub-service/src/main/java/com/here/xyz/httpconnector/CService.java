@@ -144,9 +144,9 @@ public class CService extends Core {
                 .setTcpFastOpen(true));
 
         jdbcImporter = new JDBCImporter();
+        jobSecretClient = new AwsSecretManagerClient();
         jobS3Client = new JobS3Client();
         jobCWClient = new AwsCWClient();
-        jobSecretClient = new AwsSecretManagerClient();
         importQueue = new ImportQueue();
         exportQueue = new ExportQueue();
 
