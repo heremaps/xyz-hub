@@ -31,14 +31,8 @@ public class AwsSecretManagerClient {
         this.client = builder.build();
     }
 
-    public String getSecret(ARN secretArn) {
-        String resource = secretArn.getResourceWithoutType();
-        String secretName = resource.substring(0, resource.lastIndexOf('-'));
-        return getSecret(secretName);
-    }
-
-    public String getSecret(String secretName) {
-        GetSecretValueResult result = client.getSecretValue(new GetSecretValueRequest().withSecretId(secretName));
+    private String getSecret(String secretArn) {
+        GetSecretValueResult result = client.getSecretValue(new GetSecretValueRequest().withSecretId(secretArn));
         return result.getSecretString();
     }
 
@@ -52,7 +46,7 @@ public class AwsSecretManagerClient {
      * @return the AWSCredenitials created from the secret
      *
      */
-    public AWSCredentials getCredentialsFromSecret(ARN secretArn) {
+    public AWSCredentials getCredentialsFromSecret(String secretArn) {
         JsonObject secretJson = new JsonObject(getSecret(secretArn));
         return new BasicAWSCredentials(secretJson.getString("accessKey"), secretJson.getString("secretKey"));
     }

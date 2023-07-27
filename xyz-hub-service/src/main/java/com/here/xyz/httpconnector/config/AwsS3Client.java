@@ -20,18 +20,15 @@
 package com.here.xyz.httpconnector.config;
 
 import com.amazonaws.HttpMethod;
-import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.hub.util.ARN;
 
 import java.io.IOException;
 import java.net.URL;
@@ -60,12 +57,9 @@ public class AwsS3Client {
             builder.setRegion(region);
         }
 
-        if (CService.configuration != null && CService.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {
+        if (CService.configuration != null && CService.configuration.JOB_BOT_SECRET_ARN != null) {
             synchronized(AwsS3Client.class) {
-                if (customCredentialsProvider == null) {
-                    customCredentialsProvider = InstanceProfileCredentialsProvider.createAsyncRefreshingProvider(true);
-                }
-                builder.setCredentials(customCredentialsProvider);
+                builder.setCredentials(new SecretManagerCredentialsProvider(CService.configuration.JOB_BOT_SECRET_ARN));
             }
         }
         client = builder.build();
@@ -80,14 +74,6 @@ public class AwsS3Client {
     }
 
     public URL generatePresignedUrl(String bucketName, String key, HttpMethod method) throws IOException {
-
-        AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
-        if(CService.configuration != null & CService.configuration.JOB_BOT_SECRET_ARN != null) {
-            AWSCredentials credentials = CService.jobSecretClient
-                    .getCredentialsFromSecret(ARN.fromString(CService.configuration.JOB_BOT_SECRET_ARN));
-            builder.setCredentials(new AWSStaticCredentialsProvider(credentials));
-        }
-        AmazonS3 client = builder.build();
 
         GeneratePresignedUrlRequest generatePresignedUrlRequest =
                 new GeneratePresignedUrlRequest(bucketName, key)
