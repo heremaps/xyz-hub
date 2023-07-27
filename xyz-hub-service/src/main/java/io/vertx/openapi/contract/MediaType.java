@@ -25,7 +25,8 @@ public interface MediaType extends OpenAPIObject {
       "application/geo+json",
       "application/vnd.mapbox-vector-tile",
       "application/vnd.here.feature-modification-list",
-      "application/x-empty");
+      "application/x-empty",
+      "text/plain");
 
   static boolean isMediaTypeSupported(String type) {
     return SUPPORTED_MEDIA_TYPES.contains(type.toLowerCase());
