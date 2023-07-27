@@ -148,9 +148,23 @@ public class JobApiImportIT extends JobApiIT {
         Import job = (Import)getJob(testSpace, testImportJobId);
 
         assertTrue(job.getErrorDescription().equalsIgnoreCase(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED));
-        assertTrue(job.getImportObjects().get("part_0.csv").getStatus().equals(ImportObject.Status.failed));
-        assertTrue(job.getImportObjects().get("part_1.csv").getStatus().equals(ImportObject.Status.imported));
-        assertTrue(job.getImportObjects().get("part_1.csv").getDetails().equalsIgnoreCase("1 rows imported"));
+
+        int foundFailed = 0, foundImported = 0;
+        boolean foundDetails = false;
+
+        for(String key : job.getImportObjects().keySet()){
+            if(job.getImportObjects().get(key).getStatus().equals(ImportObject.Status.failed))
+                foundFailed++;
+            if(job.getImportObjects().get(key).getStatus().equals(ImportObject.Status.imported))
+                foundImported++;
+            if(job.getImportObjects().get(key).getDetails() != null
+                    && job.getImportObjects().get(key).getDetails().equalsIgnoreCase("1 rows imported"))
+                foundDetails = true;
+        }
+
+        assertEquals(2,foundFailed);
+        assertEquals(1,foundImported);
+        assertEquals(true, foundDetails);
 
         /** Delete Job */
         deleteJob(testImportJobId, testSpace, true);
