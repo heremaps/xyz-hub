@@ -18,11 +18,8 @@
  */
 package com.here.naksha.lib.core.models.features;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.IPlugin;
@@ -46,6 +43,15 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
 
   @AvailableSince(NakshaVersion.v2_0_3)
   public static final String ACTIVE = "active";
+
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public static final String URL = "url";
+
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public static final String STORAGE_ID = "storageId";
+
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public static final String CONN_POOL_SETTINGS = "connectionPoolSettings";
 
   /**
    * Create a new connector.
@@ -97,7 +103,67 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
    */
   @AvailableSince(NakshaVersion.v2_0_3)
   @JsonProperty(ACTIVE)
-  private boolean active;
+  private boolean active = true;
+
+  /**
+   * The connectivity details required by this connector to perform feature operations.
+   * If connector is attached to a Storage (using storageId), then this is storage credentials.
+   */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  @JsonProperty(URL)
+  private String url;
+
+  /**
+   * (Optional) storageId indicates its attachment with storage for performing feature operations.
+   */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  @JsonProperty(STORAGE_ID)
+  private String storageId;
+
+  /**
+   * (Optional) settings to be used for creating connection pool against the storage.
+   * Applicable when connector is attached with storage (using storageId).
+   */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  @JsonProperty(CONN_POOL_SETTINGS)
+  private ConnectionPoolSettings connectionPoolSettings;
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  public static class ConnectionPoolSettings {
+
+    /**
+     * The minimum (initial) amount of concurrent connections this connector should use for storage operations.
+     */
+    private int coreSize = 2;
+    /**
+     * The maximum amount of concurrent connections this connector can use for storage operations.
+     */
+    private int maxSize = 20;
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      ConnectionPoolSettings that = (ConnectionPoolSettings) o;
+      return coreSize == that.coreSize && maxSize == that.maxSize;
+    }
+
+    public int getCoreSize() {
+      return coreSize;
+    }
+
+    public void setCoreSize(int coreSize) {
+      this.coreSize = coreSize;
+    }
+
+    public int getMaxSize() {
+      return maxSize;
+    }
+
+    public void setMaxSize(int maxSize) {
+      this.maxSize = maxSize;
+    }
+  }
 
   @Override
   public @NotNull IEventHandler newInstance() {
@@ -126,5 +192,21 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
 
   public void setExtension(int extension) {
     this.extension = extension;
+  }
+
+  public @NotNull String getUrl() {
+    return url;
+  }
+
+  public void setUrl(@NotNull String url) {
+    this.url = url;
+  }
+
+  public @NotNull String getStorageId() {
+    return storageId;
+  }
+
+  public void setStorageId(@NotNull String storageId) {
+    this.storageId = storageId;
   }
 }

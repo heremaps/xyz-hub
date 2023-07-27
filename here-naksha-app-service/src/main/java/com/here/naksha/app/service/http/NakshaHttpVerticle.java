@@ -42,8 +42,10 @@ import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.naksha.app.service.AbstractNakshaHubVerticle;
 import com.here.naksha.app.service.NakshaHub;
+import com.here.naksha.app.service.http.apis.Api;
 import com.here.naksha.app.service.http.apis.ConnectorApi;
 import com.here.naksha.app.service.http.apis.HealthApi;
+import com.here.naksha.app.service.http.apis.StorageApi;
 import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
 import com.here.naksha.lib.core.AbstractTask;
@@ -55,6 +57,7 @@ import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.BinaryResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.NotModifiedResponse;
+import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.MIMEType;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -171,13 +174,15 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         rb.securityHandler("Bearer", jwtHandler);
 
         // Add automatic routes.
-        healthApi.addOperations(rb);
-        connectorApi.addOperations(rb);
+        for (final Api api : apiControllers) {
+          api.addOperations(rb);
+        }
 
         // Add manual routes.
         final Router router = rb.createRouter();
-        healthApi.addManualRoutes(router);
-        connectorApi.addManualRoutes(router);
+        for (final Api api : apiControllers) {
+          api.addManualRoutes(router);
+        }
 
         // Static resources route.
         router.route("/hub/static/*").handler(this::onResourceRequest);
@@ -232,8 +237,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   private final @NotNull CorsHandler corsHandler;
   private final @Nullable StaticHandler staticHandler;
 
-  private final HealthApi healthApi = new HealthApi(this);
-  private final ConnectorApi connectorApi = new ConnectorApi(this);
+  private final List<@NotNull Api> apiControllers =
+      List.of(new HealthApi(this), new ConnectorApi(this), new StorageApi(this));
 
   private static final ConcurrentHashMap<@NotNull String, @NotNull Buffer> fileCache = new ConcurrentHashMap<>();
 
@@ -499,6 +504,32 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
    */
   public void sendErrorResponse(@NotNull RoutingContext routingContext, @NotNull ErrorResponse response) {
     sendXyzResponse(routingContext, HttpResponseType.ERROR, response);
+  }
+
+  /**
+   * Prepare XyzFeatureCollection response by extracting feature results from ModifyFeaturesResp object
+   *
+   * @param modifyResponse       The object to extract feature results from
+   * @return The XyzFeatureCollection response containing list of inserted/updated/delete features
+   */
+  public XyzFeatureCollection transformModifyResponse(@NotNull ModifyFeaturesResp modifyResponse) {
+    final XyzFeatureCollection response = new XyzFeatureCollection();
+    // add feature objects
+    response.getFeatures().addAll(modifyResponse.inserted());
+    response.getFeatures().addAll(modifyResponse.updated());
+    response.getFeatures().addAll(modifyResponse.deleted());
+    // add feature IDs
+    for (final XyzFeature f : modifyResponse.inserted()) {
+      response.appendInsertId(f.getId());
+    }
+    for (final XyzFeature f : modifyResponse.updated()) {
+      response.appendUpdateId(f.getId());
+    }
+    for (final XyzFeature f : modifyResponse.deleted()) {
+      response.appendDeleteId(f.getId());
+    }
+
+    return response;
   }
 
   /**

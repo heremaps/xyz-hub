@@ -42,6 +42,12 @@ public class Storage extends XyzFeature implements IPlugin<IStorage> {
   @AvailableSince(NakshaVersion.v2_0_0)
   public static final String CLASS_NAME = "className";
 
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public static final String TITLE = "title";
+
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public static final String DESCRIPTION = "description";
+
   /**
    * Create a new storage.
    *
@@ -89,6 +95,20 @@ public class Storage extends XyzFeature implements IPlugin<IStorage> {
   private @NotNull String className;
 
   /**
+   * A human-readable title of the storage.
+   */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  @JsonProperty(TITLE)
+  private String title;
+
+  /**
+   * A human-readable description of the storage, like its purpose.
+   */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  @JsonProperty(DESCRIPTION)
+  private String description;
+
+  /**
    * Initialize the storage engine, invoked from the Naksha-Hub when creating a new instance of the storage. This should ensure that the
    * storage is accessible and in a good state. If the method fails, it is invoked again after a couple of minutes. This method is invoked
    * at least ones for every service start and therefore must be concurrency safe, because it may be called in parallel by multiple
@@ -114,5 +134,31 @@ public class Storage extends XyzFeature implements IPlugin<IStorage> {
 
   public void setClassName(@NotNull String className) {
     this.className = className;
+  }
+
+  public String getTitle() {
+    return title;
+  }
+
+  public void setTitle(final String title) {
+    this.title = title;
+  }
+
+  public @NotNull Storage withTitle(final String title) {
+    setTitle(title);
+    return this;
+  }
+
+  public String getDescription() {
+    return description;
+  }
+
+  public void setDescription(final String description) {
+    this.description = description;
+  }
+
+  public @NotNull Storage withDescription(final String description) {
+    setDescription(description);
+    return this;
   }
 }

@@ -167,8 +167,9 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
                 }
                 response.deleted().add(feature);
               } else {
-                throw new SQLException("Unexpected operation returned by naksha_modify_features at index "
-                        + i + ": " + op);
+                throw new SQLException(
+                    "Unexpected operation returned by naksha_modify_features at index " + i + ": "
+                        + op);
               }
             }
           }

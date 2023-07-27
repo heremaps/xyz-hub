@@ -369,6 +369,8 @@ public abstract class AbstractTask<RESPONSE> extends NakshaContext implements IN
         if (AbstractTask.threadCount.compareAndSet(threadCount, threadCount + 1)) {
           try {
             final Future<RESPONSE> future = threadPool.submit(this::init_and_execute);
+            // TODO HP_QUERY : Wouldn't setting this flag, after submitting task, have concurrency failure
+            // risk?
             state.set(State.START);
             return future;
           } catch (RejectedExecutionException e) {
@@ -539,6 +541,7 @@ public abstract class AbstractTask<RESPONSE> extends NakshaContext implements IN
   public final boolean removeListener(@NotNull Consumer<@NotNull RESPONSE> listener) {
     lockAndRequireNew();
     try {
+      // TODO HP_QUERY : Purpose of checking absence before removing?
       if (!listeners.contains(listener)) {
         listeners.remove(listener);
         return true;

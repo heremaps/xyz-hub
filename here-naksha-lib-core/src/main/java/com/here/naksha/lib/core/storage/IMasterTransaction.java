@@ -128,6 +128,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the feature writer.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
+  // TODO HP_QUERY : Should be renamed to something like featureWriter() and similarly featureReader()
   <F extends XyzFeature> @NotNull IFeatureWriter<F> writeFeatures(
       @NotNull Class<F> featureClass, @NotNull CollectionInfo collection);
 }

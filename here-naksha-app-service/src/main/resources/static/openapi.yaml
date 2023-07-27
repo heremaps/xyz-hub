@@ -27,6 +27,8 @@ security:
   - AccessToken: [ ]
   - Bearer: [ ]
 tags:
+  - name: Manage Storages
+    description: Storage management endpoints.
   - name: Manage Spaces
     description: Space management endpoints.
   - name: Read Features
@@ -49,6 +51,40 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/EmptyResponse'
+  '/hub/storages':
+    get:
+      tags:
+        - Manage Storages
+      summary: List storages
+      description: >-
+        Lists the storages, which the current authenticated user has access to.
+      operationId: getStorages
+      responses:
+        '200':
+          $ref: '#/components/responses/StoragesResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+    post:
+      tags:
+        - Manage Storages
+      summary: Create a Storage
+      description: Creates a new storage.
+      operationId: postStorage
+      requestBody:
+        $ref: '#/components/requestBodies/StorageRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/StorageResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '413':
+          $ref: '#/components/responses/ErrorResponse413'
   '/hub/spaces':
     get:
       tags:
@@ -1762,6 +1798,34 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/FeatureCollectionIterable'
+    StorageResponse:
+      description: The space.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Storage'
+          examples:
+            response:
+              value:
+                id: psql
+                title: Default Naksha storage
+                description: Default PostgreSQL storage implementation used by Naksha
+                className: com.here.naksha.lib.psql.PsqlStorage
+    StoragesResponse:
+      description: The list of storages.
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/Storage'
+            type: array
+          examples:
+            response:
+              value:
+                - id: psql
+                  title: Default Naksha storage
+                  description: Default PostgreSQL storage implementation used by Naksha
+                  className: com.here.naksha.lib.psql.PsqlStorage
     SpaceResponse:
       description: The space.
       content:
@@ -1851,6 +1915,12 @@ components:
         application/geo+json:
           schema:
             $ref: '#/components/schemas/Geometry'
+    StorageRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Storage'
     SpaceRequest:
       required: true
       content:
@@ -2129,108 +2199,52 @@ components:
             That means no requests can be performed to the connector.
           type: boolean
           default: true
-        skipAutoDisable:
+        className:
           description: >-
-            Whether to skip the automatic disabling of this connector even when being not healthy.
-          type: boolean
-          default: false
-        trusted:
+            The FQCN (Fully Qualified Class Name) which implements connector logic to support 
+            feature operations on (optionally) associated storage.
+          example: com.here.naksha.handler.psql.PsqlHandler
+          type: string
+        url:
           description: >-
-            Whether the connector is a trusted connector. Trusted connectors will receive more information than normal connectors.
-          type: boolean
-          default: false
-        params:
+            The connectivity details required by this connector to perform feature operations.
+            If connector is associated with storage, it will represent storage credentials.
+          example: jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=xyz_spaces
+          type: string
+        extension:
           description: >-
-            Arbitrary parameters to be provided to the remote function with the event.
-          type: object
-        capabilities:
-          $ref: '#/components/schemas/StorageCapabilities'
-        remoteFunctions:
+            If this connector is an extension, then this holds the extension identification number; a 16-bit unsigned integer.
+          example: 10
+          type: integer
+        storageId:
           description: >-
-            A map with Cluster-IDs as keys (cluster-id-1 & cluster-id-1) and a 'RemoteFunctionConfig' as value.
-          type: object
-          additionalProperties:
-            $ref: '#/components/schemas/RemoteFunctionConfig'
-        remoteFunction:
-          allOf:
-            - $ref: '#/components/schemas/RemoteFunctionConfig'
-            - deprecated: true
-              description: "This property has been deprecated, please use remoteFunctions instead."
-          deprecated: true
-        connectionSettings:
+            The storage identifier, this connector is to be associated with.
+            Connector logic supposedly uses the storage for performing feature operations.
+          example: psql
+          type: string
+        connectionPoolSettings:
           description: >-
-            The connection and throttling settings.
+            The connection and throttling settings to be used while performing concurrent operations against associated storage.
+            Applicable if connector is associated with storage.
           type: object
           properties:
-            maxConnections:
-              description: The maximal amount of concurrent connector instances to use.
+            coreSize:
+              description: The minimum (initial) amount of concurrent connections this connector should use for storage operations.
               type: integer
-              format: int64
-              default: 64
-        defaultEventTypes:
-          description: >-
-            The default event types to register the connector for. Can be overridden in the space definition by the owner.
-            The value of one individual array element is a composition of the event type
-            and the phase, separated by a dot. For example \"ModifySpaceEvent\" as the event
-            type plus "." plus "response" as phase.
-          type: array
-          items:
-            type: string
-            enum: [
-              ModifySpaceEvent.request,
-              ModifySpaceEvent.response,
-              GetStatisticsEvent.request,
-              GetStatisticsEvent.response,
-              GetFeaturesByIdEvent.request,
-              GetFeaturesByIdEvent.response,
-              SearchForFeaturesEvent.request,
-              SearchForFeaturesEvent.response,
-              IterateFeaturesEvent.request,
-              IterateFeaturesEvent.response,
-              GetFeaturesByTileEvent.request,
-              GetFeaturesByTileEvent.response,
-              GetFeaturesByBBoxEvent.request,
-              GetFeaturesByBBoxEvent.response,
-              GetFeaturesByGeometryEvent.request,
-              GetFeaturesByGeometryEvent.response,
-              ModifyFeaturesEvent.request,
-              ModifyFeaturesEvent.response,
-              DeleteFeaturesByTagEvent.request,
-              DeleteFeaturesByTagEvent.response,
-              ContentModifiedNotification.request
-            ]
-        contactEmails:
-          description: >-
-            A list of email addresses of responsible owners for this connector. These email addresses will be used to send potential health warnings and other notifications.
-          type: array
-          items:
-            type: string
-            format: email
+              default: 2
+            maxSize:
+              description: The maximum amount of concurrent connections this connector can use for storage operations.
+              type: integer
+              default: 20
       example:
-        capabilities:
-          clusteringTypes:
-            - hexbin
-            - quad
-            - quadbin
-          preserializedResponseSupport: true
-          propertySearch: true
-          relocationSupport: true
-          searchablePropertiesConfiguration: true
-        contactEmails:
-          - MY_TEAM_E-MAIL@here.com
-          - DEVELOPER_E-MAIL@here.com
-        id: my-custom-unique-id
-        params:
-          ecps: myEncryptedAndVeryLongEcpsString
-          autoIndexing: true
-          propertySearch: true
-          mvtSupport: true
-        remoteFunctions:
-          eu-west-1:
-            id: test1
-            lambdaARN: arn:aws:lambda:eu-west-1:<myAwsAccountId>:function:test1
-            roleARN:
-            type: AWSLambda
+        id: psql-poc-db
+        storageId: psql
+        url: jdbc:postgresql://naksha-poc-db:5432/postgres?user=postgres&password=password&schema=naksha_spaces
+        connectionPoolSettings:
+          coreSize: 5
+          maxSize: 20
+        className: com.here.naksha.handler.psql.PsqlHandler
+        active: true
     Copyright:
       type: object
       description: Provides some information about a copyright
@@ -2815,6 +2829,27 @@ components:
             This function can be disabled by setting warmUp to zero.
           type: integer
           format: int64
+    Storage:
+      type: object
+      description: A physical storage to persist collections.
+      properties:
+        id:
+          description: >-
+            The unique identifier of the storage which is used to associate the connectors with.
+          example: psql
+          type: string
+        title:
+          description: The storage title.
+          example: Default Naksha storage
+          type: string
+        description:
+          description: The storage description in markdown format.
+          example: Default PostgreSQL storage implementation used by Naksha
+          type: string
+        className:
+          description: The FQCN (Fully Qualified Class Name) which implements storage persistence logic.
+          example: com.here.naksha.lib.psql.PsqlStorage
+          type: string
     Space:
       type: object
       description: A data holder for features which points to a persistent storage.
