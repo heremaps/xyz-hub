@@ -39,7 +39,7 @@ public class Export extends Job {
     public static String ERROR_TYPE_HTTP_TRIGGER_STATUS_FAILED = "http_get_trigger_status_failed";
 
     @JsonInclude
-    private String type = "Export";
+    private Type type = Type.Export;
 
     @JsonView({Public.class})
     private Map<String,ExportObject> exportObjects;
@@ -89,7 +89,7 @@ public class Export extends Job {
 
     public Export(){ }
 
-    public Export(String description, String targetSpaceId, String targetTable, CSVFormat csvFormat, Strategy strategy) {
+    public Export(String description, String targetSpaceId, String targetTable, Strategy strategy) {
         this.description = description;
         this.targetSpaceId = targetSpaceId;
         this.targetTable = targetTable;
@@ -97,7 +97,7 @@ public class Export extends Job {
         this.clipped = false;
     }
 
-    public String getType() {
+    public Type getType() {
         return type;
     }
 
@@ -217,8 +217,6 @@ public class Export extends Job {
     public void setFilters(Filters filters) {
         this.filters = filters;
     }
-
-    public void setType(String type) { this.type = type; }
 
     public String getTriggerId() { return triggerId; }
 
@@ -432,6 +430,20 @@ public class Export extends Job {
         return this.params.containsKey("incremental") ?
                 ApiParam.Query.Incremental.valueOf((String)this.params.get(HApiParam.HQuery.INCREMENTAL)) :
                 ApiParam.Query.Incremental.DEACTIVATED;
+    }
+
+    public void resetToPreviousState(){
+        switch (getStatus()){
+            case executing:
+                setStatus(Status.queued);
+                break;
+            case executing_trigger:
+                setStatus(Status.executed);
+                break;
+            case collectiong_trigger_status:
+                setStatus(Status.trigger_executed);
+                break;
+        }
     }
 
     public static class ExportStatistic{
