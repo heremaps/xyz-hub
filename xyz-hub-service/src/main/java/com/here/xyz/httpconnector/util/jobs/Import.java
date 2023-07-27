@@ -49,7 +49,7 @@ public class Import extends Job {
     private Map<String,ImportObject> importObjects;
 
     @JsonInclude
-    private String type = "Import";
+    private Type type = Type.Import;
 
     @JsonView({Internal.class})
     private List<String> idxList;
@@ -64,7 +64,7 @@ public class Import extends Job {
         this.strategy = strategy;
     }
 
-    public String getType() {
+    public Type getType() {
         return type;
     }
 
@@ -191,5 +191,22 @@ public class Import extends Job {
         if(this.idxList == null)
             this.idxList = new ArrayList<>();
         this.idxList.add(idx);
+    }
+
+    public void resetToPreviousState(){
+        switch (getStatus()){
+            case validating:
+                setStatus(Status.waiting);
+                break;
+            case preparing:
+                setStatus(Status.queued);
+                break;
+            case executing:
+                setStatus(Status.prepared);
+                break;
+            case finalizing:
+                setStatus(Status.executed);
+                break;
+        }
     }
 }

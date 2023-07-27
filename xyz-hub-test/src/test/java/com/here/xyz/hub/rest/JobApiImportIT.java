@@ -19,6 +19,7 @@
 package com.here.xyz.hub.rest;
 
 import com.here.xyz.httpconnector.util.jobs.Import;
+import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -36,6 +37,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class JobApiImportIT extends JobApiIT {
     String testSpace = testSpaceId1;
@@ -46,14 +48,14 @@ public class JobApiImportIT extends JobApiIT {
 
     @Before
     public void clean(){
-        createSpaceWithCustomStorage(testSpaceId1, "psql", null);
-        deleteAllJobsOnSpace(testSpaceId1);
+        createSpaceWithCustomStorage(testSpace, "psql", null);
+        deleteAllJobsOnSpace(testSpace);
     }
 
     @After
     public void test(){
-        deleteAllJobsOnSpace(testSpaceId1);
-        removeSpace(testSpaceId1);
+        deleteAllJobsOnSpace(testSpace);
+        removeSpace(testSpace);
     }
 
     @Test
@@ -95,6 +97,121 @@ public class JobApiImportIT extends JobApiIT {
                 .get("/spaces/" + testSpace +"/search")
                 .then()
                 .body("features.size()", equalTo(1));
+
+        /** Delete Job */
+        deleteJob(testImportJobId, testSpace, true);
+    }
+
+    /** For local testing */
+    @Test
+    public void duplicateImport() throws Exception {
+
+        /** Create job */
+        createTestJobWithId(testSpace, testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+
+        for(int i=0; i<3 ; i++) {
+            /** Create Upload URL */
+            String resp = given()
+                    .accept(APPLICATION_JSON)
+                    .contentType(APPLICATION_JSON)
+                    .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                    .post("/spaces/" + testSpace + "/job/" + testImportJobId + "/execute?command=createUploadUrl")
+                    .getBody().asString();
+            String url = new JsonObject(resp).getString("url");
+
+            /** Upload File */
+            uploadDummyFile(new URL(url), 11);
+        }
+
+        /** start import */
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post("/spaces/" + testSpace + "/job/"+testImportJobId+"/execute?command=start")
+                .then()
+                .statusCode(NO_CONTENT.code());
+
+        /** Poll status */
+        pollStatus(testSpace, testImportJobId, Job.Status.failed, Job.Status.finalized);
+
+        /** Check Feature in Space */
+        given()
+                .accept(APPLICATION_GEO_JSON)
+                .contentType(APPLICATION_GEO_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+                .when()
+                .get("/spaces/" + testSpace +"/search")
+                .then()
+                .body("features.size()", equalTo(1));
+
+        Import job = (Import)getJob(testSpace, testImportJobId);
+
+        assertTrue(job.getErrorDescription().equalsIgnoreCase(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED));
+
+        int foundFailed = 0, foundImported = 0;
+        boolean foundDetails = false;
+
+        for(String key : job.getImportObjects().keySet()){
+            if(job.getImportObjects().get(key).getStatus().equals(ImportObject.Status.failed))
+                foundFailed++;
+            if(job.getImportObjects().get(key).getStatus().equals(ImportObject.Status.imported))
+                foundImported++;
+            if(job.getImportObjects().get(key).getDetails() != null
+                    && job.getImportObjects().get(key).getDetails().equalsIgnoreCase("1 rows imported"))
+                foundDetails = true;
+        }
+
+        assertEquals(2,foundFailed);
+        assertEquals(1,foundImported);
+        assertEquals(true, foundDetails);
+
+        /** Delete Job */
+        deleteJob(testImportJobId, testSpace, true);
+    }
+
+    /** For local testing */
+//    @Test
+    public void validBigWKBImport() throws Exception {
+        int chunkSize = 100;
+        /** Create job */
+        createTestJobWithId(testSpace, testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+
+        for (int i=0 ;  i< chunkSize; i++){
+            /** Create Upload URL */
+            String resp = given()
+                    .accept(APPLICATION_JSON)
+                    .contentType(APPLICATION_JSON)
+                    .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                    .post("/spaces/" + testSpace + "/job/"+testImportJobId+"/execute?command=createUploadUrl")
+                    .getBody().asString();
+            String url = new JsonObject(resp).getString("url");
+
+            /** Upload File */
+            uploadDummyFile(new URL(url), 0);
+        }
+
+        /** start import */
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post("/spaces/" + testSpace + "/job/"+testImportJobId+"/execute?command=start")
+                .then()
+                .statusCode(NO_CONTENT.code());
+
+        /** Poll status */
+        pollStatus(testSpace, testImportJobId, Job.Status.finalized, Job.Status.failed);
+
+        /** Check Feature in Space */
+        given()
+                .accept(APPLICATION_GEO_JSON)
+                .contentType(APPLICATION_GEO_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+                .when()
+                .get("/spaces/" + testSpace +"/search")
+                .then()
+                .body("features.size()", equalTo(chunkSize));
 
         /** Delete Job */
         deleteJob(testImportJobId, testSpace, true);

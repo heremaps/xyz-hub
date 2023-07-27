@@ -292,6 +292,10 @@ public class JobApiIT extends TestSpaceWithFeature {
                 //valid GEOJSON
                 input = "\"{'\"type'\":'\"Feature'\",'\"id'\":'\"BfiimUxHjj'\",'\"geometry'\":{'\"type'\":'\"Point'\",'\"coordinates'\":[-2.960847,53.430828]},'\"properties'\":{'\"name'\":'\"Anfield'\",'\"amenity'\":'\"Football Stadium'\",'\"capacity'\":54074,'\"description'\":'\"Home of Liverpool Football Club'\"}}\"";
                 break;
+            case 11 :
+                //valid JSON_WKB with id
+                input = "\"{'\"id'\": '\"foo'\", '\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000";
+                break;
         }
         System.out.println("Start Upload");
 

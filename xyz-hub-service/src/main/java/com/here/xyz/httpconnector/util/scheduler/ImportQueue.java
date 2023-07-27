@@ -83,7 +83,7 @@ public class ImportQueue extends JobQueue{
                                 removeJob(importJob);
                                 break;
                             case failed:
-                                logger.info("JOB[{}] has failed!",importJob.getId());
+                                logger.info("JOB[{}] has failed!", importJob.getId());
                                 /** Remove Job from Queue - in some cases the user is able to retry */
                                 removeJob(importJob);
                                 releaseReadOnlyLockFromSpace(importJob);
@@ -173,10 +173,9 @@ public class ImportQueue extends JobQueue{
             long curFileSize = Long.valueOf(importObjects.get(key).isCompressed() ? (importObjects.get(key).getFilesize() * 12)  : importObjects.get(key).getFilesize());
             double maxMemInGB = new RDSStatus.Limits(CService.rdsLookupCapacity.get(j.getTargetConnector())).getMaxMemInGB();
 
-            logger.info("IMPORT_MEMORY {}/{} = {}% of max", NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
+            logger.info("JOB[{}] IMPORT_MEMORY {}/{} = {}% of max", j.getId(), NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
 
             //TODO: Also view RDS METRICS?
-            //if(NODE_EXECUTED_IMPORT_MEMORY < (maxMemInGB * 1024 * 1024 * 1024)){
             if(NODE_EXECUTED_IMPORT_MEMORY < CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES){
                 importObjects.get(key).setStatus(ImportObject.Status.processing);
                 NODE_EXECUTED_IMPORT_MEMORY += curFileSize;
@@ -187,8 +186,8 @@ public class ImportQueue extends JobQueue{
                                         CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(), CService.configuration.JOBS_REGION, curFileSize, j.getCsvFormat() )
                                 .onSuccess(result -> {
                                             NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-
                                             logger.info("JOB[{}] Import of '{}' succeeded!", j.getId(), importObjects.get(key));
+
                                             importObjects.get(key).setStatus(ImportObject.Status.imported);
                                             if(result != null && result.indexOf("imported") !=1) {
                                                 //242579 rows imported int…sv.gz of 56740921 bytes
@@ -197,13 +196,15 @@ public class ImportQueue extends JobQueue{
                                         }
                                 )
                                 .onFailure(f -> {
+                                            NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
                                             logger.warn("JOB[{}] Import of '{}' failed ", j.getId(), importObjects.get(key), f);
+                                            logger.warn("JOB[{}] failed execution. queue {} - mem: {} ",j.getId(), key, NODE_EXECUTED_IMPORT_MEMORY);
+
                                             importObjects.get(key).setStatus(ImportObject.Status.failed);
                                         }
                                 )
                 );
             }else {
-                logger.info("[{}] - queue {} - mem {} ",j.getId(), key, NODE_EXECUTED_IMPORT_MEMORY);
                 importObjects.get(key).setStatus(ImportObject.Status.waiting);
             }
         }
@@ -247,7 +248,7 @@ public class ImportQueue extends JobQueue{
                     logger.warn("JOB[{}] finalization failed!", j.getId(), f);
                     failJob(j, null , Import.ERROR_TYPE_FINALIZATION_FAILED);
                 })
-                .map(releaseReadOnlyLockFromSpace(j))
+                .compose(f -> releaseReadOnlyLockFromSpace(j))
                 .compose(
                     f -> {
                         j.setFinalizedAt(Core.currentTimeMillis() / 1000L);
@@ -287,7 +288,7 @@ public class ImportQueue extends JobQueue{
                 }
             });
         }catch (Exception e) {
-            logger.error("{}: Error when executing Job", this.getClass().getSimpleName(), e);
+            logger.error("{}: Error when executing JobQueue!", this.getClass().getSimpleName(), e);
         }
     }
 }

@@ -219,13 +219,15 @@ paths:
         - Manage Changesets
       summary: Get Changesets
       description: >-
-        Retrieves the existing Changesets from the space.
+        Retrieves a subset of existing Changesets from the space's history.
+        The subset is defined by a "startVersion" and an "endVersion".
 
         Each successful write transaction to the space is stored as one single Changeset,
         which can contain modifications applied to one or more features.
 
-        The response payload may be split in multiple pages, next page is written in the property
-        'nextPageToken', which then, can be retrieved by using the 'pageToken' parameter.
+        The response payload may be split in multiple pages. The next page token is written in the
+        property 'nextPageToken', which then can be used to retrieve the next page using the
+        'pageToken' parameter on the next call.
       operationId: getChangesets
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -251,8 +253,9 @@ paths:
         - Manage Changesets
       summary: Delete Changesets
       description: >-
-        Deletes one or more changesets where the version number can be specified by the query parameter 'version', where
-        the value must be an integer, bigger than 0 and the comparator should be one of the below list:
+        Deletes one or more Changesets which are older than the specified version. The query
+        parameter "version" must be an integer, bigger than 0 and the comparator must be one of the
+        below list:
           - <
           - =lt=
 
@@ -1559,14 +1562,14 @@ components:
     EndVersion:
       name: endVersion
       in: query
-      description: Define end of version-range [version <= endVersion].
+      description: Defines the end of the version-range [version <= endVersion].
       required: true
       schema:
         type: integer
     EndVersionNotRequired:
       name: endVersion
       in: query
-      description: Define end of version-range [version <= endVersion].
+      description: Defines the end of the version-range [version <= endVersion].
       required: false
       schema:
         type: integer
@@ -1904,14 +1907,14 @@ components:
     StartVersion:
       name: startVersion
       in: query
-      description: Define start of version-range [version >= startVersion].
+      description: Defines the start of the version-range [version >= startVersion].
       required: true
       schema:
         type: integer
     StartVersionNotRequired:
       name: startVersion
       in: query
-      description: Define start of version-range [version >= startVersion].
+      description: Defines the start of the version-range [version >= startVersion].
       required: false
       schema:
         type: integer
@@ -2609,19 +2612,21 @@ components:
                 sport: rugby union
                 capacity: 67144
     ChangesetCollection:
-      description: A ChangesetCollection JSON object.
+      description: >-
+        A ChangesetCollection JSON object. It contains a subset of the Changesets of a space.
+        The subset is defined by a "startVersion" and an "endVersion".
       properties:
         type:
           type: string
         startVersion:
           type: integer
-          description: Defines the minimal version.
+          description: The version of the newest included Changeset.
         endVersion:
           type: integer
-          description: Defines the maximial version.
+          description: The version of the oldest included Changeset.
         versions:
           type: object
-          description: Map of Versions. Each Version contains a Changeset.
+          description: The map of Changesets where the key is the version of each Changeset.
           additionalProperties:
             $ref: '#/components/schemas/Changeset'
         nextPageToken:
