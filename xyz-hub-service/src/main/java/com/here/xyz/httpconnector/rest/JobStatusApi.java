@@ -20,8 +20,12 @@ package com.here.xyz.httpconnector.rest;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.task.JobHandler;
+import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
+import com.here.xyz.hub.rest.Api;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
@@ -38,11 +42,14 @@ import java.util.List;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 public class JobStatusApi {
     private static final Logger logger = LogManager.getLogger();
     private final String JOB_QUEUE_STATUS_ENDPOINT = "/psql/system/status";
+    private final String JOB_QUEUE_QUEUE_ENDPOINT = "/psql/system/queue";
     private final JSONObject system;
 
     public JobStatusApi(Router router) {
@@ -53,14 +60,87 @@ public class JobStatusApi {
         this.system.put("MAX_RDS_CAPACITY", CService.configuration.JOB_MAX_RDS_CAPACITY);
         this.system.put("MAX_RDS_CPU_LOAD", CService.configuration.JOB_MAX_RDS_CPU_LOAD);
         this.system.put("MAX_RUNNING_JOBS", CService.configuration.JOB_MAX_RUNNING_JOBS);
+        this.system.put("DB_POOL_SIZE_PER_CLIENT", CService.configuration.JOB_DB_POOL_SIZE_PER_CLIENT);
 
         this.system.put("SUPPORTED_CONNECTORS", CService.supportedConnectors);
         this.system.put("JOB_QUEUE_INTERVAL", CService.configuration.JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS);
         this.system.put("JOB_DYNAMO_EXP_IN_DAYS", CService.configuration.JOB_DYNAMO_EXP_IN_DAYS);
         this.system.put("HOST_ID", CService.HOST_ID);
+        this.system.put("NODE_EXECUTED_IMPORT_MEMORY", ImportQueue.NODE_EXECUTED_IMPORT_MEMORY);
 
         router.route(HttpMethod.GET, JOB_QUEUE_STATUS_ENDPOINT)
                 .handler(this::getSystemStatus);
+        router.route(HttpMethod.DELETE, JOB_QUEUE_QUEUE_ENDPOINT)
+                .handler(this::removeJobFromQueue);
+        router.route(HttpMethod.POST, JOB_QUEUE_QUEUE_ENDPOINT)
+                .handler(this::addJobToQueue);
+    }
+
+    private void addJobToQueue(final RoutingContext context){
+        final String jobId = HApiParam.HQuery.getString(context, HApiParam.Path.JOB_ID, null);
+        final String ecps = HApiParam.HQuery.getString(context, "ecps", null);
+        final String passphrase = HApiParam.HQuery.getString(context, "passphrase", CService.configuration.ECPS_PHRASE);
+
+        if(jobId == null || ecps == null || passphrase == null ){
+            context.response().setStatusCode(BAD_REQUEST.code()).end();
+            return;
+        }
+
+        HttpServerResponse httpResponse = context.response().setStatusCode(OK.code());
+        httpResponse.putHeader(CONTENT_TYPE, APPLICATION_JSON);
+
+        JSONObject resp = new JSONObject();
+
+        JobHandler.getJob(jobId, Api.Context.getMarker(context))
+                .onFailure(e -> {
+                    resp.put("STATUS", "does_not_exist");
+                })
+                .onSuccess(job -> {
+                    if(JobQueue.hasJob(job) != null) {
+                        resp.put("STATUS", "already_present");
+                    }else{
+                        try {
+                            JDBCImporter.addClientIfRequired(job.getTargetConnector(), ecps, passphrase);
+                        } catch (Exception e) {
+                            httpResponse.setStatusCode(BAD_GATEWAY.code()).end();
+                            return;
+                        }
+
+                        job.resetToPreviousState();
+                        JobQueue.addJob(job);
+                        resp.put("STATUS", "job_added");
+                    }
+
+                }).onComplete(job -> {
+                    httpResponse.end(resp.toString());
+                });
+    }
+
+    private void removeJobFromQueue(final RoutingContext context){
+        String jobId = HApiParam.HQuery.getString(context, HApiParam.Path.JOB_ID, null);
+
+        if(jobId == null){
+            context.response().setStatusCode(BAD_REQUEST.code()).end();
+            return;
+        }
+
+        HttpServerResponse httpResponse = context.response().setStatusCode(OK.code());
+        httpResponse.putHeader(CONTENT_TYPE, APPLICATION_JSON);
+
+        JSONObject resp = new JSONObject();
+
+        JobHandler.getJob(jobId, Api.Context.getMarker(context))
+                .onFailure(e -> {
+                    resp.put("STATUS", "does_not_exist");
+                })
+                .onSuccess(job -> {
+                    if(JobQueue.hasJob(job) != null) {
+                        JobQueue.removeJob(job);
+                        resp.put("STATUS", "job_removed");
+                    }
+                }).onComplete(job -> {
+                    httpResponse.end(resp.toString());
+                });
     }
 
     private void getSystemStatus(final RoutingContext context){
