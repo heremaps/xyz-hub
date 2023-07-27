@@ -71,6 +71,11 @@ public class CService extends Core {
   public static AwsCWClient jobCWClient;
 
   /**
+   * The client to access secrets from AWS Secret Manager
+   */
+  public static AwsSecretManagerClient jobSecretClient;
+
+  /**
    * The client to access the database
    */
   public static JDBCImporter jdbcImporter;
@@ -141,6 +146,7 @@ public class CService extends Core {
         jdbcImporter = new JDBCImporter();
         jobS3Client = new JobS3Client();
         jobCWClient = new AwsCWClient();
+        jobSecretClient = new AwsSecretManagerClient();
         importQueue = new ImportQueue();
         exportQueue = new ExportQueue();
 
@@ -176,9 +182,9 @@ public class CService extends Core {
     public boolean USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH;
 
     /**
-     * The task role arn.
+     * The arn of the secret (in Secret Manager) that contains bot credentials.
      */
-    public String IAM_SERVICE_ROLE;
+    public String JOB_BOT_SECRET_ARN;
     /**
      * The port of the HTTP server.
      */

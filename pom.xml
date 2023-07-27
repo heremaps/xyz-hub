@@ -378,6 +378,11 @@
         <artifactId>aws-java-sdk-cloudwatch</artifactId>
         <version>${aws-sdk-version}</version>
       </dependency>
+      <dependency>
+        <groupId>com.amazonaws</groupId>
+        <artifactId>aws-java-sdk-secretsmanager</artifactId>
+        <version>${aws-sdk-version}</version>
+      </dependency>
 
       <!-- AWS Lambda Core -->
       <dependency>
