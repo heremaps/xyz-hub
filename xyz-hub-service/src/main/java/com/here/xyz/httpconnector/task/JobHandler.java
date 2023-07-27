@@ -88,11 +88,11 @@ public class JobHandler {
     }
 
     public static Future<Job> deleteJob(Job job, boolean force, Marker marker){
-        return CService.jobConfigClient.delete(marker, job.getId())
+        return CService.jobConfigClient.delete(marker, job.getId(), force)
                 .compose(j -> {
                     if(j == null){
                         return Future.failedFuture(new HttpException(NOT_FOUND, "Job with Id "+job.getId()+" not found"));
-                    } else if ( !CService.jobConfigClient.isValidForDelete(j) ) {
+                    } else if ( !CService.jobConfigClient.isValidForDelete(j, force)) {
                         return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Job is not in end state - current status: "+ j.getStatus()) );
                     } else {    
                         /** Clean S3 Job Folder */

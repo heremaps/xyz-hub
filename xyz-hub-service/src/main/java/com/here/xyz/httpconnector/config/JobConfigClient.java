@@ -99,12 +99,12 @@ public abstract class JobConfigClient implements Initializable {
                 });
     }
 
-    public Future<Job> delete(Marker marker, String jobId) {
+    public Future<Job> delete(Marker marker, String jobId, boolean force) {
         return getJob(marker, jobId)
                 .onSuccess(j -> {
                             if (j == null) {
                                 logger.info(marker, "jobId[{}]: not found. Nothing to delete!", jobId);
-                            }else if ( !isValidForDelete(j) ) {
+                            }else if ( !isValidForDelete(j, force) ) {
                                 logger.info(marker, "jobId[{}]: not in end state. Nothing to delete!", jobId);
                             } else {     
                                 deleteJob(marker, j)
@@ -125,8 +125,9 @@ public abstract class JobConfigClient implements Initializable {
 
     protected abstract Future<Job> deleteJob(Marker marker, Job job);
 
-    public boolean isValidForDelete(Job job) {
-
+    public boolean isValidForDelete(Job job, boolean force) {
+        if(force)
+            return true;
         switch (job.getStatus()){
             case waiting: case finalized: case aborted: case failed: return true;
             default: return false;
