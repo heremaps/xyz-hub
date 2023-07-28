@@ -59,7 +59,6 @@ public class SecretManagerCredentialsProvider implements AWSCredentialsProvider 
             credentialsRef.set(newCredentials);
         } catch (Exception e) {
             logger.error("Failed to refresh credentials from secret manager: {}", e.getMessage());
-            throw new RuntimeException("Failed to refresh credentials from secret manager", e);
         }
     }
 }
