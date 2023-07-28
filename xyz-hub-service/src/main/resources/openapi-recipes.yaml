@@ -193,36 +193,6 @@ recipes:
       - type: key
         path: paths.'/spaces/{spaceId}/tags/{tagId}'
         replace: paths.'/hub/spaces/{spaceId}/tags/{tagId}'
-#      - type: key
-#        path: components.requestBodies.ConnectorConfig.content.'application/json'.schema
-#        replace: components.requestBodies.ConnectorConfig.content.'application/json'.x-schema
-#      - type: key
-#        path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.schema
-#        replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/geo+json'.x-schema
-#      - type: key
-#        path: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.schema
-#        replace: components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'.x-schema
-#      - type: key
-#        path: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.schema
-#        replace: components.requestBodies.FeatureCollectionRequest.content.'application/geo+json'.x-schema
-#      - type: key
-#        path: components.requestBodies.FeatureRequest.content.'application/geo+json'.schema
-#        replace: components.requestBodies.FeatureRequest.content.'application/geo+json'.x-schema
-#      - type: key
-#        path: components.requestBodies.GeometryRequest.content.'application/geo+json'.schema
-#        replace: components.requestBodies.GeometryRequest.content.'application/geo+json'.x-schema
-#      - type: key
-#        path: components.requestBodies.SpaceRequest.content.'application/json'.schema
-#        replace: components.requestBodies.SpaceRequest.content.'application/json'.x-schema
-#      - type: key
-#        path: components.requestBodies.TagRequest.content.'application/json'.schema
-#        replace: components.requestBodies.TagRequest.content.'application/json'.x-schema
-#      - type: key
-#        path: components.requestBodies.SubscriptionRequest.content.'application/json'.schema
-#        replace: components.requestBodies.SubscriptionRequest.content.'application/json'.x-schema
-#      - type: key
-#        path: components.requestBodies.JobRequest.content.'application/json'.schema
-#        replace: components.requestBodies.JobRequest.content.'application/json'.x-schema
       - type: value
         path: components.parameters.EndVersion.required
         replace: false
