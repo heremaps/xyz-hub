@@ -31,8 +31,6 @@ import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.Capabilities;
-import com.here.xyz.psql.Capabilities.IndexList;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
@@ -47,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -499,44 +496,6 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
       r.add( f.replaceFirst("^f\\.", "") );
 
     return r;
-  }
-
-  private static List<String> getSearchKeys(  PropertiesQuery p )
-  { return p.stream()
-             .flatMap(List::stream)
-             .filter(k -> k.getKey() != null && k.getKey().length() > 0)
-             .map(PropertyQuery::getKey)
-             .collect(Collectors.toList());
-  }
-
-  private static List<String> getSortFromSearchKeys( List<String> searchKeys, String space, DatabaseHandler dbHandler ) throws Exception
-  {
-   List<String> indices = Capabilities.IndexList.getIndexList(space, dbHandler);
-   if( indices == null ) return null;
-
-   indices.sort((s1, s2) -> s1.length() - s2.length());
-
-   for(String sk : searchKeys )
-    switch( sk )
-    { case "id" : return null; // none is always sorted by ID;
-      case "properties.@ns:com:here:xyz.createdAt" : return Arrays.asList("f.createdAt");
-      case "properties.@ns:com:here:xyz.updatedAt" : return Arrays.asList("f.updatedAt");
-      default:
-       if( !sk.startsWith("properties.") ) sk = "o:f." + sk;
-       else sk = sk.replaceFirst("^properties\\.","o:");
-
-       for(String idx : indices)
-        if( idx.startsWith(sk) )
-        { List<String> r = new ArrayList<String>();
-          String[] sortIdx = idx.replaceFirst("^o:","").split(",");
-          for( int i = 0; i < sortIdx.length; i++)
-           r.add( sortIdx[i].startsWith("f.") ? sortIdx[i] : "properties." + sortIdx[i] );
-          return r;
-        }
-      break;
-    }
-
-   return null;
   }
 
   private static String chrE( String s ) { return s.replace('+','-').replace('/','_').replace('=','.'); }

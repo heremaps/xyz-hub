@@ -278,7 +278,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * Executes the given query and returns the processed by the handler result.
      */
-    protected <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
+    public <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
         return executeQuery(query, handler, readDataSource);
     }
 
