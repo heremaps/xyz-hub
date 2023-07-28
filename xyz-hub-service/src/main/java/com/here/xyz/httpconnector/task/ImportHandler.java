@@ -77,8 +77,7 @@ public class ImportHandler extends JobHandler{
                         loadClientAndInjectDefaults(importJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, enableUUID, null, null);
 
                         switch (command){
-                            case ABORT:
-                                p.fail(new HttpException(NOT_IMPLEMENTED,"NA"));
+                            case ABORT: abortJob(marker, j, p);
                                 return;
                             case CREATEUPLOADURL:
                                 for (int i = 0; i < urlCount; i++) {

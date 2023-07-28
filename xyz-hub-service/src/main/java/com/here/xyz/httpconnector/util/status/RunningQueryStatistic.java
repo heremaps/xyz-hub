@@ -24,9 +24,9 @@ import java.time.ZoneOffset;
 
 public class RunningQueryStatistic {
     private static String IDX_QUERY_IDENTIFIER = "index if not";
-    private static String IMPORT_QUERY_IDENTIFIER = "iml_import_hint";
-    private static String S3_EXPORT_QUERY_IDENTIFIER = "iml_s3_export_hint";
-    private static String VML_EXPORT_QUERY_IDENTIFIER = "iml_vml_export_hint";
+    private static String IMPORT_QUERY_IDENTIFIER = "import_hint";
+    private static String S3_EXPORT_QUERY_IDENTIFIER = "s3_export_hint";
+    private static String VML_EXPORT_QUERY_IDENTIFIER = "vml_export_hint";
 
     private int pid;
     private String state;

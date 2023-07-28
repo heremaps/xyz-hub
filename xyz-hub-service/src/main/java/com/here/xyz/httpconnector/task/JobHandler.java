@@ -20,6 +20,7 @@
 package com.here.xyz.httpconnector.task;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Import;
@@ -140,7 +141,7 @@ public class JobHandler {
         job.addParam("enableHashedSpaceId",enableHashedSpaceId);
 
         if(enableUUID != null)
-            job.addParam("enableUUID",enableUUID);
+            job.addParam("enableUUID", enableUUID);
         if(incremental != null)
             job.addParam("incremental", incremental.toString());
         if(_context != null)
@@ -148,9 +149,11 @@ public class JobHandler {
 
         if(command.equals(HApiParam.HQuery.Command.START) || command.equals(HApiParam.HQuery.Command.RETRY)){
             /** Add Client if missing or reload client if config has changed */
-
             try {
-                JDBCImporter.addClientIfRequired(connectorId, ecps, passphrase);
+                if(connectorId == null || ecps == null)
+                    JDBCImporter.addClientIfRequired(connectorId);
+                else
+                    JDBCImporter.addClientIfRequired(connectorId, ecps, passphrase);
             }catch (CannotDecodeException e){
                 throw new HttpException(PRECONDITION_FAILED, "Can not decode ECPS!");
             }catch (UnsupportedOperationException e){
@@ -242,4 +245,20 @@ public class JobHandler {
         }
     }
 
+    protected static void isValidForAbort(Job job) throws HttpException{
+        switch (job.getStatus()){
+            case executing:
+                return;
+            default:
+                throw new HttpException(PRECONDITION_FAILED, "Not allowed to abort a job with status["+job.getStatus()+"]");
+        }
+    }
+
+
+    static void abortJob(Marker marker, Job job, Promise<Job> p) throws HttpException {
+        isValidForAbort(job);
+
+        JDBCExporter.abortJobsByJobId(job)
+                .onComplete(f -> p.complete());
+    }
 }

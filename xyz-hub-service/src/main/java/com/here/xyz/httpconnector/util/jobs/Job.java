@@ -194,7 +194,6 @@ public abstract class Job {
     @JsonView({Public.class})
     protected Boolean omitOnNull;
 
-
     /**
      * Arbitrary parameters to be provided from hub
      */
@@ -373,10 +372,11 @@ public abstract class Job {
         }
         this.params.put(key,value);
     }
+    @JsonIgnore
+    public abstract void resetToPreviousState();
 
-    public void resetToPreviousState(){
-
-    }
+    @JsonIgnore
+    public abstract String getQueryIdentifier();
 
     public static class Public {
     }

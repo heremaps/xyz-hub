@@ -634,4 +634,9 @@ public class Export extends Job {
             return this;
         }
     }
+
+    @Override
+    public String getQueryIdentifier() {
+        return "aws_s3.query_export_to_s3";
+    }
 }

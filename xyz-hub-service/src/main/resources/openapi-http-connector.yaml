@@ -317,8 +317,20 @@ paths:
       operationId: postExecute
       parameters:
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/ConnectorId'
-        - $ref: '#/components/parameters/ECPS'
+        - name: connectorId
+          in: query
+          description: >-
+            Provide ConnectorId
+          required: false
+          schema:
+            type: string
+        - name: ecps
+          in: query
+          description: >-
+            Provide ECPS
+          required: false
+          schema:
+            type: string
         - $ref: '#/components/parameters/EnableHashedSpaceId'
         - $ref: '#/components/parameters/EnableUUID'
         - $ref: '#/components/parameters/Context'

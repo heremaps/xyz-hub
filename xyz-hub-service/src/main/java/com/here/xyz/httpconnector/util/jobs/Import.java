@@ -209,4 +209,9 @@ public class Import extends Job {
                 break;
         }
     }
+
+    @Override
+    public String getQueryIdentifier() {
+        return "aws_s3.table_import_from_s3";
+    }
 }
