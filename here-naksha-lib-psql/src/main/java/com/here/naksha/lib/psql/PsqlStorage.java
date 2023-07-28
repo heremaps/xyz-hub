@@ -22,6 +22,7 @@ import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.psql.SQL.escapeId;
 
+import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
@@ -204,7 +205,34 @@ public class PsqlStorage implements IStorage {
    */
   @Override
   public void maintain() {
-    // throw new UnsupportedOperationException("maintain");
+    NakshaAdminCollection.STORAGES.getId();
+    try (final Connection conn = dataSource.getConnection()) {
+      try (final Statement stmt = conn.createStatement()) {
+        stmt.execute(new StringBuilder()
+            .append("SET SESSION search_path TO \"")
+            .append(getSchema())
+            .append("\",\"public\",\"topology\";")
+            .toString());
+        stmt.execute(createPartitionOfOneDay(0));
+        stmt.execute(createPartitionOfOneDay(1));
+        stmt.execute(createPartitionOfOneDay(2));
+        //TODO delete old partitions
+      }
+    } catch (Throwable t) {
+      throw unchecked(t);
+    }
+  }
+
+  private String createPartitionOfOneDay(int dayplus) {
+    return new StringBuilder()
+        .append("SELECT ")
+        .append(getSchema())
+        .append(".__naksha_create_hst_partition_for_day('")
+        .append(NakshaAdminCollection.STORAGES.getId())
+        .append("',current_timestamp+'")
+        .append(dayplus)
+        .append(" days');")
+        .toString();
   }
 
   /**
