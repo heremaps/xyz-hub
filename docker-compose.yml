@@ -11,6 +11,7 @@ services:
             - "postgres"
             - "redis"
             - "xyz-http-connector"
+            - "aws-localstack"
     xyz-http-connector:
         image: "xyz-hub"
         build:

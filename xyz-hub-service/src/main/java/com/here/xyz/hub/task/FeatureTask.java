@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+import com.google.common.primitives.Longs;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -40,6 +41,7 @@ import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
+import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -132,6 +134,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       event.setSpace(context.pathParam(ApiParam.Path.SPACE_ID));
     }
     this.requestBodySize = requestBodySize;
+    if (event instanceof SelectiveEvent) {
+      String ref = ((SelectiveEvent<?>) event).getRef();
+      //Check if the ref is set and whether it's a version (if it's numeric)
+      readOnlyAccess = ref != null && Longs.tryParse(ref) != null;
+    }
   }
 
   public CacheProfile getCacheProfile() {
@@ -142,22 +149,26 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   @Override
-  public String getCacheKey() {
-    if (cacheKey != null) {
+  String getCacheKey() {
+    if (cacheKey != null)
       return cacheKey;
-    }
+
     try {
       //noinspection UnstableApiUsage
       Hasher hasher = Hashing.murmur3_128().newHasher()
           .putString(getEvent().getCacheString(), Charset.defaultCharset())
-          .putString(responseType.toString(), Charset.defaultCharset())
-          .putLong(space.contentUpdatedAt);
+          .putString(responseType.toString(), Charset.defaultCharset());
 
-      if (space.getExtension() != null)
-        extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
+      if (!readOnlyAccess) {
+        hasher.putLong(space.contentUpdatedAt);
+        if (space.getExtension() != null)
+          extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
+      }
 
       return cacheKey = hasher.hash().toString();
-    } catch (JsonProcessingException e) {
+    }
+    catch (JsonProcessingException e) {
+      logger.error(getMarker(), "Error creating cache key.", e);
       return null;
     }
   }

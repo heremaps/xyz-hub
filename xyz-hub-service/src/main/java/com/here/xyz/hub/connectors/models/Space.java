@@ -56,9 +56,13 @@ import org.apache.logging.log4j.Marker;
 public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   private static final Logger logger = LogManager.getLogger();
-  public static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
-  public static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS * 2;
-  // Add random 20 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
+  private static final long DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS = TimeUnit.MINUTES.toMillis(1);
+  private static final long NO_CACHE_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS * 2;
+  private static final long MIN_SERVICE_CACHE_INTERVAL_MILLIS = TimeUnit.DAYS.toMillis(1);
+
+  /**
+   * Add random 20 seconds offset to avoid all service nodes sending cache invalidation for the space at the same time
+   */
   public static final long CONTENT_UPDATED_AT_INTERVAL_MILLIS = DEFAULT_CONTENT_UPDATED_AT_INTERVAL_MILLIS
       - TimeUnit.SECONDS.toMillis((long) (Math.random() * 20));
 
@@ -220,38 +224,40 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   @JsonIgnore
   public CacheProfile getCacheProfile(boolean skipCache, boolean autoConfig, boolean readOnlyAccess) {
-    // Cache is manually deactivated, either for the space or for this specific request
+    //Cache is manually deactivated by the user, either for the space or for this specific request
     if (getCacheTTL() == 0 || skipCache) {
       return CacheProfile.NO_CACHE;
     }
 
-    // Cache is manually set -> use those settings instead
+    //Cache is manually / user defined at the space -> use those settings instead
     if (getCacheTTL() > 0) {
-      return new CacheProfile(getCacheTTL() / 3, getCacheTTL(), Long.MAX_VALUE, getContentUpdatedAt());
+      return new CacheProfile(getCacheTTL() / 3, getCacheTTL(), Long.MAX_VALUE, getCacheTTL(), getContentUpdatedAt());
     }
 
-    // Automatic cache configuration is not active.
+    //Automatic cache configuration is not supported at all
     if (!autoConfig) {
       return CacheProfile.NO_CACHE;
     }
 
     double volatility = getVolatility();
     long timeSinceLastUpdate = Core.currentTimeMillis() - getContentUpdatedAt();
+    long staticTTL = readOnlyAccess ? CacheProfile.MAX_STATIC_TTL : 0;
 
-    // 0 min to 2 min -> no cache
-    if (timeSinceLastUpdate < NO_CACHE_INTERVAL_MILLIS) {
+    //For mutable responses and a space which was changed within the no-cache interval -> no cache
+    if (!readOnlyAccess && timeSinceLastUpdate < NO_CACHE_INTERVAL_MILLIS) {
       return CacheProfile.NO_CACHE;
     }
 
-    // 2 min to (1 day + volatility penalty time ) -> cache only in the service
-    // If the request is authorized with credentials allowing data modification -> cache only in the service
+    //For all other responses and a space which was changed
+    //within the service-cache interval (minimum service-cache interval + some volatility penalty time) -> cache only in the service cache.
+    //Also, if the response is mutable (not resulting from a read-only request) -> cache only in the service cache.
     long volatilityPenalty = (long) (volatility * volatility * TimeUnit.DAYS.toMillis(7));
-    if (!readOnlyAccess || timeSinceLastUpdate < TimeUnit.DAYS.toMillis(1) + volatilityPenalty ) {
-      return new CacheProfile(0, 0, CacheProfile.MAX_SERVICE_TTL, getContentUpdatedAt());
-    }
+    long serviceCacheInterval = MIN_SERVICE_CACHE_INTERVAL_MILLIS + volatilityPenalty;
+    if (!readOnlyAccess || timeSinceLastUpdate < serviceCacheInterval)
+      return new CacheProfile(0, 0, CacheProfile.MAX_SERVICE_TTL, staticTTL, getContentUpdatedAt());
 
-    // no changes for more than (1 hour + volatility penalty time ) -> cache in the service and in the browser
-    return new CacheProfile(TimeUnit.MINUTES.toMillis(3), TimeUnit.HOURS.toMillis(24), CacheProfile.MAX_SERVICE_TTL,
+    //For all other responses of a space which was not changed for longer time -> cache in the service *and* in the browser / CDN
+    return new CacheProfile(TimeUnit.MINUTES.toMillis(3), TimeUnit.HOURS.toMillis(24), CacheProfile.MAX_SERVICE_TTL, staticTTL,
         getContentUpdatedAt());
   }
 
@@ -326,27 +332,41 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
   }
 
   public static class CacheProfile {
-
-    @JsonIgnore
-    public static final CacheProfile NO_CACHE = new CacheProfile(0, 0, 0, 0);
-    @JsonIgnore
+    public static final CacheProfile NO_CACHE = new CacheProfile(0, 0, 0, 0, 0);
     private static final long MAX_BROWSER_TTL = TimeUnit.MINUTES.toMillis(3);
-    @JsonIgnore
     private static final long MAX_CDN_TTL = TimeUnit.DAYS.toMillis(365);
-    @JsonIgnore
     private static final long MAX_SERVICE_TTL = TimeUnit.DAYS.toMillis(365);
+    private static final long MAX_STATIC_TTL = TimeUnit.DAYS.toMillis(365);
 
+    /**
+     * How long to cache the response in the browser cache in milliseconds.
+     */
     public final long browserTTL;
+
+    /**
+     * How long to cache the response in a CDN cache in milliseconds.
+     */
     public final long cdnTTL;
+
+    /**
+     * How long to cache the response in the volatile service cache in milliseconds.
+     */
+    @JsonIgnore
     public final long serviceTTL;
+
+    /**
+     * How long to cache the response in the static / persistent service cache in milliseconds.
+     */
+    public final long staticTTL;
     @JsonIgnore
     public final long contentUpdatedAt;
 
     @SuppressWarnings("UnstableApiUsage")
-    public CacheProfile(long browserTTL, long cdnTTL, long serviceTTL, long contentUpdatedAt) {
+    public CacheProfile(long browserTTL, long cdnTTL, long serviceTTL, long staticTTL, long contentUpdatedAt) {
       this.browserTTL = Longs.constrainToRange(browserTTL, 0, MAX_BROWSER_TTL);
       this.cdnTTL = Longs.constrainToRange(cdnTTL, 0, MAX_CDN_TTL);
       this.serviceTTL = Longs.constrainToRange(serviceTTL, 0, MAX_SERVICE_TTL);
+      this.staticTTL = staticTTL;
       this.contentUpdatedAt = contentUpdatedAt;
     }
   }

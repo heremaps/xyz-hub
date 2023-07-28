@@ -35,10 +35,6 @@ public interface CacheClient {
 
 	void remove(String key);
 
-	static CacheClient getInstance() {
-		return new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), RedisCacheClient.getInstance());
-	}
-
 	void shutdown();
 
 }

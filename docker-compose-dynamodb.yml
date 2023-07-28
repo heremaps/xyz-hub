@@ -8,13 +8,12 @@ services:
         ports:
             - "8080:8080"
         depends_on:
-            - "aws-localstack"
             - "dynamodb"
             - "postgres"
             - "redis"
             - "xyz-http-connector"
+            - "aws-localstack"
         environment:
-            - LOCALSTACK_ENDPOINT=http://localstack:4566
             - SPACES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-spaces
             - CONNECTORS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-connectors
             - PACKAGES_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-packages
@@ -32,9 +31,9 @@ services:
             - LOCALSTACK_ENDPOINT=http://localstack:4566
             - JOBS_DYNAMODB_TABLE_ARN=arn:aws:dynamodb:dynamodb:000000008000:table/xyz-hub-local-jobs
         depends_on:
-            - "aws-localstack"
             - "dynamodb"
             - "postgres"
+            - "aws-localstack"
         command: java -cp xyz-hub-service.jar com.here.xyz.httpconnector.CService
     postgres:
         image: "xyz-postgres"
