@@ -39,9 +39,11 @@ import com.here.xyz.models.geojson.implementation.Properties;
 import com.jayway.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -71,6 +73,11 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .statusCode(OK.code());
   }
 
+  /**
+   * @deprecated Please do not use this method anymore. Use {@link #createSpaceWithRandomId()} instead.
+   * This will allow running tests in parallel.
+   */
+  @Deprecated
   protected static void createSpace() {
     String path = "/xyz/hub/createSpace.json";
     String content = usedStorageId == embeddedStorageId ? content(path) : content(path, usedStorageId);
@@ -78,6 +85,14 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .body("id", equalTo(getSpaceId()))
             .body("title", equalTo("My Demo Space"))
             .body("storage.id", equalTo((usedStorageId)));
+  }
+
+  /**
+   * Creates a space with a random ID.
+   * @return the random ID
+   */
+  protected static String createSpaceWithRandomId() {
+    return createSpaceWithId(UUID.randomUUID().toString());
   }
 
   protected static String createSpaceWithId(String spaceId) {
@@ -143,6 +158,19 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .post(getCreateSpacePath())
         .then()
         .statusCode(OK.code());
+  }
+
+  protected static void addFeature(String spaceId, Feature f) {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(wrapFeature(f).serialize())
+        .when()
+        .post(getSpacesPath() + "/" + spaceId + "/features");
+  }
+
+  protected static FeatureCollection wrapFeature(Feature f) {
+    return new FeatureCollection().withFeatures(Collections.singletonList(f));
   }
 
   protected static void addFeatures() {
@@ -319,26 +347,30 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     String[] allowedFieldNames = {"space", "createdAt", "updatedAt", "tags", "author", "version"};
     assertThat(xyzNs.fieldNames(), everyItem(isIn(allowedFieldNames)));
   }
-
-  protected void getFeature(String spaceId, String featureId) {
-    getFeature(spaceId, featureId, null);
-  }
   protected void getFeature(String spaceId, String featureId, Integer statusCode) {
     getFeature(spaceId, featureId, statusCode, null, null);
   }
 
   protected void getFeature(String spaceId, String featureId, Integer statusCode, String path, String value) {
-    ValidatableResponse response = given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .when()
-        .get("/spaces/" + spaceId + "/features/" + featureId)
-        .then();
+    ValidatableResponse response = getFeature(spaceId, featureId);
 
     if (statusCode != null)
       response.statusCode(statusCode);
 
     if (path != null && value != null)
       response.body(path, equalTo(value));
+  }
+
+  protected ValidatableResponse getFeature(String spaceId, String featureId) {
+    return getFeature(spaceId, featureId, -1);
+  }
+
+  protected ValidatableResponse getFeature(String spaceId, String featureId, long version) {
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/" + spaceId + "/features/" + featureId + (version != -1 ? "?version=" + version : ""))
+        .then();
   }
 
   protected void deleteFeature(String spaceId, String featureId) {

@@ -59,13 +59,12 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
   /**
    * Describes, if cache should be ignored.
    */
-  public final boolean skipCache;
+  protected final boolean skipCache;
 
   /**
    * Whether the request is authorized with read only credentials.
    */
-  // TODO: Extract the access from the request context
-  public final boolean readOnlyAccess = false;
+  protected boolean readOnlyAccess;
 
   /**
    * The response type that should be produced by this task.
@@ -154,7 +153,7 @@ public abstract class Task<T extends Event, X extends Task<T, ?>> {
 
   protected <X extends Task<?, X>> void cleanup(X task, Callback<X> callback) {}
 
-  public String getCacheKey() {
+  String getCacheKey() {
     return null;
   }
 
