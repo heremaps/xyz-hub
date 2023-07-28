@@ -20,9 +20,11 @@
 package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.httpconnector.util.status.RunningQueryStatistic;
 import com.here.xyz.httpconnector.util.status.RunningQueryStatistics;
+import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.DatabaseSettings;
@@ -33,6 +35,7 @@ import io.vertx.core.Promise;
 import io.vertx.pgclient.PgConnectOptions;
 import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
+import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.impl.ArrayTuple;
 import org.apache.logging.log4j.LogManager;
@@ -164,7 +167,7 @@ public class JDBCClients {
         q.setNamedParameter("applicationName", getApplicationName(clientID));
         q = q.substituteAndUseDollarSyntax(q);
 
-        return getClient(getStatusClientId(clientID))
+        return getStatusClient(clientID)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .onFailure(f -> logger.warn(f))
@@ -182,6 +185,32 @@ public class JDBCClients {
                     );
 
                     return statistics;
+                });
+    }
+
+    public static void addClientIfRequired(String id) throws CannotDecodeException, UnsupportedOperationException {
+        if(CService.supportedConnectors != null && CService.supportedConnectors.indexOf(id) == -1)
+            throw new UnsupportedOperationException();
+
+        HubWebClient.getConnectorConfig(id)
+                .onSuccess(connector -> {
+                    DatabaseSettings settings = null;
+                    try {
+                        if( connector.params != null && connector.params.get("ecps") !=null) {
+                            settings = ECPSTool.readDBSettingsFromECPS((String) connector.params.get("ecps"), CService.configuration.ECPS_PHRASE);
+
+                            if(JDBCImporter.getClient(id) == null){
+                                addClients(id, settings);
+                            }else{
+                                if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
+                                    removeClients(id);
+                                    addClients(id, settings);
+                                }
+                            }
+                        }
+                    } catch (CannotDecodeException e) {
+                        logger.warn("Cant load dbClients for "+id ,e);
+                    }
                 });
     }
 
@@ -228,6 +257,10 @@ public class JDBCClients {
         return null;
     }
 
+    public static SqlClient getStatusClient(String id){
+        return getClient(getStatusClientId(id));
+    }
+
     public static SqlClient getClient(String id){
         if(clients == null || clients.get(id) == null)
             return null;
@@ -238,7 +271,7 @@ public class JDBCClients {
         Promise<RDSStatus> p = Promise.promise();
         /** Collection current metrics from Cloudwatch */
 
-        if(JDBCImporter.getClient(getStatusClientId(clientId)) == null){
+        if(JDBCImporter.getStatusClient(clientId)== null){
             logger.info("DB-Client not Ready!");
             p.complete(null);
         }else{
@@ -254,6 +287,32 @@ public class JDBCClients {
         }
 
         return p.future();
+    }
+
+    public static Future<Integer> abortJobsByJobId(Job j)  {
+        SQLQuery q = buildAbortsJobQuery(j);
+        logger.info("[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+
+        return getStatusClient(j.getTargetConnector())
+                .query(q.text())
+                .execute()
+                .map(row -> {
+                    Row res = row.iterator().next();
+                    if (res != null) {
+                        return 1;
+                    }
+                    return null;
+                });
+    }
+
+    private static SQLQuery buildAbortsJobQuery(Job j) {
+        return new SQLQuery(String.format(   "select pg_terminate_backend( pid ) from pg_stat_activity "
+                        + "where 1 = 1 "
+                        + "and state = 'active' "
+                        + "and strpos( query, 'pg_terminate_backend' ) = 0 "
+                        + "and strpos( query, '%s' ) > 0 "
+                        + "and strpos( query, 'm499#jobId(%s)' ) > 0 ",
+                j.getQueryIdentifier() ,j.getId() ));
     }
 
     /** Vertex SQL-Client */

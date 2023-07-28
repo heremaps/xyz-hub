@@ -78,17 +78,14 @@ public class JobStatusApi {
 
     private void addJobToQueue(final RoutingContext context){
         final String jobId = HApiParam.HQuery.getString(context, HApiParam.Path.JOB_ID, null);
-        final String ecps = HApiParam.HQuery.getString(context, "ecps", null);
-        final String passphrase = HApiParam.HQuery.getString(context, "passphrase", CService.configuration.ECPS_PHRASE);
 
-        if(jobId == null || ecps == null || passphrase == null ){
+        if(jobId == null){
             context.response().setStatusCode(BAD_REQUEST.code()).end();
             return;
         }
 
         HttpServerResponse httpResponse = context.response().setStatusCode(OK.code());
         httpResponse.putHeader(CONTENT_TYPE, APPLICATION_JSON);
-
         JSONObject resp = new JSONObject();
 
         JobHandler.getJob(jobId, Api.Context.getMarker(context))
@@ -100,7 +97,7 @@ public class JobStatusApi {
                         resp.put("STATUS", "already_present");
                     }else{
                         try {
-                            JDBCImporter.addClientIfRequired(job.getTargetConnector(), ecps, passphrase);
+                            JDBCImporter.addClientIfRequired(job.getTargetConnector());
                         } catch (Exception e) {
                             httpResponse.setStatusCode(BAD_GATEWAY.code()).end();
                             return;

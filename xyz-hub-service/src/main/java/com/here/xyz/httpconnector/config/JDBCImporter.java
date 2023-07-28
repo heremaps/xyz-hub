@@ -171,8 +171,8 @@ public class JDBCImporter extends JDBCClients{
     /**
      * Import Data from S3
      */
-    public static Future<String> executeImport(String clientID, String schema, String tablename, String s3Bucket, String s3Path, String s3Region, long curFileSize, CSVFormat csvFormat){
-        SQLQuery q = new SQLQuery(("SELECT aws_s3.table_import_from_s3( "
+    public static Future<String> executeImport(String jobId, String clientID, String schema, String tablename, String s3Bucket, String s3Path, String s3Region, long curFileSize, CSVFormat csvFormat){
+        SQLQuery q = new SQLQuery(("SELECT /* import_hint "+(s3Path + ":" + curFileSize)+" m499#jobId(" + jobId + ") */ aws_s3.table_import_from_s3( "
                 + "'${schema}.${table}', "
                 + "#{columns}, "
                 + " 'DELIMITER '','' CSV ENCODING  ''UTF8'' QUOTE  ''\"'' ESCAPE '''''''' ', "
@@ -180,9 +180,7 @@ public class JDBCImporter extends JDBCClients{
                 + "     #{s3Bucket}, "
                 + "     #{s3Path}, "
                 + "     #{s3Region}"
-                + " )),'{importHint}' as iml_import_hint") //TODO: Rename that hint field - make it product agnostic!
-                    /** Need replace, because it is not possible to read a Parameter as hint */
-                    .replace("{importHint}", s3Path + ":" + curFileSize));
+                + " ))"));
 
         q.setNamedParameter("s3Bucket",s3Bucket);
         q.setNamedParameter("s3Path",s3Path);

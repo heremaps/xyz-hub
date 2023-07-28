@@ -21,7 +21,6 @@ package com.here.xyz.httpconnector.task;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.*;
 import com.here.xyz.httpconnector.util.jobs.validate.ExportValidator;
@@ -112,11 +111,5 @@ public class ExportHandler extends JobHandler{
                 });
 
         return p.future();
-    }
-
-    private static void abortJob(Marker marker, Job job, Promise<Job> p)
-    {
-      JDBCExporter.abortJobsByJobId((Export) job)
-       .onComplete(f -> p.complete());
     }
 }

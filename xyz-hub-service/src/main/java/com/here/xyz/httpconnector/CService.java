@@ -33,10 +33,7 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -147,6 +144,12 @@ public class CService extends Core {
         /** Start Job-Schedulers */
         importQueue.commence();
         exportQueue.commence();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+          // TODO: Fail all jobs
+          logger.warn("HTTP Service is going down at " + new Date().toString());
+        }));
+
       }else
         logger.error("Cant reach jobAPI backend - JOB-API deactivated!");
     });
