@@ -19,21 +19,25 @@
 
 package com.here.xyz.psql.query;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
-import com.here.xyz.psql.Capabilities;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /*
 NOTE: All subclasses of QueryEvent are deprecated except SearchForFeaturesEvent.
@@ -49,7 +53,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
   }
 
   public static void checkCanSearchFor(SearchForFeaturesEvent event, DatabaseHandler dbHandler) throws ErrorResponseException {
-    if (!Capabilities.canSearchFor(dbHandler.getConfig().readTableFromEvent(event), event.getPropertiesQuery(), dbHandler))
+    if (!canSearchFor(dbHandler.getConfig().readTableFromEvent(event), event.getPropertiesQuery(), dbHandler))
       throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
           "Invalid request parameters. Search for the provided properties is not supported for this space.");
   }
@@ -88,13 +92,80 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
+  /**
+   * Determines if PropertiesQuery can be executed. Check if required Indices are created.
+   */
+  private static List<String> sortableCanSearchForIndex( List<String> indices )
+  { if( indices == null ) return null;
+    List<String> skeys = new ArrayList<String>();
+    for( String k : indices)
+      if( k.startsWith("o:") )
+        skeys.add( k.replaceFirst("^o:([^,]+).*$", "$1") );
+
+    return skeys;
+  }
+
+  private static boolean canSearchFor(String tableName, PropertiesQuery query, DatabaseHandler dbHandler) {
+    if (query == null) {
+      return true;
+    }
+
+    try {
+      List<String> keys = query.stream().flatMap(List::stream)
+          .filter(k -> k.getKey() != null && k.getKey().length() > 0).map(PropertyQuery::getKey).collect(Collectors.toList());
+
+      int idx_check = 0;
+
+      for (String key : keys) {
+
+        /** properties.foo vs foo (root)
+         * If hub receives "f.foo=bar&p.foo=bar" it will generates a PropertyQuery with properties.foo=bar and foo=bar
+         **/
+        boolean isPropertyQuery = key.startsWith("properties.");
+
+        /** If property query hits default system index - allow search. [id, properties.@ns:com:here:xyz.createdAt, properties.@ns:com:here:xyz.updatedAt]" */
+        if (     key.equals("id")
+            ||  key.equals("properties.@ns:com:here:xyz.createdAt")
+            ||  key.equals("properties.@ns:com:here:xyz.updatedAt")
+        )
+          return true;
+
+        /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
+        List<String> indices = IndexList.getIndexList(tableName, dbHandler);
+
+        /** The table has not many records - Indices are not required */
+        if (indices == null) {
+          return true;
+        }
+
+        List<String> sindices = sortableCanSearchForIndex( indices );
+        /** If it is a root property query "foo=bar" we extend the suffix "f."
+         *  If it is a property query "properties.foo=bar" we remove the suffix "properties." */
+        String searchKey = isPropertyQuery ? key.substring("properties.".length()) : "f."+key;
+
+        if (indices.contains( searchKey ) || (sindices != null && sindices.contains(searchKey)) ) {
+          /** Check if all properties are indexed */
+          idx_check++;
+        }
+      }
+
+      if(idx_check == keys.size())
+        return true;
+
+      return IndexList.getIndexList(tableName, dbHandler) == null;
+    } catch (Exception e) {
+      // In all cases, when something with the check went wrong, allow the search
+      return true;
+    }
+  }
+
   private static String getParamNameForValue(Map<String, Integer> countingMap, String key) {
     Integer counter = countingMap.get(key);
     countingMap.put(key, counter == null ? 1 : ++counter);
     return "userValue_" + key + (counter == null ? "" : "" + counter);
   }
 
-  public static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
+  private static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
     PropertiesQuery properties = event.getPropertiesQuery();
     if (properties == null || properties.size() == 0) {
       return null;
@@ -126,7 +197,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           String  key = propertyQuery.getKey(),
               paramName = getParamNameForValue(countingMap, key),
               value = getValue(v, op, key, paramName);
-          SQLQuery q = createKey(event, key);
+          SQLQuery q = createKey(key);
           namedParams.putAll(q.getNamedParameters());
 
           if(v == null){
@@ -200,7 +271,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
-  private static SQLQuery createKey(SearchForFeaturesEvent event, String key) {
+  private static SQLQuery createKey(String key) {
     String[] keySegments = key.split("\\.");
 
     /** ID is indexed as text */
@@ -251,4 +322,66 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return "";
   }
 
+  protected static class IndexList {
+
+    private static final Integer BIG_SPACE_THRESHOLD = 10000;
+    /** Cache indexList for 3 Minutes  */
+    static long CACHE_INTERVAL_MS = TimeUnit.MINUTES.toMillis(3);
+
+    /** Get list of indexed Values from a XYZ-Space */
+    public static List<String> getIndexList(String space, DatabaseHandler dbHandler) throws SQLException {
+      IndexList indexList = cachedIndices.get(space);
+      if (indexList != null && indexList.expiry >= System.currentTimeMillis()) {
+        return indexList.indices;
+      }
+
+      indexList = dbHandler.executeQuery(generateIDXStatusQuery(space),
+              IndexList::rsHandler);
+
+      cachedIndices.put(space, indexList);
+      return indexList.indices;
+    }
+
+    IndexList(List<String> indices) {
+      this.indices = indices;
+      expiry = System.currentTimeMillis() + CACHE_INTERVAL_MS;
+    }
+
+    List<String> indices;
+    long expiry;
+
+    static Map<String, IndexList> cachedIndices = new HashMap<>();
+
+    private static IndexList rsHandler(ResultSet rs) {
+      try {
+        if (!rs.next()) {
+          return new IndexList(null);
+        }
+        List<String> indices = new ArrayList<>();
+
+        String result = rs.getString("idx_available");
+        List<Map<String, Object>> raw = XyzSerializable.deserialize(result, new TypeReference<List<Map<String, Object>>>() {});
+        for (Map<String, Object> one : raw) {
+          /*
+           * Indices are marked as:
+           * a = automatically created (auto-indexing)
+           * m = manually created (on-demand)
+           * o = sortable - manually created (on-demand) --> first single sortable propertie is always ascending
+           * s = basic system indices
+           */
+          if (one.get("src").equals("a") || one.get("src").equals("m") )
+            indices.add((String) one.get("property"));
+          else if( one.get("src").equals("o") )
+            indices.add( "o:" + (String) one.get("property"));
+        }
+        return new IndexList(indices);
+      } catch (Exception e) {
+        return new IndexList(null);
+      }
+    }
+
+    private static SQLQuery generateIDXStatusQuery(final String space){
+        return new SQLQuery("SELECT idx_available FROM "+ ModifySpace.IDX_STATUS_TABLE_FQN +" WHERE spaceid=? AND count >=?", space, BIG_SPACE_THRESHOLD);
+    }
+  }
 }
