@@ -2868,6 +2868,15 @@ components:
           description: The space description in markdown format.
           example: Description as markdown.
           type: string
+        connectorIds:
+          type: array
+          items:
+            type: string
+          description: >-
+            The list of connector identifiers, which will be invoked in sequence to fulfill all the feature operations.
+          example:
+            - connector-validation
+            - connector-persistence
         owner:
           description: The identifier of the owner of this space, most likely the HERE account ID.
           type: string
@@ -3027,6 +3036,7 @@ components:
           items:
             $ref: '#/components/schemas/Connector'
       example:
+        id: 'demo:space_1'
         title: My Demo Space
         description: Description as markdown
     SpaceClient:
