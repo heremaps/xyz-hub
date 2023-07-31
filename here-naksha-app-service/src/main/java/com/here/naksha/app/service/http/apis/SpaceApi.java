@@ -97,6 +97,7 @@ public class SpaceApi extends Api {
             .getFeaturesById(space.getConnectorIds());
         final List<Connector> connectorList = rsc.toList(0, Integer.MAX_VALUE);
         rsc.close();
+        final EventPipeline eventPipeline = new EventPipeline(naksha());
         for (final Connector connector : connectorList) {
           // fetch storage associated with this connector
           Storage storage = null;
@@ -109,22 +110,22 @@ public class SpaceApi extends Api {
             rss.close();
           }
           connector.setStorage(storage);
-          // Create backend table(s) using this connector
-          final ModifySpaceEvent event = new ModifySpaceEvent()
-              .withOperation(ModifySpaceEvent.Operation.CREATE)
-              .withSpaceDefinition(space);
-          event.setSpace(space);
-          final XyzResponse response = new EventPipeline(naksha())
-              .addEventHandler(connector)
-              .sendEvent(event);
-          if (response instanceof ErrorResponse) {
-            return response;
-          }
+          eventPipeline.addEventHandler(connector);
+        }
+        // Send ModifySpaceEvent through all connectors, one of which, will create backend table(s)
+        final ModifySpaceEvent event = new ModifySpaceEvent()
+            .withOperation(ModifySpaceEvent.Operation.CREATE)
+            .withSpaceDefinition(space);
+        event.setSpace(space);
+        final XyzResponse pipelineResponse = eventPipeline.sendEvent(event);
+        if (pipelineResponse instanceof ErrorResponse errorResponse) {
+          verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, errorResponse);
+          return errorResponse;
         }
 
         // return success response (if we reach to this stage)
         final XyzFeatureCollection response = verticle.transformModifyResponse(modifyResponse);
-        verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
+        verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, response);
         return response;
       }
     });
