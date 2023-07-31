@@ -563,9 +563,11 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         final List<? extends XyzFeature> features = fc.getFeatures();
         if (features.size() == 0) {
           sendEmptyResponse(routingContext, OK);
+          return;
         } else {
           final String content = features.get(0).serialize();
           sendRawResponse(routingContext, OK, responseType, Buffer.buffer(content));
+          return;
         }
       }
       if (responseType == HttpResponseType.EMPTY) {
