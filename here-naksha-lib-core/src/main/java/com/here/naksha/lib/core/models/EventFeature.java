@@ -27,8 +27,6 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.payload.Event;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -106,13 +104,19 @@ public abstract class EventFeature extends XyzFeature {
   }
 
   /**
-   * Replace the identifiers of the connectors.
-   *
-   * @param connectorIds The identifiers of all connectors.
+   * TODO HP_QUERY : To be removed if found redundant (after confirmed with Alex)
+   * This function is commented as it creates runtime conflict error -
+   * com.fasterxml.jackson.databind.exc.InvalidDefinitionException: Conflicting setter definitions for property "connectorIds": com.here.naksha.lib.core.models.EventFeature#setConnectorIds([Ljava.lang.String;) vs com.here.naksha.lib.core.models.EventFeature#setConnectorIds(java.util.List)
+   * /oo
+   * o/
+   * o Replace the identifiers of the connectors.
+   * o
+   * o @param connectorIds The identifiers of all connectors.
+   * o/
+   * @AvailableSince(NakshaVersion.v2_0_6)
+   * public void setConnectorIds(@NotNull String... connectorIds) {
+   * this.connectorIds = new ArrayList<>(connectorIds.length);
+   * Collections.addAll(this.connectorIds, connectorIds);
+   * }
    */
-  @AvailableSince(NakshaVersion.v2_0_6)
-  public void setConnectorIds(@NotNull String... connectorIds) {
-    this.connectorIds = new ArrayList<>(connectorIds.length);
-    Collections.addAll(this.connectorIds, connectorIds);
-  }
 }

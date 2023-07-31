@@ -134,45 +134,49 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
         stmt.setArray(4, tx.conn().createArrayOf("text", expected_uuids.toArray()));
         stmt.setArray(5, tx.conn().createArrayOf("naksha_op", ops.toArray()));
         stmt.setBoolean(6, req.read_results());
-        final ResultSet rs = stmt.executeQuery();
-        if (req.read_results()) {
-          int i = -1;
-          final ObjectReader reader = json.reader(ViewDeserialize.Storage.class);
-          while (rs.next()) {
-            i++;
-            final String op = rs.getString(1);
-            final PGobject pgFeature = (PGobject) rs.getObject(2);
-            assert pgFeature != null && pgFeature.getValue() != null;
-            final XyzFeature feature = reader.readValue(pgFeature.getValue(), XyzFeature.class);
-            if (ILike.equals(op, NakshaOp.INSERT)) {
-              final Geometry geometry = geometries.get(i);
-              if (geometry != null) {
-                feature.setGeometry(JTSHelper.fromGeometry(geometry));
-              }
-              response.inserted().add(feature);
-            } else if (ILike.equals(op, NakshaOp.UPDATE)) {
-              final Geometry geometry = geometries.get(i);
-              if (geometry != null) {
-                feature.setGeometry(JTSHelper.fromGeometry(geometry));
-              }
-              response.updated().add(feature);
-            } else if (ILike.equals(op, NakshaOp.DELETE)) {
-              final PGobject pgGeometry = (PGobject) rs.getObject(3);
-              if (pgGeometry != null) {
-                final String hex = pgGeometry.getValue();
-                if (hex != null) {
-                  final Geometry geometry = json.wkbReader.read(WKBReader.hexToBytes(hex));
+        try (final ResultSet rs = stmt.executeQuery()) {
+          if (req.read_results()) {
+            int i = -1;
+            final ObjectReader reader = json.reader(ViewDeserialize.Storage.class);
+            while (rs.next()) {
+              i++;
+              final String op = rs.getString(1);
+              final PGobject pgFeature = (PGobject) rs.getObject(2);
+              assert pgFeature != null && pgFeature.getValue() != null;
+              final XyzFeature feature = reader.readValue(pgFeature.getValue(), XyzFeature.class);
+              if (ILike.equals(op, NakshaOp.INSERT)) {
+                final Geometry geometry = geometries.get(i);
+                if (geometry != null) {
                   feature.setGeometry(JTSHelper.fromGeometry(geometry));
                 }
+                response.inserted().add(feature);
+              } else if (ILike.equals(op, NakshaOp.UPDATE)) {
+                final Geometry geometry = geometries.get(i);
+                if (geometry != null) {
+                  feature.setGeometry(JTSHelper.fromGeometry(geometry));
+                }
+                response.updated().add(feature);
+              } else if (ILike.equals(op, NakshaOp.DELETE)) {
+                final PGobject pgGeometry = (PGobject) rs.getObject(3);
+                if (pgGeometry != null) {
+                  final String hex = pgGeometry.getValue();
+                  if (hex != null) {
+                    final Geometry geometry = json.wkbReader.read(WKBReader.hexToBytes(hex));
+                    feature.setGeometry(JTSHelper.fromGeometry(geometry));
+                  }
+                }
+                response.deleted().add(feature);
+              } else {
+                throw new SQLException(
+                    "Unexpected operation returned by naksha_modify_features at index " + i + ": "
+                        + op);
               }
-              response.deleted().add(feature);
-            } else {
-              throw new SQLException("Unexpected operation returned by naksha_modify_features at index "
-                  + i + ": " + op);
             }
           }
+          return response;
+        } catch (final Throwable t) {
+          throw unchecked(t);
         }
-        return response;
       } catch (final Throwable t) {
         throw unchecked(t);
       }

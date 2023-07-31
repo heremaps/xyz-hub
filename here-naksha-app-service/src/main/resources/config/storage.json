@@ -1,0 +1,7 @@
+{
+  "id": "psql",
+  "type": "Storage",
+  "title": "Default Naksha storage",
+  "description": "Default PostgreSQL storage implementation used by Naksha",
+  "className": "com.here.naksha.lib.psql.PsqlStorage"
+}

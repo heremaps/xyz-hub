@@ -30,6 +30,13 @@ public interface IStorage {
   //       - Add history access.
 
   /**
+   * Perform storage initialization, especially useful when invoked for the first time storage is to be accessed.
+   */
+  default void init() {
+    maintain();
+  }
+
+  /**
    * Perform maintenance tasks, for example garbage collect features that are older than the set {@link CollectionInfo#getMaxAge()}. This
    * task is at least called ones every 12 hours. It is guaranteed that this is only executed on one Naksha instances at a given time, so
    * there is no concurrent execution.

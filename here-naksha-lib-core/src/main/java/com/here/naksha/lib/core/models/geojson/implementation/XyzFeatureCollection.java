@@ -32,6 +32,7 @@ import com.here.naksha.lib.core.LazyParsableFeatureList.RawDeserializer;
 import com.here.naksha.lib.core.LazyParsableFeatureList.RawSerializer;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -307,6 +308,18 @@ public class XyzFeatureCollection extends XyzResponse {
     this.inserted = inserted;
   }
 
+  /**
+   * Appends the given feature ID into the list of inserted
+   *
+   * @param insertId the ID to be inserted into the list
+   */
+  public void appendInsertId(@NotNull String insertId) {
+    if (this.inserted == null) {
+      this.inserted = new ArrayList<>();
+    }
+    this.inserted.add(insertId);
+  }
+
   @SuppressWarnings("unused")
   public XyzFeatureCollection withInserted(List<String> inserted) {
     setInserted(inserted);
@@ -330,6 +343,18 @@ public class XyzFeatureCollection extends XyzResponse {
     this.updated = updated;
   }
 
+  /**
+   * Appends the given feature ID into the list of updated
+   *
+   * @param updateId the ID to be inserted into the list
+   */
+  public void appendUpdateId(@NotNull String updateId) {
+    if (this.updated == null) {
+      this.updated = new ArrayList<>();
+    }
+    this.updated.add(updateId);
+  }
+
   @SuppressWarnings("unused")
   public XyzFeatureCollection withUpdated(List<String> updated) {
     setUpdated(updated);
@@ -351,6 +376,18 @@ public class XyzFeatureCollection extends XyzResponse {
   @SuppressWarnings("WeakerAccess")
   public void setDeleted(List<String> deleted) {
     this.deleted = deleted;
+  }
+
+  /**
+   * Appends the given feature ID into the list of deleted
+   *
+   * @param deleteId the ID to be inserted into the list
+   */
+  public void appendDeleteId(@NotNull String deleteId) {
+    if (this.deleted == null) {
+      this.deleted = new ArrayList<>();
+    }
+    this.deleted.add(deleteId);
   }
 
   @SuppressWarnings("unused")

@@ -18,16 +18,14 @@
  */
 package com.here.naksha.lib.core.models.features;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.IPlugin;
 import com.here.naksha.lib.core.models.PluginCache;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.storage.IStorage;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -46,6 +44,12 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
 
   @AvailableSince(NakshaVersion.v2_0_3)
   public static final String ACTIVE = "active";
+
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public static final String URL = "url";
+
+  @AvailableSince(NakshaVersion.v2_0_6)
+  public static final String STORAGE_ID = "storageId";
 
   /**
    * Create a new connector.
@@ -97,11 +101,37 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
    */
   @AvailableSince(NakshaVersion.v2_0_3)
   @JsonProperty(ACTIVE)
-  private boolean active;
+  private boolean active = true;
+
+  /**
+   * The connectivity details required by this connector to perform feature operations.
+   * If connector is attached to a Storage (using storageId), then this is storage credentials.
+   */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  @JsonProperty(URL)
+  private String url;
+
+  /**
+   * (Optional) storageId indicates its attachment with storage for performing feature operations.
+   */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  @JsonProperty(STORAGE_ID)
+  private String storageId;
+
+  /**
+   * (Optional) Storage object if this connector is associated with storageId
+   */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  @JsonIgnore
+  private Storage storage;
 
   @Override
   public @NotNull IEventHandler newInstance() {
     return PluginCache.newInstance(className, IEventHandler.class, this);
+  }
+
+  public @NotNull IStorage newStorageImpl(@NotNull Storage storage) {
+    return PluginCache.newInstance(storage.getClassName(), IStorage.class, this);
   }
 
   public @NotNull String getClassName() {
@@ -126,5 +156,29 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
 
   public void setExtension(int extension) {
     this.extension = extension;
+  }
+
+  public @NotNull String getUrl() {
+    return url;
+  }
+
+  public void setUrl(@NotNull String url) {
+    this.url = url;
+  }
+
+  public String getStorageId() {
+    return storageId;
+  }
+
+  public void setStorageId(@NotNull String storageId) {
+    this.storageId = storageId;
+  }
+
+  public Storage getStorage() {
+    return storage;
+  }
+
+  public void setStorage(Storage storage) {
+    this.storage = storage;
   }
 }

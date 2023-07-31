@@ -79,7 +79,7 @@ public record ModifyFeaturesReq<FEATURE extends XyzFeature>(
   /**
    * Add the given feature to the update list.
    *
-   * @param feature The feature to add.
+   * @param feature The feature to update.
    * @return this.
    */
   public @NotNull ModifyFeaturesReq<FEATURE> update(@NotNull FEATURE feature) {
@@ -90,10 +90,11 @@ public record ModifyFeaturesReq<FEATURE extends XyzFeature>(
   /**
    * Add the given feature to the upsert list.
    *
-   * @param feature The feature to add.
+   * @param feature The feature to upsert.
    * @return this.
    */
   public @NotNull ModifyFeaturesReq<FEATURE> upsert(@NotNull FEATURE feature) {
+    // TODO HP_QUERY : Should this be added to upsert list?
     update.add(feature);
     return this;
   }

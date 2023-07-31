@@ -30,6 +30,7 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.lambdas.F0;
 import com.here.naksha.lib.core.models.EventFeature;
+import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
@@ -186,6 +187,19 @@ public final class NakshaHub extends Thread implements INaksha {
       if (!existing.containsKey(NakshaAdminCollection.STORAGES.getId())) {
         tx.createCollection(NakshaAdminCollection.STORAGES);
         tx.commit();
+
+        try (final Json json = Json.get()) {
+          final String storageJson = IoHelp.readResource("config/storage.json");
+          final Storage storage = json.reader(ViewDeserialize.Storage.class)
+              .forType(Storage.class)
+              .readValue(storageJson);
+          // TODO HP_QUERY : How do I generate "number" for Storage class here?
+          tx.writeFeatures(Storage.class, NakshaAdminCollection.STORAGES)
+              .modifyFeatures(new ModifyFeaturesReq<Storage>(false).insert(storage));
+          tx.commit();
+        } catch (Exception e) {
+          throw unchecked(e);
+        }
       }
 
       if (!existing.containsKey(NakshaAdminCollection.SPACES.getId())) {
@@ -215,6 +229,7 @@ public final class NakshaHub extends Thread implements INaksha {
       } else {
         config = tx.readFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
             .getFeatureById(configId);
+        // TODO HP_QUERY : Why this way instead of direct call `log.info()` ?
         log.atInfo()
             .setMessage("Loaded configuration '{}' from admin-db is: {}")
             .addArgument(configId)
@@ -224,6 +239,7 @@ public final class NakshaHub extends Thread implements INaksha {
 
       // Read the configuration.
       try (final Json json = Json.get()) {
+        // TODO HP_QUERY : Reason for not supporting custom config path?
         final LoadedBytes loaded =
             IoHelp.readBytesFromHomeOrResource(configId + ".json", false, adminDbConfig.appName);
         final NakshaHubConfig cfg = json.reader(ViewDeserialize.Storage.class)

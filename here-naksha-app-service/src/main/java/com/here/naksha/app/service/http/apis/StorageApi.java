@@ -23,7 +23,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.NakshaAdminCollection;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.json.Json;
@@ -34,29 +34,27 @@ import io.vertx.ext.web.openapi.RouterBuilder;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
-public class ConnectorApi extends Api {
+public class StorageApi extends Api {
 
-  public ConnectorApi(final @NotNull NakshaHttpVerticle verticle) {
+  public StorageApi(final @NotNull NakshaHttpVerticle verticle) {
     super(verticle);
   }
 
   @Override
   public void addOperations(final @NotNull RouterBuilder rb) {
-    rb.operation("getConnectors").handler(this::getConnectors);
-    rb.operation("postConnector").handler(this::createConnector);
+    rb.operation("getStorages").handler(this::getStorages);
+    rb.operation("postStorage").handler(this::createStorage);
   }
 
   @Override
   public void addManualRoutes(final @NotNull Router router) {}
 
-  private void getConnectors(final @NotNull RoutingContext routingContext) {
-    // TODO : To support filtering id's supplied as query parameters
+  private void getStorages(final @NotNull RoutingContext routingContext) {
     naksha().executeTask(() -> {
       try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
-        final IResultSet<Connector> rs = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
+        final IResultSet<Storage> rs = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
             .getAll(0, Integer.MAX_VALUE);
-        final List<@NotNull Connector> featureList = rs.toList(0, Integer.MAX_VALUE);
-        // TODO HP_QUERY : Is this right place to close resource? (change in StorageApi accordingly)
+        final List<@NotNull Storage> featureList = rs.toList(0, Integer.MAX_VALUE);
         rs.close();
         final XyzFeatureCollection response = new XyzFeatureCollection();
         response.setFeatures(featureList);
@@ -66,23 +64,23 @@ public class ConnectorApi extends Api {
     });
   }
 
-  private void createConnector(final @NotNull RoutingContext routingContext) {
+  private void createStorage(final @NotNull RoutingContext routingContext) {
     naksha().executeTask(() -> {
-      Connector connector = null;
+      Storage storage = null;
       // Read request JSON
       try (final Json json = Json.get()) {
         final String bodyJson = routingContext.body().asString();
-        connector = json.reader(ViewDeserialize.User.class)
-            .forType(Connector.class)
+        storage = json.reader(ViewDeserialize.User.class)
+            .forType(Storage.class)
             .readValue(bodyJson);
       } catch (Exception e) {
         throw unchecked(e);
       }
-      // Insert connector in database
+      // Insert storage in database
       try (final IMasterTransaction tx = naksha().storage().openMasterTransaction(naksha().settings())) {
         final ModifyFeaturesResp modifyResponse = tx.writeFeatures(
-                Connector.class, NakshaAdminCollection.CONNECTORS)
-            .modifyFeatures(new ModifyFeaturesReq<Connector>(true).insert(connector));
+                Storage.class, NakshaAdminCollection.STORAGES)
+            .modifyFeatures(new ModifyFeaturesReq<Storage>(true).insert(storage));
         tx.commit();
         final XyzFeatureCollection response = verticle.transformModifyResponse(modifyResponse);
         verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
