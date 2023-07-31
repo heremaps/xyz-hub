@@ -387,11 +387,6 @@ public class Service extends Core {
     public int MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS;
 
     /**
-     * Size of the off-heap cache in megabytes.
-     */
-    public int OFF_HEAP_CACHE_SIZE_MB;
-
-    /**
      * Size of the in-memory cache in megabytes. (Maximum 2GB)
      */
     public int CACHE_SIZE_MB;
