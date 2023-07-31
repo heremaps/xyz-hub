@@ -50,12 +50,13 @@ public class ConnectorApi extends Api {
   public void addManualRoutes(final @NotNull Router router) {}
 
   private void getConnectors(final @NotNull RoutingContext routingContext) {
+    // TODO : To support filtering id's supplied as query parameters
     naksha().executeTask(() -> {
       try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
         final IResultSet<Connector> rs = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
             .getAll(0, Integer.MAX_VALUE);
         final List<@NotNull Connector> featureList = rs.toList(0, Integer.MAX_VALUE);
-        // TODO HP_QUERY : Right place to close resource? (change in StorageApi accordingly)
+        // TODO HP_QUERY : Is this right place to close resource? (change in StorageApi accordingly)
         rs.close();
         final XyzFeatureCollection response = new XyzFeatureCollection();
         response.setFeatures(featureList);

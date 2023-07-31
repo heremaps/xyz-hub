@@ -25,6 +25,7 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.IPlugin;
 import com.here.naksha.lib.core.models.PluginCache;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.storage.IStorage;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -49,9 +50,6 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
 
   @AvailableSince(NakshaVersion.v2_0_6)
   public static final String STORAGE_ID = "storageId";
-
-  @AvailableSince(NakshaVersion.v2_0_6)
-  public static final String CONN_POOL_SETTINGS = "connectionPoolSettings";
 
   /**
    * Create a new connector.
@@ -121,53 +119,19 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
   private String storageId;
 
   /**
-   * (Optional) settings to be used for creating connection pool against the storage.
-   * Applicable when connector is attached with storage (using storageId).
+   * (Optional) Storage object if this connector is associated with storageId
    */
   @AvailableSince(NakshaVersion.v2_0_6)
-  @JsonProperty(CONN_POOL_SETTINGS)
-  private ConnectionPoolSettings connectionPoolSettings;
-
-  @JsonIgnoreProperties(ignoreUnknown = true)
-  public static class ConnectionPoolSettings {
-
-    /**
-     * The minimum (initial) amount of concurrent connections this connector should use for storage operations.
-     */
-    private int coreSize = 2;
-    /**
-     * The maximum amount of concurrent connections this connector can use for storage operations.
-     */
-    private int maxSize = 20;
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
-      ConnectionPoolSettings that = (ConnectionPoolSettings) o;
-      return coreSize == that.coreSize && maxSize == that.maxSize;
-    }
-
-    public int getCoreSize() {
-      return coreSize;
-    }
-
-    public void setCoreSize(int coreSize) {
-      this.coreSize = coreSize;
-    }
-
-    public int getMaxSize() {
-      return maxSize;
-    }
-
-    public void setMaxSize(int maxSize) {
-      this.maxSize = maxSize;
-    }
-  }
+  @JsonIgnore
+  private Storage storage;
 
   @Override
   public @NotNull IEventHandler newInstance() {
     return PluginCache.newInstance(className, IEventHandler.class, this);
+  }
+
+  public @NotNull IStorage newStorageImpl(@NotNull Storage storage) {
+    return PluginCache.newInstance(storage.getClassName(), IStorage.class, this);
   }
 
   public @NotNull String getClassName() {
@@ -202,11 +166,19 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
     this.url = url;
   }
 
-  public @NotNull String getStorageId() {
+  public String getStorageId() {
     return storageId;
   }
 
   public void setStorageId(@NotNull String storageId) {
     this.storageId = storageId;
+  }
+
+  public Storage getStorage() {
+    return storage;
+  }
+
+  public void setStorage(Storage storage) {
+    this.storage = storage;
   }
 }

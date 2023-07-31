@@ -2183,6 +2183,48 @@ components:
             together within the event sent by Data Hub. It can be used to configure the connector
             per-space basis.
           additionalProperties: true
+    ConnectorProperties:
+      type: object
+      description: Properties part of Connector resource holding internal connectivity details.
+      properties:
+        dbConfig:
+          type: object
+          description: Backend database details to be used by connector to perform feature operations
+          properties:
+            host:
+              description: Database hostname
+              type: string
+              example: localhost
+            port:
+              description: Database port
+              type: integer
+              example: 5432
+            db:
+              description: Database name (applicable for databases like PostgreSQL)
+              type: string
+              example: postgres
+            user:
+              description: Database user id
+              type: string
+              example: db_user
+            password:
+              description: Database user password
+              type: string
+              example: db_password
+            schema:
+              description: Database schema name
+              type: string
+              example: naksha_spaces
+            minPoolSize:
+              description: The minimum (initial) amount of concurrent connections this connector should use for storage operations.
+              type: integer
+              default: 2
+              example: 5
+            maxPoolSize:
+              description: The maximum amount of concurrent connections this connector can use for storage operations.
+              type: integer
+              default: 20
+              example: 20
     ConnectorConfig:
       type: object
       description: A connector declaration.
@@ -2205,12 +2247,6 @@ components:
             feature operations on (optionally) associated storage.
           example: com.here.naksha.handler.psql.PsqlHandler
           type: string
-        url:
-          description: >-
-            The connectivity details required by this connector to perform feature operations.
-            If connector is associated with storage, it will represent storage credentials.
-          example: jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=xyz_spaces
-          type: string
         extension:
           description: >-
             If this connector is an extension, then this holds the extension identification number; a 16-bit unsigned integer.
@@ -2222,27 +2258,22 @@ components:
             Connector logic supposedly uses the storage for performing feature operations.
           example: psql
           type: string
-        connectionPoolSettings:
-          description: >-
-            The connection and throttling settings to be used while performing concurrent operations against associated storage.
-            Applicable if connector is associated with storage.
-          type: object
-          properties:
-            coreSize:
-              description: The minimum (initial) amount of concurrent connections this connector should use for storage operations.
-              type: integer
-              default: 2
-            maxSize:
-              description: The maximum amount of concurrent connections this connector can use for storage operations.
-              type: integer
-              default: 20
+        properties:
+          $ref: '#/components/schemas/ConnectorProperties'
       example:
         id: psql-poc-db
+        type: Connector
         storageId: psql
-        url: jdbc:postgresql://naksha-poc-db:5432/postgres?user=postgres&password=password&schema=naksha_spaces
-        connectionPoolSettings:
-          coreSize: 5
-          maxSize: 20
+        properties:
+          dbConfig:
+            host: naksha-poc-db
+            port: 5432
+            db: postgres
+            user: db_user
+            password: db_password
+            schema: naksha_spaces
+            minPoolSize: 5
+            maxPoolSize: 20
         className: com.here.naksha.handler.psql.PsqlHandler
         active: true
     Copyright:
@@ -2850,6 +2881,12 @@ components:
           description: The FQCN (Fully Qualified Class Name) which implements storage persistence logic.
           example: com.here.naksha.lib.psql.PsqlStorage
           type: string
+      example:
+        id: "psql-poc"
+        type: "Storage"
+        title: "POC Naksha storage"
+        description: "PostgreSQL storage implementation used for PoC purpose"
+        className: "com.here.naksha.lib.psql.PsqlStorage"
     Space:
       type: object
       description: A data holder for features which points to a persistent storage.
@@ -3037,6 +3074,7 @@ components:
             $ref: '#/components/schemas/Connector'
       example:
         id: 'demo:space_1'
+        type: Space
         title: My Demo Space
         description: Description as markdown
     SpaceClient:

@@ -18,13 +18,16 @@
  */
 package com.here.naksha.app.service.http.apis;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
-import com.here.naksha.lib.core.storage.IReadTransaction;
-import com.here.naksha.lib.core.storage.IResultSet;
+import com.here.naksha.lib.core.storage.*;
+import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -40,6 +43,7 @@ public class StorageApi extends Api {
   @Override
   public void addOperations(final @NotNull RouterBuilder rb) {
     rb.operation("getStorages").handler(this::getStorages);
+    rb.operation("postStorage").handler(this::createStorage);
   }
 
   @Override
@@ -54,6 +58,31 @@ public class StorageApi extends Api {
         rs.close();
         final XyzFeatureCollection response = new XyzFeatureCollection();
         response.setFeatures(featureList);
+        verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
+        return response;
+      }
+    });
+  }
+
+  private void createStorage(final @NotNull RoutingContext routingContext) {
+    naksha().executeTask(() -> {
+      Storage storage = null;
+      // Read request JSON
+      try (final Json json = Json.get()) {
+        final String bodyJson = routingContext.body().asString();
+        storage = json.reader(ViewDeserialize.User.class)
+            .forType(Storage.class)
+            .readValue(bodyJson);
+      } catch (Exception e) {
+        throw unchecked(e);
+      }
+      // Insert storage in database
+      try (final IMasterTransaction tx = naksha().storage().openMasterTransaction(naksha().settings())) {
+        final ModifyFeaturesResp modifyResponse = tx.writeFeatures(
+                Storage.class, NakshaAdminCollection.STORAGES)
+            .modifyFeatures(new ModifyFeaturesReq<Storage>(true).insert(storage));
+        tx.commit();
+        final XyzFeatureCollection response = verticle.transformModifyResponse(modifyResponse);
         verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
         return response;
       }

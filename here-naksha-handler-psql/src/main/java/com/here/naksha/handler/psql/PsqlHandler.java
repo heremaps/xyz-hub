@@ -20,7 +20,9 @@ package com.here.naksha.handler.psql;
 
 import static com.here.naksha.lib.core.NakshaContext.currentContext;
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.models.XyzError.EXCEPTION;
+import static com.here.naksha.lib.core.models.XyzError.NOT_IMPLEMENTED;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT;
 import static com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByTileResponseType.MVT_FLATTENED;
 import static com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent.Operation.CREATE;
@@ -38,7 +40,6 @@ import com.here.naksha.handler.psql.query.GetFeaturesById;
 import com.here.naksha.handler.psql.query.GetStorageStatistics;
 import com.here.naksha.handler.psql.query.IterateFeatures;
 import com.here.naksha.handler.psql.query.LoadFeatures;
-import com.here.naksha.handler.psql.query.ModifySpace;
 import com.here.naksha.handler.psql.query.SearchForFeatures;
 import com.here.naksha.handler.psql.query.helpers.FetchExistingIds;
 import com.here.naksha.handler.psql.query.helpers.FetchExistingIds.FetchIdsInput;
@@ -47,6 +48,7 @@ import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.geojson.HQuad;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
@@ -90,6 +92,8 @@ import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
 import com.here.naksha.lib.core.models.payload.responses.changesets.Changeset;
 import com.here.naksha.lib.core.models.payload.responses.changesets.ChangesetCollection;
 import com.here.naksha.lib.core.models.payload.responses.changesets.CompactChangeset;
+import com.here.naksha.lib.core.storage.CollectionInfo;
+import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.psql.PsqlCollection;
@@ -98,11 +102,7 @@ import com.here.naksha.lib.psql.sql.DhString;
 import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.psql.sql.TweaksSQL;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
-import java.sql.BatchUpdateException;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -673,7 +673,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
       if (isReadOnly()) {
         return new ErrorResponse()
             .withStreamId(streamId())
-            .withError(XyzError.NOT_IMPLEMENTED)
+            .withError(NOT_IMPLEMENTED)
             .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
       }
       return executeDeleteFeaturesByTag(event);
@@ -707,7 +707,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
       if (isReadOnly()) {
         return new ErrorResponse()
             .withStreamId(streamId())
-            .withError(XyzError.NOT_IMPLEMENTED)
+            .withError(NOT_IMPLEMENTED)
             .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
       }
 
@@ -1113,11 +1113,53 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
       }
     }
 
-    new ModifySpace(event, this).write();
-    maintainSpace();
+    // TODO : Not sure why we run maintenance here
+    // new ModifySpace(event, this).write();
+    // maintainSpace();
 
-    // If we reach this point we are okay!
-    return new SuccessResponse();
+    switch (event.getOperation()) {
+      case CREATE:
+        createTables(event.getSpaceDefinition());
+        return new SuccessResponse();
+    }
+
+    return new ErrorResponse()
+        .withStreamId(streamId())
+        .withError(NOT_IMPLEMENTED)
+        .withErrorMessage(
+            "Unsupported operation: " + event.getOperation().name());
+  }
+
+  private void createTables(@NotNull Space space) {
+    if (eventHandler.getStorage() == null) {
+      // No associated storage, so nothing to be created
+      return;
+    }
+    // Initialize storage before creating new table(s)
+    // TODO : Optimize this to run init only when there is appropriate SQL exception
+    final IStorage psqlStorage = eventHandler.newStorageImpl(eventHandler.getStorage());
+    // TODO HP_QUERY : What storage number to be stored here? (as this could be same across storages using same PSQL
+    // implementation)
+    psqlStorage.init();
+    psqlStorage.close();
+    // Now create desired tables
+    final CollectionInfo collection = new CollectionInfo(
+        space.getCollectionId(), eventHandler.getStorage().getNumber());
+    // TODO HP_QUERY : Which logger instance to be used? (both currentLogger() and currentContext().logger are
+    // deprecated)
+    currentLogger().info("Creating table collection \"{}\" with appId \"{}\"", collection.getId(), applicationName);
+    try (final Connection conn = masterDataSource.openConnection(applicationName, "");
+        final PreparedStatement stmt = conn.prepareStatement("SELECT naksha_collection_upsert(?, ?, ?);")) {
+      stmt.setString(1, collection.getId());
+      stmt.setLong(2, collection.getMaxAge());
+      stmt.setBoolean(3, collection.getHistory());
+      final ResultSet rs = stmt.executeQuery();
+      // if we reach here, then all went well. nothing to read from result set
+      rs.close();
+      conn.commit();
+    } catch (final Throwable t) {
+      throw unchecked(t);
+    }
   }
 
   protected @NotNull XyzResponse executeModifySubscription(@NotNull ModifySubscriptionEvent event)

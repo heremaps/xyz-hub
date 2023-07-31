@@ -25,6 +25,7 @@ import static com.here.naksha.lib.psql.SQL.escapeId;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
+import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.ITransactionSettings;
@@ -35,6 +36,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLException;
 
@@ -72,6 +74,24 @@ public class PsqlStorage implements IStorage {
   public PsqlStorage(@NotNull PsqlConfig config, long storageNumber) {
     this.dataSource = new PsqlDataSource(config);
     this.storageNumber = storageNumber;
+  }
+
+  /**
+   * Constructor to manually create a new PostgresQL storage client.
+   * This is useful when class is instantiated using connector configuration passed as argument.
+   *
+   * @param connector        The connector associated with this storage
+   */
+  public PsqlStorage(@NotNull Connector connector) {
+    PsqlConfig dbConfig = null;
+    final Object raw = connector.getProperties().get("dbConfig");
+    if (raw instanceof Map params) {
+      dbConfig = JsonSerializable.fromAnyMap(params, PsqlConfig.class);
+    } else {
+      throw new IllegalArgumentException("dbConfig");
+    }
+    this.dataSource = new PsqlDataSource(dbConfig);
+    this.storageNumber = 0;
   }
 
   /**
@@ -138,6 +158,7 @@ public class PsqlStorage implements IStorage {
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
+  @Override
   public void init() {
     String SQL;
     try (final Connection conn = dataSource.getConnection()) {
@@ -183,6 +204,8 @@ public class PsqlStorage implements IStorage {
 
           // Re-Initialize the connection.
           // This ensures that we really have the schema at the end of the search path and therefore selected.
+          // TODO HP_QUERY : Looks like a duplicate call, as intialization already happens during earlier call
+          // to getConnection()?
           dataSource.initConnection(conn);
           if (version == 0L) {
             stmt.execute("SELECT naksha_init();");

@@ -53,6 +53,7 @@ public class ExtendedEventHandler<HANDLER extends Connector> implements IExtende
     this.eventHandler = eventHandler;
   }
 
+  // TODO HP_QUERY : Purpose of overriding this function?
   @Override
   public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
     return postProcess(IExtendedEventHandler.super.processEvent(eventContext));

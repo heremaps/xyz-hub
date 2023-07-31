@@ -18,10 +18,15 @@
  */
 package com.here.naksha.handler.psql;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.psql.AbstractPsqlDataSource;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlPool;
 import com.here.naksha.lib.psql.PsqlPoolConfig;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.jetbrains.annotations.NotNull;
@@ -67,6 +72,19 @@ public class PsqlHandlerDataSource extends AbstractPsqlDataSource<PsqlHandlerDat
     this.table = collection != null ? collection : spaceId;
     this.historyTable = collection + "_hst";
     this.deletionTable = collection + "_del";
+  }
+
+  public final Connection openConnection(@NotNull String appId, String author) throws SQLException {
+    final Connection conn = super.getConnection();
+    try (final PreparedStatement stmt = conn.prepareStatement("SELECT naksha_tx_start(?, ?, ?);")) {
+      stmt.setString(1, appId);
+      stmt.setString(2, author);
+      stmt.setBoolean(3, !readOnly);
+      stmt.execute();
+    } catch (final Exception e) {
+      throw unchecked(e);
+    }
+    return conn;
   }
 
   /** The connector parameters used to create this data source. */

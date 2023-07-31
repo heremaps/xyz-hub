@@ -22,9 +22,15 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
+import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.NakshaAdminCollection;
+import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
+import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
+import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
@@ -76,11 +82,47 @@ public class SpaceApi extends Api {
       } catch (Exception e) {
         throw unchecked(e);
       }
-      // Insert connector in database
+      // Validate and Insert space in Admin database
       try (final IMasterTransaction tx = naksha().storage().openMasterTransaction(naksha().settings())) {
+        // TODO : Validate if spaceId already exist
+        // TODO : Validate if connectorIds exist
+        // Insert space details in Admin database
         final ModifyFeaturesResp modifyResponse = tx.writeFeatures(Space.class, NakshaAdminCollection.SPACES)
             .modifyFeatures(new ModifyFeaturesReq<Space>(true).insert(space));
         tx.commit();
+
+        // TODO HP_QUERY : How to trigger feature task pipeline and create table as part of pipeline?
+        // With connectorId (attached to a storage) ensure backend tables are created successfully
+        final IResultSet<Connector> rsc = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
+            .getFeaturesById(space.getConnectorIds());
+        final List<Connector> connectorList = rsc.toList(0, Integer.MAX_VALUE);
+        rsc.close();
+        for (final Connector connector : connectorList) {
+          // fetch storage associated with this connector
+          Storage storage = null;
+          if (connector.getStorageId() != null) {
+            final IResultSet<Storage> rss = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
+                .getFeaturesById(connector.getStorageId());
+            if (rss.next()) {
+              storage = rss.getFeature();
+            }
+            rss.close();
+          }
+          connector.setStorage(storage);
+          // Create backend table(s) using this connector
+          final ModifySpaceEvent event = new ModifySpaceEvent()
+              .withOperation(ModifySpaceEvent.Operation.CREATE)
+              .withSpaceDefinition(space);
+          event.setSpace(space);
+          final XyzResponse response = new EventPipeline(naksha())
+              .addEventHandler(connector)
+              .sendEvent(event);
+          if (response instanceof ErrorResponse) {
+            return response;
+          }
+        }
+
+        // return success response (if we reach to this stage)
         final XyzFeatureCollection response = verticle.transformModifyResponse(modifyResponse);
         verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
         return response;

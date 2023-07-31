@@ -546,6 +546,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         routingContext.response().putHeader(ETAG, etag);
       }
       if (response instanceof ErrorResponse) {
+        // TODO HP_QUERY : Why should we suppress error response here?
         sendRawResponse(routingContext, OK, APPLICATION_JSON, Buffer.buffer(response.serialize()));
         return;
       }

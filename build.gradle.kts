@@ -357,6 +357,7 @@ try {
             implementation(project(":here-naksha-lib-core"))
             implementation(project(":here-naksha-lib-psql"))
             implementation(project(":here-naksha-lib-extension"))
+            implementation(project(":here-naksha-handler-psql"))
 
             implementation(commons_lang3)
             implementation(vividsolutions_jts_core)
