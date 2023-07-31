@@ -463,26 +463,22 @@ public class JDBCExporter extends JDBCClients{
               String converted = ApiParam.getConvertedKey(partitionKey);
               partitionKey =  String.join(",",(converted != null ? converted : partitionKey).split("\\."));
               partQry = String.format(
-                 " with indata as "
-                +" ( select jsondata#>>'{id}' as id, jsondata#>>'{%1$s}' as key, jsondata, geo "
-                +" 	from "
-                +"   ( select * from ( ${{contentQuery}} ) X "
-                +      (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata#>>'{%1$s}' isnull " )
-                +"   ) i "
+                 " with  "
+                +" plist as  "
+                +" ( select o.* from "
+                +"   ( select ( dense_rank() over (order by key) )::integer as i, key  "
+                +"     from ( select distinct coalesce( jsondata#>'{%1$s}', '\"CSVNULL\"'::jsonb) as key from ( ${{contentQuery}} ) X "+ (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata#>>'{%1$s}' isnull " ) +" ) oo "
+                +"   ) o "
+                +"   where 1 = 1 " + (( !partById && customWhereCondition != null ) ? "${{customWhereClause}}" :"" )
                 +" ), "
-                +" iidata as ( select (( row_number() over ( partition by key ) )/ 100000)::integer as chunk, "
-                +"                    ( dense_rank() over ( order by key) )::integer as ikey, "
-                +"                    id, key, jsondata, geo "
-                +"             from indata "
-                +"           ), "
-                +" iiidata as "
-                +" ( select coalesce( key, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, ikey as i, count(1) as nrfeatures, "
-                +"   replace( encode( json_build_object('type','FeatureCollection', 'features', jsonb_agg( jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb) ))::text::bytea,'base64') ,chr(10),'') as data "
-                +"   from iidata "
-                +"   group by 1, chunk, ikey "
-                +"   order by 1, 3 desc "
-                +" ) "
-                +" select id, data from iiidata where true ", partitionKey ) ;
+                +" iidata as  "
+                +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 100000)::integer as chunk, r.jsondata, r.geo from ( ${{contentQuery}} ) r join plist l on ( coalesce( r.jsondata#>'{%1$s}', '\"CSVNULL\"'::jsonb) = l.key )  "
+                +" ), "
+                +" iiidata as  "
+                +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, count(1) as nrfeatures, left( replace( encode( json_build_object('type','FeatureCollection', 'features', jsonb_agg( jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb) ))::text::bytea,'base64') ,chr(10),''), 30) as data     "
+                +"     from iidata    group by 1, chunk order by 1, 3 desc   "
+                +" )   "
+                +" select id, data from iiidata ", partitionKey );
            }
 
            SQLQuery geoJson = new SQLQuery( partQry );
@@ -491,7 +487,7 @@ public class JDBCExporter extends JDBCClients{
             addCustomWhereClause(sqlQuery, customWhereCondition);
 
            if ( !partById && customWhereCondition != null )
-             geoJson.append(customWhereCondition);
+             geoJson.withQueryFragment("customWhereClause", customWhereCondition);
 
            geoJson.setQueryFragment("contentQuery",sqlQuery);
            geoJson.substitute();
