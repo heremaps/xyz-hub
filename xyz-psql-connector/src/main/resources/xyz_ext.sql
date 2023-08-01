@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 174
+ select 175
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
