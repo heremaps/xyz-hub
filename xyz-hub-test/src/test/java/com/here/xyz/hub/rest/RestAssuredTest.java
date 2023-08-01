@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.jayway.restassured.config.DecoderConfig.decoderConfig;
-import static com.jayway.restassured.config.EncoderConfig.encoderConfig;
+import static io.restassured.config.DecoderConfig.decoderConfig;
+import static io.restassured.config.EncoderConfig.encoderConfig;
 
 import com.here.xyz.hub.auth.TestAuthenticator;
-import com.jayway.restassured.RestAssured;
+import io.restassured.RestAssured;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 

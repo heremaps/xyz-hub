@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.tools;
 
+import static io.restassured.path.json.JsonPath.with;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -35,16 +36,10 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.jayway.jsonpath.Configuration;
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
-import com.jayway.jsonpath.Option;
-import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
 
 public class Helper{
-    protected final Configuration jsonPathConf = Configuration.defaultConfiguration().addOptions(Option.SUPPRESS_EXCEPTIONS);
 
     protected void setPUUID(FeatureCollection featureCollection) throws JsonProcessingException {
         for (Feature feature : featureCollection.getFeatures()){
@@ -54,8 +49,8 @@ public class Helper{
     }
 
     protected void assertNoErrorInResponse(String response) {
-        assertEquals(null, JsonPath.compile("$.errorMessage").read(response, jsonPathConf));
-        assertEquals(null, JsonPath.compile("$.error").read(response, jsonPathConf));
+        assertNull(with(response).get("$.errorMessage"));
+        assertNull(with(response).get("$.error"));
     }
 
     protected void assertNoErrorInResponse(XyzResponse response) {
@@ -110,10 +105,5 @@ public class Helper{
         JsonNode tree1 = mapper.convertValue(o1, JsonNode.class);
         JsonNode tree2 = mapper.convertValue(o2, JsonNode.class);
         return tree1.equals(tree2);
-    }
-
-    protected DocumentContext getEventFromResource(String file) {
-        InputStream inputStream = this.getClass().getResourceAsStream(file);
-        return JsonPath.parse(inputStream);
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,23 +19,31 @@
 
 package com.here.xyz.hub.rest.httpconnector;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.httpconnector.config.MaintenanceClient;
+import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.rest.RestAssuredConfig;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
 import io.vertx.core.json.JsonObject;
-import org.junit.*;
-
 import java.util.HashMap;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static org.hamcrest.Matchers.*;
-import static org.hamcrest.Matchers.equalTo;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class HCMaintenanceTestIT {
     private static String ecps;
@@ -146,7 +154,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("initialized", equalTo(true))
-                .body("extensions.size", greaterThan(1))
+                .body("extensions.size()", greaterThan(1))
                 .body("extensions", hasItem("postgis"))
                 .body("scriptVersions.h3", greaterThan(1))
                 .body("scriptVersions.ext", greaterThan(1));
@@ -196,7 +204,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("maintenanceStatus.AUTO_INDEXING.maintainedAt", greaterThan(curTime))
-                .body("maintenanceStatus.AUTO_INDEXING.maintenanceRunning.size", equalTo(0));
+                .body("maintenanceStatus.AUTO_INDEXING.maintenanceRunning.size()", equalTo(0));
     }
 
     @Test
@@ -227,11 +235,12 @@ public class HCMaintenanceTestIT {
                 .accept(APPLICATION_JSON)
                 .when()
                 .get(host+"/status?connectorId=TestConnector&ecps="+ecps)
+            .prettyPeek()
                 .then()
                 .statusCode(OK.code())
                 .body("initialized", equalTo(true))
-                .body("extensions.size", greaterThan(1))
                 .body("extensions", hasItem("postgis"))
+                .body("extensions.size()", greaterThan(1))
                 .body("scriptVersions.h3", greaterThan(1))
                 .body("scriptVersions.ext", greaterThan(1));
     }
@@ -281,7 +290,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size", equalTo(13))
+                .body("idxAvailable.size()", equalTo(13))
                 .body("idxManual.searchableProperties.foo", equalTo(true))
                 .body("idxManual.sortableProperties", nullValue());
     }

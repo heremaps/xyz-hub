@@ -19,6 +19,9 @@
 
 package com.here.xyz.psql;
 
+import static io.restassured.path.json.JsonPath.with;
+import static org.junit.Assert.assertEquals;
+
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
@@ -32,10 +35,6 @@ import com.here.xyz.psql.tools.Helper;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.jayway.jsonpath.JsonPath;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -44,8 +43,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
-import static org.junit.Assert.assertEquals;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class PSQLAbstractIT extends Helper {
 
@@ -110,7 +109,7 @@ public abstract class PSQLAbstractIT extends Helper {
             .withConnectorParams(connectorParameters);
 
     String response = invokeLambda(mse.serialize());
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+    assertEquals("Check response status", "OK", with(response).get("status"));
 
     LOGGER.info("Cleanup space Completed.");
   }
@@ -127,7 +126,7 @@ public abstract class PSQLAbstractIT extends Helper {
               .withConnectorParams(connectorParameters);
 
       String response = invokeLambda(mse.serialize());
-      assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+      assertEquals("Check response status", "OK", with(response).get("status"));
     }
 
     LOGGER.info("Cleanup spaces Completed.");
