@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package com.here.xyz.hub.rest;
 
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertNotSame;
 import static org.hamcrest.CoreMatchers.equalTo;

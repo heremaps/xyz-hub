@@ -18,6 +18,17 @@
  */
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
@@ -34,13 +45,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.*;
+import org.junit.Test;
 
 public class JobApiGeneralIT extends JobApiIT {
     protected static String testJobId = "x-test-general-job";

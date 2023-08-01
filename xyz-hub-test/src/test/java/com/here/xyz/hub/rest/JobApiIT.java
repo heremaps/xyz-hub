@@ -18,6 +18,15 @@
  */
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
@@ -31,11 +40,10 @@ import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.jayway.restassured.response.Response;
-import com.jayway.restassured.response.ValidatableResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.restassured.response.Response;
+import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.jackson.DatabindCodec;
-
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,15 +58,8 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 public class JobApiIT extends TestSpaceWithFeature {
 

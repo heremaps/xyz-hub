@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,25 +18,23 @@
  */
 package com.here.xyz.psql;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
 import com.amazonaws.util.IOUtils;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.models.geojson.implementation.Properties;
-import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.util.*;
-import java.util.stream.Collectors;
-
-import static org.junit.Assert.*;
 
 public class PSQLUuidIT extends PSQLAbstractIT {
 
