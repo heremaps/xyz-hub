@@ -67,7 +67,7 @@ public abstract class JobQueue implements Runnable {
         if(errorType != null)
             j.setErrorType(errorType);
 
-        CService.jobConfigClient.update(null , j)
+        CService.jobConfigClient.update(null , j, true)
                 .onFailure(t -> logger.warn("JOB[{}] update failed!", j.getId()));
     };
 
@@ -176,7 +176,7 @@ public abstract class JobQueue implements Runnable {
         if(status != null)
             j.setStatus(status);
 
-        return CService.jobConfigClient.update(null , j)
+        return CService.jobConfigClient.update(null , j, true)
                 .onFailure(t -> {
                     logger.warn("Failed to update Job.",t);
                     Future.failedFuture(t);

@@ -73,6 +73,18 @@ public abstract class JobConfigClient implements Initializable {
                 .onFailure(t -> logger.error(marker, "Failed to load jobList!", t));
     }
 
+    /**
+     * Set <i>stateUpdate</i> to 'true', when the state of the job is changed.
+     * This triggers state update notification, defined in <i>stateUpdateUrl</i>
+     */
+    public Future<Job> update(Marker marker, Job job, boolean stateUpdate) {
+        return update(marker, job)
+                .onSuccess(j -> {
+                    if(stateUpdate && job.getStateUpdateUrl() != null )
+                        notifyStateUpdate(job);
+                });
+    }
+
     public Future<Job> update(Marker marker, Job job) {
         job.setUpdatedAt(Core.currentTimeMillis() / 1000L);
 
@@ -113,6 +125,24 @@ public abstract class JobConfigClient implements Initializable {
                             }
                 })
                 .onFailure(t -> logger.error(marker, "job[{}]: Failed delete job:", jobId, t));
+    }
+
+    /**
+     * Executes state update trigger when <i>stateUpdateUrl</i> is provided in the Job <br>
+     * Performs {@code 'POST <stateUpdateUrl>?jobId=<jobId>&jobStatus=<status>'}
+     */
+    private void notifyStateUpdate(Job job) {
+        logger.info("Triggering job state update [{}] - {} ", job.getStatus(), job.getStateUpdateUrl());
+        CService.webClient.postAbs(job.getStateUpdateUrl())
+                .addQueryParam("jobId", job.getId())
+                .addQueryParam("jobStatus", job.getStatus().toString())
+                .send()
+                .onComplete(res -> {
+                    if(res.succeeded() && res.result().statusCode() > 300)
+                        logger.warn("Failed to notify state update due to HTTP error: [{}] - {} ", res.result().statusCode(), res.result().bodyAsString());
+                    else
+                        logger.warn("Failed to notify state update", res.cause());
+                });
     }
 
     protected abstract Future<Job> getJob(Marker marker, String jobId);

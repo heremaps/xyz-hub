@@ -188,6 +188,8 @@ public abstract class Job {
     @JsonView({Internal.class})
     private String author;
 
+    private String stateUpdateUrl;
+
     @JsonView({Public.class})
     protected Boolean clipped;
 
@@ -336,6 +338,10 @@ public abstract class Job {
     public void setAuthor(String author) {
         this.author = author;
     }
+
+    public String getStateUpdateUrl() { return stateUpdateUrl; }
+
+    public void setStateUpdateUrl(String stateUpdateUrl) { this.stateUpdateUrl = stateUpdateUrl; }
 
     public Boolean getClipped() {
         return clipped;

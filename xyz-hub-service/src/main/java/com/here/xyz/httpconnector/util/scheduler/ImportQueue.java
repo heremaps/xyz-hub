@@ -134,7 +134,7 @@ public class ImportQueue extends JobQueue{
                 .compose(
                         f2 -> {
                             j.setStatus(Job.Status.prepared);
-                            return CService.jobConfigClient.update(null, j);
+                            return CService.jobConfigClient.update(null, j, true);
                         })
                 .onFailure(f -> {
                     logger.warn("JOB[{}] preparation has failed!", j.getId(), f);
@@ -220,7 +220,7 @@ public class ImportQueue extends JobQueue{
                                 if(importObjects.get(key).getStatus() == ImportObject.Status.waiting){
                                     /** Some Imports are still queued - execute again */
                                     j.setStatus(Job.Status.prepared);
-                                    CService.jobConfigClient.update(null, j);
+                                    CService.jobConfigClient.update(null, j, true);
                                     return;
                                 }
                             }
@@ -234,7 +234,7 @@ public class ImportQueue extends JobQueue{
                                 j.setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
                             }
 
-                            CService.jobConfigClient.update(null, j);
+                            CService.jobConfigClient.update(null, j, true);
                     });
     }
 
@@ -258,7 +258,7 @@ public class ImportQueue extends JobQueue{
                         else
                             j.setStatus(Job.Status.finalized);
 
-                        return CService.jobConfigClient.update(null, j);
+                        return CService.jobConfigClient.update(null, j, true);
                 });
     }
 
