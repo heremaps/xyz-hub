@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 174
+ select 175
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3949,7 +3949,11 @@ begin
 
   return query
    with
-	indata as ( select r.tbl, greatest( c.reltuples::bigint, 1) as reltuples from pg_class c , (select unnest( tbls ) as tbl ) r	where c.oid = r.tbl ),
+	 hddata as ( select array_agg( coalesce( to_regclass( format('%I.%I',c.relnamespace::regnamespace::text, c.relname::text || '_head') ), c.oid::regclass ) ) as headtbl
+                 from pg_class c, (select unnest( tbls ) as tbl ) 
+                 r	where c.oid = r.tbl
+			   ),	
+ 	indata as  ( select r.tbl, greatest( c.reltuples::bigint, 1) as reltuples from pg_class c , (select unnest( (select headtbl from hddata) ) as tbl ) r	where c.oid = r.tbl ),
 	iindata as ( select tbl, x.reltuples, x.reltuples::float/max(x.reltuples) over () as rweight, sum(x.reltuples) over () as total from indata x ),
     qkdata as
     (
