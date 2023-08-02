@@ -440,7 +440,7 @@ public class Export extends Job {
             case executing_trigger:
                 setStatus(Status.executed);
                 break;
-            case collectiong_trigger_status:
+            case collecting_trigger_status:
                 setStatus(Status.trigger_executed);
                 break;
         }
