@@ -240,6 +240,7 @@ public class PsqlStorage implements IStorage {
         stmt.execute(createPartitionOfOneDay(2));
         stmt.execute(deletePartitionOfOneDay(30));
       }
+      conn.commit();
     } catch (Throwable t) {
       throw unchecked(t);
     }
