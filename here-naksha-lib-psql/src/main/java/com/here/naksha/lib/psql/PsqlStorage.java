@@ -37,7 +37,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLException;
 
@@ -84,12 +83,10 @@ public class PsqlStorage implements IStorage {
    * @param connector        The connector associated with this storage
    */
   public PsqlStorage(@NotNull Connector connector) {
-    PsqlConfig dbConfig = null;
-    final Object raw = connector.getProperties().get("dbConfig");
-    if (raw instanceof Map params) {
-      dbConfig = JsonSerializable.fromAnyMap(params, PsqlConfig.class);
-    } else {
-      throw new IllegalArgumentException("dbConfig");
+    final PsqlConfig dbConfig = JsonSerializable.fromAnyMap(connector.getProperties(), ConnectorProperties.class)
+        .getDbConfig();
+    if (dbConfig == null) {
+      throw new IllegalArgumentException("dbConfig missing in connector properties");
     }
     this.dataSource = new PsqlDataSource(dbConfig);
     this.storageNumber = 0;
