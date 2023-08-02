@@ -253,7 +253,7 @@ public class PsqlStorage implements IStorage {
         .append(NakshaAdminCollection.STORAGES.getId())
         .append("',current_timestamp+'")
         .append(dayPlus)
-        .append(" days');")
+        .append(" day'::interval);")
         .toString();
   }
 
@@ -265,7 +265,7 @@ public class PsqlStorage implements IStorage {
         .append(NakshaAdminCollection.STORAGES.getId())
         .append("',current_timestamp-'")
         .append(dayOld)
-        .append(" days');")
+        .append(" day'::interval);")
         .toString();
   }
 
