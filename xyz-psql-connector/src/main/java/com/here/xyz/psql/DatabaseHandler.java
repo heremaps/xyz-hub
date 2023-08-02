@@ -75,6 +75,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
@@ -103,7 +104,7 @@ public abstract class DatabaseHandler extends StorageConnector {
     /**
      * The data source connections factory.
      */
-    private static Map<String, PSQLConfig> dbInstanceMap = new HashMap<>();
+    private static Map<String, PSQLConfig> dbInstanceMap = new ConcurrentHashMap<>();
 
     /**
      * Current event.
