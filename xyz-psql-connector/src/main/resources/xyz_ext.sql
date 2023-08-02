@@ -3953,7 +3953,7 @@ begin
                  from pg_class c, (select unnest( tbls ) as tbl ) 
                  r	where c.oid = r.tbl
 			   ),	
- 	indata as  ( select r.tbl, greatest( c.reltuples::bigint, 1) as reltuples from pg_class c , (select unnest( (select headtbl from hddata) ) as tbl ) r	where c.oid = r.tbl ),
+    indata as  ( select r.tbl, greatest( c.reltuples::bigint, 1) as reltuples from pg_class c , (select unnest( headtbl ) as tbl from hddata ) r	where c.oid = r.tbl ),
 	iindata as ( select tbl, x.reltuples, x.reltuples::float/max(x.reltuples) over () as rweight, sum(x.reltuples) over () as total from indata x ),
     qkdata as
     (
