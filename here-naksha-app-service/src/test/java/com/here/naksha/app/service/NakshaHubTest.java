@@ -48,6 +48,6 @@ class NakshaHubTest {
   static void close() throws InterruptedException {
     // TODO: Find a way to gracefully shutdown the server.
     //       To do some manual testing with the running service, uncomment this:
-    hub.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(60));
+    //hub.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(10));
   }
 }
