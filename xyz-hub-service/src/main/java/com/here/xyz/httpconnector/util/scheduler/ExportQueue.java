@@ -93,7 +93,7 @@ public class ExportQueue extends JobQueue{
                                         .onSuccess(f -> postTrigger(exportJob));
                                 break;
                             case trigger_executed:
-                                updateJobStatus(exportJob, Job.Status.collectiong_trigger_status)
+                                updateJobStatus(exportJob, Job.Status.collecting_trigger_status)
                                         .onSuccess(f -> collectTriggerStatus(exportJob));
                                 break;
                             default: {
