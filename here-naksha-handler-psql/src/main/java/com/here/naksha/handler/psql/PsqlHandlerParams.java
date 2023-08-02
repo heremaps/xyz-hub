@@ -20,6 +20,7 @@ package com.here.naksha.handler.psql;
 
 import com.here.naksha.lib.core.EventHandlerParams;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
+import com.here.naksha.lib.psql.ConnectorProperties;
 import com.here.naksha.lib.psql.PsqlConfig;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,17 +31,6 @@ import org.jetbrains.annotations.Nullable;
 /** The PostgresQL connector parameters. */
 @SuppressWarnings({"unused", "rawtypes", "unchecked"})
 public class PsqlHandlerParams extends EventHandlerParams {
-
-  /**
-   * The master database configuration ({@link PsqlConfig}), must be provided, is used for read and
-   * write.
-   */
-  public static final String DB_CONFIG = "dbConfig";
-  /**
-   * An array of {@link PsqlConfig}'s to be used as read-replicas, when read from replica is okay
-   * for the client.
-   */
-  public static final String DB_REPLICAS = "dbReplicas";
 
   // TODO: Document the parameters!
   public static final String PROPERTY_SEARCH = "propertySearch";
@@ -74,26 +64,12 @@ public class PsqlHandlerParams extends EventHandlerParams {
    */
   public PsqlHandlerParams(@NotNull Map<@NotNull String, @Nullable Object> connectorParams)
       throws NullPointerException {
-    Object raw = connectorParams.get(DB_CONFIG);
-    if (raw instanceof Map params) {
-      this.dbConfig = JsonSerializable.fromAnyMap(params, PsqlConfig.class);
-    } else {
-      throw new IllegalArgumentException(DB_CONFIG);
+    final ConnectorProperties connProps = JsonSerializable.fromAnyMap(connectorParams, ConnectorProperties.class);
+    if (connProps.getDbConfig() == null) {
+      throw new IllegalArgumentException("dbConfig missing in connector properties");
     }
-    raw = connectorParams.get(DB_REPLICAS);
-    final ArrayList<@NotNull PsqlConfig> replicas;
-    if (raw instanceof List list) {
-      final int SIZE = list.size();
-      replicas = new ArrayList<>(SIZE);
-      for (final Object o : list) {
-        if (o instanceof Map m) {
-          replicas.add(JsonSerializable.fromAnyMap(m, PsqlConfig.class));
-        }
-      }
-    } else {
-      replicas = new ArrayList<>();
-    }
-    dbReplicas = replicas;
+    dbConfig = connProps.getDbConfig();
+    dbReplicas = connProps.getDbReplicas() == null ? new ArrayList<>() : connProps.getDbReplicas();
 
     autoIndexing = parseValueWithDefault(connectorParams, AUTO_INDEXING, false);
     propertySearch = parseValueWithDefault(connectorParams, PROPERTY_SEARCH, false);
