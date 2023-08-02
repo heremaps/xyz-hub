@@ -2183,48 +2183,54 @@ components:
             together within the event sent by Data Hub. It can be used to configure the connector
             per-space basis.
           additionalProperties: true
+    DBConfig:
+      type: object
+      description: Database connection configuration
+      properties:
+        host:
+          description: Database hostname
+          type: string
+          example: localhost
+        port:
+          description: Database port
+          type: integer
+          example: 5432
+        db:
+          description: Database name (applicable for databases like PostgreSQL)
+          type: string
+          example: postgres
+        user:
+          description: Database user id
+          type: string
+          example: db_user
+        password:
+          description: Database user password
+          type: string
+          example: db_password
+        schema:
+          description: Database schema name
+          type: string
+          example: naksha_spaces
+        minPoolSize:
+          description: The minimum (initial) amount of concurrent connections this connector should use for storage operations.
+          type: integer
+          default: 2
+          example: 5
+        maxPoolSize:
+          description: The maximum amount of concurrent connections this connector can use for storage operations.
+          type: integer
+          default: 20
+          example: 20
     ConnectorProperties:
       type: object
       description: Properties part of Connector resource holding internal connectivity details.
       properties:
         dbConfig:
-          type: object
-          description: Backend database details to be used by connector to perform feature operations
-          properties:
-            host:
-              description: Database hostname
-              type: string
-              example: localhost
-            port:
-              description: Database port
-              type: integer
-              example: 5432
-            db:
-              description: Database name (applicable for databases like PostgreSQL)
-              type: string
-              example: postgres
-            user:
-              description: Database user id
-              type: string
-              example: db_user
-            password:
-              description: Database user password
-              type: string
-              example: db_password
-            schema:
-              description: Database schema name
-              type: string
-              example: naksha_spaces
-            minPoolSize:
-              description: The minimum (initial) amount of concurrent connections this connector should use for storage operations.
-              type: integer
-              default: 2
-              example: 5
-            maxPoolSize:
-              description: The maximum amount of concurrent connections this connector can use for storage operations.
-              type: integer
-              default: 20
-              example: 20
+          $ref: '#/components/schemas/DBConfig'
+        dbReplicas:
+          type: array
+          items:
+            $ref: '#/components/schemas/DBConfig'
     ConnectorConfig:
       type: object
       description: A connector declaration.
