@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 175
+ select 176
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -158,6 +158,9 @@ AS $BODY$
 		IF addUUID THEN
 			meta := jsonb_set(meta, '{uuid}', to_jsonb(gen_random_uuid()));
         END IF;
+
+        -- Inject type
+        NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
 
 		-- Inject meta
 		NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
