@@ -43,8 +43,8 @@ import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLException;
 
 /**
- * The Naksha PostgresQL storage client. This client does implement low level access to manage collections and the features within these
- * collections. It as well grants access to transactions.
+ * The Naksha PostgresQL storage client. This client does implement low level access to manage
+ * collections and the features within these collections. It as well grants access to transactions.
  */
 @SuppressWarnings({"unused", "SqlResolve"})
 public class PsqlStorage implements IStorage {
@@ -54,7 +54,7 @@ public class PsqlStorage implements IStorage {
    *
    * @param storage the storage configuration to use for this client.
    * @throws SQLException if any error occurred while accessing the database.
-   * @throws IOException  if reading the SQL extensions from the resources fail.
+   * @throws IOException if reading the SQL extensions from the resources fail.
    */
   public PsqlStorage(@NotNull Storage storage) throws SQLException, IOException {
     final PsqlStorageProperties properties =
@@ -67,11 +67,12 @@ public class PsqlStorage implements IStorage {
   /**
    * Constructor to manually create a new PostgresQL storage client.
    *
-   * @param config        The PSQL configuration to use for this client.
-   * @param storageNumber The unique 40-bit unsigned integer storage number to use. Except for the main database (which always has the
-   *                      number 0), normally this number is given by the Naksha-Hub, when creating a storage.
+   * @param config The PSQL configuration to use for this client.
+   * @param storageNumber The unique 40-bit unsigned integer storage number to use. Except for the
+   *     main database (which always has the number 0), normally this number is given by the
+   *     Naksha-Hub, when creating a storage.
    * @throws SQLException If any error occurred while accessing the database.
-   * @throws IOException  If reading the SQL extensions from the resources fail.
+   * @throws IOException If reading the SQL extensions from the resources fail.
    */
   public PsqlStorage(@NotNull PsqlConfig config, long storageNumber) {
     this.dataSource = new PsqlDataSource(config);
@@ -79,14 +80,15 @@ public class PsqlStorage implements IStorage {
   }
 
   /**
-   * Constructor to manually create a new PostgresQL storage client.
-   * This is useful when class is instantiated using connector configuration passed as argument.
+   * Constructor to manually create a new PostgresQL storage client. This is useful when class is
+   * instantiated using connector configuration passed as argument.
    *
-   * @param connector        The connector associated with this storage
+   * @param connector The connector associated with this storage
    */
   public PsqlStorage(@NotNull Connector connector) {
-    final PsqlConfig dbConfig = JsonSerializable.fromAnyMap(connector.getProperties(), ConnectorProperties.class)
-        .getDbConfig();
+    final PsqlConfig dbConfig =
+        JsonSerializable.fromAnyMap(connector.getProperties(), ConnectorProperties.class)
+            .getDbConfig();
     if (dbConfig == null) {
       throw new IllegalArgumentException("dbConfig missing in connector properties");
     }
@@ -103,9 +105,7 @@ public class PsqlStorage implements IStorage {
     return dataSource.pool;
   }
 
-  /**
-   * The data source.
-   */
+  /** The data source. */
   protected final @NotNull PsqlDataSource dataSource;
 
   /**
@@ -127,8 +127,8 @@ public class PsqlStorage implements IStorage {
   }
 
   /**
-   * The connector identification number to use. Except for the main database (which always has the number 0), normally this number is given
-   * by the Naksha-Hub, when creating a connector.
+   * The connector identification number to use. Except for the main database (which always has the
+   * number 0), normally this number is given by the Naksha-Hub, when creating a connector.
    */
   protected final long storageNumber;
 
@@ -142,8 +142,10 @@ public class PsqlStorage implements IStorage {
   }
 
   static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()"; // TODO: Why to we need this?
-  static final String[] extensionList = new String[] {"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
-  static final String[] localScripts = new String[] {"/xyz_ext.sql", "/h3Core.sql", "/naksha_ext.sql"};
+  static final String[] extensionList =
+      new String[] {"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
+  static final String[] localScripts =
+      new String[] {"/xyz_ext.sql", "/h3Core.sql", "/naksha_ext.sql"};
 
   // We can store meta-information at tables using
   // COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
@@ -153,10 +155,11 @@ public class PsqlStorage implements IStorage {
   NakshaVersion latest = NakshaVersion.latest;
 
   /**
-   * Ensure that the administration tables exists, and the Naksha extension script installed in the latest version.
+   * Ensure that the administration tables exists, and the Naksha extension script installed in the
+   * latest version.
    *
    * @throws SQLException If any error occurred while accessing the database.
-   * @throws IOException  If reading the SQL extensions from the resources fail.
+   * @throws IOException If reading the SQL extensions from the resources fail.
    */
   @Override
   public void init() {
@@ -185,10 +188,7 @@ public class PsqlStorage implements IStorage {
         }
         if (latest.toLong() != version) {
           if (version == 0L) {
-            currentLogger()
-                .atInfo("Install and initialize Naksha extension v{}")
-                .add(latest)
-                .log();
+            currentLogger().atInfo("Install and initialize Naksha extension v{}").add(latest).log();
           } else {
             currentLogger()
                 .atInfo("Upgrade Naksha extension from v{} to v{}")
@@ -196,15 +196,18 @@ public class PsqlStorage implements IStorage {
                 .add(latest)
                 .log();
           }
-          SQL = IoHelp.readResource("naksha_ext.sql")
-              .replaceAll("\\$\\{schema}", getSchema())
-              .replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()));
+          SQL =
+              IoHelp.readResource("naksha_ext.sql")
+                  .replaceAll("\\$\\{schema}", getSchema())
+                  .replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()));
           stmt.execute(SQL);
           conn.commit();
 
           // Re-Initialize the connection.
-          // This ensures that we really have the schema at the end of the search path and therefore selected.
-          // TODO HP_QUERY : Looks like a duplicate call, as intialization already happens during earlier call
+          // This ensures that we really have the schema at the end of the search path and therefore
+          // selected.
+          // TODO HP_QUERY : Looks like a duplicate call, as intialization already happens during
+          // earlier call
           // to getConnection()?
           dataSource.initConnection(conn);
           if (version == 0L) {
@@ -219,56 +222,57 @@ public class PsqlStorage implements IStorage {
     }
   }
 
+  public static int maxHistoryAgeInDays = 30; //TODO this or Space.maxHistoryAge
+
   /**
-   * Review all collections and ensure that the history does have the needed partitions created. The method will as well garbage collect the
-   * history; if the history of a collection holds data that is too old (exceeds the maximum age), it deletes it.
+   * Review all collections and ensure that the history does have the needed partitions created. The
+   * method will as well garbage collect the history; if the history of a collection holds data that
+   * is too old (exceeds the maximum age), it deletes it.
    *
    * @throws SQLException If any error occurred.
    */
   @Override
   public void maintain(@NotNull List<CollectionInfo> collectionInfoList) {
-    try (final Connection conn = dataSource.getConnection()) {
-      try (final Statement stmt = conn.createStatement()) {
-        stmt.execute(new StringBuilder()
-            .append("SET SESSION search_path TO \"")
-            .append(getSchema())
-            .append("\",\"public\",\"topology\";")
-            .toString());
-        stmt.execute(createPartitionOfOneDay(0));
-        stmt.execute(createPartitionOfOneDay(1));
-        stmt.execute(createPartitionOfOneDay(2));
-        stmt.execute(deletePartitionOfOneDay(30));
-        stmt.execute(deletePartitionOfOneDay(31));
-        stmt.execute(deletePartitionOfOneDay(32));
-        stmt.execute(deletePartitionOfOneDay(33));
-        stmt.execute(deletePartitionOfOneDay(34));
-        stmt.execute(deletePartitionOfOneDay(35));
+    for (CollectionInfo collectionInfo : collectionInfoList) {
+      try (final Connection conn = dataSource.getConnection()) {
+        try (final Statement stmt = conn.createStatement()) {
+          stmt.execute(createPartitionOfOneDay(0, collectionInfo));
+          stmt.execute(createPartitionOfOneDay(1, collectionInfo));
+          stmt.execute(createPartitionOfOneDay(2, collectionInfo));
+          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
+          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+1, collectionInfo));
+          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+2, collectionInfo));
+          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+3, collectionInfo));
+          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+4, collectionInfo));
+          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+5, collectionInfo));
 
+        }
+        //commit once for every single collection so that partial progress is saved in case something fails midway
+        conn.commit();
+      } catch (Throwable t) {
+        throw unchecked(t);
       }
-      conn.commit();
-    } catch (Throwable t) {
-      throw unchecked(t);
     }
   }
 
-  private String createPartitionOfOneDay(int dayPlus) {
+  private String createPartitionOfOneDay(int dayPlus, CollectionInfo collectionInfo) {
     return new StringBuilder()
         .append("SELECT ")
         .append(getSchema())
         .append(".__naksha_create_hst_partition_for_day('")
-        .append(NakshaAdminCollection.STORAGES.getId())
+        .append(collectionInfo.getId())
         .append("',current_timestamp+'")
         .append(dayPlus)
         .append(" day'::interval);")
         .toString();
   }
 
-  private String deletePartitionOfOneDay(int dayOld) {
+  private String deletePartitionOfOneDay(int dayOld, CollectionInfo collectionInfo) {
     return new StringBuilder()
         .append("SELECT ")
         .append(getSchema())
         .append(".__naksha_delete_hst_partition_for_day('")
-        .append(NakshaAdminCollection.STORAGES.getId())
+        .append(collectionInfo.getId())
         .append("',current_timestamp-'")
         .append(dayOld)
         .append(" day'::interval);")
@@ -281,7 +285,8 @@ public class PsqlStorage implements IStorage {
    * @return New transaction settings.
    */
   public @NotNull ITransactionSettings createSettings() {
-    return new PsqlTransactionSettings(dataSource.pool.config.stmtTimeout, dataSource.pool.config.lockTimeout);
+    return new PsqlTransactionSettings(
+        dataSource.pool.config.stmtTimeout, dataSource.pool.config.lockTimeout);
   }
 
   @Override
@@ -323,9 +328,11 @@ public class PsqlStorage implements IStorage {
         final Statement stmt = connection.createStatement()) {
       boolean needUpdate = false;
       ResultSet rs;
-      if ((rs = stmt.executeQuery("select count(1)::integer from pg_catalog.pg_proc r inner join"
-              + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where "
-              + "l.nspname = 'h3' and r.proname = 'h3_version'"))
+      if ((rs =
+              stmt.executeQuery(
+                  "select count(1)::integer from pg_catalog.pg_proc r inner join"
+                      + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where "
+                      + "l.nspname = 'h3' and r.proname = 'h3_version'"))
           .next()) {
         needUpdate = (0 == rs.getInt(1));
       }
