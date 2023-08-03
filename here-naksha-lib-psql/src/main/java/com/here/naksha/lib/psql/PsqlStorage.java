@@ -236,6 +236,12 @@ public class PsqlStorage implements IStorage {
         stmt.execute(createPartitionOfOneDay(1));
         stmt.execute(createPartitionOfOneDay(2));
         stmt.execute(deletePartitionOfOneDay(30));
+        stmt.execute(deletePartitionOfOneDay(31));
+        stmt.execute(deletePartitionOfOneDay(32));
+        stmt.execute(deletePartitionOfOneDay(33));
+        stmt.execute(deletePartitionOfOneDay(34));
+        stmt.execute(deletePartitionOfOneDay(35));
+
       }
       conn.commit();
     } catch (Throwable t) {
