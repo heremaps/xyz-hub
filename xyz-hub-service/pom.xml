@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2021 HERE Europe B.V.
+  ~ Copyright (C) 2017-2023 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -77,12 +77,13 @@
       <activation>
         <property>
           <name>skipShade</name>
-          <value>false</value>
+          <value>!true</value>
         </property>
       </activation>
       <build>
         <plugins>
           <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-shade-plugin</artifactId>
             <configuration>
               <filters>
@@ -109,6 +110,7 @@
                 </filter>
               </filters>
               <finalName>xyz-hub-service</finalName>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <mainClass>com.here.xyz.hub.Service</mainClass>
@@ -127,7 +129,6 @@
                 <phase>package</phase>
               </execution>
             </executions>
-            <groupId>org.apache.maven.plugins</groupId>
           </plugin>
         </plugins>
       </build>
