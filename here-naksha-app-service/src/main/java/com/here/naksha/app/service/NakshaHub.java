@@ -25,6 +25,7 @@ import static java.lang.System.err;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
+import com.here.naksha.app.service.jobs.StorageMaintainer;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
@@ -521,6 +522,8 @@ public final class NakshaHub extends Thread implements INaksha {
     }
     Thread.setDefaultUncaughtExceptionHandler(NakshaHub::uncaughtExceptionHandler);
     Runtime.getRuntime().addShutdownHook(this.shutdownThread);
+    // Start backend Storage maintenance job
+    new StorageMaintainer(this.config, this.adminStorage, this.txSettings).initiate();
     // TODO: Start metric publisher!
     // startMetricPublishers();
 

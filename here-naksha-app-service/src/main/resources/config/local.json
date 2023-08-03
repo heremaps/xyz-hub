@@ -7,5 +7,7 @@
   "//endpoint": "https://foo.api.here.com",
   "env": "local",
   "//webRoot": "/home/foo-user/web/",
-  "jwtName": "jwt"
+  "jwtName": "jwt",
+  "maintenanceInitialDelayInMins": 60,
+  "maintenanceIntervalInMins": 720
 }
