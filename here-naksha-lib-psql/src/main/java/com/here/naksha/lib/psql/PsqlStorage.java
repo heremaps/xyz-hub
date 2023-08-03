@@ -28,6 +28,7 @@ import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Storage;
+import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.ITransactionSettings;
 import com.here.naksha.lib.core.util.IoHelp;
@@ -37,6 +38,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLException;
 
@@ -224,7 +226,7 @@ public class PsqlStorage implements IStorage {
    * @throws SQLException If any error occurred.
    */
   @Override
-  public void maintain() {
+  public void maintain(@NotNull List<CollectionInfo> collectionInfoList) {
     try (final Connection conn = dataSource.getConnection()) {
       try (final Statement stmt = conn.createStatement()) {
         stmt.execute(new StringBuilder()
