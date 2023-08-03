@@ -20,11 +20,9 @@ package com.here.naksha.lib.heapcache;
 
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
-import com.here.naksha.lib.core.storage.IMasterTransaction;
-import com.here.naksha.lib.core.storage.IReadTransaction;
-import com.here.naksha.lib.core.storage.IStorage;
-import com.here.naksha.lib.core.storage.ITransactionSettings;
+import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.fib.FibSet;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 public class HeapCache implements IStorage {
@@ -39,9 +37,12 @@ public class HeapCache implements IStorage {
   protected final @NotNull FibSet<String, CacheEntry> cache = new FibSet<>(CacheEntry::new);
 
   @Override
-  public void maintain() {
+  public void init() {}
+
+  @Override
+  public void maintain(@NotNull List<CollectionInfo> collectionInfoList) {
     if (config.storage != null) {
-      config.storage.maintain();
+      config.storage.maintain(collectionInfoList);
     }
   }
 
