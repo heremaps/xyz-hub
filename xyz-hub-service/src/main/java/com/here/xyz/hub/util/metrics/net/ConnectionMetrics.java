@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -353,7 +353,8 @@ public class ConnectionMetrics {
 
     @Override
     public void requestEnd(Object requestMetric, long bytesWritten) {
-      if (requestMetric == null) return;
+      if (requestMetric == null) {
+      }
       //System.out.println("######### METRICS (" + ((RequestMetric) requestMetric).target + "): requestEnd, bytesWritten: " + bytesWritten);
     }
 

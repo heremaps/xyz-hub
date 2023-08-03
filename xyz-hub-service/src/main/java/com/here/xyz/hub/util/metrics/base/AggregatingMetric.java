@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,8 +42,8 @@ public class AggregatingMetric extends Metric<AggregatedValues> {
     values.getAndUpdate(currentValue -> {
       AggregatedValues newValue = new AggregatedValues();
       if (currentValue.sampleCount > 0) {
-        newValue.minimum = value < currentValue.minimum ? value : currentValue.minimum;
-        newValue.maximum = value > currentValue.maximum ? value : currentValue.maximum;
+        newValue.minimum = Math.min(value, currentValue.minimum);
+        newValue.maximum = Math.max(value, currentValue.maximum);
       }
       else
         newValue.minimum = newValue.maximum = value;

@@ -352,7 +352,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
         }
 
         if (tileAddress != null) {
-          event.setBbox(tileAddress.getExtendedBBox((int) event.getMargin()));
+          event.setBbox(tileAddress.getExtendedBBox(event.getMargin()));
           event.setLevel(tileAddress.level);
           event.setX(tileAddress.x);
           event.setY(tileAddress.y);
