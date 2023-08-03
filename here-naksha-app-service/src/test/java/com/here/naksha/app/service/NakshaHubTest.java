@@ -28,7 +28,11 @@ class NakshaHubTest {
 
   @BeforeAll
   static void prepare() {
-    hub = newHub("jdbc:postgresql://localhost/postgres?user=postgres&password=password", "local");
+    String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
+    if (password == null) password = "password";
+    hub = newHub(
+        "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password,
+        "local"); // this string concat only happens once, its ok ;)
     hub.start();
   }
 
@@ -44,6 +48,6 @@ class NakshaHubTest {
   static void close() throws InterruptedException {
     // TODO: Find a way to gracefully shutdown the server.
     //       To do some manual testing with the running service, uncomment this:
-    //hub.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(60));
+    //hub.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(10));
   }
 }
