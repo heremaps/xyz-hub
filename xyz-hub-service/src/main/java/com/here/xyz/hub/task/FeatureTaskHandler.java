@@ -1470,7 +1470,6 @@ public class FeatureTaskHandler {
     catch (Exception e) {
       logger.warn(task.getMarker(), "Exception while transforming the response.", e);
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while transforming the response."));
-      return;
     }
   }
 

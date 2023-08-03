@@ -135,17 +135,17 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
 
     switch( event.getVizSampling().toLowerCase() ) {
       case "high":
-        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 15 ) );
+        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 15);
         break;
       case "low":
-        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 70 ) );
+        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 70);
         break;
       case "off":
-        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 100 ));
+        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 100);
         break;
       case "med":
       default:
-        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 30 ) );
+        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 30);
         break;
     }
     return m;

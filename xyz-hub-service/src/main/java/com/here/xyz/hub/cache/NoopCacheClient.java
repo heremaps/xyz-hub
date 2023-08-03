@@ -30,13 +30,11 @@ public class NoopCacheClient implements CacheClient {
 
 	@Override
 	public void set(String key, byte[] value, long ttl) {
-		return;
-	}
+  }
 
 	@Override
 	public void remove(String key) {
-		return;
-	}
+  }
 
 	@Override
 	public void shutdown() {

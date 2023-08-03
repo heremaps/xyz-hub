@@ -616,7 +616,6 @@ public class RpcClient {
       final StatisticsResponse sr = (StatisticsResponse) payload;
       // TODO copy byteSize property over dataSize, when byteSize is finally removed, this code won't be necessary anymore
       sr.setDataSize(sr.getByteSize());
-      return;
     }
   }
 

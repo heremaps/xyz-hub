@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,30 +18,57 @@
  */
 package com.here.xyz.psql;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.*;
-import com.here.xyz.models.geojson.coordinates.*;
-import com.here.xyz.models.geojson.implementation.*;
+import com.here.xyz.events.GetFeaturesByGeometryEvent;
+import com.here.xyz.events.GetFeaturesByTileEvent;
+import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.ModifyFeaturesEvent;
+import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.PropertyQueryList;
+import com.here.xyz.events.TagsQuery;
+import com.here.xyz.models.geojson.coordinates.BBox;
+import com.here.xyz.models.geojson.coordinates.LineStringCoordinates;
+import com.here.xyz.models.geojson.coordinates.LinearRingCoordinates;
+import com.here.xyz.models.geojson.coordinates.MultiPolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.PointCoordinates;
+import com.here.xyz.models.geojson.coordinates.PolygonCoordinates;
+import com.here.xyz.models.geojson.coordinates.Position;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.here.xyz.models.geojson.implementation.FeatureCollection;
+import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.models.geojson.implementation.LineString;
+import com.here.xyz.models.geojson.implementation.MultiPolygon;
+import com.here.xyz.models.geojson.implementation.Point;
+import com.here.xyz.models.geojson.implementation.Polygon;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.models.geojson.implementation.XyzNamespace;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
+import java.sql.Connection;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.sql.Connection;
-import java.sql.Statement;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static org.junit.Assert.*;
-import static org.junit.Assert.assertNull;
 
 public class PSQLReadIT extends PSQLAbstractIT {
 
@@ -377,7 +404,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
         assertEquals(213, featureCollection.getFeatures().size());
 
         Properties properties = featureCollection.getFeatures().get(0).getProperties();
-        assertEquals(new Integer(1), properties.get("foo2"));
+        assertEquals(Integer.valueOf(1), properties.get("foo2"));
         assertNull(properties.get("foo"));
         LOGGER.info("Area Query with MULTIPOLYGON + SELECTION tested successfully");
 
@@ -448,11 +475,11 @@ public class PSQLReadIT extends PSQLAbstractIT {
 
         assertNotNull(response);
 
-        assertEquals(new Long(3), response.getCount().getValue());
+        assertEquals(Long.valueOf(3), response.getCount().getValue());
         assertEquals(false, response.getCount().getEstimated());
 
-        assertTrue(response.getByteSize().getValue() > 0);
-        assertEquals(true, response.getByteSize().getEstimated());
+        assertTrue(response.getDataSize().getValue() > 0);
+        assertEquals(true, response.getDataSize().getEstimated());
 
         assertNotNull(response.getBbox());
         assertEquals(false, response.getBbox().getEstimated());
@@ -505,10 +532,10 @@ public class PSQLReadIT extends PSQLAbstractIT {
         // =========== GetStatistics ==========
         response = XyzSerializable.deserialize(statisticsJson);
 
-        assertEquals(new Long(11003), response.getCount().getValue());
+        assertEquals(Long.valueOf(11003), response.getCount().getValue());
 
         assertEquals(true, response.getCount().getEstimated());
-        assertEquals(true, response.getByteSize().getEstimated());
+        assertEquals(true, response.getDataSize().getEstimated());
         assertEquals(true, response.getBbox().getEstimated());
         assertEquals(true, response.getTags().getEstimated());
         assertEquals(true, response.getGeometryTypes().getEstimated());

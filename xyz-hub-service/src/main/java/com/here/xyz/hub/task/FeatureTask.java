@@ -357,7 +357,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     void processLoadEvent(Callback<GeometryQuery> callback, LoadFeaturesEvent event, AsyncResult<XyzResponse> r) {
       if (r.failed()) {
         if (r.cause() instanceof Exception) {
-          callback.exception((Exception) r.cause());
+          callback.exception(r.cause());
         } else {
           callback.exception(new Exception(r.cause()));
         }

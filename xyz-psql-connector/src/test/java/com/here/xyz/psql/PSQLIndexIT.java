@@ -364,7 +364,7 @@ public class PSQLIndexIT extends PSQLAbstractIT {
         StatisticsResponse response = deserializeResponse(stringResponse);
 
         assertNotNull(response);
-        assertEquals(new Long(11000), response.getCount().getValue());
+        assertEquals(Long.valueOf(11000), response.getCount().getValue());
         assertEquals(true,  response.getCount().getEstimated());
         assertEquals(StatisticsResponse.PropertiesStatistics.Searchable.PARTIAL, response.getProperties().getSearchable());
 
