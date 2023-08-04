@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 175
+ select 176
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -3361,6 +3361,16 @@ CREATE OR REPLACE FUNCTION htile_s_inhabited(iqk text, mlevel integer, _tbl regc
 declare
     bFound boolean := false;
 begin
+
+    if length( iqk ) >= mlevel then
+      execute format( 'select exists ( select 1 from %1$s r where st_intersects(r.geo, htile_bbox( %2$L )))', _tbl, iqk ) into bFound;
+	   if bfound then
+	     return query select iqk;
+	   end if;
+	  return;
+   end if;
+
+
     for lastDigit in 0..3 loop
         qk = iqk || lastDigit;
         execute format( 'select exists ( select 1 from %1$s r where st_intersects(r.geo, htile_bbox( %2$L )))', _tbl, qk ) into bFound;
@@ -3376,6 +3386,7 @@ begin
     end loop;
 end
 $_$;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION qk_s_inhabited(iqk text, mlevel integer, _tbl regclass) RETURNS TABLE(qk text)
@@ -3384,6 +3395,16 @@ CREATE OR REPLACE FUNCTION qk_s_inhabited(iqk text, mlevel integer, _tbl regclas
 declare
     bFound boolean := false;
 begin
+
+    if length( iqk ) >= mlevel then
+       execute format( 'select exists ( select 1 from %1$s r where st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', _tbl, iqk ) into bFound;
+	   if bfound then
+	     return query select iqk;
+		 end if;
+		 return;
+	  end if;
+
+
     for lastDigit in 0..3 loop
         qk = iqk || lastDigit;
 
@@ -3570,11 +3591,21 @@ CREATE OR REPLACE FUNCTION qk_s_inhabited_txt(iqk text, mlevel integer, sql_with
 declare
     bFound boolean := false;
 begin
+
+    if length( iqk ) >= mlevel then
+      execute format( 'select exists ( select 1 from ( %1$s ) r where st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', sql_with_geo, iqk ) into bFound;
+	   if bfound then
+	     return query select iqk;
+		 end if;
+		 return;
+	  end if;
+
     for lastDigit in 0..3 loop
         qk = iqk || lastDigit;
-    execute
-        format( 'select exists ( select 1 from ( %1$s ) r where st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', sql_with_geo, qk )
-        into bFound;
+
+        execute
+        	format( 'select exists ( select 1 from ( %1$s ) r where st_intersects(r.geo, xyz_qk_qk2bbox( %2$L )))', sql_with_geo, qk )
+        	into bFound;
 
         if bFound then
             if length( qk ) >= mlevel then
@@ -3587,9 +3618,9 @@ begin
     end loop;
 end
 $_$;
-------------------------------------------------
-------------------------------------------------
 
+------------------------------------------------
+------------------------------------------------
 
 CREATE OR REPLACE FUNCTION htile_s_inhabited_txt(iqk text, mlevel integer, sql_with_geo text) RETURNS TABLE(qk text)
     LANGUAGE plpgsql STABLE
@@ -3597,6 +3628,15 @@ CREATE OR REPLACE FUNCTION htile_s_inhabited_txt(iqk text, mlevel integer, sql_w
 declare
     bFound boolean := false;
 begin
+
+    if length( iqk ) >= mlevel then
+      execute format( 'select exists ( select 1 from ( %1$s ) r where st_intersects(r.geo, htile_bbox( %2$L )))', sql_with_geo, iqk ) into bFound;
+	   if bfound then
+	     return query select iqk;
+	   end if;
+	  return;
+	end if;
+
     for lastDigit in 0..3 loop
         qk = iqk || lastDigit;
 
