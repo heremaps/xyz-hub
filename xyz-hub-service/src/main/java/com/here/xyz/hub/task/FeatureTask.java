@@ -213,6 +213,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
    * @return the response feature collection, if the response is a feature collection.
    * @deprecated please rather use {@link #getResponse()}
    */
+  @Deprecated
   public FeatureCollection responseCollection() {
     if (response instanceof FeatureCollection) {
       return (FeatureCollection) response;
