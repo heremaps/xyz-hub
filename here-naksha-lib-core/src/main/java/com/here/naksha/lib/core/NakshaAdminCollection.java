@@ -19,6 +19,7 @@
 package com.here.naksha.lib.core;
 
 import com.here.naksha.lib.core.storage.CollectionInfo;
+import java.util.List;
 
 /**
  * All well-known collections of the Naksha-Hub itself. Still, not all Naksha-Hubs may support them, for example the Naksha extension
@@ -70,4 +71,10 @@ public final class NakshaAdminCollection {
    * The collections for all extensions.
    */
   public static CollectionInfo EXTENSIONS = new CollectionInfo("naksha:extensions", ADMIN_DB_NUMBER);
+
+  /**
+   * List of all AdminDB collections.
+   */
+  public static List<CollectionInfo> COLLECTION_INFO_LIST =
+      List.of(CONFIGS, CATALOGS, SPACES, SUBSCRIPTIONS, CONNECTORS, STORAGES, EXTENSIONS);
 }

@@ -31,6 +31,7 @@ import com.here.naksha.lib.core.view.ViewDeserialize;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -136,6 +137,43 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
       return existing;
     }
     return writer;
+  }
+
+  /**
+   * Attempts acquiring lock for a given key in database using pg_try_advisory_lock().
+   *
+   * @param lockKey     a unique key string to be used for acquiring a lock
+   * @return            true, if lock could be acquired. false, otherwise.
+   */
+  @Override
+  public boolean acquireLock(final @NotNull String lockKey) {
+    final String LOCK_SQL = "SELECT pg_try_advisory_lock( ('x' || md5('%s') )::bit(60)::bigint ) AS success";
+    return _advisory(LOCK_SQL, lockKey);
+  }
+
+  /**
+   * Attempts releasing lock for a given key in database using pg_advisory_unlock().
+   *
+   * @param lockKey     a unique lock key string which is to be released
+   * @return            true, if lock could be released. false, if there was no lock.
+   */
+  @Override
+  public boolean releaseLock(final @NotNull String lockKey) {
+    final String UNLOCK_SQL = "SELECT pg_advisory_unlock( ('x' || md5('%s') )::bit(60)::bigint ) AS success";
+    return _advisory(UNLOCK_SQL, lockKey);
+  }
+
+  private boolean _advisory(final @NotNull String lockStmt, final @NotNull String lockKey) {
+    boolean success = false;
+    try (final Statement stmt = createStatement();
+        final ResultSet rs = stmt.executeQuery(String.format(lockStmt, lockKey)); ) {
+      if (rs.next()) {
+        success = rs.getBoolean("success");
+      }
+    } catch (final Throwable t) {
+      throw unchecked(t);
+    }
+    return success;
   }
 
   /**

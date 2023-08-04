@@ -70,7 +70,9 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       @JsonProperty("jwtName") @Nullable String jwtName,
       @JsonProperty("debug") @Nullable Boolean debug,
       @JsonProperty("maintenanceIntervalInMins") @Nullable Integer maintenanceIntervalInMins,
-      @JsonProperty("maintenanceInitialDelayInMins") @Nullable Integer maintenanceInitialDelayInMins) {
+      @JsonProperty("maintenanceInitialDelayInMins") @Nullable Integer maintenanceInitialDelayInMins,
+      @JsonProperty("maintenancePoolCoreSize") @Nullable Integer maintenancePoolCoreSize,
+      @JsonProperty("maintenancePoolMaxSize") @Nullable Integer maintenancePoolMaxSize) {
     super(id);
     if (httpPort != null && (httpPort < 0 || httpPort > 65535)) {
       currentLogger()
@@ -142,6 +144,10 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
     this.maintenanceInitialDelayInMins = maintenanceInitialDelayInMins != null
         ? maintenanceInitialDelayInMins
         : defaultMaintenanceInitialDelayInMins();
+    this.maintenancePoolCoreSize =
+        maintenancePoolCoreSize != null ? maintenancePoolCoreSize : defaultMaintenancePoolCoreSize();
+    this.maintenancePoolMaxSize =
+        maintenancePoolMaxSize != null ? maintenancePoolMaxSize : defaultMaintenancePoolMaxSize();
   }
 
   public static final String HTTP_PORT = "httpPort";
@@ -228,26 +234,52 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
   /**
    * The initial delay (in minutes) after the service start up, when the Storage Maintenance job should perform first execution
    */
-  public final @NotNull int maintenanceInitialDelayInMins;
+  public final int maintenanceInitialDelayInMins;
 
   /**
    * Returns a default initial delay in mins, for starting Storage Maintenance job.
    * @return The default interval
    */
-  public static @NotNull int defaultMaintenanceInitialDelayInMins() {
+  public static int defaultMaintenanceInitialDelayInMins() {
     return 1 * 60; // 1 hour
   }
 
   /**
    * The interval in minutes, with which the Storage Maintenance job is to be scheduled
    */
-  public final @NotNull int maintenanceIntervalInMins;
+  public final int maintenanceIntervalInMins;
 
   /**
    * Returns a default interval in mins, for scheduling Storage Maintenance job.
    * @return The default interval
    */
-  public static @NotNull int defaultMaintenanceIntervalInMins() {
+  public static int defaultMaintenanceIntervalInMins() {
     return 12 * 60; // 12 hours
+  }
+
+  /**
+   * The initial size of thread pool for running Storage Maintenance jobs in parallel
+   */
+  public final int maintenancePoolCoreSize;
+
+  /**
+   * Returns a default initial size of thread pool for running Storage Maintenance jobs in parallel
+   * @return the default core size of maintenance thread pool
+   */
+  public static int defaultMaintenancePoolCoreSize() {
+    return 5;
+  }
+
+  /**
+   * The maximum size of thread pool for running Storage Maintenance jobs in parallel
+   */
+  public final int maintenancePoolMaxSize;
+
+  /**
+   * Returns a default maximum size of thread pool for running Storage Maintenance jobs in parallel
+   * @return the default max size of maintenance thread pool
+   */
+  public static int defaultMaintenancePoolMaxSize() {
+    return 5;
   }
 }

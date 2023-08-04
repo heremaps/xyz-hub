@@ -9,5 +9,7 @@
   "//webRoot": "/home/foo-user/web/",
   "jwtName": "jwt",
   "maintenanceInitialDelayInMins": 60,
-  "maintenanceIntervalInMins": 720
+  "maintenanceIntervalInMins": 720,
+  "maintenancePoolCoreSize": 5,
+  "maintenancePoolMaxSize": 20
 }

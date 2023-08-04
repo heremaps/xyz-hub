@@ -41,6 +41,14 @@ public interface IMasterTransaction extends IReadTransaction {
   @Override
   void close();
 
+  /** Acquire global (multi-instance) lock for a given key. */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  boolean acquireLock(final @NotNull String lockKey);
+
+  /** Release global lock for a given key, which was previously acquired using acquireLock(). */
+  @AvailableSince(NakshaVersion.v2_0_6)
+  boolean releaseLock(final @NotNull String lockKey);
+
   /**
    * Create a new collection, fails if the collection exists already.
    *
