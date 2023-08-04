@@ -255,7 +255,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         }
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({"rawtypes"})
     protected void testModifyFeatures(boolean includeOldStates) throws Exception {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEvent.json";

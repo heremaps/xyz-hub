@@ -231,7 +231,7 @@ public class RpcClient {
    * @param event
    * @return Whether to expect a binary response from the storage connector
    */
-  private boolean expectBinaryResponse(Event event) {
+  private boolean expectBinaryResponse(Event<?> event) {
     return event instanceof GetFeaturesByTileEvent
         && (((GetFeaturesByTileEvent) event).getResponseType() == MVT || ((GetFeaturesByTileEvent) event).getResponseType() == MVT_FLATTENED)
         && getConnector().capabilities.mvtSupport
@@ -372,7 +372,6 @@ public class RpcClient {
     return context;
   }
 
-  @SuppressWarnings("rawtypes")
   private void validateResponsePayload(Marker marker, final Typed payload) throws HttpException {
     if (payload == null)
       throw new NullPointerException("Response payload is null");

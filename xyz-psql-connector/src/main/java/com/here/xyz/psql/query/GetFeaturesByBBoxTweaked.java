@@ -103,9 +103,9 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
     if( rTuples == null ) return false;
 
     String[] a = rTuples.split("~");
-    if( a == null || a[0] == null ) return false;
+    if(a[0] == null) return false;
 
-    try{ return tresholdVeryLargeSpace <= Long.parseLong(a[0]); } catch( NumberFormatException e ){}
+    try{ return tresholdVeryLargeSpace <= Long.parseLong(a[0]); } catch( NumberFormatException ignored){}
 
     return false;
   }

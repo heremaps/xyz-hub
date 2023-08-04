@@ -147,8 +147,8 @@ public class FeatureTaskHandler {
   private static final byte JSON_VALUE = 1;
   private static final byte BINARY_VALUE = 2;
   private static SnsAsyncClient snsClient;
-  private static ConcurrentHashMap<String, Long> contentModificationTimers = new ConcurrentHashMap<>();
-  private static ConcurrentHashMap<String, Long> contentModificationAdminTimers = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, Long> contentModificationTimers = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, Long> contentModificationAdminTimers = new ConcurrentHashMap<>();
   private static final long CONTENT_MODIFICATION_INTERVAL = 1_000; //1s
   private static final long CONTENT_MODIFICATION_ADMIN_INTERVAL = 300_000; //5min
 
@@ -157,16 +157,16 @@ public class FeatureTaskHandler {
    * according "latest seen content version".
    * There is neither a guarantee that the version value is pointing to the actual latest version of the space's content nor there is a
    * guarantee that it's defined at all.
-   * If the value exists for a space and it points to a value > 0, that is the version of the latest write to that space as it has been
+   * If the value exists for a space, and it points to a value > 0, that is the version of the latest write to that space as it has been
    * performed by this service-node.
    */
-  private static ConcurrentHashMap<String, Long> latestSeenContentVersions = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, Long> latestSeenContentVersions = new ConcurrentHashMap<>();
 
   /**
    * Contains the amount of all in-flight requests for each storage ID.
    */
-  private static ConcurrentHashMap<String, LongAdder> inflightRequestMemory = new ConcurrentHashMap<>();
-  private static LongAdder globalInflightRequestMemory = new LongAdder();
+  private static final ConcurrentHashMap<String, LongAdder> inflightRequestMemory = new ConcurrentHashMap<>();
+  private static final LongAdder globalInflightRequestMemory = new LongAdder();
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -479,7 +479,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void handleProcessorFailure(Marker marker, AsyncResult<XyzResponse> processingResult,
+  private static <T extends FeatureTask> void handleProcessorFailure(Marker marker, AsyncResult<XyzResponse<?>> processingResult,
       Callback<T> callback) {
     if (processingResult.failed())
       callback.exception(processingResult.cause());
@@ -592,7 +592,7 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void notifyProcessors(T task, String eventType, Payload payload,
-      Handler<AsyncResult<XyzResponse>> callback) {
+      Handler<AsyncResult<XyzResponse<?>>> callback) {
     if (payload instanceof BinaryResponse) {
       //No post-processor support for binary responses, skipping post-processor notification
       callback.handle(Future.succeededFuture(new ModifiedResponseResponse().withResponse(payload)));
@@ -601,8 +601,8 @@ public class FeatureTaskHandler {
     notifyConnectors(new NotificationContext(task, true), ConnectorType.PROCESSOR, eventType, payload, callback);
   }
 
-  private static <T extends FeatureTask> void notifyConnectors(NotificationContext nc, ConnectorType connectorType, String eventType,
-      Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
+  private static void notifyConnectors(NotificationContext nc, ConnectorType connectorType, String eventType,
+      Payload payload, Handler<AsyncResult<XyzResponse<?>>> callback) {
     //Send the event to all registered & matching listeners / processors
     Map<String, List<ResolvableListenerConnectorRef>> connectorMap = nc.space.getEventTypeConnectorRefsMap(connectorType);
     if (connectorMap != null && !connectorMap.isEmpty()) {
@@ -645,8 +645,8 @@ public class FeatureTaskHandler {
     });
   }
 
-  private static <T extends FeatureTask> void notifyProcessors(NotificationContext nc, List<ResolvableListenerConnectorRef> processors,
-      String notificationEventType, Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
+  private static void notifyProcessors(NotificationContext nc, List<ResolvableListenerConnectorRef> processors,
+      String notificationEventType, Payload payload, Handler<AsyncResult<XyzResponse<?>>> callback) {
 
     //For the first call we're mocking a ModifiedPayloadResponse as if it was coming from a previous processor
     ModifiedPayloadResponse initialResponse = payload instanceof Event ?
@@ -679,7 +679,7 @@ public class FeatureTaskHandler {
             }
             else if (result instanceof ModifiedEventResponse) {
               payloadToSend = ((ModifiedEventResponse) result).getEvent();
-              // CMEKB-2779 Store ModificationFailures outside of the event
+              // CMEKB-2779 Store ModificationFailures outside the event
               if (payloadToSend instanceof ModifyFeaturesEvent) {
                 ModifyFeaturesEvent modifyFeaturesEvent = (ModifyFeaturesEvent) payloadToSend;
                 if (modifyFeaturesEvent.getFailed() != null) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import com.here.xyz.connectors.decryptors.EventDecryptor.Decryptors;
 import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.connectors.runtime.LambdaConnectorRuntime;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.responses.BinaryResponse;
@@ -304,7 +305,6 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
    *
    * If the serialized object is too large it will be relocated and a RelocatedEvent will be written instead.
    */
-  @SuppressWarnings("UnstableApiUsage")
   void writeDataOut(OutputStream output, Typed dataOut, String ifNoneMatch) {
     try {
       byte[] bytes = dataOut == null ? null : dataOut.toByteArray();
@@ -473,5 +473,17 @@ public abstract class AbstractConnectorHandler implements RequestStreamHandler {
     } catch (NumberFormatException e) {
       return Long.MAX_VALUE;
     }
+  }
+
+  protected NotificationParams getNotificationParams(EventNotification notification) throws ErrorResponseException {
+    if (notification == null) {
+      throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Unknown event type");
+    }
+
+    return new NotificationParams(
+        eventDecryptor.decryptParams(notification.getParams(), notification.getSpace()),
+        eventDecryptor.decryptParams(notification.getConnectorParams(), notification.getSpace()),
+        eventDecryptor.decryptParams(notification.getMetadata(), notification.getSpace()),
+        notification.getTid(), notification.getAid(), notification.getJwt());
   }
 }

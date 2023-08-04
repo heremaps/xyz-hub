@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,6 @@ public class MapBoxVectorTileBuilder extends MvtTileBuilder {
     }
   }
 
-  @SuppressWarnings("unchecked")
   protected void addProperties(final String prefix, final Map<String, Object> map) {
     if (map == null) {
       return;

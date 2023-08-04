@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class AggregatingMetric extends Metric<AggregatedValues> {
 
-  private AtomicReference<AggregatedValues> values = new AtomicReference(new AggregatedValues());
+  private final AtomicReference<AggregatedValues> values = new AtomicReference<>(new AggregatedValues());
 
   public AggregatingMetric(String metricName, MetricUnit unit) {
     super(metricName, unit);

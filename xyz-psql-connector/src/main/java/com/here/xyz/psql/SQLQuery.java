@@ -86,7 +86,7 @@ public class SQLQuery {
   @Deprecated
   public static SQLQuery join(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets ) {
     if (queries == null) throw new NullPointerException("queries parameter is required");
-    if (queries.size() == 0) throw new IllegalArgumentException("queries parameter is required");
+    if (queries.isEmpty()) throw new IllegalArgumentException("queries parameter is required");
 
 
     int counter = 0;

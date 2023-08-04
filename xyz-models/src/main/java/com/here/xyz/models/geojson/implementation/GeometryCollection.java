@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,7 +96,6 @@ public class GeometryCollection extends Geometry {
     return JTSHelper.factory.createGeometryCollection(jtsGeometries);
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public void validate() throws InvalidGeometryException {
     if (this.geometries == null || this.geometries.size() == 0) {
