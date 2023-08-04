@@ -22,7 +22,6 @@ import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.psql.SQL.escapeId;
 
-import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
@@ -86,9 +85,8 @@ public class PsqlStorage implements IStorage {
    * @param connector The connector associated with this storage
    */
   public PsqlStorage(@NotNull Connector connector) {
-    final PsqlConfig dbConfig =
-        JsonSerializable.fromAnyMap(connector.getProperties(), ConnectorProperties.class)
-            .getDbConfig();
+    final PsqlConfig dbConfig = JsonSerializable.fromAnyMap(connector.getProperties(), ConnectorProperties.class)
+        .getDbConfig();
     if (dbConfig == null) {
       throw new IllegalArgumentException("dbConfig missing in connector properties");
     }
@@ -142,10 +140,8 @@ public class PsqlStorage implements IStorage {
   }
 
   static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()"; // TODO: Why to we need this?
-  static final String[] extensionList =
-      new String[] {"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
-  static final String[] localScripts =
-      new String[] {"/xyz_ext.sql", "/h3Core.sql", "/naksha_ext.sql"};
+  static final String[] extensionList = new String[] {"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
+  static final String[] localScripts = new String[] {"/xyz_ext.sql", "/h3Core.sql", "/naksha_ext.sql"};
 
   // We can store meta-information at tables using
   // COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
@@ -188,7 +184,10 @@ public class PsqlStorage implements IStorage {
         }
         if (latest.toLong() != version) {
           if (version == 0L) {
-            currentLogger().atInfo("Install and initialize Naksha extension v{}").add(latest).log();
+            currentLogger()
+                .atInfo("Install and initialize Naksha extension v{}")
+                .add(latest)
+                .log();
           } else {
             currentLogger()
                 .atInfo("Upgrade Naksha extension from v{} to v{}")
@@ -196,10 +195,9 @@ public class PsqlStorage implements IStorage {
                 .add(latest)
                 .log();
           }
-          SQL =
-              IoHelp.readResource("naksha_ext.sql")
-                  .replaceAll("\\$\\{schema}", getSchema())
-                  .replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()));
+          SQL = IoHelp.readResource("naksha_ext.sql")
+              .replaceAll("\\$\\{schema}", getSchema())
+              .replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()));
           stmt.execute(SQL);
           conn.commit();
 
@@ -222,7 +220,7 @@ public class PsqlStorage implements IStorage {
     }
   }
 
-  public static int maxHistoryAgeInDays = 30; //TODO this or Space.maxHistoryAge
+  public static int maxHistoryAgeInDays = 30; // TODO this or Space.maxHistoryAge
 
   /**
    * Review all collections and ensure that the history does have the needed partitions created. The
@@ -236,18 +234,29 @@ public class PsqlStorage implements IStorage {
     for (CollectionInfo collectionInfo : collectionInfoList) {
       try (final Connection conn = dataSource.getConnection()) {
         try (final Statement stmt = conn.createStatement()) {
-          stmt.execute(createPartitionOfOneDay(0, collectionInfo));
-          stmt.execute(createPartitionOfOneDay(1, collectionInfo));
-          stmt.execute(createPartitionOfOneDay(2, collectionInfo));
-          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
-          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+1, collectionInfo));
-          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+2, collectionInfo));
-          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+3, collectionInfo));
-          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+4, collectionInfo));
-          //        stmt.execute(deletePartitionOfOneDay(maxHistoryAgeInDays+5, collectionInfo));
+          stmt.execute(createHstPartitionOfOneDay(0, collectionInfo));
+          stmt.execute(createHstPartitionOfOneDay(1, collectionInfo));
+          stmt.execute(createHstPartitionOfOneDay(2, collectionInfo));
+          stmt.execute(createTxPartitionOfOneDay(0, collectionInfo));
+          stmt.execute(createTxPartitionOfOneDay(1, collectionInfo));
+          stmt.execute(createTxPartitionOfOneDay(2, collectionInfo));
+//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
+//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+1, collectionInfo));
+//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+2, collectionInfo));
+//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+3, collectionInfo));
+//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+4, collectionInfo));
+//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+5, collectionInfo));
+          //TODO only delete transaction partitions for admin DB
+//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
+//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+1, collectionInfo));
+//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+2, collectionInfo));
+//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+3, collectionInfo));
+//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+4, collectionInfo));
+//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+5, collectionInfo));
 
         }
-        //commit once for every single collection so that partial progress is saved in case something fails midway
+        // commit once for every single collection so that partial progress is saved in case something fails
+        // midway
         conn.commit();
       } catch (Throwable t) {
         throw unchecked(t);
@@ -255,7 +264,7 @@ public class PsqlStorage implements IStorage {
     }
   }
 
-  private String createPartitionOfOneDay(int dayPlus, CollectionInfo collectionInfo) {
+  private String createHstPartitionOfOneDay(int dayPlus, CollectionInfo collectionInfo) {
     return new StringBuilder()
         .append("SELECT ")
         .append(getSchema())
@@ -267,11 +276,35 @@ public class PsqlStorage implements IStorage {
         .toString();
   }
 
-  private String deletePartitionOfOneDay(int dayOld, CollectionInfo collectionInfo) {
+  private String createTxPartitionOfOneDay(int dayPlus, CollectionInfo collectionInfo) {
+    return new StringBuilder()
+        .append("SELECT ")
+        .append(getSchema())
+        .append(".__naksha_create_tx_partition_for_day('")
+        .append(collectionInfo.getId())
+        .append("',current_timestamp+'")
+        .append(dayPlus)
+        .append(" day'::interval);")
+        .toString();
+  }
+
+  private String deleteHstPartitionOfOneDay(int dayOld, CollectionInfo collectionInfo) {
     return new StringBuilder()
         .append("SELECT ")
         .append(getSchema())
         .append(".__naksha_delete_hst_partition_for_day('")
+        .append(collectionInfo.getId())
+        .append("',current_timestamp-'")
+        .append(dayOld)
+        .append(" day'::interval);")
+        .toString();
+  }
+
+  private String deleteTxPartitionOfOneDay(int dayOld, CollectionInfo collectionInfo) {
+    return new StringBuilder()
+        .append("SELECT ")
+        .append(getSchema())
+        .append(".__naksha_delete_tx_partition_for_day('")
         .append(collectionInfo.getId())
         .append("',current_timestamp-'")
         .append(dayOld)
@@ -285,8 +318,7 @@ public class PsqlStorage implements IStorage {
    * @return New transaction settings.
    */
   public @NotNull ITransactionSettings createSettings() {
-    return new PsqlTransactionSettings(
-        dataSource.pool.config.stmtTimeout, dataSource.pool.config.lockTimeout);
+    return new PsqlTransactionSettings(dataSource.pool.config.stmtTimeout, dataSource.pool.config.lockTimeout);
   }
 
   @Override
@@ -328,11 +360,9 @@ public class PsqlStorage implements IStorage {
         final Statement stmt = connection.createStatement()) {
       boolean needUpdate = false;
       ResultSet rs;
-      if ((rs =
-              stmt.executeQuery(
-                  "select count(1)::integer from pg_catalog.pg_proc r inner join"
-                      + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where "
-                      + "l.nspname = 'h3' and r.proname = 'h3_version'"))
+      if ((rs = stmt.executeQuery("select count(1)::integer from pg_catalog.pg_proc r inner join"
+              + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where "
+              + "l.nspname = 'h3' and r.proname = 'h3_version'"))
           .next()) {
         needUpdate = (0 == rs.getInt(1));
       }
