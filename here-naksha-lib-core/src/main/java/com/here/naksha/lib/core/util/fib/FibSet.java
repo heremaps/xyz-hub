@@ -31,7 +31,9 @@ import java.lang.ref.Reference;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -253,6 +255,26 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
   @AvailableSince(NakshaVersion.v2_0_5)
   public long entries() {
     return this.size;
+  }
+
+  /**
+   * Returns the all entries in our FibSet.
+   *
+   * @return the set of Entries.
+   */
+  @AvailableSince(NakshaVersion.v2_0_5)
+  public Set<ENTRY> getAll() {
+    Set<ENTRY> allValues = new HashSet<>();
+    List<@NotNull FibLinearProbeTable<KEY, ENTRY>> lpts = getAllLPTs();
+    for (FibLinearProbeTable<KEY, ENTRY> lpt : lpts) {
+      Object[] entries = lpt.entries;
+      for (int i = 0; i < entries.length; i += 2) {
+        if (entries[i] instanceof FibEntry) {
+          allValues.add((ENTRY) entries[i]);
+        }
+      }
+    }
+    return allValues;
   }
 
   /**
