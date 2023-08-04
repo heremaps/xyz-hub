@@ -25,6 +25,7 @@ import static java.lang.System.err;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
+import com.here.naksha.app.service.jobs.StorageMaintainer;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
@@ -187,20 +188,25 @@ public final class NakshaHub extends Thread implements INaksha {
       if (!existing.containsKey(NakshaAdminCollection.STORAGES.getId())) {
         tx.createCollection(NakshaAdminCollection.STORAGES);
         tx.commit();
-
+      }
+      // read default storage
+      Storage defStorage = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
+          .getFeatureById("psql");
+      if (defStorage == null) {
         try (final Json json = Json.get()) {
           final String storageJson = IoHelp.readResource("config/storage.json");
-          final Storage storage = json.reader(ViewDeserialize.Storage.class)
+          defStorage = json.reader(ViewDeserialize.Storage.class)
               .forType(Storage.class)
               .readValue(storageJson);
           // TODO HP_QUERY : How do I generate "number" for Storage class here?
           tx.writeFeatures(Storage.class, NakshaAdminCollection.STORAGES)
-              .modifyFeatures(new ModifyFeaturesReq<Storage>(false).insert(storage));
+              .modifyFeatures(new ModifyFeaturesReq<Storage>(false).insert(defStorage));
           tx.commit();
         } catch (Exception e) {
           throw unchecked(e);
         }
       }
+      this.storage = defStorage;
 
       if (!existing.containsKey(NakshaAdminCollection.SPACES.getId())) {
         tx.createCollection(NakshaAdminCollection.SPACES);
@@ -214,28 +220,32 @@ public final class NakshaHub extends Thread implements INaksha {
       if (!existing.containsKey(NakshaAdminCollection.CONFIGS.getId())) {
         tx.createCollection(NakshaAdminCollection.CONFIGS);
         tx.commit();
-
-        try (final Json json = Json.get()) {
-          final String configJson = IoHelp.readResource("config/local.json");
-          config = json.reader(ViewDeserialize.Storage.class)
-              .forType(NakshaHubConfig.class)
-              .readValue(configJson);
-          tx.writeFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
-              .modifyFeatures(new ModifyFeaturesReq<NakshaHubConfig>(false).insert(config));
-          tx.commit();
-        } catch (Exception e) {
-          throw unchecked(e);
-        }
-      } else {
-        config = tx.readFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
-            .getFeatureById(configId);
-        // TODO HP_QUERY : Why this way instead of direct call `log.info()` ?
-        log.atInfo()
-            .setMessage("Loaded configuration '{}' from admin-db is: {}")
-            .addArgument(configId)
-            .addArgument(config)
-            .log();
       }
+      boolean dbConfigExists = false;
+      config = tx.readFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
+          .getFeatureById(configId);
+      if (config != null) {
+        dbConfigExists = true;
+      }
+      try (final Json json = Json.get()) {
+        final String configJson = IoHelp.readResource("config/local.json");
+        config = json.reader(ViewDeserialize.Storage.class)
+            .forType(NakshaHubConfig.class)
+            .readValue(configJson);
+        ModifyFeaturesReq<NakshaHubConfig> req = new ModifyFeaturesReq<>(false);
+        req = dbConfigExists ? req.update(config) : req.insert(config);
+        tx.writeFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
+            .modifyFeatures(req);
+        tx.commit();
+      } catch (Exception e) {
+        throw unchecked(e);
+      }
+      // TODO HP_QUERY : Why this way instead of direct call `log.info()` ?
+      log.atInfo()
+          .setMessage("Loaded default configuration '{}' as: {}")
+          .addArgument(configId)
+          .addArgument(config)
+          .log();
 
       // Read the configuration.
       try (final Json json = Json.get()) {
@@ -405,6 +415,11 @@ public final class NakshaHub extends Thread implements INaksha {
   }
 
   /**
+   * The default storage object in use by Naksha.
+   */
+  private final @NotNull Storage storage;
+
+  /**
    * The admin storage.
    */
   private final @NotNull PsqlStorage adminStorage;
@@ -521,6 +536,8 @@ public final class NakshaHub extends Thread implements INaksha {
     }
     Thread.setDefaultUncaughtExceptionHandler(NakshaHub::uncaughtExceptionHandler);
     Runtime.getRuntime().addShutdownHook(this.shutdownThread);
+    // Schedule backend Storage maintenance job
+    new StorageMaintainer(this.config, this.storage, this.adminStorage, this.txSettings).scheduleJob();
     // TODO: Start metric publisher!
     // startMetricPublishers();
 

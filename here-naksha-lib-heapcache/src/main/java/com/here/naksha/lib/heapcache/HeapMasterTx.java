@@ -34,6 +34,10 @@ public class HeapMasterTx extends HeapReadTx implements IMasterTransaction {
 
   @Override
   public void rollback() {}
+  @Override
+  public boolean acquireLock(final @NotNull String lockKey) { return false; }
+  @Override
+  public boolean releaseLock(final @NotNull String lockKey) { return false; }
 
   @Override
   public @NotNull CollectionInfo createCollection(@NotNull CollectionInfo collection) {

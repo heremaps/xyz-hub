@@ -68,13 +68,18 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       @JsonProperty("env") @Nullable String env,
       @JsonProperty("webRoot") @Nullable String webRoot,
       @JsonProperty("jwtName") @Nullable String jwtName,
-      @JsonProperty("debug") @Nullable Boolean debug) {
+      @JsonProperty("debug") @Nullable Boolean debug,
+      @JsonProperty("maintenanceIntervalInMins") @Nullable Integer maintenanceIntervalInMins,
+      @JsonProperty("maintenanceInitialDelayInMins") @Nullable Integer maintenanceInitialDelayInMins,
+      @JsonProperty("maintenancePoolCoreSize") @Nullable Integer maintenancePoolCoreSize,
+      @JsonProperty("maintenancePoolMaxSize") @Nullable Integer maintenancePoolMaxSize) {
     super(id);
     if (httpPort != null && (httpPort < 0 || httpPort > 65535)) {
       currentLogger()
           .atError("Invalid port in Naksha configuration: {}")
           .add(httpPort)
           .log();
+      // TODO HP_QUERY : Is it (temporarily) intentional to keep port always as 7080?
       httpPort = 7080;
     } else if (httpPort == null || httpPort == 0) {
       httpPort = 7080;
@@ -134,6 +139,15 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
     this.jwtName = jwtName != null && !jwtName.isEmpty() ? jwtName : "jwt";
     this.userAgent = userAgent != null && !userAgent.isEmpty() ? userAgent : defaultAppName();
     this.debug = Boolean.TRUE.equals(debug);
+    this.maintenanceIntervalInMins =
+        maintenanceIntervalInMins != null ? maintenanceIntervalInMins : defaultMaintenanceIntervalInMins();
+    this.maintenanceInitialDelayInMins = maintenanceInitialDelayInMins != null
+        ? maintenanceInitialDelayInMins
+        : defaultMaintenanceInitialDelayInMins();
+    this.maintenancePoolCoreSize =
+        maintenancePoolCoreSize != null ? maintenancePoolCoreSize : defaultMaintenancePoolCoreSize();
+    this.maintenancePoolMaxSize =
+        maintenancePoolMaxSize != null ? maintenancePoolMaxSize : defaultMaintenancePoolMaxSize();
   }
 
   public static final String HTTP_PORT = "httpPort";
@@ -216,4 +230,56 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
   @JsonProperty(DEBUG)
   @JsonInclude(Include.NON_DEFAULT)
   public boolean debug;
+
+  /**
+   * The initial delay (in minutes) after the service start up, when the Storage Maintenance job should perform first execution
+   */
+  public final int maintenanceInitialDelayInMins;
+
+  /**
+   * Returns a default initial delay in mins, for starting Storage Maintenance job.
+   * @return The default interval
+   */
+  public static int defaultMaintenanceInitialDelayInMins() {
+    return 1 * 60; // 1 hour
+  }
+
+  /**
+   * The interval in minutes, with which the Storage Maintenance job is to be scheduled
+   */
+  public final int maintenanceIntervalInMins;
+
+  /**
+   * Returns a default interval in mins, for scheduling Storage Maintenance job.
+   * @return The default interval
+   */
+  public static int defaultMaintenanceIntervalInMins() {
+    return 12 * 60; // 12 hours
+  }
+
+  /**
+   * The initial size of thread pool for running Storage Maintenance jobs in parallel
+   */
+  public final int maintenancePoolCoreSize;
+
+  /**
+   * Returns a default initial size of thread pool for running Storage Maintenance jobs in parallel
+   * @return the default core size of maintenance thread pool
+   */
+  public static int defaultMaintenancePoolCoreSize() {
+    return 5;
+  }
+
+  /**
+   * The maximum size of thread pool for running Storage Maintenance jobs in parallel
+   */
+  public final int maintenancePoolMaxSize;
+
+  /**
+   * Returns a default maximum size of thread pool for running Storage Maintenance jobs in parallel
+   * @return the default max size of maintenance thread pool
+   */
+  public static int defaultMaintenancePoolMaxSize() {
+    return 5;
+  }
 }
