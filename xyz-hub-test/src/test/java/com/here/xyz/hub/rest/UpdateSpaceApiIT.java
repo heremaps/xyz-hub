@@ -21,7 +21,6 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
@@ -67,15 +66,6 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
             body("title", equalTo("My Demo Space Updated")).
             body("storage.id", equalTo("psql")).
             body("updatedAt", not(equalTo(createdAt)));
-
-        /** Test immutable UUID */
-        given().
-            accept(APPLICATION_JSON).
-            contentType(APPLICATION_JSON).
-            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-            body(content("/xyz/hub/createSpaceWithUUID.json")).
-            when().patch("/spaces/x-psql-test").then()
-                .statusCode(BAD_REQUEST.code());
     }
 
   @Test

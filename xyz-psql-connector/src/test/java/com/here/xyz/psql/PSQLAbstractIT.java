@@ -85,7 +85,7 @@ public abstract class PSQLAbstractIT extends Helper {
   }
 
   protected static void invokeCreateTestSpace(Map<String, Object>  connectorParameters, String spaceId) throws Exception {
-    LOGGER.info("Creat Test space..");
+    LOGGER.info("Create Test space ...");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
     ModifySpaceEvent mse = new ModifySpaceEvent()
@@ -100,7 +100,7 @@ public abstract class PSQLAbstractIT extends Helper {
   }
 
   protected static void invokeDeleteTestSpace(Map<String, Object>  connectorParameters) throws Exception {
-    LOGGER.info("Cleanup spaces..");
+    LOGGER.info("Cleanup spaces ...");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
     ModifySpaceEvent mse = new ModifySpaceEvent()
@@ -115,7 +115,7 @@ public abstract class PSQLAbstractIT extends Helper {
   }
 
   protected static void invokeDeleteTestSpaces(Map<String, Object>  connectorParameters, List<String> spaces) throws Exception {
-    LOGGER.info("Cleanup spaces...");
+    LOGGER.info("Cleanup spaces ...");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
 

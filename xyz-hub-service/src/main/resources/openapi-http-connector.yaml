@@ -332,7 +332,6 @@ paths:
           schema:
             type: string
         - $ref: '#/components/parameters/EnableHashedSpaceId'
-        - $ref: '#/components/parameters/EnableUUID'
         - $ref: '#/components/parameters/Context'
         - $ref: '#/components/parameters/Incremental'
         - $ref: '#/components/parameters/UrlCount'
@@ -478,15 +477,6 @@ components:
       required: true
       schema:
         type: string
-    EnableUUID:
-      name: enableUUID
-      in: query
-      description: >-
-        Do we need an UUID?
-      required: false
-      schema:
-        type: boolean
-        default: false
     EnableHashedSpaceId:
       name: enableHashedSpaceId
       in: query

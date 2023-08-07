@@ -119,7 +119,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -1037,7 +1036,7 @@ public class FeatureTaskHandler {
     try {
       List<Map<String, Object>> featureModifications = getFeatureModifications(task);
       List<FeatureEntry> featureEntries = ModifyFeatureOp.convertToFeatureEntries(featureModifications, task.ifNotExists, task.ifExists, task.conflictResolution);
-      task.modifyOp = new ModifyFeatureOp(featureEntries, task.transactional, task.space.isAllowFeatureCreationWithUUID());
+      task.modifyOp = new ModifyFeatureOp(featureEntries, task.transactional);
       callback.call(task);
     } catch (HttpException e) {
       logger.warn(task.getMarker(), e.getMessage(), e);
@@ -1123,7 +1122,6 @@ public class FeatureTaskHandler {
 
   static void preprocessConditionalOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
     try {
-      task.getEvent().setEnableUUID(task.space.isEnableUUID());
       // Ensure that the ID is a string or null and check for duplicate IDs
       Map<String, Boolean> ids = new HashMap<>();
       for (Entry<Feature> entry : task.modifyOp.entries) {
@@ -1160,14 +1158,7 @@ public class FeatureTaskHandler {
         @SuppressWarnings("unchecked") final Map<String, Object> properties = (Map<String, Object>) entry.input.get("properties");
         properties.putIfAbsent(XyzNamespace.XYZ_NAMESPACE, new HashMap<String, Object>());
 
-        // decide whether to use uuid or version for checking
-        entry.useVersion = false;
-        if (task.space.getVersionsToKeep() > 1) {
-          entry.useVersion = true;
-          if (!task.space.isEnableUUID()) {
-            entry.skipConflictDetection = true;
-          }
-        }
+        entry.skipConflictDetection = !task.getEvent().isConflictDetectionEnabled();
       }
     } catch (Exception e) {
       logger.warn(task.getMarker(), e.getMessage(), e);
@@ -1182,7 +1173,7 @@ public class FeatureTaskHandler {
       task.modifyOp.process();
       final List<Feature> insert = new ArrayList<>();
       final List<Feature> update = new ArrayList<>();
-      final Map<String, String> delete = new HashMap<>();
+      final Map<String, String> delete = new HashMap<>(); //TODO: Change to <String, Long>
       List<FeatureCollection.ModificationFailure> fails = new ArrayList<>();
 
       Iterator<FeatureEntry> it = task.modifyOp.entries.iterator();
@@ -1229,13 +1220,13 @@ public class FeatureTaskHandler {
 
         // DELETE
         else if (entry.head != null) {
-          String state = entry.inputUUID;
+          long state = entry.inputVersion;
 
           if (task.getEvent().getVersionsToKeep() > 1) {
-            state = String.valueOf(entry.head.getProperties().getXyzNamespace().getVersion());
+            state = entry.head.getProperties().getXyzNamespace().getVersion();
           }
 
-          delete.put(entry.head.getId(), state);
+          delete.put(entry.head.getId(), state == -1 ? null : String.valueOf(state));
         }
       }
 
@@ -1292,27 +1283,11 @@ public class FeatureTaskHandler {
     nsXyz.setCreatedAt(isInsert ? now : entry.head.getProperties().getXyzNamespace().getCreatedAt());
     nsXyz.setUpdatedAt(now);
 
-    //TODO: Remove UUID generation and enableUUID flag, once we have a new flag for the versioned-base conflict-detection
-    // UUID fields
-    if (task.space.isEnableUUID() && task.space.getVersionsToKeep() == 1) {
-      nsXyz.setUuid(UUID.randomUUID().toString());
+    //Version field
+    if (task.getEvent().isConflictDetectionEnabled() && !isInsert)
+        nsXyz.setVersion(entry.head.getProperties().getXyzNamespace().getVersion());
 
-      if (!isInsert) {
-        nsXyz.setPuuid(entry.head.getProperties().getXyzNamespace().getUuid());
-        // If the user was updating an older version, set it under the merge uuid
-        if (!entry.base.equals(entry.head)) {
-          nsXyz.setMuuid(entry.base.getProperties().getXyzNamespace().getUuid());
-        }
-      }
-    }
-
-    // update version for spaces where versioning is enabled
-    if (!isInsert && task.getEvent().getVersionsToKeep() > 1) {
-      // if version is not provided when updating the feature, use version from head
-      nsXyz.setVersion(entry.head.getProperties().getXyzNamespace().getVersion());
-    }
-
-    // author
+    //Set author
     nsXyz.setAuthor(task.author);
   }
 
@@ -1616,10 +1591,8 @@ public class FeatureTaskHandler {
     final boolean useVersion = task.space.getVersionsToKeep() > 1;
     final HashMap<String, String> idsMap = new HashMap<>();
     for (FeatureEntry entry : task.modifyOp.entries) {
-      if (entry.input.get("id") instanceof String) {
-        String version = entry.inputVersion == -1 ? null : String.valueOf(entry.inputVersion);
-        idsMap.put((String) entry.input.get("id"), useVersion ? version : entry.inputUUID);
-      }
+      if (entry.input.get("id") instanceof String)
+        idsMap.put((String) entry.input.get("id"), entry.inputVersion == -1 ? null : String.valueOf(entry.inputVersion));
     }
     if (idsMap.size() == 0) {
       return null;
@@ -1660,8 +1633,8 @@ public class FeatureTaskHandler {
       }
 
       for (final Feature feature : features) {
-        //The uuid the client has requested.
-        final String requestedUuid = idsMap.get(feature.getId());
+        //The version the client has requested.
+        final long requestedVersion = idsMap.get(feature.getId()) != null ? Long.parseLong(idsMap.get(feature.getId())) : -1;
 
         int position = getPositionForId(task, feature.getId());
         if (position == -1) { // There is no object with this ID in the input states
@@ -1672,32 +1645,18 @@ public class FeatureTaskHandler {
           throw new IllegalStateException("Received a feature with missing space namespace properties for object '" + feature.getId() + "'");
         }
 
-        if (task.getEvent().getVersionsToKeep() > 1) {
-          long version = feature.getProperties().getXyzNamespace().getVersion();
-          long requestedVersion = requestedUuid == null ? -1 : Long.parseLong(requestedUuid);
+        long version = feature.getProperties().getXyzNamespace().getVersion();
+        //Set the head state (i.e. the latest version in the database) and the base state (i.e. the original version that the user was editing)
+        //NOTE: The base state must not be empty. If the connector doesn't support history and doesn't return the base state, use the
+        //head state instead.
+        if (task.modifyOp.entries.get(position).head == null || version != -1 && version != requestedVersion) {
+          task.modifyOp.entries.get(position).head = feature;
 
-          if (task.modifyOp.entries.get(position).head == null || version != -1 && version != requestedVersion) {
-            task.modifyOp.entries.get(position).head = feature;
-
-            if (!task.getEvent().getEnableUUID())
-              task.modifyOp.entries.get(position).base = feature;
-          }
-
-          if (task.modifyOp.entries.get(position).base == null || version != -1 && version == requestedVersion)
+          if (!task.getEvent().isConflictDetectionEnabled() && task.getEvent().getVersionsToKeep() > 1)
             task.modifyOp.entries.get(position).base = feature;
         }
-        else {
-          String uuid = feature.getProperties().getXyzNamespace().getUuid();
-          //Set the head state (i.e. the latest version in the database)
-          if (task.modifyOp.entries.get(position).head == null || uuid != null && !uuid.equals(requestedUuid))
-            task.modifyOp.entries.get(position).head = feature;
-
-          //Set the base state (i.e. the original version that the user was editing)
-          //Note: The base state must not be empty. If the connector doesn't support history and doesn't return the base state, use the
-          //head state instead.
-          if (task.modifyOp.entries.get(position).base == null || uuid != null && uuid.equals(requestedUuid))
-            task.modifyOp.entries.get(position).base = feature;
-        }
+        if (task.modifyOp.entries.get(position).base == null || version != -1 && version == requestedVersion)
+          task.modifyOp.entries.get(position).base = feature;
       }
 
       callback.call(task);

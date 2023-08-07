@@ -30,7 +30,6 @@ exclude:
   - components.responses.SpaceResponse.content.'application/geo+json'
   - components.requestBodies.FeatureCollectionOrFeatureModificationList.content.'application/vnd.here.feature-modification-list'
   - components.schemas.CacheProfile
-  - components.schemas.Space.enableUUID
   - components.schemas.Space.tags
   - components.schemas.Space.cacheTTL
   - components.schemas.Space.volatilityAtLastContentUpdate

@@ -168,11 +168,11 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .path("id");
   }
 
-  public void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep, boolean enableUUID) {
+  public void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep) {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":"+enableUUID+"}")
+        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+"}")
         .when()
         .post(getCreateSpacePath())
         .then()
@@ -326,25 +326,6 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     return collection;
   }
 
-  static FeatureCollection generateEVFeatures(int startId, int chunksize, Boolean isFree) {
-    FeatureCollection collection = new FeatureCollection();
-    Random random = new Random();
-
-    List<Feature> fList = new ArrayList<>();
-
-    for(int i=startId; i < startId+chunksize ; i++){
-      Feature f = new Feature()
-              .withId(""+i)
-              .withGeometry(
-                      new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties().with("free" , isFree == null ? random.nextBoolean() : isFree));
-      fList.add(f);
-    }
-
-    collection.setFeatures(fList);
-    return collection;
-  }
-
   protected void validateFeatureProperties(ValidatableResponse resp, String featureId) {
     JsonObject body = new JsonObject(resp
         .extract()
@@ -402,26 +383,19 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile) {
+    postFeature(spaceId, feature, authProfile, false);
+  }
+
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean withConflictDetection) {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(authProfile))
         .body(feature.serialize())
         .when()
-        .post("/spaces/" + spaceId + "/features")
+        .post("/spaces/" + spaceId + "/features?conflictDetection=" + withConflictDetection)
         .then()
         .statusCode(OK.code())
         .body("features[0].id", equalTo(feature.getId()));
-  }
-
-  public static void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep) {
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":\"true\"}")
-        .when()
-        .post(getCreateSpacePath())
-        .then()
-        .statusCode(OK.code());
   }
 
   public static Feature newFeature() {

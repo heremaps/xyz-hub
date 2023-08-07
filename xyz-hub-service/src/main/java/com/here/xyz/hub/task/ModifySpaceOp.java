@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,16 +51,6 @@ public class ModifySpaceOp extends ModifyOp<Space, SpaceEntry> {
     @Override
     protected String getId(Space record) {
       return record == null ? null : record.getId();
-    }
-
-    @Override
-    protected String getUuid(Space record) {
-      return null;
-    }
-
-    @Override
-    protected String getUuid(Map<String, Object> record) {
-      return null;
     }
 
     @Override

@@ -106,7 +106,6 @@ public class JobApi extends Api {
   private void postExecute(final RoutingContext context) {
     Command command = HQuery.getCommand(context);
     boolean enableHashedSpaceId = HQuery.getBoolean(context, HApiParam.HQuery.ENABLED_HASHED_SPACE_ID , true);
-    boolean enableUUID = HQuery.getBoolean(context, HQuery.ENABLED_UUID , true);
     ContextAwareEvent.SpaceContext _context = HApiParam.HQuery.getContext(context);
     HApiParam.HQuery.Incremental incremental = HApiParam.HQuery.getIncremental(context);
     int urlCount = HQuery.getInteger(context, HQuery.URL_COUNT, 1);
@@ -119,7 +118,7 @@ public class JobApi extends Api {
 
     String jobId = context.pathParam(Path.JOB_ID);
 
-    JobHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, enableUUID, incremental, urlCount, _context, Api.Context.getMarker(context))
+    JobHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, incremental, urlCount, _context, Api.Context.getMarker(context))
             .onFailure(t -> this.sendErrorResponse(context, t))
             .onSuccess(job -> {
               switch (command){

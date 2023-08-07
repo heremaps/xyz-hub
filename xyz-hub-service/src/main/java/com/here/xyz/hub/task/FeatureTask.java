@@ -116,9 +116,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public static final String SPACE = "space";
     public static final String CREATED_AT = "createdAt";
     public static final String UPDATED_AT = "updatedAt";
-    public static final String UUID = "uuid";
-    public static final String PUUID = "puuid";
-    public static final String MUUID = "muuid";
     public static final String VERSION = "version";
     public static final String AUTHOR = "author";
   }

@@ -26,6 +26,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMP
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.XyzSqlErrors.XYZ_CONFLICT;
+import static com.here.xyz.psql.query.GetFeatures.MAX_BIGINT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.events.ModifyFeaturesEvent;
@@ -55,7 +56,7 @@ public class DatabaseWriter {
             + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion})")
             .withNamedParameter("schema", dbHandler.config.getDatabaseSettings().getSchema())
             .withNamedParameter("table", XyzEventBasedQueryRunner.readTableFromEvent(event))
-            .withNamedParameter("concurrencyCheck", event.getEnableUUID())
+            .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled())
             .withNamedParameter("partitionSize", PARTITION_SIZE)
             .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
             .withNamedParameter("pw", dbHandler.getConfig().getDatabaseSettings().getPassword());
@@ -78,8 +79,8 @@ public class DatabaseWriter {
             + "operation = #{operation}, "
             + "jsondata = #{jsondata}::jsonb, "
             + "geo = (${{geo}}) "
-            + "WHERE id = #{id} ${{uuidCheck}}"), dbHandler, event)
-            .withQueryFragment("uuidCheck", buildUuidCheckFragment(event));
+            + "WHERE id = #{id} ${{conflictCheck}}"), dbHandler, event)
+            .withQueryFragment("conflictCheck", buildConflictCheckFragment(event));
     }
 
     private static SQLQuery setWriteQueryComponents(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
@@ -96,8 +97,8 @@ public class DatabaseWriter {
     }
 
     private static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
-        SQLQuery query = new SQLQuery("DELETE FROM ${schema}.${table} WHERE id = #{id} ${{uuidCheck}}")
-            .withQueryFragment("uuidCheck", buildUuidCheckFragment(event));
+        SQLQuery query = new SQLQuery("DELETE FROM ${schema}.${table} WHERE id = #{id} ${{conflictCheck}}")
+            .withQueryFragment("conflictCheck", buildConflictCheckFragment(event));
 
         return setTableVariables(
             query,
@@ -105,11 +106,12 @@ public class DatabaseWriter {
             event);
     }
 
-    private static SQLQuery buildUuidCheckFragment(ModifyFeaturesEvent event) {
-      //NOTE: The following is a temporary implementation for backwards compatibility for old spaces
-      return new SQLQuery("");
-      //TODO: Activate conflict check below
-      //return new SQLQuery(event.getEnableUUID() ? (DatabaseHandler.readVersionsToKeep(event) > 0 ? " AND (CASE WHEN #{baseVersion}::BIGINT IS NULL THEN next_version = #{MAX_BIGINT} ELSE version = #{baseVersion} END)" : " AND (#{puuid}::TEXT IS NULL OR jsondata->'properties'->'@ns:com:here:xyz'->>'uuid' = #{puuid})") : "").withNamedParameter("MAX_BIGINT", MAX_BIGINT);
+    private static SQLQuery buildConflictCheckFragment(ModifyFeaturesEvent event) {
+      return new SQLQuery(event.isConflictDetectionEnabled()
+          ? " AND (CASE WHEN #{baseVersion}::BIGINT IS NULL THEN "
+          + "next_version = #{MAX_BIGINT} ELSE version = #{baseVersion} END)"
+          : "")
+          .withNamedParameter("MAX_BIGINT", MAX_BIGINT);
     }
 
     public enum XyzSqlErrors {
@@ -155,13 +157,12 @@ public class DatabaseWriter {
 
     private static final String UPDATE_ERROR_GENERAL = "Update has failed";
     public static final String UPDATE_ERROR_NOT_EXISTS = UPDATE_ERROR_GENERAL+" - Object does not exist";
-    public static final String UPDATE_ERROR_UUID = UPDATE_ERROR_GENERAL+" - Object does not exist or UUID mismatch";
+    public static final String UPDATE_ERROR_CONCURRENCY = UPDATE_ERROR_GENERAL+" - Object does not exist or concurrent modification";
     private static final String UPDATE_ERROR_ID_MISSING = UPDATE_ERROR_GENERAL+" - Feature Id is missing";
-    private static final String UPDATE_ERROR_PUUID_MISSING = UPDATE_ERROR_GENERAL+" -  Feature puuid is missing";
 
     private static final String DELETE_ERROR_GENERAL = "Delete has failed";
     public static final String DELETE_ERROR_NOT_EXISTS = DELETE_ERROR_GENERAL+" - Object does not exist";
-    public static final String DELETE_ERROR_UUID = DELETE_ERROR_GENERAL+" - Object does not exist or UUID mismatch";
+    public static final String DELETE_ERROR_CONCURRENCY = DELETE_ERROR_GENERAL+" - Object does not exist or concurrent modification";
 
     public static final String INSERT_ERROR_GENERAL = "Insert has failed";
 
@@ -209,7 +210,7 @@ public class DatabaseWriter {
         }
         else {
             query.setNamedParameter("id", deletion.getKey());
-            if (event.getEnableUUID())
+            if (event.isConflictDetectionEnabled())
               //TODO: Check if we should not throw an exception in the case of a missing baseVersion
               query.setNamedParameter("baseVersion", deletion.getValue() != null ? Long.parseLong(deletion.getValue()) : null);
         }
@@ -219,7 +220,7 @@ public class DatabaseWriter {
         if (feature.getId() == null)
             throw new WriteFeatureException(UPDATE_ERROR_ID_MISSING);
 
-        if (event.getEnableUUID() && event.getVersionsToKeep() == 1)
+        if (event.isConflictDetectionEnabled() && event.getVersionsToKeep() == 1)
             query.setNamedParameter("baseVersion", feature.getProperties().getXyzNamespace().getVersion());
 
         /*
@@ -306,7 +307,7 @@ public class DatabaseWriter {
             if (transactional) {
                 executeBatchesAndCheckOnFailures(dbh, idList, modificationQuery.prepareStatement(connection), fails, event, action);
 
-                if (action != INSERT && fails.size() > 0) { //Not necessary in INSERT case as no PUUID check is performed there
+                if (action != INSERT && fails.size() > 0) { //Not necessary in INSERT case as no conflict check is performed there
                     logException(null, action, dbh, event);
                     throw new SQLException(getGeneralErrorMsg(action));
                 }
@@ -322,9 +323,9 @@ public class DatabaseWriter {
             case INSERT:
                 return getGeneralErrorMsg(action);
             case UPDATE:
-                return event.getEnableUUID() ? UPDATE_ERROR_UUID : UPDATE_ERROR_NOT_EXISTS;
+                return event.isConflictDetectionEnabled() ? UPDATE_ERROR_CONCURRENCY : UPDATE_ERROR_NOT_EXISTS;
             case DELETE:
-                return event.getEnableUUID() ? DELETE_ERROR_UUID : DELETE_ERROR_NOT_EXISTS;
+                return event.isConflictDetectionEnabled() ? DELETE_ERROR_CONCURRENCY : DELETE_ERROR_NOT_EXISTS;
         }
         return null;
     }

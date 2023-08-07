@@ -205,7 +205,10 @@ public class FeatureApi extends SpaceBasedApi {
     if (checkModificationOnSuper(context, spaceContext))
       return;
 
-    ModifyFeaturesEvent event = new ModifyFeaturesEvent().withTransaction(transactional).withContext(spaceContext);
+    ModifyFeaturesEvent event = new ModifyFeaturesEvent()
+        .withTransaction(transactional)
+        .withContext(spaceContext)
+        .withConflictDetectionEnabled(Query.getBoolean(context, Query.CONFLICT_DETECTION, false));
     int bodySize = context.getBody() != null ? context.getBody().length() : 0;
 
     try {

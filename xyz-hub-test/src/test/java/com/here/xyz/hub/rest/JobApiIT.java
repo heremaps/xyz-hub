@@ -44,6 +44,10 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.jackson.DatabindCodec;
+import java.util.Collections;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -58,8 +62,6 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 public class JobApiIT extends TestSpaceWithFeature {
 
@@ -233,8 +235,9 @@ public class JobApiIT extends TestSpaceWithFeature {
         try {
             List<Job> list = DatabindCodec.mapper().readValue(body, new TypeReference<List<Job>>() {});
             return list.stream().map(Job::getId).collect(Collectors.toList());
-        }catch (Exception e){
-            return new ArrayList<>();
+        }
+        catch (Exception e) {
+            return Collections.emptyList();
         }
     }
 
@@ -420,12 +423,12 @@ public class JobApiIT extends TestSpaceWithFeature {
                 throw new HttpException(HttpResponseStatus.valueOf(resp.getStatusCode()), ((ErrorResponse) xyzResponse).getErrorMessage());
         }
 
-        /** Poll status */
+        //Poll status
         pollStatus(spaceId, job.getId(), expectedStatus, failStatus);
         job = (Export) getJob(spaceId, job.getId());
 
-        ArrayList<URL> urlList = new ArrayList<>();
-        if(job.getExportObjects() != null) {
+        List<URL> urlList = new ArrayList<>();
+        if (job.getExportObjects() != null) {
             for (String key : job.getExportObjects().keySet()) {
                 urlList.add(job.getExportObjects().get(key).getDownloadUrl());
             }
@@ -439,7 +442,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         return urlList;
     }
 
-    protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContains) throws IOException, InterruptedException {
+    protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContain) throws IOException, InterruptedException {
         String result = "";
         long totalByteSize = 0;
 
@@ -467,18 +470,18 @@ public class JobApiIT extends TestSpaceWithFeature {
         if(expectedFeatureCount != null)
             assertEquals(expectedFeatureCount.intValue(), result.split("'\"id'\"", -1).length-1);
 
-        for (String word : csvMustContains) {
+        for (String word : csvMustContain) {
             assertNotEquals(-1, result.indexOf(word));
         }
 
         return result;
     }
 
-    protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContains, Integer expectedTileCount) throws IOException, InterruptedException {
+    protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContain, Integer expectedTileCount) throws IOException, InterruptedException {
         List<String> tileIds = new ArrayList<>();
         int featureCount = 0;
 
-        String result = downloadAndCheck(urls, expectedByteSize, 0, csvMustContains);
+        String result = downloadAndCheck(urls, expectedByteSize, 0, csvMustContain);
         for (String fc64: result.split("\n")) {
             tileIds.add(fc64.substring(0,fc64.lastIndexOf("\t")));
             FeatureCollection fc = XyzSerializable.deserialize(new String(Base64.getDecoder().decode((fc64.substring(fc64.lastIndexOf("\t")+1)))));

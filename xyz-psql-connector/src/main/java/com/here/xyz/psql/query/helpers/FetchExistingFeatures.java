@@ -19,11 +19,12 @@
 
 package com.here.xyz.psql.query.helpers;
 
-import static com.here.xyz.psql.query.GetFeaturesByBBox.GEOMETRY_DECIMAL_DIGITS;
+import static com.here.xyz.psql.query.GetFeatures.buildGeoFragment;
+import static com.here.xyz.psql.query.GetFeatures.buildSelectionFragment;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.Event;
+import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.QueryRunner;
@@ -36,16 +37,20 @@ import java.util.List;
 
 public class FetchExistingFeatures extends QueryRunner<FetchExistingFeaturesInput, List<Feature>> {
 
+  //TODO: Use GetFeaturesById QR instead of this class after refactoring is complete
+
   public FetchExistingFeatures(FetchExistingFeaturesInput input) throws SQLException, ErrorResponseException {
     super(input);
   }
 
   @Override
   protected SQLQuery buildQuery(FetchExistingFeaturesInput input) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT jsondata, replace(ST_AsGeojson(ST_Force3D(geo), " + GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0') as geo "
+    return new SQLQuery("SELECT ${{selection}}, ${{geo}} "
         + "FROM ${schema}.${table} WHERE id = ANY(#{ids})")
         .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(input.event))
+        .withQueryFragment("selection", buildSelectionFragment(input.event))
+        .withQueryFragment("geo", buildGeoFragment(input.event, true))
         .withNamedParameter("ids", input.ids.toArray(new String[0]));
   }
 
@@ -67,11 +72,11 @@ public class FetchExistingFeatures extends QueryRunner<FetchExistingFeaturesInpu
   }
 
   public static class FetchExistingFeaturesInput {
-    private Event event;
+    private ContextAwareEvent event;
 
     private List<String> ids;
 
-    public FetchExistingFeaturesInput(Event event, List<String> ids) {
+    public FetchExistingFeaturesInput(ContextAwareEvent event, List<String> ids) {
       this.event = event;
       this.ids = ids;
     }

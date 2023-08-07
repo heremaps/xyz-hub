@@ -35,7 +35,6 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.LineString;
 import com.here.xyz.models.geojson.implementation.Point;
-import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -356,9 +355,9 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void postFeatureWithUUIDnonUUIDSpace() throws Exception {
+  public void postFeatureWithVersionWithoutConflictDetection() throws Exception {
     FeatureCollection featureCollection = XyzSerializable.deserialize(content("/xyz/hub/updateFeatureById.json"));
-    featureCollection.getFeatures().get(0).getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    featureCollection.getFeatures().get(0).getProperties().getXyzNamespace().setVersion(5);
 
     given().
         accept(APPLICATION_GEO_JSON).
@@ -372,9 +371,9 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void patchFeatureWithUUIDnonUUIDSpace() throws Exception {
+  public void patchFeatureWithVersionWithoutConflictDetection() throws Exception {
     Feature feature = XyzSerializable.deserialize(content("/xyz/hub/updateFeature.json"));
-    feature.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    feature.getProperties().getXyzNamespace().setVersion(5);
 
     given().
         accept(APPLICATION_GEO_JSON).

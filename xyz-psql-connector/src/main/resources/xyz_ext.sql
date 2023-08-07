@@ -132,7 +132,6 @@ AS $BODY$
 	DECLARE
         spaceId text := TG_ARGV[0];
 		addSpaceId boolean := TG_ARGV[1];
-		addUUID boolean := TG_ARGV[2];
 		curVersion bigint := TG_ARGV[3];
 		author text := TG_ARGV[4];
 
@@ -153,10 +152,6 @@ AS $BODY$
 
 		IF addSpaceId THEN
 			meta := jsonb_set(meta, '{space}', to_jsonb(spaceId));
-        END IF;
-
-		IF addUUID THEN
-			meta := jsonb_set(meta, '{uuid}', to_jsonb(gen_random_uuid()));
         END IF;
 
         -- Inject type
@@ -2889,6 +2884,7 @@ $BODY$
             END IF;
         ELSE
             -- Ignore concurrency check for inserts and try to update the previous versions
+            --TODO: Activate concurrency check for inserts as well
             EXECUTE
                 format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
                        schema, tableName, version, id, max_bigint(), version);

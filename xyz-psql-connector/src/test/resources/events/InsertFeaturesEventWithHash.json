@@ -1,7 +1,7 @@
 {
   "type": "ModifyFeaturesEvent",
   "space": "foo",
-  "enableUUID": true,
+  "conflictDetectionEnabled": true,
   "params": {},
   "connectorParams": {
     "propertySearch": true,
@@ -23,7 +23,7 @@
           "space" : "foo",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
-          "uuid": "1e16d729-e4f7-4ea9-b0da-4af4ac53c5c1",
+          "version": 0,
           "tags": [
             "yellow"
           ]
@@ -45,7 +45,7 @@
           "space" : "foo",
           "createdAt" : 1517504700726,
           "updatedAt" : 1517504700726,
-          "uuid": "2e16d729-e4f7-4ea9-b0da-4af4ac53c5c2",
+          "version": 0,
           "tags": [
             "red"
           ]

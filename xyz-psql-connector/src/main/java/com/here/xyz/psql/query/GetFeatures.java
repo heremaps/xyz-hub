@@ -26,7 +26,6 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMP
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
-import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
@@ -40,7 +39,8 @@ import java.util.List;
 
 public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResponse> extends ExtendedSpace<E, R> {
 
-  private static long MAX_BIGINT = Long.MAX_VALUE;
+  public static final long GEOMETRY_DECIMAL_DIGITS = 8;
+  public static long MAX_BIGINT = Long.MAX_VALUE;
 
   private boolean withoutIdField = false;
 
@@ -220,8 +220,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return (R) dbHandler.legacyDefaultFeatureResultSetHandler(rs);
   }
 
-  protected static SQLQuery buildSelectionFragment(ContextAwareEvent event) {
-    String jsonDataWithVersion = injectVersionIntoNS(event, "jsondata");
+  public static SQLQuery buildSelectionFragment(ContextAwareEvent event) {
+    String jsonDataWithVersion = "jsonb_set(jsondata, '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
 
     if (!(event instanceof SelectiveEvent) || ((SelectiveEvent) event).getSelection() == null
         || ((SelectiveEvent) event).getSelection().size() == 0)
@@ -239,14 +239,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         + "END "
         + "FROM prj_build(#{selection}, " + jsonDataWithVersion + ")) AS jsondata")
         .withNamedParameter("selection", selection.toArray(new String[0]));
-  }
-
-  private static String injectVersionIntoNS(ContextAwareEvent event, String wrappedJsondata) {
-    //NOTE: The following is a temporary implementation for backwards compatibility for spaces without versioning
-    //TODO: Re-activate for v2k=1 in general
-    if (DatabaseHandler.readVersionsToKeep(event) > 1 || (DatabaseHandler.readVersionsToKeep(event) >= 1 && event instanceof LoadFeaturesEvent))
-      return "jsonb_set(" + wrappedJsondata + ", '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
-    return wrappedJsondata;
   }
 
   private static String buildOrderByFragment(ContextAwareEvent event) {
@@ -275,7 +267,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return buildGeoFragment(event, true, geoOverride);
   }
 
-  protected static SQLQuery buildGeoFragment(ContextAwareEvent event, boolean convertToGeoJson) {
+  public static SQLQuery buildGeoFragment(ContextAwareEvent event, boolean convertToGeoJson) {
     return buildGeoFragment(event, convertToGeoJson, null);
   }
 
@@ -284,7 +276,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     String geo = geoOverride != null ? "${{geoOverride}}" : ((isForce2D ? "ST_Force2D" : "ST_Force3D") + "(geo)");
 
     if (convertToGeoJson)
-      geo = "replace(ST_AsGeojson(" + geo + ", " + GetFeaturesByBBox.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
+      geo = "replace(ST_AsGeojson(" + geo + ", " + GetFeatures.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')";
 
     SQLQuery geoFragment = new SQLQuery(geo + " as geo");
     if (geoOverride != null)

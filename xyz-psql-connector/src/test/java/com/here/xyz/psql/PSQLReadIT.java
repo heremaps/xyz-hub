@@ -284,7 +284,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
                 .withTransaction(true)
-                .withEnableUUID(true)
+                .withConflictDetectionEnabled(true)
                 .withInsertFeatures(collection.getFeatures());
 
         invokeLambda(mfevent.serialize());
@@ -517,7 +517,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
                 .withTransaction(true)
-                .withEnableUUID(true)
+                .withConflictDetectionEnabled(true)
                 .withInsertFeatures(collection.getFeatures()); // TODO use get11kFeatureCollection() and extract pKeys
 
         invokeLambda(mfevent.serialize());

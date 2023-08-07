@@ -46,11 +46,12 @@ public class VersioningCompositeGetFeaturesIT extends VersioningGetFeaturesIT {
 
     postFeature(BASE, newFeature(), AuthProfile.ACCESS_OWNER_1_ADMIN);
 
-    postFeature(DELTA, newFeature(), AuthProfile.ACCESS_OWNER_1_ADMIN);
+    postFeature(DELTA, newFeature(), AuthProfile.ACCESS_OWNER_1_ADMIN, true);
     postFeature(DELTA, newFeature()
             .withGeometry(new Point().withCoordinates(new PointCoordinates(50,50)))
             .withProperties(new Properties().with("key2", "value2")),
-        AuthProfile.ACCESS_OWNER_1_ADMIN
+        AuthProfile.ACCESS_OWNER_1_ADMIN,
+        true
     );
   }
 

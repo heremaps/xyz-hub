@@ -20,8 +20,6 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.netty.handler.codec.http.HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
@@ -135,35 +133,5 @@ public class StoreFeaturesApiIT extends TestSpaceWithFeature {
             put(getSpacesPath() + "/x-psql-test/features").
             then().
             statusCode(NO_CONTENT.code());
-  }
-
-  @Test
-  public void putFeatureWithAllowFeatureCreationWithUUID() {
-    given().
-        contentType(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body("{\"features\":[{\"properties\":{\"@ns:com:here:xyz\":{\"uuid\":\"12345-abcde\"}}}],\"type\":\"FeatureCollection\"}").
-        when().
-        put(getSpacesPath() + "/x-psql-test/features").
-        then().
-        statusCode(CONFLICT.code());
-
-    given().
-        contentType(APPLICATION_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body("{\"allowFeatureCreationWithUUID\": true}").
-        when().
-        patch(getSpacesPath() + "/x-psql-test").
-        then().
-        statusCode(OK.code());
-
-    given().
-        contentType(APPLICATION_GEO_JSON).
-        headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body("{\"features\":[{\"properties\":{\"@ns:com:here:xyz\":{\"uuid\":\"12345-abcde\"}}}],\"type\":\"FeatureCollection\"}").
-        when().
-        put(getSpacesPath() + "/x-psql-test/features").
-        then().
-        statusCode(OK.code());
   }
 }

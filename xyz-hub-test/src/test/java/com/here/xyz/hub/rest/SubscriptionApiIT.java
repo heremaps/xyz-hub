@@ -50,7 +50,7 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
     @Before
     public void setup() {
         createSpaceWithCustomStorage(cleanUpSpaceId, "psql", null);
-        createSpaceWithVersionsToKeep(cleanUpSpaceId2, 10, false);
+        createSpaceWithVersionsToKeep(cleanUpSpaceId2, 10);
     }
 
     @After

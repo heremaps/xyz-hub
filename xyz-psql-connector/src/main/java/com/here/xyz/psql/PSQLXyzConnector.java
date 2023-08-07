@@ -310,7 +310,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
                 .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
       }
 
-      final boolean addUUID = event.getEnableUUID() && event.getVersion().compareTo("0.2.0") < 0;
       // Update the features to insert
       final List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(Collections.emptyList());
       final List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(Collections.emptyList());
@@ -325,7 +324,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       // Call finalize feature
       Stream.of(inserts, updates, upserts)
           .flatMap(Collection::stream)
-          .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace(), addUUID));
+          .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace()));
       return executeModifyFeatures(event);
     } catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));

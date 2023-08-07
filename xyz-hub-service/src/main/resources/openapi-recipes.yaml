@@ -86,7 +86,6 @@ recipes:
       - components.schemas.ConnectorConfig
       - components.schemas.Http
       - components.schemas.RemoteFunctionConfig
-      - components.schemas.Space.properties.enableUUID
       - components.schemas.Space.properties.tags
       - components.schemas.Space.properties.cacheTTL
       - components.schemas.Space.properties.volatilityAtLastContentUpdate

@@ -285,7 +285,6 @@ public class JobProxyApi extends Api{
                                                     +"&connectorId={connectorId}"
                                                     +"&ecps={ecps}"
                                                     +"&enableHashedSpaceId={enableHashedSpaceId}"
-                                                    +"&enableUUID={enableUUID}"
                                                     +"&incremental={incremental}"
                                                     +"&context={context}"
                                                     +"&command={command}"
@@ -296,8 +295,6 @@ public class JobProxyApi extends Api{
                                                         .replace("{enableHashedSpaceId}", Boolean.toString(enableHashedSpaceId))
                                                         .replace("{incremental}", incremental.toString().toLowerCase())
                                                         .replace("{context}",_context.toString().toLowerCase())
-                                                        /**deprecated */
-                                                        .replace("{enableUUID}","false")
                                                         .replace("{command}",command)
                                                         .replace("{urlCount}",Integer.toString(urlCount));
 

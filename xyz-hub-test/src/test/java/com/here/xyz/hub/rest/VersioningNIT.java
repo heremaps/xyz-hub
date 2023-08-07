@@ -65,7 +65,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
   @Before
   public void before() {
     removeSpace(SPACE_ID);
-    createSpaceWithVersionsToKeep("spacev2k1000", 1000);
+    createSpaceWithVersionsToKeep(SPACE_ID, 1000);
   }
 
   @After
@@ -79,29 +79,35 @@ public class VersioningNIT extends TestSpaceWithFeature {
         + "    \"modifications\": ["
         + "        {"
         + "            \"type\": \"FeatureModification\","
-        + "            \"onFeatureNotExists\": \""+ifNotExists+"\","
-        + "            \"onFeatureExists\": \""+ifExists+"\","
+        + "            \"onFeatureNotExists\": \"" + ifNotExists + "\","
+        + "            \"onFeatureExists\": \"" + ifExists + "\","
         + "            \"featureData\": " + new FeatureCollection().withFeatures(Collections.singletonList(feature)).serialize()
         + "        }"
         + "    ]"
         + "}";
   }
 
-  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists){
+  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists) {
+    return write(feature, ifNotExists, ifExists, true);
+  }
+
+  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists, boolean conflictDetection) {
     return given()
         .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(constructPayload(feature, ifNotExists, ifExists))
-        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then();
+        .when()
+        .post(getSpacesPath() + "/" + SPACE_ID + "/features?conflictDetection=" + conflictDetection)
+        .then();
   }
 
-  public void addDefaultFeature(){
+  public void addDefaultFeature() {
     given()
         .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(constructPayload(TEST_FEATURE, "create", "patch"))
         .when()
-        .post(getSpacesPath() + "/"+ SPACE_ID +"/features");
+        .post(getSpacesPath() + "/" + SPACE_ID + "/features");
   }
 
   @Test
@@ -111,7 +117,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(constructPayload(TEST_FEATURE, "create", "patch"))
         .when()
-        .post(getSpacesPath() + "/"+ SPACE_ID +"/features")
+        .post(getSpacesPath() + "/" + SPACE_ID + "/features")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))

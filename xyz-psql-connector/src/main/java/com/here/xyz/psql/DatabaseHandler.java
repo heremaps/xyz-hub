@@ -410,7 +410,7 @@ public abstract class DatabaseHandler extends StorageConnector {
             }
         }
 
-        long version = -1;
+        long version;
         try {
           /** Include Old states */
           if (includeOldStates) {
@@ -436,6 +436,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             canRetryAttempt();
             return executeModifyFeatures(event);
           }
+          else
+              throw e;
         }
 
         try (final Connection connection = dataSource.getConnection()) {
@@ -560,14 +562,8 @@ public abstract class DatabaseHandler extends StorageConnector {
                 collection.getDeleted().addAll(deleteIds);
             }
 
-            // set the version in the returning elements
-            if (event.getVersionsToKeep() > 1) {
-              for (Feature f : collection.getFeatures()) {
-                f.getProperties().getXyzNamespace().setVersion(version);
-              }
-            }
-
-            connection.close();
+            //Set the version in the elements being returned
+            collection.getFeatures().forEach(f -> f.getProperties().getXyzNamespace().setVersion(version));
 
             return collection;
         }

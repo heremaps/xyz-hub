@@ -23,13 +23,12 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
+import java.net.URL;
+import java.util.Arrays;
+import java.util.List;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 
 public class JobApiExportIT extends JobApiIT {
 
@@ -57,13 +56,13 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("01020000A0E61000000300000041C17BFDFF662140E08442041C14494000000000000000006BDE27FD732F21406C5CFFAECF0A49400000000000000000A9B7ABFCD7162140A96A82A8FB0E49400000000000000000");
-            add("01030000A0E6100000010000000500000083E4F8FC8B17214074F04C689202494000000000000000004DF564FED1A3214074F04C689202494000000000000000004DF564FED1A32140876D8B321B184940000000000000000083E4F8FC8B172140876D8B321B184940000000000000000083E4F8FC8B17214074F04C68920249400000000000000000");
-            add("foo_polygon");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "01020000A0E61000000300000041C17BFDFF662140E08442041C14494000000000000000006BDE27FD732F21406C5CFFAECF0A49400000000000000000A9B7ABFCD7162140A96A82A8FB0E49400000000000000000",
+            "01030000A0E6100000010000000500000083E4F8FC8B17214074F04C689202494000000000000000004DF564FED1A3214074F04C689202494000000000000000004DF564FED1A32140876D8B321B184940000000000000000083E4F8FC8B172140876D8B321B184940000000000000000083E4F8FC8B17214074F04C68920249400000000000000000",
+            "foo_polygon"
+        );
 
-        downloadAndCheck(urls, 5489, 11, mustContains );
+        downloadAndCheck(urls, 5665, 11, mustContain);
     }
 
     /**
@@ -84,12 +83,12 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("foo_polygon");
-            add("01030000A0E61000000100000021000000DA81E05D2D7E21404E355FE7F70B49400000000000000000DE78CF5FF67B2140D4078B84C70A494000000000000000007F932C6359782140671DB2C2AE094940000000000000000058FB14157A73214019160768B8084940000000000000000093A77370886D21405E1C90E7ED0749400000000000000000C6A82FE4BE6621400654E3045707494000000000000000000415FE15605F2140A53D7888F906494000000000000000008B4C9B57B457214055905B07D90649400000000000000000DD61AFE6065021400D6A58C0F6064940000000000000000048B14F11A34821409417DE8F5107494000000000000000005360E959D141214006CD13FBE507494000000000000000002CBA64B5D43B2140D53CB251AE0849400000000000000000513B80FDE7362140F1D664E5A209494000000000000000007591BCAF3B332140B75FA854BA0A49400000000000000000CDA0BB0EF4302140BB2F61E6E90B49400000000000000000A718B2B8273021402E50BFF2250D494000000000000000000E6B89C1DE3021402B058055620E49400000000000000000FB77A35A1233214044E038E5920F494000000000000000000C98F80CAD362140990F1DEBAB1049400000000000000000B81DAE848B3B2140A3089E96A211494000000000000000008C8A7CE77D412140E42A67686D1249400000000000000000BA1D89A94948214051F18090041349400000000000000000682AFCCEAB4F2140F011E23B62134940000000000000000019C8E4835B572140F29357CE821349400000000000000000590827F00C5F2140C5447206651349400000000000000000020F7E2A7466214009DE070A0A134940000000000000000016D4312C486D2140E6D7C65A751249400000000000000000DFBF17A745732140407152B3AC11494000000000000000002B55CEA03178214034B34DCEB71049400000000000000000A010C9B8DB7B2140EA379D19A00F494000000000000000008FD98802207E21407169EE58700E4940000000000000000054590D62E87E21406979373B340D49400000000000000000DA81E05D2D7E21404E355FE7F70B49400000000000000000");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "foo_polygon",
+            "01030000A0E61000000100000021000000DA81E05D2D7E21404E355FE7F70B49400000000000000000DE78CF5FF67B2140D4078B84C70A494000000000000000007F932C6359782140671DB2C2AE094940000000000000000058FB14157A73214019160768B8084940000000000000000093A77370886D21405E1C90E7ED0749400000000000000000C6A82FE4BE6621400654E3045707494000000000000000000415FE15605F2140A53D7888F906494000000000000000008B4C9B57B457214055905B07D90649400000000000000000DD61AFE6065021400D6A58C0F6064940000000000000000048B14F11A34821409417DE8F5107494000000000000000005360E959D141214006CD13FBE507494000000000000000002CBA64B5D43B2140D53CB251AE0849400000000000000000513B80FDE7362140F1D664E5A209494000000000000000007591BCAF3B332140B75FA854BA0A49400000000000000000CDA0BB0EF4302140BB2F61E6E90B49400000000000000000A718B2B8273021402E50BFF2250D494000000000000000000E6B89C1DE3021402B058055620E49400000000000000000FB77A35A1233214044E038E5920F494000000000000000000C98F80CAD362140990F1DEBAB1049400000000000000000B81DAE848B3B2140A3089E96A211494000000000000000008C8A7CE77D412140E42A67686D1249400000000000000000BA1D89A94948214051F18090041349400000000000000000682AFCCEAB4F2140F011E23B62134940000000000000000019C8E4835B572140F29357CE821349400000000000000000590827F00C5F2140C5447206651349400000000000000000020F7E2A7466214009DE070A0A134940000000000000000016D4312C486D2140E6D7C65A751249400000000000000000DFBF17A745732140407152B3AC11494000000000000000002B55CEA03178214034B34DCEB71049400000000000000000A010C9B8DB7B2140EA379D19A00F494000000000000000008FD98802207E21407169EE58700E4940000000000000000054590D62E87E21406979373B340D49400000000000000000DA81E05D2D7E21404E355FE7F70B49400000000000000000"
+        );
 
-        downloadAndCheck(urls, 4102, 5, mustContains );
+        downloadAndCheck(urls, 4182, 5, mustContain);
     }
 
     @Test
@@ -105,12 +104,12 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("foo_polygon");
-            add("01020000A0E610000004000000901FE0FF7D70214087A4164A260B4940000000000000000041237DFF8B4421402A7288B8390549400000000000000000407E80FFF70521400264E8D8410749400000000000000000F60E12FD3504214019A9F7544E0349400000000000000000");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "foo_polygon",
+            "01020000A0E610000004000000901FE0FF7D70214087A4164A260B4940000000000000000041237DFF8B4421402A7288B8390549400000000000000000407E80FFF70521400264E8D8410749400000000000000000F60E12FD3504214019A9F7544E0349400000000000000000"
+        );
 
-        downloadAndCheck(urls, 2662, 5, mustContains );
+        downloadAndCheck(urls, 2742, 5, mustContain);
     }
 
     @Test
@@ -124,12 +123,12 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("onPropertyLevel");
-            add("01010000A0E610000037E38FFD875721402A55A2EC2D0D49400000000000000000");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "onPropertyLevel",
+            "01010000A0E610000037E38FFD875721402A55A2EC2D0D49400000000000000000"
+        );
 
-        downloadAndCheck(urls, 1007, 3, mustContains );
+        downloadAndCheck(urls, 1055, 3, mustContain);
     }
 
     @Test
@@ -148,12 +147,12 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("Point");
-            add("01010000A0E610000037E38FFD875721402A55A2EC2D0D49400000000000000000");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "Point",
+            "01010000A0E610000037E38FFD875721402A55A2EC2D0D49400000000000000000"
+        );
 
-        downloadAndCheck(urls, 367, 1, mustContains );
+        downloadAndCheck(urls, 383, 1, mustContain);
     }
 
     /**
@@ -167,15 +166,15 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("MultiPolygon");
-            add("MultiLineString");
-            add("LineString");
-            add("Point");
-            add("Polygon with hole");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "MultiPolygon",
+            "MultiLineString",
+            "LineString",
+            "Point",
+            "Polygon with hole"
+        );
 
-        downloadAndCheck(urls, 4788, 11, mustContains );
+        downloadAndCheck(urls, 4964, 11, mustContain);
     }
 
     /**
@@ -189,18 +188,18 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("MultiPolygon");
-            add("MultiLineString");
-            add("LineString");
-            add("Point");
-            add("Polygon with hole");
-            add("Q601162"); //in delta of composite
-            add("foo_new"); //Got overridden in composite space
-        }};
+        List<String> mustContain = Arrays.asList(
+            "MultiPolygon",
+            "MultiLineString",
+            "LineString",
+            "Point",
+            "Polygon with hole",
+            "Q601162", //in delta of composite
+            "foo_new" //Got overridden in composite space
+        );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 117009, 263, mustContains );
+        downloadAndCheck(urls, 121217, 263, mustContain);
     }
 
     /**
@@ -214,16 +213,16 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), Job.Status.finalized, Job.Status.failed, ContextAwareEvent.SpaceContext.SUPER, null);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("MultiPolygon");
-            add("MultiLineString");
-            add("LineString");
-            add("Point");
-            add("Polygon with hole");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "MultiPolygon",
+            "MultiLineString",
+            "LineString",
+            "Point",
+            "Polygon with hole"
+        );
 
         // 252 + 11 = 263
-        downloadAndCheck(urls, 4788, 11, mustContains );
+        downloadAndCheck(urls, 4964, 11, mustContain);
     }
 
     /**
@@ -237,14 +236,14 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), Job.Status.finalized, Job.Status.failed, ContextAwareEvent.SpaceContext.EXTENSION, null);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("Point");
-            add("Q601162"); //in delta of composite
-            add("foo_new"); //Got overridden in composite space
-        }};
+        List<String> mustContain = Arrays.asList(
+            "Point",
+            "Q601162", //in delta of composite
+            "foo_new" //Got overridden in composite space
+        );
 
         // 252 + 1 (Edit of Base);
-        downloadAndCheck(urls, 112664, 253, mustContains );
+        downloadAndCheck(urls, 116712, 253, mustContain);
     }
 
     @Test
@@ -258,13 +257,13 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, filters, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("MultiPolygon");
-            add("Q193431"); //in delta of composite
-            add("foo_new"); //Got overridden in composite space
-        }};
+        List<String> mustContain = Arrays.asList(
+            "MultiPolygon",
+            "Q193431", //in delta of composite
+            "foo_new" //Got overridden in composite space
+        );
 
-        downloadAndCheck(urls, 13212, 30, mustContains );
+        downloadAndCheck(urls, 13692, 30, mustContain);
     }
 
     @Test
@@ -282,12 +281,12 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, filters, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls= performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add(getScopedSpaceId(testSpaceId2Ext, scope));
-            add("foo_new"); //Got overridden in composite space
-        }};
+        List<String> mustContain = Arrays.asList(
+            getScopedSpaceId(testSpaceId2Ext, scope),
+            "foo_new" //Got overridden in composite space
+        );
 
-        downloadAndCheck(urls, 358, 1, mustContains );
+        downloadAndCheck(urls, 374, 1, mustContain);
     }
 
     @Test
@@ -304,14 +303,14 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, filters, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("MultiPolygon");
-            add("Q193431"); //in delta of composite
-            add("foo_new"); //Got overridden in composite space
-            add("2LPoint");  //Got added in composite space L2
-        }};
+        List<String> mustContain = Arrays.asList(
+            "MultiPolygon",
+            "Q193431", //in delta of composite
+            "foo_new", //Got overridden in composite space
+            "2LPoint"  //Got added in composite space L2
+        );
 
-        downloadAndCheck(urls, 13524, 31, mustContains );
+        downloadAndCheck(urls, 14020, 31, mustContain);
     }
 
     @Test
@@ -320,18 +319,18 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), Job.Status.finalized, Job.Status.failed);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("MultiPolygon");
-            add("MultiLineString");
-            add("LineString");
-            add("Point");
-            add("Polygon with hole");
-            add("Q601162"); //in delta of composite L1
-            add("foo_polygon"); //Got overridden in composite space L1
-            add("2LPoint");  //Got added in composite space L2
-        }};
+        List<String> mustContain = Arrays.asList(
+            "MultiPolygon",
+            "MultiLineString",
+            "LineString",
+            "Point",
+            "Polygon with hole",
+            "Q601162", //in delta of composite L1
+            "foo_polygon", //Got overridden in composite space L1
+            "2LPoint"  //Got added in composite space L2
+        );
         // 252 + 11 + 1 = 264
-        downloadAndCheck(urls, 117321, 264, mustContains );
+        downloadAndCheck(urls, 121545, 264, mustContain);
     }
 
     @Test
@@ -340,17 +339,18 @@ public class JobApiExportIT extends JobApiIT {
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD), Job.CSVFormat.GEOJSON);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), Job.Status.finalized, Job.Status.failed, ContextAwareEvent.SpaceContext.SUPER, null);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("MultiPolygon");
-            add("MultiLineString");
-            add("LineString");
-            add("Point");
-            add("Polygon with hole");
-            add("Q601162"); //in delta of composite L1
-            add("foo_polygon"); //Got overridden in composite space L1
-        }};
+        List<String> mustContain = Arrays.asList(
+            "MultiPolygon",
+            "MultiLineString",
+            "LineString",
+            "Point",
+            "Polygon with hole",
+            "Q601162", //in delta of composite L1
+            "foo_polygon" //Got overridden in composite space L1
+        );
+
         // 252 + 11 = 263
-        downloadAndCheck(urls, 117009, 263, mustContains );
+        downloadAndCheck(urls, 121217, 263, mustContain);
     }
 
     /**
@@ -371,13 +371,10 @@ public class JobApiExportIT extends JobApiIT {
         /** VML Trigger cant get tested here - so its okay that the job will fail in Triggerstate */
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> csvMustContains = new ArrayList<String>(){{
-            add("360");
-            add("eyJ0eXBlIjogIkZl");
-        }};
+        List<String> mustContain = Arrays.asList("360", "eyJ0eXBlIjogIkZl");
 
         /** Expect 10 features instead of 11 because feature without geometry is not included in result */
-        downloadAndCheckFC(urls, 5537, 10, csvMustContains, 1);
+        downloadAndCheckFC(urls, 5725, 10, mustContain, 1);
     }
 
     /**
@@ -398,14 +395,10 @@ public class JobApiExportIT extends JobApiIT {
         /** VML Trigger cant get tested here - so its okay that the job will fail in Triggerstate */
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> csvMustContains = new ArrayList<String>(){{
-            add("23600780");
-            add("23600794");
-            add("W9uIiwgImZlYXR1cmV");
-        }};
+        List<String> mustContain = Arrays.asList("23600780", "23600794", "W9uIiwgImZlYXR1cmV");
 
         /** Expect 39 features because the geometry of some features is intersecting multiple tiles */
-        downloadAndCheckFC(urls, 24906, 39, csvMustContains, 17);
+        downloadAndCheckFC(urls, 25638, 39, mustContain, 17);
     }
 
     /**
@@ -432,12 +425,9 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2,scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("360");
-            add("eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwg");
-        }};
+        List<String> mustContain = Arrays.asList("360", "eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwg");
 
-        downloadAndCheckFC(urls, 4085, 5, mustContains, 1);
+        downloadAndCheckFC(urls, 4177, 5, mustContain, 1);
     }
 
     @Test
@@ -458,12 +448,9 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("360");
-            add("VzIjpbeyJpZC");
-        }};
+        List<String> mustContain = Arrays.asList("360", "VzIjpbeyJpZC");
 
-        downloadAndCheckFC(urls, 2853, 5, mustContains, 1);
+        downloadAndCheckFC(urls, 2949, 5, mustContain, 1);
     }
 
     @Test
@@ -481,12 +468,9 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("360");
-            add("Onh5eiI6IHsidGFncyI6IF");
-        }};
+        List<String> mustContain = Arrays.asList("360", "Onh5eiI6IHsidGFncyI6IF");
 
-        downloadAndCheckFC(urls, 1301, 3, mustContains, 1);
+        downloadAndCheckFC(urls, 1357, 3, mustContain, 1);
     }
 
     @Test
@@ -510,12 +494,9 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2,scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("360");
-            add("aW9uIiwgImZlYXR");
-        }};
+        List<String> mustContain = Arrays.asList("360", "aW9uIiwgImZlYXR");
 
-        downloadAndCheckFC(urls, 513, 1, mustContains, 1 );
+        downloadAndCheckFC(urls, 533, 1, mustContain, 1 );
     }
 
     /**
@@ -535,14 +516,10 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("280");
-            add("306");
-            add("IkZlYXR1cmU");
-        }};
+        List<String> mustContain = Arrays.asList("280", "306", "IkZlYXR1cmU");
 
         // 252 + 10 (-feature w/o geometry) = 262mh o
-        downloadAndCheckFC(urls, 140597, 262, mustContains, 37);
+        downloadAndCheckFC(urls, 145485, 262, mustContain, 37);
     }
 
     @Test
@@ -557,14 +534,10 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("374");
-            add("352");
-            add("HVyZSIsICJnZW9");
-            add("374");
-        }};
+        List<String> mustContain = Arrays.asList("374", "352", "HVyZSIsICJnZW9", "374");
+
         // 252 + 10 (-feature w/o geometry) + 1 = 263
-        downloadAndCheckFC(urls, 140965, 263, mustContains, 37);
+        downloadAndCheckFC(urls, 145873, 263, mustContain, 37);
     }
 
     @Test
@@ -584,12 +557,9 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext,scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("360");
-            add("RyeSI6IHsidHlwZSI6I");
-        }};
+        List<String> mustContain = Arrays.asList("360", "RyeSI6IHsidHlwZSI6I");
 
-        downloadAndCheckFC(urls, 15809, 30, mustContains, 1 );
+        downloadAndCheckFC(urls, 16369, 30, mustContain, 1 );
     }
 
     @Test
@@ -613,12 +583,9 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("360");
-            add("ZXMiOiBbOC42MTk5NjE1");
-        }};
+        List<String> mustContain = Arrays.asList("360", "ZXMiOiBbOC42MTk5NjE1");
 
-        downloadAndCheckFC(urls, 485, 1, mustContains, 1);
+        downloadAndCheckFC(urls, 505, 1, mustContain, 1);
     }
 
     @Test
@@ -641,12 +608,12 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), Job.Status.failed, Job.Status.finalized);
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("360");
-            add("ZXh0IiwgImNyZWF0ZWRBdCI6IDE2O");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "360",
+            "2ludCIsICJjb29yZGluYXRlcyI6IFs4LjQ4M"
+        );
 
-        downloadAndCheckFC(urls, 16177, 31, mustContains, 1);
+        downloadAndCheckFC(urls, 16757, 31, mustContain, 1);
     }
 
     /** ------------------- only for local testing with big spaces  -------------------- */
