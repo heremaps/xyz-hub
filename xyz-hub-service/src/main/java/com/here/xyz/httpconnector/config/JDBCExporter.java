@@ -264,7 +264,7 @@ public class JDBCExporter extends JDBCClients{
     }
 
     public static SQLQuery buildVMLCalculateQuery(Export job, String schema, SQLQuery exportQuery, SQLQuery qkQuery) {
-        int exportCalcLevel = 12;
+        int exportCalcLevel = job.getTargetLevel() != null ? job.getTargetLevel() : 12;
 
         SQLQuery q = new SQLQuery("select tilelist from ${schema}.exp_type_vml_precalc(" +
                 "#{htile}, '', #{mlevel}, ${{exportSelectString}}, ${{qkQuery}}, #{estimated_count}, #{tbl}::regclass)");
