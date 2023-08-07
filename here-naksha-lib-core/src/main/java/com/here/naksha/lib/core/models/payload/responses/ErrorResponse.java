@@ -31,6 +31,7 @@ import com.here.naksha.lib.core.exceptions.TooManyTasks;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
@@ -86,6 +87,10 @@ public class ErrorResponse extends XyzResponse {
       setErrorMessage(t.getMessage());
     } else if (t instanceof TooManyTasks) {
       setError(XyzError.TOO_MANY_REQUESTS);
+      setErrorMessage(t.getMessage());
+    } else if (t instanceof SQLException se && "22023".equals(se.getSQLState())) {
+      // TODO : To check other standard PSQL errors
+      setError(XyzError.CONFLICT);
       setErrorMessage(t.getMessage());
     } else {
       setError(XyzError.EXCEPTION);

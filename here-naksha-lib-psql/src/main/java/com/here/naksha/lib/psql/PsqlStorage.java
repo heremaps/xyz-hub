@@ -241,18 +241,20 @@ public class PsqlStorage implements IStorage {
           stmt.execute(createTxPartitionOfOneDay(0));
           stmt.execute(createTxPartitionOfOneDay(1));
           stmt.execute(createTxPartitionOfOneDay(2));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 1, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 2, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 3, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 4, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 5, collectionInfo));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 1));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 2));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 3));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 4));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 5));
+          /*
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 1, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 2, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 3, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 4, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 5, collectionInfo));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 1));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 2));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 3));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 4));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 5));
+          */
         }
         // commit once for every single collection so that partial progress is saved in case
         // something fails

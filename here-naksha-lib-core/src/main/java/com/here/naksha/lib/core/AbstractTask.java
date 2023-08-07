@@ -427,6 +427,10 @@ public abstract class AbstractTask<RESPONSE> extends NakshaContext implements IN
       assert newValue >= 0L;
       detachFromCurrentThread();
     }
+    /* TODO HP_QUERY : As this function doesn't return response in case of exception, it gets suppressed under
+     * thread.submit() function, and API client endlessly waits for response.
+     * How do we return errorResponse from here? (return type doesn't match)
+     */
   }
 
   /**

@@ -1370,6 +1370,8 @@ BEGIN
         op := op_arr[index];
         --RAISE NOTICE 'Op ''%'' for ''%'' (uuid: ''%'', expected: ''%'')', op, id, existing_uuid, expected_uuid;
 
+        -- TODO HP_QUERY : Is it better to return '23505' (unique_violation) for ID / UUID mismatches?
+        -- TODO HP_QUERY : And '02000' for no_data found situation
         IF op = 'INSERT' THEN
             IF existing_uuid IS NOT NULL THEN
                 RAISE SQLSTATE '22023' USING MESSAGE = format('The feature %L exists already', id);
