@@ -200,13 +200,13 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetFeaturesByBBoxEvent(GetFeaturesByBBoxEvent event) throws Exception {
     try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-/*
+
       if (event.getClusteringType() != null)
-        if (!event.getParams().containsKey("extends"))
+//        if (!event.getParams().containsKey("extends"))
           return new GetFeaturesByBBoxClustered<>(event).run();
-        else
-          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "clustering = [hexbin, quadbin] is not supported with 'extends'");
-*/
+//        else
+//          throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "clustering = [hexbin, quadbin] is not supported with 'extends'");
+
       if (event.getTweakType() != null || "viz".equals(event.getOptimizationMode()))
         if (!event.getParams().containsKey("extends"))
           return new GetFeaturesByBBoxTweaked<>(event).run();
