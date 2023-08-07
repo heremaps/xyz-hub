@@ -220,6 +220,7 @@ public class PsqlStorage implements IStorage {
     }
   }
 
+  // TODO HP_QUERY : History for admin collections?
   public static int maxHistoryAgeInDays = 30; // TODO this or Space.maxHistoryAge
 
   /**
