@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,16 +119,12 @@ public class JDBCImporter extends JDBCClients{
         String author = job.getAuthor() == null ? "ANONYMOUS" : job.getAuthor();
         boolean addTablenameToXYZNs = false;
 
-        /** deprecated */
-        boolean _enableUUID  = job.getParam("enableUUID") == null ? false : (boolean) job.getParam("enableUUID");
-
         //TODO: Move this into the new QR!!
         SQLQuery q = new SQLQuery("CREATE OR REPLACE TRIGGER insertTrigger BEFORE INSERT ON ${schema}.${tablename} \n"
-                + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},{enableUUID},{spaceVersion},{author});"
+                + "FOR EACH ROW EXECUTE PROCEDURE ${schema}.xyz_import_trigger('{trigger_hrn}',{addTableName},false,{spaceVersion},{author});"
                 //TODO: Use named parameters for the following!
                 .replace("{trigger_hrn}","TBD")
                 .replace("{addTableName}", Boolean.toString(addTablenameToXYZNs))
-                .replace("{enableUUID}", Boolean.toString(_enableUUID))
                 .replace("{spaceVersion}", Long.toString( job.getSpaceVersion()))
                 .replace("{author}", author)
         );

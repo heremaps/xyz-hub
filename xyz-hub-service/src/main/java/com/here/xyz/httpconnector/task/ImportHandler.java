@@ -57,7 +57,7 @@ public class ImportHandler extends JobHandler{
     }
 
     protected static Future<Job> execute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                         boolean enableHashedSpaceId, boolean enableUUID, int urlCount, Marker marker){
+                                         boolean enableHashedSpaceId, int urlCount, Marker marker){
 
         /** At this point we only have jobs which are allowed for executions. */
 
@@ -67,7 +67,7 @@ public class ImportHandler extends JobHandler{
                     Import importJob = (Import) loadedJob;
                     try {
                         /** Load DB-Client an inject config values */
-                        loadClientAndInjectConfigValues(importJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, enableUUID, null, null);
+                        loadClientAndInjectConfigValues(importJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, null, null);
                         return Future.succeededFuture(importJob);
                     }catch (HttpException e){
                         return Future.failedFuture(e);

@@ -45,7 +45,7 @@ public class TagApiIT extends TestSpaceWithFeature {
 
     @Before
     public void setup() {
-        createSpaceWithVersionsToKeep(getSpaceId(), 2, false);
+        createSpaceWithVersionsToKeep(getSpaceId(), 2);
     }
 
     @After
@@ -197,7 +197,7 @@ public class TagApiIT extends TestSpaceWithFeature {
 
   @Test
   public void testListSpacesFilterByTagId() {
-    createSpaceWithVersionsToKeep(SECOND_SPACE, 2, false);
+    createSpaceWithVersionsToKeep(SECOND_SPACE, 2);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))

@@ -29,7 +29,6 @@ exclude:
   - components.requestBodies.FeatureCollectionOrFeatureModificationListRequest.content.'application/vnd.here.feature-modification-list'
   - components.schemas.CacheProfile
   - components.schemas.CountResponse
-  - components.schemas.Space.properties.enableUUID
   - components.schemas.Space.properties.tags
   - components.schemas.Space.properties.cacheTTL
   - components.schemas.Space.properties.volatilityAtLastContentUpdate

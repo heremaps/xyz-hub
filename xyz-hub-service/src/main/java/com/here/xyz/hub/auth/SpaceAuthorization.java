@@ -69,7 +69,7 @@ public class SpaceAuthorization extends Authorization {
   private static final Logger logger = LogManager.getLogger();
 
   public static List<String> basicEdit = Arrays
-      .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "cacheTTL", "readOnly", "extends",
+      .asList("id", "title", "description", "client", "copyright", "license", "shared", "cacheTTL", "readOnly", "extends",
           "versionsToKeep", STORAGE, LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES, SORTABLE_PROPERTIES );
 
   public static List<String> packageEdit = Collections.singletonList(PACKAGES);

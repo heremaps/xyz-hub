@@ -60,20 +60,11 @@ public class Feature extends Extensible<Feature> implements Typed {
    *
    * @param feature the feature for which to update the {@link XyzNamespace} map.
    * @param space the full qualified space identifier in which this feature is stored (so prefix and base part combined, e.g. "x-foo").
-   * @param addUUID If the uuid to be added or not.
    * @throws NullPointerException if feature, space or the 'id' of the feature are null.
    */
   @SuppressWarnings("WeakerAccess")
-  public static void finalizeFeature(final Feature feature, final String space, boolean addUUID) throws NullPointerException {
+  public static void finalizeFeature(final Feature feature, final String space) throws NullPointerException {
     final XyzNamespace xyzNamespace = feature.getProperties().getXyzNamespace();
-
-    if (addUUID) {
-      String puuid = xyzNamespace.getUuid();
-      if (puuid != null) {
-        xyzNamespace.setPuuid(puuid);
-      }
-      xyzNamespace.setUuid(UUID.randomUUID().toString());
-    }
     xyzNamespace.setInputPosition(null);
   }
 

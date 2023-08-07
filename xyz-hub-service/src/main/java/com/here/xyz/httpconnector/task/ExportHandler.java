@@ -54,7 +54,7 @@ public class ExportHandler extends JobHandler{
                         /** Store count of features which are in source layer */
                         job.setEstimatedFeatureCount(value);
                     }
-                    
+
                     HashMap<String, Long> srchProp = new HashMap<String, Long>();
                     for ( PropertyStatistics pStat : statistics.getProperties().getValue())
                      if( pStat.isSearchable() )
@@ -64,18 +64,18 @@ public class ExportHandler extends JobHandler{
                      job.setSearchableProperties(srchProp);
 
                     if(   job.getEstimatedFeatureCount() > 1000000 /** searchable limit without index*/
-                       && job.getPartitionKey() != null 
-                       && !"id".equals(job.getPartitionKey()) 
+                       && job.getPartitionKey() != null
+                       && !"id".equals(job.getPartitionKey())
                        && !srchProp.containsKey(job.getPartitionKey().replaceFirst("^(p|properties)\\." ,""))
                        )
-                        return Future.failedFuture(new HttpException(BAD_REQUEST, "partitionKey ["+ job.getPartitionKey() +"] is not a searchable property"));  
+                        return Future.failedFuture(new HttpException(BAD_REQUEST, "partitionKey ["+ job.getPartitionKey() +"] is not a searchable property"));
 
                     return CService.jobConfigClient.store(marker, job);
                 });
     }
 
     protected static Future<Job> execute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                      boolean enableHashedSpaceId, boolean enableUUID, ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context, Marker marker){
+                                      boolean enableHashedSpaceId, ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context, Marker marker){
 
         /** At this point we only have jobs which are allowed for executions. */
 
@@ -85,7 +85,7 @@ public class ExportHandler extends JobHandler{
                     Export exportJob = (Export) loadedJob;
                     try {
                         /** Load DB-Client, inject and store config values */
-                        loadClientAndInjectConfigValues(exportJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, null, incremental, _context);
+                        loadClientAndInjectConfigValues(exportJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, incremental, _context);
 
                         return CService.jobConfigClient.update(marker, exportJob);
                     }catch (HttpException e){

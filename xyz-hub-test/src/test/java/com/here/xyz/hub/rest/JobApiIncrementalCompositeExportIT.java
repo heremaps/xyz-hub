@@ -18,20 +18,24 @@
  */
 package com.here.xyz.hub.rest;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+import static org.junit.Assert.assertEquals;
+
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
-import org.junit.*;
-
 import java.net.URL;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static org.junit.Assert.assertEquals;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class JobApiIncrementalCompositeExportIT extends JobApiIT{
     protected String testExportJobId = "x-test-composite-export-job";
@@ -186,19 +190,19 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         /** Expect 3 files from persistent super layer + 3 files from composite compound */
         assertEquals(2, urls.size());
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("NjQ3LCAyNS45MTM");
-            add("4807");
-            add("4953");
-            add("5681");
-            add("5693");
-            add("5749");
-            add("5760");
-            add("5831");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "NjQ3LCAyNS45MTM",
+            "4807",
+            "4953",
+            "5681",
+            "5693",
+            "5749",
+            "5760",
+            "5831"
+        );
 
         //7 Features from base + 7 Features from base+delta
-        downloadAndCheckFC(urls, 5660, 14, mustContains, 14 );
+        downloadAndCheckFC(urls, 5936, 14, mustContain, 14);
     }
 
     @Test
@@ -209,18 +213,18 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         List<URL> urls = performExport(job, testSpaceId1, Job.Status.failed, Job.Status.finalized, ContextAwareEvent.SpaceContext.DEFAULT, ApiParam.Query.Incremental.DEACTIVATED);
         assertEquals(1, urls.size());
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("NjQ3LCAyNS45MTM");
-            add("4807");
-            add("4953");
-            add("5681");
-            add("5693");
-            add("5749");
-            add("5760");
-            add("5831");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "NjQ3LCAyNS45MTM",
+            "4807",
+            "4953",
+            "5681",
+            "5693",
+            "5749",
+            "5760",
+            "5831"
+        );
 
-        downloadAndCheckFC(urls, 2790, 7, mustContains, 7 );
+        downloadAndCheckFC(urls, 2930, 7, mustContain, 7);
 
         /** Incremental Export */
         job =  generateExportJob(testExportJobId+"_2", 6);
@@ -228,17 +232,17 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         /** Expect 1 file with base+delta */
         assertEquals(1, urls.size());
 
-        mustContains = new ArrayList<String>(){{
-            add("eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0"); //EmptyFC
-            add("4807");
-            add("4991");
-            add("4993");
-            add("5693");
-            add("5760");
-        }};
+        mustContain = Arrays.asList(
+            "eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0", //EmptyFC
+            "4807",
+            "4991",
+            "4993",
+            "5693",
+            "5760"
+        );
 
         //Includes two empty tiles
-        downloadAndCheckFC(urls, 1410, 3, mustContains, 5 );
+        downloadAndCheckFC(urls, 1466, 3, mustContain, 5);
     }
 
     @Test
@@ -255,19 +259,19 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         /** Expect 1 files from persistent super layer + 1 files from composite compound */
         assertEquals(2, urls.size());
 
-        ArrayList<String> mustContains = new ArrayList<String>(){{
-            add("sICJwcm9wZXJ0aW");
-            add("4807");
-            add("4953");
-            add("5681");
-            add("5693");
-            add("5749");
-            add("5760");
-            add("5831");
-        }};
+        List<String> mustContain = Arrays.asList(
+            "sICJwcm9wZXJ0aW",
+            "4807",
+            "4953",
+            "5681",
+            "5693",
+            "5749",
+            "5760",
+            "5831"
+        );
 
         //7 Features from base + 7 Features from base+delta
-        downloadAndCheckFC(urls, 5668, 14, mustContains, 14 );
+        downloadAndCheckFC(urls, 5944, 14, mustContain, 14);
     }
 
     @Test

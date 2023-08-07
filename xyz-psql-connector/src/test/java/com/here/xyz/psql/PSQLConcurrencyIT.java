@@ -36,7 +36,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class PSQLUuidIT extends PSQLAbstractIT {
+import java.util.*;
+
+public class PSQLConcurrencyIT extends PSQLAbstractIT {
 
     @BeforeClass
     public static void init() throws Exception { initEnv(null); }
@@ -50,22 +52,22 @@ public class PSQLUuidIT extends PSQLAbstractIT {
     public void shutdown() throws Exception { invokeDeleteTestSpace(null); }
 
     @Test
-    public void testModifyFeatureFailuresWithUUID() throws Exception {
+    public void testModifyFeatureFailuresWithConflictDetection() throws Exception {
         testModifyFeatureFailures(true);
     }
 
     @Test
-    public void testModifyFeatureFailuresWithoutUUID() throws Exception {
+    public void testModifyFeatureFailuresWithoutConflictDetection() throws Exception {
         testModifyFeatureFailures(false);
     }
 
-    protected void testModifyFeatureFailures(boolean withUUID) throws Exception {
+    protected void testModifyFeatureFailures(boolean withConflictDetection) throws Exception {
         // =========== INSERT ==========
-        String insertJsonFile = withUUID ? "/events/InsertFeaturesEventTransactional.json" : "/events/InsertFeaturesEvent.json";
+        String insertJsonFile = withConflictDetection ? "/events/InsertFeaturesEventTransactional.json" : "/events/InsertFeaturesEvent.json";
         final String insertResponse = invokeLambdaFromFile(insertJsonFile);
         final String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         final FeatureCollection insertRequestCollection = XyzSerializable.deserialize(insertResponse);
-        assertRead(insertRequest, insertResponse, withUUID);
+        assertRead(insertRequest, insertResponse, withConflictDetection);
         LOGGER.info("Insert feature tested successfully");
 
         // =========== DELETE NOT EXISTING FEATURE ==========
@@ -75,8 +77,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
                 .withSpace("foo")
                 .withTransaction(false)
                 .withDeleteFeatures(Collections.singletonMap("doesnotexist", null));
-        if(withUUID)
-            mfevent.setEnableUUID(true);
+        if (withConflictDetection)
+            mfevent.setConflictDetectionEnabled(true);
 
         String response = invokeLambda(mfevent.serialize());
         FeatureCollection responseCollection = XyzSerializable.deserialize(response);
@@ -86,8 +88,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         assertNull(responseCollection.getInserted());
         assertNull(responseCollection.getDeleted());
 
-        if(withUUID)
-            assertEquals(DatabaseWriter.DELETE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+        if (withConflictDetection)
+            assertEquals(DatabaseWriter.DELETE_ERROR_CONCURRENCY, responseCollection.getFailed().get(0).getMessage());
         else
             assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
 
@@ -98,20 +100,20 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         // Transaction should have failed
         ErrorResponse errorResponse = XyzSerializable.deserialize(response);
         assertEquals(XyzError.CONFLICT, errorResponse.getError());
-        ArrayList failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+        List<Map<String, String>> failedList = (List<Map<String, String>>) errorResponse.getErrorDetails().get("FailedList");
         assertEquals(1, failedList.size());
 
-        HashMap<String,String> failure1 = ((HashMap<String,String>)failedList.get(0));
+        Map<String, String> failure1 = failedList.get(0);
         assertEquals("doesnotexist", failure1.get("id"));
 
-        if(withUUID)
-            assertEquals(DatabaseWriter.DELETE_ERROR_UUID, failure1.get("message"));
+        if (withConflictDetection)
+            assertEquals(DatabaseWriter.DELETE_ERROR_CONCURRENCY, failure1.get("message"));
         else
             assertEquals(DatabaseWriter.DELETE_ERROR_NOT_EXISTS, failure1.get("message"));
 
         Feature existing = insertRequestCollection.getFeatures().get(0);
-        existing.getProperties().getXyzNamespace().setPuuid(existing.getProperties().getXyzNamespace().getUuid());
-        mfevent.setDeleteFeatures(new HashMap<>());
+        existing.getProperties().getXyzNamespace().setVersion(existing.getProperties().getXyzNamespace().getVersion());;
+        mfevent.setDeleteFeatures(Collections.emptyMap());
 //        // =========== INSERT EXISTING FEATURE ==========
 //        //Stream
 //        mfevent.setInsertFeatures(new ArrayList<Feature>(){{add(existing);}});
@@ -139,8 +141,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         //Stream
         //Change ID to not existing one
         existing.setId("doesnotexist");
-        mfevent.setInsertFeatures(new ArrayList<>());
-        mfevent.setUpdateFeatures(new ArrayList<Feature>(){{add(existing);}});
+        mfevent.setInsertFeatures(Collections.emptyList());
+        mfevent.setUpdateFeatures(Collections.singletonList(existing));
         mfevent.setTransaction(false);
 
         response = invokeLambda(mfevent.serialize());
@@ -151,8 +153,8 @@ public class PSQLUuidIT extends PSQLAbstractIT {
         assertNull(responseCollection.getInserted());
         assertNull(responseCollection.getDeleted());
 
-        if(withUUID)
-            assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, responseCollection.getFailed().get(0).getMessage());
+        if (withConflictDetection)
+            assertEquals(DatabaseWriter.UPDATE_ERROR_CONCURRENCY, responseCollection.getFailed().get(0).getMessage());
         else
             assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, responseCollection.getFailed().get(0).getMessage());
 
@@ -162,14 +164,14 @@ public class PSQLUuidIT extends PSQLAbstractIT {
 
         errorResponse = XyzSerializable.deserialize(response);
         assertEquals(XyzError.CONFLICT, errorResponse.getError());
-        failedList = ((ArrayList)errorResponse.getErrorDetails().get("FailedList"));
+        failedList = (ArrayList) errorResponse.getErrorDetails().get("FailedList");
         assertEquals(1, failedList.size());
 
-        failure1 = ((HashMap<String,String>)failedList.get(0));
+        failure1 = (HashMap<String, String>) failedList.get(0);
         assertEquals("doesnotexist", failure1.get("id"));
 
-        if(withUUID)
-            assertEquals(DatabaseWriter.UPDATE_ERROR_UUID, failure1.get("message"));
+        if (withConflictDetection)
+            assertEquals(DatabaseWriter.UPDATE_ERROR_CONCURRENCY, failure1.get("message"));
         else
             assertEquals(DatabaseWriter.UPDATE_ERROR_NOT_EXISTS, failure1.get("message"));
     }

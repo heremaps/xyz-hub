@@ -18,6 +18,12 @@
  */
 
 package com.here.xyz.httpconnector.task;
+
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+
+import com.google.common.collect.ImmutableMap;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
@@ -37,22 +43,21 @@ import com.here.xyz.util.Hasher;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
 import io.vertx.core.json.jackson.DatabindCodec;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Collections;
-import java.util.Set;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class JobHandler {
     private static final Logger logger = LogManager.getLogger();
-    private static ArrayList<String> MODIFICATION_WHITELIST = new ArrayList<String>(){{  add("description"); add("enabledUUID"); add("csvFormat"); }};
-    private static Map<String,String> MODIFICATION_IGNORE_MAP = new HashMap<String,String>(){{put("createdAt","createdAt");put("updatedAt","updatedAt");}};
+    private static List<String> MODIFICATION_WHITELIST = Arrays.asList("description", "csvFormat");
+    private static Map<String,String> MODIFICATION_IGNORE_MAP = ImmutableMap.of(
+        "createdAt","createdAt",
+        "updatedAt","updatedAt");
 
     public static Future<Job> loadJob(String jobId, Marker marker){
         return CService.jobConfigClient.get(marker, jobId)
@@ -129,7 +134,7 @@ public class JobHandler {
     }
 
     public static Future<Job> postExecute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                          boolean enableHashedSpaceId, boolean enableUUID, ApiParam.Query.Incremental incremental, int urlCount,
+                                          boolean enableHashedSpaceId, ApiParam.Query.Incremental incremental, int urlCount,
                                           ContextAwareEvent.SpaceContext _context, Marker marker){
         /** Load JobConfig */
         return loadJob(jobId, marker)
@@ -145,15 +150,16 @@ public class JobHandler {
                 compose(job -> {
                     /** Execute */
                     if(job instanceof Import)
-                        return ImportHandler.execute(jobId,connectorId,ecps,passphrase,command,enableHashedSpaceId,enableUUID,urlCount,marker);
+                        return ImportHandler.execute(jobId, connectorId, ecps, passphrase, command, enableHashedSpaceId, urlCount, marker);
                     else
-                        return ExportHandler.execute(jobId,connectorId,ecps,passphrase,command,enableHashedSpaceId,enableUUID,incremental,_context,marker);
+                        return ExportHandler.execute(jobId, connectorId, ecps, passphrase, command, enableHashedSpaceId, incremental,
+                            _context, marker);
                 });
     }
 
     protected static void loadClientAndInjectConfigValues(Job job, HApiParam.HQuery.Command command, String connectorId, String ecps,
-                                                          String passphrase, boolean enableHashedSpaceId, Boolean enableUUID,
-                                                          ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context)
+                                                      String passphrase, boolean enableHashedSpaceId,
+                                                      ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context)
             throws HttpException {
 
         if(job.getTargetTable() == null){
@@ -168,8 +174,6 @@ public class JobHandler {
 
         job.addParam("enableHashedSpaceId",enableHashedSpaceId);
 
-        if(enableUUID != null)
-            job.addParam("enableUUID", enableUUID);
         if(incremental != null)
             job.addParam("incremental", incremental.toString());
         if(_context != null)
@@ -215,9 +219,9 @@ public class JobHandler {
     private static void validateChanges(Difference.DiffMap diffMap) throws HttpException{
         /** Check if modification is allowed */
         Set<Object> objects = diffMap.keySet();
-        for(Object key : objects){
-            if(MODIFICATION_WHITELIST.indexOf((String)key) == -1)
-                throw new HttpException(BAD_REQUEST, "The property '"+key+"' is immutable!");
+        for (Object key : objects) {
+            if (MODIFICATION_WHITELIST.indexOf((String) key) == -1)
+                throw new HttpException(BAD_REQUEST, "The property '" + key + "' is immutable!");
         }
     }
 

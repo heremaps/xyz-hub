@@ -44,7 +44,6 @@ import java.util.Map;
 
 public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzResponse> extends Spatial<E, R> {
 
-  public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   private static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
   private boolean isMvtRequested;
 

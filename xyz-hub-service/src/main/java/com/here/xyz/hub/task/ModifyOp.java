@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -119,7 +119,6 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
               entry.result = null;
               break;
             case CREATE: {
-              validateCreate(entry);
               entry.result = entry.create();
               break;
             }
@@ -229,14 +228,11 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     private Map<String, Object> headMap;
     public boolean isModified;
     public Exception exception;
-    public String inputUUID;
     public long inputVersion;
-    public boolean useVersion;
     public boolean skipConflictDetection;
     private Map<String, Object> resultMap;
 
     public Entry(Map<String, Object> input, IfNotExists ifNotExists, IfExists ifExists, ConflictResolution cr) {
-      this.inputUUID = getUuid(input);
       this.inputVersion = getVersion(input);
       this.input = filterMetadata(input);
       this.cr = cr;
@@ -259,10 +255,6 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     };
 
     protected abstract String getId(T record);
-
-    protected abstract String getUuid(T record);
-
-    protected abstract String getUuid(Map<String, Object> record);
 
     protected abstract long getVersion(Map<String, Object> record);
 
@@ -304,41 +296,21 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     }
 
     public T replace() throws ModifyOpError, HttpException {
-      if (useVersion && !skipConflictDetection) {
-        if (inputVersion != -1 && getVersion(head) != -1 && inputVersion != getVersion(head)) {
-          throw new ModifyOpError(
-              "The feature with id " + getId(head) + " cannot be replaced. The provided version doesn't match the version of the head state: "
-                  + getVersion(head));
-        }
-      } else {
-        if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
-          throw new ModifyOpError(
-              "The feature with id " + getId(head) + " cannot be replaced. The provided UUID doesn't match the UUID of the head state: "
-                  + getUuid(head));
-        }
-      }
+      if (!skipConflictDetection && inputVersion != -1 && getVersion(head) != -1 && inputVersion != getVersion(head))
+        throw new ModifyOpError("The feature with id " + getId(head) + " cannot be replaced. The provided version doesn't match the "
+            + "version of the head state: " + getVersion(head));
 
       return fromMap(input);
     }
 
     public T delete() throws ModifyOpError, HttpException {
-      if (useVersion && !skipConflictDetection) {
-        if (inputVersion != -1 && getVersion(head) != -1 && inputVersion != getVersion(head)) {
-          throw new ModifyOpError(
-              "The feature with id " + getId(head) + " cannot be deleted. The provided version doesn't match the version of the head state: "
-                  + getVersion(head));
-        }
-      } else {
-        if (inputUUID != null && getUuid(head) != null && !com.google.common.base.Objects.equal(inputUUID, getUuid(head))) {
-          throw new ModifyOpError(
-              "The feature with id " + getId(head) + " cannot be deleted. The provided UUID doesn't match the UUID of the head state: "
-                  + getUuid(head));
-        }
-      }
+      if (!skipConflictDetection && inputVersion != -1 && getVersion(head) != -1 && inputVersion != getVersion(head))
+        throw new ModifyOpError("The feature with id " + getId(head) + " cannot be deleted. The provided version doesn't match the "
+            + "version of the head state: " + getVersion(head));
 
-      if (head != null) {
+      if (head != null)
         isModified = true;
-      }
+
       return null;
     }
 

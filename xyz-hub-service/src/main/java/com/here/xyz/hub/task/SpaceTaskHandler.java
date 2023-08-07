@@ -244,15 +244,10 @@ public class SpaceTaskHandler {
 
     if (task.isUpdate()) {
       /*
-       * Validate immutable settings which are only can get set during the space creation:
-       * enableUUID, extension
+       * Validate immutable settings which only can get set during the space creation:
+       * extension
        * */
       Space head = task.modifyOp.entries.get(0).head;
-
-      if (head != null && head.isEnableUUID() == Boolean.TRUE && input.get("enableUUID") == Boolean.TRUE )
-        input.put("enableUUID",true);
-      else if (head != null && input.get("enableUUID") != null )
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' can only get set on space creation!");
 
       if (head != null && head.getVersionsToKeep() > 1 && input.get("versionsToKeep") != null && Objects.equals(1, input.get("versionsToKeep")))
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'versionsToKeep' cannot be changed to 1 when its value is bigger than 1");
@@ -395,7 +390,6 @@ public class SpaceTaskHandler {
     space.setId(RandomStringUtils.randomAlphanumeric(8));
     space.setOwner(owner);
     space.setCid(cid);
-    space.setEnableUUID(false);
     space.setClient(null);
     space.setStorage(new ConnectorRef().withId(Service.configuration.getDefaultStorageId()));
     return space;

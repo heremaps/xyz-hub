@@ -27,7 +27,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
@@ -37,16 +36,8 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
 import java.util.List;
-import java.util.UUID;
 
-public class Helper{
-
-    protected void setPUUID(FeatureCollection featureCollection) throws JsonProcessingException {
-        for (Feature feature : featureCollection.getFeatures()){
-            feature.getProperties().getXyzNamespace().setPuuid(feature.getProperties().getXyzNamespace().getUuid());
-            feature.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
-        }
-    }
+public class Helper {
 
     protected void assertNoErrorInResponse(String response) {
         assertNull(with(response).get("$.errorMessage"));
@@ -61,24 +52,14 @@ public class Helper{
         }
     }
 
-    protected void assertRead(String insertRequest, String response, boolean checkGuid) throws Exception {
-        final FeatureCollection responseCollection = XyzSerializable.deserialize(response);
-        final List<Feature> responseFeatures = responseCollection.getFeatures();
-
-        final ModifyFeaturesEvent gsModifyFeaturesEvent = XyzSerializable.deserialize(insertRequest);
-        List<Feature> modifiedFeatures;
-
-        modifiedFeatures = gsModifyFeaturesEvent.getInsertFeatures();
-        assertReadFeatures(gsModifyFeaturesEvent.getSpace(), checkGuid, modifiedFeatures, responseFeatures);
-
-        modifiedFeatures = gsModifyFeaturesEvent.getUpsertFeatures();
-        assertReadFeatures(gsModifyFeaturesEvent.getSpace(), checkGuid, modifiedFeatures, responseFeatures);
-    }
-
-    protected void assertReadFeatures(String space, boolean checkGuid, List<Feature> requestFeatures, List<Feature> responseFeatures) {
-        if (requestFeatures == null) {
+    protected void assertRead(String insertRequest, String response, boolean checkVersion) throws Exception {
+        final List<Feature> responseFeatures = XyzSerializable.<FeatureCollection>deserialize(response).getFeatures();
+        final ModifyFeaturesEvent mfe = XyzSerializable.deserialize(insertRequest);
+        String space = mfe.getSpace();
+        List<Feature> requestFeatures = mfe.getInsertFeatures();
+        if (requestFeatures == null)
             return;
-        }
+
         for (int i = 0; i < requestFeatures.size(); i++) {
             Feature requestFeature = requestFeatures.get(i);
             Feature responseFeature = responseFeatures.get(i);
@@ -90,13 +71,8 @@ public class Helper{
             assertEquals("Check space", space, responseFeature.getProperties().getXyzNamespace().getSpace());
             assertNotEquals("Check createdAt", 0L, responseFeature.getProperties().getXyzNamespace().getCreatedAt());
             assertNotEquals("Check updatedAt", 0L, responseFeature.getProperties().getXyzNamespace().getUpdatedAt());
-            assertNull("Check parent", responseFeature.getProperties().getXyzNamespace().getPuuid());
 
-            if (checkGuid) {
-                assertNotNull("Check uuid", responseFeature.getProperties().getXyzNamespace().getUuid());
-            } else {
-                assertNull("Check uuid", responseFeature.getProperties().getXyzNamespace().getUuid());
-            }
+            assertNotEquals("Check version", -1, responseFeature.getProperties().getXyzNamespace().getVersion());
         }
     }
 

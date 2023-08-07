@@ -3418,13 +3418,6 @@ components:
           $ref: '#/components/schemas/Extension'
         client:
           $ref: '#/components/schemas/SpaceClient'
-        enableUUID:
-          deprecated: true
-          default: false
-          description: >-
-            Whether the uuid should be added to the response or not.
-          example: true
-          type: boolean
         packages:
           description: List of packages that this space belongs to.
           items:

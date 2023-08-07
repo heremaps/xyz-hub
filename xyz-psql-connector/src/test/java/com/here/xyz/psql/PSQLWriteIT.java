@@ -83,23 +83,18 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
         // =========== UPDATE ==========
         FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
-        setPUUID(featureCollection);
 
         ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
                 .withTransaction(true)
-                .withEnableUUID(true)
+                .withConflictDetectionEnabled(true)
                 .withUpdateFeatures(featureCollection.getFeatures());
 
         String updateRequest = mfevent.serialize();
         updateRequest = updateRequest.replaceAll("Tesla", "Honda");
         String updateResponse = invokeLambda(updateRequest);
 
-        FeatureCollection responseCollection = XyzSerializable.deserialize(updateResponse);
-        setPUUID(responseCollection);
-
-        assertUpdate(updateRequest, updateResponse, true);
         assertUpdate(updateRequest, updateResponse, true);
         LOGGER.info("Update feature tested successfully");
     }
@@ -115,13 +110,12 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
         // =========== UPDATE ==========
         FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
-        setPUUID(featureCollection);
 
         ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
                 .withTransaction(true)
-                .withEnableUUID(true)
+                .withConflictDetectionEnabled(true)
                 .withUpdateFeatures(featureCollection.getFeatures());
 
         String updateResponse = invokeLambda(mfevent.serialize());
@@ -144,7 +138,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
                 .withConnectorParams(defaultTestConnectorParams)
                 .withSpace("foo")
                 .withTransaction(true)
-                .withEnableUUID(true)
+                .withConflictDetectionEnabled(true)
                 .withDeleteFeatures(new HashMap<String,String>(){{ put(deleteId, null);}});
 
         String deleteResponse = invokeLambda(mfevent.serialize());
@@ -222,9 +216,9 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         testModifyFeatures(true);
     }
 
-    protected void assertUpdate(String updateRequest, String response, boolean checkGuid) throws Exception {
+    protected void assertUpdate(String updateRequest, String response, boolean checkVersion) throws Exception {
         ModifyFeaturesEvent gsModifyFeaturesEvent = XyzSerializable.deserialize(updateRequest);
-        FeatureCollection featureCollection = XyzSerializable.deserialize(response);
+        FeatureCollection featureCollection = deserializeResponse(response);
         for (int i = 0; i < gsModifyFeaturesEvent.getUpdateFeatures().size(); i++) {
             Feature expectedFeature = gsModifyFeaturesEvent.getUpdateFeatures().get(i);
             Feature actualFeature = featureCollection.getFeatures().get(i);
@@ -237,13 +231,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
             assertEquals("Check space", gsModifyFeaturesEvent.getSpace(), actualFeature.getProperties().getXyzNamespace().getSpace());
             assertNotEquals("Check createdAt", 0L, actualFeature.getProperties().getXyzNamespace().getCreatedAt());
             assertNotEquals("Check updatedAt", 0L, actualFeature.getProperties().getXyzNamespace().getUpdatedAt());
-            if (checkGuid) {
-                assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid()); // After version 0.2.0
-                assertNotNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
-            } else {
-                assertNull("Check parent", actualFeature.getProperties().getXyzNamespace().getPuuid());
-                assertNull("Check uuid", actualFeature.getProperties().getXyzNamespace().getUuid());
-            }
+            assertNotEquals("Check version", -1, actualFeature.getProperties().getXyzNamespace().getVersion());
         }
     }
 
@@ -285,13 +273,13 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         assertNotNull("'features' element in ModifyFeaturesResponse is missing", features);
         assertTrue("'features' element in ModifyFeaturesResponse is empty", features.size() > 0);
 
-        List oldFeatures = with(updateFeaturesResponse).get("oldFeatures");
+        List existingFeatures = with(updateFeaturesResponse).get("oldFeatures");
         if (includeOldStates) {
-            assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", oldFeatures);
-            assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", oldFeatures.size() > 0);
-            assertEquals(oldFeatures, originalFeatures);
-        } else if (oldFeatures != null) {
-            assertEquals("unexpected oldFeatures in ModifyFeaturesResponse", 0, oldFeatures.size());
+            assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", existingFeatures);
+            assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", existingFeatures.size() > 0);
+            assertEquals(existingFeatures, originalFeatures);
+        } else if (existingFeatures != null) {
+            assertEquals("unexpected oldFeatures in ModifyFeaturesResponse", 0, existingFeatures.size());
         }
 
         // =========== DELETE ==========
@@ -305,13 +293,14 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
         String deleteResponse = invokeLambda(deleteEvent.toString());
         assertNoErrorInResponse(deleteResponse);
-        oldFeatures = with(deleteResponse).get("oldFeatures");
+        existingFeatures = with(deleteResponse).get("oldFeatures");
         if (includeOldStates) {
-            assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", oldFeatures);
-            assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", oldFeatures.size() > 0);
-            assertEquals(oldFeatures, features);
-        } else if (oldFeatures != null) {
-            assertEquals("unexpected oldFeatures in ModifyFeaturesResponse", 0, oldFeatures.size());
+            assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", existingFeatures);
+            assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", existingFeatures.size() > 0);
+//            existingFeatures.forEach(f -> f.);
+            assertEquals(existingFeatures, features);
+        } else if (existingFeatures != null) {
+            assertEquals("unexpected oldFeatures in ModifyFeaturesResponse", 0, existingFeatures.size());
         }
 
         LOGGER.info("Modify features tested successfully");

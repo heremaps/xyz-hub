@@ -1,8 +1,0 @@
-{
-  "id": "x-psql-test",
-  "title": "My Demo Space",
-  "enableUUID": true,
-  "enableGlobalVersioning": true,
-  "maxVersionCount": 100,
-  "client": {}
-}

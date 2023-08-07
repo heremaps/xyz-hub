@@ -139,15 +139,6 @@ public class Space {
   private Map<String, Object> client;
 
   /**
-   * If true, every state of the feature, will be assigned a UUID value.
-   * @deprecated Will be removed once there exists a new flag for version-based conflict-detection.
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_DEFAULT)
-  @Deprecated
-  private boolean enableUUID = false;
-
-  /**
    * Defines how many versions will be kept before the automatic purging of old versions is starting.
    * By default, this value will be set to 1. That means there will be only one state (HEAD)
    * of the space and no further versions will be kept.
@@ -232,13 +223,6 @@ public class Space {
   @JsonInclude(Include.NON_EMPTY)
   @JsonView({Public.class, Static.class})
   private List<List<Object>> sortableProperties;
-
-  /**
-   * Controls whether during feature creation, the operation succeeds when the payload contains UUID or fails with 409. Default is true.
-   */
-  @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Internal.class, Static.class})
-  private boolean allowFeatureCreationWithUUID = false;
 
   public String getId() {
     return id;
@@ -409,22 +393,6 @@ public class Space {
     return this;
   }
 
-  @Deprecated
-  public boolean isEnableUUID() {
-    return enableUUID;
-  }
-
-  @Deprecated
-  public void setEnableUUID(final boolean enableUUID) {
-    this.enableUUID = enableUUID;
-  }
-
-  @Deprecated
-  public Space withEnableUUID(final boolean enableUUID) {
-    setEnableUUID(enableUUID);
-    return this;
-  }
-
   public int getVersionsToKeep() {
     return versionsToKeep;
   }
@@ -565,19 +533,6 @@ public class Space {
 
   public Space withSortableProperties(final List<List<Object>> sortableProperties) {
     setSortableProperties(sortableProperties);
-    return this;
-  }
-
-  public boolean isAllowFeatureCreationWithUUID() {
-    return allowFeatureCreationWithUUID;
-  }
-
-  public void setAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
-    this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
-  }
-
-  public Space withAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
-    setAllowFeatureCreationWithUUID(allowFeatureCreationWithUUID);
     return this;
   }
 

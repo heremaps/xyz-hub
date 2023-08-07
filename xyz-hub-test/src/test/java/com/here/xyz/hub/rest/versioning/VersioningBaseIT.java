@@ -29,15 +29,11 @@ import com.here.xyz.hub.rest.TestSpaceWithFeature;
 public class VersioningBaseIT extends TestSpaceWithFeature {
 
   protected static void createSpace(String spaceId, String spacePath, long versionsToKeep) {
-    createSpace(spaceId, spacePath, versionsToKeep, false);
-  }
-
-  protected static void createSpace(String spaceId, String spacePath, long versionsToKeep, boolean enableUUID) {
     given()
         .contentType(APPLICATION_JSON)
         .accept(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+spaceId+"\",\"title\":\""+spaceId+"\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":"+enableUUID+"}")
+        .body("{\"id\":\""+spaceId+"\",\"title\":\""+spaceId+"\",\"versionsToKeep\":"+versionsToKeep+"}")
         .when()
         .post(spacePath)
         .then()
