@@ -37,10 +37,15 @@ import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
+import java.sql.SQLException;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SpaceApi extends Api {
+
+  private static final Logger logger = LoggerFactory.getLogger(SpaceApi.class);
 
   public SpaceApi(final @NotNull NakshaHttpVerticle verticle) {
     super(verticle);
@@ -71,6 +76,7 @@ public class SpaceApi extends Api {
   }
 
   private void createSpace(final @NotNull RoutingContext routingContext) {
+    // TODO HP_QUERY : How to ensure streamId is logged correctly throughout code?
     naksha().executeTask(() -> {
       Space space = null;
       // Read request JSON
@@ -127,6 +133,17 @@ public class SpaceApi extends Api {
         final XyzFeatureCollection response = verticle.transformModifyResponse(modifyResponse);
         verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, response);
         return response;
+      } catch (final Throwable t) {
+        if (t.getCause() instanceof SQLException se) {
+          // TODO HP_QUERY : Correct way to access streamId?
+          logger.warn("Error processing request. ", se);
+          final XyzResponse errResponse = new ErrorResponse(se, verticle.streamId(routingContext));
+          verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, errResponse);
+          return errResponse;
+        }
+        // TODO HP_QUERY : Is there a common recommended way to handle other errors? (and return appropriate
+        // error response)
+        throw t;
       }
     });
   }

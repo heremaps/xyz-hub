@@ -402,6 +402,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     }
     final MultiMap headers = routingContext.request().headers();
     String streamId = headers.get(STREAM_ID);
+    // TODO HP_QUERY : Reason to restrict streamId pattern? (it can reject UUID format, which can be most common
+    // case)
     if (streamId != null && !FATAL_ERROR_MSG_PATTERN.matcher(streamId).matches()) {
       log.atInfo()
           .setMessage("Received invalid HTTP header 'Stream-Id', the provided value '{}' is not allowed")
@@ -546,7 +548,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         routingContext.response().putHeader(ETAG, etag);
       }
       if (response instanceof ErrorResponse) {
-        // TODO HP_QUERY : Why should we suppress error response here?
+        // TODO HP_QUERY : Is it intended to suppress Http Error codes here?
         sendRawResponse(routingContext, OK, APPLICATION_JSON, Buffer.buffer(response.serialize()));
         return;
       }

@@ -25,16 +25,23 @@ import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
+import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
+import java.sql.SQLException;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ConnectorApi extends Api {
+
+  private static final Logger logger = LoggerFactory.getLogger(ConnectorApi.class);
 
   public ConnectorApi(final @NotNull NakshaHttpVerticle verticle) {
     super(verticle);
@@ -85,8 +92,19 @@ public class ConnectorApi extends Api {
             .modifyFeatures(new ModifyFeaturesReq<Connector>(true).insert(connector));
         tx.commit();
         final XyzFeatureCollection response = verticle.transformModifyResponse(modifyResponse);
-        verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
+        verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, response);
         return response;
+      } catch (final Throwable t) {
+        if (t.getCause() instanceof SQLException se) {
+          // TODO HP_QUERY : Correct way to access streamId?
+          logger.warn("Error processing request. ", se);
+          final XyzResponse errResponse = new ErrorResponse(se, verticle.streamId(routingContext));
+          verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, errResponse);
+          return errResponse;
+        }
+        // TODO HP_QUERY : Is there a common recommended way to handle other errors? (and return appropriate
+        // error response)
+        throw t;
       }
     });
   }
