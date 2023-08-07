@@ -43,11 +43,11 @@ class HeapCacheTest {
     final HeapCache cache = new HeapCache(new HeapCacheConfig(null));
     try (final IMasterTransaction tx = cache.openMasterTransaction(cache.createSettings())) {
       tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"))
-              .modifyFeatures(new ModifyFeaturesReq<>().insert(new XyzFeature("x")));
+          .modifyFeatures(new ModifyFeaturesReq<>().insert(new XyzFeature("x")));
       tx.commit();
 
       XyzFeature feature =
-              tx.readFeatures(XyzFeature.class, new CollectionInfo("foo")).getFeatureById("x");
+          tx.readFeatures(XyzFeature.class, new CollectionInfo("foo")).getFeatureById("x");
       assertNotNull(feature);
       assertEquals("x", feature.getId());
     }
@@ -58,13 +58,13 @@ class HeapCacheTest {
     final HeapCache cache = new HeapCache(new HeapCacheConfig(null));
     try (final IMasterTransaction tx = cache.openMasterTransaction(cache.createSettings())) {
       tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"))
-              .modifyFeatures(new ModifyFeaturesReq<>().insert(new XyzFeature("x")));
+          .modifyFeatures(new ModifyFeaturesReq<>().insert(new XyzFeature("x")));
       tx.commit();
 
       gc(new WeakReference<>(new Object()));
 
       XyzFeature feature =
-              tx.readFeatures(XyzFeature.class, new CollectionInfo("foo")).getFeatureById("x");
+          tx.readFeatures(XyzFeature.class, new CollectionInfo("foo")).getFeatureById("x");
       assertNull(feature);
     }
   }
@@ -74,12 +74,12 @@ class HeapCacheTest {
     final HeapCache cache = new HeapCache(new HeapCacheConfig(null));
     try (final IMasterTransaction tx = cache.openMasterTransaction(cache.createSettings())) {
       tx.writeFeatures(XyzFeature.class, new CollectionInfo("bar"))
-              .modifyFeatures(new ModifyFeaturesReq<>().insert(new XyzFeature("r")));
+          .modifyFeatures(new ModifyFeaturesReq<>().insert(new XyzFeature("r")));
       tx.commit();
 
       XyzFeature feature = tx.readFeatures(XyzFeature.class, new CollectionInfo("bar"))
-              .getFeaturesById("r")
-              .getFeature();
+          .getFeaturesById("r")
+          .getFeature();
       assertNotNull(feature);
       assertEquals("r", feature.getId());
     }

@@ -22,7 +22,6 @@ import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.fib.FibSet;
-
 import java.lang.ref.WeakReference;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
@@ -46,9 +45,9 @@ public class HeapCache implements IStorage {
     }
   }
 
-  //For Cache Eviction
+  // For Cache Eviction
   /*public void setWeakReference(@NotNull Object){
-    gc(new WeakReference<>(new Object()));
+  gc(new WeakReference<>(new Object()));
   }*/
 
   @Override
