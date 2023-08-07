@@ -24,6 +24,7 @@ import com.here.naksha.lib.core.storage.IFeatureReader;
 import com.here.naksha.lib.core.storage.IResultSet;
 import java.util.ArrayList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class HeapFeatureReader<F extends XyzFeature> implements IFeatureReader<F> {
 
@@ -50,10 +51,24 @@ public class HeapFeatureReader<F extends XyzFeature> implements IFeatureReader<F
   }
 
   @Override
+  public @Nullable F getFeatureById(@NotNull String id) {
+    final CacheEntry entry = cache.cache.get(id);
+    F feature = null;
+    if (entry != null && featureClass.isInstance(entry.getValue())) {
+      feature = featureClass.cast(entry.getValue());
+    }
+    return feature;
+  }
+
+  @Override
   public @NotNull IResultSet<F> getAll(int skip, int limit) {
-    // TODO: Implement me!
-    // Note: The FibSet does currently miss a method to iterate entries!
-    //       I will add it when I'am back from vacation, except you want to try.
-    throw new UnsupportedOperationException();
+    final ArrayList<F> features = new ArrayList<>();
+    final ArrayList<CacheEntry> entries = new ArrayList<>(cache.cache.getAll());
+    for (final CacheEntry entry : entries) {
+      if (entry != null && featureClass.isInstance(entry.getValue())) {
+        features.add(featureClass.cast(entry.getValue()));
+      }
+    }
+    return new CacheResultSet<>(featureClass, features);
   }
 }
