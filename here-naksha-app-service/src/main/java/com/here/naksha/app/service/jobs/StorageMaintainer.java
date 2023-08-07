@@ -256,10 +256,12 @@ public class StorageMaintainer {
   protected void triggerMaintenance(final @NotNull MaintenanceTrigger trigger) {
     final String lockKey = LOCK_KEY_PREFIX + "-" + trigger.key();
     final String storageId = trigger.storage().getId();
+    final long startTimeMS = System.currentTimeMillis();
+    final String triggerKey = trigger.key();
 
-    Thread.currentThread().setName("maintenance-" + trigger.key());
+    Thread.currentThread().setName("maintenance-" + triggerKey);
 
-    logger.info("Storage Maintenance job got triggered for storageId {}.", storageId);
+    logger.info("Storage Maintenance job got triggered for jobKey {} , storageId {}.", triggerKey, storageId);
 
     try (final IMasterTransaction tx = adminStorageImpl.openMasterTransaction(this.txSettings)) {
       // Acquire lock at TriggerKey level in adminDB (to ensure only 1 trigger runs across instances)
@@ -298,6 +300,11 @@ public class StorageMaintainer {
       throw unchecked(t);
     }
 
-    logger.info("Storage Maintenance job got completed for storageId {}.", storageId);
+    final long timeTakenMS = System.currentTimeMillis() - startTimeMS;
+    logger.info(
+        "Storage Maintenance job got completed in {} ms for jobKey {} , storageId {}.",
+        timeTakenMS,
+        triggerKey,
+        storageId);
   }
 }
