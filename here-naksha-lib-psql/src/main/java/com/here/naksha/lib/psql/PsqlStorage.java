@@ -237,25 +237,24 @@ public class PsqlStorage implements IStorage {
           stmt.execute(createHstPartitionOfOneDay(0, collectionInfo));
           stmt.execute(createHstPartitionOfOneDay(1, collectionInfo));
           stmt.execute(createHstPartitionOfOneDay(2, collectionInfo));
-          stmt.execute(createTxPartitionOfOneDay(0, collectionInfo));
-          stmt.execute(createTxPartitionOfOneDay(1, collectionInfo));
-          stmt.execute(createTxPartitionOfOneDay(2, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+1, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+2, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+3, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+4, collectionInfo));
-//          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays+5, collectionInfo));
-          //TODO only delete transaction partitions for admin DB
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+1, collectionInfo));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+2, collectionInfo));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+3, collectionInfo));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+4, collectionInfo));
-//          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays+5, collectionInfo));
-
+          stmt.execute(createTxPartitionOfOneDay(0));
+          stmt.execute(createTxPartitionOfOneDay(1));
+          stmt.execute(createTxPartitionOfOneDay(2));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 1, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 2, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 3, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 4, collectionInfo));
+          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 5, collectionInfo));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 1));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 2));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 3));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 4));
+          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 5));
         }
-        // commit once for every single collection so that partial progress is saved in case something fails
+        // commit once for every single collection so that partial progress is saved in case
+        // something fails
         // midway
         conn.commit();
       } catch (Throwable t) {
@@ -276,13 +275,11 @@ public class PsqlStorage implements IStorage {
         .toString();
   }
 
-  private String createTxPartitionOfOneDay(int dayPlus, CollectionInfo collectionInfo) {
+  private String createTxPartitionOfOneDay(int dayPlus) {
     return new StringBuilder()
         .append("SELECT ")
         .append(getSchema())
-        .append(".__naksha_create_tx_partition_for_day('")
-        .append(collectionInfo.getId())
-        .append("',current_timestamp+'")
+        .append(".__naksha_create_tx_partition_for_day(current_timestamp+'")
         .append(dayPlus)
         .append(" day'::interval);")
         .toString();
@@ -300,13 +297,11 @@ public class PsqlStorage implements IStorage {
         .toString();
   }
 
-  private String deleteTxPartitionOfOneDay(int dayOld, CollectionInfo collectionInfo) {
+  private String deleteTxPartitionOfOneDay(int dayOld) {
     return new StringBuilder()
         .append("SELECT ")
         .append(getSchema())
-        .append(".__naksha_delete_tx_partition_for_day('")
-        .append(collectionInfo.getId())
-        .append("',current_timestamp-'")
+        .append(".__naksha_delete_tx_partition_for_day(current_timestamp-'")
         .append(dayOld)
         .append(" day'::interval);")
         .toString();

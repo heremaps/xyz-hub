@@ -1841,7 +1841,7 @@ END
 $BODY$;
 
 -- Drop the partition table for the given date.
-CREATE OR REPLACE FUNCTION __naksha_delete_tx_partition_for_day(collection text, from_ts timestamptz)
+CREATE OR REPLACE FUNCTION __naksha_delete_tx_partition_for_day(from_ts timestamptz)
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
@@ -1851,7 +1851,7 @@ sql text;
     tx_part_name text;
 BEGIN
     from_day := to_char(from_ts, 'YYYY_MM_DD');
-    tx_part_name := format('%s_tx_%s', collection, from_day); -- example: foo_tx_2023_03_01
+    tx_part_name := format('naksha_tx_%s', from_day); -- example: naksha_tx_2023_03_01
 
 sql := format('DROP TABLE IF EXISTS %I;', tx_part_name);
 EXECUTE sql;
