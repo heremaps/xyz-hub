@@ -47,37 +47,44 @@ public class HeapMasterTx extends HeapReadTx implements IMasterTransaction {
 
   @Override
   public @NotNull CollectionInfo createCollection(@NotNull CollectionInfo collection) {
-    return null;
+    // Implement collection creation logic
+    return collection;
   }
 
   @Override
   public @NotNull CollectionInfo updateCollection(@NotNull CollectionInfo collection) {
-    return null;
+    // Implement collection update logic
+    return collection;
   }
 
   @Override
   public @NotNull CollectionInfo upsertCollection(@NotNull CollectionInfo collection) {
-    return null;
+    // Implement collection update logic
+    return collection;
   }
 
   @Override
   public @NotNull CollectionInfo deleteCollection(@NotNull CollectionInfo collection, long deleteAt) {
-    return null;
+    // Implement collection update logic
+    return collection;
   }
 
   @Override
   public @NotNull CollectionInfo dropCollection(@NotNull CollectionInfo collection) {
-    return null;
+    // Implement collection update logic
+    return collection;
   }
 
   @Override
   public @NotNull CollectionInfo enableHistory(@NotNull CollectionInfo collection) {
-    return null;
+    // Implement collection update logic
+    return collection;
   }
 
   @Override
   public @NotNull CollectionInfo disableHistory(@NotNull CollectionInfo collection) {
-    return null;
+    // Implement collection update logic
+    return collection;
   }
 
   @Override

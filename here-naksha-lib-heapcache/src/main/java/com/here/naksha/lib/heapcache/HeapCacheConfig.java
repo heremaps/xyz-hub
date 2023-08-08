@@ -28,4 +28,8 @@ public class HeapCacheConfig {
   }
 
   public final @Nullable IStorage storage;
+
+  public IStorage getStorage() {
+    return storage;
+  }
 }
