@@ -132,6 +132,7 @@ public class Export extends Job {
     public void setStatistic(ExportStatistic statistic) {
         this.statistic = statistic;
     }
+
     public void addStatistic(ExportStatistic statistic) {
         if(this.statistic == null)
             this.statistic = statistic;
@@ -432,16 +433,28 @@ public class Export extends Job {
                 ApiParam.Query.Incremental.DEACTIVATED;
     }
 
-    public void resetToPreviousState(){
+    public void resetToPreviousState() throws Exception{
         switch (getStatus()){
+            case failed:
+            case aborted:
+                setErrorType(null);
+                setErrorDescription(null);
+                if(getLastStatus() != null) {
+                    /** set to last valid state */
+                    resetStatus(getLastStatus());
+                    setLastStatus(null);
+                    resetToPreviousState();
+                }else
+                    throw new Exception("No last Status found!");
+                break;
             case executing:
-                setStatus(Status.queued);
+                resetStatus(Status.waiting);
                 break;
             case executing_trigger:
-                setStatus(Status.executed);
+                resetStatus(Status.executed);
                 break;
             case collecting_trigger_status:
-                setStatus(Status.trigger_executed);
+                resetStatus(Status.trigger_executed);
                 break;
         }
     }
@@ -637,6 +650,6 @@ public class Export extends Job {
 
     @Override
     public String getQueryIdentifier() {
-        return "aws_s3.query_export_to_s3";
+        return "export_hint";
     }
 }

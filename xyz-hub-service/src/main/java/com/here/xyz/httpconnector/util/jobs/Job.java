@@ -45,6 +45,8 @@ public abstract class Job {
     public static String ERROR_TYPE_PREPARATION_FAILED = "preparation_failed";
     public static String ERROR_TYPE_EXECUTION_FAILED = "execution_failed";
     public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
+    public static String ERROR_TYPE_FAILED_DUE_RESTART = "failed_due_node_restart";
+    public static String ERROR_TYPE_ABORTED = "aborted";
 
     @JsonView({Public.class})
     public enum Type {
@@ -174,6 +176,9 @@ public abstract class Job {
     private Status status;
 
     @JsonView({Public.class})
+    private Status lastStatus;
+
+    @JsonView({Public.class})
     protected CSVFormat csvFormat;
 
     @JsonView({Public.class})
@@ -240,12 +245,24 @@ public abstract class Job {
         this.targetTable = targetTable;
     }
 
-    public Status getStatus() {
-        return status;
-    }
+    public Status getStatus() { return status; }
 
     public void setStatus(Job.Status status) {
+        if(this.status == Status.failed || this.status == Status.finalized || this.status == Status.aborted)
+            return;
+        if((status.equals(Status.aborted) || status.equals(Status.failed)) && lastStatus == null)
+            lastStatus = this.status;
         this.status = status;
+    }
+
+    public void resetStatus(Job.Status status) {
+        this.status = status;
+    }
+
+    public Status getLastStatus() { return lastStatus; }
+
+    public void setLastStatus(Job.Status lastStatus) {
+        this.lastStatus = lastStatus;
     }
 
     public CSVFormat getCsvFormat() {
@@ -373,7 +390,7 @@ public abstract class Job {
         this.params.put(key,value);
     }
     @JsonIgnore
-    public abstract void resetToPreviousState();
+    public abstract void resetToPreviousState() throws Exception;
 
     @JsonIgnore
     public abstract String getQueryIdentifier();
