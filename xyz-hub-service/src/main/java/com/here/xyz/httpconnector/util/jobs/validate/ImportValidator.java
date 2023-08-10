@@ -24,6 +24,7 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.vividsolutions.jts.io.ParseException;
 import com.vividsolutions.jts.io.WKBReader;
@@ -35,6 +36,8 @@ import org.json.JSONObject;
 
 import java.io.UnsupportedEncodingException;
 import java.util.Map;
+
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 public class ImportValidator extends Validator{
     private static final Logger logger = LogManager.getLogger();
@@ -108,7 +111,8 @@ public class ImportValidator extends Validator{
         throw new NotImplementedException();
     }
 
-    public static void validateImportJob(Import job){
+    public static Import validateImportObjects(Import job){
+        /** Validate if provided files are existing and ok */
         if(job.getImportObjects().size() == 0){
             job.setErrorDescription(Import.ERROR_DESCRIPTION_UPLOAD_MISSING);
             job.setErrorType(Import.ERROR_TYPE_VALIDATION_FAILED);
@@ -159,5 +163,29 @@ public class ImportValidator extends Validator{
             job.setStatus(Job.Status.failed);
         else
             job.setStatus(Job.Status.validated);
+
+        return job;
+    }
+
+    protected static void isValidForCreateUrl(Job job) throws HttpException {
+        if(job.getStatus().equals(Job.Status.waiting))
+            return;
+        throw new HttpException(PRECONDITION_FAILED, "Invalid state: "+job.getStatus() +" creation is only allowed on status=waiting");
+    }
+
+    protected static void isValidForStart(Job job) throws HttpException{
+        if(job.getStatus().equals(Job.Status.waiting))
+            return;
+        throw new HttpException(PRECONDITION_FAILED, "Invalid state: "+job.getStatus() +" execution is only allowed on status=waiting");
+    }
+
+    public static void isValidForAbort(Job job) throws HttpException {
+        /**
+         * It is only allowed to abort a job inside executing state, because we have multiple nodes running.
+         * During the execution we have running SQL-Statements - due to the abortion of them, the client which
+         * has executed the Query will handle the abortion.
+         * */
+        if(!job.getStatus().equals(Job.Status.executing) && !job.getStatus().equals(Job.Status.finalizing))
+            throw new HttpException(PRECONDITION_FAILED,  "Invalid state: "+job.getStatus() +" for abort!");
     }
 }
