@@ -90,7 +90,7 @@ public class ImportHandler extends JobHandler{
                             /** Store Urls in Job-Config */
                             return CService.jobConfigClient.update(marker, importJob);
                         }catch (IOException e){
-                            logger.error(marker, "[{}] Can`t create S3 Upload-URL(s)",importJob.getId(), e);
+                            logger.error(marker, "job[{}] Can`t create S3 Upload-URL(s)",importJob.getId(), e.getMessage());
                             return Future.failedFuture(new HttpException(BAD_GATEWAY, "Can`t create S3 Upload-URL(s)"));
                         }
                     }

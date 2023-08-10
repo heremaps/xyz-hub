@@ -67,10 +67,10 @@ public class ImportQueue extends JobQueue{
 
                         switch (currentJobConfig.getStatus()){
                             case finalized:
-                                logger.info("JOB[{}] is finalized!", currentJobConfig.getId());
+                                logger.info("job[{}] is finalized!", currentJobConfig.getId());
                                 break;
                             case failed:
-                                logger.info("JOB[{}] has failed!", currentJobConfig.getId());
+                                logger.info("job[{}] has failed!", currentJobConfig.getId());
                                 break;
                             case waiting:
                                 updateJobStatus(currentJobConfig,Job.Status.validating)
@@ -100,9 +100,6 @@ public class ImportQueue extends JobQueue{
                                 updateJobStatus(currentJobConfig,Job.Status.finalizing)
                                         .onSuccess(j -> finalizeJob(j));
                                 break;
-                            default: {
-                                logger.info("JOB[{}] is currently '{}' - current Queue-size: {}",currentJobConfig.getId(), currentJobConfig.getStatus(), queueSize());
-                            }
                         }
 
                         return Future.succeededFuture();
@@ -124,11 +121,11 @@ public class ImportQueue extends JobQueue{
                 .compose(
                         f2 ->  updateJobStatus(j ,Job.Status.prepared))
                 .onFailure(f -> {
-                    logger.warn("JOB[{}] preparation has failed!", j.getId(), f);
+                    logger.warn("job[{}] preparation has failed!", j.getId(), f);
 
                     if (f instanceof PgException && ((PgException) f).getCode() != null) {
                         if (((PgException) f).getCode().equalsIgnoreCase("42P01")) {
-                            logger.info("TargetTable '" + j.getTargetTable() + "' does not Exists!");
+                            logger.info("job[{}] TargetTable '{}' does not exist!", j.getId(), j.getTargetTable());
                             setJobFailed(j, Import.ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS, Job.ERROR_TYPE_PREPARATION_FAILED);
                             return;
                         }
@@ -158,20 +155,20 @@ public class ImportQueue extends JobQueue{
             long curFileSize = Long.valueOf(importObjects.get(key).isCompressed() ? (importObjects.get(key).getFilesize() * 12)  : importObjects.get(key).getFilesize());
             double maxMemInGB = new RDSStatus.Limits(CService.rdsLookupCapacity.get(j.getTargetConnector())).getMaxMemInGB();
 
-            logger.info("JOB[{}] IMPORT_MEMORY {}/{} = {}% of max", j.getId(), NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
+            logger.info("job[{}] IMPORT_MEMORY {}/{} = {}% of max", j.getId(), NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
 
             //TODO: Also view RDS METRICS?
             if(NODE_EXECUTED_IMPORT_MEMORY < CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES){
                 importObjects.get(key).setStatus(ImportObject.Status.processing);
                 NODE_EXECUTED_IMPORT_MEMORY += curFileSize;
-                logger.info("JOB[{}] start execution of {}! mem: {}", j.getId(), importObjects.get(key).getS3Key(j.getId(), key), NODE_EXECUTED_IMPORT_MEMORY);
+                logger.info("job[{}] start execution of {}! mem: {}", j.getId(), importObjects.get(key).getS3Key(j.getId(), key), NODE_EXECUTED_IMPORT_MEMORY);
 
                 importFutures.add(
                         CService.jdbcImporter.executeImport(j.getId(), j.getTargetConnector(), defaultSchema, j.getTargetTable(),
                                         CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(j.getId(), key), CService.configuration.JOBS_REGION, curFileSize, j.getCsvFormat() )
                                 .onSuccess(result -> {
                                             NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-                                            logger.info("JOB[{}] Import of '{}' succeeded!", j.getId(), importObjects.get(key));
+                                            logger.info("job[{}] Import of '{}' succeeded!", j.getId(), importObjects.get(key));
 
                                             importObjects.get(key).setStatus(ImportObject.Status.imported);
                                             if(result != null && result.indexOf("imported") !=1) {
@@ -182,8 +179,8 @@ public class ImportQueue extends JobQueue{
                                 )
                                 .onFailure(f -> {
                                             NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-                                            logger.warn("JOB[{}] Import of '{}' failed ", j.getId(), importObjects.get(key), f);
-                                            logger.warn("JOB[{}] failed execution. queue {} - mem: {} ",j.getId(), key, NODE_EXECUTED_IMPORT_MEMORY);
+                                            logger.warn("JOB[{}] Import of '{}' failed ", j.getId(), importObjects.get(key), f.getMessage());
+                                            logger.warn("JOB[{}] failed execution. queue {} - mem: {} ", j.getId(), key, NODE_EXECUTED_IMPORT_MEMORY);
 
                                             importObjects.get(key).setStatus(ImportObject.Status.failed);
                                         }
@@ -198,7 +195,7 @@ public class ImportQueue extends JobQueue{
                 .onComplete(
                         t -> {
                             if(t.failed()){
-                                logger.warn("JOB[{}] Import of '{}' failed ", j.getId(), j.getTargetSpaceId(), t.cause());
+                                logger.warn("job[{}] Import of '{}' failed {}", j.getId(), j.getTargetSpaceId(), t.cause());
 
                                 if(t.cause().getMessage() != null && t.cause().getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
                                     setJobAborted(j);
@@ -237,7 +234,7 @@ public class ImportQueue extends JobQueue{
         //@TODO: Limit parallel Creations
         CService.jdbcImporter.finalizeImport(j, getDefaultSchema)
                 .onFailure(f -> {
-                    logger.warn("JOB[{}] finalization failed!", j.getId(), f);
+                    logger.warn("job[{}] finalization failed!", j.getId(), f);
 
                     if(f.getMessage().equalsIgnoreCase(Import.ERROR_TYPE_ABORTED))
                         setJobAborted(j);
@@ -247,7 +244,7 @@ public class ImportQueue extends JobQueue{
                 .compose(
                     f -> {
                         j.setFinalizedAt(Core.currentTimeMillis() / 1000L);
-                        logger.info("JOB[{}] finalization finished!", j.getId());
+                        logger.info("job[{}] finalization finished!", j.getId());
                         if(j.getErrorDescription() != null)
                             return updateJobStatus(j, Job.Status.failed);
 
@@ -292,7 +289,7 @@ public class ImportQueue extends JobQueue{
                 }
             });
         }catch (Exception e) {
-            logger.error("{}: Error when executing JobQueue!", this.getClass().getSimpleName(), e);
+            logger.error("{} {}", this.getClass().getSimpleName(), e);
         }
     }
 }

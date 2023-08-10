@@ -77,7 +77,7 @@ public class JDBCExporter extends JDBCClients{
 
                                     return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
                                 }catch (SQLException e){
-                                    logger.warn(e);
+                                    logger.warn("job[{}] {}", j.getId(), e.getMessage());
                                     return Future.failedFuture(e);
                                 }
                             });
@@ -110,7 +110,7 @@ public class JDBCExporter extends JDBCClients{
 
                                         return executeParallelExportAndCollectStatistics(j, promise, exportFutures);
                                     } catch (SQLException e) {
-                                        logger.warn(e);
+                                        logger.warn("job[{}] {}", j.getId(), e.getMessage());
                                         return Future.failedFuture(e);
                                     }
                                 });
@@ -131,7 +131,7 @@ public class JDBCExporter extends JDBCClients{
 
                                     return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
                                 }catch (SQLException e){
-                                    logger.warn(e);
+                                    logger.warn("job[{}] {}", j.getId(), e.getMessage());
                                     return Future.failedFuture(e);
                                 }
                             });
@@ -165,7 +165,7 @@ public class JDBCExporter extends JDBCClients{
                                         .withRowsUploaded(overallRowsUploaded)
                                 );
                             }else{
-                                logger.warn("[{}] Export failed {}: {}", j.getId(), j.getTargetSpaceId(), t.cause());
+                                logger.warn("job[{}] Export failed {}: {}", j.getId(), j.getTargetSpaceId(), t.cause());
                                 promise.fail(t.cause());
                             }
                         });
@@ -177,7 +177,7 @@ public class JDBCExporter extends JDBCClients{
          * Currently we are ignoring filters and count only all features
          **/
         SQLQuery q = buildS3CalculateQuery(j, schema, exportQuery);
-        logger.info("[{}] Calculate S3-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+        logger.info("job[{}] Calculate S3-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 
         return getClient(j.getTargetConnector())
                 .preparedQuery(q.text())
@@ -196,7 +196,7 @@ public class JDBCExporter extends JDBCClients{
             return Future.succeededFuture(j.getProcessingList());
 
         SQLQuery q = buildVMLCalculateQuery(j, schema, exportQuery, qkQuery);
-        logger.info("[{}] Calculate VML-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+        logger.info("job[{}] Calculate VML-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 
         return getClient(j.getTargetConnector())
                 .preparedQuery(q.text())
@@ -213,7 +213,7 @@ public class JDBCExporter extends JDBCClients{
     }
 
     private static Future<Export.ExportStatistic> exportTypeDownload(String clientId, SQLQuery q, Export j , String s3Path){
-        logger.info("[{}] Execute S3-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
+        logger.info("job[{}] Execute S3-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
 
         return getClient(clientId)
                 .preparedQuery(q.text())
@@ -231,7 +231,7 @@ public class JDBCExporter extends JDBCClients{
     }
 
     private static Future<Export.ExportStatistic> exportTypeVML(String clientId, SQLQuery q, Export j, String s3Path){
-        logger.info("[{}] Execute VML-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
+        logger.info("job[{}] Execute VML-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
 
         return getClient(clientId)
                 .preparedQuery(q.text())

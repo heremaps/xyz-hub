@@ -61,10 +61,10 @@ public class ExportQueue extends JobQueue{
 
                         switch (currentJob.getStatus()) {
                             case finalized:
-                                logger.info("JOB[{}] is finalized!", currentJob.getId());
+                                logger.info("job[{}] is finalized!", currentJob.getId());
                                 break;
                             case failed:
-                                logger.info("JOB[{}] has failed!", currentJob.getId());
+                                logger.info("job[{}] has failed!", currentJob.getId());
                                 break;
                             case waiting:
                                 updateJobStatus(currentJob, Job.Status.queued);
@@ -87,9 +87,6 @@ public class ExportQueue extends JobQueue{
                                 updateJobStatus(currentJob, Job.Status.collecting_trigger_status)
                                         .onSuccess(f -> collectTriggerStatus(currentJob));
                                 break;
-                            default: {
-                                logger.info("JOB[{}] is currently '{}' - current Queue-size: {}", currentJob.getId(), currentJob.getStatus(), queueSize());
-                            }
                         }
                         return Future.succeededFuture();
                     })
@@ -137,14 +134,14 @@ public class ExportQueue extends JobQueue{
                         CService.configuration.JOBS_REGION)
                 .onSuccess(statistic -> {
                             /** Everything is processed */
-                            logger.info("JOB[{}] Export of '{}' completely succeeded!", j.getId(), j.getTargetSpaceId());
+                            logger.info("job[{}] Export of '{}' completely succeeded!", j.getId(), j.getTargetSpaceId());
                             ((Export)j).addStatistic(statistic);
                             addDownloadLinksAndWriteMetaFile(j);
                             updateJobStatus(j, Job.Status.executed);
                         }
                 )
                 .onFailure(e -> {
-                        logger.warn("JOB[{}] Export of '{}' failed ", j.getId(), j.getTargetSpaceId(), e);
+                        logger.warn("job[{}] Export of '{}' failed ", j.getId(), j.getTargetSpaceId(), e);
 
                         if(e.getMessage() != null && e.getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
                             setJobAborted(j);
@@ -218,12 +215,12 @@ public class ExportQueue extends JobQueue{
                                 updateJobStatus(j, Job.Status.trigger_executed);
                                 return;
                             case "succeeded":
-                                logger.info("JOB[{}] execution of '{}' succeeded ", j.getId(), ((Export) j).getTriggerId());
+                                logger.info("job[{}] execution of '{}' succeeded ", j.getId(), ((Export) j).getTriggerId());
                                 finalizeJob(j);
                                 return;
                             case "cancelled":
                             case "failed":
-                                logger.warn("JOB[{}] Trigger '{}' failed with state '{}'", j.getId(), ((Export) j).getTriggerId(), status);
+                                logger.warn("job[{}] Trigger '{}' failed with state '{}'", j.getId(), ((Export) j).getTriggerId(), status);
                                 setJobFailed(j, Export.ERROR_TYPE_HTTP_TRIGGER_FAILED, Job.ERROR_TYPE_FINALIZATION_FAILED);
                         }
                     });
@@ -259,7 +256,7 @@ public class ExportQueue extends JobQueue{
                 }
             });
         }catch (Exception e) {
-            logger.error("{}: Error when executing Job", this.getClass().getSimpleName(), e);
+            logger.error("{} {}", this.getClass().getSimpleName(), e);
         }
     }
 }

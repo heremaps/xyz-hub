@@ -31,8 +31,6 @@ import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
@@ -40,7 +38,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import java.util.HashMap;
 
 public class ExportHandler extends JobHandler{
-    private static final Logger logger = LogManager.getLogger();
 
     protected static Future<Job> postJob(Export job, Marker marker){
         try{

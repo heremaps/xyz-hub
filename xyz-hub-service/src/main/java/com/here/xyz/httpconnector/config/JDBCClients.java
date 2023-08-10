@@ -35,7 +35,6 @@ import io.vertx.core.Promise;
 import io.vertx.pgclient.PgConnectOptions;
 import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
-import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.impl.ArrayTuple;
 import org.apache.logging.log4j.LogManager;
@@ -272,7 +271,7 @@ public class JDBCClients {
         /** Collection current metrics from Cloudwatch */
 
         if(JDBCImporter.getStatusClient(clientId)== null){
-            logger.info("DB-Client not Ready!");
+            logger.info("DB-Client not Ready! [{}]", clientId);
             p.complete(null);
         }else{
             collectRunningQueries(clientId)
@@ -281,7 +280,7 @@ public class JDBCClients {
                         JSONObject avg5MinRDSMetrics = CService.jobCWClient.getAvg5MinRDSMetrics(CService.rdsLookupDatabaseIdentifier.get(clientId));
                         p.complete(new RDSStatus(clientId, avg5MinRDSMetrics, runningQueryStatistics));
                     }).onFailure(f -> {
-                        logger.warn("Cant get RDS-Resources {}",f);
+                        logger.warn("Cant get RDS-Resources {}", f.getMessage());
                         p.fail(f);
                     } );
         }
@@ -293,7 +292,7 @@ public class JDBCClients {
         return addClientIfRequired(j.getTargetConnector())
                 .compose(f -> {
                     SQLQuery q = buildAbortsJobQuery(j);
-                    logger.info("[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+                    logger.info("job[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 
                     return getStatusClient(j.getTargetConnector())
                             .query(q.text())

@@ -40,8 +40,12 @@ import io.vertx.core.json.jackson.DatabindCodec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collections;
+import java.util.Set;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
@@ -57,7 +61,6 @@ public class JobHandler {
                         return Future.failedFuture(new HttpException(BAD_REQUEST, "Job with id '"+jobId+"' does not exists!"));
                     return Future.succeededFuture(loadedJob);
                 }).onFailure( e -> {
-                    logger.warn(marker, "[{}] - cant load. {}", jobId, e);
                     Future.failedFuture(new HttpException(BAD_GATEWAY, "Cant load'" + jobId + "' from backend!"));
                 });
     }
@@ -65,7 +68,6 @@ public class JobHandler {
     public static Future<List<Job>> loadJobs(Marker marker, Type type, Job.Status status, String targetSpaceId){
         return CService.jobConfigClient.getList(marker, type, status, targetSpaceId)
                 .onFailure( e -> {
-                    logger.warn(marker, "Cant load list {}/{}/{}. {}", type, status, targetSpaceId, e);
                     Future.failedFuture(new HttpException(BAD_GATEWAY, "Cant load jobs from backend!"));
                 });
     }

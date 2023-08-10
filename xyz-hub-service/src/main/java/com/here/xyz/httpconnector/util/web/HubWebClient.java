@@ -61,7 +61,7 @@ public class HubWebClient {
 
                         return Future.succeededFuture(id);
                     }catch (Exception e){
-                        logger.warn("JOB[{}] Unexpected HTTPTrigger response: {} - {}", job.getId(), res.bodyAsString(),e);
+                        logger.warn("job[{}] Unexpected HTTPTrigger response: {} - {}", job.getId(), res.bodyAsString(), e.getMessage());
                         return Future.failedFuture(e);
                     }
                 });
@@ -93,7 +93,7 @@ public class HubWebClient {
 
                         return Future.succeededFuture(state);
                     }catch (Exception e){
-                        logger.warn("JOB[{}] Unexpected HTTPTriggerStatus response: {}", job.getId(), e);
+                        logger.warn("job[{}] Unexpected HTTPTriggerStatus response: {}", job.getId(), e.getMessage());
                         return Future.failedFuture(e);
                     }
                 });

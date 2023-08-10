@@ -70,17 +70,14 @@ public class JDBCImporter extends JDBCClients{
                         return Future.failedFuture("SequenceNot0");
                     }
 
-                    logger.info("Start IDX-List of: {}", job.getTargetTable());
                     return listIndices(job.getTargetConnector(), schema, job.getTargetTable())
-                            .compose(idxList -> {
-                                logger.info("Start deletion of IDX-List: {}", idxList);
-                                return dropIndices(job.getTargetConnector(), schema, job.getTargetTable(), idxList)
-                                        .compose(f2 -> {
-                                            logger.info("Start creation of Import-Trigger {}", job.getTargetTable());
-                                            return createTriggerOnTargetTable(job, schema)
-                                                    .compose(f3 -> Future.succeededFuture());
-                                        });
-                            });
+                            .compose(idxList ->
+                                    dropIndices(job.getTargetConnector(), schema, job.getTargetTable(), idxList)
+                                        .compose(f2 ->
+                                                createTriggerOnTargetTable(job, schema)
+                                                    .compose(f3 -> Future.succeededFuture())
+                                        )
+                            );
                 });
     }
 
@@ -191,7 +188,7 @@ public class JDBCImporter extends JDBCClients{
         q.setVariable("schema", schema);
         q = q.substituteAndUseDollarSyntax(q); //TODO: Replace this by standard substitution technique!
 
-        logger.info("Execute S3-Import {}->{} {}", tablename, s3Path, q.text());
+        logger.info("job[{}] Execute S3-Import {}->{} {}", jobId, tablename, s3Path, q.text());
         return getClient(clientID)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
@@ -209,10 +206,10 @@ public class JDBCImporter extends JDBCClients{
             SQLQuery q = createIdxQuery(job.getId(), idxName, schema, tableName);
             indicesFutures.add(createIndex(clientId, q, idxName)
                     .onSuccess(idx -> {
-                        logger.info("IDX creation of '{}' succeeded!", idx);
+                        logger.info("job[{}] IDX creation of '{}' succeeded!", job.getId(), idx);
                         ((Import)job).addIdx(idxName+"@"+tableName);
                     }).onFailure(e -> {
-                        logger.warn("IDX creation '{}' failed! ",idxName+"@"+tableName,e);
+                        logger.warn("job[{}] IDX creation '{}' failed! {}", job.getId(), (idxName+"@"+tableName), e.getMessage());
                         job.setErrorDescription(Import.ERROR_DESCRIPTION_IDX_CREATION_FAILED);
                     }));
         }
@@ -295,7 +292,7 @@ public class JDBCImporter extends JDBCClients{
 
         q = q.substituteAndUseDollarSyntax(q);
 
-        logger.info("Mark maintenance for {}",spaceId);
+        logger.info("Mark maintenance for {}", spaceId);
         return getClient(clientID)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))

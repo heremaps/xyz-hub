@@ -95,11 +95,11 @@ public abstract class JobQueue implements Runnable {
         if(e == null)
             return;
         if(e.getMessage() != null && e.getMessage().equalsIgnoreCase(PROCESSING_NOT_POSSIBLE))
-            logger.info("[{}] waits on free resources", jobId);
+            logger.info("job[{}] waits on free resources", jobId);
         else if(e.getMessage() != null &&  e.getMessage().equalsIgnoreCase(CLIENT_MISSING))
-            logger.info("[{}] free client_missing", jobId);
+            logger.info("job[{}] free client_missing", jobId);
         else
-            logger.warn("[{}] ",jobId, e);
+            logger.warn("job[{}] ",jobId, e);
     }
 
     protected Future<Void> isProcessingOnRDSPossible(Job job){
@@ -108,26 +108,26 @@ public abstract class JobQueue implements Runnable {
                     RDS_STATUS_MAP.put(job.getTargetConnector(), rdsStatus);
 
                     if(rdsStatus.getCurrentMetrics().getCapacityUnits() > CService.configuration.JOB_MAX_RDS_CAPACITY) {
-                        logger.info("[{}] JOB_MAX_RDS_CAPACITY to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getCapacityUnits(), CService.configuration.JOB_MAX_RDS_CAPACITY);
+                        logger.info("job[{}] JOB_MAX_RDS_CAPACITY to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getCapacityUnits(), CService.configuration.JOB_MAX_RDS_CAPACITY);
                         return Future.failedFuture(PROCESSING_NOT_POSSIBLE);
                     }else if(rdsStatus.getCurrentMetrics().getCpuLoad() > CService.configuration.JOB_MAX_RDS_CPU_LOAD) {
-                        logger.info("[{}] JOB_MAX_RDS_CPU_LOAD to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getCpuLoad(), CService.configuration.JOB_MAX_RDS_CPU_LOAD);
+                        logger.info("job[{}] JOB_MAX_RDS_CPU_LOAD to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getCpuLoad(), CService.configuration.JOB_MAX_RDS_CPU_LOAD);
                         return Future.failedFuture(PROCESSING_NOT_POSSIBLE);
                     }
                     if(job instanceof Import && rdsStatus.getCurrentMetrics().getTotalInflightImportBytes() > CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES) {
-                        logger.info("[{}] JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalInflightImportBytes(), CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES);
+                        logger.info("job[{}] JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalInflightImportBytes(), CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES);
                         return Future.failedFuture(PROCESSING_NOT_POSSIBLE);
                     }
                     if(job instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS) {
-                        logger.info("[{}] JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS);
+                        logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS);
                         return Future.failedFuture(PROCESSING_NOT_POSSIBLE);
                     }
                     if(job instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningImportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES) {
-                        logger.info("[{}] JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
+                        logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
                         return Future.failedFuture(PROCESSING_NOT_POSSIBLE);
                     }
                     if(job instanceof Export && rdsStatus.getCurrentMetrics().getTotalRunningExportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES) {
-                        logger.info("[{}] JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
+                        logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
                         return Future.failedFuture(PROCESSING_NOT_POSSIBLE);
                     }
                     return Future.succeededFuture();
@@ -143,10 +143,10 @@ public abstract class JobQueue implements Runnable {
 
     public synchronized static void addJob(Job job){
         if(hasJob(job) == null) {
-            logger.info("[{}] added to JobQueue! {}", job.getId(), job);
+            logger.info("job[{}] added to JobQueue! {}", job.getId(), job);
             JOB_QUEUE.add(job);
         }else
-            logger.info("[{}] Job is already present! {}", job.getId(), job);
+            logger.info("job[{}] is already present in queue! {}", job.getId(), job);
     }
 
     public synchronized static void refreshJob(Job job){
@@ -157,7 +157,7 @@ public abstract class JobQueue implements Runnable {
     }
 
     public synchronized static void removeJob(Job job){
-        logger.info("[{}] removed from JobQueue! {}", job.getId(), job);
+        logger.info("job[{}] removed from JobQueue! {}", job.getId(), job);
         if(hasJob(job) != null)
             JOB_QUEUE.remove(hasJob(job));
     }
@@ -232,11 +232,7 @@ public abstract class JobQueue implements Runnable {
             refreshJob(j);
         }
 
-        return CService.jobConfigClient.update(null , j)
-                .onFailure(t -> {
-                    logger.warn("Failed to update Job.",t);
-                    Future.failedFuture(t);
-                });
+        return CService.jobConfigClient.update(null , j);
     }
 
     protected static Future<Void> releaseReadOnlyLockFromSpace(Job job){
