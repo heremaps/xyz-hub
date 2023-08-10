@@ -33,8 +33,9 @@ import java.util.List;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
 import static org.junit.Assert.assertEquals;
 
-public class JobApiIncrementalCompositeExport extends JobApiIT{
+public class JobApiIncrementalCompositeExportIT extends JobApiIT{
     protected String testExportJobId = "x-test-composite-export-job";
+    protected static String scope = "incremental";
 
     String testSpaceId1 = "composite-export-space";
     String testSpaceId1Ext = "composite-export-space-ext";
@@ -145,7 +146,7 @@ public class JobApiIncrementalCompositeExport extends JobApiIT{
             assertEquals(PRECONDITION_FAILED, e.status);
         }
 
-        deleteJob(testExportJobId, testSpaceId1Ext, true);
+        deleteJob(job.getId(), testSpaceId1Ext, true);
         job =  generateExportJob(testExportJobId, 4);
         try {
             performExport(job, testSpaceId1ExtExt, Job.Status.failed, Job.Status.finalized, ContextAwareEvent.SpaceContext.DEFAULT, ApiParam.Query.Incremental.FULL);
