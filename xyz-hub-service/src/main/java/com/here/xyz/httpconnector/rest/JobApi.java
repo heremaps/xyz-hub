@@ -24,14 +24,10 @@ import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.rest.HApiParam.Path;
-import com.here.xyz.httpconnector.task.ExportHandler;
-import com.here.xyz.httpconnector.task.ImportHandler;
 import com.here.xyz.httpconnector.task.JobHandler;
-import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.Api;
-import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -57,15 +53,9 @@ public class JobApi extends Api {
   private void postJob(final RoutingContext context) {
     try {
       Job job = HApiParam.HQuery.getJobInput(context);
-      if(job instanceof Import) {
-        ImportHandler.postJob((Import)job, Api.Context.getMarker(context))
-                .onFailure(e -> this.sendError(e, context))
-                .onSuccess(j -> this.sendResponse(context, CREATED, j));
-      }else if(job instanceof Export){
-        ExportHandler.postJob((Export)job, Api.Context.getMarker(context))
-                .onFailure(e -> this.sendError(e, context))
-                .onSuccess(j -> this.sendResponse(context, CREATED, j));
-      }
+      JobHandler.postJob(job, Api.Context.getMarker(context))
+              .onFailure(e -> this.sendError(e, context))
+              .onSuccess(j -> this.sendResponse(context, CREATED, j));
     }catch (HttpException e){
       this.sendErrorResponse(context, e);
     }
@@ -89,7 +79,7 @@ public class JobApi extends Api {
   private void getJob(final RoutingContext context) {
     String jobId = context.pathParam(Path.JOB_ID);
 
-    JobHandler.getJob(jobId, Api.Context.getMarker(context))
+    JobHandler.loadJob(jobId, Api.Context.getMarker(context))
             .onFailure(e -> this.sendError(e, context))
             .onSuccess(job -> this.sendResponse(context, OK, job));
   }
@@ -99,7 +89,7 @@ public class JobApi extends Api {
     Job.Status jobStatus = HQuery.getJobStatus(context);
     String targetSpaceId = HQuery.getString(context, HQuery.TARGET_SPACEID , null);
 
-    JobHandler.getJobs( Api.Context.getMarker(context), jobType, jobStatus, targetSpaceId)
+    JobHandler.loadJobs( Api.Context.getMarker(context), jobType, jobStatus, targetSpaceId)
             .onFailure(e -> this.sendError(e, context))
             .onSuccess(jobs -> this.sendResponse(context, OK, jobs));
   }
@@ -108,10 +98,7 @@ public class JobApi extends Api {
     String jobId = context.pathParam(Path.JOB_ID);
     boolean force = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.FORCE, false);
 
-    JobHandler.getJob(jobId, Api.Context.getMarker(context))
-            .compose(
-                    job -> JobHandler.deleteJob(job, force, Api.Context.getMarker(context))
-            )
+    JobHandler.deleteJob(jobId, force, Api.Context.getMarker(context))
             .onFailure(e -> this.sendError(e, context))
             .onSuccess(job -> this.sendResponse(context, OK, job));
   }

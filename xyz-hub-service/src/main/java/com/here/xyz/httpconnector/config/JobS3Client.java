@@ -62,8 +62,8 @@ public class JobS3Client extends AwsS3Client{
     public static final String EXPORT_DOWNLOAD_FOLDER = "exports";
     public static final String EXPORT_PERSIST_FOLDER = "persistent";
 
-    public URL generateUploadURL(String key) throws IOException {
-        return generateUploadURL(CService.configuration.JOBS_S3_BUCKET, key);
+    public static String getImportPath(String jobId, String part){
+        return IMPORT_UPLOAD_FOLDER +"/"+ jobId+"/"+part;
     }
 
     public ImportObject generateUploadURL(Import job) throws IOException {

@@ -97,7 +97,6 @@ public class JDBCClients {
                 /** Disable Pipelining */
                 .setPipeliningLimit(1)
                 .setProperties(props);
-//                .setIdleTimeout(100);
 
         PoolOptions poolOptions = new PoolOptions()
                 .setMaxSize(getDBPoolSize(clientId));
@@ -188,28 +187,29 @@ public class JDBCClients {
                 });
     }
 
-    public static void addClientIfRequired(String id) throws CannotDecodeException, UnsupportedOperationException {
+    public static Future<Void> addClientIfRequired(String id) {
         if(CService.supportedConnectors != null && CService.supportedConnectors.indexOf(id) == -1)
-            throw new UnsupportedOperationException();
+            return Future.failedFuture("Connector is not supported");
 
-        HubWebClient.getConnectorConfig(id)
-                .onSuccess(connector -> {
-                    DatabaseSettings settings = null;
+        return HubWebClient.getConnectorConfig(id)
+                .compose(connector -> {
                     try {
                         if( connector.params != null && connector.params.get("ecps") !=null) {
-                            settings = ECPSTool.readDBSettingsFromECPS((String) connector.params.get("ecps"), CService.configuration.ECPS_PHRASE);
+                            DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS((String) connector.params.get("ecps"), CService.configuration.ECPS_PHRASE);
 
-                            if(JDBCImporter.getClient(id) == null){
+                            if(JDBCImporter.getClient(id) == null) {
                                 addClients(id, settings);
-                            }else{
-                                if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
-                                    removeClients(id);
-                                    addClients(id, settings);
-                                }
+                            }else if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
+                                /** Check if config has changed */
+                                removeClients(id);
+                                addClients(id, settings);
                             }
-                        }
+
+                            return Future.succeededFuture();
+                        }else
+                            return Future.failedFuture("Ecps is missing! "+id);
                     } catch (CannotDecodeException e) {
-                        logger.warn("Cant load dbClients for "+id ,e);
+                        return Future.failedFuture("Cant load dbClients for "+id);
                     }
                 });
     }
@@ -289,19 +289,19 @@ public class JDBCClients {
         return p.future();
     }
 
-    public static Future<Integer> abortJobsByJobId(Job j)  {
-        SQLQuery q = buildAbortsJobQuery(j);
-        logger.info("[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+    public static Future<Void> abortJobsByJobId(Job j)  {
+        return addClientIfRequired(j.getTargetConnector())
+                .compose(f -> {
+                    SQLQuery q = buildAbortsJobQuery(j);
+                    logger.info("[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 
-        return getStatusClient(j.getTargetConnector())
-                .query(q.text())
-                .execute()
-                .map(row -> {
-                    Row res = row.iterator().next();
-                    if (res != null) {
-                        return 1;
-                    }
-                    return null;
+                    return getStatusClient(j.getTargetConnector())
+                            .query(q.text())
+                            .execute()
+                            .compose(row ->
+                                 /** succeeded in any-case */
+                                 Future.succeededFuture()
+                            );
                 });
     }
 

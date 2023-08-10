@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.httpconnector.config.*;
 import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
+import com.here.xyz.httpconnector.util.scheduler.JobQueue;
 import com.here.xyz.hub.Core;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.VertxOptions;
@@ -152,8 +153,8 @@ public class CService extends Core {
         exportQueue.commence();
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-          // TODO: Fail all jobs
-          logger.warn("HTTP Service is going down at " + new Date().toString());
+          logger.warn("HTTP Service is going down at " + new Date());
+          JobQueue.abortAllJobs();
         }));
 
       }else
@@ -226,10 +227,6 @@ public class CService extends Core {
      */
     public int JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS;
     /**
-     * Define how many job are allowed to run in parallel
-     */
-    public int JOB_MAX_RUNNING_JOBS;
-    /**
      * List of "connectorId:cloudWatchDBInstanceIdentifier:MaxCapacityUnits"
      */
     public List<String> JOB_SUPPORTED_RDS;
@@ -252,7 +249,11 @@ public class CService extends Core {
     /**
      * RDS maximum allowed imports in parallel
      */
-    public int JOB_MAX_RDS_MAX_RUNNING_IMPORTS;
+    public int JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES;
+    /**
+     * RDS maximum allowed imports in parallel
+     */
+    public int JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES;
     /**
      * RDS maximum allowed imports in parallel
      */

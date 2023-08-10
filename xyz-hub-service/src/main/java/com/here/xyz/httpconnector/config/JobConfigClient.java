@@ -49,9 +49,9 @@ public abstract class JobConfigClient implements Initializable {
         return getJob(marker, jobId)
                 .onSuccess(job -> {
                     if (job == null) {
-                        logger.info(marker, "Get - job[{}]: not found!", jobId);
+                        logger.debug(marker, "Get - job[{}]: not found!", jobId);
                     }else {
-                        logger.info(marker, "job[{}]: successfully loaded!", jobId);
+                        logger.debug(marker, "job[{}]: successfully loaded!", jobId);
                     }
                 })
                 .onFailure(t -> logger.error(marker, "job[{}]: failed to load!", jobId, t));
@@ -60,7 +60,7 @@ public abstract class JobConfigClient implements Initializable {
     public Future<List<Job>> getList(Marker marker, Job.Type type, Job.Status status, String targetSpaceId) {
         return getJobs(marker, type, status, targetSpaceId)
                 .onSuccess(jobList -> {
-                    logger.info(marker, "Successfully loaded '{}' jobs!", jobList.size());
+                    logger.debug(marker, "Successfully loaded '{}' jobs!", jobList.size());
                 })
                 .onFailure(t -> logger.error(marker, "Failed to load jobList!", t));
     }
@@ -68,12 +68,14 @@ public abstract class JobConfigClient implements Initializable {
     public Future<String> getRunningJobsOnSpace(Marker marker, String targetSpaceId, Job.Type type) {
         return findRunningJobOnSpace(marker, targetSpaceId, type)
                 .onSuccess(jobList -> {
-                    logger.info(marker, "Successfully loaded '{}' jobs!");
+                    logger.debug(marker, "Successfully loaded '{}' jobs!");
                 })
                 .onFailure(t -> logger.error(marker, "Failed to load jobList!", t));
     }
 
     public Future<Job> update(Marker marker, Job job) {
+        /** We are updating jobs in JobHandler (config changes + JobQueue (state changes)*/
+
         job.setUpdatedAt(Core.currentTimeMillis() / 1000L);
 
         return storeJob(marker, job, true)
@@ -104,15 +106,13 @@ public abstract class JobConfigClient implements Initializable {
                 .onSuccess(j -> {
                             if (j == null) {
                                 logger.info(marker, "jobId[{}]: not found. Nothing to delete!", jobId);
-                            }else if ( !isValidForDelete(j, force) ) {
-                                logger.info(marker, "jobId[{}]: not in end state. Nothing to delete!", jobId);
-                            } else {     
+                            }else {
                                 deleteJob(marker, j)
                                         .onSuccess(job -> logger.info(marker, "job[{}]: successfully deleted!", jobId))
                                         .onFailure(t -> logger.error(marker, "job[{}]: Failed delete job:", jobId, t));
                             }
                 })
-                .onFailure(t -> logger.error(marker, "job[{}]: Failed delete job:", jobId, t));
+                .onFailure(t -> logger.error(marker, "job[{}]: Failed to delete job:", jobId, t));
     }
 
     protected abstract Future<Job> getJob(Marker marker, String jobId);
@@ -124,15 +124,5 @@ public abstract class JobConfigClient implements Initializable {
     protected abstract Future<Job> storeJob(Marker marker, Job job, boolean isUpdate);
 
     protected abstract Future<Job> deleteJob(Marker marker, Job job);
-
-    public boolean isValidForDelete(Job job, boolean force) {
-        if(force)
-            return true;
-        switch (job.getStatus()){
-            case waiting: case finalized: case aborted: case failed: return true;
-            default: return false;
-        }
-
-    }
 
 }
