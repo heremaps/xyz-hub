@@ -464,18 +464,21 @@ public class JDBCExporter extends JDBCClients{
            if( partitionKey != null && !"id".equalsIgnoreCase(partitionKey) )
            {  partById = false;
               String converted = ApiParam.getConvertedKey(partitionKey);
-              partitionKey =  String.join(",",(converted != null ? converted : partitionKey).split("\\."));
+              partitionKey =  String.join("'->'",(converted != null ? converted : partitionKey).split("\\."));
               partQry = String.format(
                  " with  "
                 +" plist as  "
                 +" ( select o.* from "
                 +"   ( select ( dense_rank() over (order by key) )::integer as i, key  "
-                +"     from ( select distinct coalesce( jsondata#>'{%1$s}', '\"CSVNULL\"'::jsonb) as key from ( ${{contentQuery}} ) X "+ (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata#>>'{%1$s}' isnull " ) +" ) oo "
+                +"     from "
+                +"     ( select coalesce( key, '\"CSVNULL\"'::jsonb) as key "
+                +"       from ( select distinct jsondata->'%1$s' as key from ( ${{contentQuery}} ) X "+ (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata->'%1$s' isnull " ) +" ) oo "
+                +"     ) d1"
                 +"   ) o "
                 +"   where 1 = 1 " + (( !partById && customWhereCondition != null ) ? "${{customWhereClause}}" :"" )
                 +" ), "
                 +" iidata as  "
-                +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 100000)::integer as chunk, r.jsondata, r.geo from ( ${{contentQuery}} ) r join plist l on ( coalesce( r.jsondata#>'{%1$s}', '\"CSVNULL\"'::jsonb) = l.key )  "
+                +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 100000)::integer as chunk, r.jsondata, r.geo from ( ${{contentQuery}} ) r join plist l on ( coalesce( r.jsondata->'%1$s', '\"CSVNULL\"'::jsonb) = l.key )  "
                 +" ), "
                 +" iiidata as  "
                 +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, count(1) as nrfeatures, replace( encode( json_build_object('type','FeatureCollection', 'features', jsonb_agg( jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb) ))::text::bytea,'base64') ,chr(10),'') as data     "
