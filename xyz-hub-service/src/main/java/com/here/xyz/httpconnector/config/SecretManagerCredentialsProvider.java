@@ -58,7 +58,7 @@ public class SecretManagerCredentialsProvider implements AWSCredentialsProvider 
             AWSCredentials newCredentials = CService.jobSecretClient.getCredentialsFromSecret(secretArn);
             credentialsRef.set(newCredentials);
         } catch (Exception e) {
-            logger.error("Failed to refresh credentials from secret manager: {}", e.getMessage());
+            logger.error("Failed to refresh credentials from secret manager! ", e);
         }
     }
 }

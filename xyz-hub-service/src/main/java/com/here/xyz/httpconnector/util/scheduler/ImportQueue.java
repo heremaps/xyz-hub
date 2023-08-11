@@ -177,11 +177,9 @@ public class ImportQueue extends JobQueue{
                                             }
                                         }
                                 )
-                                .onFailure(f -> {
+                                .onFailure(e -> {
                                             NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-                                            logger.warn("JOB[{}] Import of '{}' failed ", j.getId(), importObjects.get(key), f.getMessage());
-                                            logger.warn("JOB[{}] failed execution. queue {} - mem: {} ", j.getId(), key, NODE_EXECUTED_IMPORT_MEMORY);
-
+                                            logger.warn("JOB[{}] Import of '{}' failed - mem: {}!", j.getId(), importObjects.get(key), NODE_EXECUTED_IMPORT_MEMORY, e);
                                             importObjects.get(key).setStatus(ImportObject.Status.failed);
                                         }
                                 )
@@ -195,7 +193,7 @@ public class ImportQueue extends JobQueue{
                 .onComplete(
                         t -> {
                             if(t.failed()){
-                                logger.warn("job[{}] Import of '{}' failed {}", j.getId(), j.getTargetSpaceId(), t.cause());
+                                logger.warn("job[{}] Import of '{}' failed! ", j.getId(), j.getTargetSpaceId(), t);
 
                                 if(t.cause().getMessage() != null && t.cause().getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
                                     setJobAborted(j);
@@ -264,7 +262,7 @@ public class ImportQueue extends JobQueue{
     }
 
     /**
-     * Begins executing the JobQueue processing - periodically and asynchronously.
+     * Begins executing the ImportQueue processing - periodically and asynchronously.
      *
      * @return This check for chaining
      */
@@ -289,7 +287,7 @@ public class ImportQueue extends JobQueue{
                 }
             });
         }catch (Exception e) {
-            logger.error("{} {}", this.getClass().getSimpleName(), e);
+            logger.error("Error when executing ImportQueue! ", e);
         }
     }
 }

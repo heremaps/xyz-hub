@@ -77,7 +77,7 @@ public class JDBCExporter extends JDBCClients{
 
                                     return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
                                 }catch (SQLException e){
-                                    logger.warn("job[{}] {}", j.getId(), e.getMessage());
+                                    logger.warn("job[{}] ", j.getId(), e);
                                     return Future.failedFuture(e);
                                 }
                             });
@@ -110,7 +110,7 @@ public class JDBCExporter extends JDBCClients{
 
                                         return executeParallelExportAndCollectStatistics(j, promise, exportFutures);
                                     } catch (SQLException e) {
-                                        logger.warn("job[{}] {}", j.getId(), e.getMessage());
+                                        logger.warn("job[{}] ", j.getId(), e);
                                         return Future.failedFuture(e);
                                     }
                                 });
@@ -131,7 +131,7 @@ public class JDBCExporter extends JDBCClients{
 
                                     return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
                                 }catch (SQLException e){
-                                    logger.warn("job[{}] {}", j.getId(), e.getMessage());
+                                    logger.warn("job[{}] ", j.getId(), e);
                                     return Future.failedFuture(e);
                                 }
                             });

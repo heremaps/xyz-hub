@@ -141,7 +141,7 @@ public class ExportQueue extends JobQueue{
                         }
                 )
                 .onFailure(e -> {
-                        logger.warn("job[{}] Export of '{}' failed ", j.getId(), j.getTargetSpaceId(), e);
+                        logger.warn("job[{}] export of '{}' failed! ", j.getId(), j.getTargetSpaceId(), e);
 
                         if(e.getMessage() != null && e.getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
                             setJobAborted(j);
@@ -231,7 +231,7 @@ public class ExportQueue extends JobQueue{
     }
 
     /**
-     * Begins executing the JobQueue processing - periodically and asynchronously.
+     * Begins executing the ExportQueue processing - periodically and asynchronously.
      *
      * @return This check for chaining
      */
@@ -256,7 +256,7 @@ public class ExportQueue extends JobQueue{
                 }
             });
         }catch (Exception e) {
-            logger.error("{} {}", this.getClass().getSimpleName(), e);
+            logger.error("Error when executing ExportQueue! ", e);
         }
     }
 }

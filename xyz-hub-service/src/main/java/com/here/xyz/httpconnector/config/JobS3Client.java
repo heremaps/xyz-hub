@@ -276,7 +276,7 @@ public class JobS3Client extends AwsS3Client{
                 try {
                     eo.setDownloadUrl(generateDownloadURL(bucketName, eo.getS3Key()));
                 }catch (IOException e){
-                    logger.error("[{}] Cant create download-url.{}", prefix, e.getMessage());
+                    logger.error("[{}] Cant create download-url! ", prefix, e);
                 }
             }
         }
@@ -301,7 +301,7 @@ public class JobS3Client extends AwsS3Client{
             client.putObject(bucketName, path, new ByteArrayInputStream(meta), omd);
 
         } catch (AmazonServiceException | IOException e) {
-            logger.error("job[{}] Cant write Metafile {}", job.getId(), e.getMessage());
+            logger.error("job[{}] cant write Metafile! ", job.getId(), e);
         }
     }
 
@@ -324,7 +324,7 @@ public class JobS3Client extends AwsS3Client{
             if(s3Object != null)
                 return new ObjectMapper().readValue(s3Object.getObjectContent(), Export.class);
         } catch (Exception e) {
-            logger.error("Cant read Metafile from path {} {}", path, e.getMessage());
+            logger.error("Cant read Metafile from path '{}'! ", path, e);
         }
         return null;
     }

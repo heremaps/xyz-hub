@@ -152,7 +152,7 @@ public class ImportValidator extends Validator{
                     }
                 }
             }catch (Exception e){
-                logger.warn("job[{}] Validation has failed! {}", job.getId(), e);
+                logger.warn("job[{}] validation has failed! ", job.getId(), e);
                 job.setStatus(Job.Status.failed);
                 job.setErrorType(Import.ERROR_TYPE_VALIDATION_FAILED);
             }

@@ -279,9 +279,9 @@ public class JDBCClients {
                         /** Collect metrics from Cloudwatch */
                         JSONObject avg5MinRDSMetrics = CService.jobCWClient.getAvg5MinRDSMetrics(CService.rdsLookupDatabaseIdentifier.get(clientId));
                         p.complete(new RDSStatus(clientId, avg5MinRDSMetrics, runningQueryStatistics));
-                    }).onFailure(f -> {
-                        logger.warn("Cant get RDS-Resources {}", f.getMessage());
-                        p.fail(f);
+                    }).onFailure(e -> {
+                        logger.warn("Cant get RDS-Resources! ", e);
+                        p.fail(e);
                     } );
         }
 

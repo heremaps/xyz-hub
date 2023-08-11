@@ -209,7 +209,7 @@ public class JDBCImporter extends JDBCClients{
                         logger.info("job[{}] IDX creation of '{}' succeeded!", job.getId(), idx);
                         ((Import)job).addIdx(idxName+"@"+tableName);
                     }).onFailure(e -> {
-                        logger.warn("job[{}] IDX creation '{}' failed! {}", job.getId(), (idxName+"@"+tableName), e.getMessage());
+                        logger.warn("job[{}] IDX creation '{}' failed! ", job.getId(), (idxName+"@"+tableName), e);
                         job.setErrorDescription(Import.ERROR_DESCRIPTION_IDX_CREATION_FAILED);
                     }));
         }
