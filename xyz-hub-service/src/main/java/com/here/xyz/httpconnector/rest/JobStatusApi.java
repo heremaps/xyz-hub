@@ -33,8 +33,6 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
@@ -47,7 +45,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 public class JobStatusApi {
-    private static final Logger logger = LogManager.getLogger();
     private final String JOB_QUEUE_STATUS_ENDPOINT = "/psql/system/status";
     private final String JOB_QUEUE_QUEUE_ENDPOINT = "/psql/system/queue";
     private final JSONObject system;

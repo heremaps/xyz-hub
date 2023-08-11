@@ -158,13 +158,14 @@ public class JDBCClients {
                 "select '!ignore!' as ignore, datname,pid,state,backend_type,query_start,state_change,application_name,query from pg_stat_activity "
                         +"WHERE 1=1 "
                         +"AND application_name=#{applicationName} "
-                        +"AND datname='postgres' "
+                        +"AND datname=#{db} "
                         +"AND state='active' "
                         +"AND backend_type='client backend' "
                         +"AND POSITION('!ignore!' in query) = 0"
         );
 
         q.setNamedParameter("applicationName", getApplicationName(clientID));
+        q.setNamedParameter("db", getStatusClientDatabaseSettings(clientID).getDb());
         q = q.substituteAndUseDollarSyntax(q);
 
         return getStatusClient(clientID)
@@ -265,6 +266,16 @@ public class JDBCClients {
         if(clients == null || clients.get(id) == null)
             return null;
         return clients.get(id).getClient();
+    }
+
+    public static DatabaseSettings getStatusClientDatabaseSettings(String id){
+        return getClientDatabaseSettings(getStatusClientId(id));
+    }
+
+    public static DatabaseSettings getClientDatabaseSettings(String id){
+        if(clients == null || clients.get(id) == null)
+            return null;
+        return clients.get(id).dbSettings;
     }
 
     public static Future<RDSStatus> getRDSStatus(String clientId) {
