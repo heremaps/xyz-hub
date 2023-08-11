@@ -23,6 +23,8 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.here.xyz.httpconnector.config.JobS3Client;
+
 import java.net.URL;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -101,6 +103,10 @@ public class ImportObject {
     }
 
     public String getS3Key() { return s3Key;}
+
+    public String getS3Key(String jobId, String part){
+        return JobS3Client.getImportPath(jobId, part);
+    }
 
     public URL getUploadUrl(){ return uploadUrl;}
 

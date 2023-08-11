@@ -9,13 +9,9 @@ import com.amazonaws.services.secretsmanager.AWSSecretsManagerClientBuilder;
 import com.amazonaws.services.secretsmanager.model.GetSecretValueRequest;
 import com.amazonaws.services.secretsmanager.model.GetSecretValueResult;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.hub.util.ARN;
 import io.vertx.core.json.JsonObject;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class AwsSecretManagerClient {
-    private static final Logger logger = LogManager.getLogger();
 
     private final AWSSecretsManager client;
 

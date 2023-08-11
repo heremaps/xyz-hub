@@ -33,9 +33,6 @@ import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.util.Hasher;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -43,8 +40,6 @@ import java.io.InputStream;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 
 public class HttpConnectorApi extends Api {
-
-  private static final Logger logger = LogManager.getLogger();
   private AbstractConnectorHandler connector;
 
   public HttpConnectorApi(RouterBuilder rb, AbstractConnectorHandler connector) {

@@ -48,82 +48,69 @@ public class ImportQueue extends JobQueue{
     protected static ScheduledThreadPoolExecutor executorService = new ScheduledThreadPoolExecutor(CORE_POOL_SIZE, Core.newThreadFactory("import-queue"));
 
     protected void process() throws InterruptedException, CannotDecodeException {
-        //@TODO CleanUp Jobs: Check all Jobs which are finished/failed and delete them after some time.
-        //@TODO Lost Jobs: Find possible orphaned Jobs (system crash) and add them to the queue again
 
-        for (int i = 0; i <  getQueue().size(); i++) {
-            Job job = getQueue().get(i);
-            if(!(job instanceof Import))
+        for (Job job : getQueue()){
+            if (!(job instanceof Import))
                 return;
 
-            /** Check Capacity */
-            isProcessingOnRDSPossible(i, job)
-                    .onSuccess(canProcess -> {
-                        /** Execution is currently not possible */
-                        if (!canProcess)
-                            return;
-
-                        /** Check if JDBC Client is available */
-                        if(!isTargetJDBCClientLoaded(job))
-                            return;
-
-                        /** Run first Job Queue (FIFO) */
-                        Import importJob = (Import) job;
-
+            isProcessingPossible(job)
+                    .compose(j -> loadCurrentConfig(job))
+                    .compose(currentJobConfig -> {
                         /**
                          * Job-Life-Cycle:
                          * waiting -> (validating) -> validated ->  queued -> (preparing) -> prepared -> (executing) -> executed -> (finalizing) -> finalized
                          * all stages can end up in failed
                          **/
 
-                        switch (importJob.getStatus()){
+                        if(currentJobConfig == null)
+                            return Future.succeededFuture();
+
+                        switch (currentJobConfig.getStatus()){
                             case finalized:
-                                logger.info("JOB[{}] is finalized!", importJob.getId());
-                                /** Remove Job from Queue */
-                                removeJob(importJob);
+                                logger.info("job[{}] is finalized!", currentJobConfig.getId());
                                 break;
                             case failed:
-                                logger.info("JOB[{}] has failed!", importJob.getId());
-                                /** Remove Job from Queue - in some cases the user is able to retry */
-                                removeJob(importJob);
-                                releaseReadOnlyLockFromSpace(importJob);
+                                logger.info("job[{}] has failed!", currentJobConfig.getId());
                                 break;
                             case waiting:
-                                updateJobStatus(importJob,Job.Status.validating)
-                                        .onSuccess(f -> validateJob(importJob));
+                                updateJobStatus(currentJobConfig,Job.Status.validating)
+                                        .compose(j -> {
+                                            Import validatedJob = validateJob(j);
+                                            /** Set status of validation */
+                                            return updateJobStatus(validatedJob);
+                                        });
                                 break;
                             case validated:
-                                updateJobStatus(importJob,Job.Status.queued);
+                                /** Reflect that the Job is loaded into job-queue */
+                                updateJobStatus(currentJobConfig,Job.Status.queued);
                                 break;
                             case queued:
-                                updateJobStatus(importJob, Job.Status.preparing)
-                                        .onSuccess(f ->
-                                                addReadOnlyLockToSpace(importJob)
-                                                        .onSuccess(f2 -> prepareJob(importJob))
+                                updateJobStatus(currentJobConfig, Job.Status.preparing)
+                                        .onSuccess(j ->
+                                                 addReadOnlyLockToSpace(j)
+                                                        .onSuccess(f2 -> prepareJob(j))
+                                                        .onFailure(f -> setJobFailed(job, Import.ERROR_DESCRIPTION_READONLY_MODE_FAILED, Job.ERROR_TYPE_PREPARATION_FAILED))
                                         );
                                 break;
                             case prepared:
-                                updateJobStatus(importJob,Job.Status.executing)
-                                        .onSuccess(f -> executeJob(importJob));
+                                updateJobStatus(currentJobConfig,Job.Status.executing)
+                                        .onSuccess(j -> executeJob(j));
                                 break;
                             case executed:
-                                updateJobStatus(importJob,Job.Status.finalizing)
-                                        .onSuccess(f -> finalizeJob(importJob));
+                                updateJobStatus(currentJobConfig,Job.Status.finalizing)
+                                        .onSuccess(j -> finalizeJob(j));
                                 break;
-                            default: {
-                                logger.info("JOB[{}] is currently '{}' - current Queue-size: {}",importJob.getId(), importJob.getStatus(), queueSize());
-                            }
                         }
-                    })
-                    .onFailure(e -> logger.info(e.getMessage()));
-            }
 
+                        return Future.succeededFuture();
+                    })
+                    .onFailure(e -> logError(e, job.getId()));
+        }
     }
 
     @Override
-    protected void validateJob(Job job){
-        ImportValidator.validateImportJob((Import)job);
-        updateJobStatus(job, null);
+    protected Import validateJob(Job job){
+        return ImportValidator.validateImportObjects((Import)job);
     }
 
     @Override
@@ -132,25 +119,20 @@ public class ImportQueue extends JobQueue{
 
         CService.jdbcImporter.prepareImport(defaultSchema, (Import)j)
                 .compose(
-                        f2 -> {
-                            j.setStatus(Job.Status.prepared);
-                            return CService.jobConfigClient.update(null, j);
-                        })
+                        f2 ->  updateJobStatus(j ,Job.Status.prepared))
                 .onFailure(f -> {
-                    logger.warn("JOB[{}] preparation has failed!", j.getId(), f);
+                    logger.warn("job[{}] preparation has failed!", j.getId(), f);
 
                     if (f instanceof PgException && ((PgException) f).getCode() != null) {
                         if (((PgException) f).getCode().equalsIgnoreCase("42P01")) {
-                            logger.info("TargetTable '" + j.getTargetTable() + "' does not Exists!");
-                            failJob(j, Import.ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS, Job.ERROR_TYPE_PREPARATION_FAILED);
+                            logger.info("job[{}] TargetTable '{}' does not exist!", j.getId(), j.getTargetTable());
+                            setJobFailed(j, Import.ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS, Job.ERROR_TYPE_PREPARATION_FAILED);
                             return;
                         }
-                    }
-                    //@TODO: Collect more possible error-cases
-                    if (f.getMessage() != null && f.getMessage().equalsIgnoreCase("SequenceNot0"))
-                        failJob(j, Import.ERROR_DESCRIPTION_SEQUENCE_NOT_0, Job.ERROR_TYPE_PREPARATION_FAILED);
+                    }else if (f.getMessage() != null && f.getMessage().equalsIgnoreCase("SequenceNot0"))
+                        setJobFailed(j, Import.ERROR_DESCRIPTION_SEQUENCE_NOT_0, Job.ERROR_TYPE_PREPARATION_FAILED);
                     else
-                        failJob(j, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_PREPARATION_FAILED);
+                        setJobFailed(j, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_PREPARATION_FAILED);
                 });
     }
 
@@ -173,20 +155,20 @@ public class ImportQueue extends JobQueue{
             long curFileSize = Long.valueOf(importObjects.get(key).isCompressed() ? (importObjects.get(key).getFilesize() * 12)  : importObjects.get(key).getFilesize());
             double maxMemInGB = new RDSStatus.Limits(CService.rdsLookupCapacity.get(j.getTargetConnector())).getMaxMemInGB();
 
-            logger.info("JOB[{}] IMPORT_MEMORY {}/{} = {}% of max", j.getId(), NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
+            logger.info("job[{}] IMPORT_MEMORY {}/{} = {}% of max", j.getId(), NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
 
             //TODO: Also view RDS METRICS?
             if(NODE_EXECUTED_IMPORT_MEMORY < CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES){
                 importObjects.get(key).setStatus(ImportObject.Status.processing);
                 NODE_EXECUTED_IMPORT_MEMORY += curFileSize;
-                logger.info("JOB[{}] start execution of {}! mem: {}", j.getId(), importObjects.get(key).getS3Key(), NODE_EXECUTED_IMPORT_MEMORY);
+                logger.info("job[{}] start execution of {}! mem: {}", j.getId(), importObjects.get(key).getS3Key(j.getId(), key), NODE_EXECUTED_IMPORT_MEMORY);
 
                 importFutures.add(
                         CService.jdbcImporter.executeImport(j.getId(), j.getTargetConnector(), defaultSchema, j.getTargetTable(),
-                                        CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(), CService.configuration.JOBS_REGION, curFileSize, j.getCsvFormat() )
+                                        CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(j.getId(), key), CService.configuration.JOBS_REGION, curFileSize, j.getCsvFormat() )
                                 .onSuccess(result -> {
                                             NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-                                            logger.info("JOB[{}] Import of '{}' succeeded!", j.getId(), importObjects.get(key));
+                                            logger.info("job[{}] Import of '{}' succeeded!", j.getId(), importObjects.get(key));
 
                                             importObjects.get(key).setStatus(ImportObject.Status.imported);
                                             if(result != null && result.indexOf("imported") !=1) {
@@ -195,11 +177,9 @@ public class ImportQueue extends JobQueue{
                                             }
                                         }
                                 )
-                                .onFailure(f -> {
+                                .onFailure(e -> {
                                             NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-                                            logger.warn("JOB[{}] Import of '{}' failed ", j.getId(), importObjects.get(key), f);
-                                            logger.warn("JOB[{}] failed execution. queue {} - mem: {} ",j.getId(), key, NODE_EXECUTED_IMPORT_MEMORY);
-
+                                            logger.warn("JOB[{}] Import of '{}' failed - mem: {}!", j.getId(), importObjects.get(key), NODE_EXECUTED_IMPORT_MEMORY, e);
                                             importObjects.get(key).setStatus(ImportObject.Status.failed);
                                         }
                                 )
@@ -212,29 +192,36 @@ public class ImportQueue extends JobQueue{
         CompositeFuture.join(importFutures)
                 .onComplete(
                         t -> {
-                            int cntInvalid = 0;
+                            if(t.failed()){
+                                logger.warn("job[{}] Import of '{}' failed! ", j.getId(), j.getTargetSpaceId(), t);
 
-                            for (String key : importObjects.keySet()) {
-                                if(importObjects.get(key).getStatus() == ImportObject.Status.failed)
-                                    cntInvalid++;
-                                if(importObjects.get(key).getStatus() == ImportObject.Status.waiting){
-                                    /** Some Imports are still queued - execute again */
-                                    j.setStatus(Job.Status.prepared);
-                                    CService.jobConfigClient.update(null, j);
-                                    return;
+                                if(t.cause().getMessage() != null && t.cause().getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
+                                    setJobAborted(j);
+                                else if(t.cause().getMessage() != null && t.cause().getMessage().contains("duplicate key value violates unique constraint")){
+                                    setJobFailed(j, Import.ERROR_DESCRIPTION_IDS_NOT_UNIQUE, Job.ERROR_TYPE_EXECUTION_FAILED);
+                                }else
+                                    setJobFailed(j, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_EXECUTION_FAILED);
+                            }else{
+                                int cntInvalid = 0;
+
+                                for (String key : importObjects.keySet()) {
+                                    if(importObjects.get(key).getStatus() == ImportObject.Status.failed)
+                                        cntInvalid++;
+                                    if(importObjects.get(key).getStatus() == ImportObject.Status.waiting){
+                                        /** Some Imports are still queued - execute again */
+                                        updateJobStatus(j, Job.Status.prepared);
+                                    }
                                 }
-                            }
 
-                            j.setStatus(Job.Status.executed);
+                                if(cntInvalid == importObjects.size()) {
+                                    j.setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
+                                }
+                                else if(cntInvalid > 0 && cntInvalid < importObjects.size()) {
+                                    j.setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
+                                }
 
-                            if(cntInvalid == importObjects.size()) {
-                                j.setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
+                                updateJobStatus(j, Job.Status.executed);
                             }
-                            else if(cntInvalid > 0 && cntInvalid < importObjects.size()) {
-                                j.setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
-                            }
-
-                            CService.jobConfigClient.update(null, j);
                     });
     }
 
@@ -245,25 +232,37 @@ public class ImportQueue extends JobQueue{
         //@TODO: Limit parallel Creations
         CService.jdbcImporter.finalizeImport(j, getDefaultSchema)
                 .onFailure(f -> {
-                    logger.warn("JOB[{}] finalization failed!", j.getId(), f);
-                    failJob(j, null , Import.ERROR_TYPE_FINALIZATION_FAILED);
+                    logger.warn("job[{}] finalization failed!", j.getId(), f);
+
+                    if(f.getMessage().equalsIgnoreCase(Import.ERROR_TYPE_ABORTED))
+                        setJobAborted(j);
+                    else
+                        setJobFailed(j, null, Job.ERROR_TYPE_EXECUTION_FAILED);
                 })
-                .compose(f -> releaseReadOnlyLockFromSpace(j))
                 .compose(
                     f -> {
                         j.setFinalizedAt(Core.currentTimeMillis() / 1000L);
-                        logger.info("JOB[{}] finalization finished!", j.getId());
+                        logger.info("job[{}] finalization finished!", j.getId());
                         if(j.getErrorDescription() != null)
-                            j.setStatus(Job.Status.failed);
-                        else
-                            j.setStatus(Job.Status.finalized);
+                            return updateJobStatus(j, Job.Status.failed);
 
-                        return CService.jobConfigClient.update(null, j);
+                        return updateJobStatus(j, Job.Status.finalized);
                 });
     }
 
+    @Override
+    protected boolean needRdsCheck(Job job) {
+        /** In next stage we perform the import */
+        if(job.getStatus().equals(Job.Status.prepared))
+            return true;
+        /** In next stage we create indices + other finalizations */
+        if(job.getStatus().equals(Job.Status.executed))
+            return true;
+        return false;
+    }
+
     /**
-     * Begins executing the JobQueue processing - periodically and asynchronously.
+     * Begins executing the ImportQueue processing - periodically and asynchronously.
      *
      * @return This check for chaining
      */
@@ -288,7 +287,7 @@ public class ImportQueue extends JobQueue{
                 }
             });
         }catch (Exception e) {
-            logger.error("{}: Error when executing JobQueue!", this.getClass().getSimpleName(), e);
+            logger.error("Error when executing ImportQueue! ", e);
         }
     }
 }

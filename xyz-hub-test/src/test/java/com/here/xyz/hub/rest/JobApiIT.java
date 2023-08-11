@@ -21,6 +21,7 @@ package com.here.xyz.hub.rest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -34,14 +35,15 @@ import com.jayway.restassured.response.Response;
 import com.jayway.restassured.response.ValidatableResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.json.jackson.DatabindCodec;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.FileInputStream;
+import java.io.File;
 import java.net.HttpURLConnection;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -60,28 +62,31 @@ import static org.junit.Assert.assertNotEquals;
 
 public class JobApiIT extends TestSpaceWithFeature {
 
-    protected static String testSpaceId1 = "x-psql-job-test1";
-    protected static String testSpaceId2 = "x-psql-job-test2";
-    protected static String testSpaceId2Ext = "x-psql-job-test2-ext";
-    protected static String testSpaceId2ExtExt = "x-psql-job-test2-ext-ext";
-    protected static String testJobId = "x-test-job";
+    protected static String testSpaceId1 = "x-psql-job-space1";
+    protected static String testSpaceId2 = "x-psql-job-space2";
+    protected static String testSpaceId2Ext = "x-psql-job-space2-ext";
+    protected static String testSpaceId2ExtExt = "x-psql-job-space2-ext-ext";
 
-    @BeforeClass
-    public static void setup() {
+    protected static String getScopedSpaceId(String spaceId, String scope){
+        return scope + "-" + spaceId;
+    }
+
+    protected static void prepareEnv(String scope){
         /** Create empty test space */
-        createSpaceWithCustomStorage(testSpaceId1, "psql", null);
+        createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId1, scope), "psql", null);
 
         /** Create test space with content */
-        createSpaceWithCustomStorage(testSpaceId2, "psql", null);
-        addFeatures(testSpaceId2, "/xyz/hub/mixedGeometryTypes.json", 11);
+        createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId2, scope), "psql", null);
+        addFeatures(getScopedSpaceId(testSpaceId2, scope), "/xyz/hub/mixedGeometryTypes.json", 11);
         /** Create L1 composite space with content*/
-        createSpaceWithExtension(testSpaceId2);
-        addFeatures(testSpaceId2Ext,"/xyz/hub/processedData.json",252);
+        createSpaceWithExtension(getScopedSpaceId(testSpaceId2, scope));
+
+        addFeatures(getScopedSpaceId(testSpaceId2Ext,scope),"/xyz/hub/processedData.json",252);
         /** Create L2 composite with content */
-        createSpaceWithExtension(testSpaceId2Ext);
+        createSpaceWithExtension(getScopedSpaceId(testSpaceId2Ext,scope));
 
         /** Modify one feature on L1 composite space */
-        postFeature(testSpaceId2Ext, newFeature()
+        postFeature(getScopedSpaceId(testSpaceId2Ext,scope), newFeature()
                         .withId("foo_polygon")
                         .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093)))
                         .withProperties(new Properties().with("foo_new", "test")),
@@ -89,29 +94,29 @@ public class JobApiIT extends TestSpaceWithFeature {
         );
 
         /** Add one feature on L2 composite space */
-        postFeature(testSpaceId2ExtExt, newFeature()
+        postFeature(getScopedSpaceId(testSpaceId2ExtExt,scope), newFeature()
                         .withId("2LPoint")
                         .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.4828826,50.201185)))
                         .withProperties(new Properties().with("foo", "test")),
                 AuthProfile.ACCESS_OWNER_1_ADMIN
         );
 
-        deleteAllJobsOnSpace(testSpaceId1);
-        deleteAllJobsOnSpace(testSpaceId2);
-        deleteAllJobsOnSpace(testSpaceId2Ext);
-        deleteAllJobsOnSpace(testSpaceId2ExtExt);
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId1, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2Ext, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2ExtExt, scope));
     }
 
-    @AfterClass
-    public static void tearDownClass() {
-        removeSpace(testSpaceId1);
-        removeSpace(testSpaceId2);
-        removeSpace(testSpaceId2Ext);
-        removeSpace(testSpaceId2ExtExt);
-    }
+    protected static void cleanUpEnv(String scope){
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId1, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2Ext, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2ExtExt, scope));
 
-    protected static ValidatableResponse postJob(Job job){
-        return postJob(job, testSpaceId1);
+        removeSpace(getScopedSpaceId(testSpaceId1, scope));
+        removeSpace(getScopedSpaceId(testSpaceId2, scope));
+        removeSpace(getScopedSpaceId(testSpaceId2Ext, scope));
+        removeSpace(getScopedSpaceId(testSpaceId2ExtExt, scope));
     }
 
     protected static ValidatableResponse postJob(Job job, String spaceId){
@@ -134,11 +139,8 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .then();
     }
 
-    protected static Job createTestJobWithId(String id, Job.Type type) {
-        return createTestJobWithId(testSpaceId1, id, type, Job.CSVFormat.JSON_WKB);
-    }
-
     protected static Job createTestJobWithId( String spaceId, String id, Job.Type type, Job.CSVFormat csvFormat) {
+        id = id + CService.currentTimeMillis();
         Job job;
         if(type.equals(Job.Type.Import)) {
             job = new Import()
@@ -185,9 +187,21 @@ public class JobApiIT extends TestSpaceWithFeature {
         return job;
     }
 
-    protected static void deleteJob(String jobId) {
-        deleteJob(jobId, testSpaceId1, true);
+    protected static void abortJob(Job job, String spaceId) {
+        String postUrl = "/spaces/{spaceId}/job/{jobId}/execute?command=abort"
+                .replace("{spaceId}", spaceId)
+                .replace("{jobId}", job.getId());
+
+        /** abort job */
+        given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .post(postUrl)
+                .then()
+                .statusCode(CREATED.code());
     }
+
     protected static void deleteJob(String jobId, String spaceId, Boolean force) {
         given()
                 .accept(APPLICATION_JSON)
@@ -260,9 +274,33 @@ public class JobApiIT extends TestSpaceWithFeature {
             assertNotEquals(status, failStatus);
 
             System.out.println("Current Status of Job["+jobId+"]: "+status);
+            //Should be higher than JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS
+            Thread.sleep(120);
+        }
+        return job;
+    }
+
+    protected static Job abortExecution(String spaceId, String jobId)
+            throws InterruptedException {
+
+        Job.Status status = Job.Status.waiting;
+        Job job = null;
+
+        while(!status.equals(Job.Status.executing)){
+            job = getJob(spaceId, jobId);
+            status = job.getStatus();
+            System.out.println("Current Status of Job["+jobId+"]: "+status);
             Thread.sleep(150);
         }
 
+        abortJob(job, spaceId);
+
+        while(!status.equals(Job.Status.failed)){
+            job = getJob(spaceId, jobId);
+            status = job.getStatus();
+            System.out.println("Current Status of Job["+jobId+"]: "+status);
+            Thread.sleep(150);
+        }
         return job;
     }
 
@@ -308,6 +346,33 @@ public class JobApiIT extends TestSpaceWithFeature {
 
         out.write(input);
         out.close();
+
+        connection.getResponseCode();
+        System.out.println("Upload finished with: " + connection.getResponseCode());
+    }
+
+    protected static void uploadLocalFile(URL url, String filePath) throws IOException, URISyntaxException {
+        File file = new File(filePath);
+        BufferedInputStream inStream = new BufferedInputStream(new FileInputStream(file));
+
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setDoOutput(true);
+
+        //does not work locally
+        if(filePath.endsWith(".gz"))
+            connection.setRequestProperty( "Content-Encoding","gzip");
+
+        connection.setRequestProperty("Content-Type","text/csv");
+        connection.setRequestMethod("PUT");
+        OutputStreamWriter out = new OutputStreamWriter(connection.getOutputStream());
+
+        int b;
+        while ((b = inStream.read()) != -1) {
+            out.write(b);
+        }
+        out.flush();
+        out.close();
+        inStream.close();
 
         connection.getResponseCode();
         System.out.println("Upload finished with: " + connection.getResponseCode());
@@ -373,7 +438,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         return urlList;
     }
 
-    protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContains) throws IOException {
+    protected static String downloadAndCheck(List<URL> urls, Integer expectedByteSize, Integer expectedFeatureCount, List<String> csvMustContains) throws IOException, InterruptedException {
         String result = "";
         long totalByteSize = 0;
 
@@ -408,7 +473,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         return result;
     }
 
-    protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContains, Integer expectedTileCount) throws IOException {
+    protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContains, Integer expectedTileCount) throws IOException, InterruptedException {
         List<String> tileIds = new ArrayList<>();
         int featureCount = 0;
 
@@ -427,7 +492,7 @@ public class JobApiIT extends TestSpaceWithFeature {
 
     protected Export buildTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format){
         return new Export()
-                .withId(id)
+                .withId(id + CService.currentTimeMillis())
                 .withFilters(filters)
                 .withExportTarget(target)
                 .withCsvFormat(format);

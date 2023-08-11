@@ -99,11 +99,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 Item jobItem = jobs.getItem(spec);
 
                 if (jobItem == null) {
-                    logger.info(marker, "Getting job with ID: {} returned null", jobId);
+                    logger.info(marker, "job[{}] not found!", jobId);
                     p.complete();
                 }
                 else {
-                    logger.info(marker, "Loaded Job width ID: {}", jobId);
                     p.complete(convertItemToJob(jobItem));
                 }
             }
@@ -132,7 +131,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                         final Job job = convertItemToJob(i);
                         result.add(job);
                     }catch (DecodeException e){
-                        logger.warn("Cant decode Job-Item - skip",e);
+                        logger.warn("Cant decode Job-Item - skip!", e);
                     }
                 }));
                 p.complete(result);
@@ -166,7 +165,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                             }
                         }
                     }catch (DecodeException e){
-                        logger.warn("Cant decode Job-Item - skip",e);
+                        logger.warn("Cant decode Job-Item - skip!", e);
                     }
                 }));
 

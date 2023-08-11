@@ -35,7 +35,6 @@ import io.vertx.core.Promise;
 import io.vertx.pgclient.PgConnectOptions;
 import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
-import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.impl.ArrayTuple;
 import org.apache.logging.log4j.LogManager;
@@ -97,7 +96,6 @@ public class JDBCClients {
                 /** Disable Pipelining */
                 .setPipeliningLimit(1)
                 .setProperties(props);
-//                .setIdleTimeout(100);
 
         PoolOptions poolOptions = new PoolOptions()
                 .setMaxSize(getDBPoolSize(clientId));
@@ -189,28 +187,29 @@ public class JDBCClients {
                 });
     }
 
-    public static void addClientIfRequired(String id) throws CannotDecodeException, UnsupportedOperationException {
+    public static Future<Void> addClientIfRequired(String id) {
         if(CService.supportedConnectors != null && CService.supportedConnectors.indexOf(id) == -1)
-            throw new UnsupportedOperationException();
+            return Future.failedFuture("Connector is not supported");
 
-        HubWebClient.getConnectorConfig(id)
-                .onSuccess(connector -> {
-                    DatabaseSettings settings = null;
+        return HubWebClient.getConnectorConfig(id)
+                .compose(connector -> {
                     try {
                         if( connector.params != null && connector.params.get("ecps") !=null) {
-                            settings = ECPSTool.readDBSettingsFromECPS((String) connector.params.get("ecps"), CService.configuration.ECPS_PHRASE);
+                            DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS((String) connector.params.get("ecps"), CService.configuration.ECPS_PHRASE);
 
-                            if(JDBCImporter.getClient(id) == null){
+                            if(JDBCImporter.getClient(id) == null) {
                                 addClients(id, settings);
-                            }else{
-                                if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
-                                    removeClients(id);
-                                    addClients(id, settings);
-                                }
+                            }else if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
+                                /** Check if config has changed */
+                                removeClients(id);
+                                addClients(id, settings);
                             }
-                        }
+
+                            return Future.succeededFuture();
+                        }else
+                            return Future.failedFuture("Ecps is missing! "+id);
                     } catch (CannotDecodeException e) {
-                        logger.warn("Cant load dbClients for "+id ,e);
+                        return Future.failedFuture("Cant load dbClients for "+id);
                     }
                 });
     }
@@ -283,7 +282,7 @@ public class JDBCClients {
         /** Collection current metrics from Cloudwatch */
 
         if(JDBCImporter.getStatusClient(clientId)== null){
-            logger.info("DB-Client not Ready!");
+            logger.info("DB-Client not Ready! [{}]", clientId);
             p.complete(null);
         }else{
             collectRunningQueries(clientId)
@@ -291,28 +290,28 @@ public class JDBCClients {
                         /** Collect metrics from Cloudwatch */
                         JSONObject avg5MinRDSMetrics = CService.jobCWClient.getAvg5MinRDSMetrics(CService.rdsLookupDatabaseIdentifier.get(clientId));
                         p.complete(new RDSStatus(clientId, avg5MinRDSMetrics, runningQueryStatistics));
-                    }).onFailure(f -> {
-                        logger.warn("Cant get RDS-Resources {}",f);
-                        p.fail(f);
+                    }).onFailure(e -> {
+                        logger.warn("Cant get RDS-Resources! ", e);
+                        p.fail(e);
                     } );
         }
 
         return p.future();
     }
 
-    public static Future<Integer> abortJobsByJobId(Job j)  {
-        SQLQuery q = buildAbortsJobQuery(j);
-        logger.info("[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+    public static Future<Void> abortJobsByJobId(Job j)  {
+        return addClientIfRequired(j.getTargetConnector())
+                .compose(f -> {
+                    SQLQuery q = buildAbortsJobQuery(j);
+                    logger.info("job[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 
-        return getStatusClient(j.getTargetConnector())
-                .query(q.text())
-                .execute()
-                .map(row -> {
-                    Row res = row.iterator().next();
-                    if (res != null) {
-                        return 1;
-                    }
-                    return null;
+                    return getStatusClient(j.getTargetConnector())
+                            .query(q.text())
+                            .execute()
+                            .compose(row ->
+                                 /** succeeded in any-case */
+                                 Future.succeededFuture()
+                            );
                 });
     }
 
