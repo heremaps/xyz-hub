@@ -19,6 +19,7 @@
 package com.here.naksha.lib.heapcache;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.CollectionInfo;
@@ -27,6 +28,8 @@ import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import java.lang.ref.WeakReference;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 class HeapCacheTest {
 
@@ -37,7 +40,6 @@ class HeapCacheTest {
       System.gc();
     }
   }
-
 
   @Test
   void CacheSoftReferenceTest() {
@@ -83,6 +85,49 @@ class HeapCacheTest {
           .getFeature();
       assertNotNull(feature);
       assertEquals("r", feature.getId());
+    }
+  }
+
+  @Mock
+  private CacheChangeListener listener;
+
+  @Test
+  public void testCacheListener() {
+    MockitoAnnotations.initMocks(this);
+
+    HeapCache cache = new HeapCache(new HeapCacheConfig(null));
+    cache.addListener(listener);
+
+    try (final IMasterTransaction tx = cache.openMasterTransaction(cache.createSettings())) {
+      tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo"))
+          .modifyFeatures(new ModifyFeaturesReq<>().insert(new XyzFeature("x")));
+      tx.commit();
+
+      XyzFeature feature =
+          tx.readFeatures(XyzFeature.class, new CollectionInfo("foo")).getFeatureById("x");
+
+      String key = "foo";
+
+      // Simulate adding a cache entry
+      cache.putCacheEntry(key, feature);
+
+      // Verify that the listener was notified
+      verify(listener, times(1)).onCacheEntryAdded(key, feature);
+
+      // Simulate updating a cache entry
+      cache.updateCacheEntry(key, feature);
+
+      // Verify that the listener was notified
+      verify(listener, times(1)).onCacheEntryUpdated(key, feature);
+
+      // Simulate removing a cache entry
+      cache.removeCacheEntry(key);
+
+      // Verify that the listener was notified
+      verify(listener, times(1)).onCacheEntryRemoved(key);
+
+      // Cleanup and remove the listener
+      cache.removeListener(listener);
     }
   }
 }
