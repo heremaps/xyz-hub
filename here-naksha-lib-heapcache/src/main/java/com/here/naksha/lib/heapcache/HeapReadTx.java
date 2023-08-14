@@ -42,7 +42,8 @@ public class HeapReadTx implements IReadTransaction {
 
   @Override
   public @NotNull ITransactionSettings settings() {
-    return null;
+    // Implement transaction settings logic
+    return cache.createSettings(); // Use cache's createSettings()
   }
 
   @Override
@@ -50,7 +51,29 @@ public class HeapReadTx implements IReadTransaction {
 
   @Override
   public @NotNull ClosableIterator<@NotNull CollectionInfo> iterateCollections() {
-    return null;
+    // Implement collection iteration logic
+    return new ClosableIterator<@NotNull CollectionInfo>() {
+      @Override
+      public boolean hasNext() {
+        // Implement hasNext logic
+        return false; // Replace with actual logic
+      }
+
+      @Override
+      public @NotNull CollectionInfo next() {
+        // Implement next logic
+        return new CollectionInfo("example", 1L); // Replace with actual logic
+      }
+
+      @Override
+      public void close() {
+        // Implement resource closing logic here
+        // For example, close any open resources or connections
+        // You can also release any references or perform cleanup
+        // This method will be called when the transaction is finished
+        // Don't forget to close any open resources to prevent leaks
+      }
+    };
   }
 
   @Override
