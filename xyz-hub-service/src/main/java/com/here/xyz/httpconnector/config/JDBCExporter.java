@@ -99,12 +99,21 @@ public class JDBCExporter extends JDBCClients{
                         return calculateThreadCountForDownload(j, schema, exportQuery)
                                 .compose(threads -> {
                                     try {
-                                        Promise<Export.ExportStatistic> promise = Promise.promise();
-                                        List<Future> exportFutures = new ArrayList<>();
+                                    Promise<Export.ExportStatistic> promise = Promise.promise();
+                                    List<Future> exportFutures = new ArrayList<>();
 
-                                    for (int i = 0; i < threads; i++) {
+                                    int tCount = threads,
+                                        maxPartitionPerFile = 500000; /* tbd ? */
+
+                                    if( j.getPartitionKey() == null || "id".equalsIgnoreCase(j.getPartitionKey() ) )
+                                     if( j.getFilters() != null && ( (j.getFilters().getPropertyFilter() != null) || (j.getFilters().getSpatialFilter() != null) ))
+                                      tCount = threads;
+                                     else // only when export by id and no filter is used
+                                      tCount = Math.max( threads, (int) Math.floor( j.getEstimatedFeatureCount() / (long) maxPartitionPerFile) );
+
+                                    for (int i = 0; i < tCount; i++) {
                                         String s3Prefix = i + "_";
-                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, (threads > 1 ? new SQLQuery("AND i%% " + threads + " = "+i) : null) );
+                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, (tCount > 1 ? new SQLQuery("AND i%% " + tCount + " = "+i) : null) );
                                         exportFutures.add( exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
