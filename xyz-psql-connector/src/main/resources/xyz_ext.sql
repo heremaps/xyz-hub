@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 176
+ select 177
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2755,10 +2755,10 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_lrc2bbox(rowY integer, colX integer, level integer)
-	RETURNS geometry AS 
+	RETURNS geometry AS
 $$
- select st_transform( ST_TileEnvelope( level, colX, rowY ), 4326 ) 
-$$ 
+ select st_transform(ST_TileEnvelope(level, colX, rowY), 4326)
+$$
 LANGUAGE sql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
@@ -2887,16 +2887,16 @@ $BODY$
                             ERRCODE = 'XYZ50';
                 END IF;
             END IF;
-
-            -- If the current history partition is filled half-way, create the next one already
-            IF version % partitionSize = partitionSize / 2 THEN
-                EXECUTE xyz_create_history_partition(schema, tableName, floor(version / partitionSize) + 1, partitionSize);
-            END IF;
         ELSE
             -- Ignore concurrency check for inserts and try to update the previous versions
             EXECUTE
                 format('UPDATE %I.%I SET next_version = %L WHERE id = %L AND next_version = %L AND version < %L',
                        schema, tableName, version, id, max_bigint(), version);
+        END IF;
+
+        -- If the current history partition is nearly full, create the next one already
+        IF version % partitionSize > partitionSize - 50 THEN
+            EXECUTE xyz_create_history_partition(schema, tableName, floor(version / partitionSize) + 1, partitionSize);
         END IF;
 
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
@@ -2972,10 +2972,14 @@ CREATE OR REPLACE FUNCTION xyz_create_history_partition(schema TEXT, rootTable T
     RETURNS VOID AS
 $BODY$
 BEGIN
+    RAISE NOTICE 'Creating new history partition for %.% with partition no % ...',
+        schema, rootTable, partitionNo;
     EXECUTE
         format('CREATE TABLE IF NOT EXISTS %I.%I PARTITION OF %I.%I FOR VALUES FROM (%L) TO (%L)',
             schema, (rootTable || '_p' || partitionNo), schema, rootTable,
             partitionSize * partitionNo, partitionSize * (partitionNo + 1));
+    RAISE NOTICE 'Partition no % was successfully created (or existed already) for %.%.',
+        partitionNo, schema, rootTable;
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
@@ -3993,9 +3997,9 @@ begin
   return query
    with
 	 hddata as ( select array_agg( coalesce( to_regclass( format('%I.%I',c.relnamespace::regnamespace::text, c.relname::text || '_head') ), c.oid::regclass ) ) as headtbl
-                 from pg_class c, (select unnest( tbls ) as tbl ) 
+                 from pg_class c, (select unnest(tbls) as tbl)
                  r	where c.oid = r.tbl
-			   ),	
+			   ),
  	indata as  ( select r.tbl, greatest( c.reltuples::bigint, 1) as reltuples from pg_class c , (select unnest( (select headtbl from hddata) ) as tbl ) r	where c.oid = r.tbl ),
 	iindata as ( select tbl, x.reltuples, x.reltuples::float/max(x.reltuples) over () as rweight, sum(x.reltuples) over () as total from indata x ),
     qkdata as
