@@ -1,0 +1,569 @@
+<mxfile host="Electron" modified="2023-08-15T20:53:22.809Z" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/21.6.8 Chrome/114.0.5735.289 Electron/25.5.0 Safari/537.36" etag="fwnGFoDUaJUpvc_-PV1k" version="21.6.8" type="device">
+  <diagram name="Page-1" id="c7558073-3199-34d8-9f00-42111426c3f3">
+    <mxGraphModel dx="2178" dy="1142" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="4681" pageHeight="3300" background="none" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="IS7OfrcVgxXRb15TEPke-1" value="Moderation User&lt;br&gt;using UniMap Editor" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="130" y="565" width="30" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-5" value="Naksha" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="210" width="2640" height="980" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-6" value="Extensions" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=73;height=36;fillColor=none;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="2420" y="810" width="390" height="305" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-9" value="Moderation DB" style="shape=datastore;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="990" y="520" width="70" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-84" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-10" target="IS7OfrcVgxXRb15TEPke-80">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-109" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-10" target="IS7OfrcVgxXRb15TEPke-41">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1220" y="925" />
+              <mxPoint x="1220" y="925" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-124" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-10" target="IS7OfrcVgxXRb15TEPke-80">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-146" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-10" target="IS7OfrcVgxXRb15TEPke-139">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1270" y="925" />
+              <mxPoint x="1270" y="690" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-147" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-10" target="IS7OfrcVgxXRb15TEPke-43">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1270" y="925" />
+              <mxPoint x="1270" y="800" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-148" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-10" target="IS7OfrcVgxXRb15TEPke-45">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1270" y="925" />
+              <mxPoint x="1270" y="1045" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-10" value="Naksha Proxy" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="540" y="900" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-128" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-15" target="IS7OfrcVgxXRb15TEPke-50">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-15" value="«IEventHandler»&lt;br&gt;&lt;b&gt;DCUHandler&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="2584.5" y="1015" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-16" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-15">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-129" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-33" target="IS7OfrcVgxXRb15TEPke-50">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-33" value="«IStorage»&lt;br&gt;&lt;b&gt;ConsistentStore&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="2170" y="1115" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-34" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-33">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-107" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-41" target="IS7OfrcVgxXRb15TEPke-105">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-125" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-41" target="IS7OfrcVgxXRb15TEPke-105">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-41" value="«Space»&lt;br&gt;&lt;b&gt;Topology-View&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="890" width="205" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-42" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-41">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-226" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-43" target="IS7OfrcVgxXRb15TEPke-141">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-43" value="«Space»&lt;br&gt;&lt;b&gt;Topology-Delta (DLB)&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="770" width="205" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-44" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-43">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-149" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fillColor=#f8cecc;strokeColor=#b85450;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-45" target="IS7OfrcVgxXRb15TEPke-122">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1680" y="1020" />
+              <mxPoint x="1680" y="1020" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-151" value="alternative" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="IS7OfrcVgxXRb15TEPke-149">
+          <mxGeometry x="-0.1334" y="1" relative="1" as="geometry">
+            <mxPoint x="4" y="-9" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-45" value="«Space»&lt;br&gt;&lt;b&gt;Topology-Base&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="1015" width="205" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-46" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-45">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-49" value="DCU" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1190" y="1240" width="1660" height="520" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-50" value="Consistent&lt;br&gt;Store" style="shape=datastore;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="2580" y="1350" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-103" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;fillColor=#d5e8d4;strokeColor=#82b366;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-51" target="IS7OfrcVgxXRb15TEPke-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-51" value="«IStorage»&lt;br&gt;&lt;b&gt;PsqlStorage&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1660" y="525" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-52" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-51">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-133" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-53" target="IS7OfrcVgxXRb15TEPke-131">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-53" value="«DCU»&lt;br&gt;&lt;b&gt;BucketProcessor&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="1430" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-54" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-53">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-136" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-55" target="IS7OfrcVgxXRb15TEPke-131">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-55" value="«DCU»&lt;br&gt;&lt;b&gt;Change-Set-Publisher&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="2220" y="1420" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-56" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-55">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-57" value="Wikvaya" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="550" y="460" width="580" height="520" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-58" value="Wikvaya DB" style="shape=datastore;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="840" y="520" width="70" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-67" value="UTM" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="550" y="1070" width="580" height="630" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-73" value="Two options:&lt;br&gt;1. Implement open source IStorage, then use default storage handler.&lt;br&gt;2. Implement using proprietary library and code, then use an extension handler." style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=#999999;strokeWidth=1;fillColor=#FFFFFF;fontColor=#6C767D;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=10;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="1085" width="540" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-82" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.15;entryY=0.95;entryDx=0;entryDy=0;entryPerimeter=0;exitX=1;exitY=0.25;exitDx=0;exitDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-76" target="IS7OfrcVgxXRb15TEPke-58">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-101" value="Generate access matrix" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="IS7OfrcVgxXRb15TEPke-82">
+          <mxGeometry x="-0.646" y="1" relative="1" as="geometry">
+            <mxPoint x="-10" y="-31" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-90" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-76" target="IS7OfrcVgxXRb15TEPke-80">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-100" value="Create temporary token with access matrix" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="IS7OfrcVgxXRb15TEPke-90">
+          <mxGeometry x="-0.2614" y="-1" relative="1" as="geometry">
+            <mxPoint x="71" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-76" value="UPM API&lt;br&gt;&lt;i&gt;&lt;font style=&quot;font-size: 11px;&quot;&gt;User Permission Management&lt;/font&gt;&lt;/i&gt;" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="540" y="710" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-102" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-77" target="IS7OfrcVgxXRb15TEPke-58">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-77" value="Map Feedback API" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="540" y="590" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-81" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-78" target="IS7OfrcVgxXRb15TEPke-58">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-78" value="Geospace API" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="540" y="530" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-83" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-80" target="IS7OfrcVgxXRb15TEPke-58">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-80" value="Token API" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="540" y="800" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-86" value="HA token" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;entryX=0;entryY=0;entryDx=0;entryDy=15;entryPerimeter=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-87" target="IS7OfrcVgxXRb15TEPke-76">
+          <mxGeometry width="80" relative="1" as="geometry">
+            <mxPoint x="290" y="560" as="sourcePoint" />
+            <mxPoint x="370" y="560" as="targetPoint" />
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-87" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;targetShapes=umlLifeline;portConstraint=eastwest;newEdgeStyle={&quot;edgeStyle&quot;:&quot;elbowEdgeStyle&quot;,&quot;elbow&quot;:&quot;vertical&quot;,&quot;curved&quot;:0,&quot;rounded&quot;:0};" vertex="1" parent="1">
+          <mxGeometry x="240" y="200" width="10" height="790" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-88" value="Naksha token and user details" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=35;exitPerimeter=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-76" target="IS7OfrcVgxXRb15TEPke-87">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="450" y="630" as="sourcePoint" />
+            <mxPoint x="370" y="630" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-91" value="Platform" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=73;height=36;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="550" y="100" width="580" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-92" value="GET /spaces/foo/features?id=a,b" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;entryX=0;entryY=0;entryDx=0;entryDy=15;entryPerimeter=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-87" target="IS7OfrcVgxXRb15TEPke-10">
+          <mxGeometry width="80" relative="1" as="geometry">
+            <mxPoint x="260" y="900" as="sourcePoint" />
+            <mxPoint x="550" y="900" as="targetPoint" />
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-93" value="feature-collection" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=35;exitPerimeter=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-10">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="540" y="920" as="sourcePoint" />
+            <mxPoint x="250" y="935" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="390" y="935" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-95" value="HERE Account" style="shape=module;align=left;spacingLeft=20;align=center;verticalAlign=top;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="540" y="200" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-96" value="login" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;entryX=0;entryY=0;entryDx=0;entryDy=15;entryPerimeter=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-87" target="IS7OfrcVgxXRb15TEPke-95">
+          <mxGeometry width="80" relative="1" as="geometry">
+            <mxPoint x="280" y="262.5" as="sourcePoint" />
+            <mxPoint x="560" y="257.5" as="targetPoint" />
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-97" value="HA token" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;exitX=0;exitY=0;exitDx=0;exitDy=35;exitPerimeter=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-95" target="IS7OfrcVgxXRb15TEPke-87">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="540" y="230" as="sourcePoint" />
+            <mxPoint x="270" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-98" value="Resolve HERE token to user details" style="html=1;verticalAlign=bottom;endArrow=block;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;entryX=1;entryY=0.25;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;startArrow=none;startFill=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-76" target="IS7OfrcVgxXRb15TEPke-95">
+          <mxGeometry x="-0.6418" width="80" relative="1" as="geometry">
+            <mxPoint x="1130" y="570.3333333333333" as="sourcePoint" />
+            <mxPoint x="1350" y="570" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1240" y="480" />
+            </Array>
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-111" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-105" target="IS7OfrcVgxXRb15TEPke-45">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1690" y="980" />
+              <mxPoint x="1442" y="980" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-115" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.25;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-105" target="IS7OfrcVgxXRb15TEPke-43">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1650" y="860" />
+              <mxPoint x="1443" y="860" />
+              <mxPoint x="1443" y="845" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-145" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;dashed=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-105" target="IS7OfrcVgxXRb15TEPke-139">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1720" y="750" />
+              <mxPoint x="1442" y="750" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-105" value="«IEventHandler»&lt;br&gt;&lt;b&gt;ViewHandler&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1650" y="890" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-106" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-105">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-121" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-118" target="IS7OfrcVgxXRb15TEPke-33">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-118" value="«IEventHandler»&lt;br&gt;&lt;b&gt;DefaultStorageHandler&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1960" y="1115" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-119" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-118">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-127" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-122" target="IS7OfrcVgxXRb15TEPke-15">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2450" y="1020" />
+              <mxPoint x="2450" y="1060" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-122" value="«IEventHandler»&lt;br&gt;&lt;b&gt;ExtensionHandler&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="2100" y="990" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-123" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-122">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-120" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fillColor=#d5e8d4;strokeColor=#82b366;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-45" target="IS7OfrcVgxXRb15TEPke-118">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1920" y="1060" />
+              <mxPoint x="1920" y="1145" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-150" value="recommended" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="IS7OfrcVgxXRb15TEPke-120">
+          <mxGeometry x="-0.0039" y="4" relative="1" as="geometry">
+            <mxPoint x="-14" y="-6" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-134" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;fillColor=#d5e8d4;strokeColor=#82b366;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-131" target="IS7OfrcVgxXRb15TEPke-9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1970" y="1310" />
+              <mxPoint x="1970" y="1210" />
+              <mxPoint x="1200" y="1210" />
+              <mxPoint x="1200" y="555" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-131" value="«IStorage»&lt;br&gt;&lt;b&gt;PsqlStorage&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1830" y="1310" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-132" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-131">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-137" value="The bucket processor is expected to read from the moderation database delta collection (alias DLB - dead letter bucket). It should simply fetch all features being in the review-state &lt;b&gt;ENDORSED&lt;/b&gt;.&lt;br&gt;&lt;br&gt;The change-set-publisher should write all features where the integration has failed with the review-state &lt;b&gt;FAILED&lt;/b&gt; back into the delta collection (DLB). Additionally (in the same transaction) it should write all violations into the violation collection. It is expected as well, that all features that where successfully integrated are removed from delta collection (DLB).&lt;br&gt;&lt;br&gt;Conflicts can be handled by the provided Naksha library." style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=#999999;strokeWidth=1;fillColor=#FFFFFF;fontColor=#6C767D;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=10;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1590" y="1400" width="620" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-138" value="DCU can use a template provided by Naksha and implement a handler that performs the database access. Deployment is controlled by DUC, changed whenever wanted.&lt;br&gt;This method has the disadvantage, that Naksha will not be able to know that this is a storage, so no subscriptions are available for the consistent store." style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=#999999;strokeWidth=1;fillColor=#FFFFFF;fontColor=#6C767D;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=10;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="2435.5" y="870" width="349" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-143" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-139" target="IS7OfrcVgxXRb15TEPke-141">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-139" value="«Space»&lt;br&gt;&lt;b&gt;Topology-Violations&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="660" width="205" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-140" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-139">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-144" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-141" target="IS7OfrcVgxXRb15TEPke-51">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-141" value="«IEventHandler»&lt;br&gt;&lt;b&gt;DefaultStorageHandler&lt;/b&gt;" style="html=1;dropTarget=0;whiteSpace=wrap;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1660" y="660" width="160" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-142" value="" style="shape=module;jettyWidth=8;jettyHeight=4;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-141">
+          <mxGeometry x="1" width="20" height="20" relative="1" as="geometry">
+            <mxPoint x="-27" y="7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-152" value="Event Pipeline" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;width=70;height=40;fillColor=#d5e8d4;strokeColor=#82b366;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="2380" y="260" width="1540" height="530" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-154" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-153">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1580" y="690" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-158" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=-0.002;entryY=0.06;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-153" target="IS7OfrcVgxXRb15TEPke-152">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-153" value="Event Pipeline Details" style="ellipse;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1860" y="377" width="140" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-159" value="&lt;b&gt;EventHandler&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=26;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="2750" y="280" width="290" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-161" value="+ id: String" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-159">
+          <mxGeometry y="26" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-162" value="+ className: String" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-159">
+          <mxGeometry y="52" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-219" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-164" target="IS7OfrcVgxXRb15TEPke-181">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="3640" y="390" />
+              <mxPoint x="3640" y="390" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-223" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-164" target="IS7OfrcVgxXRb15TEPke-185">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="3380" y="550" />
+              <mxPoint x="3380" y="550" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-225" value="IStorage" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="IS7OfrcVgxXRb15TEPke-223">
+          <mxGeometry x="-0.2097" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-164" value="&lt;i style=&quot;border-color: var(--border-color);&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&amp;lt;&amp;lt;&amp;lt;&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;IEventHandler&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&amp;gt;&amp;gt;&amp;gt;&lt;br&gt;&lt;i style=&quot;border-color: var(--border-color); font-size: 12px;&quot;&gt;&lt;font style=&quot;border-color: var(--border-color); font-size: 10px;&quot;&gt;&lt;b style=&quot;border-color: var(--border-color); font-size: 12px; font-style: normal;&quot;&gt;DefaultStorageHandler&lt;/b&gt;&lt;/font&gt;&lt;/i&gt;&lt;br&gt;&lt;/font&gt;&lt;/i&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=37;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="3270" y="358" width="290" height="89" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-165" value="+ new(naksha : INaksha, storage: Storage)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-164">
+          <mxGeometry y="37" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-200" value="+ processEvent(ctx : IEventContext) : XyzResponse" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-164">
+          <mxGeometry y="63" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-211" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-174" target="IS7OfrcVgxXRb15TEPke-197">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2680" y="536" />
+              <mxPoint x="2680" y="402" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-174" value="&lt;b&gt;Space&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=26;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="2450" y="496.5" width="180" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-175" value="+ id: String" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-174">
+          <mxGeometry y="26" width="180" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-176" value="+ eventHandler: List&amp;lt;String&amp;gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-174">
+          <mxGeometry y="52" width="180" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-212" value="+ storageId: String" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-174">
+          <mxGeometry y="78" width="180" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-213" value="+ collectionids: List&amp;lt;String&amp;gt;" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-174">
+          <mxGeometry y="104" width="180" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-202" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-177" target="IS7OfrcVgxXRb15TEPke-197">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2690" y="390" />
+              <mxPoint x="2690" y="390" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-177" value="&lt;b&gt;GetFeaturesByIdEvent&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=26;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="2450" y="339" width="180" height="104" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-178" value="+ type: String" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-177">
+          <mxGeometry y="26" width="180" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-196" value="+ space: Space" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-177">
+          <mxGeometry y="52" width="180" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-214" value="+ ..." style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-177">
+          <mxGeometry y="78" width="180" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-220" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-181" target="IS7OfrcVgxXRb15TEPke-189">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-221" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-181" target="IS7OfrcVgxXRb15TEPke-185">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="3710" y="580" />
+              <mxPoint x="3710" y="580" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-181" value="&lt;i style=&quot;border-color: var(--border-color);&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&amp;lt;&amp;lt;&amp;lt;&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;INaksha&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&amp;gt;&amp;gt;&amp;gt;&lt;/font&gt;&lt;/i&gt;&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;&lt;b style=&quot;border-color: var(--border-color);&quot;&gt;NakshaService&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=37;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="3660" y="371" width="250" height="63" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-183" value="+ getStorage(storageId : String) : IStorage" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-181">
+          <mxGeometry y="37" width="250" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-185" value="&lt;i style=&quot;border-color: var(--border-color);&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&amp;lt;&amp;lt;&amp;lt;&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;IStorage&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&amp;gt;&amp;gt;&amp;gt;&lt;/font&gt;&lt;/i&gt;&lt;br style=&quot;border-color: var(--border-color);&quot;&gt;&lt;b style=&quot;border-color: var(--border-color);&quot;&gt;PsqlStorage&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=37;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="3300" y="610" width="320" height="89" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-186" value="+ new(naksha : INaksha, eventHandler: EventHandler)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-185">
+          <mxGeometry y="37" width="320" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-187" value="+ newContext(): IStorageContext" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-185">
+          <mxGeometry y="63" width="320" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-189" value="&lt;b&gt;Storage&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=26;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="3740" y="502" width="170" height="104" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-190" value="+ id: String" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-189">
+          <mxGeometry y="26" width="170" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-191" value="+ className: String" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-189">
+          <mxGeometry y="52" width="170" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-224" value="+ properties: JsonObject" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-189">
+          <mxGeometry y="78" width="170" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-205" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-197" target="IS7OfrcVgxXRb15TEPke-164">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-197" value="&lt;i style=&quot;border-color: var(--border-color);&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&amp;lt;&amp;lt;&amp;lt;&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;font-size: 12px;&quot;&gt;IEventHandler&amp;nbsp;&lt;/font&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&amp;gt;&amp;gt;&amp;gt;&lt;br&gt;&lt;i style=&quot;border-color: var(--border-color); font-size: 12px;&quot;&gt;&lt;font style=&quot;border-color: var(--border-color); font-size: 10px;&quot;&gt;&lt;b style=&quot;border-color: var(--border-color); font-size: 12px; font-style: normal;&quot;&gt;JsonSchemaValidator&lt;/b&gt;&lt;/font&gt;&lt;/i&gt;&lt;br&gt;&lt;/font&gt;&lt;/i&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=37;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="2750" y="358" width="290" height="89" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-198" value="+ new(naksha : INaksha, storage: Storage)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-197">
+          <mxGeometry y="37" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-199" value="+ processEvent(ctx : IEventContext) : XyzResponse" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-197">
+          <mxGeometry y="63" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-201" value="When a REST request is incoming, Naksha will create an event from it. For example the request&amp;nbsp;&lt;b&gt;GET /spaces/foo/features?id=a,b&lt;/b&gt; will be translated into&amp;nbsp;a &lt;b&gt;GetFeaturesByIdEvent&lt;/b&gt;.&lt;br&gt;&lt;br&gt;Then a new event-pipeline is created and the accessed space is read.&amp;nbsp;The space&amp;nbsp;holds a list of event-handlers that should be part of the event-pipeline (in order).&lt;br&gt;&lt;br&gt;Naksha will read all EventHandlers and use the &lt;b&gt;className&lt;/b&gt; to create instances, providing the Naksha reference and the EventHandler object&amp;nbsp;to the constructor of the handler implementation, before adding it into the event-pipeline.&lt;br&gt;&lt;br&gt;Eventually the event is send through the event-pipeline and the generated response is returned." style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=#999999;strokeWidth=1;fillColor=#FFFFFF;fontColor=#6C767D;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=10;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="2710" y="460" width="500" height="296.5" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-207" value="&lt;b&gt;EventHandler&lt;/b&gt;" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=26;fillColor=#d5e8d4;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="3270" y="280" width="290" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-208" value="+ id: String" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-207">
+          <mxGeometry y="26" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-209" value="+ className: String" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;" vertex="1" parent="IS7OfrcVgxXRb15TEPke-207">
+          <mxGeometry y="52" width="290" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-216" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;dashed=1;" edge="1" parent="1" source="IS7OfrcVgxXRb15TEPke-196" target="IS7OfrcVgxXRb15TEPke-174">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-217" value="The &lt;b&gt;default storage handler&lt;/b&gt; reads the &lt;b&gt;space&lt;/b&gt; from the &lt;b&gt;event&lt;/b&gt;. Then it asks &lt;b&gt;Naksha&lt;/b&gt; for the &lt;b&gt;storage&lt;/b&gt; implementation. Naksha does return an object implementing the &lt;b&gt;IStorage&lt;/b&gt; interface. It does so, by reading the user defined &lt;b&gt;storage&lt;/b&gt; configuration, in which it find the className, while the properties are arbitrary configuration details defined by the implementation.&lt;br&gt;&lt;br&gt;For example, the default &lt;b&gt;PsqlStorage&lt;/b&gt; implementation will require a &lt;b&gt;url&lt;/b&gt; property storing the JDBC URL of the database to connect to, and some other properties for details like statement- and lock-timeout." style="html=1;shadow=0;dashed=0;shape=mxgraph.bootstrap.rrect;rSize=5;strokeColor=#999999;strokeWidth=1;fillColor=#FFFFFF;fontColor=#6C767D;whiteSpace=wrap;align=left;verticalAlign=middle;spacingLeft=10;fontSize=14;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="3260" y="800" width="660" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="IS7OfrcVgxXRb15TEPke-222" value="IStorage" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=elbowEdgeStyle;elbow=vertical;curved=0;rounded=0;entryX=1.004;entryY=0.929;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" target="IS7OfrcVgxXRb15TEPke-165">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="3660" y="420.33000000000004" as="sourcePoint" />
+            <mxPoint x="3580" y="420.33000000000004" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
