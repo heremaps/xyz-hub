@@ -20,18 +20,78 @@ package com.here.naksha.lib.heapcache;
 
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.fib.FibSet;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 public class HeapCache implements IStorage {
 
+  private final List<WeakReference<CacheChangeListener>> listeners = new ArrayList<>();
+
   public HeapCache(@NotNull HeapCacheConfig config) {
     this.config = config;
     // if full, then directly read everything from config.storage
     // we need to implement listeners and other mechanisms to always keep up with the storage.
+  }
+
+  public void addListener(@NotNull CacheChangeListener listener) {
+    listeners.add(new WeakReference<>(listener));
+  }
+
+  public void removeListener(@NotNull CacheChangeListener listener) {
+    listeners.remove(listener);
+    // Remove the listener from the list
+    // Return true if successful, false if not found
+    // Implement the removal logic based on your specific needs
+  }
+
+  private void notifyEntryAdded(String key, XyzFeature feature) {
+    for (WeakReference<CacheChangeListener> reference : listeners) {
+      CacheChangeListener listener = reference.get();
+      if (listener != null) {
+        listener.onCacheEntryAdded(key, feature);
+      }
+    }
+  }
+
+  private void notifyEntryUpdated(String key, XyzFeature feature) {
+    for (WeakReference<CacheChangeListener> reference : listeners) {
+      CacheChangeListener listener = reference.get();
+      if (listener != null) {
+        listener.onCacheEntryUpdated(key, feature);
+      }
+    }
+  }
+
+  private void notifyEntryRemoved(String key) {
+    for (WeakReference<CacheChangeListener> reference : listeners) {
+      CacheChangeListener listener = reference.get();
+      if (listener != null) {
+        listener.onCacheEntryRemoved(key);
+      }
+    }
+  }
+
+  public void putCacheEntry(String key, XyzFeature feature) {
+    // Add the cache entry
+    // Trigger notification
+    notifyEntryAdded(key, feature);
+  }
+
+  public void updateCacheEntry(String key, XyzFeature feature) {
+    // Update the cache entry
+    // Trigger notification
+    notifyEntryUpdated(key, feature);
+  }
+
+  public void removeCacheEntry(String key) {
+    // Remove the cache entry
+    // Trigger notification
+    notifyEntryRemoved(key);
   }
 
   protected final @NotNull HeapCacheConfig config;

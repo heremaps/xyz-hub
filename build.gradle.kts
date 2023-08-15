@@ -261,7 +261,7 @@ project(":here-naksha-lib-heapcache") {
     }
     dependencies {
         api(project(":here-naksha-lib-core"))
-
+        testImplementation("org.mockito:mockito-core:3.12.4")
         implementation(vividsolutions_jts_core)
     }
 }
