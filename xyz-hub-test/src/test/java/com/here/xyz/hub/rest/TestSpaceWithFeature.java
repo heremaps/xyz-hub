@@ -87,6 +87,21 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .body("storage.id", equalTo((usedStorageId)));
   }
 
+  protected static void setReadOnly(String spaceId) {
+    patchSpace(spaceId, new JsonObject().put("readOnly", true));
+  }
+
+  protected static ValidatableResponse patchSpace(String spaceId, JsonObject spacePatch) {
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(APPLICATION_JSON)
+        .body(spacePatch.encode())
+        .when()
+        .patch(getCreateSpacePath(spaceId) + "/" + spaceId)
+        .then()
+        .statusCode(200);
+  }
+
   /**
    * Creates a space with a random ID.
    * @return the random ID
@@ -111,7 +126,8 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     return createSpaceWithCustomStorage(spaceId, storageId, storageParams, versionsToKeep, false);
   }
 
-  protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams, int versionsToKeep, boolean persistExport) {
+  protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams, int versionsToKeep,
+      boolean persistExport) {
     JsonObject storage = new JsonObject()
         .put("id", storageId);
     if (storageParams != null)
@@ -131,7 +147,10 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .when()
         .post(getCreateSpacePath(spaceId))
         .then()
-        .statusCode(200).extract().body().path("id");
+        .statusCode(200)
+        .extract()
+        .body()
+        .path("id");
   }
 
   protected static String createSpace(final AuthProfile authProfile, final String title, final boolean shared) {

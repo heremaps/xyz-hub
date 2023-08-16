@@ -66,8 +66,7 @@ public class ImmutableResponseCachingIT extends TestSpaceWithFeature {
         .header("stream-info", containsString("CT=S"));
   }
 
-  @Test
-  public void testStaticCacheNegative() throws InterruptedException {
+  private void testFeatureHeadRequest(boolean expectToBeCached) throws InterruptedException {
     getFeature(cleanUpId, F1)
         .statusCode(200)
         //Item should not come from cache
@@ -76,6 +75,17 @@ public class ImmutableResponseCachingIT extends TestSpaceWithFeature {
     getFeature(cleanUpId, F1)
         .statusCode(200)
         //Item should still not come from cache
-        .header("stream-info",  not(containsString("CH=1")));
+        .header("stream-info",  expectToBeCached ? containsString("CH=1") : not(containsString("CH=1")));
+  }
+
+  @Test
+  public void testStaticCacheNegative() throws InterruptedException {
+    testFeatureHeadRequest(false);
+  }
+
+  @Test
+  public void testStaticCacheForReadOnlySpace() throws InterruptedException {
+    setReadOnly(cleanUpId);
+    testFeatureHeadRequest(true);
   }
 }

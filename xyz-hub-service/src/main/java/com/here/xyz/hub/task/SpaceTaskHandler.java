@@ -31,6 +31,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 
+import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.hub.Core;
@@ -41,6 +42,7 @@ import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
+import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.SpaceWithRights;
@@ -58,7 +60,9 @@ import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
@@ -77,6 +81,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class SpaceTaskHandler {
 
@@ -609,16 +614,50 @@ public class SpaceTaskHandler {
         if (entry.result.getCid() == null) {
           entry.result.setCid(entry.head.getCid());
         }
-
-        // TODO ignore updates on versionsToKeep when the head version contains zero, should be removed in the future when moving from 0 to >=1 is allowed
-        if (entry.head.getVersionsToKeep() == 0 && entry.result.getVersionsToKeep() > 0) {
-          entry.result.setVersionsToKeep(0);
-        }
       }
     }
 
     //Resume
     callback.call(task);
+  }
+
+  public static void handleReadOnlyUpdate(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    final Entry<Space> entry = task.modifyOp.entries.get(0);
+    //If the readOnly flag was activated directly at space creation ...
+    if (task.isCreate() && entry.result.isReadOnly()) {
+      //Set the readOnlyHeadVersion on the space
+      entry.result.setReadOnlyHeadVersion(0);
+      callback.call(task);
+    }
+    //If the readOnly flag was changed ...
+    else if (task.isUpdate() && entry.result.isReadOnly() != entry.head.isReadOnly()) {
+      //... to active ...
+      if (entry.result.isReadOnly())
+        //... update the readOnlyHeadVersion on the space object
+        updateReadOnlyHeadVersion(task.getMarker(), entry.result)
+            .onSuccess(r -> callback.call(task))
+            .onFailure(t -> callback.exception(t));
+      else {
+        //... if it was set to inactive, reset the readOnlyHeadVersion
+        entry.result.setReadOnlyHeadVersion(-1);
+        callback.call(task);
+      }
+    }
+    else
+      callback.call(task);
+  }
+
+  private static Future<Void> updateReadOnlyHeadVersion(Marker marker, Space space) {
+    GetChangesetStatisticsEvent event = new GetChangesetStatisticsEvent().withSpace(space.getId());
+    Promise<Void> p = Promise.promise();
+    Space.resolveConnector(marker, space.getStorage().getId())
+        .onSuccess(connector -> RpcClient.getInstanceFor(connector).execute(marker, event, ar -> {
+          ChangesetsStatisticsResponse response = (ChangesetsStatisticsResponse) ar.result();
+          space.setReadOnlyHeadVersion(response.getMaxVersion());
+          p.complete();
+        }))
+        .onFailure(t -> p.fail(t));
+    return p.future();
   }
 
     public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {

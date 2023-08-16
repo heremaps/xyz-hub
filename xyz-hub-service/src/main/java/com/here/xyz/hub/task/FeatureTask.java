@@ -42,6 +42,7 @@ import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.events.SelectiveEvent.Ref;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.connectors.RpcClient;
@@ -134,11 +135,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       event.setSpace(context.pathParam(ApiParam.Path.SPACE_ID));
     }
     this.requestBodySize = requestBodySize;
-    if (event instanceof SelectiveEvent) {
-      String ref = ((SelectiveEvent<?>) event).getRef();
-      //Check if the ref is set and whether it's a version (if it's numeric)
-      readOnlyAccess = ref != null && Longs.tryParse(ref) != null;
-    }
   }
 
   public CacheProfile getCacheProfile() {
@@ -275,6 +271,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureAuthorization::authorize)
           .then(this::loadObject)
           .then(this::verifyResourceExists)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -398,6 +395,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -425,6 +423,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -458,6 +457,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::validateReadFeaturesParams)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::convertResponse)
@@ -493,6 +493,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -511,6 +512,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
