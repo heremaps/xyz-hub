@@ -458,7 +458,7 @@ public class JDBCExporter extends JDBCClients{
          case PARTITIONID_FC_B64 :
          {
             boolean partById = true;
-            String partQry =   "select /* vml_export_hint m499#jobId(" + jobId + ") */ jsondata->>'id' as id, replace( encode(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text::bytea,'base64') ,chr(10),'') as data "
+            String partQry =   "select /* vml_export_hint m499#jobId(" + jobId + ") */ jsondata->>'id' as id, replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
                             + "from ( ${{contentQuery}}) X";
 
            if( partitionKey != null && !"id".equalsIgnoreCase(partitionKey) )
@@ -481,7 +481,7 @@ public class JDBCExporter extends JDBCClients{
                 +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 100000)::integer as chunk, r.jsondata, r.geo from ( ${{contentQuery}} ) r join plist l on ( coalesce( r.jsondata->'%1$s', '\"CSVNULL\"'::jsonb) = l.key )  "
                 +" ), "
                 +" iiidata as  "
-                +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, count(1) as nrfeatures, replace( encode( json_build_object('type','FeatureCollection', 'features', jsonb_agg( jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb) ))::text::bytea,'base64') ,chr(10),'') as data     "
+                +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, count(1) as nrfeatures, replace( encode(convert_to(json_build_object('type','FeatureCollection', 'features', jsonb_agg( jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb) ))::text,'UTF8'),'base64') ,chr(10),'') as data     "
                 +"     from iidata    group by 1, chunk order by 1, 3 desc   "
                 +" )   "
                 +" select id, data from iiidata ", partitionKey );
