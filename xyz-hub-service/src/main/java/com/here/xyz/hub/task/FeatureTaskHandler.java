@@ -52,6 +52,7 @@ import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.events.SelectiveEvent.Ref;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
@@ -1473,6 +1474,22 @@ public class FeatureTaskHandler {
     }
   }
 
+  public static <X extends FeatureTask<?, X>> void checkImmutability(X task, Callback<X> callback) {
+    if (task.getEvent() instanceof SelectiveEvent) {
+      Ref ref = new Ref(((SelectiveEvent<?>) task.getEvent()).getRef());
+      if (ref.isSingleVersion()) {
+        if (!ref.isHead())
+          //If the ref is a single specified version which is not HEAD, the response is immutable
+          task.readOnlyAccess = true;
+        else if (task.space.isReadOnly() && task.space.getReadOnlyHeadVersion() > -1) {
+          ((SelectiveEvent) task.getEvent()).setRef(String.valueOf(task.space.getReadOnlyHeadVersion()));
+          task.readOnlyAccess = true;
+        }
+      }
+    }
+    callback.call(task);
+  }
+
   public static <X extends FeatureTask<?, X>> void validate(X task, Callback<X> callback) {
     if (task instanceof ReadQuery && ((ReadQuery) task).hasPropertyQuery()
         && !task.storage.capabilities.propertySearch) {
@@ -1491,15 +1508,6 @@ public class FeatureTaskHandler {
         return;
       }
     }
-
-    //TODO: Remove that validation once the GetFeatures-QR is fixed
-    if (task.getEvent() instanceof SelectiveEvent
-        && StringUtils.isNotBlank(((SelectiveEvent) task.getEvent()).getRef())
-        && task.space.getVersionsToKeep() == 1) {
-      callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support queries with version parameter."));
-      return;
-    }
-
     callback.call(task);
   }
 

@@ -123,18 +123,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     final SQLQuery defaultClause = new SQLQuery(" ${{minVersion}} ${{nextVersion}} ")
         .withQueryFragment("nextVersion", versionIsStar || versionsToKeep <= 1 ? "" : " AND next_version = #{MAX_BIGINT} ")
         .withNamedParameter("MAX_BIGINT", MAX_BIGINT);
-    if (versionsToKeep > 1)
-      defaultClause.withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
-    else
-      defaultClause.withQueryFragment("minVersion", "");
+    defaultClause.withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
 
-    if (versionsToKeep == 0) return new SQLQuery("");
     if (versionsToKeep == 1 || versionIsNotPresent || versionIsStar) return defaultClause;
 
     // versionsToKeep > 1 AND contains a reference to a version or version is a valid version
-    return new SQLQuery(" AND version <= #{version} AND next_version > #{version} ${{minVersion}}")
+    return new SQLQuery(" AND version <= #{version} AND next_version > #{version} ${{minVersion}} ")
         .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent))
-        .withNamedParameter("version", loadVersionFromRef(selectiveEvent));
+        .withNamedParameter("version", getVersionFromRef(selectiveEvent));
   }
 
   private SQLQuery buildBaseVersionCheckFragment() {
@@ -143,10 +139,15 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
-    return new SQLQuery("AND greatest(#{minVersion}, (select max(version) - #{versionsToKeep} from ${schema}.${table})) <= #{version} ")
-        .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
-        .withNamedParameter("minVersion", event.getMinVersion())
-        .withNamedParameter("version", loadVersionFromRef(event));
+    long version = getVersionFromRef(event);
+    boolean isHead = version == MAX_BIGINT;
+    if (event.getVersionsToKeep() > 1)
+      return new SQLQuery("AND greatest(#{minVersion}, (select max(version) - #{versionsToKeep} from ${schema}.${table})) <= #{version}")
+          .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
+          .withNamedParameter("minVersion", event.getMinVersion())
+          .withNamedParameter("version", version);
+    return isHead ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) as HEAD FROM ${schema}.${table})")
+        .withNamedParameter("version", version);
   }
 
   private SQLQuery buildAuthorCheckFragment(E event) {
@@ -162,10 +163,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withNamedParameter("author", selectiveEvent.getAuthor());
   }
 
-  private long loadVersionFromRef(SelectiveEvent event) {
+  private long getVersionFromRef(SelectiveEvent event) {
     try {
-      return Integer.parseInt(event.getRef());
-    } catch (NumberFormatException e) {
+      return Long.parseLong(event.getRef());
+    }
+    catch (NumberFormatException e) {
       return Long.MAX_VALUE;
     }
   }

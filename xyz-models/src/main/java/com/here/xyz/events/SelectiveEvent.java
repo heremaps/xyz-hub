@@ -58,6 +58,55 @@ public class SelectiveEvent<T extends SelectiveEvent> extends ContextAwareEvent<
     return (T) this;
   }
 
+  public static class Ref {
+    public static final String HEAD = "HEAD";
+    public static final String ALL_VERSIONS = "*";
+    private long version = -1;
+    private boolean head;
+    private boolean allVersions;
+
+    public Ref(String ref) {
+      if (ref == null || ref.isEmpty() || HEAD.equals(ref))
+        head = true;
+      else if (ALL_VERSIONS.equals(ref))
+        allVersions = true;
+      else
+        try {
+          version = Long.parseLong(ref);
+        }
+        catch (NumberFormatException e) {
+          throw new InvalidRef("Invalid ref: the provided ref is not a valid ref or version: \"" + ref + "\"");
+        }
+    }
+
+    public boolean isHead() {
+      return head;
+    }
+
+    public boolean isAllVersions() {
+      return allVersions;
+    }
+
+    public boolean isSingleVersion() {
+      return !isAllVersions();
+    }
+
+    @Override
+    public String toString() {
+      if (version < 0 && !head)
+        throw new IllegalArgumentException("Not a valid ref");
+      if (head)
+        return HEAD;
+      return String.valueOf(version);
+    }
+
+    public static class InvalidRef extends IllegalArgumentException {
+      private InvalidRef(String message) {
+        super(message);
+      }
+    }
+  }
+
   public long getMinVersion() {
     return minVersion;
   }

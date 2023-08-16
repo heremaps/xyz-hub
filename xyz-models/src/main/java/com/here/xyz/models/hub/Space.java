@@ -55,13 +55,13 @@ public class Space {
   private String id;
 
   /**
-   * A human readable title of the space.
+   * A human-readable title of the space.
    */
   @JsonView({Public.class, Static.class})
   private String title;
 
   /**
-   * A human readable description of the space and it's content.
+   * A human-readable description of the space and it's content.
    */
   @JsonView({Public.class, Static.class})
   private String description;
@@ -110,7 +110,7 @@ public class Space {
   private Map<String, List<ListenerConnectorRef>> listeners;
 
   /**
-   * The event processors configuration. A processing connector get's the specified events and can re-process them synchronously. The XYZ
+   * The event processors configuration. A processing connector gets the specified events and can re-process them synchronously. The XYZ
    * Hub waits for a response.
    */
   @JsonInclude(Include.NON_NULL)
@@ -209,6 +209,15 @@ public class Space {
   @JsonInclude(Include.NON_DEFAULT)
   @JsonView({Public.class, Static.class})
   private boolean readOnly = false;
+
+  /**
+   * The current HEAD version of this space after it has been set to readOnly.
+   * If {@link #readOnly} is false this value should always be set to -1.
+   * @see #readOnly
+   */
+  @JsonInclude(Include.NON_DEFAULT)
+  @JsonView({Internal.class, Static.class})
+  private long readOnlyHeadVersion = -1;
 
   /**
    * A map defined by the user which tells which of the feature-properties to make searchable. The key is the name of the property and the
@@ -517,6 +526,19 @@ public class Space {
 
   public Space withReadOnly(final boolean readOnly) {
     setReadOnly(readOnly);
+    return this;
+  }
+
+  public long getReadOnlyHeadVersion() {
+    return readOnlyHeadVersion;
+  }
+
+  public void setReadOnlyHeadVersion(long readOnlyHeadVersion) {
+    this.readOnlyHeadVersion = readOnlyHeadVersion;
+  }
+
+  public Space withReadOnlyHeadVersion(long readOnlyHeadVersion) {
+    setReadOnlyHeadVersion(readOnlyHeadVersion);
     return this;
   }
 

@@ -192,6 +192,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
           .then(this::verifyResourceExists)
           .then(SpaceTaskHandler::processModifyOp)
           .then(SpaceTaskHandler::postProcess)
+          .then(SpaceTaskHandler::handleReadOnlyUpdate)
           .then(SpaceTaskHandler::validate)
           .then(SpaceTaskHandler::resolveExtensions)
           .then(SpaceAuthorization::authorizeModifyOp)
