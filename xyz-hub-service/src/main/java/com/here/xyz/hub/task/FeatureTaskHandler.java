@@ -437,11 +437,11 @@ public class FeatureTaskHandler {
     //Prefer the static cache over the volatile cache for values which are immutable
     if (cacheProfile.staticTTL > 0) {
       logger.debug(task.getMarker(), "Writing entry with cache key {} to static cache", cacheKey);
-      Service.staticCacheClient.set(cacheKey, cacheValue, cacheProfile.serviceTTL);
+      Service.staticCacheClient.set(cacheKey, cacheValue, TimeUnit.MILLISECONDS.toSeconds(cacheProfile.staticTTL));
     }
     else if (cacheProfile.serviceTTL > 0) {
       logger.debug(task.getMarker(), "Writing entry with cache key {} to volatile cache", cacheKey);
-      Service.volatileCacheClient.set(cacheKey, cacheValue, cacheProfile.serviceTTL);
+      Service.volatileCacheClient.set(cacheKey, cacheValue, TimeUnit.MILLISECONDS.toSeconds(cacheProfile.serviceTTL));
     }
   }
 
