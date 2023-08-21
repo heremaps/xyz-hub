@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.StatisticsResponse;
@@ -46,7 +47,10 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
 
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT * FROM ${schema}.xyz_statistic_space(#{schema}, #{table})")
+
+    String extFlag = (event.getContext() == SpaceContext.EXTENSION ? "true" : "false");
+
+    return new SQLQuery("SELECT * FROM ${schema}.xyz_statistic_space(#{schema}, #{table}, " + extFlag +")")
         .withVariable(SCHEMA, getSchema())
         .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter(TABLE, getDefaultTable(event));

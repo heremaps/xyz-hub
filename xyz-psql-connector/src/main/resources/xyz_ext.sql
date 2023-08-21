@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 176
+ select 177
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2316,6 +2316,22 @@ select * from outdata
 $BODY$
 LANGUAGE sql VOLATILE;
 
+create or replace function xyz_statistic_space( schema text, spaceid text, ctx_extend boolean)
+  returns table(tablesize jsonb, geometrytypes jsonb, properties jsonb, tags jsonb, count jsonb, bbox jsonb, searchable text) AS
+$body$
+begin
+
+ if ctx_extend then
+  return query select * from xyz_statistic_space_v1( schema, spaceid );
+ else 
+  return query select * from xyz_statistic_space_v2( schema, spaceid );
+ end if;
+ 
+end; 
+$body$
+language plpgsql volatile;
+
+-- deprecated --
 CREATE OR REPLACE FUNCTION xyz_statistic_space(
     IN schema text,
     IN spaceid text)
@@ -2324,7 +2340,7 @@ $BODY$
  select * from xyz_statistic_space_v2( schema, spaceid )
 $BODY$
 LANGUAGE sql VOLATILE;
-
+-- deprecated --
 
 ------------------------------------------------
 ------------------------------------------------
