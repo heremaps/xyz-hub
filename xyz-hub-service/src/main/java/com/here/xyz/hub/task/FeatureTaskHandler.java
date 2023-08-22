@@ -39,6 +39,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.protobuf.Value;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ContentModifiedNotification;
@@ -1517,6 +1518,7 @@ public class FeatureTaskHandler {
         //Ensure the StatisticsResponse is correctly set-up
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
         defineGlobalSearchableField(response, task);
+        defineContentUpdatedAtField(response, task);
       }
     } else if (task instanceof FeatureTask.IdsQuery) {
       //Ensure to return a FeatureCollection when there are multiple features in the response (could happen e.g. for a virtual-space)
@@ -1540,6 +1542,13 @@ public class FeatureTaskHandler {
         response.getProperties().getValue().forEach(c -> c.setSearchable(searchable == Searchable.ALL));
       }
     }
+  }
+
+  private static void defineContentUpdatedAtField(StatisticsResponse response, FeatureTask task) {
+    StatisticsResponse.Value<Long> contentUpdatedAtVal = new StatisticsResponse.Value(task.space.contentUpdatedAt);
+    // Due to caching the value of contentUpdatedAt field could be obsolete in some edge cases
+    contentUpdatedAtVal.setEstimated(true);
+    response.setContentUpdatedAt(contentUpdatedAtVal);
   }
 
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
