@@ -168,6 +168,7 @@ public final class NakshaHub extends Thread implements INaksha {
     this.instanceId = instanceId;
     adminStorage = new PsqlStorage(adminDbConfig, 1L);
     adminStorage.init();
+    adminStorage.maintain(NakshaAdminCollection.COLLECTION_INFO_LIST);
     final ITransactionSettings tempSettings = adminStorage.createSettings().withAppId(adminDbConfig.appName);
     NakshaHubConfig config;
     try (final PsqlTxWriter tx = adminStorage.openMasterTransaction(tempSettings)) {

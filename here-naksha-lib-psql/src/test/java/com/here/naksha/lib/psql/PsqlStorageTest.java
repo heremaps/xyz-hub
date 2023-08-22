@@ -178,7 +178,7 @@ public class PsqlStorageTest {
     assertNotNull(tx);
     final ModifyFeaturesReq<XyzFeature> request = new ModifyFeaturesReq<>(true);
     final XyzFeature single = new XyzFeature("single");
-    single.setGeometry(new XyzPoint(5d, 6d));
+    single.setGeometry(new XyzPoint(5d, 6d, 2d));
     request.insert().add(single);
     final ModifyFeaturesResp response =
         tx.writeFeatures(XyzFeature.class, new CollectionInfo("foo")).modifyFeatures(request);
@@ -195,7 +195,7 @@ public class PsqlStorageTest {
     final XyzPoint point = assertInstanceOf(XyzPoint.class, geometry);
     assertEquals(5d, point.getCoordinates().getLongitude());
     assertEquals(6d, point.getCoordinates().getLatitude());
-    assertEquals(0d, point.getCoordinates().getAltitude());
+    assertEquals(2d, point.getCoordinates().getAltitude());
     tx.commit();
   }
 
@@ -222,7 +222,7 @@ public class PsqlStorageTest {
     final XyzPoint point = assertInstanceOf(XyzPoint.class, geometry);
     assertEquals(5d, point.getCoordinates().getLongitude());
     assertEquals(6d, point.getCoordinates().getLatitude());
-    assertEquals(0d, point.getCoordinates().getAltitude());
+    assertEquals(2d, point.getCoordinates().getAltitude());
     tx.commit();
   }
 
