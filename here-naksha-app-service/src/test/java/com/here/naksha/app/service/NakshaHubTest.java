@@ -28,7 +28,11 @@ class NakshaHubTest {
 
   @BeforeAll
   static void prepare() {
-    hub = newHub("jdbc:postgresql://localhost/postgres?user=postgres&password=password", "local");
+    String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
+    if (password == null) password = "password";
+    hub = newHub(
+        "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password,
+        "local"); // this string concat only happens once, its ok ;)
     hub.start();
   }
 

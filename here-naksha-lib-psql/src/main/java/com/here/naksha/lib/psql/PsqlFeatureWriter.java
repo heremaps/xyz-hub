@@ -37,7 +37,10 @@ import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.core.view.ViewSerialize;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.PrecisionModel;
 import com.vividsolutions.jts.io.WKBReader;
+import com.vividsolutions.jts.io.WKBWriter;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -60,6 +63,16 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
         coord.z = 0;
       }
     }
+  }
+
+  public static byte[][] geometryListTo2DimByteArray(@NotNull List<Geometry> geometries) {
+    final byte[][] twoDArray = new byte[geometries.size()][];
+    final WKBWriter wkbWriter = new WKBWriter(3);
+    int idx = 0;
+    for (final Geometry geo : geometries) {
+      twoDArray[idx++] = (geo == null) ? null : wkbWriter.write(geo);
+    }
+    return twoDArray;
   }
 
   private void addFeatures(
@@ -104,6 +117,7 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
     try (final Json json = Json.get()) {
       final ObjectWriter writer = json.writer(ViewSerialize.Storage.class);
       final ObjectWriter featureWriter = writer.forType(XyzFeature.class);
+      final WKBReader wkbReader = new WKBReader(new GeometryFactory(new PrecisionModel(), 4326));
 
       final int size = req.totalSize();
       final ArrayList<String> featuresJson = new ArrayList<>(size);
@@ -130,7 +144,7 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
           tx.conn().prepareStatement("SELECT * FROM naksha_modify_features(?,?,?,?,?,?);")) {
         stmt.setString(1, collection.getId());
         stmt.setArray(2, tx.conn().createArrayOf("jsonb", featuresJson.toArray()));
-        stmt.setArray(3, tx.conn().createArrayOf("geometry", geometries.toArray()));
+        stmt.setArray(3, tx.conn().createArrayOf("bytea", geometryListTo2DimByteArray(geometries)));
         stmt.setArray(4, tx.conn().createArrayOf("text", expected_uuids.toArray()));
         stmt.setArray(5, tx.conn().createArrayOf("naksha_op", ops.toArray()));
         stmt.setBoolean(6, req.read_results());
@@ -157,13 +171,10 @@ public class PsqlFeatureWriter<FEATURE extends XyzFeature> extends PsqlFeatureRe
                 }
                 response.updated().add(feature);
               } else if (ILike.equals(op, NakshaOp.DELETE)) {
-                final PGobject pgGeometry = (PGobject) rs.getObject(3);
-                if (pgGeometry != null) {
-                  final String hex = pgGeometry.getValue();
-                  if (hex != null) {
-                    final Geometry geometry = json.wkbReader.read(WKBReader.hexToBytes(hex));
-                    feature.setGeometry(JTSHelper.fromGeometry(geometry));
-                  }
+                final byte[] bytes = rs.getBytes(3);
+                if (bytes != null) {
+                  final Geometry geometry = wkbReader.read(bytes);
+                  feature.setGeometry(JTSHelper.fromGeometry(geometry));
                 }
                 response.deleted().add(feature);
               } else {

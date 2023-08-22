@@ -1252,12 +1252,12 @@ CREATE TYPE naksha_op AS ENUM (
 CREATE OR REPLACE FUNCTION naksha_modify_features(
     collection text, -- the collection
     feature_arr jsonb array, -- the new feature
-    geometry_arr geometry array, -- if the geometry should be updated
+    geometry_arr bytea array, -- if the geometry should be updated
     expected_uuid_arr text array, -- If atomic updates used, the expected state identifier
     op_arr naksha_op array, -- the operation to perform
     return_results bool
 )
-    RETURNS TABLE (o naksha_op, f jsonb, g geometry)
+    RETURNS TABLE (o naksha_op, f jsonb, g bytea)
     LANGUAGE 'plpgsql' VOLATILE
 AS
 $BODY$
@@ -1274,7 +1274,7 @@ DECLARE
     index               int;
     id                  text;
     feature             jsonb;
-    geo                 geometry;
+    geo                 bytea;
     expected_uuid       text;
     existing_uuid       text;
     op                  naksha_op;
@@ -1348,9 +1348,9 @@ BEGIN
     --RAISE NOTICE 'ids, uuids: % %', existing_id_arr, existing_uuid_arr;
 
     --RAISE NOTICE 'Perform all actions';
-    insert_stmt := format('INSERT INTO %I (jsondata, geo) VALUES ($1, ST_Force3D($2)) RETURNING jsondata;', collection);
-    update_stmt := format('UPDATE %I SET jsondata=$1, geo=ST_Force3D($2) WHERE jsondata->>''id''=$3 RETURNING jsondata;', collection);
-    delete_stmt := format('DELETE FROM %I WHERE jsondata->>''id''=$1 RETURNING jsondata, geo;', collection);
+    insert_stmt := format('INSERT INTO %I (jsondata, geo) VALUES ($1, ST_Force3D(ST_GeomFromWKB($2,4326))) RETURNING jsondata;', collection);
+    update_stmt := format('UPDATE %I SET jsondata=$1, geo=ST_Force3D(ST_GeomFromWKB($2,4326)) WHERE jsondata->>''id''=$3 RETURNING jsondata;', collection);
+    delete_stmt := format('DELETE FROM %I WHERE jsondata->>''id''=$1 RETURNING jsondata, ST_AsEWKB(geo);', collection);
     i := 1;
     e_uuid_i := 1;
     e_uuid_len := array_length(existing_uuid_arr, 1);
