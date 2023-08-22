@@ -116,13 +116,19 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     });
   }
 
+  public static class InvalidExtensionException extends Exception {
+    InvalidExtensionException(String msg) {
+      super(msg);
+    }
+  }
+
   public Future<Map<String, Object>> resolveCompositeParams(Marker marker) {
     if (getExtension() == null)
       return Future.succeededFuture(Collections.emptyMap());
 
     return resolveSpace(marker, getExtension().getSpaceId())
         .flatMap(extendedSpace -> extendedSpace == null ?
-                Future.failedFuture("Unable to load extended resource with id: " + getExtension().getSpaceId()) :
+                Future.failedFuture(new InvalidExtensionException("Unable to load extended resource with id: " + getExtension().getSpaceId())):
                 Future.succeededFuture(resolveCompositeParams(extendedSpace)));
   }
 

@@ -362,6 +362,8 @@ public abstract class Api {
           error = XyzError.TIMEOUT;
         } else if (BAD_REQUEST.code() == httpException.status.code()) {
           error = XyzError.ILLEGAL_ARGUMENT;
+        } else if (NOT_FOUND.code() == httpException.status.code()) {
+          error = XyzError.NOT_FOUND;
         } else {
           error = XyzError.EXCEPTION;
         }

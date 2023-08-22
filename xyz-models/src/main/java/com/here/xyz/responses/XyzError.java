@@ -97,7 +97,14 @@ public enum XyzError {
    *
    * This will result in a HTTP 513 response.
    */
-  PAYLOAD_TO_LARGE("PayloadToLarge");
+  PAYLOAD_TO_LARGE("PayloadToLarge"),
+
+  /**
+   * The request was aborted due to a requested resource was not found.
+   *
+   * This will result in a HTTP 404 response.
+   */
+  NOT_FOUND("NotFound");
 
   /**
    * The error code.
