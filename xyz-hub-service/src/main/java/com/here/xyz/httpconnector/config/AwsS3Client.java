@@ -23,7 +23,6 @@ import com.amazonaws.HttpMethod;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -58,12 +57,9 @@ public class AwsS3Client {
             builder.setRegion(region);
         }
 
-        if (CService.configuration != null && CService.configuration.USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH) {
+        if (CService.configuration != null && CService.configuration.JOB_BOT_SECRET_ARN != null) {
             synchronized(AwsS3Client.class) {
-                if (customCredentialsProvider == null) {
-                    customCredentialsProvider = InstanceProfileCredentialsProvider.createAsyncRefreshingProvider(true);
-                }
-                builder.setCredentials(customCredentialsProvider);
+                builder.setCredentials(new SecretManagerCredentialsProvider(CService.configuration.JOB_BOT_SECRET_ARN));
             }
         }
         client = builder.build();
@@ -78,6 +74,7 @@ public class AwsS3Client {
     }
 
     public URL generatePresignedUrl(String bucketName, String key, HttpMethod method) throws IOException {
+
         GeneratePresignedUrlRequest generatePresignedUrlRequest =
                 new GeneratePresignedUrlRequest(bucketName, key)
                         .withMethod(method)

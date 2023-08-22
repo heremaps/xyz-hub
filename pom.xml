@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>2.2.31-SNAPSHOT</version>
+  <version>3.2.3-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -62,10 +62,12 @@
   <distributionManagement>
     <snapshotRepository>
       <id>snapshot</id>
+      <!--suppress MavenModelInspection -->
       <url>${distributionManagemment.snapshotRepository.url}</url>
     </snapshotRepository>
     <repository>
       <id>release</id>
+      <!--suppress MavenModelInspection -->
       <url>${distributionManagemment.repository.url}</url>
     </repository>
   </distributionManagement>
@@ -83,8 +85,8 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
     <!-- Java version -->
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
 
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.128</aws-sdk-version>
@@ -141,31 +143,36 @@
         <!-- Plugin versions -->
         <plugin>
           <artifactId>maven-failsafe-plugin</artifactId>
-          <version>2.15</version>
+          <version>3.1.2</version>
         </plugin>
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.22.1</version>
+          <version>3.1.2</version>
         </plugin>
         <plugin>
           <artifactId>maven-source-plugin</artifactId>
-          <version>3.2.0</version>
+          <version>3.3.0</version>
         </plugin>
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.8.1</version>
+          <version>3.11.0</version>
         </plugin>
         <plugin>
           <artifactId>maven-javadoc-plugin</artifactId>
-          <version>3.1.1</version>
+          <version>3.5.0</version>
         </plugin>
         <plugin>
           <artifactId>maven-shade-plugin</artifactId>
-          <version>3.1.0</version>
+          <version>3.5.0</version>
         </plugin>
         <plugin>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.3.1</version>
+        </plugin>
+
+        <plugin>
           <artifactId>maven-release-plugin</artifactId>
-          <version>2.5.3</version>
+          <version>3.0.1</version>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
@@ -388,6 +395,11 @@
         <artifactId>aws-java-sdk-cloudwatch</artifactId>
         <version>${aws-sdk-version}</version>
       </dependency>
+      <dependency>
+        <groupId>com.amazonaws</groupId>
+        <artifactId>aws-java-sdk-secretsmanager</artifactId>
+        <version>${aws-sdk-version}</version>
+      </dependency>
 
       <!-- AWS Lambda Core -->
       <dependency>
@@ -418,11 +430,6 @@
         <artifactId>expiringmap</artifactId>
         <groupId>net.jodah</groupId>
         <version>0.5.10</version>
-      </dependency>
-      <dependency>
-        <groupId>org.caffinitas.ohc</groupId>
-        <artifactId>ohc-core</artifactId>
-        <version>0.7.0</version>
       </dependency>
 
       <!--  Geo -->
@@ -492,16 +499,16 @@
         <version>4.13.2</version>
       </dependency>
       <dependency>
-        <groupId>com.jayway.jsonpath</groupId>
+        <groupId>io.rest-assured</groupId>
         <artifactId>json-path</artifactId>
-        <version>2.8.0</version>
+        <version>5.3.1</version>
         <scope>test</scope>
       </dependency>
       <dependency>
+        <groupId>io.rest-assured</groupId>
         <artifactId>rest-assured</artifactId>
-        <groupId>com.jayway.restassured</groupId>
         <scope>test</scope>
-        <version>2.9.0</version>
+        <version>5.3.1</version>
         <exclusions>
           <exclusion>
             <groupId>org.apache.httpcomponents</groupId>

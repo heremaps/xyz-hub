@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,28 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.events;
+package com.here.xyz.psql.datasource;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonTypeName;
+import javax.sql.DataSource;
 
-/**
- * The request for history statistics of a certain space.
- */
-@JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeName(value = "GetHistoryStatisticsEvent")
-public final class GetHistoryStatisticsEvent extends Event<GetHistoryStatisticsEvent> {
+public abstract class DataSourceProvider {
+
+  static DataSourceProvider defaultProvider;
+
+  public abstract DataSource getReader();
+
+  public abstract DataSource getWriter();
+
+  public boolean hasReader() {
+    return getReader() != null && getReader() != getWriter();
+  }
+
+  public static DataSourceProvider getDefaultProvider() {
+    return defaultProvider;
+  }
+
+  public static void setDefaultProvider(DataSourceProvider provider) {
+    defaultProvider = provider;
+  }
+
 }

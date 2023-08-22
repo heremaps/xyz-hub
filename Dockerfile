@@ -9,6 +9,7 @@ ENV LOG_PATH /var/log/xyz
 ENV FS_WEB_ROOT www
 
 #Override the following environment variables to let the service connect to different host names
+ENV LOCALSTACK_ENDPOINT http://aws-localstack:4566
 ENV STORAGE_DB_URL jdbc:postgresql://postgres/postgres
 ENV PSQL_HOST postgres
 ENV XYZ_HUB_REDIS_URI redis://redis

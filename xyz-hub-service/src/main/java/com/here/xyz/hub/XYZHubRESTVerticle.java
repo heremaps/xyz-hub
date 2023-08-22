@@ -127,8 +127,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       new FeatureApi(rb);
       new FeatureQueryApi(rb);
       new SpaceApi(rb);
-      new HistoryQueryApi(rb);
-      new ConnectorApi(rb);
+      new  ConnectorApi(rb);
       new SubscriptionApi(rb);
       new ChangesetApi(rb);
       new JobProxyApi(rb);

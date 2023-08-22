@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.httpconnector.config.*;
 import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
+import com.here.xyz.httpconnector.util.scheduler.JobQueue;
 import com.here.xyz.hub.Core;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.VertxOptions;
@@ -33,10 +34,7 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -69,6 +67,11 @@ public class CService extends Core {
    * The client to access job configs
    */
   public static AwsCWClient jobCWClient;
+
+  /**
+   * The client to access secrets from AWS Secret Manager
+   */
+  public static AwsSecretManagerClient jobSecretClient;
 
   /**
    * The client to access the database
@@ -139,6 +142,7 @@ public class CService extends Core {
                 .setTcpFastOpen(true));
 
         jdbcImporter = new JDBCImporter();
+        jobSecretClient = new AwsSecretManagerClient();
         jobS3Client = new JobS3Client();
         jobCWClient = new AwsCWClient();
         importQueue = new ImportQueue();
@@ -147,6 +151,12 @@ public class CService extends Core {
         /** Start Job-Schedulers */
         importQueue.commence();
         exportQueue.commence();
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+          logger.warn("HTTP Service is going down at " + new Date());
+          JobQueue.abortAllJobs();
+        }));
+
       }else
         logger.error("Cant reach jobAPI backend - JOB-API deactivated!");
     });
@@ -174,6 +184,11 @@ public class CService extends Core {
      * Whether the service should use InstanceProviderCredentialsProfile with cached credential when utilizing AWS clients.
      */
     public boolean USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH;
+
+    /**
+     * The arn of the secret (in Secret Manager) that contains bot credentials.
+     */
+    public String JOB_BOT_SECRET_ARN;
     /**
      * The port of the HTTP server.
      */
@@ -212,10 +227,6 @@ public class CService extends Core {
      */
     public int JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS;
     /**
-     * Define how many job are allowed to run in parallel
-     */
-    public int JOB_MAX_RUNNING_JOBS;
-    /**
      * List of "connectorId:cloudWatchDBInstanceIdentifier:MaxCapacityUnits"
      */
     public List<String> JOB_SUPPORTED_RDS;
@@ -238,7 +249,11 @@ public class CService extends Core {
     /**
      * RDS maximum allowed imports in parallel
      */
-    public int JOB_MAX_RDS_MAX_RUNNING_IMPORTS;
+    public int JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES;
+    /**
+     * RDS maximum allowed imports in parallel
+     */
+    public int JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES;
     /**
      * RDS maximum allowed imports in parallel
      */

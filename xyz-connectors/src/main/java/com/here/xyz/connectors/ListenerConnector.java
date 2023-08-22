@@ -35,10 +35,10 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzError;
 
 /**
  * This class could be extended by any listener connector implementations.
@@ -65,15 +65,7 @@ public abstract class ListenerConnector extends AbstractConnectorHandler {
   }
 
   public void processEventNotification(EventNotification notification) throws Exception {
-    if (notification == null) {
-      throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Unknown event type");
-    }
-
-    final NotificationParams notificationParams = new NotificationParams(
-        eventDecryptor.decryptParams(notification.getParams(), notification.getSpace()),
-        eventDecryptor.decryptParams(notification.getConnectorParams(), notification.getSpace()),
-        eventDecryptor.decryptParams(notification.getMetadata(), notification.getSpace()),
-        notification.getTid(), notification.getAid(), notification.getJwt());
+    final NotificationParams notificationParams = getNotificationParams(notification);
 
     if (notification.getEvent() instanceof ErrorResponse) {
       processErrorResponse((ErrorResponse) notification.getEvent(), notification.getEventType(), notificationParams);

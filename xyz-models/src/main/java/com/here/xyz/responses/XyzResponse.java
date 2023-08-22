@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import com.here.xyz.Payload;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.changesets.Changeset;
 import com.here.xyz.responses.changesets.ChangesetCollection;
-import com.here.xyz.responses.changesets.CompactChangeset;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
 import com.here.xyz.responses.maintenance.SpaceStatus;
 import com.here.xyz.util.Hasher;
@@ -42,13 +41,11 @@ import com.here.xyz.util.Hasher;
     @JsonSubTypes.Type(value = ModifiedResponseResponse.class, name = "ModifiedResponseResponse"),
     @JsonSubTypes.Type(value = StatisticsResponse.class, name = "StatisticsResponse"),
     @JsonSubTypes.Type(value = StorageStatistics.class, name = "StorageStatistics"),
-    @JsonSubTypes.Type(value = HistoryStatisticsResponse.class, name = "HistoryStatisticsResponse"),
     @JsonSubTypes.Type(value = ChangesetsStatisticsResponse.class, name = "ChangesetsStatisticsResponse"),
     @JsonSubTypes.Type(value = SuccessResponse.class, name = "SuccessResponse"),
     @JsonSubTypes.Type(value = NotModifiedResponse.class, name = "NotModifiedResponse"),
     @JsonSubTypes.Type(value = FeatureCollection.class, name = "FeatureCollection"),
     @JsonSubTypes.Type(value = Changeset.class, name = "Changeset"),
-    @JsonSubTypes.Type(value = CompactChangeset.class, name = "CompactChangeset"),
     @JsonSubTypes.Type(value = ChangesetCollection.class, name = "ChangesetCollection"),
     @JsonSubTypes.Type(value = ConnectorStatus.class, name = "ConnectorStatus"),
     @JsonSubTypes.Type(value = SpaceStatus.class, name = "SpaceStatus")

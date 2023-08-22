@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.psql.query.helpers;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.GetTablesWithColumn.GetTablesWithColumnInput;
@@ -31,8 +30,8 @@ import java.util.List;
 
 public class GetTablesWithColumn extends QueryRunner<GetTablesWithColumnInput, List<String>> {
 
-  public GetTablesWithColumn(GetTablesWithColumnInput input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(input, dbHandler);
+  public GetTablesWithColumn(GetTablesWithColumnInput input) throws SQLException, ErrorResponseException {
+    super(input);
   }
 
   @Override
@@ -45,7 +44,6 @@ public class GetTablesWithColumn extends QueryRunner<GetTablesWithColumnInput, L
         + "t.table_schema = #{schema} AND "
         + "t.table_type = 'BASE TABLE' AND "
         + "t.table_name != 'spatial_ref_sys' AND "
-        + "t.table_name NOT LIKE '%_hst' "
         + "LIMIT #{limit}")
         .withNamedParameter("column", input.columnName)
         .withNamedParameter("schema", getSchema())

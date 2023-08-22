@@ -40,7 +40,7 @@ public class Import extends Job {
     public static String ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED = "IMPORTS_PARTIALLY_FAILED";
     public static String ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS = "TARGET_TABLE_DOES_NOT_EXISTS";
     public static String ERROR_DESCRIPTION_UNEXPECTED = "UNEXPECTED_ERROR";
-    public static String ERROR_DESCRIPTION_TABLE_CLEANUP_FAILED = "TABLE_CLEANUP_FAILED";
+    public static String ERROR_DESCRIPTION_IDS_NOT_UNIQUE = "IDS_NOT_UNIQUE";
     public static String ERROR_DESCRIPTION_READONLY_MODE_FAILED= "READONLY_MODE_FAILED";
     public static String ERROR_DESCRIPTION_SEQUENCE_NOT_0 = "SEQUENCE_NOT_0";
 
@@ -181,6 +181,14 @@ public class Import extends Job {
         return this;
     }
 
+    public void resetFailedImportObjects(){
+        for (String id : this.importObjects.keySet()) {
+            if(this.importObjects.get(id).getStatus() != null
+                    && this.importObjects.get(id).getStatus().equals(ImportObject.Status.failed))
+                this.importObjects.get(id).setStatus(ImportObject.Status.waiting);
+        }
+    }
+
     public void addImportObject(ImportObject importObject){
         if(this.importObjects == null)
             this.importObjects = new HashMap<>();
@@ -193,20 +201,39 @@ public class Import extends Job {
         this.idxList.add(idx);
     }
 
-    public void resetToPreviousState(){
+    public void resetToPreviousState() throws Exception{
+
         switch (getStatus()){
+            case failed:
+            case aborted:
+                resetFailedImportObjects();
+                setErrorType(null);
+                setErrorDescription(null);
+                if(getLastStatus() != null) {
+                    /** set to last valid state */
+                    resetStatus(getLastStatus());
+                    setLastStatus(null);
+                    resetToPreviousState();
+                }else
+                    throw new Exception("No last Status found!");
+                break;
             case validating:
-                setStatus(Status.waiting);
+                resetStatus(Status.waiting);
                 break;
             case preparing:
-                setStatus(Status.queued);
+                resetStatus(Status.queued);
                 break;
             case executing:
-                setStatus(Status.prepared);
+                resetStatus(Status.prepared);
                 break;
             case finalizing:
-                setStatus(Status.executed);
+                resetStatus(Status.executed);
                 break;
         }
+    }
+
+    @Override
+    public String getQueryIdentifier() {
+        return "import_hint";
     }
 }

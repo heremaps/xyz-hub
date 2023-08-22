@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,8 +69,8 @@ public class SpaceAuthorization extends Authorization {
   private static final Logger logger = LogManager.getLogger();
 
   public static List<String> basicEdit = Arrays
-      .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "enableHistory", "maxVersionCount",
-          "cacheTTL", "readOnly", "extends", "versionsToKeep", STORAGE, LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES, SORTABLE_PROPERTIES );
+      .asList("id", "title", "description", "client", "copyright", "license", "shared", "enableUUID", "cacheTTL", "readOnly", "extends",
+          "versionsToKeep", STORAGE, LISTENERS, PROCESSORS, SEARCHABLE_PROPERTIES, SORTABLE_PROPERTIES );
 
   public static List<String> packageEdit = Collections.singletonList(PACKAGES);
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2019 HERE Europe B.V.
+  ~ Copyright (C) 2017-2023 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <relativePath>../</relativePath>
-    <version>2.2.31-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+    <version>3.2.3-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -108,8 +108,8 @@
     </dependency>
 
     <dependency>
+      <groupId>io.rest-assured</groupId>
       <artifactId>rest-assured</artifactId>
-      <groupId>com.jayway.restassured</groupId>
     </dependency>
 
     <dependency>

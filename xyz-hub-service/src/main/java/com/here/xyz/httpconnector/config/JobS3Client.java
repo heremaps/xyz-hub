@@ -62,8 +62,8 @@ public class JobS3Client extends AwsS3Client{
     public static final String EXPORT_DOWNLOAD_FOLDER = "exports";
     public static final String EXPORT_PERSIST_FOLDER = "persistent";
 
-    public URL generateUploadURL(String key) throws IOException {
-        return generateUploadURL(CService.configuration.JOBS_S3_BUCKET, key);
+    public static String getImportPath(String jobId, String part){
+        return IMPORT_UPLOAD_FOLDER +"/"+ jobId+"/"+part;
     }
 
     public ImportObject generateUploadURL(Import job) throws IOException {
@@ -129,11 +129,11 @@ public class JobS3Client extends AwsS3Client{
             io.setValid(true);
         } catch (Exception e) {
             if(e instanceof UnsupportedEncodingException){
-                logger.info("CSV Format is not valid: {}",io.getS3Key());
+                logger.info("CSV Format is not valid: {}", io.getS3Key());
             }else if(e instanceof ZipException){
                 logger.info("Wrong content-encoding: [}", io.getS3Key());
             }else
-                logger.warn("checkFile error {} {}",io.getS3Key(), e);
+                logger.warn("checkFile error {} {}", io.getS3Key(), e);
             io.setValid(false);
         }
 
@@ -169,7 +169,7 @@ public class JobS3Client extends AwsS3Client{
         }catch (AmazonServiceException e){
             /** Did not find a lineBreak - maybe CSV with 1LOC */
             if(e.getErrorCode().equalsIgnoreCase("InvalidRange")){
-                logger.info("Invalid Range found for s3Key {}",key_name);
+                logger.info("Invalid Range found for s3Key {}", key_name);
                 ImportValidator.validateCSVLine(line, csvFormat);
                 return;
             }
@@ -276,7 +276,7 @@ public class JobS3Client extends AwsS3Client{
                 try {
                     eo.setDownloadUrl(generateDownloadURL(bucketName, eo.getS3Key()));
                 }catch (IOException e){
-                    logger.error("[{}] Cant create download-url.{}", prefix, e);
+                    logger.error("[{}] Cant create download-url! ", prefix, e);
                 }
             }
         }
@@ -301,7 +301,7 @@ public class JobS3Client extends AwsS3Client{
             client.putObject(bucketName, path, new ByteArrayInputStream(meta), omd);
 
         } catch (AmazonServiceException | IOException e) {
-            logger.error("[{}] Cant write Metafile {}", job.getId(), e);
+            logger.error("job[{}] cant write Metafile! ", job.getId(), e);
         }
     }
 
@@ -324,7 +324,7 @@ public class JobS3Client extends AwsS3Client{
             if(s3Object != null)
                 return new ObjectMapper().readValue(s3Object.getObjectContent(), Export.class);
         } catch (Exception e) {
-            logger.error("[{}] Cant read Metafile {}", e);
+            logger.error("Cant read Metafile from path '{}'! ", path, e);
         }
         return null;
     }

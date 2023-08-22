@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ public class ChangesetApi extends SpaceBasedApi {
   private void getChangeset(final RoutingContext context) {
     try {
       IterateChangesetsEvent event = buildIterateChangesetsEvent(context, false);
-
+      //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
       SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
                       space -> ChangesetAuthorization.authorize(context, space).map(space),
                       event)
@@ -75,7 +75,7 @@ public class ChangesetApi extends SpaceBasedApi {
   private void getChangesets(final RoutingContext context) {
     try {
       IterateChangesetsEvent event = buildIterateChangesetsEvent(context, true);
-
+      //TODO: Add static caching to this endpoint, once the execution pipelines have been refactored.
       SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
                       space -> ChangesetAuthorization.authorize(context, space).map(space),
                       event)

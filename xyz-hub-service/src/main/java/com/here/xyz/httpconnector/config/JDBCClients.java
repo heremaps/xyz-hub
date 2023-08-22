@@ -20,9 +20,11 @@
 package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.httpconnector.util.status.RunningQueryStatistic;
 import com.here.xyz.httpconnector.util.status.RunningQueryStatistics;
+import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.DatabaseSettings;
@@ -94,7 +96,6 @@ public class JDBCClients {
                 /** Disable Pipelining */
                 .setPipeliningLimit(1)
                 .setProperties(props);
-//                .setIdleTimeout(100);
 
         PoolOptions poolOptions = new PoolOptions()
                 .setMaxSize(getDBPoolSize(clientId));
@@ -155,16 +156,17 @@ public class JDBCClients {
                 "select '!ignore!' as ignore, datname,pid,state,backend_type,query_start,state_change,application_name,query from pg_stat_activity "
                         +"WHERE 1=1 "
                         +"AND application_name=#{applicationName} "
-                        +"AND datname='postgres' "
+                        +"AND datname=#{db} "
                         +"AND state='active' "
                         +"AND backend_type='client backend' "
                         +"AND POSITION('!ignore!' in query) = 0"
         );
 
         q.setNamedParameter("applicationName", getApplicationName(clientID));
+        q.setNamedParameter("db", getStatusClientDatabaseSettings(clientID).getDb());
         q = q.substituteAndUseDollarSyntax(q);
 
-        return getClient(getStatusClientId(clientID))
+        return getStatusClient(clientID)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .onFailure(f -> logger.warn(f))
@@ -182,6 +184,33 @@ public class JDBCClients {
                     );
 
                     return statistics;
+                });
+    }
+
+    public static Future<Void> addClientIfRequired(String id) {
+        if(CService.supportedConnectors != null && CService.supportedConnectors.indexOf(id) == -1)
+            return Future.failedFuture("Connector is not supported");
+
+        return HubWebClient.getConnectorConfig(id)
+                .compose(connector -> {
+                    try {
+                        if( connector.params != null && connector.params.get("ecps") !=null) {
+                            DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS((String) connector.params.get("ecps"), CService.configuration.ECPS_PHRASE);
+
+                            if(JDBCImporter.getClient(id) == null) {
+                                addClients(id, settings);
+                            }else if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
+                                /** Check if config has changed */
+                                removeClients(id);
+                                addClients(id, settings);
+                            }
+
+                            return Future.succeededFuture();
+                        }else
+                            return Future.failedFuture("Ecps is missing! "+id);
+                    } catch (CannotDecodeException e) {
+                        return Future.failedFuture("Cant load dbClients for "+id);
+                    }
                 });
     }
 
@@ -228,18 +257,32 @@ public class JDBCClients {
         return null;
     }
 
+    public static SqlClient getStatusClient(String id){
+        return getClient(getStatusClientId(id));
+    }
+
     public static SqlClient getClient(String id){
         if(clients == null || clients.get(id) == null)
             return null;
         return clients.get(id).getClient();
     }
 
+    public static DatabaseSettings getStatusClientDatabaseSettings(String id){
+        return getClientDatabaseSettings(getStatusClientId(id));
+    }
+
+    public static DatabaseSettings getClientDatabaseSettings(String id){
+        if(clients == null || clients.get(id) == null)
+            return null;
+        return clients.get(id).dbSettings;
+    }
+
     public static Future<RDSStatus> getRDSStatus(String clientId) {
         Promise<RDSStatus> p = Promise.promise();
         /** Collection current metrics from Cloudwatch */
 
-        if(JDBCImporter.getClient(getStatusClientId(clientId)) == null){
-            logger.info("DB-Client not Ready!");
+        if(JDBCImporter.getStatusClient(clientId)== null){
+            logger.info("DB-Client not Ready! [{}]", clientId);
             p.complete(null);
         }else{
             collectRunningQueries(clientId)
@@ -247,13 +290,39 @@ public class JDBCClients {
                         /** Collect metrics from Cloudwatch */
                         JSONObject avg5MinRDSMetrics = CService.jobCWClient.getAvg5MinRDSMetrics(CService.rdsLookupDatabaseIdentifier.get(clientId));
                         p.complete(new RDSStatus(clientId, avg5MinRDSMetrics, runningQueryStatistics));
-                    }).onFailure(f -> {
-                        logger.warn("Cant get RDS-Resources {}",f);
-                        p.fail(f);
+                    }).onFailure(e -> {
+                        logger.warn("Cant get RDS-Resources! ", e);
+                        p.fail(e);
                     } );
         }
 
         return p.future();
+    }
+
+    public static Future<Void> abortJobsByJobId(Job j)  {
+        return addClientIfRequired(j.getTargetConnector())
+                .compose(f -> {
+                    SQLQuery q = buildAbortsJobQuery(j);
+                    logger.info("job[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+
+                    return getStatusClient(j.getTargetConnector())
+                            .query(q.text())
+                            .execute()
+                            .compose(row ->
+                                 /** succeeded in any-case */
+                                 Future.succeededFuture()
+                            );
+                });
+    }
+
+    private static SQLQuery buildAbortsJobQuery(Job j) {
+        return new SQLQuery(String.format(   "select pg_terminate_backend( pid ) from pg_stat_activity "
+                        + "where 1 = 1 "
+                        + "and state = 'active' "
+                        + "and strpos( query, 'pg_terminate_backend' ) = 0 "
+                        + "and strpos( query, '%s' ) > 0 "
+                        + "and strpos( query, 'm499#jobId(%s)' ) > 0 ",
+                j.getQueryIdentifier() ,j.getId() ));
     }
 
     /** Vertex SQL-Client */

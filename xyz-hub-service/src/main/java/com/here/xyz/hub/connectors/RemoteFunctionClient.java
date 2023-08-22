@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,8 +27,7 @@ import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.LimitedOffHeapQueue;
-import com.here.xyz.hub.util.LimitedOffHeapQueue.OffHeapBuffer;
+import com.here.xyz.hub.util.ByteSizeAware;
 import com.here.xyz.hub.util.LimitedQueue;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Context;
@@ -80,7 +79,7 @@ public abstract class RemoteFunctionClient {
 
   private final LongAdder responsesSinceLastThroughputMeasurement = new LongAdder();
   private final AtomicLong lastThroughputMeasurement = new AtomicLong(Core.currentTimeMillis());
-  private final LimitedQueue<FunctionCall> queue = new LimitedOffHeapQueue<>(0, 0);
+  private final LimitedQueue<FunctionCall> queue = new LimitedQueue<>(0, 0);
   private final AtomicInteger usedConnections = new AtomicInteger(0);
 
 //  /**
@@ -455,9 +454,10 @@ public abstract class RemoteFunctionClient {
                 .handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked."))));
   }
 
-  public class FunctionCall extends OffHeapBuffer {
+  public class FunctionCall implements ByteSizeAware {
 
     final Marker marker;
+    final byte[] bytes;
     final boolean fireAndForget;
     final boolean hasPriority;
     final Context context = Service.vertx.getOrCreateContext();
@@ -467,11 +467,16 @@ public abstract class RemoteFunctionClient {
     private volatile boolean cancelled;
 
     public FunctionCall(Marker marker, byte[] bytes, boolean fireAndForget, boolean hasPriority, Handler<AsyncResult<byte[]>> callback) {
-      super(bytes);
       this.marker = marker;
+      this.bytes = bytes;
       this.callback = callback;
       this.fireAndForget = fireAndForget;
       this.hasPriority = hasPriority;
+    }
+
+    @Override
+    public long getByteSize() {
+      return bytes.length;
     }
 
     public void setCancelHandler(Runnable cancelHandler) {

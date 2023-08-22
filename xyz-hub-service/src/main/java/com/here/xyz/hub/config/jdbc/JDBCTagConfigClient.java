@@ -78,29 +78,27 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, String id, List<String> spaceIds) {
-    List<String> params = spaceIds.stream().map(e->"?").collect(Collectors.toList());
-    SQLQuery query = new SQLQuery("WHERE id=?", id);
-    query.append(new SQLQuery("AND space IN (" + StringUtils.join(params, ",")+")", spaceIds.toArray()));
+    SQLQuery query = new SQLQuery("WHERE id = #{id} AND space IN (#{spaceIds})")
+        .withNamedParameter("id", id)
+        .withNamedParameter("spaceIds", spaceIds.toArray(new String[0]));
     return _getTags(marker, query);
   }
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, String spaceId) {
-    return _getTags(marker, new SQLQuery("WHERE space=?", spaceId));
+    return _getTags(marker, new SQLQuery("WHERE space = #{spaceId}").withNamedParameter("spaceId", spaceId));
   }
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, List<String> spaceIds) {
-    List<String> params = spaceIds.stream().map(e->"?").collect(Collectors.toList());
-    SQLQuery query = new SQLQuery("WHERE space IN (" + StringUtils.join(params, ",")+")", spaceIds.toArray());
+    SQLQuery query = new SQLQuery("WHERE space IN (#{spaceIds})")
+        .withNamedParameter("spaceIds", spaceIds.toArray(new String[0]));
     return _getTags(marker, query);
   }
 
   @Override
   public Future<List<Tag>> getTagsByTagId(Marker marker, String tagId) {
-    SQLQuery query = new SQLQuery("WHERE id=#{tagId}").withNamedParameter("tagId", tagId);
-    query.substitute();
-    return _getTags(marker, query);
+    return _getTags(marker, new SQLQuery("WHERE id = #{tagId}").withNamedParameter("tagId", tagId));
   }
 
   @Override
@@ -110,10 +108,13 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   private Future<List<Tag>> _getTags(Marker marker, SQLQuery whereClause) {
     Promise<List<Tag>> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + TAG_TABLE);
-    if(whereClause != null )
-      query.append(whereClause);
-    client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+    SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + TAG_TABLE + " ${{whereClause}}");
+    if (whereClause == null)
+      query.setQueryFragment("whereClause", "");
+    else
+      query.setQueryFragment("whereClause", whereClause);
+
+    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         List<Tag> tag = out.result().getRows().stream().map(r->new Tag()
             .withId(r.getString("id"))

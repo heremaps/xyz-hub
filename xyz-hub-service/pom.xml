@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2021 HERE Europe B.V.
+  ~ Copyright (C) 2017-2023 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
     <relativePath>../pom.xml</relativePath>
-    <version>2.2.31-SNAPSHOT</version>
+    <version>3.2.3-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -83,6 +83,7 @@
       <build>
         <plugins>
           <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-shade-plugin</artifactId>
             <configuration>
               <filters>
@@ -109,6 +110,7 @@
                 </filter>
               </filters>
               <finalName>xyz-hub-service</finalName>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
               <transformers>
                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                   <mainClass>com.here.xyz.hub.Service</mainClass>
@@ -127,7 +129,6 @@
                 <phase>package</phase>
               </execution>
             </executions>
-            <groupId>org.apache.maven.plugins</groupId>
           </plugin>
         </plugins>
       </build>
@@ -288,6 +289,10 @@
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-cloudwatch</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-secretsmanager</artifactId>
+    </dependency>
 
     <!--  GeoTools libraries -->
     <dependency>
@@ -335,10 +340,6 @@
     <dependency>
       <artifactId>expiringmap</artifactId>
       <groupId>net.jodah</groupId>
-    </dependency>
-    <dependency>
-      <groupId>org.caffinitas.ohc</groupId>
-      <artifactId>ohc-core</artifactId>
     </dependency>
 
     <!-- Jackson -->

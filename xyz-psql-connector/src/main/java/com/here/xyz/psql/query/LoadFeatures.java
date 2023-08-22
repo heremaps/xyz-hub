@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,11 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -35,8 +31,8 @@ import java.util.Set;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollection> {
 
-  public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public LoadFeatures(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
+    super(event);
     setUseReadReplica(false);
   }
 
@@ -47,31 +43,11 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
 
   private SQLQuery buildQueryForV2K1(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
     final Map<String, String> idMap = event.getIdsMap();
-
     SQLQuery filterWhereClause = new SQLQuery("id = ANY(#{ids})")
         .withNamedParameter("ids", idMap.keySet().toArray(new String[0]));
 
-    SQLQuery headQuery = super.buildQuery(event)
+    return super.buildQuery(event)
         .withQueryFragment("filterWhereClause", filterWhereClause);
-
-    if (event.getEnableHistory() && (!isExtendedSpace(event) || event.getContext() != DEFAULT)) {
-      final boolean compactHistory = !event.getEnableGlobalVersioning() && dbHandler.getConfig().getConnectorParams().isCompactHistory();
-      SQLQuery query;
-      if (compactHistory)
-        //History does not contain Inserts
-        query = new SQLQuery("${{headQuery}} UNION ${{historyQuery}}");
-      else
-        //History does contain Inserts
-        query = new SQLQuery("SELECT DISTINCT ON(jsondata->'properties'->'@ns:com:here:xyz'->'uuid') * FROM("
-            + "    ${{headQuery}} UNION ${{historyQuery}}"
-            + ")A");
-
-      return query
-          .withQueryFragment("headQuery", headQuery)
-          .withQueryFragment("historyQuery", buildHistoryQuery(event, idMap.values()));
-    }
-
-    return headQuery;
   }
 
   private SQLQuery buildQueryForV2K2(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
@@ -94,9 +70,9 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
             idsWithVersions.values().stream().map(Long::parseLong).toArray(Long[]::new)
         ));
 
-    return new SQLQuery("${{versioningHead}} UNION ${{versioningHistory}}")
-        .withQueryFragment("versioningHead", super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClauseHead))
-        .withQueryFragment("versioningHistory", super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClauseHistory));
+    return new SQLQuery("${{head}} UNION ${{history}}")
+        .withQueryFragment("head", super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClauseHead))
+        .withQueryFragment("history", super.buildQuery(event).withQueryFragment("filterWhereClause", filterWhereClauseHistory));
 
   }
 
@@ -118,19 +94,5 @@ public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollecti
      if (versions != null)
         inputFragment.setNamedParameter("versions", versions);
      return inputFragment;
-  }
-
-  @Deprecated
-  private SQLQuery buildHistoryQuery(LoadFeaturesEvent event, Collection<String> uuids) {
-    return new SQLQuery("SELECT jsondata, ${{geo}}, jsondata->>'id' as id "
-        + "FROM ${schema}.${hsttable} h "
-        + "WHERE uuid = ANY(#{uuids}) AND EXISTS("
-        + "    SELECT 1"
-        + "    FROM ${schema}.${table} t"
-        + "    WHERE t.id =  h.jsondata->>'id'"
-        + ")")
-        .withQueryFragment("geo", buildGeoFragment(event))
-        .withNamedParameter("uuids", uuids.toArray(new String[0]))
-        .withVariable("hsttable", getDefaultTable(event) + DatabaseHandler.HISTORY_TABLE_SUFFIX);
   }
 }

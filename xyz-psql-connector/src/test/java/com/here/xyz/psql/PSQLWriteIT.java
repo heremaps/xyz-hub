@@ -18,25 +18,27 @@
  */
 package com.here.xyz.psql;
 
+import static io.restassured.path.json.JsonPath.with;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.Assert.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class PSQLWriteIT extends PSQLAbstractIT {
 
@@ -54,7 +56,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     @Test
     public void testTableCreated() throws Exception {
         String response = invokeLambdaFromFile("/events/TestCreateTable.json");
-        assertEquals("Check response status", JsonPath.read(response, "$.type").toString(), "FeatureCollection");
+        assertEquals("Check response status", "FeatureCollection", with(response).get("type"));
     }
 
     @Test
@@ -246,13 +248,14 @@ public class PSQLWriteIT extends PSQLAbstractIT {
     }
 
     protected void assertCount(String insertRequest, String countResponse) {
-        if (!JsonPath.<Boolean>read(countResponse, "$.count.estimated")) {
-            assertEquals("Check inserted feature count vs fetched count", JsonPath.read(insertRequest, "$.insertFeatures.length()").toString(),
-                    JsonPath.read(countResponse, "$.count.value").toString());
+        if (!with(countResponse).getBoolean("count.estimated")) {
+            assertEquals("Check inserted feature count vs fetched count",
+                with(insertRequest).getString("$.insertFeatures.length()"),
+                with(countResponse).getString("$.count.value"));
         }
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({"rawtypes"})
     protected void testModifyFeatures(boolean includeOldStates) throws Exception {
         // =========== INSERT ==========
         String insertJsonFile = "/events/InsertFeaturesEvent.json";
@@ -260,36 +263,29 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         LOGGER.info("RAW RESPONSE: " + insertResponse);
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, false);
-        final JsonPath jsonPathFeatures = JsonPath.compile("$.features");
-        List<Map> originalFeatures = jsonPathFeatures.read(insertResponse, jsonPathConf);
+        List<Map> originalFeatures = with(insertResponse).get("features");
 
-        final JsonPath jsonPathFeatureIds = JsonPath.compile("$.features..id");
-        List<String> ids = jsonPathFeatureIds.read(insertResponse, jsonPathConf);
+        List<String> ids = with(insertResponse).get("features.id");
         LOGGER.info("Preparation: Inserted features {}", ids);
+        FeatureCollection inserted = XyzSerializable.deserialize(insertResponse);
 
         // =========== UPDATE ==========
         LOGGER.info("Modify features");
-        final DocumentContext updateFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
-        updateFeaturesEventDoc.put("$", "params", Collections.singletonMap("includeOldStates", includeOldStates));
-
-        List<Map> updateFeatures = jsonPathFeatures.read(insertResponse, jsonPathConf);
-        updateFeaturesEventDoc.delete("$.insertFeatures");
-        updateFeatures.forEach((Map feature) -> {
-            final Map<String, Object> properties = (Map<String, Object>) feature.get("properties");
-            properties.put("test", "updated");
+        ModifyFeaturesEvent updateEvent = new ModifyFeaturesEvent()
+            .withSpace("foo")
+            .withParams(Collections.singletonMap("includeOldStates", includeOldStates));
+        inserted.getFeatures().forEach((Feature feature) -> {
+            feature.getProperties().put("test", "updated");
         });
-        updateFeaturesEventDoc.put("$", "updateFeatures", updateFeatures);
-
-        String updateFeaturesEvent = updateFeaturesEventDoc.jsonString();
-        String updateFeaturesResponse = invokeLambda(updateFeaturesEvent);
+        updateEvent.setUpdateFeatures(inserted.getFeatures());
+        String updateFeaturesResponse = invokeLambda(updateEvent.toString());
         assertNoErrorInResponse(updateFeaturesResponse);
 
-        List features = jsonPathFeatures.read(updateFeaturesResponse, jsonPathConf);
+        List features = with(updateFeaturesResponse).get("features");
         assertNotNull("'features' element in ModifyFeaturesResponse is missing", features);
         assertTrue("'features' element in ModifyFeaturesResponse is empty", features.size() > 0);
 
-        final JsonPath jsonPathOldFeatures = JsonPath.compile("$.oldFeatures");
-        List oldFeatures = jsonPathOldFeatures.read(updateFeaturesResponse, jsonPathConf);
+        List oldFeatures = with(updateFeaturesResponse).get("oldFeatures");
         if (includeOldStates) {
             assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", oldFeatures);
             assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", oldFeatures.size() > 0);
@@ -299,18 +295,17 @@ public class PSQLWriteIT extends PSQLAbstractIT {
         }
 
         // =========== DELETE ==========
-        final DocumentContext modifyFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
-        modifyFeaturesEventDoc.put("$", "params", Collections.singletonMap("includeOldStates", includeOldStates));
-        modifyFeaturesEventDoc.delete("$.insertFeatures");
+        ModifyFeaturesEvent deleteEvent = new ModifyFeaturesEvent()
+            .withSpace("foo")
+            .withParams(Collections.singletonMap("includeOldStates", includeOldStates));
 
         Map<String, String> idsMap = new HashMap<>();
         ids.forEach(id -> idsMap.put(id, null));
-        modifyFeaturesEventDoc.put("$", "deleteFeatures", idsMap);
+        deleteEvent.setDeleteFeatures(idsMap);
 
-        String deleteEvent = modifyFeaturesEventDoc.jsonString();
-        String deleteResponse = invokeLambda(deleteEvent);
+        String deleteResponse = invokeLambda(deleteEvent.toString());
         assertNoErrorInResponse(deleteResponse);
-        oldFeatures = jsonPathOldFeatures.read(deleteResponse, jsonPathConf);
+        oldFeatures = with(deleteResponse).get("oldFeatures");
         if (includeOldStates) {
             assertNotNull("'oldFeatures' element in ModifyFeaturesResponse is missing", oldFeatures);
             assertTrue("'oldFeatures' element in ModifyFeaturesResponse is empty", oldFeatures.size() > 0);

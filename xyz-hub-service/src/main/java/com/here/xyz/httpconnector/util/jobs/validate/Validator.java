@@ -19,13 +19,18 @@
 
 package com.here.xyz.httpconnector.util.jobs.validate;
 
+import com.here.xyz.httpconnector.rest.HApiParam;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Core;
+import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import org.apache.commons.lang3.RandomStringUtils;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 
 public class Validator {
 
@@ -54,25 +59,42 @@ public class Validator {
         }
     }
 
-    protected static void isValidForStart(Job job) throws HttpException{
+    public static void isValidForExecution(Job job, HApiParam.HQuery.Command command, ApiParam.Query.Incremental incremental) throws HttpException {
+        switch (command){
+            case CREATEUPLOADURL:
+                if(job instanceof Export)
+                    throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
+                else if(job instanceof Import)
+                    ImportValidator.isValidForCreateUrl(job);
+                break;
+            case RETRY:
+                    isValidForRetry(job);
+                break;
+            case START:
+                if(job instanceof Export)
+                    ExportValidator.isValidForStart((Export) job, incremental);
+                else if(job instanceof Import)
+                    ImportValidator.isValidForStart(job);
+                break;
+            case ABORT:
+                if(job instanceof Export)
+                    ExportValidator.isValidForAbort(job);
+                else if(job instanceof Import)
+                    ImportValidator.isValidForAbort(job);
+        }
+    }
+
+    protected static void isValidForRetry(Job job) throws HttpException{
+        if(!job.getStatus().equals(Job.Status.failed) && !job.getStatus().equals(Job.Status.aborted) )
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: "+job.getStatus() +" for retry!");
+    }
+
+    public static boolean isValidForDelete(Job job, boolean force) {
+        if(force)
+            return true;
         switch (job.getStatus()){
-            case finalized:
-                throw new HttpException(PRECONDITION_FAILED, "Job is already finalized !");
-            case failed:
-                throw new HttpException(PRECONDITION_FAILED, "Failed - check error and retry!");
-            case queued:
-            case validating:
-            case validated:
-            case preparing:
-            case prepared:
-            case executing:
-            case executed:
-            case executing_trigger:
-            case trigger_executed:
-            case collectiong_trigger_status:
-            case trigger_status_collected:
-            case finalizing:
-                throw new HttpException(PRECONDITION_FAILED, "Job is already running - current status: "+job.getStatus());
+            case waiting: case finalized: case aborted: case failed: return true;
+            default: return false;
         }
     }
 }

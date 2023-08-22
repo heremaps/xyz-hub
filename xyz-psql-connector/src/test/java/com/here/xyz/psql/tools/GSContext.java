@@ -20,7 +20,7 @@
 package com.here.xyz.psql.tools;
 
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
-import com.here.xyz.connectors.SimulatedContext;
+import com.here.xyz.connectors.runtime.SimulatedContext;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
 import java.util.HashMap;

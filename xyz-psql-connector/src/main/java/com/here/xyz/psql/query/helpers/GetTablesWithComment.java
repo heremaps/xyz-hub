@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 package com.here.xyz.psql.query.helpers;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.GetTablesWithComment.GetTablesWithCommentInput;
@@ -31,9 +30,9 @@ import java.util.List;
 
 public class GetTablesWithComment extends QueryRunner<GetTablesWithCommentInput, List<String>> {
 
-  public GetTablesWithComment(GetTablesWithCommentInput input, DatabaseHandler dbHandler)
+  public GetTablesWithComment(GetTablesWithCommentInput input)
       throws SQLException, ErrorResponseException {
-    super(input, dbHandler);
+    super(input);
   }
 
   @Override
@@ -44,7 +43,6 @@ public class GetTablesWithComment extends QueryRunner<GetTablesWithCommentInput,
         + "         ON t.table_name = pgc.relname "
         + "WHERE "
         + "  t.table_name != 'spatial_ref_sys' "
-        + "  AND t.table_name NOT LIKE '%_hst' "
         + "  AND t.table_name NOT LIKE '%_head' "
         + "  AND t.table_name NOT LIKE '%_p%' "
         + "  AND t.table_type = 'BASE TABLE' "

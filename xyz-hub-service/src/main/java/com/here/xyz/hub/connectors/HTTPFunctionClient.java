@@ -26,7 +26,6 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.netty.handler.codec.http.HttpResponseStatus.TOO_MANY_REQUESTS;
 
 import com.google.common.base.Strings;
 import com.here.xyz.hub.Service;
@@ -34,7 +33,6 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Http;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.util.LimitedOffHeapQueue.PayloadVanishedException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -98,7 +96,7 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
 
     try {
       //The BodyHolder makes sure that our "onSuccess-lambda" below won't keep a reference to the body itself
-      BodyHolder bh = new BodyHolder(Buffer.buffer(fc.consumePayload()));
+      BodyHolder bh = new BodyHolder(Buffer.buffer(fc.bytes));
 
       httpClient.request(new RequestOptions()
           .setMethod(HttpMethod.POST)
@@ -140,9 +138,6 @@ public class HTTPFunctionClient extends RemoteFunctionClient {
             bh.body = null; //Make sure this lambda-expression is not referencing the request-body anymore
           })
           .onFailure(t -> handleFailure(fc.marker, callback, t));
-    }
-    catch (PayloadVanishedException e) {
-      callback.handle(Future.failedFuture(new HttpException(TOO_MANY_REQUESTS, "Remote function is busy or cannot be invoked.")));
     }
     catch (Exception e) {
       handleFailure(fc.marker, callback, e);

@@ -23,24 +23,24 @@ import static com.here.xyz.psql.query.helpers.versioning.GetNextVersion.VERSION_
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifyFeaturesEvent;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.helpers.versioning.SetVersion.SetVersionInput;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class SetVersion extends QueryRunner<SetVersionInput, Void> {
 
-  public SetVersion(SetVersionInput input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(input, dbHandler);
+  public SetVersion(SetVersionInput input) throws SQLException, ErrorResponseException {
+    super(input);
   }
 
   @Override
   protected SQLQuery buildQuery(SetVersionInput input) throws SQLException, ErrorResponseException {
     return new SQLQuery("SELECT setval('${schema}.${sequence}', #{version}, true)")
         .withVariable(SCHEMA, getSchema())
-        .withVariable("sequence", dbHandler.getConfig().readTableFromEvent(input.event) + VERSION_SEQUENCE_SUFFIX)
+        .withVariable("sequence", XyzEventBasedQueryRunner.readTableFromEvent(input.event) + VERSION_SEQUENCE_SUFFIX)
         .withNamedParameter("version", input.version);
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -117,7 +117,7 @@ public class Core {
       config.forEach(entry -> {
         if (entry.getValue() instanceof String) {
           if (entry.getValue().equals("")) {
-            config.put(entry.getKey(), (String) null);
+            config.put(entry.getKey(), null);
           } else {
             try {
               config.put(entry.getKey(), decryptSecret((String) entry.getValue()));

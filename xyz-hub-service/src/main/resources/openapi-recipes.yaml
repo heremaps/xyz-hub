@@ -54,8 +54,7 @@ recipes:
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*TweaksParams$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Tweaks$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*TweaksParams$
-      - paths.'/spaces/{spaceId}/history'
-      - paths.'/spaces/{spaceId}/history/statistics'
+      - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Version$
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Sort$
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Part$
       - paths.'/spaces/{spaceId}/subscriptions'
@@ -76,7 +75,6 @@ recipes:
       - components.parameters.TagId
       - components.responses.ConnectorResponse
       - components.responses.ConnectorsResponse
-      - components.responses.HistoryResponse
       - components.responses.SubscriptionResponse
       - components.responses.SubscriptionsResponse
       - components.responses.JobResponse
@@ -89,8 +87,6 @@ recipes:
       - components.schemas.Http
       - components.schemas.RemoteFunctionConfig
       - components.schemas.Space.properties.enableUUID
-      - components.schemas.Space.properties.enableHistory
-      - components.schemas.Space.properties.maxVersionCount
       - components.schemas.Space.properties.tags
       - components.schemas.Space.properties.cacheTTL
       - components.schemas.Space.properties.volatilityAtLastContentUpdate
@@ -151,12 +147,6 @@ recipes:
       - type: key
         path: paths.'/spaces/{spaceId}/iterate'
         replace: paths.'/hub/spaces/{spaceId}/iterate'
-      - type: key
-        path: paths.'/spaces/{spaceId}/history'
-        replace: paths.'/hub/spaces/{spaceId}/history'
-      - type: key
-        path: paths.'/spaces/{spaceId}/history/statistics'
-        replace: paths.'/hub/spaces/{spaceId}/history/statistics'
       - type: key
         path: paths.'/connectors'
         replace: paths.'/hub/connectors'

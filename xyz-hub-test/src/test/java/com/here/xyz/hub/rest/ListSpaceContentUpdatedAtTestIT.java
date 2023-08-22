@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,19 +20,19 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
-import com.jayway.restassured.response.ValidatableResponse;
-import com.jayway.restassured.RestAssured;
-
-import java.util.*;
-
+import io.restassured.RestAssured;
+import io.restassured.response.ValidatableResponse;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 import org.junit.FixMethodOrder;
+import org.junit.Test;
 import org.junit.runners.MethodSorters;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)

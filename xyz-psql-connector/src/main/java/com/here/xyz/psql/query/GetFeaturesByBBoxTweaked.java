@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.bbox.GetSamplingStrengthEstimation;
@@ -43,9 +42,9 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
   private boolean isMvtRequested;
   private boolean resultIsPartial;
 
-  public GetFeaturesByBBoxTweaked(E event, DatabaseHandler dbHandler)
+  public GetFeaturesByBBoxTweaked(E event)
       throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+    super(event);
     setUseReadReplica(true);
   }
 
@@ -56,7 +55,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
     SQLQuery query;
     switch (event.getTweakType().toLowerCase()) {
       case TweaksSQL.ENSURE: {
-        tweakParams = getTweakParamsForEnsureMode(event, tweakParams, dbHandler);
+        tweakParams = getTweakParamsForEnsureMode(event, tweakParams);
       }
       case TweaksSQL.SAMPLING: {
         if (!"off".equals(event.getVizSampling().toLowerCase())) {
@@ -89,7 +88,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
   @Override
   public R handle(ResultSet rs) throws SQLException {
     if (isMvtRequested)
-      return (R) dbHandler.defaultBinaryResultSetHandler(rs);
+      return (R) GetFeaturesByBBox.defaultBinaryResultSetHandler(rs);
     else {
       FeatureCollection collection = dbHandler.defaultFeatureResultSetHandlerSkipIfGeomIsNull(rs);
       if (resultIsPartial)
@@ -104,9 +103,9 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
     if( rTuples == null ) return false;
 
     String[] a = rTuples.split("~");
-    if( a == null || a[0] == null ) return false;
+    if(a[0] == null) return false;
 
-    try{ return tresholdVeryLargeSpace <= Long.parseLong(a[0]); } catch( NumberFormatException e ){}
+    try{ return tresholdVeryLargeSpace <= Long.parseLong(a[0]); } catch( NumberFormatException ignored){}
 
     return false;
   }
@@ -136,25 +135,25 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
 
     switch( event.getVizSampling().toLowerCase() ) {
       case "high":
-        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 15 ) );
+        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 15);
         break;
       case "low":
-        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 70 ) );
+        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 70);
         break;
       case "off":
-        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 100 ));
+        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 100);
         break;
       case "med":
       default:
-        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, new Integer( 30 ) );
+        m.put(TweaksSQL.ENSURE_SAMPLINGTHRESHOLD, 30);
         break;
     }
     return m;
   }
 
   public static HashMap<String, Object> getTweakParamsForEnsureMode(GetFeaturesByBBoxEvent event,
-      Map<String, Object> tweakParams, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    SamplingStrengthEstimation estimationResult = new GetSamplingStrengthEstimation<>(event, dbHandler).run();
+      Map<String, Object> tweakParams) throws SQLException, ErrorResponseException {
+    SamplingStrengthEstimation estimationResult = new GetSamplingStrengthEstimation<>(event).run();
 
     HashMap<String, Object> hmap = new HashMap<>();
 

@@ -24,9 +24,9 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
-import com.here.xyz.psql.Capabilities;
-import com.here.xyz.psql.DatabaseHandler;
+import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.psql.query.helpers.GetIndexList;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.SQLException;
@@ -34,6 +34,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 /*
 NOTE: All subclasses of QueryEvent are deprecated except SearchForFeaturesEvent.
@@ -44,12 +46,12 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
 
   protected boolean hasSearch;
 
-  public SearchForFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public SearchForFeatures(E event) throws SQLException, ErrorResponseException {
+    super(event);
   }
 
-  public static void checkCanSearchFor(SearchForFeaturesEvent event, DatabaseHandler dbHandler) throws ErrorResponseException {
-    if (!Capabilities.canSearchFor(dbHandler.getConfig().readTableFromEvent(event), event.getPropertiesQuery(), dbHandler))
+  public static void checkCanSearchFor(SearchForFeaturesEvent event, PSQLXyzConnector dbHandler) throws ErrorResponseException {
+    if (!canSearchFor(XyzEventBasedQueryRunner.readTableFromEvent(event), event.getPropertiesQuery(), dbHandler))
       throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
           "Invalid request parameters. Search for the provided properties is not supported for this space.");
   }
@@ -79,6 +81,9 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
   }
 
 
+  /**
+   * @deprecated Please use {@link SearchForFeatures#generatePropertiesQuery(SearchForFeaturesEvent)} instead.
+   */
   //TODO: Can be removed after completion of refactoring
   @Deprecated
   protected static SQLQuery generatePropertiesQueryBWC(SearchForFeaturesEvent event) {
@@ -88,13 +93,80 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
+  /**
+   * Determines if PropertiesQuery can be executed. Check if required Indices are created.
+   */
+  private static List<String> sortableCanSearchForIndex( List<String> indices )
+  { if( indices == null ) return null;
+    List<String> skeys = new ArrayList<String>();
+    for( String k : indices)
+      if( k.startsWith("o:") )
+        skeys.add( k.replaceFirst("^o:([^,]+).*$", "$1") );
+
+    return skeys;
+  }
+
+  private static boolean canSearchFor(String tableName, PropertiesQuery query, PSQLXyzConnector dbHandler) {
+    if (query == null) {
+      return true;
+    }
+
+    try {
+      List<String> keys = query.stream().flatMap(List::stream)
+          .filter(k -> k.getKey() != null && k.getKey().length() > 0).map(PropertyQuery::getKey).collect(Collectors.toList());
+
+      int idx_check = 0;
+
+      for (String key : keys) {
+
+        /** properties.foo vs foo (root)
+         * If hub receives "f.foo=bar&p.foo=bar" it will generates a PropertyQuery with properties.foo=bar and foo=bar
+         **/
+        boolean isPropertyQuery = key.startsWith("properties.");
+
+        /** If property query hits default system index - allow search. [id, properties.@ns:com:here:xyz.createdAt, properties.@ns:com:here:xyz.updatedAt]" */
+        if (     key.equals("id")
+            ||  key.equals("properties.@ns:com:here:xyz.createdAt")
+            ||  key.equals("properties.@ns:com:here:xyz.updatedAt")
+        )
+          return true;
+
+        /** Check if custom Indices are available. Eg.: properties.foo1&f.foo2*/
+        List<String> indices = new GetIndexList(tableName).run(dbHandler.getDataSourceProvider());
+
+        /** The table has not many records - Indices are not required */
+        if (indices == null) {
+          return true;
+        }
+
+        List<String> sindices = sortableCanSearchForIndex( indices );
+        /** If it is a root property query "foo=bar" we extend the suffix "f."
+         *  If it is a property query "properties.foo=bar" we remove the suffix "properties." */
+        String searchKey = isPropertyQuery ? key.substring("properties.".length()) : "f."+key;
+
+        if (indices.contains( searchKey ) || (sindices != null && sindices.contains(searchKey)) ) {
+          /** Check if all properties are indexed */
+          idx_check++;
+        }
+      }
+
+      if(idx_check == keys.size())
+        return true;
+
+      return new GetIndexList(tableName).run(dbHandler.getDataSourceProvider()) == null;
+    } catch (Exception e) {
+      // In all cases, when something with the check went wrong, allow the search
+      return true;
+    }
+  }
+
   private static String getParamNameForValue(Map<String, Integer> countingMap, String key) {
     Integer counter = countingMap.get(key);
     countingMap.put(key, counter == null ? 1 : ++counter);
     return "userValue_" + key + (counter == null ? "" : "" + counter);
   }
 
-  public static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
+  private static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
     PropertiesQuery properties = event.getPropertiesQuery();
     if (properties == null || properties.size() == 0) {
       return null;
@@ -126,7 +198,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           String  key = propertyQuery.getKey(),
               paramName = getParamNameForValue(countingMap, key),
               value = getValue(v, op, key, paramName);
-          SQLQuery q = createKey(event, key);
+          SQLQuery q = createKey(key);
           namedParams.putAll(q.getNamedParameters());
 
           if(v == null){
@@ -148,13 +220,32 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
           }
           keyDisjunctionQueries.add(q);
         }
-        conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, "OR", true));
+        conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, " OR ", true));
       });
-      disjunctionQueries.add(SQLQuery.join(conjunctionQueries, "AND", false));
+      disjunctionQueries.add(SQLQuery.join(conjunctionQueries, " AND ", false));
     });
-    SQLQuery query = SQLQuery.join(disjunctionQueries, "OR", false);
+    SQLQuery query = SQLQuery.join(disjunctionQueries, " OR ", false);
     query.setNamedParameters(namedParams);
     return query;
+  }
+
+  private static SQLQuery joinQueries(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets) {
+    List<String> fragmentPlaceholders = new ArrayList<>();
+    Map<String, SQLQuery> queryFragments = new HashMap<>();
+    int i = 0;
+    for (SQLQuery q : queries) {
+      String fragmentName = "f" + i++;
+      String fragmentPlaceholder = "${{" + fragmentName + "}}";
+      if (encloseInBrackets)
+        fragmentPlaceholder = "(" + fragmentPlaceholder + ")";
+      fragmentPlaceholders.add(fragmentPlaceholder);
+      queryFragments.put(fragmentName, q);
+    }
+
+    SQLQuery joinedQuery = new SQLQuery(String.join(delimiter, fragmentPlaceholders));
+    for (Entry<String, SQLQuery> queryFragment : queryFragments.entrySet())
+      joinedQuery.setQueryFragment(queryFragment.getKey(), queryFragment.getValue());
+    return joinedQuery;
   }
 
   private static SQLQuery generateTagsQuery(TagsQuery tagsQuery) {
@@ -171,6 +262,9 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
+  /**
+   * @deprecated Please use {@link #generateSearchQuery(SearchForFeaturesEvent)} instead.
+   */
   //TODO: Can be removed after completion of refactoring
   @Deprecated
   public static SQLQuery generateSearchQueryBWC(SearchForFeaturesEvent event) {
@@ -180,7 +274,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
-  public static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) {
+  protected static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) {
     final SQLQuery propertiesQuery = generatePropertiesQuery(event);
     final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 
@@ -200,7 +294,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return query;
   }
 
-  private static SQLQuery createKey(SearchForFeaturesEvent event, String key) {
+  private static SQLQuery createKey(String key) {
     String[] keySegments = key.split("\\.");
 
     /** ID is indexed as text */

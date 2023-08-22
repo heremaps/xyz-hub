@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2013 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
   @Deprecated
   private String handle;
   private String nextPageToken;
+  @Deprecated
   private Long count;
   private List<String> inserted;
   private List<String> updated;
@@ -240,6 +241,7 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
    *
    * @return the amount of features that are matching the query.
    */
+  @Deprecated
   public Long getCount() {
     return this.count;
   }
@@ -249,11 +251,13 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
    *
    * @param count the amount of features that where matching a query, if null, then the property is removed.
    */
+  @Deprecated
   @SuppressWarnings("WeakerAccess")
   public void setCount(Long count) {
     this.count = count;
   }
 
+  @Deprecated
   @SuppressWarnings("unused")
   public FeatureCollection withCount(final Long count) {
     setCount(count);
@@ -348,8 +352,9 @@ public class FeatureCollection extends XyzResponse<FeatureCollection> {
   }
 
   /**
-   * For FeatureCollection write-responses: If the history of a space is activated and this FeatureCollection is a response to a
-   * modification of the space - contains the (new) space-version which has just been written.
+   * For FeatureCollection write-responses:
+   *  If this FeatureCollection is a response to a modification of the space it contains the (new) space-version which
+   *  has just been written.
    * @return The new space-version after some modification
    */
   public Long getVersion() {

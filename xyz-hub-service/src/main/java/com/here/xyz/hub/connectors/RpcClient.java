@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,6 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
-import com.here.xyz.responses.HistoryStatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
@@ -67,6 +66,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
@@ -231,7 +231,7 @@ public class RpcClient {
    * @param event
    * @return Whether to expect a binary response from the storage connector
    */
-  private boolean expectBinaryResponse(Event event) {
+  private boolean expectBinaryResponse(Event<?> event) {
     return event instanceof GetFeaturesByTileEvent
         && (((GetFeaturesByTileEvent) event).getResponseType() == MVT || ((GetFeaturesByTileEvent) event).getResponseType() == MVT_FLATTENED)
         && getConnector().capabilities.mvtSupport
@@ -264,7 +264,7 @@ public class RpcClient {
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
     tmpFillVersionsToKeepParam(event, tmpSpace);
     final Connector connector = getConnector();
-    event.setConnectorParams(connector.params);
+    injectConnectorParams(event, connector);
     final boolean expectBinaryResponse = expectBinaryResponse(event);
     final String eventJson = event.serialize();
     final byte[] eventBytes = eventJson.getBytes();
@@ -309,6 +309,13 @@ public class RpcClient {
     return context;
   }
 
+  //TODO: Remove this injection of "connectorId" connector-param when the hash of ECPS is used as cache key for any connections in the PSQL connector
+  private static void injectConnectorParams(Event event, Connector connector) {
+    Map<String, Object> connectorParams = new HashMap<>(connector.params);
+    connectorParams.put("connectorId", connector.id);
+    event.setConnectorParams(connectorParams);
+  }
+
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback) {
     return execute(marker, event, hasPriority, callback, null);
   }
@@ -349,7 +356,7 @@ public class RpcClient {
    */
   public RpcContext send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
     final Connector connector = getConnector();
-    event.setConnectorParams(connector.params);
+    injectConnectorParams(event, connector);
     final byte[] eventBytes = event.toByteArray();
     RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
     invokeWithRelocation(marker, context, eventBytes, true, false, r -> {
@@ -365,7 +372,6 @@ public class RpcClient {
     return context;
   }
 
-  @SuppressWarnings("rawtypes")
   private void validateResponsePayload(Marker marker, final Typed payload) throws HttpException {
     if (payload == null)
       throw new NullPointerException("Response payload is null");
@@ -609,14 +615,6 @@ public class RpcClient {
       final StatisticsResponse sr = (StatisticsResponse) payload;
       // TODO copy byteSize property over dataSize, when byteSize is finally removed, this code won't be necessary anymore
       sr.setDataSize(sr.getByteSize());
-      return;
-    }
-
-    if (payload instanceof HistoryStatisticsResponse) {
-      final HistoryStatisticsResponse hsr = (HistoryStatisticsResponse) payload;
-      // TODO copy byteSize property over dataSize, when byteSize is finally removed, this code won't be necessary anymore
-      hsr.setDataSize(hsr.getByteSize());
-      return;
     }
   }
 

@@ -79,7 +79,11 @@ public class FeatureQueryApi extends SpaceBasedApi {
    * Retrieves the statistics about a space.
    */
   private void getStatistics(final RoutingContext context) {
-    new GetStatistics(new GetStatisticsEvent(), context, ApiResponseType.STATISTICS_RESPONSE, Query.getBoolean(context, SKIP_CACHE, false))
+
+    SpaceContext spaceContext = getSpaceContext(context);
+    GetStatisticsEvent e = new GetStatisticsEvent();
+    e.withContext(spaceContext);
+    new GetStatistics(e, context, ApiResponseType.STATISTICS_RESPONSE, Query.getBoolean(context, SKIP_CACHE, false))
         .execute(this::sendResponse, this::sendErrorResponse);
   }
 
@@ -352,7 +356,7 @@ public class FeatureQueryApi extends SpaceBasedApi {
         }
 
         if (tileAddress != null) {
-          event.setBbox(tileAddress.getExtendedBBox((int) event.getMargin()));
+          event.setBbox(tileAddress.getExtendedBBox(event.getMargin()));
           event.setLevel(tileAddress.level);
           event.setX(tileAddress.x);
           event.setY(tileAddress.y);

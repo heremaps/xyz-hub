@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,6 @@ import static com.here.xyz.hub.util.geo.GeoTools.WEB_MERCATOR_EPSG;
 import static com.here.xyz.hub.util.geo.GeoTools.WGS84_EPSG;
 
 import com.here.xyz.models.geojson.WebMercatorTile;
-import com.here.xyz.models.geojson.coordinates.BBox;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.vividsolutions.jts.geom.Envelope;
@@ -172,7 +171,6 @@ public abstract class MvtTileBuilder implements IUserDataConverter, IGeometryFil
       final int valueIndex = layerProps.addValue(raw);
       featureBuilder.addTags(keyIndex);
       featureBuilder.addTags(valueIndex);
-      return;
     }
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,27 +19,31 @@
 
 package com.here.xyz.httpconnector.task;
 
-import com.here.xyz.hub.Core;
-import com.here.xyz.httpconnector.CService;
-import com.here.xyz.hub.rest.HttpException;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
+import com.here.xyz.httpconnector.CService;
+import com.here.xyz.hub.Core;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.psql.DatabaseMaintainer;
-import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.SuccessResponse;
+import com.here.xyz.responses.XyzResponse;
 import com.here.xyz.responses.maintenance.ConnectorStatus;
 import com.here.xyz.responses.maintenance.SpaceStatus;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.json.DecodeException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import javax.naming.NoPermissionException;
 import java.io.IOException;
 import java.sql.SQLException;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import javax.naming.NoPermissionException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class MaintenanceHandler {
   private static final Logger logger = LogManager.getLogger();
@@ -110,7 +114,6 @@ public class MaintenanceHandler {
       } else {
         logger.warn("Database not initialized for connector: {}",connectorId);
         handler.handle(Future.failedFuture(new HttpException(METHOD_NOT_ALLOWED, "Database not initialized!")));
-        return;
       }
     }catch (Exception e) {
       checkException(e, handler, connectorId);
@@ -140,24 +143,6 @@ public class MaintenanceHandler {
         return;
       }
       checkException(e, handler, connectorId);
-    }catch (Exception e) {
-      checkException(e, handler, connectorId);
-    }
-  }
-
-  public static void maintainHistory(String connectorId, String ecps, String passphrase, String spaceId, int currentVersion, int maxVersionCount,
-                                   Handler<AsyncResult<XyzResponse>> handler) {
-
-    try {
-      CService.maintenanceClient.maintainHistory(connectorId, ecps, passphrase, spaceId, currentVersion, maxVersionCount);
-      handler.handle(Future.succeededFuture(new SuccessResponse().withStatus("Ok")));
-    }catch (SQLException e){
-      if(e.getSQLState() != null && e.getSQLState().equals("42P01")){
-        logger.warn("History Table does not exits {}/{}", spaceId, connectorId);
-        handler.handle(Future.failedFuture(new HttpException(CONFLICT, "History Table does not exists!")));
-        return;
-      }else
-        checkException(e, handler, connectorId);
     }catch (Exception e) {
       checkException(e, handler, connectorId);
     }

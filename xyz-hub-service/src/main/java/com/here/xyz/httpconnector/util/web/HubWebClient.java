@@ -22,11 +22,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.StatisticsResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.json.jackson.DatabindCodec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -59,7 +61,7 @@ public class HubWebClient {
 
                         return Future.succeededFuture(id);
                     }catch (Exception e){
-                        logger.warn("JOB[{}] Unexpected HTTPTrigger response: {} - {}", job.getId(), res.bodyAsString(),e);
+                        logger.warn("job[{}] Unexpected HTTPTrigger response: {}! ", job.getId(), res.bodyAsString(), e);
                         return Future.failedFuture(e);
                     }
                 });
@@ -91,9 +93,27 @@ public class HubWebClient {
 
                         return Future.succeededFuture(state);
                     }catch (Exception e){
-                        logger.warn("JOB[{}] Unexpected HTTPTriggerStatus response: {}", job.getId(), e);
+                        logger.warn("job[{}] Unexpected HTTPTriggerStatus response! ", job.getId(), e);
                         return Future.failedFuture(e);
                     }
+                });
+    }
+
+    public static Future<Connector> getConnectorConfig(String connectorId){
+        /** Update space-config */
+
+        return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT+"/connectors/"+connectorId)
+                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                .send()
+                .compose(res -> {
+                    try {
+                        Connector response = DatabindCodec.mapper().convertValue(res.bodyAsJsonObject(), Connector.class);
+                        return Future.succeededFuture(response);
+                    } catch (Exception e) {
+                        return Future.failedFuture("Cant get connector config!");
+                    }
+                }).onFailure(f -> {
+                    Future.failedFuture("Cant get connector config!");
                 });
     }
 

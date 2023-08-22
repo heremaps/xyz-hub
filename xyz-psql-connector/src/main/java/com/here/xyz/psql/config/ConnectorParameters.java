@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,216 +19,175 @@
 
 package com.here.xyz.psql.config;
 
-import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.Map.Entry;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import java.util.Map;
 
+//TODO: Use Jackson for mapping the incoming connectorParams into an instance of ConnectorParameters
 public class ConnectorParameters {
-    private static final Logger logger = LogManager.getLogger();
+  private static final Logger logger = LogManager.getLogger();
 
-    /**
-     * Paramters
-     */
-    public final static String CONNECTOR_ID = "connectorId";
-    public final static String PROPERTY_SEARCH = "propertySearch";
-    public final static String MVT_SUPPORT = "mvtSupport";
-    public final static String AUTO_INDEXING = "autoIndexing";
-    public final static String ENABLE_HASHED_SPACEID = "enableHashedSpaceId";
-    public final static String COMPACT_HISTORY = "compactHistory";
-    public final static String ON_DEMAND_IDX_LIMIT = "onDemandIdxLimit";
-    public final static String HRN_SHORTENING = "hrnShortening";
-    public final static String IGNORE_CREATE_MSE = "ignoreCreateMse";
+  private String connectorId;
+  private String ecps;
 
-    public final static String DB_INITIAL_POOL_SIZE = "dbInitialPoolSize";
-    public final static String DB_MIN_POOL_SIZE = "dbMinPoolSize";
-    public final static String DB_MAX_POOL_SIZE = "dbMaxPoolSize";
-    public final static String DB_ACQUIRE_INCREMENT = "dbAcquireIncrement";
-    public final static String DB_ACQUIRE_RETRY_ATTEMPTS = "dbAcquireRetryAttempts";
-    public final static String DB_CHECKOUT_TIMEOUT = "dbCheckoutTimeout";
-    public final static String DB_TEST_CONNECTION_ON_CHECKOUT = "dbTestConnectionOnCheckout";
-    public final static String DB_MAX_IDLE_TIME = "dbMaxIdleTime";
-    public final static String STATEMENT_TIMEOUT_SECONDS = "statementTimeoutSeconds";
+  /**
+   * Connector Settings defaults
+   */
+  private boolean propertySearch = false;
+  private boolean mvtSupport = false;
+  private boolean autoIndexing = false;
+  private boolean enableHashedSpaceId = false;
+  private int onDemandIdxLimit = 4;
+  private boolean ignoreCreateMse = false;
 
-    /**
-     * Connector Settings defaults
-     */
-    private String connectorId;
-    private boolean propertySearch = false;
-    private boolean mvtSupport = false;
-    private boolean autoIndexing = false;
-    private boolean enableHashedSpaceId = false;
-    private boolean compactHistory = true;
-    private int onDemandIdxLimit = 4;
-    private boolean hrnShortening = false;
-    private boolean ignoreCreateMse = false;
-    private String ecps;
+  /**
+   * Connection Pool defaults
+   */
+  private int dbInitialPoolSize = 1;
+  private int dbMinPoolSize = 1;
+  private int dbMaxPoolSize = 1;
+  private int dbAcquireIncrement = 1;
+  private int dbAcquireRetryAttempts = 5;
+  private int dbCheckoutTimeout = 7;
+  private boolean dbTestConnectionOnCheckout = true;
+  private Integer dbMaxIdleTime = null;
+  private int statementTimeoutSeconds = 23;
 
-    /**
-     * Connection Pool defaults
-     */
-    private int dbInitialPoolSize = 1;
-    private int dbMinPoolSize = 1;
-    private int dbMaxPoolSize = 1;
-    private int dbAcquireIncrement = 1;
-    private int dbAcquireRetryAttempts = 5;
-    private int dbCheckoutTimeout = 7;
-    private boolean dbTestConnectionOnCheckout = true;
-    private Integer dbMaxIdleTime = null;
-    private int statementTimeoutSeconds = 23;
-    private TraceItem TraceItem;
-
-    public ConnectorParameters(Map<String, Object> connectorParams, TraceItem TraceItem){
-        this.TraceItem = TraceItem;
-
-        if (connectorParams != null) {
-            this.connectorId = parseValue(connectorParams, String.class, connectorId, CONNECTOR_ID);
-            this.autoIndexing = parseValue(connectorParams, Boolean.class, autoIndexing, AUTO_INDEXING);
-            this.propertySearch = parseValue(connectorParams, Boolean.class, propertySearch, PROPERTY_SEARCH);
-            this.mvtSupport = parseValue(connectorParams, Boolean.class, mvtSupport, MVT_SUPPORT);
-            this.enableHashedSpaceId = parseValue(connectorParams, Boolean.class, enableHashedSpaceId, ENABLE_HASHED_SPACEID);
-            this.compactHistory = parseValue(connectorParams, Boolean.class, compactHistory, COMPACT_HISTORY);
-            this.onDemandIdxLimit = parseValue(connectorParams, Integer.class, onDemandIdxLimit, ON_DEMAND_IDX_LIMIT);
-            hrnShortening = parseValue(connectorParams, Boolean.class, hrnShortening, HRN_SHORTENING);
-            ignoreCreateMse = parseValue(connectorParams, Boolean.class, ignoreCreateMse, IGNORE_CREATE_MSE);
-
-            this.dbInitialPoolSize = parseValue(connectorParams, Integer.class, dbInitialPoolSize, DB_INITIAL_POOL_SIZE);
-            this.dbMinPoolSize = parseValue(connectorParams, Integer.class, dbMinPoolSize, DB_MIN_POOL_SIZE);
-            this.dbMaxPoolSize = parseValue(connectorParams, Integer.class, dbMaxPoolSize, DB_MAX_POOL_SIZE);
-            this.dbAcquireIncrement = parseValue(connectorParams, Integer.class, dbAcquireIncrement, DB_ACQUIRE_INCREMENT);
-            this.dbAcquireRetryAttempts = parseValue(connectorParams, Integer.class, dbAcquireRetryAttempts, DB_ACQUIRE_RETRY_ATTEMPTS);
-            this.dbCheckoutTimeout = parseValue(connectorParams, Integer.class, dbCheckoutTimeout, DB_CHECKOUT_TIMEOUT);
-            this.dbTestConnectionOnCheckout = parseValue(connectorParams, Boolean.class, dbTestConnectionOnCheckout, DB_TEST_CONNECTION_ON_CHECKOUT);
-            this.dbMaxIdleTime = parseValue(connectorParams, Integer.class, dbMaxIdleTime, DB_MAX_IDLE_TIME);
-            if (connectorParams.containsKey(STATEMENT_TIMEOUT_SECONDS))
-                this.statementTimeoutSeconds = (int) connectorParams.get(STATEMENT_TIMEOUT_SECONDS);
-
-            this.ecps = parseValue(connectorParams, String.class, null, "ecps");
+  public ConnectorParameters(Map<String, Object> connectorParams) {
+    if (connectorParams != null) {
+      Map<String, Field> parameters = Arrays.stream(getClass().getDeclaredFields()).collect(Collectors.toMap(Field::getName, Function.identity()));
+      for (Entry<String, Object> param : connectorParams.entrySet())
+        try {
+          if (!parameters.containsKey(param.getKey())) {
+            //TODO: Re-activate once the db-settings / connector-params were organized properly
+//            logger.warn("Cannot set value {} = {}. No such field exists.", param.getKey(), param.getValue());
+          }
+          else
+            try {
+              assignValue(parameters.get(param.getKey()), param.getValue());
+            }
+            catch (ClassCastException e) {
+              logger.warn("Cannot set value {} = {}. Using default {} instead.", param.getKey(), param.getValue(),
+                  parameters.get(param.getKey()).get(this), e);
+            }
+        }
+        catch (IllegalAccessException e) {
+          logger.warn("Cannot set value {} = {}. Using default instead.", param.getKey(), param.getValue(), e);
         }
     }
+  }
 
-    private <T> T parseValue(Map<String, Object> connectorParams, Class<T> type, Object defaultValue, String parameter){
-        Object value = connectorParams.get(parameter);
+  private void assignValue(Field field, Object value) throws IllegalAccessException, ClassCastException {
+    if (field.getType().isAssignableFrom(value.getClass())
+        || field.getType().isPrimitive() != value.getClass().isPrimitive() && primitiveTypesMatch(field.getType(), value.getClass()))
+      field.set(this, value);
+    else
+      throw new ClassCastException("Can not cast value of type " + value.getClass().getName() + " to " + field.getType().getName());
+  }
 
-        if(value == null) {
-            if(defaultValue == null)
-                return null;
-            return (T) defaultValue;
-        }
-        if(value.getClass() != type) {
-            logger.warn("{} Cannot set value {}:{}. Load default '{}'", TraceItem, parameter, value, defaultValue);
-            return (T) defaultValue;
-        }
+  private static boolean primitiveTypesMatch(Class<?> type1, Class<?> type2) {
+    if (type1 == type2)
+      return true;
+    if (type1 == int.class && type2 == Integer.class
+        || type1 == Integer.class && type2 == int.class
+        || type1 == char.class && type2 == Character.class
+        || type1 == Character.class && type2 == char.class)
+      return true;
+    return type1.getSimpleName().toLowerCase().equals(type2.getSimpleName().toLowerCase());
+  }
 
-        try{
-            if (value instanceof String)
-                return (T) (String)value;
-            else if (value instanceof Integer)
-                return (T) (Integer)value;
-            else if (value instanceof Boolean)
-                return (T) (Boolean)value;
-            else
-                throw new Exception("Unknown - Take default");
-        }catch (Exception e){
-            logger.warn("{} Cannot set value {}:{}. Load default '{}'", TraceItem, parameter, value, defaultValue);
-            return (T) defaultValue;
-        }
-    }
+  public String getConnectorId() { return connectorId; }
 
-    public String getConnectorId() { return connectorId; }
+  public boolean isPropertySearch() {
+    return propertySearch;
+  }
 
-    public boolean isPropertySearch() {
-        return propertySearch;
-    }
+  public boolean isMvtSupport() {
+    return mvtSupport;
+  }
 
-    public boolean isMvtSupport() {
-        return mvtSupport;
-    }
+  public boolean isAutoIndexing() {
+    return autoIndexing;
+  }
 
-    public boolean isAutoIndexing() {
-        return autoIndexing;
-    }
+  public boolean isEnableHashedSpaceId() {
+    return enableHashedSpaceId;
+  }
 
-    public boolean isEnableHashedSpaceId() {
-        return enableHashedSpaceId;
-    }
+  public int getOnDemandIdxLimit() {
+    return onDemandIdxLimit;
+  }
 
-    public boolean isCompactHistory() {
-        return compactHistory;
-    }
+  public boolean isIgnoreCreateMse() {
+    return ignoreCreateMse;
+  }
 
-    public int getOnDemandIdxLimit() {
-        return onDemandIdxLimit;
-    }
+  public int getDbInitialPoolSize() {
+    return dbInitialPoolSize;
+  }
 
-    public boolean isHrnShortening() {
-        return hrnShortening;
-    }
+  public int getDbMinPoolSize() {
+    return dbMinPoolSize;
+  }
 
-    public boolean isIgnoreCreateMse() {
-        return ignoreCreateMse;
-    }
+  public int getDbMaxPoolSize() {
+    return dbMaxPoolSize;
+  }
 
-    public int getDbInitialPoolSize() {
-        return dbInitialPoolSize;
-    }
+  public int getDbAcquireIncrement() {
+    return dbAcquireIncrement;
+  }
 
-    public int getDbMinPoolSize() {
-        return dbMinPoolSize;
-    }
+  public int getDbAcquireRetryAttempts() {
+    return dbAcquireRetryAttempts;
+  }
 
-    public int getDbMaxPoolSize() {
-        return dbMaxPoolSize;
-    }
+  public int getDbCheckoutTimeout() {
+    return dbCheckoutTimeout;
+  }
 
-    public int getDbAcquireIncrement() {
-        return dbAcquireIncrement;
-    }
+  public boolean isDbTestConnectionOnCheckout() {
+    return dbTestConnectionOnCheckout;
+  }
 
-    public int getDbAcquireRetryAttempts() {
-        return dbAcquireRetryAttempts;
-    }
+  public Integer getDbMaxIdleTime() {
+    return dbMaxIdleTime;
+  }
 
-    public int getDbCheckoutTimeout() {
-        return dbCheckoutTimeout;
-    }
+  public String getEcps() {
+    return ecps;
+  }
 
-    public boolean isDbTestConnectionOnCheckout() { return dbTestConnectionOnCheckout; }
+  public void setDbMaxPoolSize(int dbMaxPoolSize) {
+    this.dbMaxPoolSize = dbMaxPoolSize;
+  }
 
-    public Integer getDbMaxIdleTime() {
-        return dbMaxIdleTime;
-    }
+  public int getStatementTimeoutSeconds() {
+    return statementTimeoutSeconds;
+  }
 
-    public String getEcps() {
-        return ecps;
-    }
-
-    public void setDbMaxPoolSize(int dbMaxPoolSize) {
-        this.dbMaxPoolSize = dbMaxPoolSize;
-    }
-
-    public int getStatementTimeoutSeconds() {
-        return statementTimeoutSeconds;
-    }
-
-    @Override
-    public String toString() {
-        return "ConnectorParameters{" +
-                "propertySearch=" + propertySearch +
-                ", mvtSuppoert=" + mvtSupport +
-                ", autoIndexing=" + autoIndexing +
-                ", enableHashedSpaceId=" + enableHashedSpaceId +
-                ", compactHistory=" + compactHistory +
-                ", onDemandIdxLimit=" + onDemandIdxLimit +
-                ", dbInitialPoolSize=" + dbInitialPoolSize +
-                ", dbMinPoolSize=" + dbMinPoolSize +
-                ", dbMaxPoolSize=" + dbMaxPoolSize +
-                ", dbAcquireIncrement=" + dbAcquireIncrement +
-                ", dbAcquireRetryAttempts=" + dbAcquireRetryAttempts +
-                ", dbCheckoutTimeout=" + dbCheckoutTimeout +
-                ", dbTestConnectionOnCheckout=" + dbTestConnectionOnCheckout +
-                ", dbMaxIdleTime=" + dbMaxIdleTime +
-                ", ecps='" + ecps + '\'' +
-                '}';
-    }
+  @Override
+  public String toString() {
+    return "ConnectorParameters{" +
+            "propertySearch=" + propertySearch +
+            ", mvtSuppoert=" + mvtSupport +
+            ", autoIndexing=" + autoIndexing +
+            ", enableHashedSpaceId=" + enableHashedSpaceId +
+            ", onDemandIdxLimit=" + onDemandIdxLimit +
+            ", dbInitialPoolSize=" + dbInitialPoolSize +
+            ", dbMinPoolSize=" + dbMinPoolSize +
+            ", dbMaxPoolSize=" + dbMaxPoolSize +
+            ", dbAcquireIncrement=" + dbAcquireIncrement +
+            ", dbAcquireRetryAttempts=" + dbAcquireRetryAttempts +
+            ", dbCheckoutTimeout=" + dbCheckoutTimeout +
+            ", dbTestConnectionOnCheckout=" + dbTestConnectionOnCheckout +
+            ", dbMaxIdleTime=" + dbMaxIdleTime +
+            ", ecps='" + ecps + '\'' +
+            '}';
+  }
 }

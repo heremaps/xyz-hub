@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ public enum ApiResponseType {
   EMPTY,
   FEATURE,
   FEATURE_COLLECTION,
-  COMPACT_CHANGESET,
   CHANGESET_COLLECTION,
   MVT(true),
   MVT_FLATTENED(true),
@@ -36,8 +35,7 @@ public enum ApiResponseType {
   @Deprecated
   COUNT_RESPONSE,
   HEALTHY_RESPONSE,
-  STATISTICS_RESPONSE,
-  HISTORY_STATISTICS_RESPONSE;
+  STATISTICS_RESPONSE;
 
   public final boolean binary;
 

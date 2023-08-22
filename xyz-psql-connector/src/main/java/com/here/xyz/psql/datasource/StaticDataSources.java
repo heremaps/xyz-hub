@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,18 +17,31 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.hub.rest;
+package com.here.xyz.psql.datasource;
 
-import org.junit.BeforeClass;
-import org.junit.experimental.categories.Category;
+import javax.sql.DataSource;
 
-@Category(RestTests.class)
-public class ReadFeatureWithHistoryApiIT extends ReadFeatureApiIT {
+public class StaticDataSources extends DataSourceProvider {
 
-  @BeforeClass
-  public static void setup() {
-    remove();
-    createSpace(true);
-    addFeatures();
+  private final DataSource reader;
+  private final DataSource writer;
+
+  public StaticDataSources(DataSource writer) {
+    this(writer, writer);
+  }
+
+  public StaticDataSources(DataSource reader, DataSource writer) {
+    this.reader = reader;
+    this.writer = writer;
+  }
+
+  @Override
+  public DataSource getReader() {
+    return reader;
+  }
+
+  @Override
+  public DataSource getWriter() {
+    return writer;
   }
 }

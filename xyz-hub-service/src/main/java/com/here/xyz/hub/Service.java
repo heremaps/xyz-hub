@@ -23,6 +23,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.cache.CacheClient;
+import com.here.xyz.hub.cache.InMemoryCacheClient;
+import com.here.xyz.hub.cache.MultiLevelCacheClient;
+import com.here.xyz.hub.cache.RedisCacheClient;
+import com.here.xyz.hub.cache.S3CacheClient;
 import com.here.xyz.hub.config.ConnectorConfigClient;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.SpaceConfigClient;
@@ -136,9 +140,14 @@ public class Service extends Core {
   public static WebClient webClient;
 
   /**
-   * The cache client for the service.
+   * The cache client for the volatile service cache.
    */
-  public static CacheClient cacheClient;
+  public static CacheClient volatileCacheClient;
+
+  /**
+   * The cache client for the static service cache.
+   */
+  public static CacheClient staticCacheClient;
 
   /**
    * The node's MessageBroker which is used to send AdminMessages.
@@ -178,7 +187,8 @@ public class Service extends Core {
     configuration.defaultStorageIds = Stream.of(configuration.DEFAULT_STORAGE_ID.split(","))
         .map(String::trim).collect(Collectors.toList());
 
-    cacheClient = CacheClient.getInstance();
+    volatileCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), RedisCacheClient.getInstance());
+    staticCacheClient = new MultiLevelCacheClient(InMemoryCacheClient.getInstance(), S3CacheClient.getInstance());
     MessageBroker.getInstance().onSuccess(mb -> {
       messageBroker = mb;
       Node.initialize();
@@ -387,9 +397,9 @@ public class Service extends Core {
     public int MAX_GLOBAL_HTTP_CLIENT_CONNECTIONS;
 
     /**
-     * Size of the off-heap cache in megabytes.
+     * Size of the in-memory cache in megabytes. (Maximum 2GB)
      */
-    public int OFF_HEAP_CACHE_SIZE_MB;
+    public int CACHE_SIZE_MB;
 
     /**
      * The port of the HTTP server.

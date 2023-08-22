@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,13 +30,11 @@ public class NoopCacheClient implements CacheClient {
 
 	@Override
 	public void set(String key, byte[] value, long ttl) {
-		return;
-	}
+  }
 
 	@Override
 	public void remove(String key) {
-		return;
-	}
+  }
 
 	@Override
 	public void shutdown() {

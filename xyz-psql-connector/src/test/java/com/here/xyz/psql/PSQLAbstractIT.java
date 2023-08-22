@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,9 @@
 
 package com.here.xyz.psql;
 
+import static io.restassured.path.json.JsonPath.with;
+import static org.junit.Assert.assertEquals;
+
 import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
@@ -32,10 +35,6 @@ import com.here.xyz.psql.tools.Helper;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.jayway.jsonpath.JsonPath;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -44,10 +43,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
-import static org.junit.Assert.assertEquals;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public abstract class PSQLAbstractIT extends Helper {
+
+  public final static String CONNECTOR_ID = "connectorId";
+  public final static String PROPERTY_SEARCH = "propertySearch";
+  public final static String AUTO_INDEXING = "autoIndexing";
+  public final static String ENABLE_HASHED_SPACEID = "enableHashedSpaceId";
+  public final static String ON_DEMAND_IDX_LIMIT = "onDemandIdxLimit";
   protected static final Logger LOGGER = LogManager.getLogger();
 
   protected static PSQLXyzConnector LAMBDA;
@@ -104,7 +109,7 @@ public abstract class PSQLAbstractIT extends Helper {
             .withConnectorParams(connectorParameters);
 
     String response = invokeLambda(mse.serialize());
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+    assertEquals("Check response status", "OK", with(response).get("status"));
 
     LOGGER.info("Cleanup space Completed.");
   }
@@ -121,7 +126,7 @@ public abstract class PSQLAbstractIT extends Helper {
               .withConnectorParams(connectorParameters);
 
       String response = invokeLambda(mse.serialize());
-      assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+      assertEquals("Check response status", "OK", with(response).get("status"));
     }
 
     LOGGER.info("Cleanup spaces Completed.");

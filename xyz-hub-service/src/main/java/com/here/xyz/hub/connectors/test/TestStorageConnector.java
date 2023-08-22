@@ -76,11 +76,6 @@ public class TestStorageConnector extends StorageConnector {
   }
 
   @Override
-  protected XyzResponse processGetHistoryStatisticsEvent(GetHistoryStatisticsEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
-  }
-
-  @Override
   protected XyzResponse processGetFeaturesByIdEvent(GetFeaturesByIdEvent event) throws Exception {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
@@ -137,11 +132,6 @@ public class TestStorageConnector extends StorageConnector {
 
   @Override
   protected XyzResponse processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
-    throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
-  }
-
-  @Override
-  protected XyzResponse processIterateHistoryEvent(IterateHistoryEvent event) throws Exception {
     throw new ErrorResponseException(event.getStreamId(), XyzError.forValue(event.getSpace()), event.getSpace() + " message.");
   }
 

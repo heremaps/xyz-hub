@@ -50,16 +50,16 @@ import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.events.GetHistoryStatisticsEvent;
 import com.here.xyz.events.GetStatisticsEvent;
-import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.IterateHistoryEvent;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.SelectiveEvent;
+import com.here.xyz.events.SelectiveEvent.Ref;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.auth.JWTPayload;
+import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.RpcClient.RpcContext;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -150,8 +150,8 @@ public class FeatureTaskHandler {
   private static final byte JSON_VALUE = 1;
   private static final byte BINARY_VALUE = 2;
   private static SnsAsyncClient snsClient;
-  private static ConcurrentHashMap<String, Long> contentModificationTimers = new ConcurrentHashMap<>();
-  private static ConcurrentHashMap<String, Long> contentModificationAdminTimers = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, Long> contentModificationTimers = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, Long> contentModificationAdminTimers = new ConcurrentHashMap<>();
   private static final long CONTENT_MODIFICATION_INTERVAL = 1_000; //1s
   private static final long CONTENT_MODIFICATION_ADMIN_INTERVAL = 300_000; //5min
 
@@ -160,16 +160,16 @@ public class FeatureTaskHandler {
    * according "latest seen content version".
    * There is neither a guarantee that the version value is pointing to the actual latest version of the space's content nor there is a
    * guarantee that it's defined at all.
-   * If the value exists for a space and it points to a value > 0, that is the version of the latest write to that space as it has been
+   * If the value exists for a space, and it points to a value > 0, that is the version of the latest write to that space as it has been
    * performed by this service-node.
    */
-  private static ConcurrentHashMap<String, Long> latestSeenContentVersions = new ConcurrentHashMap<>();
+  private static final ConcurrentHashMap<String, Long> latestSeenContentVersions = new ConcurrentHashMap<>();
 
   /**
    * Contains the amount of all in-flight requests for each storage ID.
    */
-  private static ConcurrentHashMap<String, LongAdder> inflightRequestMemory = new ConcurrentHashMap<>();
-  private static LongAdder globalInflightRequestMemory = new LongAdder();
+  private static final ConcurrentHashMap<String, LongAdder> inflightRequestMemory = new ConcurrentHashMap<>();
+  private static final LongAdder globalInflightRequestMemory = new LongAdder();
 
   /**
    * Sends the event to the connector client and write the response as the responseCollection of the task.
@@ -361,39 +361,57 @@ public class FeatureTaskHandler {
   }
 
   public static <T extends FeatureTask> void readCache(T task, Callback<T> callback) {
-    if (task.getCacheProfile().serviceTTL > 0) {
-      String cacheKey = task.getCacheKey();
-
-      //Check the cache
-      final long cacheRequestStart = Core.currentTimeMillis();
-      Service.cacheClient.get(cacheKey).onSuccess(cacheResult -> {
-        if (cacheResult == null) {
-          //Cache MISS: Just go on in the task pipeline
-          AbstractHttpServerVerticle.addStreamInfo(task.context, "CH",0);
-          logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
-        }
-        else {
-          //Cache HIT: Set the response for the task to the result from the cache so invoke (in the task pipeline) won't have anything to do
-          try {
-            task.setResponse(transformCacheValue(cacheResult));
-            task.setCacheHit(true);
-            AbstractHttpServerVerticle.addStreamInfo(task.context, "CH", 1);
-            logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
-          }
-          catch (JsonProcessingException e) {
-            //Actually, this should never happen as we're controlling how the data is written to the cache, but you never know ;-)
-            //Treating an error as a Cache MISS
-            logger.info(task.getMarker(), "Cache MISS (as of JSON parse exception) for cache key {} {}", cacheKey, e);
-          }
-        }
-        AbstractHttpServerVerticle.addStreamInfo(task.context, "CTime", Core.currentTimeMillis() - cacheRequestStart);
+    final String cacheKey;
+    if (task.getCacheProfile().serviceTTL > 0 || task.getCacheProfile().staticTTL > 0) {
+      cacheKey = task.getCacheKey();
+      if (cacheKey == null) {
+        //Treating an error as a Cache MISS
+        logger.error(task.getMarker(), "Cache MISS, cacheKey is null. Couldn't read from cache.");
         callback.call(task);
-      });
+        return;
+      }
     }
     else {
+      //If the request should is not cacheable, it should always use the primary data source of the connector.
       task.getEvent().setPreferPrimaryDataSource(true);
       callback.call(task);
+      return;
     }
+
+    final long cacheRequestStart = Core.currentTimeMillis();
+    CacheClient cacheClient = task.getCacheProfile().staticTTL > 0 ? Service.staticCacheClient : Service.volatileCacheClient;
+    cacheClient.get(cacheKey)
+        .onSuccess(cacheResult -> {
+          if (cacheResult == null) {
+            //Cache MISS: Just go on in the task pipeline
+            AbstractHttpServerVerticle.addStreamInfo(task.context, "CH",0);
+            logger.info(task.getMarker(), "Cache MISS for cache key {}", cacheKey);
+          }
+          else {
+            //Cache HIT: Set the response for the task to the result from the cache so invoke (in the task pipeline) won't have anything to do
+            try {
+              task.setResponse(transformCacheValue(cacheResult));
+              task.setCacheHit(true);
+              //Add "Cache-Hit" stream-info
+              AbstractHttpServerVerticle.addStreamInfo(task.context, "CH", 1);
+              //Add "Cache-Type" stream-info (static / volatile)
+              AbstractHttpServerVerticle.addStreamInfo(task.context, "CT", cacheClient == Service.staticCacheClient ? "S" : "V");
+              logger.info(task.getMarker(), "Cache HIT for cache key {}", cacheKey);
+            }
+            catch (JsonProcessingException e) {
+              //Actually, this should never happen as we're controlling how the data is written to the cache, but you never know ;-)
+              //Treating an error as a Cache MISS
+              logger.info(task.getMarker(), "Cache MISS (as of JSON parse exception) for cache key {} {}", cacheKey, e);
+            }
+          }
+          AbstractHttpServerVerticle.addStreamInfo(task.context, "CTime", Core.currentTimeMillis() - cacheRequestStart);
+          callback.call(task);
+        })
+        .onFailure(t -> {
+          //Treating an error as a Cache MISS
+          logger.info(task.getMarker(), "Cache MISS (as of error) on all caches {} {}", cacheKey, t);
+          callback.call(task);
+        });
   }
 
   public static <T extends FeatureTask> void writeCache(T task, Callback<T> callback) {
@@ -402,16 +420,31 @@ public class FeatureTaskHandler {
     final CacheProfile cacheProfile = task.getCacheProfile();
     //noinspection rawtypes
     XyzResponse response = task.getResponse();
-    if (cacheProfile.serviceTTL > 0 && response != null && !task.isCacheHit()
-        && !(response instanceof NotModifiedResponse) && !(response instanceof ErrorResponse)) {
-      String cacheKey = task.getCacheKey();
+
+    boolean isCacheable = response != null && !task.isCacheHit()
+        && !(response instanceof NotModifiedResponse) && !(response instanceof ErrorResponse);
+    if (!isCacheable)
+      return;
+
+    String cacheKey = null;
+    byte[] cacheValue = null;
+    if (cacheProfile.serviceTTL > 0 || cacheProfile.staticTTL > 0) {
+      cacheKey = task.getCacheKey();
       if (cacheKey == null) {
         String npe = "cacheKey is null. Couldn't write cache.";
         logger.error(task.getMarker(), npe);
         throw new NullPointerException(npe);
       }
-      logger.debug(task.getMarker(), "Writing entry with cache key {} to cache", cacheKey);
-      Service.cacheClient.set(cacheKey, transformCacheValue(response), cacheProfile.serviceTTL);
+      cacheValue = transformCacheValue(response);
+    }
+    //Prefer the static cache over the volatile cache for values which are immutable
+    if (cacheProfile.staticTTL > 0) {
+      logger.debug(task.getMarker(), "Writing entry with cache key {} to static cache", cacheKey);
+      Service.staticCacheClient.set(cacheKey, cacheValue, TimeUnit.MILLISECONDS.toSeconds(cacheProfile.staticTTL));
+    }
+    else if (cacheProfile.serviceTTL > 0) {
+      logger.debug(task.getMarker(), "Writing entry with cache key {} to volatile cache", cacheKey);
+      Service.volatileCacheClient.set(cacheKey, cacheValue, TimeUnit.MILLISECONDS.toSeconds(cacheProfile.serviceTTL));
     }
   }
 
@@ -449,7 +482,7 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static <T extends FeatureTask> void handleProcessorFailure(Marker marker, AsyncResult<XyzResponse> processingResult,
+  private static <T extends FeatureTask> void handleProcessorFailure(Marker marker, AsyncResult<XyzResponse<?>> processingResult,
       Callback<T> callback) {
     if (processingResult.failed())
       callback.exception(processingResult.cause());
@@ -514,7 +547,7 @@ public class FeatureTaskHandler {
   }
 
   static void setLatestSeenContentVersion(Space space, long version) {
-    if ((space.isEnableHistory() || space.isEnableGlobalVersioning()) && version > 0)
+    if (version > -1)
       latestSeenContentVersions.compute(space.getId(), (spaceId, currentVersion) -> Math.max(currentVersion != null ? currentVersion : 0L,
           version));
   }
@@ -562,7 +595,7 @@ public class FeatureTaskHandler {
   }
 
   private static <T extends FeatureTask> void notifyProcessors(T task, String eventType, Payload payload,
-      Handler<AsyncResult<XyzResponse>> callback) {
+      Handler<AsyncResult<XyzResponse<?>>> callback) {
     if (payload instanceof BinaryResponse) {
       //No post-processor support for binary responses, skipping post-processor notification
       callback.handle(Future.succeededFuture(new ModifiedResponseResponse().withResponse(payload)));
@@ -571,8 +604,8 @@ public class FeatureTaskHandler {
     notifyConnectors(new NotificationContext(task, true), ConnectorType.PROCESSOR, eventType, payload, callback);
   }
 
-  private static <T extends FeatureTask> void notifyConnectors(NotificationContext nc, ConnectorType connectorType, String eventType,
-      Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
+  private static void notifyConnectors(NotificationContext nc, ConnectorType connectorType, String eventType,
+      Payload payload, Handler<AsyncResult<XyzResponse<?>>> callback) {
     //Send the event to all registered & matching listeners / processors
     Map<String, List<ResolvableListenerConnectorRef>> connectorMap = nc.space.getEventTypeConnectorRefsMap(connectorType);
     if (connectorMap != null && !connectorMap.isEmpty()) {
@@ -615,8 +648,8 @@ public class FeatureTaskHandler {
     });
   }
 
-  private static <T extends FeatureTask> void notifyProcessors(NotificationContext nc, List<ResolvableListenerConnectorRef> processors,
-      String notificationEventType, Payload payload, Handler<AsyncResult<XyzResponse>> callback) {
+  private static void notifyProcessors(NotificationContext nc, List<ResolvableListenerConnectorRef> processors,
+      String notificationEventType, Payload payload, Handler<AsyncResult<XyzResponse<?>>> callback) {
 
     //For the first call we're mocking a ModifiedPayloadResponse as if it was coming from a previous processor
     ModifiedPayloadResponse initialResponse = payload instanceof Event ?
@@ -649,7 +682,7 @@ public class FeatureTaskHandler {
             }
             else if (result instanceof ModifiedEventResponse) {
               payloadToSend = ((ModifiedEventResponse) result).getEvent();
-              // CMEKB-2779 Store ModificationFailures outside of the event
+              // CMEKB-2779 Store ModificationFailures outside the event
               if (payloadToSend instanceof ModifyFeaturesEvent) {
                 ModifyFeaturesEvent modifyFeaturesEvent = (ModifyFeaturesEvent) payloadToSend;
                 if (modifyFeaturesEvent.getFailed() != null) {
@@ -791,19 +824,13 @@ public class FeatureTaskHandler {
 
                     task.getEvent().setParams(storageParams);
 
-                    if (task.getEvent() instanceof SelectiveEvent) {
-                      //Inject the minVersion from the space config
+                    //Inject the minVersion from the space config
+                    if (task.getEvent() instanceof SelectiveEvent)
                       ((SelectiveEvent<?>) task.getEvent()).setMinVersion(space.getMinVersion());
-                    }
 
-                    if (task.getEvent() instanceof ContextAwareEvent) {
-                      //Inject the versionsToKeep from the space config
+                    //Inject the versionsToKeep from the space config
+                    if (task.getEvent() instanceof ContextAwareEvent)
                       ((ContextAwareEvent<?>) task.getEvent()).setVersionsToKeep(space.getVersionsToKeep());
-                    }
-
-                    if (task.getEvent() instanceof IterateFeaturesEvent) {
-                      ((IterateFeaturesEvent) task.getEvent()).setEnableGlobalVersioning(space.isEnableGlobalVersioning());
-                    }
 
                     return Future.succeededFuture(space);
                   });
@@ -1139,9 +1166,7 @@ public class FeatureTaskHandler {
         // decide whether to use uuid or version for checking
         entry.useVersion = false;
         if (task.space.getVersionsToKeep() > 1) {
-          if (!task.space.isEnableGlobalVersioning()) {
-            entry.useVersion = true;
-          }
+          entry.useVersion = true;
           if (!task.space.isEnableUUID()) {
             entry.skipConflictDetection = true;
           }
@@ -1270,8 +1295,9 @@ public class FeatureTaskHandler {
     nsXyz.setCreatedAt(isInsert ? now : entry.head.getProperties().getXyzNamespace().getCreatedAt());
     nsXyz.setUpdatedAt(now);
 
+    //TODO: Remove UUID generation and enableUUID flag, once we have a new flag for the versioned-base conflict-detection
     // UUID fields
-    if (task.space.isEnableUUID() && (task.space.getVersionsToKeep() <= 1 || task.space.isEnableGlobalVersioning())) {
+    if (task.space.isEnableUUID() && task.space.getVersionsToKeep() == 1) {
       nsXyz.setUuid(UUID.randomUUID().toString());
 
       if (!isInsert) {
@@ -1354,15 +1380,11 @@ public class FeatureTaskHandler {
 
   static <X extends FeatureTask> void injectSpaceParams(final X task, final Callback<X> callback) {
     try {
-      if(task.getEvent() instanceof ModifyFeaturesEvent) {
-         ((ModifyFeaturesEvent) task.getEvent()).setMaxVersionCount(task.space.getMaxVersionCount());
-        ((ModifyFeaturesEvent) task.getEvent()).setEnableGlobalVersioning(task.space.isEnableGlobalVersioning());
-        ((ModifyFeaturesEvent) task.getEvent()).setEnableHistory(task.space.isEnableHistory());
-      }
       if (task.getEvent() instanceof ContextAwareEvent)
         ((ContextAwareEvent) task.getEvent()).setVersionsToKeep(task.space.getVersionsToKeep());
       callback.call(task);
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definition.", e));
     }
   }
@@ -1451,8 +1473,23 @@ public class FeatureTaskHandler {
     catch (Exception e) {
       logger.warn(task.getMarker(), "Exception while transforming the response.", e);
       callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Error while transforming the response."));
-      return;
     }
+  }
+
+  public static <X extends FeatureTask<?, X>> void checkImmutability(X task, Callback<X> callback) {
+    if (task.getEvent() instanceof SelectiveEvent) {
+      Ref ref = new Ref(((SelectiveEvent<?>) task.getEvent()).getRef());
+      if (ref.isSingleVersion()) {
+        if (!ref.isHead())
+          //If the ref is a single specified version which is not HEAD, the response is immutable
+          task.readOnlyAccess = true;
+        else if (task.space.isReadOnly() && task.space.getReadOnlyHeadVersion() > -1) {
+          ((SelectiveEvent) task.getEvent()).setRef(String.valueOf(task.space.getReadOnlyHeadVersion()));
+          task.readOnlyAccess = true;
+        }
+      }
+    }
+    callback.call(task);
   }
 
   public static <X extends FeatureTask<?, X>> void validate(X task, Callback<X> callback) {
@@ -1487,38 +1524,6 @@ public class FeatureTaskHandler {
             + "valid. Supported values are hexbin or quadbin."));
         return;
       }
-    }
-
-    if (task.getEvent() instanceof IterateHistoryEvent) {
-      if (!task.space.isEnableGlobalVersioning()) {
-        callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support version queries."));
-        return;
-      }
-      int startVersion = ((IterateHistoryEvent) task.getEvent()).getStartVersion();
-      int endVersion = ((IterateHistoryEvent) task.getEvent()).getEndVersion();
-      if(startVersion != 0 && startVersion < 1) {
-        callback.exception(new HttpException(BAD_REQUEST, "startVersion is out or range [1-n]."));
-        return;
-      }
-      if(startVersion != 0 && endVersion != 0 && endVersion < startVersion) {
-        callback.exception(new HttpException(BAD_REQUEST, "endVersion has to be smaller than startVersion."));
-        return;
-      }
-    }
-
-    if (task.getEvent() instanceof GetHistoryStatisticsEvent) {
-      if (!task.space.isEnableGlobalVersioning()) {
-        callback.exception(new HttpException(BAD_REQUEST, "This space [" + task.space.getId() + "] does not support history."));
-        return;
-      }
-    }
-
-    if (task.getEvent() instanceof SelectiveEvent
-        && StringUtils.isNotBlank(((SelectiveEvent) task.getEvent()).getRef())
-        && task.space.getVersionsToKeep() < 2
-        && !task.space.isEnableGlobalVersioning()) {
-      callback.exception(new HttpException(BAD_REQUEST, "This space ["+task.space.getId()+"] does not support queries with version parameter."));
-      return;
     }
 
     callback.call(task);
@@ -1556,14 +1561,9 @@ public class FeatureTaskHandler {
   }
 
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
-    if (task.space.isReadOnly() && (task instanceof ConditionalOperation )) {
+    if (task.space.isReadOnly() && (task instanceof ConditionalOperation ))
       throw new HttpException(METHOD_NOT_ALLOWED,
           "The method is not allowed, because the resource \"" + task.space.getId() + "\" is marked as read-only. Update the resource definition to enable editing of features.");
-    }
-    if (task.space.isEnableGlobalVersioning() && task.getEvent() instanceof  ModifyFeaturesEvent && ((ModifyFeaturesEvent) task.getEvent()).getTransaction() == false) {
-      throw new HttpException(METHOD_NOT_ALLOWED,
-           "The method is not allowed, because the resource \"" + task.space.getId() + "\" has enabledGlobalVersioning. Due to that, stream writing is not allowed.");
-    }
     callback.call(task);
   }
 
@@ -1649,8 +1649,6 @@ public class FeatureTaskHandler {
         .withSpace(task.space.getId())
         .withParams(task.getEvent().getParams())
         .withContext(task.getEvent().getContext())
-        .withEnableGlobalVersioning(task.space.isEnableGlobalVersioning())
-        .withEnableHistory(task.space.isEnableHistory())
         .withIdsMap(idsMap)
         .withVersionsToKeep(task.space.getVersionsToKeep());
 

@@ -31,6 +31,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 
+import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.hub.Core;
@@ -41,6 +42,7 @@ import com.here.xyz.hub.auth.JWTPayload;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.hub.config.settings.SpaceStorageMatchingMap;
+import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.connectors.models.Space.SpaceWithRights;
@@ -58,7 +60,9 @@ import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Patcher;
 import com.here.xyz.models.hub.Space.ConnectorRef;
 import com.here.xyz.models.hub.Tag;
+import com.here.xyz.responses.ChangesetsStatisticsResponse;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
@@ -77,6 +81,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class SpaceTaskHandler {
 
@@ -240,33 +245,14 @@ public class SpaceTaskHandler {
     if (task.isUpdate()) {
       /*
        * Validate immutable settings which are only can get set during the space creation:
-       * enableUUID, enableHistory, enableGlobalVersioning, maxVersionCount, extension
+       * enableUUID, extension
        * */
       Space head = task.modifyOp.entries.get(0).head;
 
-      if(head != null && head.isEnableUUID() == Boolean.TRUE && input.get("enableUUID") == Boolean.TRUE )
+      if (head != null && head.isEnableUUID() == Boolean.TRUE && input.get("enableUUID") == Boolean.TRUE )
         input.put("enableUUID",true);
-      else if(head != null && input.get("enableUUID") != null )
+      else if (head != null && input.get("enableUUID") != null )
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableUUID' can only get set on space creation!");
-
-      // enableHistory is immutable and it is only allowed to set it during the space creation
-      if(head != null && head.isEnableHistory() == Boolean.TRUE && input.get("enableHistory") == Boolean.TRUE )
-        input.put("enableHistory",true);
-      else if(head != null && input.get("enableHistory") != null )
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableHistory' can only get set on space creation!");
-
-      // enableGlobalVersioning is immutable and it is only allowed to set it during the space creation
-      if(head != null && head.isEnableGlobalVersioning() == Boolean.TRUE && input.get("enableGlobalVersioning") == Boolean.TRUE )
-        input.put("enableGlobalVersioning",true);
-      else if(head != null && input.get("enableGlobalVersioning") != null )
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'enableGlobalVersioning' can only get set on space creation!");
-
-      // getMaxVersionCount is immutable and it is only allowed to set it during the space creation
-      if(head != null && head.isEnableGlobalVersioning() && head.getMaxVersionCount() != null && input.get("maxVersionCount") != null
-              && (head.getMaxVersionCount().compareTo((Integer)input.get("maxVersionCount")) == 0))
-        input.put("maxVersionCount" , head.getMaxVersionCount());
-      else if(head != null && head.isEnableGlobalVersioning() && input.get("maxVersionCount") != null )
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set, in combination of enableGlobalVersioning, on space creation!");
 
       if (head != null && head.getVersionsToKeep() > 1 && input.get("versionsToKeep") != null && Objects.equals(1, input.get("versionsToKeep")))
         throw new HttpException(BAD_REQUEST, "Validation failed. The property 'versionsToKeep' cannot be changed to 1 when its value is bigger than 1");
@@ -276,27 +262,9 @@ public class SpaceTaskHandler {
     }
 
     if (task.isCreate()) {
-      //Automatic activation of enableHistory in case of enableGlobalVersioning
-      if(result.isEnableGlobalVersioning() && !result.isEnableHistory())
-        task.modifyOp.entries.get(0).result.setEnableHistory(true);
-      //Automatic activation of UUID in case of enableHistory
-      if(result.isEnableHistory() && !result.isEnableUUID())
-        task.modifyOp.entries.get(0).result.setEnableUUID(true);
       if (result.getVersionsToKeep() == 0)
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" cannot be set to zero");
+        throw new HttpException(BAD_REQUEST, "Validation failed. The property \"versionsToKeep\" cannot be set to 0");
     }
-
-    if(result.getMaxVersionCount() != null){
-      if(!result.isEnableHistory() && !result.isEnableGlobalVersioning())
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' can only get set if 'enableHistory' is set.");
-      if(result.getMaxVersionCount() < -1)
-        throw new HttpException(BAD_REQUEST, "Validation failed. The property 'maxVersionCount' must be greater or equal to -1.");
-    }
-
-    //NOTE: The following is a temporary implementation for backwards compatibility for the legacy history implementation
-    if ((result.isEnableGlobalVersioning() || result.isEnableHistory()) && result.getVersionsToKeep() > 1)
-      throw new HttpException(BAD_REQUEST, "Validation failed. History can not be activated in combination with legacy history. "
-          + "Either set property \"enableGlobalVersioning\" to true OR \"versionsToKeep\" to a value greater than 1 but not both.");
 
     if (result.getId() == null) {
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
@@ -646,16 +614,50 @@ public class SpaceTaskHandler {
         if (entry.result.getCid() == null) {
           entry.result.setCid(entry.head.getCid());
         }
-
-        // TODO ignore updates on versionsToKeep when the head version contains zero, should be removed in the future when moving from 0 to >=1 is allowed
-        if (entry.head.getVersionsToKeep() == 0 && entry.result.getVersionsToKeep() > 0) {
-          entry.result.setVersionsToKeep(0);
-        }
       }
     }
 
     //Resume
     callback.call(task);
+  }
+
+  public static void handleReadOnlyUpdate(ConditionalOperation task, Callback<ConditionalOperation> callback) {
+    final Entry<Space> entry = task.modifyOp.entries.get(0);
+    //If the readOnly flag was activated directly at space creation ...
+    if (task.isCreate() && entry.result.isReadOnly()) {
+      //Set the readOnlyHeadVersion on the space
+      entry.result.setReadOnlyHeadVersion(0);
+      callback.call(task);
+    }
+    //If the readOnly flag was changed ...
+    else if (task.isUpdate() && entry.result.isReadOnly() != entry.head.isReadOnly()) {
+      //... to active ...
+      if (entry.result.isReadOnly())
+        //... update the readOnlyHeadVersion on the space object
+        updateReadOnlyHeadVersion(task.getMarker(), entry.result)
+            .onSuccess(r -> callback.call(task))
+            .onFailure(t -> callback.exception(t));
+      else {
+        //... if it was set to inactive, reset the readOnlyHeadVersion
+        entry.result.setReadOnlyHeadVersion(-1);
+        callback.call(task);
+      }
+    }
+    else
+      callback.call(task);
+  }
+
+  private static Future<Void> updateReadOnlyHeadVersion(Marker marker, Space space) {
+    GetChangesetStatisticsEvent event = new GetChangesetStatisticsEvent().withSpace(space.getId());
+    Promise<Void> p = Promise.promise();
+    Space.resolveConnector(marker, space.getStorage().getId())
+        .onSuccess(connector -> RpcClient.getInstanceFor(connector).execute(marker, event, ar -> {
+          ChangesetsStatisticsResponse response = (ChangesetsStatisticsResponse) ar.result();
+          space.setReadOnlyHeadVersion(response.getMaxVersion());
+          p.complete();
+        }))
+        .onFailure(t -> p.fail(t));
+    return p.future();
   }
 
     public static void cleanDependentResources(ConditionalOperation task, Callback<ConditionalOperation> callback) {

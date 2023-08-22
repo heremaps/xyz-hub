@@ -44,8 +44,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private boolean withoutIdField = false;
 
-  public GetFeatures(E event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public GetFeatures(E event) throws SQLException, ErrorResponseException {
+    super(event);
     setUseReadReplica(true);
   }
 
@@ -123,18 +123,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     final SQLQuery defaultClause = new SQLQuery(" ${{minVersion}} ${{nextVersion}} ")
         .withQueryFragment("nextVersion", versionIsStar || versionsToKeep <= 1 ? "" : " AND next_version = #{MAX_BIGINT} ")
         .withNamedParameter("MAX_BIGINT", MAX_BIGINT);
-    if (versionsToKeep > 1)
-      defaultClause.withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
-    else
-      defaultClause.withQueryFragment("minVersion", "");
+    defaultClause.withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent));
 
-    if (versionsToKeep == 0) return new SQLQuery("");
     if (versionsToKeep == 1 || versionIsNotPresent || versionIsStar) return defaultClause;
 
     // versionsToKeep > 1 AND contains a reference to a version or version is a valid version
-    return new SQLQuery(" AND version <= #{version} AND next_version > #{version} ${{minVersion}}")
+    return new SQLQuery(" AND version <= #{version} AND next_version > #{version} ${{minVersion}} ")
         .withQueryFragment("minVersion", buildMinVersionFragment(selectiveEvent))
-        .withNamedParameter("version", loadVersionFromRef(selectiveEvent));
+        .withNamedParameter("version", getVersionFromRef(selectiveEvent));
   }
 
   private SQLQuery buildBaseVersionCheckFragment() {
@@ -143,10 +139,15 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   private SQLQuery buildMinVersionFragment(SelectiveEvent event) {
-    return new SQLQuery("AND greatest(#{minVersion}, (select max(version) - #{versionsToKeep} from ${schema}.${table})) <= #{version} ")
-        .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
-        .withNamedParameter("minVersion", event.getMinVersion())
-        .withNamedParameter("version", loadVersionFromRef(event));
+    long version = getVersionFromRef(event);
+    boolean isHead = version == MAX_BIGINT;
+    if (event.getVersionsToKeep() > 1)
+      return new SQLQuery("AND greatest(#{minVersion}, (select max(version) - #{versionsToKeep} from ${schema}.${table})) <= #{version}")
+          .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
+          .withNamedParameter("minVersion", event.getMinVersion())
+          .withNamedParameter("version", version);
+    return isHead ? new SQLQuery("") : new SQLQuery("AND #{version} = (SELECT max(version) as HEAD FROM ${schema}.${table})")
+        .withNamedParameter("version", version);
   }
 
   private SQLQuery buildAuthorCheckFragment(E event) {
@@ -162,10 +163,11 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
         .withNamedParameter("author", selectiveEvent.getAuthor());
   }
 
-  private long loadVersionFromRef(SelectiveEvent event) {
+  private long getVersionFromRef(SelectiveEvent event) {
     try {
-      return Integer.parseInt(event.getRef());
-    } catch (NumberFormatException e) {
+      return Long.parseLong(event.getRef());
+    }
+    catch (NumberFormatException e) {
       return Long.MAX_VALUE;
     }
   }
@@ -241,7 +243,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private static String injectVersionIntoNS(ContextAwareEvent event, String wrappedJsondata) {
     //NOTE: The following is a temporary implementation for backwards compatibility for spaces without versioning
-    if (DatabaseHandler.readVersionsToKeep(event) > 1 || (DatabaseHandler.readVersionsToKeep(event) > 0 && event instanceof LoadFeaturesEvent))
+    //TODO: Re-activate for v2k=1 in general
+    if (DatabaseHandler.readVersionsToKeep(event) > 1 || (DatabaseHandler.readVersionsToKeep(event) >= 1 && event instanceof LoadFeaturesEvent))
       return "jsonb_set(" + wrappedJsondata + ", '{properties, @ns:com:here:xyz, version}', to_jsonb(version))";
     return wrappedJsondata;
   }
@@ -253,6 +256,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return "*".equals(selectiveEvent.getRef()) ? "ORDER BY version" : "";
   }
 
+  /**
+   * @deprecated Please use {@link GetFeatures#buildSelectionFragment(ContextAwareEvent)} instead.
+   */
   //TODO: Can be removed after completion of refactoring
   @Deprecated
   public static SQLQuery buildSelectionFragmentBWC(SelectiveEvent event) {

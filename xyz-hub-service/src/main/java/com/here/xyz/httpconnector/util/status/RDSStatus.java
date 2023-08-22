@@ -80,6 +80,8 @@ public class RDSStatus {
 
         int totalRunningIDXQueries;
         int totalRunningImportQueries;
+        int totalRunningExportQueries;
+
         int totalRunningS3ExportQueries;
         int totalRunningVMLExportQueries;
         long totalInflightImportBytes;
@@ -99,6 +101,7 @@ public class RDSStatus {
             this.totalInflightImportBytes = runningQueryStatistics.getImportBytesInProgress();
             this.totalRunningVMLExportQueries = runningQueryStatistics.getRunningVMLExports();
             this.totalRunningS3ExportQueries = runningQueryStatistics.getRunningS3Exports();
+            this.totalRunningExportQueries = runningQueryStatistics.getRunningS3Exports() + runningQueryStatistics.getRunningVMLExports();
         }
 
         public double getCpuLoad() {
@@ -134,6 +137,8 @@ public class RDSStatus {
         public int getTotalRunningS3ExportQueries() { return totalRunningS3ExportQueries; }
 
         public int getTotalRunningVMLExportQueries() { return totalRunningVMLExportQueries; }
+
+        public int getTotalRunningExportQueries() { return totalRunningExportQueries; }
     }
 
     public static class Limits{
