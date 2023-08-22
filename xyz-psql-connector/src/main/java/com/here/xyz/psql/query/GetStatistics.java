@@ -48,12 +48,13 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
 
-    String extFlag = (event.getContext() == SpaceContext.EXTENSION ? "true" : "false");
+    Boolean extFlag = (event.getContext() == SpaceContext.EXTENSION);
 
-    return new SQLQuery("SELECT * FROM ${schema}.xyz_statistic_space(#{schema}, #{table}, " + extFlag +")")
+    return new SQLQuery("SELECT * FROM ${schema}.xyz_statistic_space(#{schema}, #{table}, #{extFlag} )")
         .withVariable(SCHEMA, getSchema())
         .withNamedParameter(SCHEMA, getSchema())
-        .withNamedParameter(TABLE, getDefaultTable(event));
+        .withNamedParameter(TABLE, getDefaultTable(event))
+        .withNamedParameter("extFlag", extFlag);
   }
 
   @Override
