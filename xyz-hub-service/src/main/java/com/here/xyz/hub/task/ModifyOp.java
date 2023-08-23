@@ -371,13 +371,4 @@ public abstract class ModifyOp<T, K extends Entry<T>> {
     }
     return map;
   }
-
-  /**
-   * Validates whether the entry sub-type can be created based on specific checks
-   * @param entry
-   * @throws ModifyOpError in case of the validation failed
-   */
-  public void validateCreate(Entry<T> entry) throws ModifyOpError {
-    // noop
-  };
 }
