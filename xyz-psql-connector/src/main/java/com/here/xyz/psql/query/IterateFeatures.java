@@ -176,14 +176,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     return fc;
   }
 
-  private SQLQuery buildQueryForOrderBy(IterateFeaturesEvent event) throws SQLException {
-    SQLQuery filterWhereClause = generateSearchQuery(event);
-    if (filterWhereClause == null)
-      filterWhereClause = new SQLQuery("TRUE");
-
-    //---------------------------------------------------------------------------------------------
-
-    SQLQuery partialQuery = buildPartialSortIterateQuery(event, filterWhereClause);
+  private SQLQuery buildQueryForOrderBy(IterateFeaturesEvent event) {
+    SQLQuery partialQuery = buildPartialSortIterateQuery(event);
 
     String nextHandleJson = buildNextHandleAttribute(event.getSort(), isPartOverI(event));
     SQLQuery innerQry = new SQLQuery("WITH dt AS ("
@@ -215,29 +209,36 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     return query;
   }
 
-  private SQLQuery buildPartialSortIterateQuery(IterateFeaturesEvent event, SQLQuery filterWhereClause) {
+  private SQLQuery buildPartialSortIterateQuery(IterateFeaturesEvent event) {
+    SQLQuery searchQuery = generateSearchQuery(event);
+    SQLQuery filterWhereClause = new SQLQuery("${{searchQuery}} ${{partialIterationModules}}");
+    if (searchQuery != null)
+      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
+    else
+      filterWhereClause.setQueryFragment("searchQuery", "");
+
     //Extend the filterWhereClause by the necessary parts for partial iteration using modules
     Integer[] part = event.getPart();
     if (part != null && part.length == 2 && part[1] > 1) {
-      filterWhereClause.append(" AND (( i %% #{total} ) = #{partition})");
-      filterWhereClause.setNamedParameter("total", part[1]);
-      filterWhereClause.setNamedParameter("partition", part[0] - 1);
+      filterWhereClause.setQueryFragment("partialIterationModules",
+          new SQLQuery((searchQuery != null ? "AND " : "") + "(( i %% #{total} ) = #{partition})")
+              .withNamedParameter("total", part[1])
+              .withNamedParameter("partition", part[0] - 1));
     }
 
     String orderByClause = buildOrderByClause(event);
     List<String> continuationWhereClauses = event.getHandle() == null ? Collections.singletonList("")
         : buildContinuationConditions(event);
 
-    SQLQuery partialQuery = new SQLQuery("");
+    List<SQLQuery> unionQueries = new ArrayList<>();
+    for (int i = 0; i < continuationWhereClauses.size(); i++)
+      unionQueries.add(new SQLQuery(buildPartialSortIterateSQL(i))
+          .withQueryFragment("continuation", continuationWhereClauses.get(i)));
 
-    for (int i = 0; i < continuationWhereClauses.size(); i++) {
-      partialQuery.append((i > 0 ? " UNION ALL " : "") + buildPartialSortIterateSQL(i));
-      partialQuery.setQueryFragment("continuation", continuationWhereClauses.get(i));
-    }
-    partialQuery.setQueryFragment("orderBy", orderByClause);
-    partialQuery.setNamedParameter("limit", limit);
-
-    partialQuery.setQueryFragment("filterWhereClause", filterWhereClause);
+    SQLQuery partialQuery = SQLQuery.join(unionQueries, " UNION ALL ")
+        .withQueryFragment("orderBy", orderByClause)
+        .withNamedParameter("limit", limit)
+        .withQueryFragment("filterWhereClause", filterWhereClause);
 
     return partialQuery;
   }
@@ -283,7 +284,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     return DhString.format("jsonb_set(%s,'{s}','[%s]')", nhandle, svalue);
   }
 
-  private  String buildOrderByClause(IterateFeaturesEvent event) {
+  private String buildOrderByClause(IterateFeaturesEvent event) {
     List<String> sortby = event.getHandle() != null ? convHandle2sortbyList(event.getHandle()) : event.getSort();
 
     if (sortby == null || sortby.size() == 0)
@@ -324,7 +325,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   private static List<String> buildContinuationConditions(IterateFeaturesEvent event)
   {
     String handle = event.getHandle();
-   List<String> ret = new ArrayList<String>(),
+   List<String> ret = new ArrayList<>(),
                 sortby = convHandle2sortbyList( handle );
    JSONObject h = new JSONObject(handle);
    boolean descendingLast = false, sortbyIdUseCase = false;

@@ -38,7 +38,9 @@ public class PSQLMetaTableIT extends PSQLAbstractIT {
     };
 
     @BeforeClass
-    public static void init() throws Exception { initEnv(connectorParams); }
+    public static void init() throws Exception {
+        initEnv(connectorParams);
+    }
 
     @After
     public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }

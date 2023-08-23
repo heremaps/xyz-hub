@@ -37,13 +37,9 @@ import java.util.List;
 import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class PSQLWriteIT extends PSQLAbstractIT {
-
-    @BeforeClass
-    public static void init() throws Exception { initEnv(null); }
 
     @Before
     public void createTable() throws Exception {

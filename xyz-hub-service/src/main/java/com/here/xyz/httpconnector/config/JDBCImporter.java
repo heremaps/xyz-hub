@@ -30,6 +30,7 @@ import io.vertx.core.Promise;
 import io.vertx.sqlclient.impl.ArrayTuple;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -72,7 +73,7 @@ public class JDBCImporter extends JDBCClients{
 
                     return listIndices(job.getTargetConnector(), schema, job.getTargetTable())
                             .compose(idxList ->
-                                    dropIndices(job.getTargetConnector(), schema, job.getTargetTable(), idxList)
+                                    dropIndices(job.getTargetConnector(), schema, idxList)
                                         .compose(f2 ->
                                                 createTriggerOnTargetTable(job, schema)
                                                     .compose(f3 -> Future.succeededFuture())
@@ -81,10 +82,10 @@ public class JDBCImporter extends JDBCClients{
                 });
     }
 
-    public static Future<List<String>> listIndices(String clientID, String schema, String tablename){
+    public static Future<List<String>> listIndices(String clientID, String schema, String tableName){
         SQLQuery q = new SQLQuery("select * from xyz_index_list_all_available(#{schema},#{table});");
-        q.setNamedParameter("schema",schema);
-        q.setNamedParameter("table",tablename);
+        q.setNamedParameter("schema", schema);
+        q.setNamedParameter("table", tableName);
         q.substitute();
         q = q.substituteAndUseDollarSyntax(q);
 
@@ -98,20 +99,21 @@ public class JDBCImporter extends JDBCClients{
                 });
     }
 
-    public static Future<Void> dropIndices(String clientID, String schema, String tablename, List<String> idxList){
-        if(idxList.size() == 0)
+    public static Future<Void> dropIndices(String clientID, String schema, List<String> indexNames){
+        if (indexNames.size() == 0)
             return Future.succeededFuture();
 
-        SQLQuery q = new SQLQuery("");
+        List<SQLQuery> dropQueries = indexNames.stream().map(indexName ->
+            new SQLQuery("DROP INDEX IF EXISTS ${schema}.${indexName} CASCADE;")
+            .withVariable("indexName", indexName))
+            .collect(Collectors.toList());
 
-        for (String idx : idxList) {
-            q.append("DROP INDEX IF EXISTS ${schema}.\""+idx+"\" CASCADE;");
-        }
-        q.setVariable("schema", schema);
+        SQLQuery q = SQLQuery.join(dropQueries, "")
+            .withVariable("schema", schema);
 
         return getClient(clientID).query(q.substitute().text())
                 .execute()
-                .map(f->null);
+                .map(f -> null);
     }
 
     //TODO: Use a QueryRunner for the following!!
