@@ -27,9 +27,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
@@ -38,6 +40,13 @@ import com.here.xyz.responses.XyzResponse;
 import java.util.List;
 
 public class Helper {
+
+    protected static <T extends XyzResponse> T deserializeResponse(String jsonResponse) throws JsonProcessingException, ErrorResponseException {
+      XyzResponse response = XyzSerializable.deserialize(jsonResponse);
+      if (response instanceof ErrorResponse)
+        throw new ErrorResponseException(((ErrorResponse) response).getError(), ((ErrorResponse) response).getErrorMessage());
+      return (T) response;
+    }
 
     protected void assertNoErrorInResponse(String response) {
         assertNull(with(response).get("$.errorMessage"));
@@ -53,7 +62,7 @@ public class Helper {
     }
 
     protected void assertRead(String insertRequest, String response, boolean checkVersion) throws Exception {
-        final List<Feature> responseFeatures = XyzSerializable.<FeatureCollection>deserialize(response).getFeatures();
+        final List<Feature> responseFeatures = ((FeatureCollection) deserializeResponse(response)).getFeatures();
         final ModifyFeaturesEvent mfe = XyzSerializable.deserialize(insertRequest);
         String space = mfe.getSpace();
         List<Feature> requestFeatures = mfe.getInsertFeatures();

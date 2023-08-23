@@ -26,11 +26,11 @@ import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 @SuppressWarnings("unused")
 public class PSQLXyzConnectorIT extends PSQLAbstractIT {
-
   @Test
   public void testPSQLConfig() throws Exception {
     Map<String, Object> connectorParams = new HashMap<>();

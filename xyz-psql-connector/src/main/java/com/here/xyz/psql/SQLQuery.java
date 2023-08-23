@@ -82,32 +82,27 @@ public class SQLQuery {
     append(text, parameters);
   }
 
-  //TODO: Remove once SearchForFeatures#joinQueries() is used instead
-  @Deprecated
-  public static SQLQuery join(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets ) {
-    if (queries == null) throw new NullPointerException("queries parameter is required");
-    if (queries.isEmpty()) throw new IllegalArgumentException("queries parameter is required");
+  public static SQLQuery join(List<SQLQuery> queries, String delimiter) {
+    return join(queries, delimiter, false);
+  }
 
-
-    int counter = 0;
-    final SQLQuery result = new SQLQuery("");
-    if( queries.size() > 1 && encloseInBrackets ){
-      result.append("(");
-    }
+  public static SQLQuery join(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets) {
+    List<String> fragmentPlaceholders = new ArrayList<>();
+    Map<String, SQLQuery> queryFragments = new HashMap<>();
+    int i = 0;
     for (SQLQuery q : queries) {
-      if (q == null) continue;
-
-      if (counter++ > 0) result.append(delimiter);
-      result.append(q);
+      String fragmentName = "f" + i++;
+      fragmentPlaceholders.add("${{" + fragmentName + "}}");
+      queryFragments.put(fragmentName, q);
     }
 
-    if( queries.size() > 1 && encloseInBrackets ){
-      result.append(")");
-    }
-
-    if (counter == 0) return null;
-
-    return result;
+    String joinedSql = String.join(delimiter, fragmentPlaceholders);
+    if (encloseInBrackets)
+      joinedSql = "(" + joinedSql + ")";
+    SQLQuery joinedQuery = new SQLQuery(joinedSql);
+    for (Entry<String, SQLQuery> queryFragment : queryFragments.entrySet())
+      joinedQuery.setQueryFragment(queryFragment.getKey(), queryFragment.getValue());
+    return joinedQuery;
   }
 
   //TODO: Remove once refactoring is complete
@@ -568,6 +563,11 @@ public class SQLQuery {
     initQueryFragments();
     checkForUnnamedParametersInFragments(queryFragments.values()); //TODO: Can be removed after completion of refactoring
     this.queryFragments.putAll(queryFragments);
+  }
+
+  public SQLQuery withQueryFragments(Map<String, SQLQuery> queryFragments) {
+    setQueryFragments(queryFragments);
+    return this;
   }
 
   public SQLQuery getQueryFragment(String key) {

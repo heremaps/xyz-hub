@@ -48,7 +48,7 @@ import org.junit.Test;
 @SuppressWarnings("unused")
 public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
-  protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
+  protected static Map<String, Object> connectorParams = new HashMap<>(){
         {   put(PSQLAbstractIT.CONNECTOR_ID, "test-connector");
             put(PSQLAbstractIT.ENABLE_HASHED_SPACEID, true);
             put(PSQLAbstractIT.AUTO_INDEXING, true);
@@ -56,7 +56,9 @@ public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
   };
 
   @BeforeClass
-  public static void init() throws Exception { initEnv(connectorParams); }
+  public static void init() throws Exception {
+    initEnv(connectorParams);
+  }
 
   @Before
   public void createTable() throws Exception {
