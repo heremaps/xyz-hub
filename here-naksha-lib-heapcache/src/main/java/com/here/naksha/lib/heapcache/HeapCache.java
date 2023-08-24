@@ -110,8 +110,9 @@ public class HeapCache implements IStorage {
 
   @Override
   public @NotNull ITransactionSettings createSettings() {
-    assert config.storage != null;
-    return config.storage.createSettings();
+    // assert config.storage != null;
+    // return config.storage.createSettings();
+    return null;
   }
 
   @Override
