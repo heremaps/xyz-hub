@@ -340,7 +340,7 @@ public class JDBCExporter extends JDBCClients{
                         "   'format csv')).* " +
                         "  /* vml_export_hint m499#jobId(" + j.getId() + ") */ " +
                         " from" +
-                        "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, ${{qkTileQry}}, #{maxTilesPerFile}::int, true, "+ bClipped +","+includeEmpty+") o"
+                        "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, ${{qkTileQry}}, #{maxTilesPerFile}::int, true, #{bClipped}, #{includeEmpty} ) o"
         );
 
         q.setQueryFragment("exportSelectString", exportSelectString);
@@ -351,8 +351,8 @@ public class JDBCExporter extends JDBCClients{
         q.setNamedParameter("s3Region",s3Region);
         q.setNamedParameter("targetLevel", j.getTargetLevel());
         q.setNamedParameter("parentQK", parentQk);
-
-        q.setNamedParameter("maxTilesPerFile", maxTilesPerFile);
+        q.setNamedParameter("bClipped", bClipped);
+        q.setNamedParameter("includeEmpty", includeEmpty);
 
         return q.substituteAndUseDollarSyntax(q);
     }
