@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 177
+ select 178
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -4099,6 +4099,7 @@ declare
 	_weight decimal := 0.1;
 	max_tiles integer := 5000;
 	calc_weighted_fc decimal;
+	tbllist regclass[];
 begin
 	if esitmated_count is null or esitmated_count = 0 THEN
         select c.reltuples::bigint from pg_class c where oid = tbl
@@ -4124,11 +4125,21 @@ begin
             _weight := (max_features_in_tile / esitmated_count) ;
     end if;
 
+    with 
+     indata as ( select c.relnamespace::regnamespace::text as s, c.relname::text as t from pg_class c where c.oid = tbl ),
+     iindata as
+     ( select row_number() over () as idx, r.* from
+	     (	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' )) ) r
+     )
+     select array_agg( to_regclass( format('%I.%I',ii.schem, ii.tbl) ) ) from iindata ii
+		 into tbllist;
+
     return query select ARRAY_AGG(qk) from (
-        select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbl, sql_with_jsondata_geo
+        select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbllist, sql_with_jsondata_geo
     ) order by weight DESC) a;
 end
 $BODY$;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION streamId() RETURNS TEXT AS
