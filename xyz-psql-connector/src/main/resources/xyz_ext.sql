@@ -4079,6 +4079,7 @@ end
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
+
 CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
 	htile boolean,
 	iqk text,
@@ -4149,7 +4150,7 @@ begin
             _weight := (max_features_in_tile / esitmated_count) ;
     end if;
 
-    return query select ARRAY_AGG(qk) from (
+    return query select coalesce( ARRAY_AGG(qk), ARRAY[''] )  from (
         select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbllist, sql_with_jsondata_geo
     ) order by weight DESC) a;
 end
