@@ -18,22 +18,34 @@
  */
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCExporter;
+import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.rest.HApiParam;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.implementation.Geometry;
 
+import io.vertx.core.Future;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class Export extends Job {
+    private static final Logger logger = LogManager.getLogger();
     public static String ERROR_TYPE_HTTP_TRIGGER_FAILED = "http_trigger_failed";
     public static String ERROR_TYPE_TARGET_ID_INVALID = "targetId_invalid";
     public static String ERROR_TYPE_HTTP_TRIGGER_STATUS_FAILED = "http_get_trigger_status_failed";
@@ -117,11 +129,11 @@ public class Export extends Job {
         this.estimatedFeatureCount = estimatedFeatureCount;
     }
 
-    public Map<String,Long> getSearchableProperties() { 
+    public Map<String,Long> getSearchableProperties() {
         return searchableProperties;
     }
 
-    public void setSearchableProperties( Map<String,Long> searchableProperties ) { 
+    public void setSearchableProperties( Map<String,Long> searchableProperties ) {
         this.searchableProperties = searchableProperties;
     }
 
@@ -379,7 +391,7 @@ public class Export extends Job {
     }
 
     @JsonIgnore
-    public String readParamSuperExportPath(){
+    public String readParamSuperExportPath() {
         return this.params.containsKey("superExportPath") ? (String) this.getParam("superExportPath") : null;
     }
 
@@ -401,7 +413,7 @@ public class Export extends Job {
     }
 
     @JsonIgnore
-    public boolean isSuperSpacePersistent() throws HttpException {
+    public boolean isSuperSpacePersistent() {
         Map extension = (Map) this.params.get("extends");
         if(this.params == null && extension == null)
             return false;
@@ -414,7 +426,7 @@ public class Export extends Job {
     }
 
     @JsonIgnore
-    public String extractSuperSpaceId() throws HttpException {
+    public String extractSuperSpaceId() {
         Map extension = (Map) this.params.get("extends");
         if(this.params == null && extension == null)
             return null;
@@ -427,13 +439,13 @@ public class Export extends Job {
     }
 
     @JsonIgnore
-    public ApiParam.Query.Incremental readParamIncremental(){
+    public ApiParam.Query.Incremental readParamIncremental() {
         return this.params.containsKey("incremental") ?
                 ApiParam.Query.Incremental.valueOf((String)this.params.get(HApiParam.HQuery.INCREMENTAL)) :
                 ApiParam.Query.Incremental.DEACTIVATED;
     }
 
-    public void resetToPreviousState() throws Exception{
+    public void resetToPreviousState() throws Exception {
         switch (getStatus()){
             case failed:
             case aborted:
@@ -459,7 +471,7 @@ public class Export extends Job {
         }
     }
 
-    public static class ExportStatistic{
+    public static class ExportStatistic {
         private long rowsUploaded;
         private long filesUploaded;
         private long bytesUploaded;
@@ -515,7 +527,7 @@ public class Export extends Job {
     }
 
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    public static class ExportTarget{
+    public static class ExportTarget {
         @JsonView({Public.class})
         public enum Type {
             VML, DOWNLOAD, S3 /** same as download */;
@@ -565,7 +577,7 @@ public class Export extends Job {
     }
 
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    public static class SpatialFilter{
+    public static class SpatialFilter {
 
         @JsonView({Public.class})
         private Geometry geometry;
@@ -651,5 +663,74 @@ public class Export extends Job {
     @Override
     public String getQueryIdentifier() {
         return "export_hint";
+    }
+
+    @Override
+    public void execute() {
+        setExecutedAt(Core.currentTimeMillis() / 1000L);
+        String defaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
+
+        String s3Path = CService.jobS3Client.getS3Path(this);
+
+        if (readParamPersistExport()) {
+            Export existingJob = CService.jobS3Client.readMetaFileFromJob(this);
+            if (existingJob != null) {
+                if (existingJob.getExportObjects() == null || existingJob.getExportObjects().isEmpty()) {
+                    String message = String.format("Another job already started for %s and targetLevel %s with status %s",
+                        existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
+                    setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
+                }
+                else {
+                    addDownloadLinksAndWriteMetaFile(existingJob);
+                    setExportObjects(existingJob.getExportObjects());
+                    updateJobStatus(this, Job.Status.executed);
+                }
+                return;
+            }
+            else {
+                addDownloadLinksAndWriteMetaFile(this);
+            }
+        }
+
+        JDBCExporter.executeExport(this, defaultSchema, CService.configuration.JOBS_S3_BUCKET, s3Path,
+                CService.configuration.JOBS_REGION)
+            .onSuccess(statistic -> {
+                    /** Everything is processed */
+                    logger.info("job[{}] Export of '{}' completely succeeded!", getId(), getTargetSpaceId());
+                    addStatistic(statistic);
+                    addDownloadLinksAndWriteMetaFile(this);
+                    updateJobStatus(this, Job.Status.executed);
+                }
+            )
+            .onFailure(e -> {
+                logger.warn("job[{}] export of '{}' failed! ", getId(), getTargetSpaceId(), e);
+
+                if (e.getMessage() != null && e.getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
+                    setJobAborted(this);
+                else {
+                    setJobFailed(this, null, Job.ERROR_TYPE_EXECUTION_FAILED);
+                }}
+            );
+    }
+
+    protected void addDownloadLinksAndWriteMetaFile(Job j){
+        /** Add file statistics and downloadLinks */
+        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
+        ((Export) j).setExportObjects(exportObjects);
+
+        if(((Export)j).readParamSuperExportPath() != null) {
+            /** Add exportObjects including fresh download links for persistent base exports */
+            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath((Export) j, true, true);
+            ((Export) j).setSuperExportObjects(superExportObjects);
+        }
+
+        /** Write MetaFile to S3 */
+        CService.jobS3Client.writeMetaFile((Export) j);
+    }
+
+    @Override
+    public void finalizeJob() {
+        setFinalizedAt(Core.currentTimeMillis() / 1000L);
+        updateJobStatus(this, Job.Status.finalized);
     }
 }
