@@ -871,8 +871,14 @@ public class FeatureTaskHandler {
                 return Future.succeededFuture();
 
               if (task.extendedSpaces == null)
-                task.extendedSpaces = new ArrayList();
+                task.extendedSpaces = new ArrayList<>();
               task.extendedSpaces.add(extendedSpace);
+
+              if (task.extendedSpaces.size() > 2) {
+                logger.error(task.getMarker(), "Possible cyclical ref on " + spaceExtension.getSpaceId() + ". List of extended spaces: " + task.extendedSpaces.toString() + ". task space: " + task.space.getId());
+                return Future.succeededFuture(extendedSpace);
+              }
+
               return resolveExtendedSpace(task, extendedSpace.getExtension()); //Go to next extension level
             },
             t -> Future.failedFuture(t)
