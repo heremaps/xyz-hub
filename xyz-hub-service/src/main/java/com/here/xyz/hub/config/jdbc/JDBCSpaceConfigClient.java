@@ -28,9 +28,7 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.psql.SQLQuery;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
@@ -38,7 +36,6 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.sql.SQLClient;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -66,8 +63,8 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   }
 
   @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
-    JDBCConfig.init(onReady);
+  public Future<Void> init() {
+    return JDBCConfig.init();
   }
 
   @Override

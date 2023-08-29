@@ -31,21 +31,18 @@ import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.httpconnector.util.jobs.Job.Type;
 import com.here.xyz.hub.config.dynamo.DynamoClient;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 /**
  * A client for writing and editing JOBs on a DynamoDb
@@ -70,7 +67,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    public void init(Handler<AsyncResult<Void>> onReady) {
+    public Future<Void> init() {
         if (dynamoClient.isLocal()) {
             logger.info("DynamoDB running locally, initializing tables.");
 
@@ -79,11 +76,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
             }
             catch (Exception e) {
                 logger.error("Failure during creating tables on DynamoSpaceConfigClient init", e);
-                onReady.handle(Future.failedFuture(e));
-                return;
+                return Future.failedFuture(e);
             }
         }
-        onReady.handle(Future.succeededFuture());
+        return Future.succeededFuture();
     }
 
     @Override

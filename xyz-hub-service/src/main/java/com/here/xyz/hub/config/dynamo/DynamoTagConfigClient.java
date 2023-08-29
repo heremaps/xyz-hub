@@ -30,9 +30,7 @@ import com.amazonaws.services.dynamodbv2.model.ParameterizedStatement;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,12 +56,12 @@ public class DynamoTagConfigClient extends TagConfigClient {
   }
 
   @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
+  public Future<Void> init() {
     if (dynamoClient.isLocal()) {
       dynamoClient.createTable(tagTable.getTableName(), "id:S,spaceId:S", "id,spaceId", "spaceId", null);
     }
 
-    onReady.handle(Future.succeededFuture());
+    return Future.succeededFuture();
   }
 
   @Override

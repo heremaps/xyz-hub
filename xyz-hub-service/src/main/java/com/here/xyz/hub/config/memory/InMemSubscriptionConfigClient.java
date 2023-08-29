@@ -21,27 +21,19 @@ package com.here.xyz.hub.config.memory;
 
 import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.models.hub.Subscription;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.logging.log4j.Marker;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.Marker;
 
 @SuppressWarnings("unused")
 public class InMemSubscriptionConfigClient extends SubscriptionConfigClient {
 
   private Map<String, Subscription> storageMap = new ConcurrentHashMap<>();
-
-  @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
-    onReady.handle(Future.succeededFuture());
-  }
 
   @Override
   protected Future<Subscription> getSubscription(Marker marker, String subscriptionId) {

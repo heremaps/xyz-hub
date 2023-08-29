@@ -61,8 +61,8 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
   }
 
   @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
-    JDBCConfig.init(onReady);
+  public Future<Void> init() {
+    return JDBCConfig.init();
   }
 
   @Override

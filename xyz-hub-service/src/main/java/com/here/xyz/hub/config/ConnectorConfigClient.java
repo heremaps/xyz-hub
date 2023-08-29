@@ -200,11 +200,15 @@ public abstract class ConnectorConfigClient implements Initializable {
     });
   }
 
-  public void insertLocalConnectors(Handler<AsyncResult<Void>> handler) {
+  public CompletableFuture<Void> insertLocalConnectors() {
+    if (!Service.configuration.INSERT_LOCAL_CONNECTORS) {
+      return CompletableFuture.completedFuture(null);
+    }
+
     final InputStream input = ConnectorConfigClient.class.getResourceAsStream("/connectors.json");
     try (BufferedReader buffer = new BufferedReader(new InputStreamReader(input))) {
       final String connectorsFile = buffer.lines().collect(Collectors.joining("\n"));
-      final List<Connector> connectors = JacksonCodec.decodeValue(connectorsFile, new TypeReference<List<Connector>>() {});
+      final List<Connector> connectors = JacksonCodec.decodeValue(connectorsFile, new TypeReference<>() {});
       final List<CompletableFuture<Void>> futures = new ArrayList<>();
 
       connectors.forEach(c -> {
@@ -222,18 +226,10 @@ public abstract class ConnectorConfigClient implements Initializable {
         });
       });
 
-      CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).handle((res, e) -> {
-        if (e != null) {
-          handler.handle(Future.failedFuture(e));
-        } else {
-          handler.handle(Future.succeededFuture());
-        }
-
-        return null;
-      });
+      return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
     } catch (IOException e) {
       logger.error("Unable to insert the local connectors.");
-      handler.handle(Future.failedFuture(e));
+      return CompletableFuture.failedFuture(e);
     }
   }
 

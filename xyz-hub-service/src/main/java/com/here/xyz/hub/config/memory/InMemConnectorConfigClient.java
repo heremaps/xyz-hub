@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.Marker;
 
@@ -37,11 +36,6 @@ import org.apache.logging.log4j.Marker;
 public class InMemConnectorConfigClient extends ConnectorConfigClient {
 
   private Map<String, Connector> storageMap = new ConcurrentHashMap<>();
-
-  @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
-    onReady.handle(Future.succeededFuture());
-  }
 
   @Override
   protected void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {

@@ -28,10 +28,9 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.health.HealthApi;
 import com.here.xyz.hub.util.health.checks.RemoteFunctionHealthCheck;
 import io.vertx.core.AsyncResult;
-import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,24 +50,28 @@ public class ConfigUpdateThread extends Thread {
   private static final Marker MARKER = new Log4jMarker(name);
 
   private static ConfigUpdateThread instance;
-  private volatile Handler<AsyncResult<Void>> initializeHandler;
+  private CompletableFuture<Void> initializeFuture;
 
-  private ConfigUpdateThread(Handler<AsyncResult<Void>> handler) throws NullPointerException {
+  private ConfigUpdateThread(CompletableFuture<Void> initializeFuture) throws NullPointerException {
     super(name);
     if (instance != null) {
       throw new IllegalStateException("Singleton ConfigUpdateThread has already been instantiated.");
     }
-    initializeHandler = handler;
+    this.initializeFuture = initializeFuture;
     ConfigUpdateThread.instance = this;
     this.setDaemon(true);
     this.start();
     logger.info("Started thread {}", name);
   }
 
-  public static void initialize(Handler<AsyncResult<Void>> handler) {
+  public static CompletableFuture<Void> initialize() {
     if (instance == null) {
-      instance = new ConfigUpdateThread(handler);
+      CompletableFuture<Void> future = new CompletableFuture<>();
+      instance = new ConfigUpdateThread(future);
+      return future;
     }
+
+    return CompletableFuture.completedFuture(null);
   }
 
   private void performConnectorUpdates() {
@@ -180,9 +183,9 @@ public class ConfigUpdateThread extends Thread {
     }
 
     //Call the service initialization handler in the first run
-    if (initializeHandler != null) {
-      initializeHandler.handle(Future.succeededFuture());
-      initializeHandler = null;
+    if (initializeFuture != null) {
+      initializeFuture.complete(null);
+      initializeFuture = null;
     }
   }
 

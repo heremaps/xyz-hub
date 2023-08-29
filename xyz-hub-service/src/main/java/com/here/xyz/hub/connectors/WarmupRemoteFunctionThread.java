@@ -23,10 +23,8 @@ import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.cache.RedisCacheClient;
 import com.here.xyz.hub.connectors.models.Connector;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
@@ -45,7 +43,7 @@ public class WarmupRemoteFunctionThread extends Thread {
 
   private static WarmupRemoteFunctionThread instance;
 
-  private WarmupRemoteFunctionThread(Handler<AsyncResult<Void>> handler) throws NullPointerException {
+  private WarmupRemoteFunctionThread(CompletableFuture<Void> initializeFuture) throws NullPointerException {
     super(name);
     if (instance != null) {
       throw new IllegalStateException("Singleton warmup thread has already been instantiated.");
@@ -53,14 +51,18 @@ public class WarmupRemoteFunctionThread extends Thread {
     WarmupRemoteFunctionThread.instance = this;
     this.setDaemon(true);
     this.start();
-    handler.handle(Future.succeededFuture());
+    initializeFuture.complete(null);
     logger.info("Started warmup thread {}", name);
   }
 
-  public static void initialize(Handler<AsyncResult<Void>> handler) {
+  public static CompletableFuture<Void> initialize() {
     if (instance == null) {
-      instance = new WarmupRemoteFunctionThread(handler);
+      CompletableFuture<Void> future = new CompletableFuture<>();
+      instance = new WarmupRemoteFunctionThread(future);
+      return future;
     }
+
+    return CompletableFuture.completedFuture(null);
   }
 
   private void executeWarmup() {
