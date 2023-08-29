@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.Config;
 import com.here.xyz.httpconnector.config.MaintenanceClient;
 import com.here.xyz.hub.auth.TestAuthenticator;
 import com.here.xyz.hub.rest.RestAssuredConfig;
@@ -79,7 +80,7 @@ public class HCMaintenanceTestIT {
     }
 
     public static MaintenanceClient initMaintenanceClient() throws Exception {
-        CService.configuration = new CService.Config();
+        CService.configuration = new Config();
         CService.configuration.DB_INITIAL_POOL_SIZE = 1;
         CService.configuration.DB_MIN_POOL_SIZE = 1;
         CService.configuration.DB_MAX_POOL_SIZE = 1;
