@@ -18,14 +18,13 @@
  */
 package com.here.xyz.httpconnector.util.jobs;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.models.hub.Space;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -67,7 +66,23 @@ public abstract class Job {
     public enum Status {
         waiting, queued, validating, validated, preparing, prepared, executing, executed,
             executing_trigger, trigger_executed, collecting_trigger_status, trigger_status_collected,
-            finalizing, finalized, aborted, failed;
+            finalizing, finalized(true), aborted(true), failed(true);
+
+        private final boolean isFinal;
+
+
+        Status() {
+            this(false);
+        }
+
+        Status(boolean isFinal) {
+            this.isFinal = isFinal;
+        }
+
+        public boolean isFinal() {
+            return isFinal;
+        }
+
         public static Status of(String value) {
             if (value == null) {
                 return null;
@@ -313,6 +328,8 @@ public abstract class Job {
         this.finalizedAt = finalizedAt;
     }
 
+    public abstract void finalizeJob();
+
     public Long getExp() {
         return exp;
     }
@@ -394,6 +411,8 @@ public abstract class Job {
 
     @JsonIgnore
     public abstract String getQueryIdentifier();
+
+    public abstract void execute();
 
     public static class Public {
     }

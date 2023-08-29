@@ -18,18 +18,32 @@
  */
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.scheduler.ImportQueue.NODE_EXECUTED_IMPORT_MEMORY;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
 
+import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.util.status.RDSStatus;
+import com.here.xyz.hub.Core;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class Import extends Job {
+    private static final Logger logger = LogManager.getLogger();
     public static String ERROR_TYPE_NO_DB_CONNECTION = "no_db_connection";
 
     public static String ERROR_DESCRIPTION_UPLOAD_MISSING = "UPLOAD_MISSING";
@@ -235,5 +249,117 @@ public class Import extends Job {
     @Override
     public String getQueryIdentifier() {
         return "import_hint";
+    }
+
+    @Override
+    public void execute() {
+        setExecutedAt(Core.currentTimeMillis() / 1000L);
+        String defaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
+        List<Future> importFutures = new ArrayList<>();
+
+        Map<String, ImportObject> importObjects = getImportObjects();
+        for (String key : importObjects.keySet()) {
+            if(!importObjects.get(key).isValid())
+                continue;
+
+            if(importObjects.get(key).getStatus().equals(ImportObject.Status.imported)
+                || importObjects.get(key).getStatus().equals(ImportObject.Status.failed))
+                continue;
+
+            /** compressed processing of 9,5GB leads into ~120 GB RDS Mem */
+            long curFileSize = Long.valueOf(importObjects.get(key).isCompressed() ? (importObjects.get(key).getFilesize() * 12)  : importObjects.get(key).getFilesize());
+            double maxMemInGB = new RDSStatus.Limits(CService.rdsLookupCapacity.get(getTargetConnector())).getMaxMemInGB();
+
+            logger.info("job[{}] IMPORT_MEMORY {}/{} = {}% of max", getId(), NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
+
+            //TODO: Also view RDS METRICS?
+            if (NODE_EXECUTED_IMPORT_MEMORY < CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES){
+                importObjects.get(key).setStatus(ImportObject.Status.processing);
+                NODE_EXECUTED_IMPORT_MEMORY += curFileSize;
+                logger.info("job[{}] start execution of {}! mem: {}", getId(), importObjects.get(key).getS3Key(getId(), key), NODE_EXECUTED_IMPORT_MEMORY);
+
+                importFutures.add(
+                    CService.jdbcImporter.executeImport(getId(), getTargetConnector(), defaultSchema, getTargetTable(),
+                            CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(getId(), key), CService.configuration.JOBS_REGION, curFileSize, getCsvFormat() )
+                        .onSuccess(result -> {
+                                NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
+                                logger.info("job[{}] Import of '{}' succeeded!", getId(), importObjects.get(key));
+
+                                importObjects.get(key).setStatus(ImportObject.Status.imported);
+                                if(result != null && result.indexOf("imported") !=1) {
+                                    //242579 rows imported int…sv.gz of 56740921 bytes
+                                    importObjects.get(key).setDetails(result.substring(0,result.indexOf("imported")+8));
+                                }
+                            }
+                        )
+                        .onFailure(e -> {
+                                NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
+                                logger.warn("JOB[{}] Import of '{}' failed - mem: {}!", getId(), importObjects.get(key), NODE_EXECUTED_IMPORT_MEMORY, e);
+                                importObjects.get(key).setStatus(ImportObject.Status.failed);
+                            }
+                        )
+                );
+            }
+            else
+                importObjects.get(key).setStatus(ImportObject.Status.waiting);
+        }
+
+        CompositeFuture.join(importFutures)
+            .onComplete(
+                t -> {
+                    if (t.failed()){
+                        logger.warn("job[{}] Import of '{}' failed! ", getId(), getTargetSpaceId(), t);
+
+                        if (t.cause().getMessage() != null && t.cause().getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
+                            setJobAborted(this);
+                        else if (t.cause().getMessage() != null && t.cause().getMessage().contains("duplicate key value violates unique constraint"))
+                            setJobFailed(this, Import.ERROR_DESCRIPTION_IDS_NOT_UNIQUE, Job.ERROR_TYPE_EXECUTION_FAILED);
+                        else
+                            setJobFailed(this, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_EXECUTION_FAILED);
+                    }
+                    else {
+                        int cntInvalid = 0;
+
+                        for (String key : importObjects.keySet()) {
+                            if (importObjects.get(key).getStatus() == ImportObject.Status.failed)
+                                cntInvalid++;
+                            if (importObjects.get(key).getStatus() == ImportObject.Status.waiting)
+                                /** Some Imports are still queued - execute again */
+                                updateJobStatus(this, Job.Status.prepared);
+                        }
+
+                        if (cntInvalid == importObjects.size())
+                            setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
+                        else if(cntInvalid > 0 && cntInvalid < importObjects.size())
+                            setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
+
+                        updateJobStatus(this, Job.Status.executed);
+                    }
+                });
+    }
+
+    @Override
+    public void finalizeJob() {
+        String getDefaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
+
+        //@TODO: Limit parallel Creations
+        CService.jdbcImporter.finalizeImport(this, getDefaultSchema)
+            .onFailure(f -> {
+                logger.warn("job[{}] finalization failed!", getId(), f);
+
+                if (f.getMessage().equalsIgnoreCase(Import.ERROR_TYPE_ABORTED))
+                    setJobAborted(this);
+                else
+                    setJobFailed(this, null, Job.ERROR_TYPE_EXECUTION_FAILED);
+            })
+            .compose(
+                f -> {
+                    setFinalizedAt(Core.currentTimeMillis() / 1000L);
+                    logger.info("job[{}] finalization finished!", getId());
+                    if (getErrorDescription() != null)
+                        return updateJobStatus(this, Job.Status.failed);
+
+                    return updateJobStatus(this, Job.Status.finalized);
+                });
     }
 }

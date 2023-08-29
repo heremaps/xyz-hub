@@ -59,10 +59,6 @@ public abstract class JobQueue implements Runnable {
 
     protected abstract void prepareJob(Job j);
 
-    protected abstract void executeJob(Job j);
-
-    protected abstract void finalizeJob(Job j0);
-
     protected abstract boolean needRdsCheck(Job j0);
 
     protected Future<Void> isProcessingPossible(Job job){
@@ -192,11 +188,11 @@ public abstract class JobQueue implements Runnable {
         return JOB_QUEUE.size();
     }
 
-    protected static Future<Job> setJobFailed(Job j, String errorDescription, String errorType){
+    public static Future<Job> setJobFailed(Job j, String errorDescription, String errorType){
         return updateJobStatus(j, Job.Status.failed, errorDescription, errorType);
     }
 
-    protected static Future<Job> setJobAborted(Job j){
+    public static Future<Job> setJobAborted(Job j){
         removeJob(j);
         return updateJobStatus(j, Job.Status.aborted);
     }
@@ -205,7 +201,7 @@ public abstract class JobQueue implements Runnable {
         return updateJobStatus(j, j.getStatus(), j.getErrorDescription(), j.getErrorType());
     }
 
-    protected static Future<Job> updateJobStatus(Job j, Job.Status status) {
+    public static Future<Job> updateJobStatus(Job j, Job.Status status) {
         return updateJobStatus(j, status, null, null);
     }
 
