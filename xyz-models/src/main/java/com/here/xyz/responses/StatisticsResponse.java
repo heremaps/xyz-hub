@@ -35,6 +35,7 @@ import java.util.List;
 public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
 
   private Value<Long> count;
+  private Value<Long> contentUpdatedAt;
   @Deprecated
   private Value<Long> byteSize;
   private Value<Long> dataSize;
@@ -71,6 +72,37 @@ public class StatisticsResponse extends XyzResponse<StatisticsResponse> {
   @SuppressWarnings("unused")
   public StatisticsResponse withCount(Value<Long> count) {
     setCount(count);
+    return this;
+  }
+
+  /**
+   * Returns the time when the content in the space was last updated.
+   *
+   * @return the time when the content in the space was last updated.
+   */
+  @SuppressWarnings("unused")
+  public Value<Long> getContentUpdatedAt() {
+    return this.contentUpdatedAt;
+  }
+
+  /**
+   * Sets the time when the content in the space was last updated.
+   *
+   * @param contentUpdatedAt the time when the content in the space was last updated.
+   */
+  @SuppressWarnings({"unused", "WeakerAccess"})
+  public void setContentUpdatedAt(Value<Long> contentUpdatedAt) {
+    this.contentUpdatedAt = contentUpdatedAt;
+  }
+
+  /**
+   * Sets the time when the content in the space was last updated.
+   *
+   * @return this.
+   */
+  @SuppressWarnings("unused")
+  public StatisticsResponse withContentUpdatedAt(Value<Long> contentUpdatedAt) {
+    setContentUpdatedAt(contentUpdatedAt);
     return this;
   }
 
