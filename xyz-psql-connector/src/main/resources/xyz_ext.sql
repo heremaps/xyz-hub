@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 178
+ select 179
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -4079,6 +4079,7 @@ end
 $BODY$;
 ------------------------------------------------
 ------------------------------------------------
+
 CREATE OR REPLACE FUNCTION exp_type_vml_precalc(
 	htile boolean,
 	iqk text,
@@ -4100,30 +4101,10 @@ declare
 	max_tiles integer := 5000;
 	calc_weighted_fc decimal;
 	tbllist regclass[];
+	atbl regclass;
+	rtup bigint;
+	sum_rtup bigint := 0;
 begin
-	if esitmated_count is null or esitmated_count = 0 THEN
-        select c.reltuples::bigint from pg_class c where oid = tbl
-            into esitmated_count;
-    end if;
-
-    if esitmated_count = -1 THEN
-		RAISE NOTICE 'ANALYSE NEEDED % - %',esitmated_count, tbl;
-        execute format('ANALYSE %s',tbl);
-        select c.reltuples::bigint from pg_class c where oid = tbl
-            into esitmated_count;
-    END IF;
-
-    if esitmated_count < start_parallelization_threshold THEN
-        return query select ARRAY[''];
-    elseif sql_qk_tileqry_with_geo is not null and length(sql_qk_tileqry_with_geo) > 0 THEN
-        sql_with_jsondata_geo := sql_qk_tileqry_with_geo;
-    end if;
-
-    calc_weighted_fc := esitmated_count * _weight;
-
-    if calc_weighted_fc > max_features_in_tile then
-            _weight := (max_features_in_tile / esitmated_count) ;
-    end if;
 
     with 
      indata as ( select c.relnamespace::regnamespace::text as s, c.relname::text as t from pg_class c where c.oid = tbl ),
@@ -4134,7 +4115,42 @@ begin
      select array_agg( to_regclass( format('%I.%I',ii.schem, ii.tbl) ) ) from iindata ii
 		 into tbllist;
 
-    return query select ARRAY_AGG(qk) from (
+-- always check if analyse is needed for tables involved
+    for atbl in 
+      select tl from unnest( tbllist ) tl
+	loop
+       select c.reltuples::bigint from pg_class c where oid = tbl
+            into rtup;
+
+       if rtup = -1 then
+		    RAISE NOTICE 'ANALYSE NEEDED % - %',rtup, atbl;
+         execute format('ANALYSE %s',atbl);
+         select c.reltuples::bigint from pg_class c where oid = atbl
+            into rtup;
+       end if;
+ 
+       sum_rtup = sum_rtup + rtup;
+
+	end loop;
+
+    if esitmated_count is null or esitmated_count = 0 THEN
+		 esitmated_count = sum_rtup;
+    end if;
+		
+    if esitmated_count < start_parallelization_threshold THEN
+        return query select ARRAY[''];
+        return; -- exit function
+    elseif sql_qk_tileqry_with_geo is not null and length(sql_qk_tileqry_with_geo) > 0 THEN
+        sql_with_jsondata_geo := sql_qk_tileqry_with_geo;
+    end if;
+
+    calc_weighted_fc := esitmated_count * _weight;
+
+    if calc_weighted_fc > max_features_in_tile then
+            _weight := (max_features_in_tile / esitmated_count) ;
+    end if;
+
+    return query select coalesce( ARRAY_AGG(qk), ARRAY[''] )  from (
         select qk from exp_qk_weight(htile, iqk, mlevel, _weight, tbllist, sql_with_jsondata_geo
     ) order by weight DESC) a;
 end
