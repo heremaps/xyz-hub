@@ -874,12 +874,15 @@ public class FeatureTaskHandler {
                 task.extendedSpaces = new ArrayList<>();
               task.extendedSpaces.add(extendedSpace);
 
-              if (task.extendedSpaces.size() > 2) {
-                logger.error(task.getMarker(), "Possible cyclical ref on " + spaceExtension.getSpaceId() + ". List of extended spaces: " + task.extendedSpaces.toString() + ". task space: " + task.space.getId());
-                return Future.succeededFuture(extendedSpace);
+              try {
+                if (extendedSpace.getExtension() != null)
+                  logger.error(task.getMarker(), "Possible cyclical ref on " + spaceExtension.getSpaceId() + ". List of extended spaces: " + task.extendedSpaces.toString() + ". task space: " + task.space.getId());
+              } catch (Exception e) {
+                logger.error(task.getMarker(), "Error during logging", e);
               }
 
-              return resolveExtendedSpace(task, extendedSpace.getExtension()); //Go to next extension level
+              return Future.succeededFuture(extendedSpace);
+//              return resolveExtendedSpace(task, extendedSpace.getExtension()); //Go to next extension level
             },
             t -> Future.failedFuture(t)
         );
