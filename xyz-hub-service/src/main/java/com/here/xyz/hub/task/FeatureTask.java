@@ -63,6 +63,7 @@ import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.ext.web.RoutingContext;
 import java.nio.charset.Charset;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,7 +82,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   /**
    * The spaces being extended by {@link #space} (if existing).
    */
-  public List<Space> extendedSpaces;
+  public Collection<Space> extendedSpaces;
 
   /**
    * The storage connector to be used for this operation.
@@ -151,7 +152,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
 
       if (!readOnlyAccess) {
         hasher.putLong(space.contentUpdatedAt);
-        if (space.getExtension() != null)
+        if (space.getExtension() != null && extendedSpaces != null)
           extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
       }
 

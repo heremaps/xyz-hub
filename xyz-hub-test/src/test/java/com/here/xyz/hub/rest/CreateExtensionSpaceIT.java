@@ -237,6 +237,15 @@ public class CreateExtensionSpaceIT extends TestSpaceWithFeature {
         .statusCode(BAD_REQUEST.code());
   }
 
-  //TODO create test self extending during creation
-  //TODO create test for create cyclic a->b->a
+  @Test // should fail
+  public void createSpaceSelfExtending() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"id\": \"x-psql-extends\", \"title\": \"x-psql-extends\", \"extends\":{\"spaceId\":\"x-psql-extends\"}}")
+        .when()
+        .post("/spaces")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
 }
