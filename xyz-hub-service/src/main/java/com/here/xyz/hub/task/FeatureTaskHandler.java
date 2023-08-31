@@ -876,8 +876,8 @@ public class FeatureTaskHandler {
               if (extendedSpace == null)
                 return Future.succeededFuture();
 
-              if (task.extendedSpaces != null && ((Collection<Space>) task.extendedSpaces).stream().map(Space::getId).toList().contains(extendedSpace.getId())) {
-                logger.error(task.getMarker(), "Possible cyclical ref on " + spaceExtension.getSpaceId() + ". List of extended spaces: " + task.extendedSpaces + ". task space: " + task.space.getId());
+              if (task.extendedSpaces != null && ((Collection<Space>) task.extendedSpaces).stream().anyMatch(s->s.getId().equals(extendedSpace.getId()))) {
+                logger.error(task.getMarker(), "Cyclical ref on " + spaceExtension.getSpaceId() + ". List of extended spaces: " + task.extendedSpaces + ". task space: " + task.space.getId());
                 return Future.failedFuture(new HttpException(BAD_REQUEST, "Cyclical reference when resolving extensions"));
               }
 
