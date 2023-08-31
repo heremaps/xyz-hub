@@ -467,6 +467,11 @@ public class SpaceTaskHandler {
       return;
     }
 
+    if (space.getId().equals(space.getExtension().getSpaceId())) {
+      callback.exception(new HttpException(BAD_REQUEST, "The space " + space.getId() + " cannot extend itself."));
+      return;
+    }
+
     //Load the space being extended
     Space.resolveSpace(task.getMarker(), space.getExtension().getSpaceId())
       .onFailure(t -> onExtensionResolveError(task, t, callback))
@@ -495,8 +500,11 @@ public class SpaceTaskHandler {
         task.resolvedExtensions = space.resolveCompositeParams(extendedSpace);
 
         //Check for extensions with more than 2 levels
-        //((Map<String,Map<String, Object>>) extendedSpace.getStorage().getParams().get("extends")).containsKey("extends")
         if (extendedSpace.getExtension() != null) {
+          if (space.getId().equals(extendedSpace.getExtension().getSpaceId())) {
+            callback.exception(new HttpException(BAD_REQUEST, "Cyclical reference on the extension " + extendedSpace.getId() + " for the space " + space.getId()));
+          }
+
           Space.resolveSpace(task.getMarker(), extendedSpace.getExtension().getSpaceId())
               .onFailure(t -> onExtensionResolveError(task, t, callback))
               .onSuccess(secondLvlExtendedSpace -> {

@@ -114,6 +114,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -123,6 +124,7 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
@@ -785,12 +787,12 @@ public class FeatureTaskHandler {
   static <X extends FeatureTask> void resolveSpace(final X task, final Callback<X> callback) {
     try {
       resolveSpace(task)
-          .compose(space -> CompositeFuture.all(
+          .compose(space -> Future.all(
               resolveStorageConnector(task),
               resolveListenersAndProcessors(task),
               resolveExtendedSpaces(task, space)
           ))
-          .onFailure(t -> callback.exception(t))
+          .onFailure(callback::exception)
           .onSuccess(connector -> callback.call(task));
     }
     catch (Exception e) {
@@ -858,20 +860,27 @@ public class FeatureTaskHandler {
   private static <X extends FeatureTask> Future<Space> resolveExtendedSpaces(X task, Space extendingSpace) {
     if (extendingSpace == null)
       return Future.succeededFuture();
+
+    if (task.extendedSpaces == null)
+      task.extendedSpaces = new ConcurrentLinkedQueue<Space>();
+
     return resolveExtendedSpace(task, extendingSpace.getExtension());
   }
 
-  private static <X extends FeatureTask> Future<Space> resolveExtendedSpace(X task, Extension spaceExtension) {
+  private static Future<Space> resolveExtendedSpace(FeatureTask task, Extension spaceExtension) {
     if (spaceExtension == null)
       return Future.succeededFuture();
     return Space.resolveSpace(task.getMarker(), spaceExtension.getSpaceId())
         .compose(
             extendedSpace -> {
-              if(extendedSpace == null)
+              if (extendedSpace == null)
                 return Future.succeededFuture();
 
-              if (task.extendedSpaces == null)
-                task.extendedSpaces = new ArrayList();
+              if (task.extendedSpaces != null && ((Collection<Space>) task.extendedSpaces).stream().anyMatch(s->s.getId().equals(extendedSpace.getId()))) {
+                logger.error(task.getMarker(), "Cyclical ref on " + spaceExtension.getSpaceId() + ". List of extended spaces: " + task.extendedSpaces + ". task space: " + task.space.getId());
+                return Future.failedFuture(new HttpException(BAD_REQUEST, "Cyclical reference when resolving extensions"));
+              }
+
               task.extendedSpaces.add(extendedSpace);
               return resolveExtendedSpace(task, extendedSpace.getExtension()); //Go to next extension level
             },
@@ -1508,6 +1517,7 @@ public class FeatureTaskHandler {
         //Ensure the StatisticsResponse is correctly set-up
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
         defineGlobalSearchableField(response, task);
+        defineContentUpdatedAtField(response, task);
       }
     } else if (task instanceof FeatureTask.IdsQuery) {
       //Ensure to return a FeatureCollection when there are multiple features in the response (could happen e.g. for a virtual-space)
@@ -1531,6 +1541,13 @@ public class FeatureTaskHandler {
         response.getProperties().getValue().forEach(c -> c.setSearchable(searchable == Searchable.ALL));
       }
     }
+  }
+
+  private static void defineContentUpdatedAtField(StatisticsResponse response, FeatureTask task) {
+    StatisticsResponse.Value<Long> contentUpdatedAtVal = new StatisticsResponse.Value(task.space.contentUpdatedAt);
+    // Due to caching the value of contentUpdatedAt field could be obsolete in some edge cases
+    contentUpdatedAtVal.setEstimated(true);
+    response.setContentUpdatedAt(contentUpdatedAtVal);
   }
 
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {

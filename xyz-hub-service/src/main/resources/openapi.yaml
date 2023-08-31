@@ -3569,6 +3569,14 @@ components:
               type: integer
             estimated:
               $ref: '#/components/schemas/Estimated'
+        contentUpdatedAt:
+          type: object
+          description: The time when the content in the space was last updated.
+          properties:
+            value:
+              type: integer
+            estimated:
+              $ref: '#/components/schemas/Estimated'
         dataSize:
           type: object
           description: The amount of bytes that are allocated in the storage for this space.
@@ -3635,6 +3643,9 @@ components:
         type: StatisticsResponse
         count:
           value: 29208
+          estimated: true
+        contentUpdatedAt:
+          value: 1692368695049
           estimated: true
         dataSize:
           value: 108364
