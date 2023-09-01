@@ -19,9 +19,12 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.events.PropertyQuery.QueryOperation.NOT_EQUALS;
+
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.psql.PSQLXyzConnector;
@@ -34,7 +37,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 /*
@@ -178,34 +180,31 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
         int valuesCount = propertyQuery.getValues().size();
         for (int i = 0; i < valuesCount; i++) {
           Object v = propertyQuery.getValues().get(i);
-
-          final String psqlOperation;
-          PropertyQuery.QueryOperation op = propertyQuery.getOperation();
-
-          String  key = propertyQuery.getKey(),
+          QueryOperation op = propertyQuery.getOperation();
+          String key = propertyQuery.getKey(),
               paramName = getParamNameForValue(countingMap, key),
               value = getValue(v, op, key, paramName);
-          SQLQuery q = createKey(key);
-          namedParams.putAll(q.getNamedParameters());
+          SQLQuery keyPath = createKey(key);
+          SQLQuery predicateQuery;
+          namedParams.putAll(keyPath.getNamedParameters());
 
-          if(v == null){
+          if (v == null) {
             //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
             //>> [not] (jsondata->?->? is not null and jsondata->?->? != 'null'::jsonb )
-            SQLQuery q1 = new SQLQuery( op.equals(PropertyQuery.QueryOperation.NOT_EQUALS) ? "((" : "not ((" );
-            q1.append(q);
-            q1.append("is not null");
-
-            if(! ("id".equals(key) || "geometry.type".equals(key)) )
-            { q1.append("and"); q1.append(q); q1.append("!= 'null'::jsonb" ); }
-
-            q1.append("))");
-            q = q1;
-          }else{
-            psqlOperation = SQLQuery.getOperation(op);
-            q.append(new SQLQuery(psqlOperation + (value == null ? "" : value)));
+            predicateQuery = new SQLQuery("${{not}} ((${{keyPath}} IS NOT NULL ${{notJsonbComparison}}))")
+                .withQueryFragment("not", op == NOT_EQUALS ? "" : "not")
+                .withQueryFragment("keyPath", keyPath)
+                .withQueryFragment("notJsonbComparison",
+                    "id".equals(key) || "geometry.type".equals(key) ? "" : "AND ${{keyPath}} != 'null'::jsonb");
+          }
+          else {
+            predicateQuery = new SQLQuery("${{keyPath}} ${{operation}} ${{value}}")
+                .withQueryFragment("keyPath", keyPath)
+                .withQueryFragment("operation", SQLQuery.getOperation(op))
+                .withQueryFragment("value", value == null ? "" : value);
             namedParams.put(paramName, v);
           }
-          keyDisjunctionQueries.add(q);
+          keyDisjunctionQueries.add(predicateQuery);
         }
         conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, " OR ", true));
       });

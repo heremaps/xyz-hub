@@ -89,7 +89,7 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
   private static String estWithoutPgClass = estWithoutPgClass_A;
   private static String estimateCountByBboxesSql_A = //flavour1: calc _postgis_selectivity with partitions and sum up
      " with indata as "
-    +" ( select '${schema}' as schema, '${table_head}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
+    +" ( select '${schema}' as schema, '${headTable}' as space, array[ %1$s ] as tiles, 'geo' as colname ), "
     +" iindata as ( %2$s ),"
     +" iiidata as "
     +" ( select ii.tid, string_agg(  ii.reltuples::bigint || '~' || ii.tblname,',' ) as rtup, sum( case when ii.bstats then ii.reltuples * xyz_postgis_selectivity(format('%%s.%%I', ii.schema, ii.tblname)::regclass, ii.colname, ii.tile) else 0.0 end ) estim "
@@ -151,7 +151,7 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
     public int rCount;
   }
 
-  public static SQLQuery buildEstimateSamplingStrengthQuery(GetFeaturesByBBoxEvent event, BBox bbox, String relTuples)
+  public SQLQuery buildEstimateSamplingStrengthQuery(GetFeaturesByBBoxEvent event, BBox bbox, String relTuples)
   {
     int level, tileX, tileY, margin = 0;
 
@@ -183,8 +183,10 @@ public class GetSamplingStrengthEstimation<E extends GetFeaturesByBBoxEvent> ext
     for (BBox b : listOfBBoxes)
       sb.append(DhString.format("%s%s",( flag++ > 0 ? "," : ""),DhString.format( requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() )));
 
-    String estimateSubSql = ( relTuples == null ? estWithPgClass : DhString.format( estWithoutPgClass, relTuples ) );
+    String estimateSubSql = relTuples == null ? estWithPgClass : DhString.format(estWithoutPgClass, relTuples);
 
-    return new SQLQuery( DhString.format( estimateCountByBboxesSql, sb.toString(), estimateSubSql ) );
+    return new SQLQuery(DhString.format(estimateCountByBboxesSql, sb.toString(), estimateSubSql))
+        .withVariable(SCHEMA, getSchema())
+        .withVariable("headTable", getDefaultTable((E) event));
   }
 }

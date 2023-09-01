@@ -102,9 +102,11 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
   private SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
     final SQLQuery query = new SQLQuery(
         "SELECT ${{selection}}, ${{geo}}"
-            + "    FROM ${schema}.${table_head} ${{tableSample}}"
+            + "    FROM ${schema}.${headTable} ${{tableSample}}"
             + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
-    );
+    )
+        .withVariable(SCHEMA, getSchema())
+        .withVariable("headTable", getDefaultTable((E) event) + HEAD_TABLE_SUFFIX);
 
     query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildClippedGeoFragment((E) event, buildGeoFilter(event)));
@@ -351,7 +353,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
    return tolerance;
   }
 
-  public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, Map tweakParams) throws SQLException
+  public SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, Map tweakParams) throws SQLException
   {
     BBox bbox = event.getBbox();
    int strength = 0,
@@ -444,7 +446,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
      return query;
 }
 
-private static SQLQuery buildSimplificationTweaksMergeQuery(GetFeaturesByBBoxEvent event, int iMerge, String tweaksGeoSql, int minGeoHashLenToMerge, int minGeoHashLenForLineMerge, String bboxQuery, boolean convertGeo2Geojson) {
+private SQLQuery buildSimplificationTweaksMergeQuery(GetFeaturesByBBoxEvent event, int iMerge, String tweaksGeoSql, int minGeoHashLenToMerge, int minGeoHashLenForLineMerge, String bboxQuery, boolean convertGeo2Geojson) {
     SQLQuery query;
     if (iMerge == 1) {
       query = new SQLQuery("select jsondata, geo "
@@ -539,7 +541,7 @@ private static SQLQuery buildSimplificationTweaksMergeQuery(GetFeaturesByBBoxEve
 
     }
     return query
-        .withVariable(SCHEMA, getSchemaBWC())
+        .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, readTableFromEvent(event))
         .withQueryFragment("tweaksGeo", tweaksGeoSql)
         .withQueryFragment("bboxQuery", bboxQuery)
@@ -549,12 +551,12 @@ private static SQLQuery buildSimplificationTweaksMergeQuery(GetFeaturesByBBoxEve
 
   /** ###################################################################################### */
 
-  private static SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean testTweaksGeoIfNull, float sampleRatio, boolean sortByHashedValue)
+  private SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean testTweaksGeoIfNull, float sampleRatio, boolean sortByHashedValue)
   {
     SQLQuery searchQuery = generateSearchQuery(event);
 
     final SQLQuery query = new SQLQuery("SELECT * FROM (SELECT ${{selection}}${{geo}} FROM ${schema}.${table} ${{sampling}} WHERE ${{indexedQuery}} ${{searchQuery}} ${{orderBy}}) tw ${{outerWhereClause}} LIMIT #{limit}")
-        .withVariable(SCHEMA, getSchemaBWC())
+        .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, readTableFromEvent(event) + HEAD_TABLE_SUFFIX)
         .withQueryFragment("selection", buildSelectionFragment(event))
         .withQueryFragment("geo", DhString.format(",%s as geo", tweaksgeo))

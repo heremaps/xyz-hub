@@ -349,7 +349,7 @@ public class JDBCImporter extends JDBCClients{
                 break;
         }
 
-        if(q != null){
+        if (q != null) {
             q.setVariable("schema", schema);
             q.setVariable("table", tablename);
             q.substitute();
