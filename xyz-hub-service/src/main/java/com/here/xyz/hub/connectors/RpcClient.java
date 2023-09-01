@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.connectors;
 
+import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
@@ -550,7 +551,7 @@ public class RpcClient {
    */
   private HttpException getJsonMappingErrorMessage(final String stringResponse) {
     try {
-      final JsonNode node = XyzSerializable.DEFAULT_MAPPER.get().readTree(stringResponse);
+      final JsonNode node = DEFAULT_MAPPER.get().readTree(stringResponse);
       if (node.has("errorMessage")) {
         final String errorMessage = node.get("errorMessage").asText();
         if (errorMessage.contains("Task timed out after ")) {

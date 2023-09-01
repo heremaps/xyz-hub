@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
-
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
@@ -42,7 +41,7 @@ import org.apache.logging.log4j.Logger;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class Import extends Job {
+public class Import extends Job<Import> {
     private static final Logger logger = LogManager.getLogger();
     public static String ERROR_TYPE_NO_DB_CONNECTION = "no_db_connection";
 
@@ -68,7 +67,7 @@ public class Import extends Job {
     @JsonView({Internal.class})
     private List<String> idxList;
 
-    public Import(){ }
+    public Import() {}
 
     public Import(String description, String targetSpaceId, String targetTable,CSVFormat csvFormat, Strategy strategy) {
         this.description = description;
@@ -100,98 +99,8 @@ public class Import extends Job {
         this.idxList = idxList;
     }
 
-    public Import withId(final String id) {
-        setId(id);
-        return this;
-    }
-
     public Import withImportObjects(Map<String, ImportObject> importObjects) {
         setImportObjects(importObjects);
-        return this;
-    }
-
-    public Import withErrorDescription(final String errorDescription) {
-        setErrorDescription(errorDescription);
-        return this;
-    }
-
-    public Import withDescription(final String description) {
-        setDescription(description);
-        return this;
-    }
-
-    public Import withTargetSpaceId(final String targetSpaceId) {
-        setTargetSpaceId(targetSpaceId);
-        return this;
-    }
-
-    public Import withTargetTable(final String targetTable) {
-        setTargetTable(targetTable);
-        return this;
-    }
-
-    public Import withStatus(final Job.Status status) {
-        setStatus(status);
-        return this;
-    }
-
-    public Import withCsvFormat(CSVFormat csv_format) {
-        setCsvFormat(csv_format);
-        return this;
-    }
-
-    public Import withCsvFormat(Strategy importStrategy) {
-        setStrategy(importStrategy);
-        return this;
-    }
-
-    public Import withCreatedAt(final long createdAt) {
-        setCreatedAt(createdAt);
-        return this;
-    }
-
-    public Import withUpdatedAt(final long updatedAt) {
-        setUpdatedAt(updatedAt);
-        return this;
-    }
-
-    public Import withExecutedAt(final Long startedAt) {
-        setExecutedAt(startedAt);
-        return this;
-    }
-
-    public Import withFinalizedAt(final Long finalizedAt) {
-        setFinalizedAt(finalizedAt);
-        return this;
-    }
-
-    public Import withExp(final Long exp) {
-        setExp(exp);
-        return this;
-    }
-
-    public Import withTargetConnector(String targetConnector) {
-        setTargetConnector(targetConnector);
-        return this;
-    }
-
-    public Import withErrorType(String errorType) {
-        setErrorType(errorType);
-        return this;
-    }
-
-    public Import withSpaceVersion(final long spaceVersion) {
-        setSpaceVersion(spaceVersion);
-        return this;
-    }
-
-    public Import withAuthor(String author) {
-        setAuthor(author);
-        return this;
-    }
-
-    public Import withParams(Map params) {
-        setParams(params);
         return this;
     }
 

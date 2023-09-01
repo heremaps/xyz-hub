@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.AUTHOR;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
@@ -124,7 +125,7 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
       } catch (Exception e) {
         try {
           throw new HttpException(HttpResponseStatus.BAD_REQUEST,
-              "Unable to create a Feature from the provided input: " + XyzSerializable.DEFAULT_MAPPER.get().writeValueAsString(map));
+              "Unable to create a Feature from the provided input: " + DEFAULT_MAPPER.get().writeValueAsString(map));
         } catch (JsonProcessingException jsonProcessingException) {
           throw new HttpException(HttpResponseStatus.BAD_REQUEST,
               "Unable to create a Feature from the provided input. id: " + map.get("id") + ",type: " + map.get("type"));
