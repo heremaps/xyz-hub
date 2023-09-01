@@ -73,8 +73,9 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
     Promise<Space> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT config FROM " + SPACE_TABLE + " WHERE id = ?", spaceId);
-    client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+    SQLQuery query = new SQLQuery("SELECT config FROM " + SPACE_TABLE + " WHERE id = #{spaceId}")
+        .withNamedParameter("spaceId", spaceId);
+    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
         if (config.isPresent()) {
@@ -103,8 +104,12 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
       if (itemData.get("versionsToKeep") != null && itemData.get("versionsToKeep") instanceof Integer && ((int) itemData.get("versionsToKeep")) == 0)
         itemData.remove("versionsToKeep");
       query = new SQLQuery(
-          "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config, region) VALUES (?, ?, ?, cast(? as JSONB), ?) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config, region = excluded.region",
-          space.getId(), space.getOwner(), space.getCid(), XyzSerializable.STATIC_MAPPER.get().writeValueAsString(itemData), space.getRegion());
+          "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config, region) VALUES (#{spaceId}, #{owner}, #{cid}, cast(#{spaceJson} as JSONB), #{region}) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config, region = excluded.region")
+          .withNamedParameter("spaceId", space.getId())
+          .withNamedParameter("owner", space.getOwner())
+          .withNamedParameter("cid", space.getCid())
+          .withNamedParameter("spaceJson", XyzSerializable.STATIC_MAPPER.get().writeValueAsString(itemData))
+          .withNamedParameter("region", space.getRegion());
       return JDBCConfig.updateWithParams(query).mapEmpty();
     }
     catch (JsonProcessingException e) {
@@ -114,7 +119,8 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected Future<Space> deleteSpace(Marker marker, String spaceId) {
-    SQLQuery query = new SQLQuery("DELETE FROM " + SPACE_TABLE + " WHERE id = ?", spaceId);
+    SQLQuery query = new SQLQuery("DELETE FROM " + SPACE_TABLE + " WHERE id = #{spaceId}")
+        .withNamedParameter("spaceId", spaceId);
     return get(marker, spaceId).compose(space -> JDBCConfig.updateWithParams(query).map(space));
   }
 

@@ -26,6 +26,8 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMP
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMPOSITE;
 import static com.here.xyz.psql.DatabaseWriter.XyzSqlErrors.XYZ_CONFLICT;
+import static com.here.xyz.psql.QueryRunner.SCHEMA;
+import static com.here.xyz.psql.QueryRunner.TABLE;
 import static com.here.xyz.psql.query.GetFeatures.MAX_BIGINT;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -54,8 +56,8 @@ public class DatabaseWriter {
     private static SQLQuery buildMultiModalInsertStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
         return new SQLQuery("SELECT xyz_write_versioned_modification_operation(#{id}, #{version}, #{operation}, #{jsondata}, #{geo}, "
             + "#{schema}, #{table}, #{concurrencyCheck}, #{partitionSize}, #{versionsToKeep}, #{pw}, #{baseVersion})")
-            .withNamedParameter("schema", dbHandler.config.getDatabaseSettings().getSchema())
-            .withNamedParameter("table", XyzEventBasedQueryRunner.readTableFromEvent(event))
+            .withNamedParameter(SCHEMA, dbHandler.config.getDatabaseSettings().getSchema())
+            .withNamedParameter(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event))
             .withNamedParameter("concurrencyCheck", event.isConflictDetectionEnabled())
             .withNamedParameter("partitionSize", PARTITION_SIZE)
             .withNamedParameter("versionsToKeep", event.getVersionsToKeep())
@@ -92,8 +94,8 @@ public class DatabaseWriter {
 
     private static SQLQuery setTableVariables(SQLQuery writeQuery, DatabaseHandler dbHandler, ModifyFeaturesEvent event) {
       return writeQuery
-          .withVariable("schema", dbHandler.config.getDatabaseSettings().getSchema())
-          .withVariable("table", XyzEventBasedQueryRunner.readTableFromEvent(event));
+          .withVariable(SCHEMA, dbHandler.config.getDatabaseSettings().getSchema())
+          .withVariable(TABLE, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }
 
     private static SQLQuery buildDeleteStmtQuery(DatabaseHandler dbHandler, ModifyFeaturesEvent event) {

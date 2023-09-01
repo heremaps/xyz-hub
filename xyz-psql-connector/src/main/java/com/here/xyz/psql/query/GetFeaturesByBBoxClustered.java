@@ -287,7 +287,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         if( (absResolution - tile.level) >= 0 )  // case of valid absResolution convert it to a relative resolution and add both resolutions
          relResolution = Math.min( relResolution + (absResolution - tile.level), 5);
 
-        return generateQuadbinClusteringSQL(event, dbHandler.getConfig().getDatabaseSettings().getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event), relResolution, countMode, tile, bbox, isTileRequest, clippedOnBbox, noBuffer, getResponseType(event) == GEO_JSON);
+        return generateQuadbinClusteringSQL(event, relResolution, countMode, tile, bbox, isTileRequest, clippedOnBbox, noBuffer, getResponseType(event) == GEO_JSON);
     }
 
     //------------------------- Quadbin related -------------------------
@@ -324,8 +324,8 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
   /**
    * Creates the SQLQuery for Quadbin requests.
    */
-  private SQLQuery generateQuadbinClusteringSQL(GetFeaturesByBBoxEvent event, String schema, String space, int resolution, String quadMode,
-      WebMercatorTile tile, BBox bbox, boolean isTileRequest, boolean clippedOnBbox, boolean noBuffer, boolean convertGeo2Geojson) {
+  private SQLQuery generateQuadbinClusteringSQL(GetFeaturesByBBoxEvent event, int resolution, String quadMode, WebMercatorTile tile,
+      BBox bbox, boolean isTileRequest, boolean clippedOnBbox, boolean noBuffer, boolean convertGeo2Geojson) {
     int effectiveLevel = tile.level + resolution;
 
     double bufferSizeInDeg = tile.getBBox(false).widthInDegree(true) / (Math.pow(2, resolution) *  1024.0);
@@ -359,7 +359,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         if (event.getPropertiesQuery() != null) {
           pureEstimation =
               "  SELECT xyz_count_estimation(concat(" +
-                  "      'select 1 from ${schema}.${table_head}"+
+                  "      'select 1 from ${schema}.${headTable}"+
                   "       WHERE ST_Intersects(geo, xyz_qk_qk2bbox(''',qk,''')) "+
                   " AND "+
                   substituteCompletely(generatePropertiesQuery(event)).replaceAll("'","''")+
@@ -381,7 +381,7 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
             "   from pg_class c1 "+
             "   left join pg_inherits pm on (c1.oid = pm.inhparent) "+
             "   left join pg_class c2 on (c2.oid = pm.inhrelid) "+
-            "   where c1.oid = ('${schema}.${table_head}')::regclass "+
+            "   where c1.oid = ('${schema}.${headTable}')::regclass "+
             "), "+
             "tbl_stats as ( select sum(tbl_est_cnt) as est_cnt from tblinfo ), "+
             "quadkeys  as ( "+ coveringQksSql + " ), "+
@@ -410,18 +410,20 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
             "        ("+
             "        CASE"+
             "         WHEN bool_condition THEN "+
-            "          CASE WHEN EXISTS (select 1 from ${schema}.${table_head} where ST_Intersects(geo, qkbbox) AND ${{propertiesQuery}})"+
+            "          CASE WHEN EXISTS (select 1 from ${schema}.${headTable} where ST_Intersects(geo, qkbbox) AND ${{propertiesQuery}})"+
             "           THEN 1::bigint "+
             "           ELSE 0::bigint "+
             "          END"+
             "         WHEN real_condition THEN "+
-            "           (select count(1) from ${schema}.${table_head} where ST_Intersects(geo, qkbbox) AND ${{propertiesQuery}})"+
+            "           (select count(1) from ${schema}.${headTable} where ST_Intersects(geo, qkbbox) AND ${{propertiesQuery}})"+
             "         ELSE "+
             "           cond_est_cnt "+
             "        END )::bigint as cnt_bbox_est"+
             "    FROM qk_stats "+
             "    ) c"+
             ") x WHERE qkgeo IS NOT null ")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable("headTable", getDefaultTable((E) event) + HEAD_TABLE_SUFFIX)
         .withQueryFragment("propertiesQuery", event.getPropertiesQuery() != null ? generatePropertiesQuery(event) : new SQLQuery("TRUE"));
   }
 

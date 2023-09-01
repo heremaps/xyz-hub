@@ -89,12 +89,6 @@ public abstract class QueryRunner<E extends Object, R extends Object> implements
 
   //TODO: Remove temporary BWC method once refactoring is complete
   @Deprecated
-  protected static String getSchemaBWC() {
-    return PSQLXyzConnector.getInstance().getConfig().getDatabaseSettings().getSchema();
-  }
-
-  //TODO: Remove temporary BWC method once refactoring is complete
-  @Deprecated
   public void setDbHandler(PSQLXyzConnector dbHandler) {
     this.dbHandler = dbHandler;
   }

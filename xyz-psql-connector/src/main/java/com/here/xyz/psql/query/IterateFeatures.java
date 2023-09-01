@@ -186,7 +186,9 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
         + ") "
         + "SELECT jsondata, geo, ${{nextHandleJson}} AS nxthandle "
         + "    FROM dt s JOIN ${schema}.${table} d ON ( s.i = d.i ) "
-        + "    ORDER BY s.ord1, s.ord2");
+        + "    ORDER BY s.ord1, s.ord2")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event));
 
     innerQry.setQueryFragment("partialQuery", partialQuery);
     innerQry.setQueryFragment("orderings", event.getHandle() == null ? "" : "ORDER BY ord1, ord2 limit #{limit}");
@@ -202,7 +204,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
         + "    ${{innerQuery}}"
         + ") o");
     query.setQueryFragment("pgHintPlan", pg_hint_plan);
-    query.setQueryFragment("selection", SQLQuery.selectJson(event));
+    query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildGeoFragment(event));
     query.setQueryFragment("innerQuery", innerQry);
 
@@ -236,6 +238,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
           .withQueryFragment("continuation", continuationWhereClauses.get(i)));
 
     SQLQuery partialQuery = SQLQuery.join(unionQueries, " UNION ALL ")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event))
         .withQueryFragment("orderBy", orderByClause)
         .withNamedParameter("limit", limit)
         .withQueryFragment("filterWhereClause", filterWhereClause);
@@ -250,10 +254,6 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
         + "        WHERE ${{filterWhereClause}} ${{continuation}} ${{orderBy}} LIMIT #{limit}"
         + "    ) inr"
         + ")";
-  }
-
-  private static SQLQuery buildGetIterateHandlesQuery(int nrHandles) {
-    return new SQLQuery(DhString.format(bucketOfIdsSql, nrHandles));
   }
 
   protected static boolean isDescending(String sortproperty) { return sortproperty.toLowerCase().endsWith(":desc"); }
@@ -406,20 +406,6 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
    return ret;
 
   }
-
-  private static String bucketOfIdsSql =
-      "with  "
-    + "idata as "
-    + "(  select min(id) as id from ${schema}.${table} "
-    + "  union  "
-    + "   select id from ${schema}.${table} "
-    + "    tablesample system( (select least((100000/greatest(reltuples,1)),100) from pg_catalog.pg_class where oid = format('%%s.%%s','${schema}', '${table}' )::regclass) ) " //-- repeatable ( 0.7 )
-    + "), "
-    + "iidata   as ( select id, ntile( %1$d ) over ( order by id ) as bucket from idata ), "
-    + "iiidata  as ( select min(id) as id, bucket from iidata group by bucket ), "
-    + "iiiidata as ( select bucket, id as i_from, lead( id, 1) over ( order by id ) as i_to from iiidata ) "
-    + "select  jsonb_set('{\"type\":\"Feature\",\"properties\":{}}','{properties,handles}', jsonb_agg(jsonb_build_array(bucket, i_from, i_to ))),'{\"type\":\"Point\",\"coordinates\":[]}', null from iiiidata ";
-
 
   private static String addEventValuesToHandle(IterateFeaturesEvent event, String dbhandle)  throws JsonProcessingException
   {

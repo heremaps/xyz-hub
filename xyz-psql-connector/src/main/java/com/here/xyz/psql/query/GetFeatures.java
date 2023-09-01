@@ -248,17 +248,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return "*".equals(selectiveEvent.getRef()) ? "ORDER BY version" : "";
   }
 
-  /**
-   * @deprecated Please use {@link GetFeatures#buildSelectionFragment(ContextAwareEvent)} instead.
-   */
-  //TODO: Can be removed after completion of refactoring
-  @Deprecated
-  public static SQLQuery buildSelectionFragmentBWC(SelectiveEvent event) {
-    SQLQuery selectionFragment = buildSelectionFragment(event);
-    selectionFragment.replaceNamedParameters();
-    return selectionFragment;
-  }
-
   protected SQLQuery buildGeoFragment(E event) {
     return buildGeoFragment(event, true, null);
   }
