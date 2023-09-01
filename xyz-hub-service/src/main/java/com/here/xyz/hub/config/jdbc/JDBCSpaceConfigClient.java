@@ -19,11 +19,11 @@
 
 package com.here.xyz.hub.config.jdbc;
 
+import static com.here.xyz.XyzSerializable.Mappers.STATIC_MAPPER;
 import static com.here.xyz.hub.config.jdbc.JDBCConfig.SPACE_TABLE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
@@ -38,7 +38,6 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.sql.SQLClient;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -100,7 +99,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     SQLQuery query = null;
     try {
       //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
-      final Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
+      final Map<String, Object> itemData = STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
       if (itemData.get("versionsToKeep") != null && itemData.get("versionsToKeep") instanceof Integer && ((int) itemData.get("versionsToKeep")) == 0)
         itemData.remove("versionsToKeep");
       query = new SQLQuery(
@@ -108,7 +107,7 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
           .withNamedParameter("spaceId", space.getId())
           .withNamedParameter("owner", space.getOwner())
           .withNamedParameter("cid", space.getCid())
-          .withNamedParameter("spaceJson", XyzSerializable.STATIC_MAPPER.get().writeValueAsString(itemData))
+          .withNamedParameter("spaceJson", STATIC_MAPPER.get().writeValueAsString(itemData))
           .withNamedParameter("region", space.getRegion());
       return JDBCConfig.updateWithParams(query).mapEmpty();
     }

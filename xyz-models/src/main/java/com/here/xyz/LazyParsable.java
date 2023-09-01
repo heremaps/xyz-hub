@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 
 package com.here.xyz;
 
+
+import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonCreator.Mode;
@@ -59,7 +61,7 @@ public class LazyParsable<T> {
   public T get() throws JsonProcessingException {
     if (valueString != null) {
       //TODO: Make generic
-      value = (T) XyzSerializable.DEFAULT_MAPPER.get().readValue(valueString, FEATURE_LIST);
+      value = (T) DEFAULT_MAPPER.get().readValue(valueString, FEATURE_LIST);
       valueString = null;
     }
     return value;
