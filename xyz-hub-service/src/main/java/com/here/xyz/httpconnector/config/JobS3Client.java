@@ -31,10 +31,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
-import com.here.xyz.httpconnector.util.jobs.validate.ImportValidator;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.ExportObject;
+import com.here.xyz.httpconnector.util.jobs.validate.Validator;
 import com.here.xyz.util.Hasher;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -161,7 +161,7 @@ public class JobS3Client extends AwsS3Client{
                 line += c;
 
                 if(c == '\n' || c == '\r'){
-                    ImportValidator.validateCSVLine(line, csvFormat);
+                    Validator.validateCSVLine(line, csvFormat);
                     return;
                 }
             }
@@ -170,7 +170,7 @@ public class JobS3Client extends AwsS3Client{
             /** Did not find a lineBreak - maybe CSV with 1LOC */
             if(e.getErrorCode().equalsIgnoreCase("InvalidRange")){
                 logger.info("Invalid Range found for s3Key {}", key_name);
-                ImportValidator.validateCSVLine(line, csvFormat);
+                Validator.validateCSVLine(line, csvFormat);
                 return;
             }
             throw e;
@@ -221,7 +221,7 @@ public class JobS3Client extends AwsS3Client{
                 line += c;
                 if (c == '\n' || c == '\r') {
                     /** Found complete line */
-                    ImportValidator.validateCSVLine(line, csvFormat);
+                    Validator.validateCSVLine(line, csvFormat);
                     return;
                 }
             }

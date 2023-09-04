@@ -32,9 +32,6 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Type;
-import com.here.xyz.httpconnector.util.jobs.validate.ExportValidator;
-import com.here.xyz.httpconnector.util.jobs.validate.ImportValidator;
-import com.here.xyz.httpconnector.util.jobs.validate.Validator;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.diff.Difference;
@@ -116,7 +113,7 @@ public class JobHandler {
     public static Future<Job> deleteJob(String jobId, boolean force, Marker marker){
         return loadJob(jobId, marker)
                 .compose(job -> {
-                    if ( !Validator.isValidForDelete(job, force)) {
+                    if ( !Job.isValidForDelete(job, force)) {
                         return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Job is not in end state - current status: "+ job.getStatus()) );
                     }else {
                         if(force){
@@ -141,7 +138,7 @@ public class JobHandler {
                 .compose(job -> {
                     try {
                         /** Validate */
-                        Validator.isValidForExecution(job, command, incremental);
+                        job.isValidForExecution(command, incremental);
                         return Future.succeededFuture(job);
                     } catch (HttpException e) {
                         return Future.failedFuture(e);
@@ -225,16 +222,9 @@ public class JobHandler {
         }
     }
 
-    protected static void isValidForAbort(Job job) throws HttpException{
-        if(job instanceof Import)
-            ImportValidator.isValidForAbort(job);
-        else if(job instanceof Export)
-            ExportValidator.isValidForAbort(job);
-    }
-
     protected static Future<Void> abortJobIfPossible(Job job) {
         try {
-            isValidForAbort(job);
+            job.isValidForAbort();
             /** Target: we want to terminate all running sqlQueries */
             return JDBCClients.abortJobsByJobId(job);
         }catch (HttpException e){

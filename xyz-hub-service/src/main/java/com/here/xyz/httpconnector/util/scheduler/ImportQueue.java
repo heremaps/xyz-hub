@@ -21,7 +21,6 @@ package com.here.xyz.httpconnector.util.scheduler;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.jobs.Import;
-import com.here.xyz.httpconnector.util.jobs.validate.ImportValidator;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Core;
 import com.mchange.v3.decode.CannotDecodeException;
@@ -104,7 +103,7 @@ public class ImportQueue extends JobQueue {
 
     @Override
     protected Import validateJob(Job job){
-        return ImportValidator.validateImportObjects((Import)job);
+        return Import.validateImportObjects((Import)job);
     }
 
     @Override

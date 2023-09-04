@@ -22,7 +22,6 @@ package com.here.xyz.httpconnector.task;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Import;
-import com.here.xyz.httpconnector.util.jobs.validate.ImportValidator;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.rest.HttpException;
@@ -40,8 +39,8 @@ public class ImportHandler extends JobHandler{
 
     protected static Future<Job> postJob(Import job, Marker marker){
         try{
-            ImportValidator.setImportDefaults(job);
-            ImportValidator.validateImportCreation(job);
+            job.setDefaults();
+            job.validateCreation();
         }catch (Exception e){
             return Future.failedFuture(new HttpException(BAD_REQUEST, e.getMessage()));
         }

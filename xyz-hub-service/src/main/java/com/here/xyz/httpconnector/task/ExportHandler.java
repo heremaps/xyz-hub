@@ -23,7 +23,6 @@ import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.*;
-import com.here.xyz.httpconnector.util.jobs.validate.ExportValidator;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
@@ -41,9 +40,10 @@ public class ExportHandler extends JobHandler{
 
     protected static Future<Job> postJob(Export job, Marker marker){
         try{
-            ExportValidator.setExportDefaults(job);
-            ExportValidator.validateExportCreation(job);
-        }catch (Exception e){
+            job.setDefaults();
+            job.validateCreation();
+        }
+        catch (Exception e){
             return Future.failedFuture(new HttpException(BAD_REQUEST, e.getMessage()));
         }
 

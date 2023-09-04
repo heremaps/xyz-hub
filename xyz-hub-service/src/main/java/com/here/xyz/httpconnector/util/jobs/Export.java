@@ -21,6 +21,9 @@ package com.here.xyz.httpconnector.util.jobs;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -33,7 +36,10 @@ import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.ApiParam;
+import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +53,9 @@ public class Export extends Job<Export> {
     public static String ERROR_TYPE_HTTP_TRIGGER_FAILED = "http_trigger_failed";
     public static String ERROR_TYPE_TARGET_ID_INVALID = "targetId_invalid";
     public static String ERROR_TYPE_HTTP_TRIGGER_STATUS_FAILED = "http_get_trigger_status_failed";
+    protected static int VML_EXPORT_MIN_TARGET_LEVEL = 4;
+    protected static int VML_EXPORT_MAX_TARGET_LEVEL = 13;
+    protected static int VML_EXPORT_MAX_TILES_PER_FILE = 8192;
 
     @JsonInclude
     private Type type = Type.Export;
@@ -105,6 +114,121 @@ public class Export extends Job<Export> {
         this.targetTable = targetTable;
         this.strategy = strategy;
         this.clipped = false;
+    }
+
+    @Override
+    public void setDefaults() {
+        super.setDefaults();
+        if (getExportTarget() != null && getExportTarget().getType().equals(ExportTarget.Type.VML)) {
+            if (getCsvFormat() != null && getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64))
+                return;
+            setCsvFormat(CSVFormat.TILEID_FC_B64);
+            if (getMaxTilesPerFile() == 0)
+                setMaxTilesPerFile(VML_EXPORT_MAX_TILES_PER_FILE);
+        }
+    }
+
+    @Override
+    public void validateCreation() throws HttpException {
+        super.validateCreation();
+
+        if (getExportTarget() == null)
+            throw new HttpException(BAD_REQUEST,("Please specify exportTarget!"));
+
+        if (getExportTarget().getType().equals(ExportTarget.Type.VML)){
+
+            switch (getCsvFormat()) {
+                case TILEID_FC_B64:
+                case PARTITIONID_FC_B64:
+                    break;
+                default:
+                    throw new HttpException(BAD_REQUEST, "Invalid Format! Allowed [" + CSVFormat.TILEID_FC_B64 + ","
+                        + CSVFormat.PARTITIONID_FC_B64 + "]");
+            }
+
+            if (getExportTarget().getTargetId() == null)
+                throw new HttpException(BAD_REQUEST,("Please specify the targetId!"));
+
+            if (!getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64)) {
+                if (getTargetLevel() == null)
+                    throw new HttpException(BAD_REQUEST, "Please specify targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL + ":"
+                        + VML_EXPORT_MAX_TARGET_LEVEL + "]");
+
+             if (getTargetLevel() < VML_EXPORT_MIN_TARGET_LEVEL || getTargetLevel() > VML_EXPORT_MAX_TARGET_LEVEL)
+                throw new HttpException(BAD_REQUEST, "Invalid targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL
+                    + ":" + VML_EXPORT_MAX_TARGET_LEVEL + "]");
+            }
+
+        }
+        else if (getExportTarget().getType().equals(ExportTarget.Type.DOWNLOAD)){
+
+            switch (getCsvFormat()) {
+                case JSON_WKB:
+                case GEOJSON: break;
+                default:
+                    throw new HttpException(BAD_REQUEST,("Invalid Format! Allowed ["+ CSVFormat.JSON_WKB +","+ CSVFormat.GEOJSON +"]"));
+            }
+
+        }
+
+        Filters filters = getFilters();
+        if (filters != null) {
+            if (filters.getSpatialFilter() != null) {
+                Geometry geometry = filters.getSpatialFilter().getGeometry();
+                if (geometry == null)
+                    throw new HttpException(BAD_REQUEST, "Please specify a geometry for the spatial filter!");
+                else {
+                    try {
+                        geometry.validate();
+                        WKTHelper.geometryToWKB(geometry);
+                    }catch (Exception e){
+                        throw new HttpException(BAD_REQUEST, "Cant parse filter geometry!");
+                    }
+                }
+            }
+        }
+
+        if (readParamPersistExport()){
+            if (!getExportTarget().getType().equals(ExportTarget.Type.VML))
+                throw new HttpException(BAD_REQUEST, "Persistent Export not allowed for this target!");
+            if (filters != null)
+                throw new HttpException(BAD_REQUEST, "Persistent Export is only allowed without filters!");
+        }
+    }
+
+    protected void isValidForStart(ApiParam.Query.Incremental incremental) throws HttpException {
+        if (!getStatus().equals(Status.waiting))
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " execution is only allowed on status=waiting");
+
+        if (!incremental.equals(ApiParam.Query.Incremental.DEACTIVATED)) {
+            if (incremental.equals(ApiParam.Query.Incremental.CHANGES) && includesSecondLevelExtension())
+                throw new HttpException(NOT_IMPLEMENTED, "Incremental Export of CHANGES is not supported for 2nd Level extended spaces!");
+
+            if (!getCsvFormat().equals(CSVFormat.TILEID_FC_B64))
+                throw new HttpException(BAD_REQUEST, "CSV format is not supported!");
+
+            if (getExportTarget().getType().equals(ExportTarget.Type.DOWNLOAD))
+                throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export is available for Type Download!");
+
+            if (getParams() == null || getParams().get("extends") == null)
+                throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export is only possible on extended layers!");
+
+            if (incremental.equals(ApiParam.Query.Incremental.FULL)) {
+                /** We have to check if the super layer got exported in a persistent way */
+                if (!isSuperSpacePersistent())
+                    throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export requires persistent superLayer!");
+            }
+        }
+    }
+
+    public void isValidForAbort() throws HttpException {
+        /**
+         * It is only allowed to abort a job inside executing state, because we have multiple nodes running.
+         * During the execution we have running SQL-Statements - due to the abortion of them, the client which
+         * has executed the Query will handle the abortion.
+         * */
+        if (!getStatus().equals(Status.executing))
+            throw new HttpException(PRECONDITION_FAILED, "Job is not in executing state - current status: " + getStatus());
     }
 
     public Type getType() {
