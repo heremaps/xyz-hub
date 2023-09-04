@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+
 import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.PropertiesQuery;
@@ -649,7 +651,7 @@ public class ApiParam {
     }
 
     public static ContextAwareEvent.SpaceContext getContext(RoutingContext context){
-      return ContextAwareEvent.SpaceContext.of(Query.getString(context, CONTEXT, ContextAwareEvent.SpaceContext.DEFAULT.toString()).toUpperCase());
+      return ContextAwareEvent.SpaceContext.of(Query.getString(context, CONTEXT, DEFAULT.toString()).toUpperCase());
     }
 
     public enum Incremental {

@@ -23,16 +23,18 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.hub.connectors.models.Connector;
+import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.StatisticsResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
+import io.vertx.ext.web.client.HttpResponse;
+import java.nio.charset.Charset;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.nio.charset.Charset;
 
 public class HubWebClient {
     private static final Logger logger = LogManager.getLogger();
@@ -99,22 +101,22 @@ public class HubWebClient {
                 });
     }
 
-    public static Future<Connector> getConnectorConfig(String connectorId){
-        /** Update space-config */
-
-        return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT+"/connectors/"+connectorId)
-                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-                .send()
-                .compose(res -> {
-                    try {
-                        Connector response = DatabindCodec.mapper().convertValue(res.bodyAsJsonObject(), Connector.class);
-                        return Future.succeededFuture(response);
-                    } catch (Exception e) {
-                        return Future.failedFuture("Cant get connector config!");
-                    }
-                }).onFailure(f -> {
-                    Future.failedFuture("Cant get connector config!");
-                });
+    public static Future<Connector> getConnectorConfig(String connectorId) {
+        return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT+"/connectors/" + connectorId)
+            .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+            .send()
+            .compose(res -> {
+                try {
+                    Connector connector = DatabindCodec.mapper().convertValue(res.bodyAsJsonObject(), Connector.class);
+                    return Future.succeededFuture(connector);
+                }
+                catch (Exception e) {
+                    return Future.failedFuture("Can't get connector config!");
+                }
+            })
+            .onFailure(f -> {
+                Future.failedFuture("Can't get connector config!");
+            });
     }
 
     public static Future<Void> updateSpaceConfig(JsonObject config, String spaceId){
@@ -132,9 +134,33 @@ public class HubWebClient {
                 });
     }
 
-    public static Future<StatisticsResponse> getSpaceStatistics(String spaceId){
+    public static Future<Space> getSpace(String spaceId) {
+      return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT + "/spaces/" + spaceId)
+          .send()
+          .compose(response -> {
+            try {
+              return Future.succeededFuture((Space) deserializeResponse(response, Space.class));
+            }
+            catch (Exception e) {
+              return Future.failedFuture(e);
+            }
+          });
+    }
+
+  private static <T> T deserializeResponse(HttpResponse response, Class<T> klass) throws JsonProcessingException {
+      return deserializeResponse(response.bodyAsString(), klass);
+  }
+
+    private static <T> T deserializeResponse(String responseBody, Class<T> klass) throws JsonProcessingException {
+      T response = XyzSerializable.deserialize(responseBody, klass);
+      if (response instanceof ErrorResponse)
+        throw new RuntimeException(((ErrorResponse) response).getErrorMessage());
+      return response;
+    }
+
+    public static Future<StatisticsResponse> getSpaceStatistics(String spaceId) {
         /** Collect statistics from hub, which also ensures an existing table */
-        return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT+"/spaces/"+spaceId+"/statistics?skipCache=true")
+        return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT + "/spaces/" + spaceId + "/statistics?skipCache=true")
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                 .send()
                 .compose(res -> {

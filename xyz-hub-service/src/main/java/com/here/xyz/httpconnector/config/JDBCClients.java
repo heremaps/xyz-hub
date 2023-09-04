@@ -37,15 +37,14 @@ import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
 import io.vertx.sqlclient.SqlClient;
 import io.vertx.sqlclient.impl.ArrayTuple;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
-
 import java.net.URI;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 /**
  * @deprecated Use standard JDBC based clients instead
@@ -74,8 +73,8 @@ public class JDBCClients {
 
     private static void addClients(String id, DatabaseSettings settings){
         addClient(id, settings);
-        if(!id.equalsIgnoreCase(CONFIG_CLIENT_ID))
-            addClient(getStatusClientId(id), settings);;
+        if (!id.equalsIgnoreCase(CONFIG_CLIENT_ID))
+            addClient(getStatusClientId(id), settings);
     }
 
     private static void addClient(String clientId, DatabaseSettings settings){
@@ -187,46 +186,34 @@ public class JDBCClients {
                 });
     }
 
-    public static Future<Void> addClientIfRequired(String id) {
-        if(CService.supportedConnectors != null && CService.supportedConnectors.indexOf(id) == -1)
-            return Future.failedFuture("Connector is not supported");
-
-        return HubWebClient.getConnectorConfig(id)
-                .compose(connector -> {
-                    try {
-                        if( connector.params != null && connector.params.get("ecps") !=null) {
-                            DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS((String) connector.params.get("ecps"), CService.configuration.ECPS_PHRASE);
-
-                            if(JDBCImporter.getClient(id) == null) {
-                                addClients(id, settings);
-                            }else if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
-                                /** Check if config has changed */
-                                removeClients(id);
-                                addClients(id, settings);
-                            }
-
-                            return Future.succeededFuture();
-                        }else
-                            return Future.failedFuture("Ecps is missing! "+id);
-                    } catch (CannotDecodeException e) {
-                        return Future.failedFuture("Cant load dbClients for "+id);
+    public static Future<Void> addClientIfRequired(String connectorId) {
+        return HubWebClient.getConnectorConfig(connectorId)
+            .compose(connector -> {
+                try {
+                    if (connector.params != null && connector.params.get("ecps") != null) {
+                        addClientIfRequired(connectorId, (String) connector.params.get("ecps"));
+                        return Future.succeededFuture();
                     }
-                });
+                    else
+                        return Future.failedFuture("Ecps is missing! " + connectorId);
+                }
+                catch (Exception e) {
+                    return Future.failedFuture("Cant load dbClients for " + connectorId);
+                }
+            });
     }
 
-    public static void addClientIfRequired(String id, String ecps, String passphrase) throws CannotDecodeException, UnsupportedOperationException {
-        DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, passphrase);
+    public static void addClientIfRequired(String id, String ecps) throws CannotDecodeException, UnsupportedOperationException {
+        DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, CService.configuration.ECPS_PHRASE);
 
-        if(CService.supportedConnectors != null && CService.supportedConnectors.indexOf(id) == -1)
+        if (CService.supportedConnectors != null && CService.supportedConnectors.indexOf(id) == -1)
             throw new UnsupportedOperationException();
 
-        if(JDBCImporter.getClient(id) == null){
+        if (JDBCImporter.getClient(id) == null)
             addClients(id, settings);
-        }else{
-            if(!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
-                removeClients(id);
-                addClients(id, settings);
-            }
+        else if (!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
+            removeClients(id);
+            addClients(id, settings);
         }
     }
 

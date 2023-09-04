@@ -29,11 +29,13 @@ import static org.junit.Assert.assertNotEquals;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.Job.Status;
+import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
@@ -44,22 +46,19 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.jackson.DatabindCodec;
-import java.util.Collections;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.io.FileInputStream;
-import java.io.File;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -383,13 +382,18 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     /** ------------------- HELPER EXPORT  -------------------- */
-    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus) throws Exception {
+    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus) throws Exception {
         return performExport(job, spaceId, expectedStatus, failStatus, null, null);
     }
 
-    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus,
-                                      ContextAwareEvent.SpaceContext context, ApiParam.Query.Incremental incremental) throws Exception {
-        /** Create job */
+    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, SpaceContext context,
+        Incremental incremental) throws Exception {
+        if (incremental != null)
+            job.addParam("incremental", incremental.toString());
+        if (context != null)
+            job.addParam("context", context.toString());
+
+        //Create job
         Response resp = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
@@ -407,8 +411,8 @@ public class JobApiIT extends TestSpaceWithFeature {
         String postUrl = "/spaces/{spaceId}/job/{jobId}/execute?command=start&{context}&{incremental}"
                 .replace("{spaceId}", spaceId)
                 .replace("{jobId}", job.getId())
-                .replace("{context}", context == null ? "" : "context="+context.toString().toLowerCase())
-                .replace("{incremental}", incremental == null ? "" : "incremental="+incremental.toString().toLowerCase());
+                .replace("{context}", "")
+                .replace("{incremental}", "");
 
         /** start import */
         resp = given()

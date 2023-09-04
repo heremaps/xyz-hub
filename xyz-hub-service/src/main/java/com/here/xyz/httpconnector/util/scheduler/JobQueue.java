@@ -18,6 +18,9 @@
  */
 package com.here.xyz.httpconnector.util.scheduler;
 
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
@@ -145,26 +148,26 @@ public abstract class JobQueue implements Runnable {
             logger.info("job[{}] is already present in queue! {}", job.getId(), job);
     }
 
-    public synchronized static void refreshJob(Job job){
-        if(hasJob(job) != null) {
+    private synchronized static void refreshJob(Job job) {
+        if (hasJob(job) != null) {
             JOB_QUEUE.remove(hasJob(job));
             JOB_QUEUE.add(job);
         }
     }
 
-    public synchronized static void removeJob(Job job){
+    public synchronized static void removeJob(Job job) {
         logger.info("job[{}] removed from JobQueue! {}", job.getId(), job);
-        if(hasJob(job) != null)
+        if (hasJob(job) != null)
             JOB_QUEUE.remove(hasJob(job));
     }
 
-    public synchronized static void abortAllJobs(){
-        for(Job job :JobQueue.getQueue()){
+    public synchronized static void abortAllJobs() {
+        for (Job job :JobQueue.getQueue()) {
             setJobFailed(job , Job.ERROR_TYPE_FAILED_DUE_RESTART , null);
         }
     }
 
-    public static String checkRunningJobsOnSpace(String targetSpaceId){
+    public static String checkRunningJobsOnSpace(String targetSpaceId) {
         /** Check only for imports */
         for (Job j : JOB_QUEUE ) {
             if(targetSpaceId != null  && j.getTargetSpaceId() != null
@@ -189,7 +192,7 @@ public abstract class JobQueue implements Runnable {
     }
 
     public static Future<Job> setJobFailed(Job j, String errorDescription, String errorType){
-        return updateJobStatus(j, Job.Status.failed, errorDescription, errorType);
+        return updateJobStatus(j, failed, errorDescription, errorType);
     }
 
     public static Future<Job> setJobAborted(Job j){
@@ -206,27 +209,28 @@ public abstract class JobQueue implements Runnable {
     }
 
     protected static Future<Job> updateJobStatus(Job j, Job.Status status, String errorDescription, String errorType ){
-        if(status != null)
+        if (status != null)
             j.setStatus(status);
-        if(errorType != null)
+        if (errorType != null)
             j.setErrorType(errorType);
-        if(errorDescription != null)
+        if (errorDescription != null)
             j.setErrorDescription(errorDescription);
 
-        /** All end-states */
-        if(status.equals(Job.Status.failed) || status.equals(Job.Status.finalized)){
-            if(j instanceof  Import)
+        //All end-states
+        if (status == failed || status == finalized) {
+            //FIXME: Shouldn't that be done also for status == aborted? If yes, we can simply use status.isFinal()
+            if (j instanceof  Import)
                 releaseReadOnlyLockFromSpace(j)
                     .onFailure(f -> {
-                        /** Currently we are only logging this issue */
+                        //Currently we are only logging this issue
                         logger.warn("[{}] READONLY_RELEASE_FAILED!",j.getId());
                     });
             /** Remove job from queue */
             removeJob(j);
-        }else{
-            /** only for display purpose in system endpoint */
-            refreshJob(j);
         }
+        else
+            //Only for display purpose in system endpoint
+            refreshJob(j);
 
         return CService.jobConfigClient.update(null , j);
     }
@@ -240,11 +244,11 @@ public abstract class JobQueue implements Runnable {
     }
 
     protected boolean isTargetJDBCClientLoaded(Job job){
-        if(JDBCImporter.getClient(job.getTargetConnector()) == null) {
+        if (JDBCImporter.getClient(job.getTargetConnector()) == null) {
             /** Maybe client is not initialized - in this case job need to get restarted */
             //TODO: Check if we can retry automatically (problem: missing ECPS)
             job.setErrorType(Import.ERROR_TYPE_NO_DB_CONNECTION);
-            updateJobStatus(job, Job.Status.failed);
+            updateJobStatus(job, failed);
             return false;
         }
         return true;

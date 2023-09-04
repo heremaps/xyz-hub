@@ -20,6 +20,7 @@
 package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.config.Initializable;
@@ -36,6 +37,12 @@ import java.util.List;
 public abstract class JobConfigClient implements Initializable {
 
     private static final Logger logger = LogManager.getLogger();
+
+    public enum DatasetDirection {
+      SOURCE,
+      TARGET,
+      BOTH
+    }
 
     public static JobConfigClient getInstance() {
         if (CService.configuration.JOBS_DYNAMODB_TABLE_ARN != null) {
@@ -60,6 +67,19 @@ public abstract class JobConfigClient implements Initializable {
                 .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
     }
 
+  /**
+   * Returns a list of all jobs which are having the dataset, specified by type and key, as target, source or both.
+   * @param marker
+   * @param key The dataset key
+   * @param direction Find all jobs which have the dataset as target, source or both
+   * @return All jobs which are reading and or writing into the specified dataset description
+   */
+    public Future<List<Job>> getList(Marker marker, Job.Status status, String key, DatasetDirection direction) {
+      //TODO: implement by searching for the key in the stored key of the dataset description. The key will be stored as part of the DatasetDescription within the "key" property @see DatasetDescription#getKey()
+      return getJobs(marker, status, key, direction)
+              .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
+    }
+
     public Future<String> getRunningJobsOnSpace(Marker marker, String targetSpaceId, Job.Type type) {
         return findRunningJobOnSpace(marker, targetSpaceId, type)
                 .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e ));
@@ -79,10 +99,6 @@ public abstract class JobConfigClient implements Initializable {
     }
 
     public Future<Job> store(Marker marker, Job job) {
-        /** A newly created Job waits for an execution */
-        if(job.getStatus() == null)
-            job.setStatus(Job.Status.waiting);
-
         return storeJob(marker, job, false)
                 .onFailure(e -> {
                     logger.error(marker, "job[{}]: failed to store! ", job.getId(), e);
@@ -105,6 +121,7 @@ public abstract class JobConfigClient implements Initializable {
     protected abstract Future<Job> getJob(Marker marker, String jobId);
 
     protected abstract Future<List<Job>> getJobs( Marker marker, Job.Type type, Job.Status status, String targetSpaceId);
+    protected abstract Future<List<Job>> getJobs( Marker marker, Job.Status status, String key, DatasetDirection direction);
 
     protected abstract Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Job.Type type);
 
