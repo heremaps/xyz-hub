@@ -19,16 +19,25 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
+import com.here.xyz.hub.Core;
+import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.hub.Space;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.commons.lang3.RandomStringUtils;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 
@@ -47,6 +56,66 @@ public abstract class Job<T extends Job> {
     public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
     public static String ERROR_TYPE_FAILED_DUE_RESTART = "failed_due_node_restart";
     public static String ERROR_TYPE_ABORTED = "aborted";
+
+    @JsonIgnore
+    public void setDefaults() {
+        //TODO: Do field initialization at instance initialization time
+        setCreatedAt(Core.currentTimeMillis() / 1000L);
+        setUpdatedAt(Core.currentTimeMillis() / 1000L);
+        if (getId() == null)
+            setId(RandomStringUtils.randomAlphanumeric(6));
+        if (getErrorType() != null)
+            setErrorType(null);
+        if (getErrorDescription() != null)
+            setErrorDescription(null);
+    }
+
+    public void validateCreation() throws HttpException {
+        if (getTargetSpaceId() == null)
+            throw new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!");
+        if (getCsvFormat() == null)
+            throw new HttpException(BAD_REQUEST, "Please specify 'csvFormat'!");
+    }
+
+    public void isValidForExecution(Command command, Incremental incremental) throws HttpException {
+        switch (command) {
+            case CREATEUPLOADURL:
+                if (this instanceof Export)
+                    throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
+                else if (this instanceof Import)
+                    Import.isValidForCreateUrl(this);
+                break;
+            case RETRY:
+                    isValidForRetry();
+                break;
+            case START:
+                isValidForStart(incremental);
+                break;
+            case ABORT:
+                isValidForAbort();
+        }
+    }
+
+    @JsonIgnore
+    protected abstract void isValidForStart(Incremental incremental) throws HttpException;
+
+    @JsonIgnore
+    public abstract void isValidForAbort() throws HttpException;
+
+    @JsonIgnore
+    protected void isValidForRetry() throws HttpException {
+        if (!getStatus().equals(Status.failed) && !getStatus().equals(Status.aborted))
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " for retry!");
+    }
+
+    public static boolean isValidForDelete(Job job, boolean force) {
+        if(force)
+            return true;
+        switch (job.getStatus()){
+            case waiting: case finalized: case aborted: case failed: return true;
+            default: return false;
+        }
+    }
 
     @JsonView({Public.class})
     public enum Type {

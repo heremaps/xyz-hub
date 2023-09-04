@@ -22,6 +22,7 @@ import static com.here.xyz.httpconnector.util.scheduler.ImportQueue.NODE_EXECUTE
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -30,6 +31,8 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.hub.Core;
+import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
+import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import java.util.ArrayList;
@@ -75,6 +78,84 @@ public class Import extends Job<Import> {
         this.targetTable = targetTable;
         this.csvFormat = csvFormat;
         this.strategy = strategy;
+    }
+
+    public static Import validateImportObjects(Import job){
+        /** Validate if provided files are existing and ok */
+        if(job.getImportObjects().size() == 0){
+            job.setErrorDescription(ERROR_DESCRIPTION_UPLOAD_MISSING);
+            job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+        }else {
+            try {
+                /** scan S3 Path for existing Uploads and validate first line of CSV */
+                Map<String, ImportObject> scannedObjects = CService.jobS3Client.scanImportPath(job, job.getCsvFormat());
+                if (scannedObjects.size() == 0) {
+                    job.setErrorDescription(ERROR_DESCRIPTION_UPLOAD_MISSING);
+                    job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+                } else {
+                    boolean foundOneValid = false;
+                    for (String key : job.getImportObjects().keySet()) {
+                        if (scannedObjects.get(key) != null) {
+                            /** S3 Object is found - update job with file metadata */
+                            ImportObject scannedFile = scannedObjects.get(key);
+
+                            if (!scannedFile.isValid()) {
+                                /** Keep Upload-URL for retry */
+                                scannedFile.setUploadUrl(job.getImportObjects().get(key).getUploadUrl());
+                                /** If file is invalid fail validation */
+                                job.setErrorDescription(ERROR_DESCRIPTION_INVALID_FILE);
+                                job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+                            } else
+                                foundOneValid = true;
+                            /** Add meta-data */
+                            job.addImportObject(scannedFile);
+                        } else {
+                            job.getImportObjects().get(key).setFilesize(-1);
+                        }
+                    }
+
+                    if (!foundOneValid) {
+                        /** No Uploads found */
+                        job.setErrorDescription(ERROR_DESCRIPTION_NO_VALID_FILES_FOUND);
+                        job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+                    }
+                }
+            }catch (Exception e){
+                logger.warn("job[{}] validation has failed! ", job.getId(), e);
+                job.setStatus(Status.failed);
+                job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+            }
+        }
+
+        //ToDo: Decide if we want to proceed partially
+        if(job.getErrorType() != null)
+            job.setStatus(Status.failed);
+        else
+            job.setStatus(Status.validated);
+
+        return job;
+    }
+
+    public static void isValidForCreateUrl(Job job) throws HttpException {
+        if(job.getStatus().equals(Status.waiting))
+            return;
+        throw new HttpException(PRECONDITION_FAILED, "Invalid state: "+job.getStatus() +" creation is only allowed on status=waiting");
+    }
+
+    public void isValidForStart(Incremental incremental) throws HttpException{
+        if (getStatus().equals(Status.waiting))
+            return;
+        throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() +" execution is only allowed on status = waiting");
+    }
+
+    public void isValidForAbort() throws HttpException {
+        /**
+         * It is only allowed to abort a job inside executing state, because we have multiple nodes running.
+         * During the execution we have running SQL-Statements - due to the abortion of them, the client which
+         * has executed the Query will handle the abortion.
+         * */
+        if (!getStatus().equals(Status.executing) && !getStatus().equals(Status.finalizing))
+            throw new HttpException(PRECONDITION_FAILED,  "Invalid state: " + getStatus() + " for abort!");
     }
 
     public Type getType() {
