@@ -16,6 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
 package com.here.xyz.httpconnector.util.scheduler;
 
 import com.here.xyz.httpconnector.CService;

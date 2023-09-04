@@ -19,34 +19,49 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.DEACTIVATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
+import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.Hasher;
+import com.mchange.v3.decode.CannotDecodeException;
+import io.vertx.core.Future;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
-        include = JsonTypeInfo.As.EXISTING_PROPERTY,
         property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = Import.class, name = "Import"),
-        @JsonSubTypes.Type(value = Export.class, name = "Export")
+        @JsonSubTypes.Type(value = Export.class, name = "Export"),
+        @JsonSubTypes.Type(value = CombinedJob.class, name = "CombinedJob")
 })
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public abstract class Job<T extends Job> {
@@ -56,51 +71,114 @@ public abstract class Job<T extends Job> {
     public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
     public static String ERROR_TYPE_FAILED_DUE_RESTART = "failed_due_node_restart";
     public static String ERROR_TYPE_ABORTED = "aborted";
+    private Marker marker;
+
+    public static String generateRandomId() {
+        return RandomStringUtils.randomAlphanumeric(6);
+    }
+
+    public Future<Job> injectConfigValues() {
+
+        return readEnableHashedSpaceId()
+            .compose(enableHashedSpaceId -> {
+                addParam("enableHashedSpaceId", enableHashedSpaceId);
+                if (getTargetTable() == null)
+                    //Only for debugging purpose
+                    setTargetTable(enableHashedSpaceId ? Hasher.getHash(getTargetSpaceId()) : getTargetSpaceId());
+
+                if (!getParams().containsKey("incremental"))
+                    addParam("incremental", DEACTIVATED.toString());
+                if (!getParams().containsKey("context"))
+                    addParam("context", DEFAULT);
+                return Future.succeededFuture(this);
+            });
+    }
+
+    private Future<Boolean> readEnableHashedSpaceId() {
+        return HubWebClient.getConnectorConfig(getTargetConnector())
+            .compose(connector -> {
+                boolean enableHashedSpaceId = connector.params.containsKey("enableHashedSpaceId")
+                    ? (boolean) connector.params.get("enableHashedSpaceId") : false;
+                return Future.succeededFuture(enableHashedSpaceId);
+            });
+    }
+
+    protected Future<Void> addClientIfRequired() {
+        return JDBCClients.addClientIfRequired(getTargetConnector())
+            .compose(
+                v -> Future.succeededFuture(),
+                t -> t instanceof CannotDecodeException
+                    ? Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Can not decode ECPS!"))
+                    : t instanceof UnsupportedOperationException
+                        ? Future.failedFuture(new HttpException(BAD_REQUEST, "Connector is not supported!"))
+                        : Future.failedFuture(t)
+            );
+    }
+
+    public Future<Job> executeAbort() {
+      try {
+        isValidForAbort();
+      }
+      catch (HttpException e) {
+        return Future.failedFuture(e);
+      }
+      return addClientIfRequired() //Load DB-Client
+          .compose(v -> JDBCClients.abortJobsByJobId(this))
+          .onFailure(e -> new HttpException(BAD_GATEWAY, "Abort failed [" + getStatus() + "]"))
+          .map(v -> this);
+    }
+
+    public Future<Void> abortIfPossible() {
+        try {
+            isValidForAbort();
+            //Target: we want to terminate all running sqlQueries
+            return JDBCClients.abortJobsByJobId(this);
+        }
+        catch (HttpException e) {
+            //Job is not in state "executing" ignore
+            return Future.succeededFuture();
+        }
+    }
 
     @JsonIgnore
     public void setDefaults() {
         //TODO: Do field initialization at instance initialization time
         setCreatedAt(Core.currentTimeMillis() / 1000L);
-        setUpdatedAt(Core.currentTimeMillis() / 1000L);
+        setUpdatedAt(getCreatedAt());
         if (getId() == null)
-            setId(RandomStringUtils.randomAlphanumeric(6));
+            setId(generateRandomId());
         if (getErrorType() != null)
             setErrorType(null);
         if (getErrorDescription() != null)
             setErrorDescription(null);
+        //A newly created Job waits for an execution
+        if (getStatus() == null)
+            setStatus(Job.Status.waiting);
     }
 
-    public void validateCreation() throws HttpException {
+    public T validate() throws HttpException {
         if (getTargetSpaceId() == null)
             throw new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!");
         if (getCsvFormat() == null)
             throw new HttpException(BAD_REQUEST, "Please specify 'csvFormat'!");
-    }
-
-    public void isValidForExecution(Command command, Incremental incremental) throws HttpException {
-        switch (command) {
-            case CREATEUPLOADURL:
-                if (this instanceof Export)
-                    throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
-                else if (this instanceof Import)
-                    Import.isValidForCreateUrl(this);
-                break;
-            case RETRY:
-                    isValidForRetry();
-                break;
-            case START:
-                isValidForStart(incremental);
-                break;
-            case ABORT:
-                isValidForAbort();
-        }
+        return (T) this;
     }
 
     @JsonIgnore
-    protected abstract void isValidForStart(Incremental incremental) throws HttpException;
+    protected void isValidForStart() throws HttpException {
+        if (getStatus() != waiting)
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " execution is only allowed on status = waiting");
+    };
 
-    @JsonIgnore
-    public abstract void isValidForAbort() throws HttpException;
+    public void isValidForAbort() throws HttpException {
+        /*
+        It is only allowed to abort a job inside executing state, because we have multiple nodes running.
+        During the execution we have running SQL-Statements - due to the abortion of them, the client which
+        has executed the Query will handle the abortion.
+         */
+        if (getStatus() != executing && getStatus() != finalizing)
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " for abort!");
+    }
 
     @JsonIgnore
     protected void isValidForRetry() throws HttpException {
@@ -117,9 +195,16 @@ public abstract class Job<T extends Job> {
         }
     }
 
+
+    @JsonProperty("type")
+    @JsonInclude
+    private String getType() {
+        return getClass().getSimpleName();
+    }
+
     @JsonView({Public.class})
     public enum Type {
-        Import, Export;
+        Import, Export, CombinedJob;
         public static Type of(String value) {
             if (value == null) {
                 return null;
@@ -218,16 +303,14 @@ public abstract class Job<T extends Job> {
     /**
      * The timestamp which indicates when the execution began.
      */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonView({Public.class})
-    private Long executedAt;
+    private long executedAt = -1;
 
     /**
      * The timestamp at which time the finalization is completed.
      */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonView({Public.class})
-    private Long finalizedAt;
+    private long finalizedAt = -1;
 
     /**
      * The expiration timestamp.
@@ -349,10 +432,10 @@ public abstract class Job<T extends Job> {
     public void setTargetSpaceId(String targetSpaceId) {
         this.targetSpaceId = targetSpaceId;
         //Keep BWC
-        if (this instanceof Import && target == null)
-            setTarget(new DatasetDescription.Space().withId(targetSpaceId));
-        else if (this instanceof Export && source == null)
-            setSource(new DatasetDescription.Space().withId(targetSpaceId));
+//        if (this instanceof Import && target == null)
+//            setTarget(new DatasetDescription.Space().withId(targetSpaceId));
+//        else if (this instanceof Export && source == null)
+//            setSource(new DatasetDescription.Space().withId(targetSpaceId));
     }
 
     /**
@@ -382,9 +465,12 @@ public abstract class Job<T extends Job> {
     public Status getStatus() { return status; }
 
     public void setStatus(Job.Status status) {
-        if(this.status == Status.failed || this.status == Status.finalized || this.status == Status.aborted)
+        if (this.status != null && this.status.isFinal()) {
+            if (getFinalizedAt() == -1)
+                setFinalizedAt(Core.currentTimeMillis() / 1000l);
             return;
-        if((status.equals(Status.aborted) || status.equals(Status.failed)) && lastStatus == null)
+        }
+        if ((status == aborted || status == failed) && lastStatus == null)
             lastStatus = this.status;
         this.status = status;
     }
@@ -456,33 +542,35 @@ public abstract class Job<T extends Job> {
         return (T) this;
     }
 
-    public Long getExecutedAt() {
+    public long getExecutedAt() {
         return executedAt;
     }
 
-    public void setExecutedAt(final Long executedAt) {
+    public void setExecutedAt(final long executedAt) {
         this.executedAt = executedAt;
     }
 
-    public T withExecutedAt(final Long startedAt) {
-        setExecutedAt(startedAt);
+    public T withExecutedAt(final long executedAt) {
+        setExecutedAt(executedAt);
         return (T) this;
     }
 
-    public Long getFinalizedAt() {
+    public long getFinalizedAt() {
         return finalizedAt;
     }
 
-    public void setFinalizedAt(final Long finalizedAt) {
+    public void setFinalizedAt(final long finalizedAt) {
         this.finalizedAt = finalizedAt;
     }
 
-    public T withFinalizedAt(final Long finalizedAt) {
+    public T withFinalizedAt(final long finalizedAt) {
         setFinalizedAt(finalizedAt);
         return (T) this;
     }
 
-    public abstract void finalizeJob();
+    public void finalizeJob() {
+        updateJobStatus(this, finalized);
+    }
 
     public Long getExp() {
         return exp;
@@ -570,20 +658,40 @@ public abstract class Job<T extends Job> {
         return (T) this;
     }
 
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     */
+    @Deprecated
     public Object getParam(String key) {
         if(params == null)
             return null;
         return params.get(key);
     }
 
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     */
     public Map<String, Object> getParams() {
         return params;
     }
 
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     * @param params
+     */
+    @Deprecated
     public void setParams(Map<String, Object> params) {
         this.params = params;
     }
 
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     * @param params
+     */
     public T withParams(Map params) {
         setParams(params);
         return (T) this;
@@ -596,8 +704,8 @@ public abstract class Job<T extends Job> {
     public void setSource(DatasetDescription source) {
         this.source = source;
         //Keep BWC
-//        if (source instanceof DatasetDescription.Space)
-//            setTargetSpaceId(((DatasetDescription.Space) source).getId());
+        if (source instanceof DatasetDescription.Space)
+            setTargetSpaceId(((DatasetDescription.Space) source).getId());
     }
 
     public T withSource(DatasetDescription source) {
@@ -612,8 +720,8 @@ public abstract class Job<T extends Job> {
     public void setTarget(DatasetDescription target) {
         this.target = target;
         //Keep BWC
-//        if (target instanceof DatasetDescription.Space)
-//            setTargetSpaceId(((DatasetDescription.Space) source).getId());
+        if (target instanceof DatasetDescription.Space)
+            setTargetSpaceId(((DatasetDescription.Space) source).getId());
     }
 
     public T withTarget(DatasetDescription target) {
@@ -621,6 +729,13 @@ public abstract class Job<T extends Job> {
         return (T) this;
     }
 
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     * @param key
+     * @param value
+     */
+    @Deprecated
     public void addParam(String key, Object value){
         if(this.params == null){
             this.params = new HashMap<>();
@@ -628,7 +743,23 @@ public abstract class Job<T extends Job> {
         this.params.put(key,value);
     }
     @JsonIgnore
-    public abstract void resetToPreviousState() throws Exception;
+    public void resetToPreviousState() throws Exception {
+        switch (getStatus()) {
+            case failed:
+            case aborted:
+                setErrorType(null);
+                setErrorDescription(null);
+                if (getLastStatus() != null) {
+                    //Set to last valid state
+                    resetStatus(getLastStatus());
+                    setLastStatus(null);
+                    resetToPreviousState();
+                }
+                else
+                    throw new Exception("No last Status found!");
+                break;
+        }
+    };
 
     @JsonIgnore
     public abstract String getQueryIdentifier();
@@ -641,8 +772,6 @@ public abstract class Job<T extends Job> {
     public static class Internal extends Space.Internal {
     }
 
-    public Job(){ }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -654,5 +783,22 @@ public abstract class Job<T extends Job> {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    @JsonIgnore
+    protected Marker getMarker() {
+        if (marker == null)
+            marker = new Log4jMarker(getId());
+        return marker;
+    }
+
+    public static class ValidationException extends Exception {
+        public ValidationException(String message) {
+            super(message);
+        }
+
+        public ValidationException(String message, Exception cause) {
+            super(message, cause);
+        }
     }
 }

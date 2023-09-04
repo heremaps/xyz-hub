@@ -19,8 +19,13 @@
 
 package com.here.xyz.httpconnector.rest;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
-import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.rest.HApiParam.Path;
@@ -31,13 +36,10 @@ import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
-
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class JobApi extends Api {
 
@@ -56,7 +58,8 @@ public class JobApi extends Api {
       JobHandler.postJob(job, Api.Context.getMarker(context))
               .onFailure(e -> this.sendError(e, context))
               .onSuccess(j -> this.sendResponse(context, CREATED, j));
-    }catch (HttpException e){
+    }
+    catch (HttpException e){
       this.sendErrorResponse(context, e);
     }
   }
@@ -105,11 +108,7 @@ public class JobApi extends Api {
 
   private void postExecute(final RoutingContext context) {
     Command command = HQuery.getCommand(context);
-    boolean enableHashedSpaceId = HQuery.getBoolean(context, HApiParam.HQuery.ENABLED_HASHED_SPACE_ID , true);
-    ContextAwareEvent.SpaceContext _context = HApiParam.HQuery.getContext(context);
-    HApiParam.HQuery.Incremental incremental = HApiParam.HQuery.getIncremental(context);
     int urlCount = HQuery.getInteger(context, HQuery.URL_COUNT, 1);
-    String[] params = HApiParam.HQuery.parseMainParams(context);
 
     if(command == null) {
       this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Unknown command!"));
@@ -118,10 +117,10 @@ public class JobApi extends Api {
 
     String jobId = context.pathParam(Path.JOB_ID);
 
-    JobHandler.postExecute(jobId, params[0], params[1], params[2], command, enableHashedSpaceId, incremental, urlCount, _context, Api.Context.getMarker(context))
+    JobHandler.postExecute(jobId, command, urlCount, Api.Context.getMarker(context))
             .onFailure(t -> this.sendErrorResponse(context, t))
             .onSuccess(job -> {
-              switch (command){
+              switch (command) {
                 case START:
                 case RETRY:
                 case ABORT:

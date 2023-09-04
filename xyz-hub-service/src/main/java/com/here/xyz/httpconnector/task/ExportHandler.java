@@ -19,29 +19,25 @@
 
 package com.here.xyz.httpconnector.task;
 
-import com.here.xyz.events.ContextAwareEvent;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.rest.HApiParam;
-import com.here.xyz.httpconnector.util.jobs.*;
+import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
-import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
-
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
-import org.apache.logging.log4j.Marker;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-
 import java.util.HashMap;
+import org.apache.logging.log4j.Marker;
 
 public class ExportHandler extends JobHandler{
 
     protected static Future<Job> postJob(Export job, Marker marker){
         try{
             job.setDefaults();
-            job.validateCreation();
+            job.validate();
         }
         catch (Exception e){
             return Future.failedFuture(new HttpException(BAD_REQUEST, e.getMessage()));
@@ -55,18 +51,18 @@ public class ExportHandler extends JobHandler{
                         job.setEstimatedFeatureCount(value);
                     }
 
-                    HashMap<String, Long> srchProp = new HashMap<String, Long>();
+                    HashMap<String, Long> searchableProperties = new HashMap<>();
                     for ( PropertyStatistics pStat : statistics.getProperties().getValue())
                      if( pStat.isSearchable() )
-                      srchProp.put(pStat.getKey(), pStat.getCount() );
+                      searchableProperties.put(pStat.getKey(), pStat.getCount() );
 
-                    if( !srchProp.isEmpty() )
-                     job.setSearchableProperties(srchProp);
+                    if( !searchableProperties.isEmpty() )
+                     job.setSearchableProperties(searchableProperties);
 
                     if(   job.getEstimatedFeatureCount() > 1000000 /** searchable limit without index*/
                        && job.getPartitionKey() != null
                        && !"id".equals(job.getPartitionKey())
-                       && !srchProp.containsKey(job.getPartitionKey().replaceFirst("^(p|properties)\\." ,""))
+                       && !searchableProperties.containsKey(job.getPartitionKey().replaceFirst("^(p|properties)\\." ,""))
                        )
                         return Future.failedFuture(new HttpException(BAD_REQUEST, "partitionKey ["+ job.getPartitionKey() +"] is not a searchable property"));
 
@@ -74,74 +70,13 @@ public class ExportHandler extends JobHandler{
                 });
     }
 
-    protected static Future<Job> execute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                      boolean enableHashedSpaceId, ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context, Marker marker){
-
-        /** At this point we only have jobs which are allowed for executions. */
-
-        /** Load JobConfig */
-        return loadJob(jobId, marker)
-                .compose(loadedJob -> {
-                    Export exportJob = (Export) loadedJob;
-                    try {
-                        /** Load DB-Client, inject and store config values */
-                        loadClientAndInjectConfigValues(exportJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, incremental, _context);
-
-                        return CService.jobConfigClient.update(marker, exportJob);
-                    }catch (HttpException e){
-                        return Future.failedFuture(e);
-                    }
-                })
-                .compose(exportJob -> {
-                    if(command.equals(HApiParam.HQuery.Command.ABORT)){
-                        return abortJob(exportJob);
-                    }
-                    return Future.succeededFuture(exportJob);
-                })
-                .compose(exportJob -> {
-                    if(command.equals(HApiParam.HQuery.Command.CREATEUPLOADURL)){
-                        return Future.failedFuture(new HttpException(NOT_IMPLEMENTED, "For Export not required!"));
-                    }
-                    return Future.succeededFuture(exportJob);
-                })
-                .compose(exportJob -> {
-                    if(command.equals(HApiParam.HQuery.Command.RETRY)){
-                        try {
-                            exportJob.resetToPreviousState();
-                            return CService.jobConfigClient.update(marker, exportJob)
-                                    .onSuccess(f -> CService.exportQueue.addJob(exportJob));
-                        } catch (Exception e) {
-                            return Future.failedFuture(new HttpException(BAD_REQUEST, "Job has no lastStatus - cant retry!"));
-                        }
-                    }
-                    return Future.succeededFuture(exportJob);
-                })
-                .compose(exportJob -> {
-                    if(command.equals(HApiParam.HQuery.Command.START)){
-                        CService.exportQueue.addJob(exportJob);
-                    }
-                    return Future.succeededFuture(exportJob);
-                });
+    protected static Future<Job> execute(Export exportJob, Command command, Marker marker) {
+      return switch (command) {
+        case ABORT -> exportJob.executeAbort();
+        case CREATEUPLOADURL -> exportJob.executeCreateUploadUrl();
+        case START -> exportJob.executeStart();
+        case RETRY -> exportJob.executeRetry(marker);
+      };
     }
 
-    protected static void loadClientAndInjectExportDefaults(Export job, ApiParam.Query.Incremental incremental)
-            throws HttpException {
-
-        if(incremental.equals(ApiParam.Query.Incremental.FULL)) {
-            /** We have to check if the super layer got exported in a persistent way */
-            if(!job.isSuperSpacePersistent())
-                throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export requires persistent superLayer!");
-            /** Add path to persistent Export */
-            addSuperExportPathToJob(job.extractSuperSpaceId(), (job));
-        }
-    }
-
-    private static void addSuperExportPathToJob(String superSpaceId, Export job) throws HttpException {
-        String superExportPath = CService.jobS3Client.checkPersistentS3ExportOfSuperLayer(superSpaceId, job);
-        if (superExportPath == null)
-            throw new HttpException(PRECONDITION_FAILED, "Persistent Base-Layer export is missing!");
-
-        /** Add path to params tobe able to load already exported data from */
-        job.addParam("superExportPath", superExportPath);
-    }
 }

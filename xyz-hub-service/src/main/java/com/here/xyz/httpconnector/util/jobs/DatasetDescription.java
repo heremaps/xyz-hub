@@ -19,6 +19,7 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -27,15 +28,26 @@ import com.here.xyz.Typed;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Map;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Space;
+import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Spaces;
+import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
+import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = Map.class, name = "Map"),
     @JsonSubTypes.Type(value = Space.class, name = "Space"),
+    @JsonSubTypes.Type(value = Spaces.class, name = "Spaces"),
     @JsonSubTypes.Type(value = Files.class, name = "Files")
 })
 public abstract class DatasetDescription implements Typed {
+
+  /**
+   * @return the (primary) key of this DatasetDescription in order to search for it in the persistence layer.
+   *  Returning null means, that any other key is matched.
+   */
+  @JsonIgnore
+  public abstract String getKey();
 
   public abstract static class Identifiable extends DatasetDescription {
 
@@ -53,10 +65,33 @@ public abstract class DatasetDescription implements Typed {
       setId(id);
       return (T) this;
     }
+
+    public String getKey() {
+      return id;
+    }
   }
 
   public static class Files extends DatasetDescription {
+    CSVFormat format;
 
+    public CSVFormat getFormat() {
+      return format;
+    }
+
+    public void setFormat(CSVFormat format) {
+      this.format = format;
+    }
+
+    public Files withFormat(CSVFormat format) {
+      setFormat(format);
+      return this;
+    }
+
+    @Override
+    public String getKey() {
+      //No specific key to search for.
+      return null;
+    }
   }
 
   public static class Map extends Identifiable {
@@ -65,5 +100,27 @@ public abstract class DatasetDescription implements Typed {
 
   public static class Space extends Identifiable {
 
+  }
+
+  public static class Spaces extends DatasetDescription {
+
+    private List<String> spaceIds;
+
+    public List<String> getSpaceIds() {
+      return spaceIds;
+    }
+
+    public void setSpaceIds(List<String> spaceIds) {
+      this.spaceIds = spaceIds;
+    }
+
+    public Spaces withSpaceIds(List<String> spaceIds) {
+      setSpaceIds(spaceIds);
+      return this;
+    }
+
+    public String getKey() {
+      return String.join(",", spaceIds);
+    }
   }
 }

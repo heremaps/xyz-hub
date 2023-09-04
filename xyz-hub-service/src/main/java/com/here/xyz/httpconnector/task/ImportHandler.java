@@ -19,28 +19,31 @@
 
 package com.here.xyz.httpconnector.task;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.rest.HApiParam;
+import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
+import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
-import java.io.IOException;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class ImportHandler extends JobHandler{
     private static final Logger logger = LogManager.getLogger();
 
     protected static Future<Job> postJob(Import job, Marker marker){
-        try{
+        try {
             job.setDefaults();
-            job.validateCreation();
+            job.validate();
         }catch (Exception e){
             return Future.failedFuture(new HttpException(BAD_REQUEST, e.getMessage()));
         }
@@ -55,51 +58,55 @@ public class ImportHandler extends JobHandler{
                 });
     }
 
-    protected static Future<Job> execute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                         boolean enableHashedSpaceId, int urlCount, Marker marker){
-
-        /** At this point we only have jobs which are allowed for executions. */
-
-        /** Load current JobConfig */
-        return loadJob(jobId, marker)
-                .compose(loadedJob -> {
-                    Import importJob = (Import) loadedJob;
-                    try {
-                        /** Load DB-Client an inject config values */
-                        loadClientAndInjectConfigValues(importJob, command, connectorId, ecps, passphrase, enableHashedSpaceId, null, null);
-                        return Future.succeededFuture(importJob);
-                    }catch (HttpException e){
-                        return Future.failedFuture(e);
-                    }
-                }) .compose(importJob -> {
-                    if(command.equals(HApiParam.HQuery.Command.ABORT)){
-                        /** Job will fail - because SQL Queries are getting terminated */
-                        return abortJob(importJob)
-                                .compose(job -> Future.succeededFuture(importJob));
-                    }
+    protected static Future<Job> execute(Import importJob, Command command, int urlCount, Marker marker) {
+      return Future.succeededFuture(importJob)
+            .compose(job -> {
+              try {
+                //Validate (only for Imports; for exports it's done as part of ExportHandler#execute())
+                if (job instanceof Import)
+                  //TODO: Move that impl to Import class
+                  job.isValidForExecution(command);
+                return Future.succeededFuture(job);
+              }
+              catch (HttpException e) {
+                return Future.failedFuture(e);
+              }
+            })
+            //At this point we only have jobs which are allowed for executions.
+            .compose(job -> {
+                //Load DB-Client an inject config values
+                return job.injectConfigValues();
+            })
+          .compose(job -> ((Import) job).addClientIfRequired(command))
+          .map(v -> importJob)
+            .compose(job -> {
+                    if (command.equals(HApiParam.HQuery.Command.ABORT))
+                        //Job will fail - because SQL Queries are getting terminated
+                        return importJob.executeAbort();
                     return Future.succeededFuture(importJob);
                 })
-                .compose(importJob -> {
+                .compose(job -> {
                     if(command.equals(HApiParam.HQuery.Command.CREATEUPLOADURL)){
                         try {
                             for (int i = 0; i < urlCount; i++) {
-                                importJob.addImportObject(CService.jobS3Client.generateUploadURL(importJob));
+                              importJob.addImportObject(CService.jobS3Client.generateUploadURL(importJob));
                             }
 
-                            /** Store Urls in Job-Config */
+                            //Store Urls in Job-Config
                             return CService.jobConfigClient.update(marker, importJob);
-                        }catch (IOException e){
-                            logger.error(marker, "job[{}] cant create S3 Upload-URL(s).",importJob.getId(), e);
+                        }
+                        catch (IOException e){
+                            logger.error(marker, "job[{}] cant create S3 Upload-URL(s).", importJob.getId(), e);
                             return Future.failedFuture(new HttpException(BAD_GATEWAY, "Can`t create S3 Upload-URL(s)"));
                         }
                     }
                     return Future.succeededFuture(importJob);
                 })
-                .compose(importJob -> {
+                .compose(job -> {
                     if(command.equals(HApiParam.HQuery.Command.RETRY)){
-                        /** Reset to Current State */
+                        //Reset to Current State
                         try {
-                            importJob.resetToPreviousState();
+                          importJob.resetToPreviousState();
                             return CService.jobConfigClient.update(marker, importJob)
                                     .onSuccess(f -> checkAndAddJobToQueueFuture(marker, importJob, command));
                         } catch (Exception e) {
@@ -108,7 +115,7 @@ public class ImportHandler extends JobHandler{
                     }
                     return Future.succeededFuture(importJob);
                 })
-                .compose(importJob -> {
+                .compose(job -> {
                     if(command.equals(HApiParam.HQuery.Command.START)){
                         return checkAndAddJobToQueueFuture(marker, importJob, command);
                     }
