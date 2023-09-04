@@ -309,21 +309,28 @@ public class Import extends Job<Import> {
                     }
                     else {
                         int cntInvalid = 0;
+                        boolean filesWaiting = false;
 
                         for (String key : importObjects.keySet()) {
                             if (importObjects.get(key).getStatus() == ImportObject.Status.failed)
                                 cntInvalid++;
                             if (importObjects.get(key).getStatus() == ImportObject.Status.waiting)
+                            {
                                 /** Some Imports are still queued - execute again */
                                 updateJobStatus(this, Job.Status.prepared);
+                                filesWaiting = true;
+                            }
                         }
 
-                        if (cntInvalid == importObjects.size())
+                        if(!filesWaiting)
+                        { 
+                         if (cntInvalid == importObjects.size())
                             setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
-                        else if(cntInvalid > 0 && cntInvalid < importObjects.size())
+                         else if(cntInvalid > 0 && cntInvalid < importObjects.size())
                             setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
-
-                        updateJobStatus(this, Job.Status.executed);
+                       
+                         updateJobStatus(this, Job.Status.executed);
+                        }
                     }
                 });
     }
