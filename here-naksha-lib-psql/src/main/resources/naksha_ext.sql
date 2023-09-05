@@ -1132,10 +1132,16 @@ CREATE OR REPLACE FUNCTION naksha_collection_get(collection text)
     LANGUAGE 'plpgsql' IMMUTABLE
 AS $BODY$
 DECLARE
-  j jsonb;
+    j jsonb;
+    ns_oid oid;
+    table_oid oid;
+    tupple int8;
 BEGIN
-    j = obj_description((SELECT oid FROM pg_class where relname = collection), 'pg_class')::jsonb;
+    SELECT oid FROM pg_namespace WHERE nspname = naksha_schema() INTO ns_oid;
+    SELECT oid, reltuples::int8 FROM pg_class where relname = collection AND relnamespace = ns_oid INTO table_oid, tupple;
+    j = obj_description(table_oid, 'pg_class')::jsonb;
     IF j IS NOT NULL AND j->>'id' = collection THEN
+      j := jsonb_set(j, '{"estimatedFeatureCount"}', to_jsonb(tupple), true);
       RETURN j;
     END IF;
     RETURN NULL;
@@ -1154,10 +1160,10 @@ DECLARE
     ns_oid oid;
 BEGIN
     SELECT oid FROM pg_namespace WHERE nspname = naksha_schema() INTO ns_oid;
-    RAISE INFO '"%"', ns_oid;
+    --RAISE INFO '"%"', ns_oid;
     RETURN QUERY
-	WITH tabinfo AS (SELECT oid, relname::text FROM pg_class WHERE relkind='r' AND relnamespace = ns_oid)
-    SELECT relname as "id", obj_description(oid)::jsonb AS "jsondata" FROM tabinfo
+	WITH tabinfo AS (SELECT oid, relname::text, reltuples::int8 FROM pg_class WHERE relkind='r' AND relnamespace = ns_oid)
+    SELECT relname as "id", jsonb_set(obj_description(oid)::jsonb, '{"estimatedFeatureCount"}', to_jsonb(reltuples), true) AS "jsondata" FROM tabinfo
     WHERE naksha_json_id(obj_description(oid)) = relname;
 END
 $BODY$;
@@ -1436,6 +1442,7 @@ $BODY$;
 
 -- Start the transaction by setting the application-identifier, the current author (which may be null)
 -- and the returns the transaction number.
+-- See: https://www.postgresql.org/docs/current/runtime-config-query.html
 CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool)
     RETURNS uuid
     LANGUAGE 'plpgsql' VOLATILE
@@ -1443,6 +1450,8 @@ AS $$
 BEGIN
     EXECUTE format('SELECT '
          || 'SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', true)'
+         || ',SET_CONFIG(''cursor_tuple_fraction'', ''1.0'', true)'
+         || ',SET_CONFIG(''geqo'', ''false'', true)'
          || ',SET_CONFIG(''work_mem'', ''128 MB'', true)'
          || ',SET_CONFIG(''maintenance_work_mem'', ''1024 MB'', true)'
          || ',SET_CONFIG(''enable_seqscan'', ''OFF'', true)'
