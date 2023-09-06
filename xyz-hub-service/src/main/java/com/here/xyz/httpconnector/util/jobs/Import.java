@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,18 +18,34 @@
  */
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.scheduler.ImportQueue.NODE_EXECUTED_IMPORT_MEMORY;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
-
+import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.util.status.RDSStatus;
+import com.here.xyz.hub.Core;
+import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
+import com.here.xyz.hub.rest.HttpException;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class Import extends Job {
+public class Import extends Job<Import> {
+    private static final Logger logger = LogManager.getLogger();
     public static String ERROR_TYPE_NO_DB_CONNECTION = "no_db_connection";
 
     public static String ERROR_DESCRIPTION_UPLOAD_MISSING = "UPLOAD_MISSING";
@@ -54,7 +70,7 @@ public class Import extends Job {
     @JsonView({Internal.class})
     private List<String> idxList;
 
-    public Import(){ }
+    public Import() {}
 
     public Import(String description, String targetSpaceId, String targetTable,CSVFormat csvFormat, Strategy strategy) {
         this.description = description;
@@ -62,6 +78,84 @@ public class Import extends Job {
         this.targetTable = targetTable;
         this.csvFormat = csvFormat;
         this.strategy = strategy;
+    }
+
+    public static Import validateImportObjects(Import job){
+        /** Validate if provided files are existing and ok */
+        if(job.getImportObjects().size() == 0){
+            job.setErrorDescription(ERROR_DESCRIPTION_UPLOAD_MISSING);
+            job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+        }else {
+            try {
+                /** scan S3 Path for existing Uploads and validate first line of CSV */
+                Map<String, ImportObject> scannedObjects = CService.jobS3Client.scanImportPath(job, job.getCsvFormat());
+                if (scannedObjects.size() == 0) {
+                    job.setErrorDescription(ERROR_DESCRIPTION_UPLOAD_MISSING);
+                    job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+                } else {
+                    boolean foundOneValid = false;
+                    for (String key : job.getImportObjects().keySet()) {
+                        if (scannedObjects.get(key) != null) {
+                            /** S3 Object is found - update job with file metadata */
+                            ImportObject scannedFile = scannedObjects.get(key);
+
+                            if (!scannedFile.isValid()) {
+                                /** Keep Upload-URL for retry */
+                                scannedFile.setUploadUrl(job.getImportObjects().get(key).getUploadUrl());
+                                /** If file is invalid fail validation */
+                                job.setErrorDescription(ERROR_DESCRIPTION_INVALID_FILE);
+                                job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+                            } else
+                                foundOneValid = true;
+                            /** Add meta-data */
+                            job.addImportObject(scannedFile);
+                        } else {
+                            job.getImportObjects().get(key).setFilesize(-1);
+                        }
+                    }
+
+                    if (!foundOneValid) {
+                        /** No Uploads found */
+                        job.setErrorDescription(ERROR_DESCRIPTION_NO_VALID_FILES_FOUND);
+                        job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+                    }
+                }
+            }catch (Exception e){
+                logger.warn("job[{}] validation has failed! ", job.getId(), e);
+                job.setStatus(Status.failed);
+                job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
+            }
+        }
+
+        //ToDo: Decide if we want to proceed partially
+        if(job.getErrorType() != null)
+            job.setStatus(Status.failed);
+        else
+            job.setStatus(Status.validated);
+
+        return job;
+    }
+
+    public static void isValidForCreateUrl(Job job) throws HttpException {
+        if(job.getStatus().equals(Status.waiting))
+            return;
+        throw new HttpException(PRECONDITION_FAILED, "Invalid state: "+job.getStatus() +" creation is only allowed on status=waiting");
+    }
+
+    public void isValidForStart(Incremental incremental) throws HttpException{
+        if (getStatus().equals(Status.waiting))
+            return;
+        throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() +" execution is only allowed on status = waiting");
+    }
+
+    public void isValidForAbort() throws HttpException {
+        /**
+         * It is only allowed to abort a job inside executing state, because we have multiple nodes running.
+         * During the execution we have running SQL-Statements - due to the abortion of them, the client which
+         * has executed the Query will handle the abortion.
+         * */
+        if (!getStatus().equals(Status.executing) && !getStatus().equals(Status.finalizing))
+            throw new HttpException(PRECONDITION_FAILED,  "Invalid state: " + getStatus() + " for abort!");
     }
 
     public Type getType() {
@@ -86,98 +180,8 @@ public class Import extends Job {
         this.idxList = idxList;
     }
 
-    public Import withId(final String id) {
-        setId(id);
-        return this;
-    }
-
     public Import withImportObjects(Map<String, ImportObject> importObjects) {
         setImportObjects(importObjects);
-        return this;
-    }
-
-    public Import withErrorDescription(final String errorDescription) {
-        setErrorDescription(errorDescription);
-        return this;
-    }
-
-    public Import withDescription(final String description) {
-        setDescription(description);
-        return this;
-    }
-
-    public Import withTargetSpaceId(final String targetSpaceId) {
-        setTargetSpaceId(targetSpaceId);
-        return this;
-    }
-
-    public Import withTargetTable(final String targetTable) {
-        setTargetTable(targetTable);
-        return this;
-    }
-
-    public Import withStatus(final Job.Status status) {
-        setStatus(status);
-        return this;
-    }
-
-    public Import withCsvFormat(CSVFormat csv_format) {
-        setCsvFormat(csv_format);
-        return this;
-    }
-
-    public Import withCsvFormat(Strategy importStrategy) {
-        setStrategy(importStrategy);
-        return this;
-    }
-
-    public Import withCreatedAt(final long createdAt) {
-        setCreatedAt(createdAt);
-        return this;
-    }
-
-    public Import withUpdatedAt(final long updatedAt) {
-        setUpdatedAt(updatedAt);
-        return this;
-    }
-
-    public Import withExecutedAt(final Long startedAt) {
-        setExecutedAt(startedAt);
-        return this;
-    }
-
-    public Import withFinalizedAt(final Long finalizedAt) {
-        setFinalizedAt(finalizedAt);
-        return this;
-    }
-
-    public Import withExp(final Long exp) {
-        setExp(exp);
-        return this;
-    }
-
-    public Import withTargetConnector(String targetConnector) {
-        setTargetConnector(targetConnector);
-        return this;
-    }
-
-    public Import withErrorType(String errorType) {
-        setErrorType(errorType);
-        return this;
-    }
-
-    public Import withSpaceVersion(final long spaceVersion) {
-        setSpaceVersion(spaceVersion);
-        return this;
-    }
-
-    public Import withAuthor(String author) {
-        setAuthor(author);
-        return this;
-    }
-
-    public Import withParams(Map params) {
-        setParams(params);
         return this;
     }
 
@@ -235,5 +239,124 @@ public class Import extends Job {
     @Override
     public String getQueryIdentifier() {
         return "import_hint";
+    }
+
+    @Override
+    public void execute() {
+        setExecutedAt(Core.currentTimeMillis() / 1000L);
+        String defaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
+        List<Future> importFutures = new ArrayList<>();
+
+        Map<String, ImportObject> importObjects = getImportObjects();
+        for (String key : importObjects.keySet()) {
+            if(!importObjects.get(key).isValid())
+                continue;
+
+            if(importObjects.get(key).getStatus().equals(ImportObject.Status.imported)
+                || importObjects.get(key).getStatus().equals(ImportObject.Status.failed))
+                continue;
+
+            /** compressed processing of 9,5GB leads into ~120 GB RDS Mem */
+            long curFileSize = Long.valueOf(importObjects.get(key).isCompressed() ? (importObjects.get(key).getFilesize() * 12)  : importObjects.get(key).getFilesize());
+            double maxMemInGB = new RDSStatus.Limits(CService.rdsLookupCapacity.get(getTargetConnector())).getMaxMemInGB();
+
+            logger.info("job[{}] IMPORT_MEMORY {}/{} = {}% of max", getId(), NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
+
+            //TODO: Also view RDS METRICS?
+            if (NODE_EXECUTED_IMPORT_MEMORY < CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES){
+                importObjects.get(key).setStatus(ImportObject.Status.processing);
+                NODE_EXECUTED_IMPORT_MEMORY += curFileSize;
+                logger.info("job[{}] start execution of {}! mem: {}", getId(), importObjects.get(key).getS3Key(getId(), key), NODE_EXECUTED_IMPORT_MEMORY);
+
+                importFutures.add(
+                    CService.jdbcImporter.executeImport(getId(), getTargetConnector(), defaultSchema, getTargetTable(),
+                            CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(getId(), key), CService.configuration.JOBS_REGION, curFileSize, getCsvFormat() )
+                        .onSuccess(result -> {
+                                NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
+                                logger.info("job[{}] Import of '{}' succeeded!", getId(), importObjects.get(key));
+
+                                importObjects.get(key).setStatus(ImportObject.Status.imported);
+                                if(result != null && result.indexOf("imported") !=1) {
+                                    //242579 rows imported int…sv.gz of 56740921 bytes
+                                    importObjects.get(key).setDetails(result.substring(0,result.indexOf("imported")+8));
+                                }
+                            }
+                        )
+                        .onFailure(e -> {
+                                NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
+                                logger.warn("JOB[{}] Import of '{}' failed - mem: {}!", getId(), importObjects.get(key), NODE_EXECUTED_IMPORT_MEMORY, e);
+                                importObjects.get(key).setStatus(ImportObject.Status.failed);
+                            }
+                        )
+                );
+            }
+            else
+                importObjects.get(key).setStatus(ImportObject.Status.waiting);
+        }
+
+        CompositeFuture.join(importFutures)
+            .onComplete(
+                t -> {
+                    if (t.failed()){
+                        logger.warn("job[{}] Import of '{}' failed! ", getId(), getTargetSpaceId(), t);
+
+                        if (t.cause().getMessage() != null && t.cause().getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
+                            setJobAborted(this);
+                        else if (t.cause().getMessage() != null && t.cause().getMessage().contains("duplicate key value violates unique constraint"))
+                            setJobFailed(this, Import.ERROR_DESCRIPTION_IDS_NOT_UNIQUE, Job.ERROR_TYPE_EXECUTION_FAILED);
+                        else
+                            setJobFailed(this, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_EXECUTION_FAILED);
+                    }
+                    else {
+                        int cntInvalid = 0;
+                        boolean filesWaiting = false;
+
+                        for (String key : importObjects.keySet()) {
+                            if (importObjects.get(key).getStatus() == ImportObject.Status.failed)
+                                cntInvalid++;
+                            if (importObjects.get(key).getStatus() == ImportObject.Status.waiting)
+                            {
+                                /** Some Imports are still queued - execute again */
+                                updateJobStatus(this, Job.Status.prepared);
+                                filesWaiting = true;
+                            }
+                        }
+
+                        if(!filesWaiting)
+                        { 
+                         if (cntInvalid == importObjects.size())
+                            setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
+                         else if(cntInvalid > 0 && cntInvalid < importObjects.size())
+                            setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
+                       
+                         updateJobStatus(this, Job.Status.executed);
+                        }
+                    }
+                });
+    }
+
+    @Override
+    public void finalizeJob() {
+        String getDefaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
+
+        //@TODO: Limit parallel Creations
+        CService.jdbcImporter.finalizeImport(this, getDefaultSchema)
+            .onFailure(f -> {
+                logger.warn("job[{}] finalization failed!", getId(), f);
+
+                if (f.getMessage().equalsIgnoreCase(Import.ERROR_TYPE_ABORTED))
+                    setJobAborted(this);
+                else
+                    setJobFailed(this, null, Job.ERROR_TYPE_EXECUTION_FAILED);
+            })
+            .compose(
+                f -> {
+                    setFinalizedAt(Core.currentTimeMillis() / 1000L);
+                    logger.info("job[{}] finalization finished!", getId());
+                    if (getErrorDescription() != null)
+                        return updateJobStatus(this, Job.Status.failed);
+
+                    return updateJobStatus(this, Job.Status.finalized);
+                });
     }
 }

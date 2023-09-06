@@ -19,7 +19,7 @@
 
 package com.here.xyz.psql.query.helpers.versioning;
 
-import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE;
+import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE_FQN;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
@@ -38,7 +38,7 @@ public class GetMinAvailableVersion<E extends Event> extends XyzEventBasedQueryR
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     return new SQLQuery("SELECT COALESCE((meta->'minAvailableVersion')::bigint, 0) as min," +
             "(SELECT max(version) FROM ${schema}.${table}) as max " +
-            " FROM " +SPACE_META_TABLE+
+            " FROM " + SPACE_META_TABLE_FQN +
             " WHERE id=#{spaceId}")
         .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, getDefaultTable(event))

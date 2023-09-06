@@ -83,7 +83,7 @@ public class IterateChangesets extends XyzQueryRunner<IterateChangesetsEvent, Xy
 
     String geo = "replace(ST_AsGeojson(geo, " + GetFeatures.GEOMETRY_DECIMAL_DIGITS + "), 'nan', '0')::jsonb";
 
-    SQLQuery query =new SQLQuery(
+    SQLQuery query = new SQLQuery(
         "SELECT " +
                 " version||'_'||id as vid,"+
                 " id,"+

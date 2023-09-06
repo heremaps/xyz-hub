@@ -45,6 +45,9 @@ import java.util.Map;
 public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzResponse> extends Spatial<E, R> {
 
   private static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
+  private static String mvtPropertiesFlattenSql = "( select jsonb_object_agg('properties.' || jkey,jval) from prj_flatten( jsonb_set((jsondata)->'properties','{id}', to_jsonb( jsondata->>'id' )) ))";
+  private static String
+      mvtPropertiesSql        = "( select jsonb_object_agg(key, case when jsonb_typeof(value) in ('object', 'array') then to_jsonb(value::text) else value end) from jsonb_each(jsonb_set((jsondata)->'properties','{id}', to_jsonb(jsondata->>'id'))))";
   private boolean isMvtRequested;
 
   public GetFeaturesByBBox(E event) throws SQLException, ErrorResponseException {
@@ -84,7 +87,10 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
 
   @Override
   protected SQLQuery buildGeoFilter(GetFeaturesByBBoxEvent event) {
-    final BBox bbox = event.getBbox();
+    return buildGeoFilterFromBbox(event.getBbox());
+  }
+
+  protected SQLQuery buildGeoFilterFromBbox(BBox bbox) {
     SQLQuery geoFilter = new SQLQuery("ST_MakeEnvelope(#{minLon}, #{minLat}, #{maxLon}, #{maxLat}, 4326)")
         .withNamedParameter("minLon", bbox.minLon())
         .withNamedParameter("minLat", bbox.minLat())
@@ -96,9 +102,11 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
   private SQLQuery generateCombinedQuery(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery) {
     final SQLQuery query = new SQLQuery(
         "SELECT ${{selection}}, ${{geo}}"
-            + "    FROM ${schema}.${table_head} ${{tableSample}}"
+            + "    FROM ${schema}.${headTable} ${{tableSample}}"
             + "    WHERE ${{filterWhereClause}} ${{orderBy}} ${{limit}}"
-    );
+    )
+        .withVariable(SCHEMA, getSchema())
+        .withVariable("headTable", getDefaultTable((E) event) + HEAD_TABLE_SUFFIX);
 
     query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildClippedGeoFragment((E) event, buildGeoFilter(event)));
@@ -120,34 +128,37 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
     return query;
   }
 
-  public static SQLQuery buildMvtEncapsuledQuery(GetFeaturesByTileEvent event, SQLQuery dataQry) {
+  protected SQLQuery buildMvtEncapsuledQuery(GetFeaturesByTileEvent event, SQLQuery dataQry) {
     return buildMvtEncapsuledQuery(null, event, dataQry);
   }
 
-  public static SQLQuery buildMvtEncapsuledQuery( String tableName, GetFeaturesByTileEvent event, SQLQuery dataQry) {
+  protected SQLQuery buildMvtEncapsuledQuery(String tableName, GetFeaturesByTileEvent event, SQLQuery dataQuery) {
     WebMercatorTile mvtTile = !event.getHereTileFlag() ? WebMercatorTile.forWeb(event.getLevel(), event.getX(), event.getY()) : null;
     HQuad hereTile = event.getHereTileFlag() ? new HQuad(event.getX(), event.getY(), event.getLevel()) : null;
-    int mvtMargin = event.getMargin();
-    boolean isFlattend = event.getResponseType() == MVT_FLATTENED;
+    boolean isFlattened = event.getResponseType() == MVT_FLATTENED;
     String spaceIdOrTableName = tableName != null ? tableName : event.getSpace(); //TODO: Streamline function ST_AsMVT() so it only takes one or the other
     BBox eventBbox = event.getBbox();
+      int extent = 4096, buffer = extent / WebMercatorTile.TileSizeInPixel * event.getMargin();
+      BBox tileBbox = mvtTile != null ? mvtTile.getBBox(false) : (hereTile != null ? hereTile.getBoundingBox() : eventBbox); // pg ST_AsMVTGeom expects tiles bbox without buffer.
 
-      //TODO: The following is a workaround for backwards-compatibility and can be removed after completion of refactoring
-      dataQry.replaceUnnamedParameters();
-      dataQry.replaceFragments();
-      dataQry.replaceNamedParameters();
-      int extend = 4096, buffer = (extend / WebMercatorTile.TileSizeInPixel) * mvtMargin;
-      BBox b = ( mvtTile != null ? mvtTile.getBBox(false) : ( hereTile != null ? hereTile.getBoundingBox() : eventBbox) ); // pg ST_AsMVTGeom expects tiles bbox without buffer.
-
-      SQLQuery r = new SQLQuery( DhString.format( hereTile == null ? TweaksSQL.mvtBeginSql : TweaksSQL.hrtBeginSql ,
-                                   DhString.format( TweaksSQL.requestedTileBoundsSql , b.minLon(), b.minLat(), b.maxLon(), b.maxLat() ),
-                                   (!isFlattend) ? TweaksSQL.mvtPropertiesSql : TweaksSQL.mvtPropertiesFlattenSql,
-                                   extend,
-                                   buffer )
-                               );
-      r.append(dataQry);
-      r.append( DhString.format( TweaksSQL.mvtEndSql, spaceIdOrTableName ));
-      return r;
+      SQLQuery outerQuery = new SQLQuery(
+          "with tile as (select ${{bounds}} as bounds, #{extent} as extent, #{buffer} as buffer, true as clip_geom), "
+              + "mvtdata as "
+              + "( "
+              + " select ${{mvtProperties}} as mproperties, ST_AsMVTGeom(st_force2d(${{geoFrag}}), t.bounds, t.extent::integer, t.buffer::integer, t.clip_geom) as mgeo "
+              + " from "
+              + " (${{dataQuery}}) data , tile t "
+              + ") "
+              + "select ST_AsMVT( mvtdata , #{spaceIdOrTableName} ) as bin from mvtdata where mgeo is not null")
+          .withQueryFragment("bounds", new SQLQuery(hereTile == null ? "st_transform(${{tileBbox}}, 3857)" : "${{tileBbox}}")
+              .withQueryFragment("tileBbox", buildGeoFilterFromBbox(tileBbox)))
+          .withQueryFragment("mvtProperties", !isFlattened ? mvtPropertiesSql : mvtPropertiesFlattenSql)
+          .withNamedParameter("extent", extent)
+          .withNamedParameter("buffer", buffer)
+          .withQueryFragment("geoFrag", hereTile == null ? "st_transform(geo, 3857)" : "geo")
+          .withQueryFragment("dataQuery", dataQuery)
+          .withNamedParameter("spaceIdOrTableName", spaceIdOrTableName);
+      return outerQuery;
     }
 
   @Override
@@ -190,10 +201,10 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
 
   private static String map2MvtGeom( GetFeaturesByBBoxEvent event, BBox bbox, String tweaksGeoSql )
   {
-   boolean bExtendTweaks = // -> 2048 only if tweaks or viz been specified explicit
+   boolean bExtentTweaks = // -> 2048 only if tweaks or viz been specified explicit
     ( "viz".equals(event.getOptimizationMode()) || (event.getTweakParams() != null && event.getTweakParams().size() > 0 ) );
 
-   int extend = ( bExtendTweaks ? 2048 : 4096 ), extendPerMargin = extend / WebMercatorTile.TileSizeInPixel, extendWithMargin = extend, level = -1, tileX = -1, tileY = -1, margin = 0;
+   int extent = ( bExtentTweaks ? 2048 : 4096 ), extentPerMargin = extent / WebMercatorTile.TileSizeInPixel, extentWithMargin = extent, level = -1, tileX = -1, tileY = -1, margin = 0;
    boolean hereTile = false;
 
    if( event instanceof GetFeaturesByTileEvent )
@@ -202,7 +213,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
      tileX = tevnt.getX();
      tileY = tevnt.getY();
      margin = tevnt.getMargin();
-     extendWithMargin = extend + (margin * extendPerMargin);
+     extentWithMargin = extent + (margin * extentPerMargin);
      hereTile = tevnt.getHereTileFlag();
    }
    else
@@ -226,13 +237,13 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
       // 1. build mvt
     mvtgeom = DhString.format( (!hereTile ? "st_asmvtgeom(st_force2d(st_transform(%1$s,3857)), st_transform(%2$s,3857),%3$d,0,true)"
                                           : "st_asmvtgeom(st_force2d(%1$s), %2$s,%3$d,0,true)")
-                               , tweaksGeoSql, box2d, extendWithMargin);
+                               , tweaksGeoSql, box2d, extentWithMargin);
       // 2. project the mvt to tile
     mvtgeom = DhString.format( (!hereTile ? "st_setsrid(st_translate(st_scale(st_translate(%1$s, %2$d , %2$d, 0.0), st_makepoint(%3$f,%4$f,1.0) ), %5$f , %6$f, 0.0 ), 3857)"
                                           : "st_setsrid(st_translate(st_scale(st_translate(%1$s, %2$d , %2$d, 0.0), st_makepoint(%3$f,%4$f,1.0) ), %5$f , %6$f, 0.0 ), 4326)")
                                ,mvtgeom
-                               ,-extendWithMargin/2 // => shift to stretch from tilecenter
-                               ,stretchFactor*(xwidth / (gridsize*extend)), stretchFactor * (ywidth / (gridsize*extend)) * -1 // stretch tile to proj. size
+                               ,-extentWithMargin/2 // => shift to stretch from tilecenter
+                               ,stretchFactor*(xwidth / (gridsize*extent)), stretchFactor * (ywidth / (gridsize*extent)) * -1 // stretch tile to proj. size
                                ,xProjShift, yProjShift // shift to proj. position
                              );
       // 3 project tile to wgs84 and map invalid geom to null
@@ -342,7 +353,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
    return tolerance;
   }
 
-  public static SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, Map tweakParams) throws SQLException
+  public SQLQuery buildSimplificationTweaksQuery(GetFeaturesByBBoxEvent event, Map tweakParams) throws SQLException
   {
     BBox bbox = event.getBbox();
    int strength = 0,
@@ -435,7 +446,7 @@ public class GetFeaturesByBBox<E extends GetFeaturesByBBoxEvent, R extends XyzRe
      return query;
 }
 
-private static SQLQuery buildSimplificationTweaksMergeQuery(GetFeaturesByBBoxEvent event, int iMerge, String tweaksGeoSql, int minGeoHashLenToMerge, int minGeoHashLenForLineMerge, String bboxQuery, boolean convertGeo2Geojson) {
+private SQLQuery buildSimplificationTweaksMergeQuery(GetFeaturesByBBoxEvent event, int iMerge, String tweaksGeoSql, int minGeoHashLenToMerge, int minGeoHashLenForLineMerge, String bboxQuery, boolean convertGeo2Geojson) {
     SQLQuery query;
     if (iMerge == 1) {
       query = new SQLQuery("select jsondata, geo "
@@ -530,7 +541,7 @@ private static SQLQuery buildSimplificationTweaksMergeQuery(GetFeaturesByBBoxEve
 
     }
     return query
-        .withVariable(SCHEMA, getSchemaBWC())
+        .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, readTableFromEvent(event))
         .withQueryFragment("tweaksGeo", tweaksGeoSql)
         .withQueryFragment("bboxQuery", bboxQuery)
@@ -540,12 +551,12 @@ private static SQLQuery buildSimplificationTweaksMergeQuery(GetFeaturesByBBoxEve
 
   /** ###################################################################################### */
 
-  private static SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean testTweaksGeoIfNull, float sampleRatio, boolean sortByHashedValue)
+  private SQLQuery generateCombinedQueryTweaks(GetFeaturesByBBoxEvent event, SQLQuery indexedQuery, String tweaksgeo, boolean testTweaksGeoIfNull, float sampleRatio, boolean sortByHashedValue)
   {
     SQLQuery searchQuery = generateSearchQuery(event);
 
     final SQLQuery query = new SQLQuery("SELECT * FROM (SELECT ${{selection}}${{geo}} FROM ${schema}.${table} ${{sampling}} WHERE ${{indexedQuery}} ${{searchQuery}} ${{orderBy}}) tw ${{outerWhereClause}} LIMIT #{limit}")
-        .withVariable(SCHEMA, getSchemaBWC())
+        .withVariable(SCHEMA, getSchema())
         .withVariable(TABLE, readTableFromEvent(event) + HEAD_TABLE_SUFFIX)
         .withQueryFragment("selection", buildSelectionFragment(event))
         .withQueryFragment("geo", DhString.format(",%s as geo", tweaksgeo))

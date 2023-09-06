@@ -18,25 +18,44 @@
  */
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCExporter;
+import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.rest.HApiParam;
+import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
-
+import io.netty.handler.codec.http.HttpResponseStatus;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-public class Export extends Job {
+public class Export extends Job<Export> {
+    private static final Logger logger = LogManager.getLogger();
     public static String ERROR_TYPE_HTTP_TRIGGER_FAILED = "http_trigger_failed";
     public static String ERROR_TYPE_TARGET_ID_INVALID = "targetId_invalid";
     public static String ERROR_TYPE_HTTP_TRIGGER_STATUS_FAILED = "http_get_trigger_status_failed";
+    protected static int VML_EXPORT_MIN_TARGET_LEVEL = 4;
+    protected static int VML_EXPORT_MAX_TARGET_LEVEL = 13;
+    protected static int VML_EXPORT_MAX_TILES_PER_FILE = 8192;
 
     @JsonInclude
     private Type type = Type.Export;
@@ -97,6 +116,121 @@ public class Export extends Job {
         this.clipped = false;
     }
 
+    @Override
+    public void setDefaults() {
+        super.setDefaults();
+        if (getExportTarget() != null && getExportTarget().getType().equals(ExportTarget.Type.VML)) {
+            if (getCsvFormat() != null && getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64))
+                return;
+            setCsvFormat(CSVFormat.TILEID_FC_B64);
+            if (getMaxTilesPerFile() == 0)
+                setMaxTilesPerFile(VML_EXPORT_MAX_TILES_PER_FILE);
+        }
+    }
+
+    @Override
+    public void validateCreation() throws HttpException {
+        super.validateCreation();
+
+        if (getExportTarget() == null)
+            throw new HttpException(BAD_REQUEST,("Please specify exportTarget!"));
+
+        if (getExportTarget().getType().equals(ExportTarget.Type.VML)){
+
+            switch (getCsvFormat()) {
+                case TILEID_FC_B64:
+                case PARTITIONID_FC_B64:
+                    break;
+                default:
+                    throw new HttpException(BAD_REQUEST, "Invalid Format! Allowed [" + CSVFormat.TILEID_FC_B64 + ","
+                        + CSVFormat.PARTITIONID_FC_B64 + "]");
+            }
+
+            if (getExportTarget().getTargetId() == null)
+                throw new HttpException(BAD_REQUEST,("Please specify the targetId!"));
+
+            if (!getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64)) {
+                if (getTargetLevel() == null)
+                    throw new HttpException(BAD_REQUEST, "Please specify targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL + ":"
+                        + VML_EXPORT_MAX_TARGET_LEVEL + "]");
+
+             if (getTargetLevel() < VML_EXPORT_MIN_TARGET_LEVEL || getTargetLevel() > VML_EXPORT_MAX_TARGET_LEVEL)
+                throw new HttpException(BAD_REQUEST, "Invalid targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL
+                    + ":" + VML_EXPORT_MAX_TARGET_LEVEL + "]");
+            }
+
+        }
+        else if (getExportTarget().getType().equals(ExportTarget.Type.DOWNLOAD)){
+
+            switch (getCsvFormat()) {
+                case JSON_WKB:
+                case GEOJSON: break;
+                default:
+                    throw new HttpException(BAD_REQUEST,("Invalid Format! Allowed ["+ CSVFormat.JSON_WKB +","+ CSVFormat.GEOJSON +"]"));
+            }
+
+        }
+
+        Filters filters = getFilters();
+        if (filters != null) {
+            if (filters.getSpatialFilter() != null) {
+                Geometry geometry = filters.getSpatialFilter().getGeometry();
+                if (geometry == null)
+                    throw new HttpException(BAD_REQUEST, "Please specify a geometry for the spatial filter!");
+                else {
+                    try {
+                        geometry.validate();
+                        WKTHelper.geometryToWKB(geometry);
+                    }catch (Exception e){
+                        throw new HttpException(BAD_REQUEST, "Cant parse filter geometry!");
+                    }
+                }
+            }
+        }
+
+        if (readParamPersistExport()){
+            if (!getExportTarget().getType().equals(ExportTarget.Type.VML))
+                throw new HttpException(BAD_REQUEST, "Persistent Export not allowed for this target!");
+            if (filters != null)
+                throw new HttpException(BAD_REQUEST, "Persistent Export is only allowed without filters!");
+        }
+    }
+
+    protected void isValidForStart(ApiParam.Query.Incremental incremental) throws HttpException {
+        if (!getStatus().equals(Status.waiting))
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " execution is only allowed on status=waiting");
+
+        if (!incremental.equals(ApiParam.Query.Incremental.DEACTIVATED)) {
+            if (incremental.equals(ApiParam.Query.Incremental.CHANGES) && includesSecondLevelExtension())
+                throw new HttpException(NOT_IMPLEMENTED, "Incremental Export of CHANGES is not supported for 2nd Level extended spaces!");
+
+            if (!getCsvFormat().equals(CSVFormat.TILEID_FC_B64))
+                throw new HttpException(BAD_REQUEST, "CSV format is not supported!");
+
+            if (getExportTarget().getType().equals(ExportTarget.Type.DOWNLOAD))
+                throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export is available for Type Download!");
+
+            if (getParams() == null || getParams().get("extends") == null)
+                throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export is only possible on extended layers!");
+
+            if (incremental.equals(ApiParam.Query.Incremental.FULL)) {
+                /** We have to check if the super layer got exported in a persistent way */
+                if (!isSuperSpacePersistent())
+                    throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export requires persistent superLayer!");
+            }
+        }
+    }
+
+    public void isValidForAbort() throws HttpException {
+        /**
+         * It is only allowed to abort a job inside executing state, because we have multiple nodes running.
+         * During the execution we have running SQL-Statements - due to the abortion of them, the client which
+         * has executed the Query will handle the abortion.
+         * */
+        if (!getStatus().equals(Status.executing))
+            throw new HttpException(PRECONDITION_FAILED, "Job is not in executing state - current status: " + getStatus());
+    }
+
     public Type getType() {
         return type;
     }
@@ -109,6 +243,11 @@ public class Export extends Job {
         this.processingList = processingList;
     }
 
+    public Export withProcessingList(List<String> processingList) {
+        setProcessingList(processingList);
+        return this;
+    }
+
     public long getEstimatedFeatureCount() {
         return estimatedFeatureCount;
     }
@@ -117,12 +256,22 @@ public class Export extends Job {
         this.estimatedFeatureCount = estimatedFeatureCount;
     }
 
-    public Map<String,Long> getSearchableProperties() { 
+    public Export withEstimatedFeatureCount(long estimatedFeatureCount){
+        setEstimatedFeatureCount(estimatedFeatureCount);
+        return this;
+    }
+
+    public Map<String,Long> getSearchableProperties() {
         return searchableProperties;
     }
 
-    public void setSearchableProperties( Map<String,Long> searchableProperties ) { 
+    public void setSearchableProperties(Map<String,Long> searchableProperties) {
         this.searchableProperties = searchableProperties;
+    }
+
+    public Export withSearchableProperties(Map<String,Long> searchableProperties) {
+        setSearchableProperties(searchableProperties);
+        return this;
     }
 
     public ExportStatistic getStatistic(){
@@ -163,12 +312,39 @@ public class Export extends Job {
         this.exportObjects = exportObjects;
     }
 
+    public Export withExportObjects(Map<String, ExportObject> exportObjects) {
+        setExportObjects(exportObjects);
+        return this;
+    }
+
+    /**
+     * @deprecated Please use method {@link #getTarget()} instead.
+     */
+    @Deprecated
     public ExportTarget getExportTarget() {
         return exportTarget;
     }
 
+    /**
+     * @deprecated Please use method {@link #setTarget(DatasetDescription)} instead.
+     * @param exportTarget
+     */
+    @Deprecated
     public void setExportTarget(ExportTarget exportTarget) {
         this.exportTarget = exportTarget;
+        //Keep BWC
+        if (getTarget() == null && (exportTarget.getType() == ExportTarget.Type.S3 || exportTarget.getType() == ExportTarget.Type.DOWNLOAD))
+            setTarget(new Files());
+    }
+
+    /**
+     * @deprecated Please use method {@link #withTarget(DatasetDescription)} instead.
+     * @param exportTarget
+     */
+    @Deprecated
+    public Export withExportTarget(final ExportTarget exportTarget) {
+        setExportTarget(exportTarget);
+        return this;
     }
 
     public Integer getTargetLevel() {
@@ -179,12 +355,22 @@ public class Export extends Job {
         this.targetLevel = targetLevel;
     }
 
+    public Export withTargetLevel(final Integer targetLevel) {
+        setTargetLevel(targetLevel);
+        return this;
+    }
+
     public String getPartitionKey() {
         return partitionKey;
     }
 
     public void setPartitionKey(String partitionKey) {
         this.partitionKey = partitionKey;
+    }
+
+    public Export withPartitionKey(final String partitionKey) {
+        setPartitionKey(partitionKey);
+        return this;
     }
 
     public String getTargetVersion() {
@@ -195,12 +381,22 @@ public class Export extends Job {
         this.targetVersion = targetVersion;
     }
 
+    public Export withTargetVersion(final String targetVersion) {
+        setTargetVersion(targetVersion);
+        return this;
+    }
+
     public int getMaxTilesPerFile() {
         return maxTilesPerFile;
     }
 
     public void setMaxTilesPerFile(int maxTilesPerFile) {
         this.maxTilesPerFile = maxTilesPerFile;
+    }
+
+    public Export withMaxTilesPerFile(final int maxTilesPerFile) {
+        setMaxTilesPerFile(maxTilesPerFile);
+        return this;
     }
 
     public Boolean getClipped() {
@@ -211,6 +407,11 @@ public class Export extends Job {
         this.clipped = clipped;
     }
 
+    public Export withClipped(final boolean clipped) {
+        setClipped(clipped);
+        return this;
+    }
+
     public Filters getFilters() {
         return filters;
     }
@@ -219,159 +420,14 @@ public class Export extends Job {
         this.filters = filters;
     }
 
-    public String getTriggerId() { return triggerId; }
-
-    public void setTriggerId(String triggerId) { this.triggerId = triggerId; }
-
-    public Export withId(final String id) {
-        setId(id);
-        return this;
-    }
-
-    public Export withProcessingList(List<String> processingList) {
-        setProcessingList(processingList);
-        return this;
-    }
-
-    public Export withEstimatedFeatureCount(long estimatedFeatureCount){
-        setEstimatedFeatureCount(estimatedFeatureCount);
-        return this;
-    }
-
-    public Export withSearchableProperties(Map<String,Long> searchableProperties) {
-        setSearchableProperties(searchableProperties);
-        return this;
-    }
-
-    public Export withExportObjects(Map<String, ExportObject> exportObjects) {
-        setExportObjects(exportObjects);
-        return this;
-    }
-
-    public Export withErrorDescription(final String errorDescription) {
-        setErrorDescription(errorDescription);
-        return this;
-    }
-
-    public Export withDescription(final String description) {
-        setDescription(description);
-        return this;
-    }
-
-    public Export withTargetSpaceId(final String targetSpaceId) {
-        setTargetSpaceId(targetSpaceId);
-        return this;
-    }
-
-    public Export withTargetTable(final String targetTable) {
-        setTargetTable(targetTable);
-        return this;
-    }
-
-    public Export withStatus(final Job.Status status) {
-        setStatus(status);
-        return this;
-    }
-
-    public Export withCsvFormat(CSVFormat csv_format) {
-        setCsvFormat(csv_format);
-        return this;
-    }
-
-    public Export withCsvFormat(Strategy importStrategy) {
-        setStrategy(importStrategy);
-        return this;
-    }
-
-    public Export withCreatedAt(final long createdAt) {
-        setCreatedAt(createdAt);
-        return this;
-    }
-
-    public Export withUpdatedAt(final long updatedAt) {
-        setUpdatedAt(updatedAt);
-        return this;
-    }
-
-    public Export withExecutedAt(final Long startedAt) {
-        setExecutedAt(startedAt);
-        return this;
-    }
-
-    public Export withFinalizedAt(final Long finalizedAt) {
-        setFinalizedAt(finalizedAt);
-        return this;
-    }
-
-    public Export withExp(final Long exp) {
-        setExp(exp);
-        return this;
-    }
-
-    public Export withTargetConnector(String targetConnector) {
-        setTargetConnector(targetConnector);
-        return this;
-    }
-
-    public Export withErrorType(String errorType) {
-        setErrorType(errorType);
-        return this;
-    }
-
-    public Export withSpaceVersion(final long spaceVersion) {
-        setSpaceVersion(spaceVersion);
-        return this;
-    }
-
-    public Export withAuthor(String author) {
-        setAuthor(author);
-        return this;
-    }
-
-    public Export withMaxTilesPerFile(final int maxTilesPerFile) {
-        setMaxTilesPerFile(maxTilesPerFile);
-        return this;
-    }
-
-    public Export withClipped(final boolean clipped) {
-        setClipped(clipped);
-        return this;
-    }
-
-    public Export withOmitOnNull(final boolean omitOnNull) {
-        setOmitOnNull(omitOnNull);
-        return this;
-    }
-
     public Export withFilters(final Filters filters) {
         setFilters(filters);
         return this;
     }
 
-    public Export withExportTarget(final ExportTarget exportTarget) {
-        setExportTarget(exportTarget);
-        return this;
-    }
+    public String getTriggerId() { return triggerId; }
 
-    public Export withTargetLevel(final Integer targetLevel) {
-        setTargetLevel(targetLevel);
-        return this;
-    }
-
-    public Export withPartitionKey(final String partitionKey) {
-        setPartitionKey(partitionKey);
-        return this;
-    }
-
-    public Export withTargetVersion(final String targetVersion) {
-        setTargetVersion(targetVersion);
-        return this;
-    }
-
-    public Export withParams(Map params) {
-        setParams(params);
-        return this;
-    }
+    public void setTriggerId(String triggerId) { this.triggerId = triggerId; }
 
     public Export withTriggerId(String triggerId) {
         setTriggerId(triggerId);
@@ -379,7 +435,7 @@ public class Export extends Job {
     }
 
     @JsonIgnore
-    public String readParamSuperExportPath(){
+    public String readParamSuperExportPath() {
         return this.params.containsKey("superExportPath") ? (String) this.getParam("superExportPath") : null;
     }
 
@@ -401,7 +457,7 @@ public class Export extends Job {
     }
 
     @JsonIgnore
-    public boolean isSuperSpacePersistent() throws HttpException {
+    public boolean isSuperSpacePersistent() {
         Map extension = (Map) this.params.get("extends");
         if(this.params == null && extension == null)
             return false;
@@ -414,7 +470,7 @@ public class Export extends Job {
     }
 
     @JsonIgnore
-    public String extractSuperSpaceId() throws HttpException {
+    public String extractSuperSpaceId() {
         Map extension = (Map) this.params.get("extends");
         if(this.params == null && extension == null)
             return null;
@@ -427,13 +483,13 @@ public class Export extends Job {
     }
 
     @JsonIgnore
-    public ApiParam.Query.Incremental readParamIncremental(){
+    public ApiParam.Query.Incremental readParamIncremental() {
         return this.params.containsKey("incremental") ?
                 ApiParam.Query.Incremental.valueOf((String)this.params.get(HApiParam.HQuery.INCREMENTAL)) :
                 ApiParam.Query.Incremental.DEACTIVATED;
     }
 
-    public void resetToPreviousState() throws Exception{
+    public void resetToPreviousState() throws Exception {
         switch (getStatus()){
             case failed:
             case aborted:
@@ -459,7 +515,7 @@ public class Export extends Job {
         }
     }
 
-    public static class ExportStatistic{
+    public static class ExportStatistic {
         private long rowsUploaded;
         private long filesUploaded;
         private long bytesUploaded;
@@ -515,7 +571,7 @@ public class Export extends Job {
     }
 
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    public static class ExportTarget{
+    public static class ExportTarget {
         @JsonView({Public.class})
         public enum Type {
             VML, DOWNLOAD, S3 /** same as download */;
@@ -565,7 +621,7 @@ public class Export extends Job {
     }
 
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-    public static class SpatialFilter{
+    public static class SpatialFilter {
 
         @JsonView({Public.class})
         private Geometry geometry;
@@ -584,12 +640,22 @@ public class Export extends Job {
             this.geometry = geometry;
         }
 
+        public SpatialFilter withGeometry(Geometry geometry){
+            this.setGeometry(geometry);
+            return this;
+        }
+
         public int getRadius() {
             return radius;
         }
 
         public void setRadius(int radius) {
             this.radius = radius;
+        }
+
+        public SpatialFilter withRadius(final int radius) {
+            setRadius(radius);
+            return this;
         }
 
         public boolean isClipped() {
@@ -600,14 +666,6 @@ public class Export extends Job {
             this.clipped = clipped;
         }
 
-        public SpatialFilter withGeometry(Geometry geometry){
-            this.setGeometry(geometry);
-            return this;
-        }
-        public SpatialFilter withRadius(final int radius) {
-            setRadius(radius);
-            return this;
-        }
         public SpatialFilter withClipped(final boolean clipped) {
             setClipped(clipped);
             return this;
@@ -629,6 +687,11 @@ public class Export extends Job {
             this.propertyFilter = propertyFilter;
         }
 
+        public Filters withPropertyFilter(String propertyFilter) {
+            setPropertyFilter(propertyFilter);
+            return this;
+        }
+
         public SpatialFilter getSpatialFilter() {
             return spatialFilter;
         }
@@ -641,15 +704,79 @@ public class Export extends Job {
             setSpatialFilter(spatialFilter);
             return this;
         }
-
-        public Filters withPropertyFilter(String propertyFilter) {
-            setPropertyFilter(propertyFilter);
-            return this;
-        }
     }
 
     @Override
     public String getQueryIdentifier() {
         return "export_hint";
+    }
+
+    @Override
+    public void execute() {
+        setExecutedAt(Core.currentTimeMillis() / 1000L);
+        String defaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
+
+        String s3Path = CService.jobS3Client.getS3Path(this);
+
+        if (readParamPersistExport()) {
+            Export existingJob = CService.jobS3Client.readMetaFileFromJob(this);
+            if (existingJob != null) {
+                if (existingJob.getExportObjects() == null || existingJob.getExportObjects().isEmpty()) {
+                    String message = String.format("Another job already started for %s and targetLevel %s with status %s",
+                        existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
+                    setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
+                }
+                else {
+                    addDownloadLinksAndWriteMetaFile(existingJob);
+                    setExportObjects(existingJob.getExportObjects());
+                    updateJobStatus(this, Job.Status.executed);
+                }
+                return;
+            }
+            else {
+                addDownloadLinksAndWriteMetaFile(this);
+            }
+        }
+
+        JDBCExporter.executeExport(this, defaultSchema, CService.configuration.JOBS_S3_BUCKET, s3Path,
+                CService.configuration.JOBS_REGION)
+            .onSuccess(statistic -> {
+                    /** Everything is processed */
+                    logger.info("job[{}] Export of '{}' completely succeeded!", getId(), getTargetSpaceId());
+                    addStatistic(statistic);
+                    addDownloadLinksAndWriteMetaFile(this);
+                    updateJobStatus(this, Job.Status.executed);
+                }
+            )
+            .onFailure(e -> {
+                logger.warn("job[{}] export of '{}' failed! ", getId(), getTargetSpaceId(), e);
+
+                if (e.getMessage() != null && e.getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
+                    setJobAborted(this);
+                else {
+                    setJobFailed(this, null, Job.ERROR_TYPE_EXECUTION_FAILED);
+                }}
+            );
+    }
+
+    protected void addDownloadLinksAndWriteMetaFile(Job j){
+        /** Add file statistics and downloadLinks */
+        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
+        ((Export) j).setExportObjects(exportObjects);
+
+        if(((Export)j).readParamSuperExportPath() != null) {
+            /** Add exportObjects including fresh download links for persistent base exports */
+            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath((Export) j, true, true);
+            ((Export) j).setSuperExportObjects(superExportObjects);
+        }
+
+        /** Write MetaFile to S3 */
+        CService.jobS3Client.writeMetaFile((Export) j);
+    }
+
+    @Override
+    public void finalizeJob() {
+        setFinalizedAt(Core.currentTimeMillis() / 1000L);
+        updateJobStatus(this, Job.Status.finalized);
     }
 }

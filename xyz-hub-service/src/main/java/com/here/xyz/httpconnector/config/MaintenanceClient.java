@@ -26,6 +26,7 @@ import static com.here.xyz.psql.config.DatabaseSettings.PSQL_PORT;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_REPLICA_HOST;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_SCHEMA;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_USER;
+import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE_FQN;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
@@ -70,6 +71,7 @@ public class MaintenanceClient {
         final long start = System.currentTimeMillis();
         try {
             final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, CService.configuration.DB_STATEMENT_TIMEOUT_IN_S));
+            query.substitute();
             return run.query(query.text(), handler, query.parameters().toArray());
         } finally {
             final long end = System.currentTimeMillis();
@@ -80,6 +82,7 @@ public class MaintenanceClient {
     public int executeQueryWithoutResults(SQLQuery query, DataSource dataSource) throws SQLException {
         final long start = System.currentTimeMillis();
         try {
+            query.substitute();
             final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null, CService.configuration.DB_STATEMENT_TIMEOUT_IN_S));
             return run.execute(query.text(), query.parameters().toArray());
         } finally {
@@ -92,6 +95,7 @@ public class MaintenanceClient {
         final long start = System.currentTimeMillis();
         try {
             final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,  CService.configuration.DB_STATEMENT_TIMEOUT_IN_S));
+            query.substitute();
             final String queryText = query.text();
             final List<Object> queryParameters = query.parameters();
 
@@ -104,7 +108,11 @@ public class MaintenanceClient {
 
     public ConnectorStatus getConnectorStatus(String connectorId, String ecps, String passphrase) throws SQLException, DecodeException{
         MaintenanceInstance dbInstance = getClient(connectorId, ecps, passphrase);
-        SQLQuery query = new SQLQuery(MaintenanceSQL.getConnectorStatus, dbInstance.getDbSettings().getSchema(), dbInstance.getConnectorId());
+        SQLQuery query = new SQLQuery("select (select row_to_json( prop ) from ( select 'ConnectorStatus' as type, connector_id, initialized, " +
+            "extensions, script_versions as \"scriptVersions\", maintenance_status as \"maintenanceStatus\") prop ) " +
+            "from xyz_config.db_status where dh_schema = #{schema} AND connector_id = #{connectorId}")
+            .withNamedParameter("schema", dbInstance.getDbSettings().getSchema())
+            .withNamedParameter("connectorId", dbInstance.getConnectorId());
 
         /** If connector entry cant get found connector is not initialized */
         ConnectorStatus dbStatus = new ConnectorStatus().withInitialized(false);
@@ -148,13 +156,27 @@ public class MaintenanceClient {
         DatabaseSettings dbSettings = dbInstance.getDbSettings();
         DataSource source = dbInstance.getSource();
 
-        SQLQuery hasPermissionsQuery = new SQLQuery("select has_database_privilege(?, ?, 'CREATE')", dbSettings.getUser(), dbSettings.getDb() );
+        SQLQuery hasPermissionsQuery = new SQLQuery("select has_database_privilege(#{user}, #{db}, 'CREATE')")
+            .withNamedParameter("user", dbSettings.getUser())
+            .withNamedParameter("db", dbSettings.getDb());
+
         SQLQuery installExtensionsQuery = new SQLQuery(MaintenanceSQL.generateMandatoryExtensionSQL());
 
         SQLQuery setSearchpath = new SQLQuery(MaintenanceSQL.generateSearchPathSQL(dbSettings.getSchema()));
-        SQLQuery addInitializationEntry = new SQLQuery(MaintenanceSQL.generateInitializationEntry, dbSettings.getSchema(), dbInstance.getConnectorId(), true, extensionList,
-                "{\"ext\" : "+DatabaseMaintainer.XYZ_EXT_VERSION+", \"h3\" : "+DatabaseMaintainer.H3_CORE_VERSION+"}",
-                null, extensionList, "{\"ext\" : "+DatabaseMaintainer.XYZ_EXT_VERSION+", \"h3\" : "+DatabaseMaintainer.H3_CORE_VERSION+"}", true, dbSettings.getSchema(), dbInstance.getConnectorId());
+        //Create XYZ_CONFIG_SCHEMA and required system tables
+        SQLQuery addInitializationEntry = new SQLQuery("INSERT INTO xyz_config.db_status as a (dh_schema, connector_id, initialized, extensions, script_versions, maintenance_status) " +
+            "VALUES (#{schema}, #{connectorId}, #{initialized}, #{extensions}, #{scriptVersions}::jsonb, #{maintenanceStatus}::jsonb)"
+            + "ON CONFLICT (dh_schema,connector_id) DO "
+            + "UPDATE SET extensions = #{extensions},"
+            + "    		  script_versions = #{scriptVersions}::jsonb,"
+            + "    		  initialized = #{initialized}"
+            + "		WHERE a.dh_schema = #{schema} AND a.connector_id = #{connectorId}")
+            .withNamedParameter("schema", dbSettings.getSchema())
+            .withNamedParameter("connectorId", dbInstance.getConnectorId())
+            .withNamedParameter("initialized", true)
+            .withNamedParameter("extensions", extensionList)
+            .withNamedParameter("scriptVersions", "{\"ext\": " + DatabaseMaintainer.XYZ_EXT_VERSION + ", \"h3\": " + DatabaseMaintainer.H3_CORE_VERSION + "}")
+            .withNamedParameter("maintenanceStatus", null);
 
         boolean hasPermissions = executeQuery(hasPermissionsQuery, rs -> {
             if(rs.next())
@@ -226,17 +248,45 @@ public class MaintenanceClient {
         }
 
         SQLQuery updateDBStatus=(force == false ?
-                      new SQLQuery(MaintenanceSQL.updateConnectorStatusBeginMaintenance, maintenanceJobId ,maintenanceJobId, maintenanceJobId, dbSettings.getSchema(),  dbInstance.connectorId)
-                    : new SQLQuery(MaintenanceSQL.updateConnectorStatusBeginMaintenanceForce, maintenanceJobId, dbSettings.getSchema(),  dbInstance.connectorId));
+                      new SQLQuery("UPDATE xyz_config.db_status SET maintenance_status=" +
+                          " CASE" +
+                          "  WHEN maintenance_status IS NULL THEN" +
+                          "       jsonb_set('{}'::jsonb || '{\"AUTO_INDEXING\":{\"maintenanceRunning\" : []}}', '{AUTO_INDEXING,maintenanceRunning}',  #{maintenanceJobId}::jsonb || '[]'::jsonb)" +
+                          "  WHEN maintenance_status->'AUTO_INDEXING'->'maintenanceRunning' IS NULL THEN" +
+                          "       jsonb_set(maintenance_status || '{\"AUTO_INDEXING\":{\"maintenanceRunning\" : []}}', '{AUTO_INDEXING,maintenanceRunning}', #{maintenanceJobId}::jsonb || '[]'::jsonb)" +
+                          "   ELSE" +
+                          "       jsonb_set(maintenance_status,'{AUTO_INDEXING,maintenanceRunning,999}',#{maintenanceJobId}::jsonb)" +
+                          " END"
+                          + "		WHERE dh_schema = #{schema} AND connector_id = #{connectorId}")
+                    : new SQLQuery("UPDATE xyz_config.db_status SET maintenance_status=" +
+                        " jsonb_set(maintenance_status,'{AUTO_INDEXING,maintenanceRunning}', #{maintenanceJobId}::jsonb ||  '[]'::jsonb) " +
+                        "		WHERE dh_schema=#{schema} AND connector_id=#{connectorId}"))
+            .withNamedParameter("maintenanceJobId", maintenanceJobId)
+            .withNamedParameter("schema", dbSettings.getSchema())
+            .withNamedParameter("connectorId", dbInstance.connectorId);
 
         executeUpdate(updateDBStatus, source);
         try {
-            SQLQuery triggerIndexing = new SQLQuery(MaintenanceSQL.createIDX, dbSettings.getSchema(), 100, 0, mode, dbUser);
+            SQLQuery triggerIndexing = new SQLQuery("SELECT xyz_create_idxs(#{schema}, #{limit}, #{offset}, #{mode}, #{user})")
+                .withNamedParameter("schema", dbSettings.getSchema())
+                .withNamedParameter("limit", 100)
+                .withNamedParameter("offset", 0)
+                .withNamedParameter("mode", mode)
+                .withNamedParameter("user", dbUser);
 
             logger.info("{}: Start Indexing..", connectorId);
             executeQueryWithoutResults(triggerIndexing, source);
-        }finally {
-            updateDBStatus= new SQLQuery(MaintenanceSQL.updateConnectorStatusMaintenanceComplete, maintenanceJobId, maintenanceJobId, dbInstance.getDbSettings().getSchema(), dbInstance.connectorId);
+        }
+        finally {
+            updateDBStatus = new SQLQuery("UPDATE xyz_config.db_status SET maintenance_status =  "+
+                "jsonb_set( jsonb_set(maintenance_status,'{AUTO_INDEXING,maintainedAt}'::text[], #{maintenanceJobId}::jsonb),'{AUTO_INDEXING,maintenanceRunning}'," +
+                "   COALESCE((select jsonb_agg(jsonb_array_elements) from jsonb_array_elements(maintenance_status->'AUTO_INDEXING'->'maintenanceRunning')" +
+                "           where jsonb_array_elements != #{maintenanceJobId}::jsonb), '[]'::jsonb)" +
+                "    )" +
+                "    WHERE dh_schema = #{schema} AND connector_id = #{connectorId}")
+                .withNamedParameter("maintenanceJobId", maintenanceJobId)
+                .withNamedParameter("schema", dbInstance.getDbSettings().getSchema())
+                .withNamedParameter("connectorId", dbInstance.connectorId);
             logger.info("{}: Mark Indexing as finished", connectorId);
             executeUpdate(updateDBStatus, source);
         }
@@ -246,7 +296,24 @@ public class MaintenanceClient {
         MaintenanceInstance dbInstance = getClient(connectorId, ecps, passphrase);
         DatabaseSettings dbSettings = dbInstance.getDbSettings();
 
-        SQLQuery statusQuery = new SQLQuery(MaintenanceSQL.getIDXStatus,dbSettings.getSchema(), spaceId);
+        SQLQuery statusQuery = new SQLQuery("select (" +
+            "select row_to_json( status ) " +
+            "   from (" +
+            "          select 'SpaceStatus' as type, " +
+            "           (extract(epoch from runts AT TIME ZONE 'UTC')*1000)::BIGINT as runts, " +
+            "           spaceid, " +
+            "           idx_creation_finished as \"idxCreationFinished\"," +
+            "           count, " +
+            "           auto_indexing as \"autoIndexing\", " +
+            "           idx_available as \"idxAvailable\", " +
+            "           idx_manual as \"idxManual\", " +
+            "            idx_proposals as \"idxProposals\"," +
+            "            prop_stat as \"propStats\"" +
+            "   ) status " +
+            ") from "+ IDX_STATUS_TABLE_FQN
+            +" where schem = #{schema} and spaceid = #{spaceId};")
+            .withNamedParameter("schema", dbSettings.getSchema())
+            .withNamedParameter("spaceId", spaceId);
         logger.info("{}: Get maintenanceStatus of space '{}'..", connectorId, spaceId);
 
         return executeQuery(statusQuery, rs -> {
@@ -266,11 +333,17 @@ public class MaintenanceClient {
         DatabaseSettings dbSettings = dbInstance.getDbSettings();
         DataSource source = dbInstance.getSource();
 
-        SQLQuery updateIDXEntry = new SQLQuery(MaintenanceSQL.updateIDXEntry, dbSettings.getSchema(), spaceId);
+        SQLQuery updateIDXEntry = new SQLQuery("UPDATE " + IDX_STATUS_TABLE_FQN
+            + " SET idx_creation_finished = null "
+            + " WHERE schem = #{schema} AND spaceid = #{spaceId}")
+            .withNamedParameter("schema", dbSettings.getSchema())
+            .withNamedParameter("spaceId", spaceId);
         logger.info("{}: Set idx_creation_finished=NULL {}", connectorId, spaceId);
         executeQueryWithoutResults(updateIDXEntry, source);
 
-        SQLQuery maintainSpace = new SQLQuery(MaintenanceSQL.maintainIDXOfSpace,dbSettings.getSchema(), spaceId);
+        SQLQuery maintainSpace = new SQLQuery("select xyz_maintain_idxs_for_space(#{schema}, #{spaceId})")
+            .withNamedParameter("schema", dbSettings.getSchema())
+            .withNamedParameter("spaceId", spaceId);
         logger.info("{}: Start maintaining space '{}'..", connectorId, spaceId);
         executeQueryWithoutResults(maintainSpace, source);
     }
@@ -288,7 +361,7 @@ public class MaintenanceClient {
             .withNamedParameter("minTagVersion", minTagVersion)
             .withNamedParameter("pw", dbSettings.getPassword());
 
-        executeQueryWithoutResults(q.substitute(), source);
+        executeQueryWithoutResults(q, source);
     }
 
     public synchronized MaintenanceInstance getClient(String connectorId, String ecps, String passphrase) throws DecodeException{

@@ -19,7 +19,7 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE;
+import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE_FQN;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 
 import com.here.xyz.connectors.ErrorResponseException;
@@ -54,7 +54,7 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   @Override
   protected SQLQuery buildQuery(DeleteChangesetsEvent event) throws SQLException, ErrorResponseException {
     /** Update "userMinVersion" which flags the minimum Version the user wants to have. The deletion will happen asynchronously. */
-    return new SQLQuery("UPDATE "+SPACE_META_TABLE+" " +
+    return new SQLQuery("UPDATE "+ SPACE_META_TABLE_FQN +" " +
             "SET meta = meta || #{userMinVersionJson}::jsonb " +
             "WHERE id=#{spaceId} " +
             " AND (meta->'userMinVersion' < #{userMinVersion}::text::jsonb OR meta->'userMinVersion' IS NULL) " +

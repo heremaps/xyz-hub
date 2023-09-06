@@ -16,19 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
 package com.here.xyz.httpconnector.util.jobs;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.models.hub.Space;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
+import com.here.xyz.hub.Core;
+import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
+import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.models.hub.Space;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.commons.lang3.RandomStringUtils;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 
@@ -36,17 +45,77 @@ import java.util.Objects;
         include = JsonTypeInfo.As.EXISTING_PROPERTY,
         property = "type")
 @JsonSubTypes({
-        @JsonSubTypes.Type(value = Import.class , name = "Import"),
-        @JsonSubTypes.Type(value = Export.class , name = "Export")
+        @JsonSubTypes.Type(value = Import.class, name = "Import"),
+        @JsonSubTypes.Type(value = Export.class, name = "Export")
 })
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-public abstract class Job {
+public abstract class Job<T extends Job> {
     public static String ERROR_TYPE_VALIDATION_FAILED = "validation_failed";
     public static String ERROR_TYPE_PREPARATION_FAILED = "preparation_failed";
     public static String ERROR_TYPE_EXECUTION_FAILED = "execution_failed";
     public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
     public static String ERROR_TYPE_FAILED_DUE_RESTART = "failed_due_node_restart";
     public static String ERROR_TYPE_ABORTED = "aborted";
+
+    @JsonIgnore
+    public void setDefaults() {
+        //TODO: Do field initialization at instance initialization time
+        setCreatedAt(Core.currentTimeMillis() / 1000L);
+        setUpdatedAt(Core.currentTimeMillis() / 1000L);
+        if (getId() == null)
+            setId(RandomStringUtils.randomAlphanumeric(6));
+        if (getErrorType() != null)
+            setErrorType(null);
+        if (getErrorDescription() != null)
+            setErrorDescription(null);
+    }
+
+    public void validateCreation() throws HttpException {
+        if (getTargetSpaceId() == null)
+            throw new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!");
+        if (getCsvFormat() == null)
+            throw new HttpException(BAD_REQUEST, "Please specify 'csvFormat'!");
+    }
+
+    public void isValidForExecution(Command command, Incremental incremental) throws HttpException {
+        switch (command) {
+            case CREATEUPLOADURL:
+                if (this instanceof Export)
+                    throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
+                else if (this instanceof Import)
+                    Import.isValidForCreateUrl(this);
+                break;
+            case RETRY:
+                    isValidForRetry();
+                break;
+            case START:
+                isValidForStart(incremental);
+                break;
+            case ABORT:
+                isValidForAbort();
+        }
+    }
+
+    @JsonIgnore
+    protected abstract void isValidForStart(Incremental incremental) throws HttpException;
+
+    @JsonIgnore
+    public abstract void isValidForAbort() throws HttpException;
+
+    @JsonIgnore
+    protected void isValidForRetry() throws HttpException {
+        if (!getStatus().equals(Status.failed) && !getStatus().equals(Status.aborted))
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " for retry!");
+    }
+
+    public static boolean isValidForDelete(Job job, boolean force) {
+        if(force)
+            return true;
+        switch (job.getStatus()){
+            case waiting: case finalized: case aborted: case failed: return true;
+            default: return false;
+        }
+    }
 
     @JsonView({Public.class})
     public enum Type {
@@ -67,7 +136,23 @@ public abstract class Job {
     public enum Status {
         waiting, queued, validating, validated, preparing, prepared, executing, executed,
             executing_trigger, trigger_executed, collecting_trigger_status, trigger_status_collected,
-            finalizing, finalized, aborted, failed;
+            finalizing, finalized(true), aborted(true), failed(true);
+
+        private final boolean isFinal;
+
+
+        Status() {
+            this(false);
+        }
+
+        Status(boolean isFinal) {
+            this.isFinal = isFinal;
+        }
+
+        public boolean isFinal() {
+            return isFinal;
+        }
+
         public static Status of(String value) {
             if (value == null) {
                 return null;
@@ -205,12 +290,20 @@ public abstract class Job {
     @JsonView({Internal.class})
     protected Map<String, Object> params;
 
+    private DatasetDescription source;
+    private DatasetDescription target;
+
     public String getId(){
         return id;
     }
 
     public void setId(final String id){
         this.id = id;
+    }
+
+    public T withId(final String id) {
+        setId(id);
+        return (T) this;
     }
 
     public String getErrorDescription() {
@@ -221,6 +314,11 @@ public abstract class Job {
         this.errorDescription = errorDescription;
     }
 
+    public T withErrorDescription(final String errorDescription) {
+        setErrorDescription(errorDescription);
+        return (T) this;
+    }
+
     public String getDescription() {
         return description;
     }
@@ -229,12 +327,43 @@ public abstract class Job {
         this.description = description;
     }
 
+    public T withDescription(final String description) {
+        setDescription(description);
+        return (T) this;
+    }
+
+    /**
+     * @deprecated Please use methods {@link #getTarget()} or {@link #getSource()} instead.
+     * @return
+     */
+    @Deprecated
     public String getTargetSpaceId() {
         return targetSpaceId;
     }
 
+    /**
+     * @deprecated Please use methods {@link #setTarget(DatasetDescription)} or {@link #setSource(DatasetDescription)} instead.
+     * @param targetSpaceId
+     */
+    @Deprecated
     public void setTargetSpaceId(String targetSpaceId) {
         this.targetSpaceId = targetSpaceId;
+        //Keep BWC
+        if (this instanceof Import && target == null)
+            setTarget(new DatasetDescription.Space().withId(targetSpaceId));
+        else if (this instanceof Export && source == null)
+            setSource(new DatasetDescription.Space().withId(targetSpaceId));
+    }
+
+    /**
+     * @deprecated Please use methods {@link #withTarget(DatasetDescription)} or {@link #withSource(DatasetDescription)} instead.
+     * @param targetSpaceId
+     * @return
+     */
+    @Deprecated
+    public T withTargetSpaceId(final String targetSpaceId) {
+        setTargetSpaceId(targetSpaceId);
+        return (T) this;
     }
 
     public String getTargetTable() {
@@ -245,6 +374,11 @@ public abstract class Job {
         this.targetTable = targetTable;
     }
 
+    public T withTargetTable(final String targetTable) {
+        setTargetTable(targetTable);
+        return (T) this;
+    }
+
     public Status getStatus() { return status; }
 
     public void setStatus(Job.Status status) {
@@ -253,6 +387,11 @@ public abstract class Job {
         if((status.equals(Status.aborted) || status.equals(Status.failed)) && lastStatus == null)
             lastStatus = this.status;
         this.status = status;
+    }
+
+    public T withStatus(final Job.Status status) {
+        setStatus(status);
+        return (T) this;
     }
 
     public void resetStatus(Job.Status status) {
@@ -269,8 +408,13 @@ public abstract class Job {
         return csvFormat;
     }
 
-    public void setCsvFormat(CSVFormat csv_format) {
-        this.csvFormat = csv_format;
+    public void setCsvFormat(CSVFormat csvFormat) {
+        this.csvFormat = csvFormat;
+    }
+
+    public T withCsvFormat(CSVFormat csvFormat) {
+        setCsvFormat(csvFormat);
+        return (T) this;
     }
 
     public Strategy getStrategy() {
@@ -281,12 +425,22 @@ public abstract class Job {
         this.strategy = strategy;
     }
 
+    public T withCsvFormat(Strategy strategy) {
+        setStrategy(strategy);
+        return (T) this;
+    }
+
     public long getCreatedAt() {
         return createdAt;
     }
 
     public void setCreatedAt(final long createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public T withCreatedAt(final long createdAt) {
+        setCreatedAt(createdAt);
+        return (T) this;
     }
 
     public long getUpdatedAt() {
@@ -297,12 +451,22 @@ public abstract class Job {
         this.updatedAt = updatedAt;
     }
 
+    public T withUpdatedAt(final long updatedAt) {
+        setUpdatedAt(updatedAt);
+        return (T) this;
+    }
+
     public Long getExecutedAt() {
         return executedAt;
     }
 
     public void setExecutedAt(final Long executedAt) {
         this.executedAt = executedAt;
+    }
+
+    public T withExecutedAt(final Long startedAt) {
+        setExecutedAt(startedAt);
+        return (T) this;
     }
 
     public Long getFinalizedAt() {
@@ -313,12 +477,24 @@ public abstract class Job {
         this.finalizedAt = finalizedAt;
     }
 
+    public T withFinalizedAt(final Long finalizedAt) {
+        setFinalizedAt(finalizedAt);
+        return (T) this;
+    }
+
+    public abstract void finalizeJob();
+
     public Long getExp() {
         return exp;
     }
 
     public void setExp(final Long exp) {
         this.exp = exp;
+    }
+
+    public T withExp(final Long exp) {
+        setExp(exp);
+        return (T) this;
     }
 
     public String getTargetConnector() {
@@ -329,12 +505,22 @@ public abstract class Job {
         this.targetConnector = targetConnector;
     }
 
-    public void setErrorType(String errorType){
-        this.errorType = errorType;
+    public T withTargetConnector(String targetConnector) {
+        setTargetConnector(targetConnector);
+        return (T) this;
     }
 
     public String getErrorType() {
         return errorType;
+    }
+
+    public void setErrorType(String errorType){
+        this.errorType = errorType;
+    }
+
+    public T withErrorType(String errorType) {
+        setErrorType(errorType);
+        return (T) this;
     }
 
     public Long getSpaceVersion() {
@@ -345,12 +531,22 @@ public abstract class Job {
         this.spaceVersion = spaceVersion;
     }
 
+    public T withSpaceVersion(final long spaceVersion) {
+        setSpaceVersion(spaceVersion);
+        return (T) this;
+    }
+
     public String getAuthor() {
         return author;
     }
 
     public void setAuthor(String author) {
         this.author = author;
+    }
+
+    public T withAuthor(String author) {
+        setAuthor(author);
+        return (T) this;
     }
 
     public Boolean getClipped() {
@@ -369,6 +565,11 @@ public abstract class Job {
         this.omitOnNull = omitOnNull;
     }
 
+    public T withOmitOnNull(final boolean omitOnNull) {
+        setOmitOnNull(omitOnNull);
+        return (T) this;
+    }
+
     public Object getParam(String key) {
         if(params == null)
             return null;
@@ -383,6 +584,43 @@ public abstract class Job {
         this.params = params;
     }
 
+    public T withParams(Map params) {
+        setParams(params);
+        return (T) this;
+    }
+
+    public DatasetDescription getSource() {
+        return source;
+    }
+
+    public void setSource(DatasetDescription source) {
+        this.source = source;
+        //Keep BWC
+//        if (source instanceof DatasetDescription.Space)
+//            setTargetSpaceId(((DatasetDescription.Space) source).getId());
+    }
+
+    public T withSource(DatasetDescription source) {
+        setSource(source);
+        return (T) this;
+    }
+
+    public DatasetDescription getTarget() {
+        return target;
+    }
+
+    public void setTarget(DatasetDescription target) {
+        this.target = target;
+        //Keep BWC
+//        if (target instanceof DatasetDescription.Space)
+//            setTargetSpaceId(((DatasetDescription.Space) source).getId());
+    }
+
+    public T withTarget(DatasetDescription target) {
+        setTarget(target);
+        return (T) this;
+    }
+
     public void addParam(String key, Object value){
         if(this.params == null){
             this.params = new HashMap<>();
@@ -394,6 +632,8 @@ public abstract class Job {
 
     @JsonIgnore
     public abstract String getQueryIdentifier();
+
+    public abstract void execute();
 
     public static class Public {
     }

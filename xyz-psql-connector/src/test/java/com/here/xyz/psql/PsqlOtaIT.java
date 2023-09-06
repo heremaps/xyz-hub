@@ -17,11 +17,6 @@ import org.junit.Test;
 
 public class PsqlOtaIT extends PSQLAbstractIT {
 
-  //@BeforeClass
-  public static void init() throws Exception {
-    initEnv(null);
-  }
-
   //@Test
   public void testOtaEvent() throws Exception {
     OneTimeActionEvent ota = new OneTimeActionEvent()
