@@ -20,17 +20,21 @@
 package com.here.xyz.hub.auth;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.spi.AuthorizationHandler;
+import com.here.xyz.hub.spi.Modules;
 import com.here.xyz.hub.task.FeatureTask;
 import com.here.xyz.hub.task.FeatureTask.ConditionalOperation;
 import com.here.xyz.hub.task.FeatureTask.GeometryQuery;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 
 public class FeatureAuthorization extends Authorization {
+  static final AuthorizationHandler authorizationHandler = Modules.getAuthorizationHandler();
 
   @SuppressWarnings("unchecked")
   public static <X extends FeatureTask> void authorize(X task, Callback<X> callback) {
@@ -38,6 +42,10 @@ public class FeatureAuthorization extends Authorization {
       authorizeConditionalOp((ConditionalOperation) task, (Callback<ConditionalOperation>) callback);
     } else {
       authorizeReadQuery(task, callback);
+    }
+
+    if (!authorizationHandler.authorize(task.context)) {
+      callback.exception(new HttpException(UNAUTHORIZED, "Unauthorized access: " + task.context.request().method() + " " + task.context.request().path()));
     }
   }
 

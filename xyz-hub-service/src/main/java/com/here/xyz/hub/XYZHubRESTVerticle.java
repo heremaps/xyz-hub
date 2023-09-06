@@ -38,6 +38,7 @@ import com.here.xyz.hub.rest.SpaceApi;
 import com.here.xyz.hub.rest.SubscriptionApi;
 import com.here.xyz.hub.rest.TagApi;
 import com.here.xyz.hub.rest.health.HealthApi;
+import com.here.xyz.hub.spi.Modules;
 import com.here.xyz.hub.task.Task;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
@@ -126,7 +127,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
       new FeatureApi(rb);
       new FeatureQueryApi(rb);
       new SpaceApi(rb);
-      new  ConnectorApi(rb);
+      new ConnectorApi(rb);
       new SubscriptionApi(rb);
       new ChangesetApi(rb);
       new JobProxyApi(rb);

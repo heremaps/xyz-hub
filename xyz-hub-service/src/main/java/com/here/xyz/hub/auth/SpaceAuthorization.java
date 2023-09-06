@@ -30,11 +30,14 @@ import static com.here.xyz.hub.auth.XyzHubAttributeMap.SORTABLE_PROPERTIES;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.STORAGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.spi.AuthorizationHandler;
+import com.here.xyz.hub.spi.Modules;
 import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifySpaceOp;
@@ -67,6 +70,7 @@ import org.apache.logging.log4j.Marker;
 @SuppressWarnings("rawtypes")
 public class SpaceAuthorization extends Authorization {
   private static final Logger logger = LogManager.getLogger();
+  static final AuthorizationHandler authorizationHandler = Modules.getAuthorizationHandler();
 
   public static List<String> basicEdit = Arrays
       .asList("id", "title", "description", "client", "copyright", "license", "shared", "cacheTTL", "readOnly", "extends",
@@ -84,6 +88,11 @@ public class SpaceAuthorization extends Authorization {
       if (task.canReadConnectorsProperties) {
         final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
         task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
+      }
+
+      if (!authorizationHandler.authorize(task.context)) {
+        callback.exception(new HttpException(UNAUTHORIZED, "Unauthorized access: " + task.context.request().method() + " " + task.context.request().path()));
+        return;
       }
 
       /*
@@ -268,6 +277,10 @@ public class SpaceAuthorization extends Authorization {
           }
 
           evaluateRights(requestRights, tokenRights, task, callback);
+
+          if (!authorizationHandler.authorize(task.context)) {
+            callback.exception(new HttpException(UNAUTHORIZED, "Unauthorized access: " + task.context.request().method() + " " + task.context.request().path()));
+          }
         }).exceptionally(t -> {
           logger.error((Marker) task.context.get("marker"), "Exception while checking connector permissions", t);
           callback.exception(t);

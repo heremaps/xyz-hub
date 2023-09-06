@@ -50,6 +50,8 @@
     <module>xyz-models</module>
     <module>xyz-connectors</module>
     <module>xyz-psql-connector</module>
+    <module>xyz-hub-module</module>
+    <module>xyz-hub-spi</module>
   </modules>
 
   <scm>
@@ -221,6 +223,16 @@
       <dependency>
         <groupId>${project.groupId}</groupId>
         <artifactId>xyz-psql-connector</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-hub-module</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>xyz-hub-spi</artifactId>
         <version>${project.version}</version>
       </dependency>
 
