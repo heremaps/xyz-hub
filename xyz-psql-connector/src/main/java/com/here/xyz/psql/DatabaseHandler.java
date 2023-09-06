@@ -262,10 +262,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         final long start = System.currentTimeMillis();
         try {
             final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,calculateTimeout()));
-            final String queryText = SQLQuery.replaceVars(query.text(), config.getDatabaseSettings().getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event));
             final List<Object> queryParameters = query.parameters();
-            logger.debug("{} executeQuery: {} - Parameter: {}", traceItem, queryText, queryParameters);
-            return run.query(queryText, handler, queryParameters.toArray());
+            logger.debug("{} executeQuery: {} - Parameter: {}", traceItem, query.text(), queryParameters);
+            return run.query(query.text(), handler, queryParameters.toArray());
         }
         finally {
             final long end = System.currentTimeMillis();
@@ -274,6 +273,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
     }
 
+    //TODO: Move into QueryRunner top level class
     protected int executeUpdateWithRetry(SQLQuery query, DataSource dataSource) throws SQLException {
         try {
             return executeUpdate(query, dataSource);
@@ -305,10 +305,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         final long start = System.currentTimeMillis();
         try {
             final QueryRunner run = new QueryRunner(dataSource, new StatementConfiguration(null,null,null,null,calculateTimeout()));
-            final String queryText = SQLQuery.replaceVars(query.text(), config.getDatabaseSettings().getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event));
             final List<Object> queryParameters = query.parameters();
-            logger.debug("{} executeUpdate: {} - Parameter: {}", ConnectorRuntime.getInstance().getStreamId(), queryText, queryParameters);
-            return run.update(queryText, queryParameters.toArray());
+            logger.debug("{} executeUpdate: {} - Parameter: {}", ConnectorRuntime.getInstance().getStreamId(), query.text(), queryParameters);
+            return run.update(query.text(), queryParameters.toArray());
         } finally {
             final long end = System.currentTimeMillis();
             logger.info("{} query time: {}ms", ConnectorRuntime.getInstance().getStreamId(), (end - start));
@@ -673,8 +672,8 @@ public abstract class DatabaseHandler extends StorageConnector {
             + "ALTER COLUMN jsondata SET COMPRESSION lz4, "
             + "ALTER COLUMN geo SET COMPRESSION lz4, "
             + "ALTER COLUMN author SET COMPRESSION lz4;")
-            .withVariable("schema", schema)
-            .withVariable("table", tableName)
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, tableName)
             .substitute()
             .text());
     }
@@ -707,8 +706,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
         SQLQuery createTable = new SQLQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} (${{tableFields}}) PARTITION BY RANGE (next_version)")
             .withQueryFragment("tableFields", tableFields)
-            .withVariable("schema", schema)
-            .withVariable("table", table)
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, table)
             .withVariable("constraintName", table + "_primKey");
 
         if (existingSerial != null)
@@ -763,8 +762,8 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static SQLQuery buildCreateSequenceQuery(String schema, String table, String columnName) {
         return new SQLQuery("CREATE SEQUENCE IF NOT EXISTS ${schema}.${sequence} MINVALUE 0 OWNED BY ${schema}.${table}.${columnName}")
-            .withVariable("schema", schema)
-            .withVariable("table", table)
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, table)
             .withVariable("sequence", table + "_" + columnName + "_seq")
             .withVariable("columnName", columnName);
     }
@@ -803,8 +802,8 @@ public abstract class DatabaseHandler extends StorageConnector {
         String indexName, String predicate) {
         return new SQLQuery("CREATE INDEX IF NOT EXISTS ${indexName} ON ${schema}.${table} USING " + method
             + " (" + String.join(", ", columnNamesOrExpressions) + ") ${{predicate}}")
-            .withVariable("schema", schema)
-            .withVariable("table", table)
+            .withVariable(SCHEMA, schema)
+            .withVariable(TABLE, table)
             .withVariable("indexName", indexName)
             .withQueryFragment("predicate", predicate != null ? "WHERE " + predicate : "");
     }

@@ -19,27 +19,22 @@
 package com.here.xyz.httpconnector.util.scheduler;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCExporter;
-import com.here.xyz.httpconnector.config.JDBCImporter;
-import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Export;
-import com.here.xyz.httpconnector.util.jobs.ExportObject;
+import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Job-Queue for Export-Jobs (S3 -> RDS)
  */
-public class ExportQueue extends JobQueue{
+public class ExportQueue extends JobQueue {
     private static final Logger logger = LogManager.getLogger();
     protected static ScheduledThreadPoolExecutor executorService = new ScheduledThreadPoolExecutor(CORE_POOL_SIZE, Core.newThreadFactory("export-queue"));
 
@@ -71,12 +66,12 @@ public class ExportQueue extends JobQueue{
                                 break;
                             case queued:
                                 updateJobStatus(currentJob, Job.Status.executing)
-                                        .onSuccess(f -> executeJob(currentJob));
+                                        .onSuccess(f -> currentJob.execute());
                                 break;
                             case executed:
                                 updateJobStatus(currentJob, Job.Status.executing_trigger)
                                         .onSuccess(f -> {
-                                            
+
                                             boolean skipVML = (((Export)currentJob).getStatistic() != null && ((Export)currentJob).getStatistic().getFilesUploaded() > 0 );
 
                                             if(   ((Export)currentJob).getExportTarget().getType().equals(Export.ExportTarget.Type.VML)
@@ -86,7 +81,7 @@ public class ExportQueue extends JobQueue{
                                                 /** Only here we need a trigger */
                                                 postTrigger(currentJob);
                                             } else
-                                                finalizeJob(currentJob);
+                                                currentJob.finalizeJob();
                                         });
                                 break;
                             case trigger_executed:
@@ -112,78 +107,11 @@ public class ExportQueue extends JobQueue{
     }
 
     @Override
-    protected void executeJob(Job j){
-        j.setExecutedAt(Core.currentTimeMillis() / 1000L);
-        String defaultSchema = JDBCImporter.getDefaultSchema(j.getTargetConnector());
-
-        String s3Path = CService.jobS3Client.getS3Path(j);
-
-        if(((Export) j).readParamPersistExport() ) {
-            Export existingJob = CService.jobS3Client.readMetaFileFromJob((Export) j);
-            if(existingJob != null) {
-                if(existingJob.getExportObjects() == null || existingJob.getExportObjects().isEmpty()) {
-                    String message = String.format("Another job already started for %s and targetLevel %s with status %s",
-                            existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
-                    setJobFailed(j, message, Job.ERROR_TYPE_EXECUTION_FAILED);
-                } else {
-                    addDownloadLinksAndWriteMetaFile(existingJob);
-                    ((Export) j).setExportObjects(existingJob.getExportObjects());
-                    updateJobStatus(j, Job.Status.executed);
-                }
-                return;
-            } else {
-                addDownloadLinksAndWriteMetaFile(j);
-            }
-        }
-
-        JDBCExporter.executeExport(((Export) j), defaultSchema, CService.configuration.JOBS_S3_BUCKET, s3Path,
-                        CService.configuration.JOBS_REGION)
-                .onSuccess(statistic -> {
-                            /** Everything is processed */
-                            logger.info("job[{}] Export of '{}' completely succeeded!", j.getId(), j.getTargetSpaceId());
-                            ((Export)j).addStatistic(statistic);
-                            addDownloadLinksAndWriteMetaFile(j);
-                            updateJobStatus(j, Job.Status.executed);
-                        }
-                )
-                .onFailure(e -> {
-                        logger.warn("job[{}] export of '{}' failed! ", j.getId(), j.getTargetSpaceId(), e);
-
-                        if(e.getMessage() != null && e.getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
-                            setJobAborted(j);
-                        else {
-                            setJobFailed(j, null, Job.ERROR_TYPE_EXECUTION_FAILED);
-                        }}
-                );
-    }
-
-    @Override
-    protected void finalizeJob(Job j){
-        j.setFinalizedAt(Core.currentTimeMillis() / 1000L);
-        updateJobStatus(j, Job.Status.finalized);
-    }
-
-    @Override
     protected boolean needRdsCheck(Job job) {
         /** In next stage we need database resources */
         if(job.getStatus().equals(Job.Status.queued))
             return true;
         return false;
-    }
-
-    protected void addDownloadLinksAndWriteMetaFile(Job j){
-        /** Add file statistics and downloadLinks */
-        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
-        ((Export) j).setExportObjects(exportObjects);
-
-        if(((Export)j).readParamSuperExportPath() != null) {
-            /** Add exportObjects including fresh download links for persistent base exports */
-            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath((Export) j, true, true);
-            ((Export) j).setSuperExportObjects(superExportObjects);
-        }
-
-        /** Write MetaFile to S3 */
-        CService.jobS3Client.writeMetaFile((Export) j);
     }
 
     protected Future<String> postTrigger(Job j){
@@ -222,7 +150,7 @@ public class ExportQueue extends JobQueue{
                                 return;
                             case "succeeded":
                                 logger.info("job[{}] execution of '{}' succeeded ", j.getId(), ((Export) j).getTriggerId());
-                                finalizeJob(j);
+                                j.finalizeJob();
                                 return;
                             case "cancelled":
                             case "failed":
@@ -232,7 +160,7 @@ public class ExportQueue extends JobQueue{
                     });
         }else {
             /** skip collecting Trigger */
-            finalizeJob(j);
+            j.finalizeJob();
         }
     }
 

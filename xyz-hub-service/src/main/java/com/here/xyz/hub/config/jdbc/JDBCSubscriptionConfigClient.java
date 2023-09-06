@@ -67,8 +67,9 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
   @Override
   protected Future<Subscription> getSubscription(final Marker marker, final String subscriptionId) {
     Promise<Subscription> p = Promise.promise();
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE id = ?", subscriptionId);
-    client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+    final SQLQuery query = new SQLQuery("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE id = #{subscriptionId}")
+        .withNamedParameter("subscriptionId", subscriptionId);
+    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
         if (config.isPresent()) {
@@ -90,8 +91,9 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
   @Override
   protected Future<List<Subscription>> getSubscriptionsBySource(Marker marker, String source) {
     Promise<List<Subscription>> p = Promise.promise();
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE source = ?", source);
-    client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+    final SQLQuery query = new SQLQuery("SELECT config FROM " + SUBSCRIPTION_TABLE + " WHERE source = #{source}")
+        .withNamedParameter("source", source);
+    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Stream<String> config = out.result().getRows().stream().map(r -> r.getString("config"));
         List<Subscription> result = new ArrayList<>();
@@ -132,17 +134,19 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
 
   @Override
   protected Future<Void> storeSubscription(Marker marker, Subscription subscription) {
-    final SQLQuery query = new SQLQuery("INSERT INTO " + SUBSCRIPTION_TABLE + " (id, source, config) VALUES (?, ?, cast(? as JSONB)) " +
+    final SQLQuery query = new SQLQuery("INSERT INTO " + SUBSCRIPTION_TABLE + " (id, source, config) VALUES (#{subscriptionId}, #{source}, cast(#{subscriptionJson} as JSONB)) " +
         "ON CONFLICT (id) DO " +
-        "UPDATE SET id = ?, source = ?, config = cast(? as JSONB)",
-        subscription.getId(), subscription.getSource(), Json.encode(subscription),
-        subscription.getId(), subscription.getSource(), Json.encode(subscription));
+        "UPDATE SET id = #{subscriptionId}, source = #{source}, config = cast(#{subscriptionJson} as JSONB)")
+        .withNamedParameter("subscriptionId", subscription.getId())
+        .withNamedParameter("subscriptionId", subscription.getSource())
+        .withNamedParameter("subscriptionId", Json.encode(subscription));
     return JDBCConfig.updateWithParams(query);
   }
 
   @Override
   protected Future<Subscription> deleteSubscription(Marker marker, String subscriptionId) {
-    final SQLQuery query = new SQLQuery("DELETE FROM " + SUBSCRIPTION_TABLE + " WHERE id = ?", subscriptionId);
+    final SQLQuery query = new SQLQuery("DELETE FROM " + SUBSCRIPTION_TABLE + " WHERE id = #{subscriptionId}")
+        .withNamedParameter("subscriptionId", subscriptionId);
     return get(marker, subscriptionId).compose(subscription -> JDBCConfig.updateWithParams(query).map(subscription));
   }
 }

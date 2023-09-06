@@ -39,7 +39,7 @@ public class JDBCConfig {
   static final String CONNECTOR_TABLE = SCHEMA + ".xyz_storage";
   static final String SPACE_TABLE = SCHEMA + ".xyz_space";
   static final String SUBSCRIPTION_TABLE = SCHEMA + ".xyz_subscription";
-  static final String TAG_TABLE = SCHEMA + ".xyz_tags";
+  static final String TAG_TABLE = "xyz_tags";
   private static SQLClient client;
   private static boolean initialized = false;
   private static final String CHECK_SCHEMA_EXISTS_QUERY = "SELECT schema_name FROM information_schema.schemata WHERE schema_name='xyz_config'";
@@ -48,7 +48,7 @@ public class JDBCConfig {
       "CREATE TABLE  " + CONNECTOR_TABLE + " (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)",
       "CREATE TABLE  " + SPACE_TABLE + " (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB, region VARCHAR (50))",
       "CREATE TABLE  " + SUBSCRIPTION_TABLE + " (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB)",
-      "CREATE TABLE  " + TAG_TABLE + " (id VARCHAR(255), space VARCHAR (255), version BIGINT, PRIMARY KEY(id, space))"
+      "CREATE TABLE  " + SCHEMA + "." +TAG_TABLE + " (id VARCHAR(255), space VARCHAR (255), version BIGINT, PRIMARY KEY(id, space))"
   );
 
   private static class SchemaAlreadyExistsException extends Exception {}
@@ -144,6 +144,7 @@ public class JDBCConfig {
   }
 
   protected static Future<Void> updateWithParams(SQLQuery query) {
+    query.substitute();
     Promise<Void> p = Promise.promise();
     client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {

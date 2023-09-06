@@ -22,7 +22,7 @@ package com.here.xyz.psql.query;
 import static com.here.xyz.events.ModifySubscriptionEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySubscriptionEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySubscriptionEvent.Operation.UPDATE;
-import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE;
+import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE_FQN;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 
 import com.here.xyz.connectors.ErrorResponseException;
@@ -55,7 +55,7 @@ public class ModifySubscription extends XyzQueryRunner<ModifySubscriptionEvent, 
       throw new ErrorResponseException(EXCEPTION, "Unsupported operation for ModifySubscriptionEvent: " + event.getOperation());
 
     return query
-        .withQueryFragment("spaceMetaTable", SPACE_META_TABLE)
+        .withQueryFragment("spaceMetaTable", SPACE_META_TABLE_FQN)
         .withNamedParameter("spaceId", event.getSpace())
         .withNamedParameter(SCHEMA, getSchema());
   }

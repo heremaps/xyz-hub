@@ -133,41 +133,6 @@ public class MaintenanceSQL {
                 + "','" + password + "','" + database + "','" + host + "'," + port + ",'" + schema + ",h3,public,topology')";
     }
 
-    /** Create XYZ_CONFIG_SCHEMA and required system tables */
-    public static String generateInitializationEntry =
-            "INSERT INTO xyz_config.db_status as a (dh_schema, connector_id, initialized, extensions, script_versions, maintenance_status) " +
-                    "VALUES (?,?,?,?,?::jsonb,?::jsonb)"
-                    + "ON CONFLICT (dh_schema,connector_id) DO "
-                    + "UPDATE SET extensions=?,"
-                    + "    		  script_versions=?::jsonb,"
-                    + "    		  initialized=?"
-                    + "		WHERE a.dh_schema=? AND a.connector_id=?";
-
-    public static String updateConnectorStatusBeginMaintenance =
-            "UPDATE xyz_config.db_status SET maintenance_status=" +
-                    " CASE" +
-                    "  WHEN maintenance_status IS NULL THEN" +
-                    "       jsonb_set('{}'::jsonb || '{\"AUTO_INDEXING\":{\"maintenanceRunning\" : []}}', '{AUTO_INDEXING,maintenanceRunning}',  ?::jsonb || '[]'::jsonb)" +
-                    "  WHEN maintenance_status->'AUTO_INDEXING'->'maintenanceRunning' IS NULL THEN" +
-                    "       jsonb_set(maintenance_status || '{\"AUTO_INDEXING\":{\"maintenanceRunning\" : []}}', '{AUTO_INDEXING,maintenanceRunning}', ?::jsonb || '[]'::jsonb)" +
-                    "   ELSE" +
-                    "       jsonb_set(maintenance_status,'{AUTO_INDEXING,maintenanceRunning,999}',?::jsonb)" +
-                    " END"
-                    + "		WHERE dh_schema=? AND connector_id=?";
-
-    public static String updateConnectorStatusBeginMaintenanceForce =
-            "UPDATE xyz_config.db_status SET maintenance_status=" +
-                    " jsonb_set(maintenance_status,'{AUTO_INDEXING,maintenanceRunning}', ?::jsonb ||  '[]'::jsonb) " +
-                    "		WHERE dh_schema=? AND connector_id=?";
-
-    public static String updateConnectorStatusMaintenanceComplete =
-            "UPDATE xyz_config.db_status SET maintenance_status =  "+
-                "jsonb_set( jsonb_set(maintenance_status,'{AUTO_INDEXING,maintainedAt}'::text[], ?::jsonb),'{AUTO_INDEXING,maintenanceRunning}'," +
-                "   COALESCE((select jsonb_agg(jsonb_array_elements) from jsonb_array_elements(maintenance_status->'AUTO_INDEXING'->'maintenanceRunning')" +
-                "           where jsonb_array_elements != ?::jsonb), '[]'::jsonb)" +
-                "    )" +
-                "    WHERE dh_schema=? AND connector_id=?";
-
     /** Get status of running index queries (statistic,analyzing,creation,deletion) */
     public static String checkIDXStatus = "SELECT * FROM xyz_index_status();";
 
@@ -254,38 +219,4 @@ public class MaintenanceSQL {
                     "  meta jsonb," +
                     "  CONSTRAINT xyz_space_meta_pkey PRIMARY KEY (id,schem)"+
                     "); ";
-
-    public static String getIDXStatus =
-            "select (" +
-                    "select row_to_json( status ) " +
-                    "   from (" +
-                    "          select 'SpaceStatus' as type, " +
-                    "           (extract(epoch from runts AT TIME ZONE 'UTC')*1000)::BIGINT as runts, " +
-                    "           spaceid, " +
-                    "           idx_creation_finished as \"idxCreationFinished\"," +
-                    "           count, " +
-                    "           auto_indexing as \"autoIndexing\", " +
-                    "           idx_available as \"idxAvailable\", " +
-                    "           idx_manual as \"idxManual\", " +
-                    "            idx_proposals as \"idxProposals\"," +
-                    "            prop_stat as \"propStats\"" +
-                    "   ) status " +
-                    ") from "+ IDX_STATUS_TABLE_FQN
-                    +" where schem=? and spaceid=?;";
-
-    public static String maintainIDXOfSpace =
-            "select xyz_maintain_idxs_for_space(?,?)";
-
-    public static String getConnectorStatus =
-            "select (select row_to_json( prop ) from ( select 'ConnectorStatus' as type, connector_id, initialized, " +
-                "extensions, script_versions as \"scriptVersions\", maintenance_status as \"maintenanceStatus\") prop ) " +
-                    "from xyz_config.db_status where dh_schema=? AND connector_id=?";
-
-    public static String createIDX=
-            "SELECT xyz_create_idxs(?, ?, ?, ?, ?)";
-
-    public static String updateIDXEntry =
-            "UPDATE "+ IDX_STATUS_TABLE_FQN
-            +"  SET idx_creation_finished = null "
-            +"		WHERE schem=? AND spaceid=?";
 }

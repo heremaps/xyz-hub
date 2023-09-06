@@ -23,18 +23,14 @@ import static io.restassured.path.json.JsonPath.with;
 import static org.junit.Assert.assertEquals;
 
 import com.amazonaws.util.IOUtils;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.tools.GSContext;
 import com.here.xyz.psql.tools.Helper;
-import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.responses.XyzResponse;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -45,6 +41,7 @@ import java.util.Map;
 import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.BeforeClass;
 
 public abstract class PSQLAbstractIT extends Helper {
 
@@ -56,9 +53,14 @@ public abstract class PSQLAbstractIT extends Helper {
   protected static final Logger LOGGER = LogManager.getLogger();
 
   protected static PSQLXyzConnector LAMBDA;
-  protected static GSContext GS_CONTEXT = GSContext.newLocal();
+  public static GSContext GS_CONTEXT = GSContext.newLocal();
   protected static Random RANDOM = new Random();
   protected static String TEST_SPACE_ID = "foo";
+
+  @BeforeClass
+  public static void init() throws Exception {
+    initEnv(null);
+  }
 
   protected static Map<String, Object> defaultTestConnectorParams = new HashMap<String,Object>(){
     {
@@ -152,10 +154,4 @@ public abstract class PSQLAbstractIT extends Helper {
     return response;
   }
 
-  protected <T extends XyzResponse> T deserializeResponse(String jsonResponse) throws JsonProcessingException, ErrorResponseException {
-    XyzResponse response = XyzSerializable.deserialize(jsonResponse);
-    if (response instanceof ErrorResponse)
-      throw new ErrorResponseException(((ErrorResponse) response).getError(), ((ErrorResponse) response).getErrorMessage());
-    return (T) response;
-  }
 }

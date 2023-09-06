@@ -19,9 +19,12 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.events.PropertyQuery.QueryOperation.NOT_EQUALS;
+
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.events.PropertyQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.psql.PSQLXyzConnector;
@@ -34,7 +37,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 /*
@@ -80,25 +82,12 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return new SQLQuery("LIMIT #{limit}").withNamedParameter("limit", limit);
   }
 
-
-  /**
-   * @deprecated Please use {@link SearchForFeatures#generatePropertiesQuery(SearchForFeaturesEvent)} instead.
-   */
-  //TODO: Can be removed after completion of refactoring
-  @Deprecated
-  protected static SQLQuery generatePropertiesQueryBWC(SearchForFeaturesEvent event) {
-    SQLQuery query = generatePropertiesQuery(event);
-    if (query != null)
-      query.replaceNamedParameters();
-    return query;
-  }
-
   /**
    * Determines if PropertiesQuery can be executed. Check if required Indices are created.
    */
   private static List<String> sortableCanSearchForIndex( List<String> indices )
   { if( indices == null ) return null;
-    List<String> skeys = new ArrayList<String>();
+    List<String> skeys = new ArrayList<>();
     for( String k : indices)
       if( k.startsWith("o:") )
         skeys.add( k.replaceFirst("^o:([^,]+).*$", "$1") );
@@ -166,7 +155,7 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
     return "userValue_" + key + (counter == null ? "" : "" + counter);
   }
 
-  private static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
+  protected static SQLQuery generatePropertiesQuery(SearchForFeaturesEvent event) {
     PropertiesQuery properties = event.getPropertiesQuery();
     if (properties == null || properties.size() == 0) {
       return null;
@@ -191,107 +180,64 @@ public class SearchForFeatures<E extends SearchForFeaturesEvent, R extends XyzRe
         int valuesCount = propertyQuery.getValues().size();
         for (int i = 0; i < valuesCount; i++) {
           Object v = propertyQuery.getValues().get(i);
-
-          final String psqlOperation;
-          PropertyQuery.QueryOperation op = propertyQuery.getOperation();
-
-          String  key = propertyQuery.getKey(),
+          QueryOperation op = propertyQuery.getOperation();
+          String key = propertyQuery.getKey(),
               paramName = getParamNameForValue(countingMap, key),
               value = getValue(v, op, key, paramName);
-          SQLQuery q = createKey(key);
-          namedParams.putAll(q.getNamedParameters());
+          SQLQuery keyPath = createKey(key);
+          SQLQuery predicateQuery;
+          namedParams.putAll(keyPath.getNamedParameters());
 
-          if(v == null){
+          if (v == null) {
             //Overrides all operations e.g: p.foo=lte=.null => p.foo=.null
             //>> [not] (jsondata->?->? is not null and jsondata->?->? != 'null'::jsonb )
-            SQLQuery q1 = new SQLQuery( op.equals(PropertyQuery.QueryOperation.NOT_EQUALS) ? "((" : "not ((" );
-            q1.append(q);
-            q1.append("is not null");
-
-            if(! ("id".equals(key) || "geometry.type".equals(key)) )
-            { q1.append("and"); q1.append(q); q1.append("!= 'null'::jsonb" ); }
-
-            q1.append("))");
-            q = q1;
-          }else{
-            psqlOperation = SQLQuery.getOperation(op);
-            q.append(new SQLQuery(psqlOperation + (value == null ? "" : value)));
+            predicateQuery = new SQLQuery("${{not}} ((${{keyPath}} IS NOT NULL ${{notJsonbComparison}}))")
+                .withQueryFragment("not", op == NOT_EQUALS ? "" : "not")
+                .withQueryFragment("keyPath", keyPath)
+                .withQueryFragment("notJsonbComparison",
+                    "id".equals(key) || "geometry.type".equals(key) ? "" : "AND ${{keyPath}} != 'null'::jsonb");
+          }
+          else {
+            predicateQuery = new SQLQuery("${{keyPath}} ${{operation}} ${{value}}")
+                .withQueryFragment("keyPath", keyPath)
+                .withQueryFragment("operation", SQLQuery.getOperation(op))
+                .withQueryFragment("value", value == null ? "" : value);
             namedParams.put(paramName, v);
           }
-          keyDisjunctionQueries.add(q);
+          keyDisjunctionQueries.add(predicateQuery);
         }
         conjunctionQueries.add(SQLQuery.join(keyDisjunctionQueries, " OR ", true));
       });
       disjunctionQueries.add(SQLQuery.join(conjunctionQueries, " AND ", false));
     });
-    SQLQuery query = SQLQuery.join(disjunctionQueries, " OR ", false);
-    query.setNamedParameters(namedParams);
-    return query;
-  }
-
-  private static SQLQuery joinQueries(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets) {
-    List<String> fragmentPlaceholders = new ArrayList<>();
-    Map<String, SQLQuery> queryFragments = new HashMap<>();
-    int i = 0;
-    for (SQLQuery q : queries) {
-      String fragmentName = "f" + i++;
-      String fragmentPlaceholder = "${{" + fragmentName + "}}";
-      if (encloseInBrackets)
-        fragmentPlaceholder = "(" + fragmentPlaceholder + ")";
-      fragmentPlaceholders.add(fragmentPlaceholder);
-      queryFragments.put(fragmentName, q);
-    }
-
-    SQLQuery joinedQuery = new SQLQuery(String.join(delimiter, fragmentPlaceholders));
-    for (Entry<String, SQLQuery> queryFragment : queryFragments.entrySet())
-      joinedQuery.setQueryFragment(queryFragment.getKey(), queryFragment.getValue());
-    return joinedQuery;
+    return SQLQuery.join(disjunctionQueries, " OR ", false)
+        .withNamedParameters(namedParams);
   }
 
   private static SQLQuery generateTagsQuery(TagsQuery tagsQuery) {
     if (tagsQuery == null || tagsQuery.size() == 0)
       return null;
 
-    SQLQuery query = new SQLQuery("(");
-    for (int i = 0; i < tagsQuery.size(); i++) {
-      query.append((i == 0 ? "" : " OR ") + "jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??& #{tags" + i + "}");
-      query.setNamedParameter("tags" + i, tagsQuery.get(i).toArray(new String[0]));
-    }
-    query.append(")");
+    List<SQLQuery> tagsQueries = new ArrayList<>();
+    for (int i = 0; i < tagsQuery.size(); i++)
+      tagsQueries.add(new SQLQuery("jsondata->'properties'->'@ns:com:here:xyz'->'tags' ??& #{tags" + i + "}")
+          .withNamedParameter("tags" + i, tagsQuery.get(i).toArray(new String[0])));
 
-    return query;
-  }
-
-  /**
-   * @deprecated Please use {@link #generateSearchQuery(SearchForFeaturesEvent)} instead.
-   */
-  //TODO: Can be removed after completion of refactoring
-  @Deprecated
-  public static SQLQuery generateSearchQueryBWC(SearchForFeaturesEvent event) {
-    SQLQuery query = generateSearchQuery(event);
-    if (query != null)
-      query.replaceNamedParameters();
-    return query;
+    return SQLQuery.join(tagsQueries, " OR ");
   }
 
   protected static SQLQuery generateSearchQuery(final SearchForFeaturesEvent event) {
     final SQLQuery propertiesQuery = generatePropertiesQuery(event);
     final SQLQuery tagsQuery = generateTagsQuery(event.getTags());
 
-    SQLQuery query = new SQLQuery("");
-    if (propertiesQuery != null) {
-      query.append("${{propertiesQuery}}");
-      query.setQueryFragment("propertiesQuery", propertiesQuery);
-    }
-    if (tagsQuery != null) {
-      query.append ((propertiesQuery != null ? " AND " : "") + "${{tagsQuery}}");
-      query.setQueryFragment("tagsQuery", tagsQuery);
-    }
-
-    query.replaceFragments();
-    if (query.text().isEmpty())
+    if (propertiesQuery == null && tagsQuery == null)
       return null;
-    return query;
+
+    return new SQLQuery("${{propertiesQuery}} ${{tagsQuery}}")
+        .withQueryFragment("propertiesQuery", propertiesQuery != null ? propertiesQuery : new SQLQuery(""))
+        .withQueryFragment("tagsQuery", tagsQuery != null
+            ? propertiesQuery != null ? new SQLQuery("AND ${{tagsQuery}}").withQueryFragment("tagsQuery", tagsQuery) : tagsQuery
+            : new SQLQuery(""));
   }
 
   private static SQLQuery createKey(String key) {

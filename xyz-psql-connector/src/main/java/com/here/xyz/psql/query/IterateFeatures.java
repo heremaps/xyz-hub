@@ -176,14 +176,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     return fc;
   }
 
-  private SQLQuery buildQueryForOrderBy(IterateFeaturesEvent event) throws SQLException {
-    SQLQuery filterWhereClause = generateSearchQuery(event);
-    if (filterWhereClause == null)
-      filterWhereClause = new SQLQuery("TRUE");
-
-    //---------------------------------------------------------------------------------------------
-
-    SQLQuery partialQuery = buildPartialSortIterateQuery(event, filterWhereClause);
+  private SQLQuery buildQueryForOrderBy(IterateFeaturesEvent event) {
+    SQLQuery partialQuery = buildPartialSortIterateQuery(event);
 
     String nextHandleJson = buildNextHandleAttribute(event.getSort(), isPartOverI(event));
     SQLQuery innerQry = new SQLQuery("WITH dt AS ("
@@ -192,7 +186,9 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
         + ") "
         + "SELECT jsondata, geo, ${{nextHandleJson}} AS nxthandle "
         + "    FROM dt s JOIN ${schema}.${table} d ON ( s.i = d.i ) "
-        + "    ORDER BY s.ord1, s.ord2");
+        + "    ORDER BY s.ord1, s.ord2")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event));
 
     innerQry.setQueryFragment("partialQuery", partialQuery);
     innerQry.setQueryFragment("orderings", event.getHandle() == null ? "" : "ORDER BY ord1, ord2 limit #{limit}");
@@ -208,36 +204,45 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
         + "    ${{innerQuery}}"
         + ") o");
     query.setQueryFragment("pgHintPlan", pg_hint_plan);
-    query.setQueryFragment("selection", SQLQuery.selectJson(event));
+    query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildGeoFragment(event));
     query.setQueryFragment("innerQuery", innerQry);
 
     return query;
   }
 
-  private SQLQuery buildPartialSortIterateQuery(IterateFeaturesEvent event, SQLQuery filterWhereClause) {
+  private SQLQuery buildPartialSortIterateQuery(IterateFeaturesEvent event) {
+    SQLQuery searchQuery = generateSearchQuery(event);
+    SQLQuery filterWhereClause = new SQLQuery("${{searchQuery}} ${{partialIterationModules}}");
+    if (searchQuery != null)
+      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
+    else
+      filterWhereClause.setQueryFragment("searchQuery", "");
+
     //Extend the filterWhereClause by the necessary parts for partial iteration using modules
     Integer[] part = event.getPart();
     if (part != null && part.length == 2 && part[1] > 1) {
-      filterWhereClause.append(" AND (( i %% #{total} ) = #{partition})");
-      filterWhereClause.setNamedParameter("total", part[1]);
-      filterWhereClause.setNamedParameter("partition", part[0] - 1);
+      filterWhereClause.setQueryFragment("partialIterationModules",
+          new SQLQuery((searchQuery != null ? "AND " : "") + "(( i %% #{total} ) = #{partition})")
+              .withNamedParameter("total", part[1])
+              .withNamedParameter("partition", part[0] - 1));
     }
 
     String orderByClause = buildOrderByClause(event);
     List<String> continuationWhereClauses = event.getHandle() == null ? Collections.singletonList("")
         : buildContinuationConditions(event);
 
-    SQLQuery partialQuery = new SQLQuery("");
+    List<SQLQuery> unionQueries = new ArrayList<>();
+    for (int i = 0; i < continuationWhereClauses.size(); i++)
+      unionQueries.add(new SQLQuery(buildPartialSortIterateSQL(i))
+          .withQueryFragment("continuation", continuationWhereClauses.get(i)));
 
-    for (int i = 0; i < continuationWhereClauses.size(); i++) {
-      partialQuery.append((i > 0 ? " UNION ALL " : "") + buildPartialSortIterateSQL(i));
-      partialQuery.setQueryFragment("continuation", continuationWhereClauses.get(i));
-    }
-    partialQuery.setQueryFragment("orderBy", orderByClause);
-    partialQuery.setNamedParameter("limit", limit);
-
-    partialQuery.setQueryFragment("filterWhereClause", filterWhereClause);
+    SQLQuery partialQuery = SQLQuery.join(unionQueries, " UNION ALL ")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event))
+        .withQueryFragment("orderBy", orderByClause)
+        .withNamedParameter("limit", limit)
+        .withQueryFragment("filterWhereClause", filterWhereClause);
 
     return partialQuery;
   }
@@ -249,10 +254,6 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
         + "        WHERE ${{filterWhereClause}} ${{continuation}} ${{orderBy}} LIMIT #{limit}"
         + "    ) inr"
         + ")";
-  }
-
-  private static SQLQuery buildGetIterateHandlesQuery(int nrHandles) {
-    return new SQLQuery(DhString.format(bucketOfIdsSql, nrHandles));
   }
 
   protected static boolean isDescending(String sortproperty) { return sortproperty.toLowerCase().endsWith(":desc"); }
@@ -283,7 +284,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     return DhString.format("jsonb_set(%s,'{s}','[%s]')", nhandle, svalue);
   }
 
-  private  String buildOrderByClause(IterateFeaturesEvent event) {
+  private String buildOrderByClause(IterateFeaturesEvent event) {
     List<String> sortby = event.getHandle() != null ? convHandle2sortbyList(event.getHandle()) : event.getSort();
 
     if (sortby == null || sortby.size() == 0)
@@ -324,7 +325,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   private static List<String> buildContinuationConditions(IterateFeaturesEvent event)
   {
     String handle = event.getHandle();
-   List<String> ret = new ArrayList<String>(),
+   List<String> ret = new ArrayList<>(),
                 sortby = convHandle2sortbyList( handle );
    JSONObject h = new JSONObject(handle);
    boolean descendingLast = false, sortbyIdUseCase = false;
@@ -405,20 +406,6 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
    return ret;
 
   }
-
-  private static String bucketOfIdsSql =
-      "with  "
-    + "idata as "
-    + "(  select min(id) as id from ${schema}.${table} "
-    + "  union  "
-    + "   select id from ${schema}.${table} "
-    + "    tablesample system( (select least((100000/greatest(reltuples,1)),100) from pg_catalog.pg_class where oid = format('%%s.%%s','${schema}', '${table}' )::regclass) ) " //-- repeatable ( 0.7 )
-    + "), "
-    + "iidata   as ( select id, ntile( %1$d ) over ( order by id ) as bucket from idata ), "
-    + "iiidata  as ( select min(id) as id, bucket from iidata group by bucket ), "
-    + "iiiidata as ( select bucket, id as i_from, lead( id, 1) over ( order by id ) as i_to from iiidata ) "
-    + "select  jsonb_set('{\"type\":\"Feature\",\"properties\":{}}','{properties,handles}', jsonb_agg(jsonb_build_array(bucket, i_from, i_to ))),'{\"type\":\"Point\",\"coordinates\":[]}', null from iiiidata ";
-
 
   private static String addEventValuesToHandle(IterateFeaturesEvent event, String dbhandle)  throws JsonProcessingException
   {

@@ -31,15 +31,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class PSQLLoadFeatures extends PSQLAbstractIT {
-
-  @BeforeClass
-  public static void init() throws Exception {
-    initEnv(null);
-  }
 
   @Before
   public void createTable() throws Exception {

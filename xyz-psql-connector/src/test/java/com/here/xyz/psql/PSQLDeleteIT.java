@@ -32,9 +32,6 @@ import org.junit.Test;
 
 public class PSQLDeleteIT extends PSQLAbstractIT {
 
-    @BeforeClass
-    public static void init() throws Exception { initEnv(null); }
-
     @Before
     public void createTable() throws Exception {
         invokeCreateTestSpace(defaultTestConnectorParams, TEST_SPACE_ID);
