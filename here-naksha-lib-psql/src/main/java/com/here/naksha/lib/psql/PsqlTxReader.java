@@ -69,6 +69,8 @@ public class PsqlTxReader implements IReadTransaction {
 
   protected void naksha_tx_start() {
     try (final PreparedStatement stmt = preparedStatement("SELECT naksha_tx_start(?, ?, ?);")) {
+      // This guarantees, that the search-path is okay.
+      psqlClient.dataSource.initConnection(conn());
       stmt.setString(1, settings.getAppId());
       stmt.setString(2, settings.getAuthor());
       stmt.setBoolean(3, naksha_tx_start_write());

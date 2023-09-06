@@ -109,12 +109,24 @@ public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
 
   @Override
   public @NotNull CollectionInfo enableHistory(@NotNull CollectionInfo collection) {
-    throw new UnsupportedOperationException("enableHistory");
+    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_collection_enable_history(?);")) {
+      stmt.setString(1, collection.getId());
+      stmt.executeQuery();
+      return collection;
+    } catch (Throwable t) {
+      throw unchecked(t);
+    }
   }
 
   @Override
   public @NotNull CollectionInfo disableHistory(@NotNull CollectionInfo collection) {
-    throw new UnsupportedOperationException("disableHistory");
+    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_collection_disable_history(?);")) {
+      stmt.setString(1, collection.getId());
+      stmt.executeQuery();
+      return collection;
+    } catch (Throwable t) {
+      throw unchecked(t);
+    }
   }
 
   @SuppressWarnings("rawtypes")

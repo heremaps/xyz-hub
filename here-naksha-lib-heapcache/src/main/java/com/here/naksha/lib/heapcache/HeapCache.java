@@ -34,8 +34,6 @@ public class HeapCache implements IStorage {
 
   public HeapCache(@NotNull HeapCacheConfig config) {
     this.config = config;
-    // if full, then directly read everything from config.storage
-    // we need to implement listeners and other mechanisms to always keep up with the storage.
   }
 
   public void addListener(@NotNull CacheChangeListener listener) {
@@ -44,9 +42,6 @@ public class HeapCache implements IStorage {
 
   public void removeListener(@NotNull CacheChangeListener listener) {
     listeners.remove(listener);
-    // Remove the listener from the list
-    // Return true if successful, false if not found
-    // Implement the removal logic based on your specific needs
   }
 
   private void notifyEntryAdded(String key, XyzFeature feature) {
@@ -77,38 +72,31 @@ public class HeapCache implements IStorage {
   }
 
   public void putCacheEntry(String key, XyzFeature feature) {
-    // Add the cache entry
+    CacheEntry entry = cache.putWeak(key);
+    entry.setValue(feature);
     // Trigger notification
     notifyEntryAdded(key, feature);
   }
 
   public void updateCacheEntry(String key, XyzFeature feature) {
-    // Update the cache entry
-    // Trigger notification
-    notifyEntryUpdated(key, feature);
+    CacheEntry entry = cache.get(key);
+    if (entry != null) {
+      entry.setValue(feature);
+      // Notify listeners
+      notifyEntryUpdated(key, feature);
+    }
   }
 
   public void removeCacheEntry(String key) {
-    // Remove the cache entry
-    // Trigger notification
-    notifyEntryRemoved(key);
+    CacheEntry entry = cache.remove(key);
+    if (entry != null) {
+      // Notify listeners
+      notifyEntryRemoved(key);
+    }
   }
 
   protected final @NotNull HeapCacheConfig config;
   protected final @NotNull FibSet<String, CacheEntry> cache = new FibSet<>(CacheEntry::new);
-
-  static void gc(@NotNull WeakReference<?> ref) {
-    System.gc();
-    while (ref.get() != null) {
-      Thread.yield();
-      System.gc();
-    }
-  }
-
-  // For Cache Eviction
-  /*public void setWeakReference(@NotNull Object){
-  gc(new WeakReference<>(new Object()));
-  }*/
 
   @Override
   public void init() {}
