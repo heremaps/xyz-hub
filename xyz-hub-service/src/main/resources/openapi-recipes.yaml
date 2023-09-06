@@ -110,6 +110,10 @@ recipes:
         replace: ${get-tile-description}
   - name: experimental
     extends: base,no-e-ne-cr-params,no-extension
+    replace:
+      - type: value
+        path: servers.0.url
+        replace: /hub
   - name: contract
     extends: base
     replace:
