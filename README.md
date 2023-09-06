@@ -7,7 +7,19 @@
 
 The meaning of [Naksha](https://en.wikipedia.org/wiki/Naksha)-Hub is “Map-Hub”.
 
+Naksha service, has been designed to primarily offer:
+* GeoJson based REST API as service
+* GeoJson based Java API as library (interacting directly with database)
+* Support Postgres as default Storage system (with inbuilt transactional and history capabilities)
+* Support publishing Data Change events (with atleast-once messaging guarantee)
+* Additionally, Extension framework to provide ability:
+    * to integrate REST APIs with your own custom Storage mechanism
+    * to inject custom business logic as part of REST API request processing pipeline
+    * to inject custom business logic as part of Data change event processing pipeline (subscription based)
+
+
 # Overview
+
 Naksha features are:
 * Organize geo datasets in _collections_.
 * Organize access to your data via _spaces_.
