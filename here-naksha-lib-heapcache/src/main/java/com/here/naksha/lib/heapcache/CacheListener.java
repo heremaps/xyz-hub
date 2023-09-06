@@ -21,18 +21,20 @@ package com.here.naksha.lib.heapcache;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 
 public class CacheListener implements CacheChangeListener {
+  HeapCache cache;
+
   @Override
   public void onCacheEntryAdded(String key, XyzFeature feature) {
-    // Handle cache entry added
+    cache.putCacheEntry(key, feature);
   }
 
   @Override
   public void onCacheEntryUpdated(String key, XyzFeature feature) {
-    // Handle cache entry updated
+    cache.updateCacheEntry(key, feature);
   }
 
   @Override
   public void onCacheEntryRemoved(String key) {
-    // Handle cache entry removed
+    cache.removeCacheEntry(key);
   }
 }
