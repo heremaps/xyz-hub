@@ -166,31 +166,35 @@ public class JDBCImporter extends JDBCClients{
     /**
      * Import Data from S3
      */
-    public static Future<String> executeImport(String jobId, String clientID, String schema, String tablename, String s3Bucket, String s3Path, String s3Region, long curFileSize, CSVFormat csvFormat){
-        SQLQuery q = new SQLQuery(("SELECT /* import_hint "+(s3Path + ":" + curFileSize)+" m499#jobId(" + jobId + ") */ aws_s3.table_import_from_s3( "
-                + "'${schema}.${table}', "
-                + "#{columns}, "
-                + " 'DELIMITER '','' CSV ENCODING  ''UTF8'' QUOTE  ''\"'' ESCAPE '''''''' ', "
-                + " aws_commons.create_s3_uri( "
-                + "     #{s3Bucket}, "
-                + "     #{s3Path}, "
-                + "     #{s3Region}"
-                + " ))"));
+    public static Future<String> executeImport(Import job, String clientID, String schema, String tablename, String s3Bucket, String s3Path, String s3Region, long curFileSize, CSVFormat csvFormat) {
+        return addClientIfRequired(job.getTargetConnector())
+            .compose(v -> {
+                SQLQuery q = new SQLQuery(("SELECT /* import_hint " + (s3Path + ":" + curFileSize) + " m499#jobId(" + job.getId()
+                    + ") */ aws_s3.table_import_from_s3( "
+                    + "'${schema}.${table}', "
+                    + "#{columns}, "
+                    + " 'DELIMITER '','' CSV ENCODING  ''UTF8'' QUOTE  ''\"'' ESCAPE '''''''' ', "
+                    + " aws_commons.create_s3_uri( "
+                    + "     #{s3Bucket}, "
+                    + "     #{s3Path}, "
+                    + "     #{s3Region}"
+                    + " ))"));
 
-        q.setNamedParameter("s3Bucket",s3Bucket);
-        q.setNamedParameter("s3Path",s3Path);
-        q.setNamedParameter("s3Region",s3Region);
-        q.setNamedParameter("columns",csvFormat.equals(CSVFormat.GEOJSON) ? "jsondata" : "jsondata,geo");
+                q.setNamedParameter("s3Bucket", s3Bucket);
+                q.setNamedParameter("s3Path", s3Path);
+                q.setNamedParameter("s3Region", s3Region);
+                q.setNamedParameter("columns", csvFormat.equals(CSVFormat.GEOJSON) ? "jsondata" : "jsondata,geo");
 
-        q.setVariable("table", tablename);
-        q.setVariable("schema", schema);
-        q = q.substituteAndUseDollarSyntax(q); //TODO: Replace this by standard substitution technique!
+                q.setVariable("table", tablename);
+                q.setVariable("schema", schema);
+                q = q.substituteAndUseDollarSyntax(q); //TODO: Replace this by standard substitution technique!
 
-        logger.info("job[{}] Execute S3-Import {}->{} {}", jobId, tablename, s3Path, q.text());
-        return getClient(clientID)
-                .preparedQuery(q.text())
-                .execute(new ArrayTuple(q.parameters()))
-                .map(row -> row.iterator().next().getString(0));
+                logger.info("job[{}] Execute S3-Import {}->{} {}", job.getId(), tablename, s3Path, q.text());
+                return getClient(clientID)
+                    .preparedQuery(q.text())
+                    .execute(new ArrayTuple(q.parameters()))
+                    .map(row -> row.iterator().next().getString(0));
+            });
     }
 
     public static List<Future> generateIndexFutures (Job job, String schema, String tableName, String clientId){

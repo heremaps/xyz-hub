@@ -31,7 +31,6 @@ import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.tools.ECPSTool;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import io.vertx.pgclient.PgConnectOptions;
 import io.vertx.pgclient.PgPool;
 import io.vertx.sqlclient.PoolOptions;
@@ -44,7 +43,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.JSONObject;
 
 /**
  * @deprecated Use standard JDBC based clients instead
@@ -71,7 +69,7 @@ public class JDBCClients {
     private static final String STATUS_CLIENT_SUFFIX = "_status";
     private static volatile Map<String, DBClient> clients = new HashMap<>();
 
-    private static void addClients(String id, DatabaseSettings settings){
+    private static void addClients(String id, DatabaseSettings settings) {
         addClient(id, settings);
         if (!id.equalsIgnoreCase(CONFIG_CLIENT_ID))
             addClient(getStatusClientId(id), settings);
@@ -136,7 +134,7 @@ public class JDBCClients {
         return applicationName;
     }
 
-    private static String getStatusClientId(String clientId){
+    private static String getStatusClientId(String clientId) {
         return clientId + STATUS_CLIENT_SUFFIX;
     }
 
@@ -195,7 +193,7 @@ public class JDBCClients {
                         return Future.succeededFuture();
                     }
                     else
-                        return Future.failedFuture("Ecps is missing! " + connectorId);
+                        return Future.failedFuture("ECPS is missing! " + connectorId);
                 }
                 catch (Exception e) {
                     return Future.failedFuture("Cant load dbClients for " + connectorId);
@@ -244,7 +242,7 @@ public class JDBCClients {
         return null;
     }
 
-    public static SqlClient getStatusClient(String id){
+    public static SqlClient getStatusClient(String id) {
         return getClient(getStatusClientId(id));
     }
 
@@ -265,25 +263,18 @@ public class JDBCClients {
     }
 
     public static Future<RDSStatus> getRDSStatus(String clientId) {
-        Promise<RDSStatus> p = Promise.promise();
-        /** Collection current metrics from Cloudwatch */
-
-        if(JDBCImporter.getStatusClient(clientId)== null){
-            logger.info("DB-Client not Ready! [{}]", clientId);
-            p.complete(null);
-        }else{
-            collectRunningQueries(clientId)
-                    .onSuccess(runningQueryStatistics -> {
-                        /** Collect metrics from Cloudwatch */
-                        JSONObject avg5MinRDSMetrics = CService.jobCWClient.getAvg5MinRDSMetrics(CService.rdsLookupDatabaseIdentifier.get(clientId));
-                        p.complete(new RDSStatus(clientId, avg5MinRDSMetrics, runningQueryStatistics));
-                    }).onFailure(e -> {
-                        logger.warn("Cant get RDS-Resources! ", e);
-                        p.fail(e);
-                    } );
-        }
-
-        return p.future();
+        return Future.succeededFuture()
+            .compose(v -> {
+                if (getStatusClient(clientId) == null) {
+                    logger.info("DB-Client not Ready, adding one ... [{}]", clientId);
+                    return addClientIfRequired(clientId);
+                }
+                return Future.succeededFuture();
+            })
+            .compose(v -> collectRunningQueries(clientId)) //Collect current metrics from Cloudwatch
+            .map(runningQueryStatistics -> new RDSStatus(clientId,
+                CService.jobCWClient.getAvg5MinRDSMetrics(CService.rdsLookupDatabaseIdentifier.get(clientId)), runningQueryStatistics))
+            .onFailure(e -> logger.warn("Cant get RDS-Resources! ", e));
     }
 
     public static Future<Void> abortJobsByJobId(Job j)  {
@@ -296,20 +287,20 @@ public class JDBCClients {
                             .query(q.text())
                             .execute()
                             .compose(row ->
-                                 /** succeeded in any-case */
+                                 //Succeeded in any-case
                                  Future.succeededFuture()
                             );
                 });
     }
 
     private static SQLQuery buildAbortsJobQuery(Job j) {
-        return new SQLQuery(String.format(   "select pg_terminate_backend( pid ) from pg_stat_activity "
+        return new SQLQuery(String.format("select pg_terminate_backend( pid ) from pg_stat_activity "
                         + "where 1 = 1 "
                         + "and state = 'active' "
                         + "and strpos( query, 'pg_terminate_backend' ) = 0 "
                         + "and strpos( query, '%s' ) > 0 "
                         + "and strpos( query, 'm499#jobId(%s)' ) > 0 ",
-                j.getQueryIdentifier() ,j.getId() ));
+                j.getQueryIdentifier() ,j.getId()));
     }
 
     /** Vertex SQL-Client */

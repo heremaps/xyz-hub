@@ -19,7 +19,6 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executing;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
@@ -27,9 +26,9 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
-import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.DEACTIVATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -39,13 +38,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Hasher;
-import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
 import java.util.HashMap;
 import java.util.Map;
@@ -73,23 +72,19 @@ public abstract class Job<T extends Job> {
     public static String ERROR_TYPE_ABORTED = "aborted";
     private Marker marker;
 
+    public abstract Future<T> init();
+
     public static String generateRandomId() {
         return RandomStringUtils.randomAlphanumeric(6);
     }
 
     public Future<Job> injectConfigValues() {
-
         return readEnableHashedSpaceId()
             .compose(enableHashedSpaceId -> {
                 addParam("enableHashedSpaceId", enableHashedSpaceId);
                 if (getTargetTable() == null)
                     //Only for debugging purpose
                     setTargetTable(enableHashedSpaceId ? Hasher.getHash(getTargetSpaceId()) : getTargetSpaceId());
-
-                if (!getParams().containsKey("incremental"))
-                    addParam("incremental", DEACTIVATED.toString());
-                if (!getParams().containsKey("context"))
-                    addParam("context", DEFAULT);
                 return Future.succeededFuture(this);
             });
     }
@@ -103,18 +98,6 @@ public abstract class Job<T extends Job> {
             });
     }
 
-    protected Future<Void> addClientIfRequired() {
-        return JDBCClients.addClientIfRequired(getTargetConnector())
-            .compose(
-                v -> Future.succeededFuture(),
-                t -> t instanceof CannotDecodeException
-                    ? Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Can not decode ECPS!"))
-                    : t instanceof UnsupportedOperationException
-                        ? Future.failedFuture(new HttpException(BAD_REQUEST, "Connector is not supported!"))
-                        : Future.failedFuture(t)
-            );
-    }
-
     public Future<Job> executeAbort() {
       try {
         isValidForAbort();
@@ -122,22 +105,54 @@ public abstract class Job<T extends Job> {
       catch (HttpException e) {
         return Future.failedFuture(e);
       }
-      return addClientIfRequired() //Load DB-Client
-          .compose(v -> JDBCClients.abortJobsByJobId(this))
+      //Job will fail - because SQL Queries are getting terminated
+      return JDBCClients.abortJobsByJobId(this)
           .onFailure(e -> new HttpException(BAD_GATEWAY, "Abort failed [" + getStatus() + "]"))
           .map(v -> this);
     }
 
+    public Future<Job> prepareStart() {
+        return injectConfigValues()
+            .compose(job -> CService.jobConfigClient.update(getMarker(), job));
+    }
+
+    public Future<Job> executeStart() {
+      return isValidForStart()
+          .compose(job -> prepareStart())
+          .onSuccess(job -> CService.exportQueue.addJob(job));
+    }
+
     public Future<Void> abortIfPossible() {
-        try {
-            isValidForAbort();
-            //Target: we want to terminate all running sqlQueries
-            return JDBCClients.abortJobsByJobId(this);
-        }
-        catch (HttpException e) {
-            //Job is not in state "executing" ignore
-            return Future.succeededFuture();
-        }
+        //Target: we want to terminate all running sqlQueries
+        return executeAbort()
+            .compose(job -> Future.succeededFuture(), t -> Future.succeededFuture()); //Job is not in state "executing" ignore
+    }
+
+    public Future<Job> executeRetry() {
+      try {
+        isValidForRetry();
+      }
+      catch (HttpException e) {
+        return Future.failedFuture(e);
+      }
+      try {
+        resetToPreviousState();
+      }
+      catch (Exception e) {
+        return Future.failedFuture(new HttpException(BAD_REQUEST, "Job has no lastStatus - can't retry!"));
+      }
+      return CService.jobConfigClient.update(getMarker(), this)
+          .compose(job -> executeStart());
+    }
+
+    /**
+     * @deprecated URL creation will be handled automatically at the inputs / outputs of the job
+     * @param urlCount
+     * @return
+     */
+    @Deprecated
+    public Future<Job> executeCreateUploadUrl(int urlCount) {
+      return Future.failedFuture(new HttpException(NOT_IMPLEMENTED, "For Export not available!"));
     }
 
     @JsonIgnore
@@ -165,11 +180,14 @@ public abstract class Job<T extends Job> {
     }
 
     @JsonIgnore
-    protected void isValidForStart() throws HttpException {
+    protected Future<Job> isValidForStart() {
         if (getStatus() != waiting)
-            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " execution is only allowed on status = waiting");
+            return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus()
+                + " execution is only allowed on status = waiting"));
+        return Future.succeededFuture(this);
     };
 
+    @JsonIgnore
     public void isValidForAbort() throws HttpException {
         /*
         It is only allowed to abort a job inside executing state, because we have multiple nodes running.
@@ -186,6 +204,7 @@ public abstract class Job<T extends Job> {
             throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " for retry!");
     }
 
+    @JsonIgnore
     public static boolean isValidForDelete(Job job, boolean force) {
         if(force)
             return true;

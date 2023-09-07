@@ -16,11 +16,9 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
 package com.here.xyz.httpconnector.util.jobs;
 
-import static com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command.ABORT;
-import static com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command.RETRY;
-import static com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command.START;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
@@ -28,19 +26,22 @@ import static com.here.xyz.httpconnector.util.scheduler.ImportQueue.NODE_EXECUTE
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
-import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -73,6 +74,33 @@ public class Import extends Job<Import> {
     @JsonView({Internal.class})
     private List<String> idxList;
 
+    private Future<String> checkRunningImportJobs() {
+        //Check in node memory
+        String jobId = CService.importQueue.checkRunningJobsOnSpace(getTargetSpaceId());
+
+        if (jobId != null)
+            return Future.succeededFuture(jobId);
+        else
+            //Check if other import is running on target
+            return CService.jobConfigClient.getRunningJobsOnSpace(getMarker(), getTargetSpaceId(), Type.Import);
+    }
+
+    private Future<Job> checkRunningJobs() {
+        //States are getting set in JobQueue
+        return checkRunningImportJobs()
+            .compose(runningJobs -> {
+                if (runningJobs == null)
+                    return Future.succeededFuture(this);
+                else
+                    return  Future.failedFuture(new HttpException(CONFLICT, "Job '" + runningJobs + "' is already running on target!"));
+            });
+    }
+
+    @Override
+    public Future<Import> init() {
+        return null;
+    }
+
     public Import() {}
 
     public Import(String description, String targetSpaceId, String targetTable,CSVFormat csvFormat, Strategy strategy) {
@@ -95,7 +123,8 @@ public class Import extends Job<Import> {
                 if (scannedObjects.size() == 0) {
                     job.setErrorDescription(ERROR_DESCRIPTION_UPLOAD_MISSING);
                     job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
-                } else {
+                }
+                else {
                     boolean foundOneValid = false;
                     for (String key : job.getImportObjects().keySet()) {
                         if (scannedObjects.get(key) != null) {
@@ -140,6 +169,7 @@ public class Import extends Job<Import> {
         return job;
     }
 
+    @JsonIgnore
     public void isValidForCreateUrl() throws HttpException {
         if (getStatus() != waiting)
             throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " creation is only allowed on status = waiting");
@@ -176,7 +206,7 @@ public class Import extends Job<Import> {
         }
     }
 
-    public void addImportObject(ImportObject importObject){
+    public void addImportObject(ImportObject importObject) {
         if(this.importObjects == null)
             this.importObjects = new HashMap<>();
         this.importObjects.put(importObject.getFilename(), importObject);
@@ -210,28 +240,32 @@ public class Import extends Job<Import> {
         }
     }
 
-    public Future<Void> addClientIfRequired(Command command) {
-        if (command == START || command == RETRY || command == ABORT) {
-            //Add Client if missing or reload client if config has changed
-            return addClientIfRequired();
+    @Override
+    public Future<Job> executeCreateUploadUrl(int urlCount) {
+        try {
+            isValidForCreateUrl();
         }
-        return Future.succeededFuture();
+        catch (HttpException e) {
+            return Future.failedFuture(e);
+        }
+        try {
+            for (int i = 0; i < urlCount; i++) {
+                addImportObject(CService.jobS3Client.generateUploadURL(this));
+            }
+
+            //Store Urls in Job-Config
+            return CService.jobConfigClient.update(getMarker(), this);
+        }
+        catch (IOException e){
+            logger.error(getMarker(), "job[{}] cant create S3 Upload-URL(s).", getId(), e);
+            return Future.failedFuture(new HttpException(BAD_GATEWAY, "Can`t create S3 Upload-URL(s)"));
+        }
     }
 
-    public void isValidForExecution(Command command) throws HttpException {
-        switch (command) {
-            case CREATEUPLOADURL:
-                isValidForCreateUrl();
-                break;
-            case RETRY:
-                isValidForRetry();
-                break;
-            case START:
-                isValidForStart();
-                break;
-            case ABORT:
-                isValidForAbort();
-        }
+    @Override
+    protected Future<Job> isValidForStart() {
+        return super.isValidForStart()
+            .compose(job -> checkRunningJobs());
     }
 
     @Override
@@ -254,7 +288,7 @@ public class Import extends Job<Import> {
                 || importObjects.get(key).getStatus().equals(ImportObject.Status.failed))
                 continue;
 
-            /** compressed processing of 9,5GB leads into ~120 GB RDS Mem */
+            //Compressed processing of 9,5GB leads into ~120 GB RDS Mem
             long curFileSize = Long.valueOf(importObjects.get(key).isCompressed() ? (importObjects.get(key).getFilesize() * 12)  : importObjects.get(key).getFilesize());
             double maxMemInGB = new RDSStatus.Limits(CService.rdsLookupCapacity.get(getTargetConnector())).getMaxMemInGB();
 
@@ -267,7 +301,7 @@ public class Import extends Job<Import> {
                 logger.info("job[{}] start execution of {}! mem: {}", getId(), importObjects.get(key).getS3Key(getId(), key), NODE_EXECUTED_IMPORT_MEMORY);
 
                 importFutures.add(
-                    CService.jdbcImporter.executeImport(getId(), getTargetConnector(), defaultSchema, getTargetTable(),
+                    CService.jdbcImporter.executeImport(this, getTargetConnector(), defaultSchema, getTargetTable(),
                             CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(getId(), key), CService.configuration.JOBS_REGION, curFileSize, getCsvFormat() )
                         .onSuccess(result -> {
                                 NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
