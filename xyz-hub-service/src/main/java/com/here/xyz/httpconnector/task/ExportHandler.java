@@ -22,7 +22,6 @@ package com.here.xyz.httpconnector.task;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
@@ -32,7 +31,7 @@ import io.vertx.core.Future;
 import java.util.HashMap;
 import org.apache.logging.log4j.Marker;
 
-public class ExportHandler extends JobHandler{
+public class ExportHandler extends JobHandler {
 
     protected static Future<Job> postJob(Export job, Marker marker){
         try{
@@ -59,24 +58,12 @@ public class ExportHandler extends JobHandler{
                     if( !searchableProperties.isEmpty() )
                      job.setSearchableProperties(searchableProperties);
 
-                    if(   job.getEstimatedFeatureCount() > 1000000 /** searchable limit without index*/
-                       && job.getPartitionKey() != null
-                       && !"id".equals(job.getPartitionKey())
-                       && !searchableProperties.containsKey(job.getPartitionKey().replaceFirst("^(p|properties)\\." ,""))
-                       )
+                    if (job.getEstimatedFeatureCount() > 1000000 //searchable limit without index
+                        && job.getPartitionKey() != null && !"id".equals(job.getPartitionKey())
+                        && !searchableProperties.containsKey(job.getPartitionKey().replaceFirst("^(p|properties)\\." ,"")))
                         return Future.failedFuture(new HttpException(BAD_REQUEST, "partitionKey ["+ job.getPartitionKey() +"] is not a searchable property"));
 
                     return CService.jobConfigClient.store(marker, job);
                 });
     }
-
-    protected static Future<Job> execute(Export exportJob, Command command, Marker marker) {
-      return switch (command) {
-        case ABORT -> exportJob.executeAbort();
-        case CREATEUPLOADURL -> exportJob.executeCreateUploadUrl();
-        case START -> exportJob.executeStart();
-        case RETRY -> exportJob.executeRetry(marker);
-      };
-    }
-
 }

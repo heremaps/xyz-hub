@@ -59,9 +59,20 @@ public class CombinedJob extends Job<CombinedJob> {
     setStatus(waiting);
   }
 
+  @Override
   public Future<CombinedJob> init() {
     //Instantiate / fill the child-jobs
     return createChildren();
+  }
+
+  @Override
+  public Future<Job> prepareStart() {
+    return null;
+  }
+
+  @Override
+  public Future<Job> executeStart() {
+    return null;
   }
 
   private Future<CombinedJob> createChildren() {
@@ -85,7 +96,6 @@ public class CombinedJob extends Job<CombinedJob> {
 
             setChildJobParams(job, space);
 
-            //TODO: Store the job?
             children.add(job);
 
             return Future.succeededFuture();
@@ -103,10 +113,14 @@ public class CombinedJob extends Job<CombinedJob> {
   }
 
   @Override
-  protected void isValidForStart() throws HttpException {
-    super.isValidForStart();
-    for (Job childJob : children)
-      childJob.isValidForStart();
+  protected Future<Job> isValidForStart() {
+    return super.isValidForStart()
+        .compose(job -> {
+          List<Future<Job>> futures = new ArrayList<>();
+          for (Job childJob : children)
+            futures.add(childJob.isValidForStart());
+          return Future.all(futures).compose(v -> Future.succeededFuture(this));
+        });
   }
 
   @Override

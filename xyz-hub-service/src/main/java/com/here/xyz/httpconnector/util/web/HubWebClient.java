@@ -33,13 +33,21 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.client.HttpResponse;
 import java.nio.charset.Charset;
+import java.util.concurrent.TimeUnit;
+import net.jodah.expiringmap.ExpirationPolicy;
+import net.jodah.expiringmap.ExpiringMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class HubWebClient {
     private static final Logger logger = LogManager.getLogger();
 
-    public static Future<String> executeHTTPTrigger(Export job){
+    private static ExpiringMap<String, Connector> connectorCache = ExpiringMap.builder()
+        .expirationPolicy(ExpirationPolicy.CREATED)
+        .expiration(3, TimeUnit.MINUTES)
+        .build();
+
+    public static Future<String> executeHTTPTrigger(Export job) {
 
         return CService.webClient.postAbs(CService.configuration.HUB_ENDPOINT
                         .substring(0,CService.configuration.HUB_ENDPOINT.lastIndexOf("/"))+"/_export-job")
@@ -69,7 +77,7 @@ public class HubWebClient {
                 });
     }
 
-    public static Future<String> executeHTTPTriggerStatus(Export job){
+    public static Future<String> executeHTTPTriggerStatus(Export job) {
         String statusUrl = CService.configuration.HUB_ENDPOINT.substring(0,CService.configuration.HUB_ENDPOINT.lastIndexOf("/"))
                 + "/_export-job-status";
 
@@ -102,25 +110,28 @@ public class HubWebClient {
     }
 
     public static Future<Connector> getConnectorConfig(String connectorId) {
-        return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT+"/connectors/" + connectorId)
-            .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
-            .send()
-            .compose(res -> {
-                try {
-                    Connector connector = DatabindCodec.mapper().convertValue(res.bodyAsJsonObject(), Connector.class);
-                    return Future.succeededFuture(connector);
-                }
-                catch (Exception e) {
-                    return Future.failedFuture("Can't get connector config!");
-                }
-            })
-            .onFailure(f -> {
-                Future.failedFuture("Can't get connector config!");
-            });
+      Connector cachedConnector = connectorCache.get(connectorId);
+      if (cachedConnector != null)
+        return Future.succeededFuture(cachedConnector);
+      return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT+"/connectors/" + connectorId)
+          .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+          .send()
+          .compose(res -> {
+              try {
+                  Connector connector = DatabindCodec.mapper().convertValue(res.bodyAsJsonObject(), Connector.class);
+                  return Future.succeededFuture(connector);
+              }
+              catch (Exception e) {
+                  return Future.failedFuture("Can't get connector config!");
+              }
+          })
+          .onFailure(f -> {
+              Future.failedFuture("Can't get connector config!");
+          });
     }
 
-    public static Future<Void> updateSpaceConfig(JsonObject config, String spaceId){
-        /** Update space-config */
+    public static Future<Void> updateSpaceConfig(JsonObject config, String spaceId) {
+        //Update space-config
         config.put("contentUpdatedAt", CService.currentTimeMillis());
 
         return CService.webClient.patchAbs(CService.configuration.HUB_ENDPOINT+"/spaces/"+spaceId)
@@ -139,7 +150,7 @@ public class HubWebClient {
           .send()
           .compose(response -> {
             try {
-              return Future.succeededFuture((Space) deserializeResponse(response, Space.class));
+              return Future.succeededFuture(deserializeResponse(response, Space.class));
             }
             catch (Exception e) {
               return Future.failedFuture(e);
@@ -159,7 +170,7 @@ public class HubWebClient {
     }
 
     public static Future<StatisticsResponse> getSpaceStatistics(String spaceId) {
-        /** Collect statistics from hub, which also ensures an existing table */
+        //Collect statistics from hub, which also ensures an existing table
         return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT + "/spaces/" + spaceId + "/statistics?skipCache=true")
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                 .send()

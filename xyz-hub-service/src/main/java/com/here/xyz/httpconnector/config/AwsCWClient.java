@@ -24,14 +24,23 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
-import com.amazonaws.services.cloudwatch.model.*;
+import com.amazonaws.services.cloudwatch.model.Dimension;
+import com.amazonaws.services.cloudwatch.model.GetMetricDataRequest;
+import com.amazonaws.services.cloudwatch.model.GetMetricDataResult;
+import com.amazonaws.services.cloudwatch.model.Metric;
+import com.amazonaws.services.cloudwatch.model.MetricDataQuery;
+import com.amazonaws.services.cloudwatch.model.MetricDataResult;
+import com.amazonaws.services.cloudwatch.model.MetricStat;
 import com.here.xyz.httpconnector.CService;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
-
-import java.text.DecimalFormat;
-import java.util.*;
 
 public class AwsCWClient {
     private static final Logger logger = LogManager.getLogger();
@@ -63,11 +72,11 @@ public class AwsCWClient {
         this.client = builder.build();
     }
 
-    public JSONObject getAvg5MinRDSMetrics(String dbInstanceIdentifier){
+    public JSONObject getAvg5MinRDSMetrics(String dbInstanceIdentifier) {
         return getRDSMetrics(dbInstanceIdentifier , 5 , 5 * 60 , "Average" );
     }
 
-    private JSONObject getRDSMetrics(String dbInstanceIdentifier, int timeRangeInMin, int periodInSec, String statistic){
+    private JSONObject getRDSMetrics(String dbInstanceIdentifier, int timeRangeInMin, int periodInSec, String statistic) {
         final Dimension dimension = new Dimension().withName("DBInstanceIdentifier").withValue(dbInstanceIdentifier);
         final Date endTime = new Date();
 

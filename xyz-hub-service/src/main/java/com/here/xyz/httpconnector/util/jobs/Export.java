@@ -16,8 +16,10 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
@@ -54,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
@@ -113,7 +114,12 @@ public class Export extends Job<Export> {
     @JsonView({Public.class})
     private String triggerId;
 
-    public Export(){ }
+    public Export() {}
+
+    @Override
+    public Future<Export> init() {
+        return null;
+    }
 
     public Export(String description, String targetSpaceId, String targetTable, Strategy strategy) {
         this.description = description;
@@ -135,57 +141,25 @@ public class Export extends Job<Export> {
     @Override
     public Future<Job> injectConfigValues() {
         return super.injectConfigValues()
-            .compose(job -> CService.jobConfigClient.update(getMarker(), job));
-    }
-
-    @Override
-    public Future<Job> executeAbort() {
-        try {
-            isValidForAbort();
-        }
-        catch (HttpException e) {
-            return Future.failedFuture(e);
-        }
-        return injectExportDefaults()
-            .compose(job -> super.executeAbort());
-    }
-
-    public Future<Job> executeStart() {
-      try {
-        isValidForStart();
-      }
-      catch (HttpException e) {
-        return Future.failedFuture(e);
-      }
-      return injectExportDefaults()
-          .compose(job -> addClientIfRequired()) //Load DB-Client
-          .map(v -> (Job) this)
-          .onSuccess(job -> CService.exportQueue.addJob(job));
-    }
-
-    public Future<Job> executeCreateUploadUrl() {
-      return Future.failedFuture(new HttpException(NOT_IMPLEMENTED, "For Export not available!"));
-    }
-
-    public Future<Job> executeRetry(Marker marker) {
-      try {
-        isValidForRetry();
-      }
-      catch (HttpException e) {
-        return Future.failedFuture(e);
-      }
-      return injectExportDefaults()
-          .compose(job -> addClientIfRequired()) //Load DB-Client
-          .compose(v -> {
-              try {
-                  resetToPreviousState();
-                  return CService.jobConfigClient.update(marker, this)
-                      .onSuccess(f -> CService.exportQueue.addJob(this));
-              }
-              catch (Exception e) {
-                  return Future.failedFuture(new HttpException(BAD_REQUEST, "Job has no lastStatus - cant retry!"));
-              }
-          });
+            .compose(job -> {
+                if (!getParams().containsKey("incremental"))
+                    addParam("incremental", DEACTIVATED.toString());
+                if (!getParams().containsKey("context"))
+                    addParam("context", DEFAULT);
+                if (FULL.toString().equals(getParam("incremental"))) {
+                    //We have to check if the super layer got exported in a persistent way
+                    try {
+                        if (!isSuperSpacePersistent())
+                            throw new HttpException(BAD_REQUEST, "Incremental Export requires persistent superLayer!");
+                        //Add path to persistent Export
+                        addSuperExportPathToJob(extractSuperSpaceId());
+                    }
+                    catch (Exception e) {
+                        return Future.failedFuture(e);
+                    }
+                }
+                return Future.succeededFuture(this);
+            });
     }
 
     @Override
@@ -271,26 +245,29 @@ public class Export extends Job<Export> {
     }
 
     @Override
-    protected void isValidForStart() throws HttpException {
-        super.isValidForStart();
-        Incremental incremental = Incremental.of((String) getParam("incremental"));
-        if (incremental != null && incremental != DEACTIVATED) {
-            if (incremental.equals(ApiParam.Query.Incremental.CHANGES) && includesSecondLevelExtension())
-                throw new HttpException(NOT_IMPLEMENTED, "Incremental Export of CHANGES is not supported for 2nd Level composite spaces!");
-
-            if (getCsvFormat() != TILEID_FC_B64)
-                throw new HttpException(BAD_REQUEST, "CSV format is not supported!");
-
-            if (getExportTarget().getType() == DOWNLOAD)
-                throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export is not available for Type Download!");
-
-            if (getParams() == null || getParams().get("extends") == null)
-                throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export is only possible on composite spaces!");
-
-            if (incremental == FULL && !isSuperSpacePersistent())
-                //We have to check if the super layer got exported in a persistent way
-                throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export requires persistent super space!");
-        }
+    protected Future<Job> isValidForStart() {
+        return super.isValidForStart()
+            .compose(job -> {
+                Incremental incremental = Incremental.of((String) getParam("incremental"));
+                if (incremental != null && incremental != DEACTIVATED) {
+                    if (incremental.equals(ApiParam.Query.Incremental.CHANGES) && includesSecondLevelExtension())
+                        return Future.failedFuture(new HttpException(NOT_IMPLEMENTED,
+                            "Incremental Export of CHANGES is not supported for 2nd Level composite spaces!"));
+                    if (getCsvFormat() != TILEID_FC_B64)
+                        return Future.failedFuture(new HttpException(BAD_REQUEST, "CSV format is not supported!"));
+                    if (getExportTarget().getType() == DOWNLOAD)
+                        return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST,
+                            "Incremental Export is not available for Type Download!"));
+                    if (getParams() == null || getParams().get("extends") == null)
+                        return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST,
+                            "Incremental Export is only possible on composite spaces!"));
+                    if (incremental == FULL && !isSuperSpacePersistent())
+                        //We have to check if the super layer got exported in a persistent way
+                        return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST,
+                            "Incremental Export requires persistent super space!"));
+                }
+                return Future.succeededFuture(job);
+            });
     }
 
     public List<String> getProcessingList() {
@@ -567,26 +544,6 @@ public class Export extends Job<Export> {
         }
     }
 
-    private Future<Job> injectExportDefaults() {
-      return injectConfigValues()
-          .compose(job -> {
-              if (FULL.toString().equals(getParam("incremental"))) {
-                  //We have to check if the super layer got exported in a persistent way
-                  try {
-                      if (!isSuperSpacePersistent())
-                          throw new HttpException(BAD_REQUEST, "Incremental Export requires persistent superLayer!");
-                      //Add path to persistent Export
-                      addSuperExportPathToJob(extractSuperSpaceId());
-                      return CService.jobConfigClient.update(getMarker(), this);
-                  }
-                  catch (Exception e) {
-                      return Future.failedFuture(e);
-                  }
-              }
-              return Future.succeededFuture(this);
-          });
-    }
-
     public static class ExportStatistic {
         private long rowsUploaded;
         private long filesUploaded;
@@ -810,7 +767,7 @@ public class Export extends Job<Export> {
         JDBCExporter.executeExport(this, JDBCImporter.getDefaultSchema(getTargetConnector()), CService.configuration.JOBS_S3_BUCKET,
                 CService.jobS3Client.getS3Path(this), CService.configuration.JOBS_REGION)
             .onSuccess(statistic -> {
-                    /** Everything is processed */
+                    //Everything is processed
                     logger.info("job[{}] Export of '{}' completely succeeded!", getId(), getTargetSpaceId());
                     addStatistic(statistic);
                     addDownloadLinksAndWriteMetaFile(this);
