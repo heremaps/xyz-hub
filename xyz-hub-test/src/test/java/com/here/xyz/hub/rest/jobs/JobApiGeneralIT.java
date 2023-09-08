@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.hub.rest;
+package com.here.xyz.hub.rest.jobs;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -34,17 +34,19 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.hub.auth.TestAuthenticator;
+import com.here.xyz.hub.rest.TestSpaceWithFeature;
+import com.here.xyz.hub.rest.TestWithSpaceCleanup;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Point;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class JobApiGeneralIT extends JobApiIT {
     protected static String testJobId = "x-test-general-job";
@@ -55,7 +57,7 @@ public class JobApiGeneralIT extends JobApiIT {
     public static void init(){
         cleanUpEnv(scope);
         prepareEnv(scope);
-        createSpaceWithCustomStorage(getScopedSpaceId(newSpace, scope), "psql", null);
+        TestSpaceWithFeature.createSpaceWithCustomStorage(getScopedSpaceId(newSpace, scope), "psql", null);
     }
 
     @AfterClass
@@ -63,7 +65,7 @@ public class JobApiGeneralIT extends JobApiIT {
         cleanUpEnv(scope);
 
         deleteAllJobsOnSpace(getScopedSpaceId(newSpace, scope));
-        removeSpace(getScopedSpaceId(newSpace, scope));
+        TestWithSpaceCleanup.removeSpace(getScopedSpaceId(newSpace, scope));
     }
 
     @Test
@@ -76,7 +78,7 @@ public class JobApiGeneralIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .get("/spaces/" + getScopedSpaceId(newSpace, scope) + "/jobs")
                 .then()
                 .body("size()", equalTo(1))
@@ -119,7 +121,7 @@ public class JobApiGeneralIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId())
                 .then()
                 .body("createdAt", notNullValue())
@@ -196,7 +198,7 @@ public class JobApiGeneralIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/" + job.getId() + "/execute?command=createUploadUrl")
                 .then()
                 .statusCode(CREATED.code());

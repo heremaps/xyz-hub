@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.hub.rest;
+package com.here.xyz.hub.rest.jobs;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.util.jobs.Export;

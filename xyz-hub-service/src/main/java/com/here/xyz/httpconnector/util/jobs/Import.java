@@ -82,7 +82,7 @@ public class Import extends Job<Import> {
             return Future.succeededFuture(jobId);
         else
             //Check if other import is running on target
-            return CService.jobConfigClient.getRunningJobsOnSpace(getMarker(), getTargetSpaceId(), Type.Import);
+            return CService.jobConfigClient.getRunningJobsOnSpace(getMarker(), getTargetSpaceId(), "Import");
     }
 
     private Future<Job> checkRunningJobs() {
