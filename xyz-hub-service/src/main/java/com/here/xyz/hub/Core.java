@@ -24,18 +24,30 @@ import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.Hashtable;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -54,10 +66,19 @@ public class Core {
   public static Vertx vertx;
 
   /**
+   * The shared map used across verticles
+   */
+  public static final String SHARED_DATA = "SHARED_DATA";
+  /**
+   * The key to access the global router in the shared data
+   */
+  public static final String GLOBAL_ROUTER = "GLOBAL_ROUTER";
+  protected static Router globalRouter;
+
+  /**
    * A cached clock instance.
    */
   private static final CachedClock clock = CachedClock.instance();
-
   public static long currentTimeMillis() {
     return clock.currentTimeMillis();
   }
@@ -159,6 +180,63 @@ public class Core {
 
   public static final ThreadFactory newThreadFactory(String groupName) {
     return new DefaultThreadFactory(groupName);
+  }
+
+  protected static void onServiceInitialized(AsyncResult<Void> result, JsonObject config, String verticles) {
+    if (result.failed()) {
+      logger.error("Failed to initialize Connectors. Service can't be started.", result.cause());
+      return;
+    }
+
+    if (StringUtils.isEmpty(verticles)) {
+      logger.error("At least one Verticle class name should be specified on VERTICLES_CLASS_NAMES. Service can't be started");
+      return;
+    }
+
+    final List<String> verticlesClassNames = Arrays.asList(verticles.split(","));
+    int numInstances = Runtime.getRuntime().availableProcessors() * 2 / verticlesClassNames.size();
+    final DeploymentOptions options = new DeploymentOptions()
+        .setConfig(config)
+        .setWorker(false)
+        .setInstances(numInstances);
+
+    final Promise<Void> sharedDataPromise = Promise.promise();
+    final Future<Void> sharedDataFuture = sharedDataPromise.future();
+    final Hashtable<String, Object> sharedData = new Hashtable<String, Object>() {{
+      put(GLOBAL_ROUTER, globalRouter);
+    }};
+
+    sharedDataFuture.compose(r -> {
+      final List<Future> futures = new ArrayList<>();
+
+      verticlesClassNames.forEach(className -> {
+        final Promise<AsyncResult<String>> deployVerticlePromise = Promise.promise();
+        futures.add(deployVerticlePromise.future());
+
+        logger.info("Deploying verticle: " + className);
+        vertx.deployVerticle(className, options, deployVerticleHandler -> {
+          if (deployVerticleHandler.failed()) {
+            logger.warn("Unable to load verticle class:" + className, deployVerticleHandler.cause());
+          }
+          deployVerticlePromise.complete();
+        });
+      });
+
+      return CompositeFuture.all(futures);
+    }).onComplete(done -> {
+      // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
+      vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
+
+      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date());
+      logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
+    });
+
+    //Shared data initialization
+    vertx.sharedData()
+        .getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataPromise));
+
+    Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
+
   }
 
   private static class DefaultThreadFactory implements ThreadFactory {

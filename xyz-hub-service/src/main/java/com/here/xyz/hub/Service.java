@@ -48,10 +48,7 @@ import com.here.xyz.hub.util.metrics.base.MetricPublisher;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics;
 import com.here.xyz.hub.util.metrics.net.ConnectionMetrics.HubMetricsFactory;
 import io.vertx.core.AsyncResult;
-import io.vertx.core.CompositeFuture;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.metrics.MetricsOptions;
@@ -76,7 +73,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.StringUtils;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -93,16 +90,6 @@ public class Service extends Core {
    * The host ID.
    */
   public static final String HOST_ID = UUID.randomUUID().toString();
-
-  /**
-   * The shared map used across verticles
-   */
-  public static final String SHARED_DATA = "SHARED_DATA";
-
-  /**
-   * The key to access the global router in the shared data
-   */
-  public static final String GLOBAL_ROUTER = "GLOBAL_ROUTER";
 
   /**
    * The service configuration.
@@ -161,8 +148,6 @@ public class Service extends Core {
   public static final boolean IS_USING_ZGC = isUsingZgc();
 
   private static final List<MetricPublisher> metricPublishers = new LinkedList<>();
-
-  private static Router globalRouter;
 
   private static final String CONFIG_FILE = "config.json";
 
@@ -246,61 +231,8 @@ public class Service extends Core {
     }
   }
 
-  private static void onServiceInitialized(AsyncResult<Void> result, JsonObject config) {
-    if (result.failed()) {
-      logger.error("Failed to initialize Connectors. Service can't be started.", result.cause());
-      return;
-    }
-
-    if (StringUtils.isEmpty(Service.configuration.VERTICLES_CLASS_NAMES)) {
-      logger.error("At least one Verticle class name should be specified on VERTICLES_CLASS_NAMES. Service can't be started");
-      return;
-    }
-
-    final List<String> verticlesClassNames = Arrays.asList(Service.configuration.VERTICLES_CLASS_NAMES.split(","));
-    int numInstances = Runtime.getRuntime().availableProcessors() * 2 / verticlesClassNames.size();
-    final DeploymentOptions options = new DeploymentOptions()
-        .setConfig(config)
-        .setWorker(false)
-        .setInstances(numInstances);
-
-    final Promise<Void> sharedDataPromise = Promise.promise();
-    final Future<Void> sharedDataFuture = sharedDataPromise.future();
-    final Hashtable<String, Object> sharedData = new Hashtable<String, Object>() {{
-      put(GLOBAL_ROUTER, globalRouter);
-    }};
-
-    sharedDataFuture.compose(r -> {
-      final List<Future> futures = new ArrayList<>();
-
-      verticlesClassNames.forEach(className -> {
-        final Promise<AsyncResult<String>> deployVerticlePromise = Promise.promise();
-        futures.add(deployVerticlePromise.future());
-
-        logger.info("Deploying verticle: " + className);
-        vertx.deployVerticle(className, options, deployVerticleHandler -> {
-          if (deployVerticleHandler.failed()) {
-            logger.warn("Unable to load verticle class:" + className, deployVerticleHandler.cause());
-          }
-          deployVerticlePromise.complete();
-        });
-      });
-
-      return CompositeFuture.all(futures);
-    }).onComplete(done -> {
-      // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
-      vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
-
-      logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
-      logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
-    });
-
-    //Shared data initialization
-    vertx.sharedData()
-        .getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataPromise));
-
-    Thread.setDefaultUncaughtExceptionHandler((thread, t) -> logger.error("Uncaught exception: ", t));
-
+  protected static void onServiceInitialized(AsyncResult<Void> result, JsonObject config) {
+    Core.onServiceInitialized(result, config, Service.configuration.VERTICLES_CLASS_NAMES);
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
       stopMetricPublishers();
       //This may fail, if we are OOM, but lets at least try.
