@@ -156,7 +156,7 @@ public abstract class Job<T extends Job> {
     }
 
     @JsonIgnore
-    public void setDefaults() {
+    protected Future<T> setDefaults() {
         //TODO: Do field initialization at instance initialization time
         setCreatedAt(Core.currentTimeMillis() / 1000L);
         setUpdatedAt(getCreatedAt());
@@ -169,14 +169,15 @@ public abstract class Job<T extends Job> {
         //A newly created Job waits for an execution
         if (getStatus() == null)
             setStatus(Job.Status.waiting);
+        return Future.succeededFuture((T) this);
     }
 
-    public T validate() throws HttpException {
+    public Future<T> validate() {
         if (getTargetSpaceId() == null)
-            throw new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!");
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!"));
         if (getCsvFormat() == null)
-            throw new HttpException(BAD_REQUEST, "Please specify 'csvFormat'!");
-        return (T) this;
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'csvFormat'!"));
+        return Future.succeededFuture((T) this);
     }
 
     @JsonIgnore
@@ -206,9 +207,9 @@ public abstract class Job<T extends Job> {
 
     @JsonIgnore
     public static boolean isValidForDelete(Job job, boolean force) {
-        if(force)
+        if (force)
             return true;
-        switch (job.getStatus()){
+        switch (job.getStatus()) {
             case waiting: case finalized: case aborted: case failed: return true;
             default: return false;
         }
