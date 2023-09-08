@@ -20,7 +20,6 @@
 package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.util.jobs.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.config.Initializable;
@@ -62,7 +61,7 @@ public abstract class JobConfigClient implements Initializable {
                 .onFailure(e -> logger.error(marker, "job[{}]: failed to load! ", jobId, e));
     }
 
-    public Future<List<Job>> getList(Marker marker, Job.Type type, Job.Status status, String targetSpaceId) {
+    public Future<List<Job>> getList(Marker marker, String type, Job.Status status, String targetSpaceId) {
         return getJobs(marker, type, status, targetSpaceId)
                 .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
     }
@@ -80,7 +79,7 @@ public abstract class JobConfigClient implements Initializable {
               .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
     }
 
-    public Future<String> getRunningJobsOnSpace(Marker marker, String targetSpaceId, Job.Type type) {
+    public Future<String> getRunningJobsOnSpace(Marker marker, String targetSpaceId, String type) {
         return findRunningJobOnSpace(marker, targetSpaceId, type)
                 .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e ));
     }
@@ -120,10 +119,10 @@ public abstract class JobConfigClient implements Initializable {
 
     protected abstract Future<Job> getJob(Marker marker, String jobId);
 
-    protected abstract Future<List<Job>> getJobs( Marker marker, Job.Type type, Job.Status status, String targetSpaceId);
+    protected abstract Future<List<Job>> getJobs(Marker marker, String type, Job.Status status, String targetSpaceId);
     protected abstract Future<List<Job>> getJobs( Marker marker, Job.Status status, String key, DatasetDirection direction);
 
-    protected abstract Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Job.Type type);
+    protected abstract Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type);
 
     protected abstract Future<Job> storeJob(Marker marker, Job job, boolean isUpdate);
 

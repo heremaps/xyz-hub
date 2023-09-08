@@ -45,7 +45,6 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
-import org.junit.Test;
 
 public class JobApiGeneralIT extends JobApiIT {
     protected static String testJobId = "x-test-general-job";
@@ -71,7 +70,7 @@ public class JobApiGeneralIT extends JobApiIT {
     public void getAllJobsOnSpace() {
         deleteAllJobsOnSpace(getScopedSpaceId(newSpace, scope));
         /** Create test job */
-        createTestJobWithId(getScopedSpaceId(newSpace, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        createTestJobWithId(getScopedSpaceId(newSpace, scope), testJobId,  JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Get all jobs */
         given()
@@ -88,7 +87,7 @@ public class JobApiGeneralIT extends JobApiIT {
     public void createJobWithExistingId(){
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId1, scope));
         /** Create job */
-        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Create job with same Id */
         postJob(job,getScopedSpaceId(testSpaceId1, scope))
@@ -115,7 +114,7 @@ public class JobApiGeneralIT extends JobApiIT {
     @Test
     public void getJob(){
         /** Create job */
-        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         given()
                 .accept(APPLICATION_JSON)
@@ -137,7 +136,7 @@ public class JobApiGeneralIT extends JobApiIT {
     @Test
     public void updateMutableFields() {
         /** Create job */
-        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Modify job */
         Job modified = new Import()
@@ -154,7 +153,7 @@ public class JobApiGeneralIT extends JobApiIT {
     @Test
     public void updateImmutableFields() throws MalformedURLException {
         /** Create job */
-        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Modify job */
         Job modified = new Import()
@@ -192,7 +191,7 @@ public class JobApiGeneralIT extends JobApiIT {
     @Test
     public void createUploadUrlJob() throws InterruptedException {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         given()
                 .accept(APPLICATION_JSON)
@@ -218,7 +217,7 @@ public class JobApiGeneralIT extends JobApiIT {
     @Test
     public void createValidExportJob(){
         /** Create job */
-        createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Export, Job.CSVFormat.JSON_WKB);
+        createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Export, Job.CSVFormat.JSON_WKB);
     }
 
     @Test
