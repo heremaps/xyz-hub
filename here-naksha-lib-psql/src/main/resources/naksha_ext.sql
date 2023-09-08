@@ -1815,12 +1815,17 @@ CREATE OR REPLACE FUNCTION naksha_init()
     RETURNS void
     LANGUAGE 'plpgsql' VOLATILE
 AS $BODY$
+DECLARE
+    orig_search_path TEXT;
 BEGIN
+    EXECUTE 'SHOW search_path' INTO orig_search_path;
     CREATE SCHEMA IF NOT EXISTS public;
     CREATE SCHEMA IF NOT EXISTS topology;
     CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS postgis_topology SCHEMA topology;
+    -- revert search_path to original value (as postgis_topology installation modifies it)
+    EXECUTE format('SET SESSION search_path TO %s', orig_search_path);
     CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS "hstore" SCHEMA public;

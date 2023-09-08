@@ -172,6 +172,7 @@ public class PsqlStorage implements IStorage {
           if (rs.next()) {
             version = rs.getLong(1);
           }
+          rs.close();
         } catch (PSQLException e) {
           final EPsqlState state = EPsqlState.of(e);
           if (state != EPsqlState.UNDEFINED_FUNCTION
@@ -204,14 +205,11 @@ public class PsqlStorage implements IStorage {
           // Re-Initialize the connection.
           // This ensures that we really have the schema at the end of the search path and therefore
           // selected.
-          // TODO HP_QUERY : Looks like a duplicate call, as intialization already happens during
-          // earlier call
-          // to getConnection()?
+          // TODO HP_QUERY : Looks like a duplicate call, as initialization already happens during
+          // earlier call to getConnection()?
           dataSource.initConnection(conn);
-          if (version == 0L) {
-            stmt.execute("SELECT naksha_init();");
-            conn.commit();
-          }
+          stmt.execute("SELECT naksha_init();");
+          conn.commit();
           // setupH3();
         }
       }
