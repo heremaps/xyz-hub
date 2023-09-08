@@ -27,7 +27,6 @@ import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Spaces;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.List;
@@ -119,7 +118,7 @@ public class CombinedJob extends Job<CombinedJob> {
           List<Future<Job>> futures = new ArrayList<>();
           for (Job childJob : children)
             futures.add(childJob.isValidForStart());
-          return Future.all(futures).compose(v -> Future.succeededFuture(this));
+          return Future.all(futures).map(cf -> this);
         });
   }
 
@@ -149,10 +148,14 @@ public class CombinedJob extends Job<CombinedJob> {
   }
 
   @Override
-  public CombinedJob validate() throws HttpException {
-    for (Job job : children)
-      job.validate();
-    return this;
+  public Future<CombinedJob> validate() {
+    return super.validate()
+        .compose(job -> {
+          List<Future<Job>> futures = new ArrayList<>();
+          for (Job childJob : children)
+            futures.add(childJob.validate());
+          return Future.all(futures).map(cf -> this);
+        });
   }
 
   public Future<CombinedJob> store() {
