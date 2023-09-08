@@ -94,15 +94,16 @@ public class HApiParam extends ApiParam {
             }
         }
 
-        protected static Job.Type getJobType(RoutingContext context) {
-            Job.Type type = Job.Type.of(getString(context, "type", null));
+        protected static String getJobType(RoutingContext context) {
+            String type = getString(context, "type", null);
 
             if(type == null)
                 return null;
 
+            //TODO: Dynamnically check if the type is valid
             switch (type){
-                case Export:
-                case Import:
+                case "Export":
+                case "Import":
                     return type;
                 default:
                     return null;

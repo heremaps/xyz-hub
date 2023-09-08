@@ -71,7 +71,7 @@ public class JobApiImportIT extends JobApiIT {
     @Test
     public void validWKBImport() throws Exception {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Create Upload URL */
         String resp = given()
@@ -112,7 +112,7 @@ public class JobApiImportIT extends JobApiIT {
     public void duplicateImport() throws Exception {
 
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         for(int i=0; i<3 ; i++) {
             /** Create Upload URL */
@@ -175,7 +175,7 @@ public class JobApiImportIT extends JobApiIT {
     @Test
     public void validGEOJSONImport() throws Exception {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.GEOJSON);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.GEOJSON);
 
         /** Create Upload URL */
         String resp = given()
@@ -216,7 +216,7 @@ public class JobApiImportIT extends JobApiIT {
     public void validMultiUrlImport() throws Exception {
 
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Create single Upload URL */
         String resp1 = given()
@@ -290,7 +290,7 @@ public class JobApiImportIT extends JobApiIT {
     @Test
     public void validationErrorImport() throws Exception {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Create Upload URL */
         String resp = given()
@@ -350,7 +350,7 @@ public class JobApiImportIT extends JobApiIT {
     @Test
     public void startIncompleteImportJob() throws InterruptedException {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         given()
                 .accept(APPLICATION_JSON)
@@ -373,7 +373,7 @@ public class JobApiImportIT extends JobApiIT {
         /** Defines how many upload chunks we want to have */
         int chunkSize = 100;
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         for (int i=0 ;  i< chunkSize; i++){
             /** Create Upload URL */
@@ -421,7 +421,7 @@ public class JobApiImportIT extends JobApiIT {
         deleteAllJobsOnSpace(newSpace);
         createSpaceWithCustomStorage(newSpace, "psql", null);
         /** Create job */
-        Job job = createTestJobWithId(newSpace, importId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Job job = createTestJobWithId(newSpace, importId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         String resp = given()
                 .accept(APPLICATION_JSON)

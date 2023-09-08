@@ -30,7 +30,6 @@ import com.here.xyz.Payload;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
-import com.here.xyz.httpconnector.util.jobs.Job.Type;
 import com.here.xyz.hub.config.dynamo.DynamoClient;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -116,7 +115,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<List<Job>> getJobs(Marker marker, Type type, Status status, String targetSpaceId) {
+    protected Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 final List<Job> result = new ArrayList<>();
@@ -194,7 +193,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         });
     }
 
-    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Type type) {
+    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 List<ScanFilter> filterList = new ArrayList<>();

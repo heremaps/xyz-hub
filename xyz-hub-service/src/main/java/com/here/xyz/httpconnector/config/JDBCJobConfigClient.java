@@ -71,7 +71,7 @@ public class JDBCJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<List<Job>> getJobs(Marker marker, Job.Type type, Job.Status status, String targetSpaceId) {
+    protected Future<List<Job>> getJobs(Marker marker, String type, Job.Status status, String targetSpaceId) {
         final List<Job> result = new ArrayList<>();
         List<Object> tuples = new ArrayList<>();
 
@@ -133,7 +133,7 @@ public class JDBCJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Job.Type type) {
+    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type) {
         String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 AND config->>'status' NOT IN ('waiting','failed','finalized')" +
                 " AND config->>'targetSpaceId' = $1" +
                 " AND jobtype = $2" ;

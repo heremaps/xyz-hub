@@ -222,21 +222,6 @@ public abstract class Job<T extends Job> {
     }
 
     @JsonView({Public.class})
-    public enum Type {
-        Import, Export, CombinedJob;
-        public static Type of(String value) {
-            if (value == null) {
-                return null;
-            }
-            try {
-                return valueOf(value);
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }
-    }
-
-    @JsonView({Public.class})
     public enum Status {
         waiting, queued, validating, validated, preparing, prepared, executing, executed,
             executing_trigger, trigger_executed, collecting_trigger_status, trigger_status_collected,

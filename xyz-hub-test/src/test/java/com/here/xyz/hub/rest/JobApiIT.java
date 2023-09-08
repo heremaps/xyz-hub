@@ -121,6 +121,20 @@ public class JobApiIT extends TestSpaceWithFeature {
         removeSpace(getScopedSpaceId(testSpaceId2ExtExt, scope));
     }
 
+    public enum Type {
+        Import, Export;
+        public static Type of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
+
     protected static ValidatableResponse postJob(Job job, String spaceId){
         return given()
                 .accept(APPLICATION_JSON)
@@ -141,10 +155,10 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .then();
     }
 
-    protected static Job createTestJobWithId( String spaceId, String id, Job.Type type, Job.CSVFormat csvFormat) {
+    protected static Job createTestJobWithId(String spaceId, String id, Type type, Job.CSVFormat csvFormat) {
         id = id + CService.currentTimeMillis();
         Job job;
-        if(type.equals(Job.Type.Import)) {
+        if(type.equals(Type.Import)) {
             job = new Import()
                     .withDescription("Job Description")
                     .withCsvFormat(csvFormat);

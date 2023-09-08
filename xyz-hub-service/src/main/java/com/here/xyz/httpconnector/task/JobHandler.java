@@ -32,7 +32,6 @@ import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.httpconnector.util.jobs.Job.Type;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
@@ -64,7 +63,7 @@ public class JobHandler {
             .onFailure( e -> Future.failedFuture(new HttpException(BAD_GATEWAY, "Can't load '" + jobId + "' from backend!")));
     }
 
-    public static Future<List<Job>> loadJobs(Marker marker, Type type, Job.Status status, String targetSpaceId) {
+    public static Future<List<Job>> loadJobs(Marker marker, String type, Job.Status status, String targetSpaceId) {
         return CService.jobConfigClient.getList(marker, type, status, targetSpaceId)
             .onFailure( e -> Future.failedFuture(new HttpException(BAD_GATEWAY, "Can't load jobs from backend!")));
     }

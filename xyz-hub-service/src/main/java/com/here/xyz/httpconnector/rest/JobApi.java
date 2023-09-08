@@ -88,7 +88,7 @@ public class JobApi extends Api {
   }
 
   private void getJobs(final RoutingContext context) {
-    Job.Type jobType = HQuery.getJobType(context);
+    String jobType = HQuery.getJobType(context);
     Job.Status jobStatus = HQuery.getJobStatus(context);
     String targetSpaceId = HQuery.getString(context, HQuery.TARGET_SPACEID , null);
 
