@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.hub.rest;
+package com.here.xyz.hub.rest.jobs;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
@@ -33,6 +33,10 @@ import static org.junit.Assert.assertEquals;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.hub.rest.ApiParam;
+import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.rest.TestSpaceWithFeature;
+import com.here.xyz.hub.rest.TestWithSpaceCleanup;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
@@ -57,13 +61,13 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
 
     @Before
     public void prepare() {
-        createSpaceWithCustomStorage(testSpaceId1, "psql", null, true);
-        addFeatures(testSpaceId1, "/xyz/hub/fcWithPoints.json", 7);
+        TestSpaceWithFeature.createSpaceWithCustomStorage(testSpaceId1, "psql", null, true);
+        TestSpaceWithFeature.addFeatures(testSpaceId1, "/xyz/hub/fcWithPoints.json", 7);
 
-        createSpaceWithExtension(testSpaceId1);
+        TestSpaceWithFeature.createSpaceWithExtension(testSpaceId1);
 
         /** Add one feature on L1 composite space */
-        postFeature(testSpaceId1Ext, newFeature()
+        TestSpaceWithFeature.postFeature(testSpaceId1Ext, TestSpaceWithFeature.newFeature()
                         .withId("idX")
                         .withGeometry(new Point().withCoordinates(new PointCoordinates(-1.56676045, 39.63936801)))
                         .withProperties(new Properties().with("foo", "test")),
@@ -74,7 +78,7 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         deleteFeature(testSpaceId1Ext,"id2");
 
         /** Edit Base Feature */
-        postFeature(testSpaceId1Ext, newFeature()
+        TestSpaceWithFeature.postFeature(testSpaceId1Ext, TestSpaceWithFeature.newFeature()
                         .withId("id3")
                         .withGeometry(new Point().withCoordinates(new PointCoordinates(  41.65012568226706, 38.96805602991469)))
                         .withProperties(new Properties().with("foo", "test2")),
@@ -82,7 +86,7 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         );
 
         /** Edit Base Feature and Move*/
-        postFeature(testSpaceId1Ext, newFeature()
+        TestSpaceWithFeature.postFeature(testSpaceId1Ext, TestSpaceWithFeature.newFeature()
                         .withId("id7")
                         .withGeometry(new Point().withCoordinates(new PointCoordinates(  -80.6915562469239, 45.6444425342321)))
                         .withProperties(new Properties().with("foo", "test2")),
@@ -90,8 +94,8 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         );
 
         /** Add Delta2 Feature */
-        createSpaceWithExtension(testSpaceId1Ext);
-        postFeature(testSpaceId1ExtExt, newFeature()
+        TestSpaceWithFeature.createSpaceWithExtension(testSpaceId1Ext);
+        TestSpaceWithFeature.postFeature(testSpaceId1ExtExt, TestSpaceWithFeature.newFeature()
                         .withId("id8")
                         .withGeometry(new Point().withCoordinates(new PointCoordinates(  -1,1)))
                         .withProperties(new Properties().with("foo", "test3")),
@@ -108,9 +112,9 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
 
     @After
     public void after(){
-        removeSpace(testSpaceId1);
-        removeSpace(testSpaceId1Ext);
-        removeSpace(testSpaceId1ExtExt);
+        TestWithSpaceCleanup.removeSpace(testSpaceId1);
+        TestWithSpaceCleanup.removeSpace(testSpaceId1Ext);
+        TestWithSpaceCleanup.removeSpace(testSpaceId1ExtExt);
     }
 
     @Test
