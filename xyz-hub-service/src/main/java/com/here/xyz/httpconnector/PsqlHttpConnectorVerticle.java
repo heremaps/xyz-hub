@@ -37,6 +37,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.Map;
 
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
@@ -100,13 +101,30 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle {
 
           //Add default handlers
           addDefaultHandlers(router);
-          createHttpServer(CService.configuration.HTTP_PORT, router);
+
+          vertx.sharedData().<String, Hashtable<String, Object>>getAsyncMap(CService.SHARED_DATA, sharedDataResult -> {
+            sharedDataResult.result().get(CService.SHARED_DATA, hashtableResult -> {
+              final Hashtable<String, Object> sharedData = hashtableResult.result();
+              final Router globalRouter = (Router) sharedData.get(CService.GLOBAL_ROUTER);
+
+              globalRouter.mountSubRouter("/", router);
+
+              vertx.eventBus().localConsumer(CService.SHARED_DATA, event -> {
+                //Create the main service listener
+                createHttpServer(CService.configuration.HTTP_PORT, globalRouter);
+
+              });
+            });
+          });
+          startPromise.complete();
         }
         catch (Exception e) {
+          startPromise.fail(e);
           logger.error("An error occurred, during the creation of the router from the Open API specification file.", e);
         }
       }
       else {
+        startPromise.fail(ar.cause());
         logger.error("An error occurred, during the creation of the router from the Open API specification file.");
       }
     });
