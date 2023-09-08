@@ -127,7 +127,7 @@ public final class NakshaHub extends Thread implements INaksha {
     final PsqlConfig config = new PsqlConfigBuilder()
         .withAppName(NakshaHubConfig.defaultAppName())
         .parseUrl(args[0])
-        .withSchema(NakshaAdminCollection.SCHEMA)
+        .withDefaultSchema(NakshaAdminCollection.SCHEMA)
         .build();
     return new NakshaHub(config, args[1], null);
   }
@@ -168,7 +168,6 @@ public final class NakshaHub extends Thread implements INaksha {
     this.instanceId = instanceId;
     adminStorage = new PsqlStorage(adminDbConfig, 1L);
     adminStorage.init();
-    adminStorage.maintain(NakshaAdminCollection.COLLECTION_INFO_LIST);
     final ITransactionSettings tempSettings = adminStorage.createSettings().withAppId(adminDbConfig.appName);
     NakshaHubConfig config;
     try (final PsqlTxWriter tx = adminStorage.openMasterTransaction(tempSettings)) {
@@ -190,7 +189,22 @@ public final class NakshaHub extends Thread implements INaksha {
         tx.createCollection(NakshaAdminCollection.STORAGES);
         tx.commit();
       }
-      // read default storage
+      if (!existing.containsKey(NakshaAdminCollection.SPACES.getId())) {
+        tx.createCollection(NakshaAdminCollection.SPACES);
+        tx.commit();
+      }
+      if (!existing.containsKey(NakshaAdminCollection.SUBSCRIPTIONS.getId())) {
+        tx.createCollection(NakshaAdminCollection.SUBSCRIPTIONS);
+        tx.commit();
+      }
+      if (!existing.containsKey(NakshaAdminCollection.CONFIGS.getId())) {
+        tx.createCollection(NakshaAdminCollection.CONFIGS);
+        tx.commit();
+      }
+      // Run maintenance on AdminDB (to ensure table partitions exist) before performing any DML operations
+      adminStorage.maintain(NakshaAdminCollection.COLLECTION_INFO_LIST);
+
+      // read default storage config and add to DB if not already present
       Storage defStorage = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
           .getFeatureById("psql");
       if (defStorage == null) {
@@ -209,19 +223,7 @@ public final class NakshaHub extends Thread implements INaksha {
       }
       this.storage = defStorage;
 
-      if (!existing.containsKey(NakshaAdminCollection.SPACES.getId())) {
-        tx.createCollection(NakshaAdminCollection.SPACES);
-        tx.commit();
-      }
-      if (!existing.containsKey(NakshaAdminCollection.SUBSCRIPTIONS.getId())) {
-        tx.createCollection(NakshaAdminCollection.SUBSCRIPTIONS);
-        tx.commit();
-      }
-
-      if (!existing.containsKey(NakshaAdminCollection.CONFIGS.getId())) {
-        tx.createCollection(NakshaAdminCollection.CONFIGS);
-        tx.commit();
-      }
+      // read default config and add to DB if not already present
       boolean dbConfigExists = false;
       config = tx.readFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
           .getFeatureById(configId);
@@ -241,12 +243,7 @@ public final class NakshaHub extends Thread implements INaksha {
       } catch (Exception e) {
         throw unchecked(e);
       }
-      // TODO HP_QUERY : Why this way instead of direct call `log.info()` ?
-      log.atInfo()
-          .setMessage("Loaded default configuration '{}' as: {}")
-          .addArgument(configId)
-          .addArgument(config)
-          .log();
+      log.info("Loaded default configuration '{}' as: {}", configId, config);
 
       // Read the configuration.
       try (final Json json = Json.get()) {
@@ -256,19 +253,14 @@ public final class NakshaHub extends Thread implements INaksha {
         final NakshaHubConfig cfg = json.reader(ViewDeserialize.Storage.class)
             .forType(NakshaHubConfig.class)
             .readValue(loaded.bytes());
-        log.atInfo()
-            .setMessage("Override configuration from file {}: {}")
-            .addArgument(loaded.path())
-            .addArgument(config)
-            .log();
+        log.info("Override configuration from file {}: {}", loaded.path(), config);
         config = cfg;
       } catch (Throwable t) {
-        log.atDebug()
-            .setMessage("Failed to load {}.json from XGD config directory ~/.config/{}/{}.json")
-            .addArgument(configId)
-            .addArgument(adminDbConfig.appName)
-            .addArgument(configId)
-            .log();
+        log.debug(
+            "Failed to load {}.json from XGD config directory ~/.config/{}/{}.json",
+            configId,
+            adminDbConfig.appName,
+            configId);
       }
       if (config == null) {
         throw new RuntimeException("Configuration with id '" + configId + "' not found!");
@@ -277,11 +269,7 @@ public final class NakshaHub extends Thread implements INaksha {
       this.txSettings =
           adminStorage.createSettings().withAppId(config.appId).withAuthor(config.author);
 
-      log.atInfo()
-          .setMessage("Naksha host/endpoint: {} / {}")
-          .addArgument(config.hostname)
-          .addArgument(config.endpoint)
-          .log();
+      log.info("Naksha host/endpoint: {} / {}", config.hostname, config.endpoint);
 
       // vertxMetricsOptions = new MetricsOptions().setEnabled(true).setFactory(new NakshaHubMetricsFactory());
       vertxOptions = new VertxOptions();
@@ -310,19 +298,13 @@ public final class NakshaHub extends Thread implements INaksha {
       {
         final String path = "auth/" + config.jwtName + ".key";
         final LoadedBytes loaded = IoHelp.readBytesFromHomeOrResource(path, false, NakshaHubConfig.APP_NAME);
-        log.atInfo()
-            .setMessage("Loaded JWT key file {}")
-            .addArgument(loaded.path())
-            .log();
+        log.info("Loaded JWT key file {}", loaded.path());
         jwtKey = new String(loaded.bytes(), StandardCharsets.UTF_8);
       }
       {
         final String path = "auth/" + config.jwtName + ".pub";
         final LoadedBytes loaded = IoHelp.readBytesFromHomeOrResource(path, false, NakshaHubConfig.APP_NAME);
-        log.atInfo()
-            .setMessage("Loaded JWT key file {}")
-            .addArgument(loaded.path())
-            .log();
+        log.info("Loaded JWT key file {}", loaded.path());
         jwtPub = new String(loaded.bytes(), StandardCharsets.UTF_8);
       }
       authOptions = new JWTAuthOptions()

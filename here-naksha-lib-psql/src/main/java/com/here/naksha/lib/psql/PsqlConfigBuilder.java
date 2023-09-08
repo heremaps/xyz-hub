@@ -51,6 +51,11 @@ public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfi
     return this;
   }
 
+  public @NotNull PsqlConfigBuilder withDefaultSchema(@NotNull String schema) {
+    if (getSchema() == null) setSchema(schema);
+    return this;
+  }
+
   public String getAppName() {
     return appName;
   }
