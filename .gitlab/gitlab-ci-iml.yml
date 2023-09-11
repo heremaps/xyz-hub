@@ -1,4 +1,4 @@
 include:
-  - project: xyz/data-hub/ci
+  - project: 'xyz/data-hub/ci'
     ref: wip-build-iml
-    file: interactiveapi-handler.yml
+    file: 'interactiveapi-handler.yml'
