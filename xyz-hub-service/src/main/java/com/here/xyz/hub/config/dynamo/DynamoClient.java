@@ -154,15 +154,19 @@ public class DynamoClient {
 
   public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {
     return DynamoClient.dynamoWorkers.executeBlocking(future -> {
-      ExecuteStatementResult result = client.executeStatement(request);
-      List<Map<String, AttributeValue>> items = result.getItems();
+      try {
+        ExecuteStatementResult result = client.executeStatement(request);
+        List<Map<String, AttributeValue>> items = result.getItems();
 
-      while (result.getNextToken() != null) {
-        result = client.executeStatement(request.withNextToken(result.getNextToken()));
-        items.addAll(result.getItems());
+        while (result.getNextToken() != null) {
+          result = client.executeStatement(request.withNextToken(result.getNextToken()));
+          items.addAll(result.getItems());
+        }
+
+        future.complete(items);
+      } catch (Exception e) {
+        future.fail(e);
       }
-
-      future.complete(items);
     });
   }
 }
