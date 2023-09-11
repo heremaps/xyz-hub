@@ -29,7 +29,10 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
 import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AttributeDefinition;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.CreateTableRequest;
+import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
+import com.amazonaws.services.dynamodbv2.model.ExecuteStatementResult;
 import com.amazonaws.services.dynamodbv2.model.GlobalSecondaryIndex;
 import com.amazonaws.services.dynamodbv2.model.KeySchemaElement;
 import com.amazonaws.services.dynamodbv2.model.KeyType;
@@ -42,10 +45,12 @@ import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
 import com.amazonaws.services.s3.model.Region;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.ARN;
+import io.vertx.core.Future;
 import io.vertx.core.WorkerExecutor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -145,5 +150,19 @@ public class DynamoClient {
 
   public boolean isLocal() {
     return Arrays.stream(Region.values()).noneMatch(r -> r.toAWSRegion().getName().equals(arn.getRegion()));
+  }
+
+  public Future<List<Map<String, AttributeValue>>> executeStatement(ExecuteStatementRequest request) {
+    return DynamoClient.dynamoWorkers.executeBlocking(future -> {
+      ExecuteStatementResult result = client.executeStatement(request);
+      List<Map<String, AttributeValue>> items = result.getItems();
+
+      while (result.getNextToken() != null) {
+        result = client.executeStatement(request.withNextToken(result.getNextToken()));
+        items.addAll(result.getItems());
+      }
+
+      future.complete(items);
+    });
   }
 }
