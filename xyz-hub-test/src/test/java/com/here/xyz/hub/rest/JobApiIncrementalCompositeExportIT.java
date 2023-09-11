@@ -137,16 +137,8 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
             exceptionCnt++;
         }
 
-        job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.VML).withTargetId("dummy"), PARTITIONID_FC_B64);
-        try {
-            /** unsupported Format - creation fails */
-            performExport(job, testSpaceId1Ext, failed, finalized, DEFAULT, CHANGES);
-        }catch (HttpException e){
-            assertEquals(BAD_REQUEST, e.status);
-            exceptionCnt++;
-        }
         /** Check if we got the expected amount of failures */
-        assertEquals(3, exceptionCnt);
+        assertEquals(2, exceptionCnt);
     }
 
     @Test

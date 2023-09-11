@@ -370,7 +370,7 @@ public class JDBCExporter extends JDBCClients {
         Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         int maxTilesPerFile = j.getMaxTilesPerFile() == 0 ? 4096 : j.getMaxTilesPerFile();
-        String bClipped = ( j.getClipped() != null && j.getClipped() ? "true" : "false" );
+        boolean bClipped = ( j.getClipped() != null && j.getClipped() );
 
         SQLQuery exportSelectString =  generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat());
 
