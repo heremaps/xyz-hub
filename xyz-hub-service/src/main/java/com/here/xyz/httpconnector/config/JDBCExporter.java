@@ -58,11 +58,13 @@ public class JDBCExporter extends JDBCClients{
         try{
             String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
             Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
-            SQLQuery exportQuery = generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-                    j.getTargetVersion(), j.getParams(), j.getCsvFormat(),null,false, j.getPartitionKey(),j.getOmitOnNull());
+            SQLQuery exportQuery = null;
 
             switch (j.getExportTarget().getType()){
                 case DOWNLOAD:
+
+                    exportQuery = generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+
                     return calculateThreadCountForDownload(j, schema, exportQuery)
                             .compose(threads -> {
                                 try{
@@ -83,19 +85,14 @@ public class JDBCExporter extends JDBCClients{
                             });
                 case VML:
                 default:
-                    /** Is used for incremental exports - here we have to export modified tiles. Those tiles we need
-                     * to calculate separately */
-                    final SQLQuery qkQuery;
 
-                    if(j.readParamIncremental().equals(ApiParam.Query.Incremental.CHANGES)){
-                        /** Create query which calculate all Tiles which are effected from delta changes */
-                        qkQuery = generateFilteredExportQueryForCompositeTileCalculation(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-                                j.getTargetVersion(), j.getParams(), j.getCsvFormat());
-                    }else {
-                        qkQuery = null;
-                    }
+                    boolean bIncrementalChanges = j.readParamIncremental().equals(ApiParam.Query.Incremental.CHANGES);
 
                     if( j.getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64)) {
+
+                         exportQuery = generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                                                   j.getTargetVersion(), j.getParams(), j.getCsvFormat(),null,bIncrementalChanges, j.getPartitionKey(),j.getOmitOnNull());
+                                                
                         return calculateThreadCountForDownload(j, schema, exportQuery)
                                 .compose(threads -> {
                                     try {
@@ -113,7 +110,7 @@ public class JDBCExporter extends JDBCClients{
 
                                     for (int i = 0; i < tCount; i++) {
                                         String s3Prefix = i + "_";
-                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, (tCount > 1 ? new SQLQuery("AND i%% " + tCount + " = "+i) : null) );
+                                        SQLQuery q2 = buildPartIdVMLExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, bIncrementalChanges, (tCount > 1 ? new SQLQuery("AND i%% " + tCount + " = "+i) : null) );
                                         exportFutures.add( exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
                                     }
 
@@ -123,6 +120,21 @@ public class JDBCExporter extends JDBCClients{
                                         return Future.failedFuture(e);
                                     }
                                 });
+                    }
+
+                   
+                    exportQuery = generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+
+                    /** Is used for incremental exports (tiles) - here we have to export modified tiles. Those tiles we need
+                     * to calculate separately */
+                    final SQLQuery qkQuery;
+
+                    if( bIncrementalChanges ){
+                        /** Create query which calculate all Tiles which are effected from delta changes */
+                        qkQuery = generateFilteredExportQueryForCompositeTileCalculation(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+                    } else {
+                     qkQuery = null;
                     }
 
                     return calculateTileListForVMLExport(j, schema, exportQuery, qkQuery)
@@ -316,10 +328,37 @@ public class JDBCExporter extends JDBCClients{
         return q.substituteAndUseDollarSyntax(q);
     }
 
+    public static SQLQuery buildPartIdVMLExportQuery(Export j, String schema,
+                                                    String s3Bucket, String s3Path, String s3FilePrefix, String s3Region, boolean isForCompositeContentDetection,
+                                                    SQLQuery customWhereCondition) throws SQLException {
+/* generic partition */
+        String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
+        Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
+
+        s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
+        
+        SQLQuery exportSelectString = generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                                                   j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, isForCompositeContentDetection,
+                                                                   j.getPartitionKey(), j.getOmitOnNull());
+
+        SQLQuery q = new SQLQuery("SELECT * /* vml_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
+                " ${{exportSelectString}},"+
+                " aws_commons.create_s3_uri(#{s3Bucket}, #{s3Path}, #{s3Region}),"+
+                " options := 'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' ' );"
+        );
+
+        q.setQueryFragment("exportSelectString", exportSelectString);
+        q.setNamedParameter("s3Bucket",s3Bucket);
+        q.setNamedParameter("s3Path",s3Path);
+        q.setNamedParameter("s3Region",s3Region);
+
+        return q.substituteAndUseDollarSyntax(q);
+    }
+
     public static SQLQuery buildVMLExportQuery(Export j, String schema,
                                                String s3Bucket, String s3Path, String s3Region, String parentQk,
                                                SQLQuery qkTileQry) throws SQLException {
-
+/* tiled export */
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
         Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
@@ -429,6 +468,8 @@ public class JDBCExporter extends JDBCClients{
         dbHandler.setConfig(config);
 
         SQLQuery sqlQuery;
+        
+        boolean exportDeltaOnlybyPartitionID = ( csvFormat == CSVFormat.PARTITIONID_FC_B64 && isForCompositeContentDetection );
 
         try {
           GetFeatures queryRunner;
@@ -437,7 +478,7 @@ public class JDBCExporter extends JDBCClients{
           else
             queryRunner = new GetFeaturesByGeometry(event);
           queryRunner.setDbHandler(dbHandler);
-          sqlQuery = queryRunner._buildQuery(event);
+          sqlQuery = queryRunner._buildQuery(event, exportDeltaOnlybyPartitionID );
         }
         catch (Exception e) {
           throw new SQLException(e);
@@ -507,7 +548,7 @@ public class JDBCExporter extends JDBCClients{
 
            geoJson.setQueryFragment("contentQuery", sqlQuery);
            geoJson.substitute();
-           return queryToText(geoJson, isForCompositeContentDetection);
+           return queryToText(geoJson, false); // false -> no replacement needed, because ${{contentQuery}} fits the needs
          }
 
          default:

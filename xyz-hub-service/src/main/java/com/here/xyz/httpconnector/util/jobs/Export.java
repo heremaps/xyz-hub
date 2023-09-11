@@ -204,8 +204,10 @@ public class Export extends Job<Export> {
             if (incremental.equals(ApiParam.Query.Incremental.CHANGES) && includesSecondLevelExtension())
                 throw new HttpException(NOT_IMPLEMENTED, "Incremental Export of CHANGES is not supported for 2nd Level extended spaces!");
 
-            if (!getCsvFormat().equals(CSVFormat.TILEID_FC_B64))
-                throw new HttpException(BAD_REQUEST, "CSV format is not supported!");
+            switch( getCsvFormat() )
+            { case TILEID_FC_B64: case PARTITIONID_FC_B64 : break;
+              default : throw new HttpException(BAD_REQUEST, "CSV format is not supported!");
+            }
 
             if (getExportTarget().getType().equals(ExportTarget.Type.DOWNLOAD))
                 throw new HttpException(HttpResponseStatus.BAD_REQUEST, "Incremental Export is available for Type Download!");

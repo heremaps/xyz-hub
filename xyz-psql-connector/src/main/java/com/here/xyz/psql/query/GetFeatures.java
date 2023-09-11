@@ -42,7 +42,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   public static long MAX_BIGINT = Long.MAX_VALUE;
 
-  private boolean withoutIdField = false;
+  private boolean withoutIdField = false,
+                  deltaOnly = false;
 
   public GetFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
@@ -52,9 +53,10 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-    boolean isExtended = isExtendedSpace(event) && event.getContext() == DEFAULT;
+    boolean isExtended = ( isExtendedSpace(event) && event.getContext() == DEFAULT ) && !deltaOnly; /** deltaOnly -> ignore underlying base, act as not extended  */
     SQLQuery query;
-    if (isExtended) {
+
+    if ( isExtended ) {
       query = new SQLQuery(
           "SELECT * FROM ("
           + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}${{id}}"
@@ -205,14 +207,18 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return  "id = " + prefix + "id";
   }
 
-  private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended) {
+  private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended, boolean isDeleted) {
     if (v2k <= 1 && !isExtended) return new SQLQuery("");
 
     String operationsParamName = "operationsToFilterOut" + (isExtended ? "Extended" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
-    return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
+    return new SQLQuery(" AND operation " + (isDeleted ? "" : "NOT") + " IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
         .withNamedParameter(operationsParamName, Arrays.stream(isExtended
             ? new ModificationType[]{DELETE, INSERT_HIDE_COMPOSITE, UPDATE_HIDE_COMPOSITE}
             : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
+  }
+
+  private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended) { 
+    return buildDeletionCheckFragment( v2k, isExtended, false); 
   }
 
   @Override
@@ -275,8 +281,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   }
 
   //TODO: Remove that hack and instantiate & use the whole GetFeatures QR instead from wherever it's needed
-  public SQLQuery _buildQuery(E event) throws SQLException, ErrorResponseException {
+  public SQLQuery _buildQuery(E event, boolean exportDeltaOnly ) throws SQLException, ErrorResponseException {
     withoutIdField = true;
+    this.deltaOnly = exportDeltaOnly;
     return buildQuery(event);
   }
 }
