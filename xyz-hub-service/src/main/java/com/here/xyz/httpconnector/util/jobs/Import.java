@@ -16,14 +16,21 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
 import static com.here.xyz.httpconnector.util.scheduler.ImportQueue.NODE_EXECUTED_IMPORT_MEMORY;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
@@ -31,10 +38,10 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -64,11 +71,35 @@ public class Import extends Job<Import> {
     @JsonView({Public.class})
     private Map<String,ImportObject> importObjects;
 
-    @JsonInclude
-    private Type type = Type.Import;
-
     @JsonView({Internal.class})
     private List<String> idxList;
+
+    private Future<String> checkRunningImportJobs() {
+        //Check in node memory
+        String jobId = CService.importQueue.checkRunningJobsOnSpace(getTargetSpaceId());
+
+        if (jobId != null)
+            return Future.succeededFuture(jobId);
+        else
+            //Check if other import is running on target
+            return CService.jobConfigClient.getRunningJobsOnSpace(getMarker(), getTargetSpaceId(), Type.Import);
+    }
+
+    private Future<Job> checkRunningJobs() {
+        //States are getting set in JobQueue
+        return checkRunningImportJobs()
+            .compose(runningJobs -> {
+                if (runningJobs == null)
+                    return Future.succeededFuture(this);
+                else
+                    return  Future.failedFuture(new HttpException(CONFLICT, "Job '" + runningJobs + "' is already running on target!"));
+            });
+    }
+
+    @Override
+    public Future<Import> init() {
+        return null;
+    }
 
     public Import() {}
 
@@ -92,7 +123,8 @@ public class Import extends Job<Import> {
                 if (scannedObjects.size() == 0) {
                     job.setErrorDescription(ERROR_DESCRIPTION_UPLOAD_MISSING);
                     job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
-                } else {
+                }
+                else {
                     boolean foundOneValid = false;
                     for (String key : job.getImportObjects().keySet()) {
                         if (scannedObjects.get(key) != null) {
@@ -120,46 +152,27 @@ public class Import extends Job<Import> {
                         job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
                     }
                 }
-            }catch (Exception e){
+            }
+            catch (Exception e) {
                 logger.warn("job[{}] validation has failed! ", job.getId(), e);
-                job.setStatus(Status.failed);
+                job.setStatus(failed);
                 job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
             }
         }
 
         //ToDo: Decide if we want to proceed partially
-        if(job.getErrorType() != null)
-            job.setStatus(Status.failed);
+        if (job.getErrorType() != null)
+            job.setStatus(failed);
         else
             job.setStatus(Status.validated);
 
         return job;
     }
 
-    public static void isValidForCreateUrl(Job job) throws HttpException {
-        if(job.getStatus().equals(Status.waiting))
-            return;
-        throw new HttpException(PRECONDITION_FAILED, "Invalid state: "+job.getStatus() +" creation is only allowed on status=waiting");
-    }
-
-    public void isValidForStart(Incremental incremental) throws HttpException{
-        if (getStatus().equals(Status.waiting))
-            return;
-        throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() +" execution is only allowed on status = waiting");
-    }
-
-    public void isValidForAbort() throws HttpException {
-        /**
-         * It is only allowed to abort a job inside executing state, because we have multiple nodes running.
-         * During the execution we have running SQL-Statements - due to the abortion of them, the client which
-         * has executed the Query will handle the abortion.
-         * */
-        if (!getStatus().equals(Status.executing) && !getStatus().equals(Status.finalizing))
-            throw new HttpException(PRECONDITION_FAILED,  "Invalid state: " + getStatus() + " for abort!");
-    }
-
-    public Type getType() {
-        return type;
+    @JsonIgnore
+    public void isValidForCreateUrl() throws HttpException {
+        if (getStatus() != waiting)
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " creation is only allowed on status = waiting");
     }
 
     public Map<String,ImportObject> getImportObjects() {
@@ -193,7 +206,7 @@ public class Import extends Job<Import> {
         }
     }
 
-    public void addImportObject(ImportObject importObject){
+    public void addImportObject(ImportObject importObject) {
         if(this.importObjects == null)
             this.importObjects = new HashMap<>();
         this.importObjects.put(importObject.getFilename(), importObject);
@@ -205,24 +218,15 @@ public class Import extends Job<Import> {
         this.idxList.add(idx);
     }
 
-    public void resetToPreviousState() throws Exception{
-
-        switch (getStatus()){
+    public void resetToPreviousState() throws Exception {
+        switch (getStatus()) {
             case failed:
             case aborted:
                 resetFailedImportObjects();
-                setErrorType(null);
-                setErrorDescription(null);
-                if(getLastStatus() != null) {
-                    /** set to last valid state */
-                    resetStatus(getLastStatus());
-                    setLastStatus(null);
-                    resetToPreviousState();
-                }else
-                    throw new Exception("No last Status found!");
+                super.resetToPreviousState();
                 break;
             case validating:
-                resetStatus(Status.waiting);
+                resetStatus(waiting);
                 break;
             case preparing:
                 resetStatus(Status.queued);
@@ -234,6 +238,34 @@ public class Import extends Job<Import> {
                 resetStatus(Status.executed);
                 break;
         }
+    }
+
+    @Override
+    public Future<Job> executeCreateUploadUrl(int urlCount) {
+        try {
+            isValidForCreateUrl();
+        }
+        catch (HttpException e) {
+            return Future.failedFuture(e);
+        }
+        try {
+            for (int i = 0; i < urlCount; i++) {
+                addImportObject(CService.jobS3Client.generateUploadURL(this));
+            }
+
+            //Store Urls in Job-Config
+            return CService.jobConfigClient.update(getMarker(), this);
+        }
+        catch (IOException e){
+            logger.error(getMarker(), "job[{}] cant create S3 Upload-URL(s).", getId(), e);
+            return Future.failedFuture(new HttpException(BAD_GATEWAY, "Can`t create S3 Upload-URL(s)"));
+        }
+    }
+
+    @Override
+    protected Future<Job> isValidForStart() {
+        return super.isValidForStart()
+            .compose(job -> checkRunningJobs());
     }
 
     @Override
@@ -256,7 +288,7 @@ public class Import extends Job<Import> {
                 || importObjects.get(key).getStatus().equals(ImportObject.Status.failed))
                 continue;
 
-            /** compressed processing of 9,5GB leads into ~120 GB RDS Mem */
+            //Compressed processing of 9,5GB leads into ~120 GB RDS Mem
             long curFileSize = Long.valueOf(importObjects.get(key).isCompressed() ? (importObjects.get(key).getFilesize() * 12)  : importObjects.get(key).getFilesize());
             double maxMemInGB = new RDSStatus.Limits(CService.rdsLookupCapacity.get(getTargetConnector())).getMaxMemInGB();
 
@@ -269,7 +301,7 @@ public class Import extends Job<Import> {
                 logger.info("job[{}] start execution of {}! mem: {}", getId(), importObjects.get(key).getS3Key(getId(), key), NODE_EXECUTED_IMPORT_MEMORY);
 
                 importFutures.add(
-                    CService.jdbcImporter.executeImport(getId(), getTargetConnector(), defaultSchema, getTargetTable(),
+                    CService.jdbcImporter.executeImport(this, getTargetConnector(), defaultSchema, getTargetTable(),
                             CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(getId(), key), CService.configuration.JOBS_REGION, curFileSize, getCsvFormat() )
                         .onSuccess(result -> {
                                 NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
@@ -308,28 +340,25 @@ public class Import extends Job<Import> {
                             setJobFailed(this, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_EXECUTION_FAILED);
                     }
                     else {
-                        int cntInvalid = 0;
+                        int failedImports = 0;
                         boolean filesWaiting = false;
 
                         for (String key : importObjects.keySet()) {
                             if (importObjects.get(key).getStatus() == ImportObject.Status.failed)
-                                cntInvalid++;
-                            if (importObjects.get(key).getStatus() == ImportObject.Status.waiting)
-                            {
+                                failedImports++;
+                            if (importObjects.get(key).getStatus() == ImportObject.Status.waiting) {
                                 /** Some Imports are still queued - execute again */
                                 updateJobStatus(this, Job.Status.prepared);
                                 filesWaiting = true;
                             }
                         }
 
-                        if(!filesWaiting)
-                        { 
-                         if (cntInvalid == importObjects.size())
-                            setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
-                         else if(cntInvalid > 0 && cntInvalid < importObjects.size())
-                            setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
-                       
-                         updateJobStatus(this, Job.Status.executed);
+                        if (!filesWaiting) {
+                            if (failedImports == importObjects.size())
+                                setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
+                            else if(failedImports > 0 && failedImports < importObjects.size())
+                                setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
+                            updateJobStatus(this, Job.Status.executed);
                         }
                     }
                 });
@@ -351,12 +380,11 @@ public class Import extends Job<Import> {
             })
             .compose(
                 f -> {
-                    setFinalizedAt(Core.currentTimeMillis() / 1000L);
                     logger.info("job[{}] finalization finished!", getId());
                     if (getErrorDescription() != null)
-                        return updateJobStatus(this, Job.Status.failed);
+                        return updateJobStatus(this, failed);
 
-                    return updateJobStatus(this, Job.Status.finalized);
+                    return updateJobStatus(this, finalized);
                 });
     }
 }

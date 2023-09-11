@@ -24,22 +24,20 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.google.common.collect.ImmutableMap;
-import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.XyzSerializable.Mappers;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCClients;
-import com.here.xyz.httpconnector.rest.HApiParam;
+import com.here.xyz.httpconnector.config.JobConfigClient;
+import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
+import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Type;
-import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.diff.Difference;
+import com.here.xyz.hub.util.diff.Difference.DiffMap;
 import com.here.xyz.hub.util.diff.Patcher;
-import com.here.xyz.util.Hasher;
-import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
-import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -56,147 +54,116 @@ public class JobHandler {
         "createdAt","createdAt",
         "updatedAt","updatedAt");
 
-    public static Future<Job> loadJob(String jobId, Marker marker){
+    public static Future<Job> loadJob(String jobId, Marker marker) {
         return CService.jobConfigClient.get(marker, jobId)
-                .compose( loadedJob -> {
-                    if(loadedJob == null)
-                        return Future.failedFuture(new HttpException(BAD_REQUEST, "Job with id '"+jobId+"' does not exists!"));
-                    return Future.succeededFuture(loadedJob);
-                }).onFailure( e -> {
-                    Future.failedFuture(new HttpException(BAD_GATEWAY, "Cant load'" + jobId + "' from backend!"));
-                });
+            .compose(loadedJob -> {
+                if (loadedJob == null)
+                    return Future.failedFuture(new HttpException(BAD_REQUEST, "Job with id '"+jobId+"' does not exists!"));
+                return Future.succeededFuture(loadedJob);
+            })
+            .onFailure( e -> Future.failedFuture(new HttpException(BAD_GATEWAY, "Can't load '" + jobId + "' from backend!")));
     }
 
-    public static Future<List<Job>> loadJobs(Marker marker, Type type, Job.Status status, String targetSpaceId){
+    public static Future<List<Job>> loadJobs(Marker marker, Type type, Job.Status status, String targetSpaceId) {
         return CService.jobConfigClient.getList(marker, type, status, targetSpaceId)
-                .onFailure( e -> {
-                    Future.failedFuture(new HttpException(BAD_GATEWAY, "Cant load jobs from backend!"));
-                });
+            .onFailure( e -> Future.failedFuture(new HttpException(BAD_GATEWAY, "Can't load jobs from backend!")));
     }
 
-    public static Future<Job> postJob(Job job, Marker marker){
+    public static Future<List<Job>> loadJobs(Marker marker, Job.Status status, String key) {
+        return CService.jobConfigClient.getList(marker, status, key, JobConfigClient.DatasetDirection.BOTH)
+            .onFailure( e -> Future.failedFuture(new HttpException(BAD_GATEWAY, "Can't load jobs from backend!")));
+    }
+
+    public static Future<Job> postJob(Job job, Marker marker) {
         return CService.jobConfigClient.get(marker, job.getId())
-                .compose( loadedJob -> {
-                    if(loadedJob != null)
-                        return Future.failedFuture(new HttpException(BAD_REQUEST, "Job with id '"+job.getId()+"' already exists!"));
-                    else{
-                        if(job instanceof Export)
-                            return ExportHandler.postJob((Export)job, marker);
-                        return ImportHandler.postJob((Import)job, marker);
-                    }
-                });
+            .compose(loadedJob -> {
+                if (loadedJob != null)
+                    return Future.failedFuture(new HttpException(BAD_REQUEST, "Job with id '" + job.getId() + "' already exists!"));
+                else {
+                    if (job instanceof CombinedJob)
+                        return ((CombinedJob) job).init()
+                            .compose(combinedJob -> futurify(() -> combinedJob.validate()))
+                            .compose(combinedJob -> combinedJob.store())
+                            .compose(combinedJob -> Future.succeededFuture(combinedJob),
+                                t -> Future.failedFuture(new HttpException(BAD_REQUEST, t.getMessage())));
+                    if (job instanceof Export)
+                        return ExportHandler.postJob((Export) job, marker);
+                    return ImportHandler.postJob((Import) job, marker);
+                }
+            });
     }
 
-    public static Future<Job> patchJob(Job job, Marker marker){
+    private static <F> Future<F> futurify(ThrowingMapper<F> mapper) {
+      try {
+        return Future.succeededFuture(mapper.map());
+      }
+      catch (Exception e) {
+        return Future.failedFuture(e);
+      }
+    }
+
+    @FunctionalInterface
+    private interface ThrowingMapper<F> {
+      F map() throws Exception;
+    }
+
+    public static Future<Job> patchJob(Job job, Marker marker) {
         return  loadJob(job.getId(), marker)
-                .compose( loadedJob -> {
-                    Map oldJobMap = asMap(loadedJob);
-                    Difference.DiffMap diffMap = (Difference.DiffMap) Patcher.calculateDifferenceOfPartialUpdate(oldJobMap, asMap(job), MODIFICATION_IGNORE_MAP, true);
+            .compose( loadedJob -> {
+                Map oldJobMap = asMap(loadedJob);
+                DiffMap diffMap = (DiffMap) Patcher.calculateDifferenceOfPartialUpdate(oldJobMap, asMap(job), MODIFICATION_IGNORE_MAP, true);
 
-                    if (diffMap == null) {
-                        return Future.succeededFuture(loadedJob);
-                    } else {
-                        try {
-                            validateChanges(diffMap);
-                            Patcher.patch(oldJobMap, diffMap);
-                            loadedJob = asJob(marker, oldJobMap);
-
-                            /** Store patched Config */
-                            return CService.jobConfigClient.update(marker, loadedJob);
-                        }catch (HttpException e){
-                            return Future.failedFuture(e);
-                        }
-                    }
-                });
-    }
-
-    public static Future<Job> deleteJob(String jobId, boolean force, Marker marker){
-        return loadJob(jobId, marker)
-                .compose(job -> {
-                    if ( !Job.isValidForDelete(job, force)) {
-                        return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Job is not in end state - current status: "+ job.getStatus()) );
-                    }else {
-                        if(force){
-                            /** In force mode abort running SQLs */
-                            return abortJobIfPossible(job)
-                                    .onSuccess(f -> {
-                                        /** Clean S3 Job Folder */
-                                        CService.jobS3Client.cleanJobData(job, force);
-                                    }).compose(f -> CService.jobConfigClient.delete(marker, job.getId(), force));
-                        }else {
-                            return CService.jobConfigClient.delete(marker, job.getId(), force);
-                        }
-                    }
-                });
-    }
-
-    public static Future<Job> postExecute(String jobId, String connectorId, String ecps, String passphrase, HApiParam.HQuery.Command command,
-                                          boolean enableHashedSpaceId, ApiParam.Query.Incremental incremental, int urlCount,
-                                          ContextAwareEvent.SpaceContext _context, Marker marker){
-        /** Load JobConfig */
-        return loadJob(jobId, marker)
-                .compose(job -> {
+                if (diffMap == null)
+                    return Future.succeededFuture(loadedJob);
+                else {
                     try {
-                        /** Validate */
-                        job.isValidForExecution(command, incremental);
-                        return Future.succeededFuture(job);
-                    } catch (HttpException e) {
+                        validateChanges(diffMap);
+                        Patcher.patch(oldJobMap, diffMap);
+                        loadedJob = asJob(marker, oldJobMap);
+
+                        //Store patched Config
+                        return CService.jobConfigClient.update(marker, loadedJob);
+                    }
+                    catch (HttpException e){
                         return Future.failedFuture(e);
                     }
-                }).
-                compose(job -> {
-                    /** Execute */
-                    if(job instanceof Import)
-                        return ImportHandler.execute(jobId, connectorId, ecps, passphrase, command, enableHashedSpaceId, urlCount, marker);
+                }
+            });
+    }
+
+    public static Future<Job> deleteJob(String jobId, boolean force, Marker marker) {
+        return loadJob(jobId, marker)
+            .compose(job -> {
+                if ( !Job.isValidForDelete(job, force))
+                    return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Job is not in end state - current status: "+ job.getStatus()) );
+                else {
+                    if (force) {
+                        //In force mode abort running SQLs
+                        return job.abortIfPossible()
+                                .onSuccess(f -> {
+                                    //Clean S3 Job Folder
+                                    CService.jobS3Client.cleanJobData(job, force);
+                                }).compose(f -> CService.jobConfigClient.delete(marker, job.getId(), force));
+                    }
                     else
-                        return ExportHandler.execute(jobId, connectorId, ecps, passphrase, command, enableHashedSpaceId, incremental,
-                            _context, marker);
-                });
+                        return CService.jobConfigClient.delete(marker, job.getId(), force);
+                }
+            });
     }
 
-    protected static void loadClientAndInjectConfigValues(Job job, HApiParam.HQuery.Command command, String connectorId, String ecps,
-                                                      String passphrase, boolean enableHashedSpaceId,
-                                                      ApiParam.Query.Incremental incremental, ContextAwareEvent.SpaceContext _context)
-            throws HttpException {
-
-        if(job.getTargetTable() == null){
-            /** Only for debugging purpose */
-            job.setTargetTable(enableHashedSpaceId ? Hasher.getHash(job.getTargetSpaceId()) : job.getTargetSpaceId());
-        }
-
-        if(job.getTargetConnector() == null){
-            /** Need connectorId as JDBC-clientID for scheduled processing in ImportQueue */
-            job.setTargetConnector(connectorId);
-        }
-
-        job.addParam("enableHashedSpaceId",enableHashedSpaceId);
-
-        if(incremental != null)
-            job.addParam("incremental", incremental.toString());
-        if(_context != null)
-            job.addParam("context", _context.toString());
-
-        if(job instanceof Export)
-            ExportHandler.loadClientAndInjectExportDefaults((Export)job, incremental);
-
-        if(command.equals(HApiParam.HQuery.Command.START) || command.equals(HApiParam.HQuery.Command.RETRY) || command.equals(HApiParam.HQuery.Command.ABORT)){
-            /** Add Client if missing or reload client if config has changed */
-            try {
-                if(connectorId == null || ecps == null)
-                    JDBCClients.addClientIfRequired(job.getTargetConnector());
-                else
-                    JDBCClients.addClientIfRequired(connectorId, ecps, passphrase);
-            }catch (CannotDecodeException e){
-                throw new HttpException(PRECONDITION_FAILED, "Can not decode ECPS!");
-            }catch (UnsupportedOperationException e){
-                throw new HttpException(BAD_REQUEST, "Connector is not supported!");
-            }
-        }
+    public static Future<Job> executeCommand(String jobId, Command command, int urlCount, Marker marker) {
+        return loadJob(jobId, marker)
+            .compose(job -> switch (command) {
+              case ABORT -> job.executeAbort();
+              case CREATEUPLOADURL -> job.executeCreateUploadUrl(urlCount);
+              case RETRY -> job.executeRetry();
+              case START -> job.executeStart();
+            });
     }
 
-    private static Map asMap(Object object) {
+  private static Map asMap(Object object) {
         try {
-            return DatabindCodec.mapper().convertValue(object, Map.class);
+            return Mappers.DEFAULT_MAPPER.get().convertValue(object, Map.class);
         }
         catch (Exception e) {
             return Collections.emptyMap();
@@ -205,7 +172,7 @@ public class JobHandler {
 
     private static Job asJob(Marker marker, Map object) throws HttpException {
         try {
-            return DatabindCodec.mapper().convertValue(object, Job.class);
+            return Mappers.DEFAULT_MAPPER.get().convertValue(object, Job.class);
         }
         catch (Exception e) {
             logger.error(marker, "Could not convert resource.", e.getCause());
@@ -214,7 +181,7 @@ public class JobHandler {
     }
 
     private static void validateChanges(Difference.DiffMap diffMap) throws HttpException{
-        /** Check if modification is allowed */
+        //Check if modification is allowed
         Set<Object> objects = diffMap.keySet();
         for (Object key : objects) {
             if (MODIFICATION_WHITELIST.indexOf((String) key) == -1)
@@ -222,21 +189,4 @@ public class JobHandler {
         }
     }
 
-    protected static Future<Void> abortJobIfPossible(Job job) {
-        try {
-            job.isValidForAbort();
-            /** Target: we want to terminate all running sqlQueries */
-            return JDBCClients.abortJobsByJobId(job);
-        }catch (HttpException e){
-            /** Job is not in state "executing" ignore */
-            return Future.succeededFuture();
-        }
-    }
-
-    protected static Future<Job> abortJob(Job job){
-           return JDBCClients.abortJobsByJobId(job)
-                .compose(f -> Future.succeededFuture(job))
-                .onFailure(
-                        e -> new HttpException(BAD_GATEWAY, "Abort failed ["+job.getStatus()+"]"));
-    }
 }

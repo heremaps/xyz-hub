@@ -24,6 +24,7 @@ import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
@@ -51,79 +52,84 @@ import org.apache.logging.log4j.Logger;
 /**
  * Client for handle Export-Jobs (RDS -> S3)
  */
-public class JDBCExporter extends JDBCClients{
+public class JDBCExporter extends JDBCClients {
     private static final Logger logger = LogManager.getLogger();
 
-    public static Future<Export.ExportStatistic> executeExport(Export j, String schema, String s3Bucket, String s3Path, String s3Region){
-        try{
-            String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
-            Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
-            SQLQuery exportQuery = null;
+    public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region) {
+      return addClientIfRequired(job.getTargetConnector())
+          .compose(v -> {
+            try {
+              String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
+              Export.SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
+              SQLQuery exportQuery = null;
 
-            switch (j.getExportTarget().getType()){
+              switch (job.getExportTarget().getType()) {
                 case DOWNLOAD:
 
-                    exportQuery = generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+                  exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat());
+                  return calculateThreadCountForDownload(job, schema, exportQuery)
+                      .compose(threads -> {
+                        try {
+                          Promise<Export.ExportStatistic> promise = Promise.promise();
+                          List<Future> exportFutures = new ArrayList<>();
 
-                    return calculateThreadCountForDownload(j, schema, exportQuery)
-                            .compose(threads -> {
-                                try{
-                                    Promise<Export.ExportStatistic> promise = Promise.promise();
-                                    List<Future> exportFutures = new ArrayList<>();
+                          for (int i = 0; i < threads; i++) {
+                            String s3Prefix = i + "_";
+                            SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region,
+                                (threads > 1 ? new SQLQuery("AND i%% " + threads + " = " + i) : null));
+                            exportFutures.add(exportTypeDownload(job.getTargetConnector(), q2, job, s3Path));
+                          }
 
-                                    for (int i = 0; i < threads; i++) {
-                                        String s3Prefix = i + "_";
-                                        SQLQuery q2 = buildS3ExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, (threads > 1 ? new SQLQuery("AND i%% " + threads + " = "+i) : null) );
-                                        exportFutures.add( exportTypeDownload(j.getTargetConnector(), q2, j, s3Path));
-                                    }
-
-                                    return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
-                                }catch (SQLException e){
-                                    logger.warn("job[{}] ", j.getId(), e);
-                                    return Future.failedFuture(e);
-                                }
-                            });
+                          return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+                        }
+                        catch (SQLException e) {
+                          logger.warn("job[{}] ", job.getId(), e);
+                          return Future.failedFuture(e);
+                        }
+                      });
                 case VML:
                 default:
 
-                    boolean bIncrementalChanges = j.readParamIncremental().equals(ApiParam.Query.Incremental.CHANGES);
+                  boolean bIncrementalChanges = job.readParamIncremental().equals(ApiParam.Query.Incremental.CHANGES);
 
-                    if( j.getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64)) {
+                  if (job.getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64)) {
 
-                         exportQuery = generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-                                                                   j.getTargetVersion(), j.getParams(), j.getCsvFormat(),null,bIncrementalChanges, j.getPartitionKey(),j.getOmitOnNull());
-                                                
-                        return calculateThreadCountForDownload(j, schema, exportQuery)
-                                .compose(threads -> {
-                                    try {
-                                    Promise<Export.ExportStatistic> promise = Promise.promise();
-                                    List<Future> exportFutures = new ArrayList<>();
+                    exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                                              job.getTargetVersion(), job.getParams(), job.getCsvFormat(),null,bIncrementalChanges, job.getPartitionKey(),job.getOmitOnNull());
 
-                                    int tCount = threads,
-                                        maxPartitionPerFile = 500000; /* tbd ? */
 
-                                    if( j.getPartitionKey() == null || "id".equalsIgnoreCase(j.getPartitionKey() ) )
-                                     if( j.getFilters() != null && ( (j.getFilters().getPropertyFilter() != null) || (j.getFilters().getSpatialFilter() != null) ))
-                                      tCount = threads;
-                                     else // only when export by id and no filter is used
-                                      tCount = Math.max( threads, (int) Math.floor( j.getEstimatedFeatureCount() / (long) maxPartitionPerFile) );
+                    return calculateThreadCountForDownload(job, schema, exportQuery)
+                        .compose(threads -> {
+                          try {
+                            Promise<Export.ExportStatistic> promise = Promise.promise();
+                            List<Future> exportFutures = new ArrayList<>();
+
+                            int tCount = threads,
+                                maxPartitionPerFile = 500000; /* tbd ? */
+
+                            if (job.getPartitionKey() == null || "id".equalsIgnoreCase(job.getPartitionKey()))
+                              if (job.getFilters() != null && ((job.getFilters().getPropertyFilter() != null) || (
+                                  job.getFilters().getSpatialFilter() != null)))
+                                tCount = threads;
+                              else // only when export by id and no filter is used
+                                tCount = Math.max(threads, (int) Math.floor(job.getEstimatedFeatureCount() / (long) maxPartitionPerFile));
 
                                     for (int i = 0; i < tCount; i++) {
                                         String s3Prefix = i + "_";
-                                        SQLQuery q2 = buildPartIdVMLExportQuery(j, schema, s3Bucket, s3Path, s3Prefix, s3Region, bIncrementalChanges, (tCount > 1 ? new SQLQuery("AND i%% " + tCount + " = "+i) : null) );
-                                        exportFutures.add( exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
+                                        SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region, (tCount > 1 ? new SQLQuery("AND i%% " + tCount + " = "+i) : null) );
+                                        exportFutures.add( exportTypeVML(job.getTargetConnector(), q2, job, s3Path));
                                     }
 
-                                        return executeParallelExportAndCollectStatistics(j, promise, exportFutures);
-                                    } catch (SQLException e) {
-                                        logger.warn("job[{}] ", j.getId(), e);
-                                        return Future.failedFuture(e);
-                                    }
-                                });
-                    }
+                            return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+                          }
+                          catch (SQLException e) {
+                            logger.warn("job[{}] ", job.getId(), e);
+                            return Future.failedFuture(e);
+                          }
+                        });
+                  }
 
-                   
-                    exportQuery = generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter, j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+                    exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat());
 
                     /** Is used for incremental exports (tiles) - here we have to export modified tiles. Those tiles we need
                      * to calculate separately */
@@ -131,35 +137,38 @@ public class JDBCExporter extends JDBCClients{
 
                     if( bIncrementalChanges ){
                         /** Create query which calculate all Tiles which are effected from delta changes */
-                        qkQuery = generateFilteredExportQueryForCompositeTileCalculation(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-                                j.getTargetVersion(), j.getParams(), j.getCsvFormat());
+                        qkQuery = generateFilteredExportQueryForCompositeTileCalculation(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                job.getTargetVersion(), job.getParams(), job.getCsvFormat());
                     } else {
                      qkQuery = null;
                     }
 
-                    return calculateTileListForVMLExport(j, schema, exportQuery, qkQuery)
-                            .compose(tileList-> {
-                                try{
-                                    Promise<Export.ExportStatistic> promise = Promise.promise();
-                                    List<Future> exportFutures = new ArrayList<>();
-                                    j.setProcessingList(tileList);
+                  return calculateTileListForVMLExport(job, schema, exportQuery, qkQuery)
+                      .compose(tileList -> {
+                        try {
+                          Promise<Export.ExportStatistic> promise = Promise.promise();
+                          List<Future> exportFutures = new ArrayList<>();
+                          job.setProcessingList(tileList);
 
-                                    for (int i = 0; i < tileList.size() ; i++) {
-                                        /** Build export for each tile of the weighted tile list */
-                                        SQLQuery q2 = buildVMLExportQuery(j, schema, s3Bucket, s3Path, s3Region, tileList.get(i), qkQuery);
-                                        exportFutures.add(exportTypeVML(j.getTargetConnector(), q2, j, s3Path));
-                                    }
+                          for (int i = 0; i < tileList.size(); i++) {
+                            /** Build export for each tile of the weighted tile list */
+                            SQLQuery q2 = buildVMLExportQuery(job, schema, s3Bucket, s3Path, s3Region, tileList.get(i), qkQuery);
+                            exportFutures.add(exportTypeVML(job.getTargetConnector(), q2, job, s3Path));
+                          }
 
-                                    return executeParallelExportAndCollectStatistics( j, promise, exportFutures);
-                                }catch (SQLException e){
-                                    logger.warn("job[{}] ", j.getId(), e);
-                                    return Future.failedFuture(e);
-                                }
-                            });
+                          return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+                        }
+                        catch (SQLException e) {
+                          logger.warn("job[{}] ", job.getId(), e);
+                          return Future.failedFuture(e);
+                        }
+                      });
+              }
             }
-        }catch (Exception e){
-            return Future.failedFuture(e);
-        }
+            catch (Exception e) {
+              return Future.failedFuture(e);
+            }
+          });
     }
 
     private static Future<Export.ExportStatistic> executeParallelExportAndCollectStatistics(Export j, Promise<Export.ExportStatistic> promise, List<Future> exportFutures) {
@@ -194,9 +203,7 @@ public class JDBCExporter extends JDBCClients{
     }
 
     private static Future<Integer> calculateThreadCountForDownload(Export j, String schema, SQLQuery exportQuery) throws SQLException {
-        /**
-         * Currently we are ignoring filters and count only all features
-         **/
+        //Currently we are ignoring filters and count only all features
         SQLQuery q = buildS3CalculateQuery(j, schema, exportQuery);
         logger.info("job[{}] Calculate S3-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 

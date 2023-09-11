@@ -25,6 +25,7 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
+import com.amazonaws.services.dynamodbv2.model.ExecuteStatementResult;
 import com.amazonaws.services.dynamodbv2.model.ExecuteTransactionRequest;
 import com.amazonaws.services.dynamodbv2.model.ParameterizedStatement;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
@@ -114,12 +115,24 @@ public class DynamoTagConfigClient extends TagConfigClient {
             List<AttributeValue> params = Stream.of(tagId)
                 .map(AttributeValue::new).collect(Collectors.toList());
 
-            final ExecuteStatementRequest request = new ExecuteStatementRequest()
+            ExecuteStatementRequest request = new ExecuteStatementRequest()
                 .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ?")
                 .withParameters(params);
 
-            future.complete(getTags(dynamoClient.client.executeStatement(request).getItems()));
-          } catch (Exception e) {
+            ExecuteStatementResult result = dynamoClient.client.executeStatement(request);
+            List<Map<String, AttributeValue>> items = result.getItems();
+
+            while(result.getNextToken() != null ){
+              request = new ExecuteStatementRequest()
+                  .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ?")
+                  .withParameters(params).withNextToken(result.getNextToken());
+
+              result = dynamoClient.client.executeStatement(request);
+              items.addAll(result.getItems());
+            }
+
+            future.complete(getTags(items));
+            } catch (Exception e) {
             future.fail(e);
           }
         }

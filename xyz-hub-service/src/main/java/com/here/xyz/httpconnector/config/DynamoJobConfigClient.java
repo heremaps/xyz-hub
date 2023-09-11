@@ -24,6 +24,7 @@ import com.amazonaws.services.dynamodbv2.document.ScanFilter;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
+import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.here.xyz.Payload;
 import com.here.xyz.httpconnector.CService;
@@ -44,7 +45,9 @@ import org.apache.logging.log4j.Marker;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -141,6 +144,56 @@ public class DynamoJobConfigClient extends JobConfigClient {
         });
     }
 
+    @Override
+    protected Future<List<Job>> getJobs(Marker marker, Status status, String key, DatasetDirection direction) {
+        return DynamoClient.dynamoWorkers.executeBlocking(p -> {
+            try {
+
+                List<String> filterExpression = new ArrayList<>();
+                Map<String, String> nameMap = new HashMap<>();
+                Map<String, Object> valueMap = new HashMap<>();
+
+                final List<Job> result = new ArrayList<>();
+
+                if(status != null) {
+                    nameMap.put("#status", "status");
+                    valueMap.put(":status", status);
+                    filterExpression.add("#status = :status");
+                }
+
+                if(key != null) {
+                    nameMap.put("#sourceKey", "_sourceKey");
+                    nameMap.put("#targetKey", "_targetKey");
+                    valueMap.put(":key", key);
+                    if(direction == DatasetDirection.SOURCE)
+                        filterExpression.add("#sourceKey = :key");
+                    else if(direction == DatasetDirection.TARGET)
+                        filterExpression.add("#targetKey = :key");
+                    else
+                        filterExpression.add("(#sourceKey = :key OR #targetKey = :key)");
+                }
+
+                ScanSpec scanSpec = new ScanSpec()
+                        .withFilterExpression(String.join(" AND ", filterExpression))
+                        .withNameMap(nameMap)
+                        .withValueMap(valueMap);
+
+
+                jobs.scan(scanSpec).pages().forEach(j -> j.forEach(i -> {
+                    try{
+                        final Job job = convertItemToJob(i);
+                        result.add(job);
+                    }catch (DecodeException e){
+                        logger.warn("Cant decode Job-Item - skip!", e);
+                    }
+                }));
+                p.complete(result);
+            } catch (Exception e) {
+                p.fail(e);
+            }
+        });
+    }
+
     protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Type type) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
@@ -208,6 +261,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     private static Item convertJobToItem(Job job) {
         JsonObject json = JsonObject.mapFrom(job);
+        if(job.getSource() != null)
+            json.put("_sourceKey", job.getSource().getKey());
+        if(job.getTarget() != null)
+            json.put("_targetKey", job.getTarget().getKey());
         if( json.containsKey(IO_IMPORT_ATTR_NAME) )
             return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
         if( json.containsKey(IO_EXPORT_ATTR_NAME) )

@@ -26,6 +26,7 @@ recipes:
       - paths.'/spaces/{spaceId}/features'.delete.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/features/{featureId}'.get.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/features/{featureId}'.delete.parameters.$ref~=^.*Context$
+      - paths.'/spaces/{spaceId}/statistics'.get.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/bbox'.get.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/tile/{type}/{tileId}'.get.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/spatial'.get.parameters.$ref~=^.*Context$
@@ -110,6 +111,10 @@ recipes:
         replace: ${get-tile-description}
   - name: experimental
     extends: base,no-e-ne-cr-params,no-extension
+    replace:
+      - type: value
+        path: servers.0.url
+        replace: /hub
   - name: contract
     extends: base
     replace:
