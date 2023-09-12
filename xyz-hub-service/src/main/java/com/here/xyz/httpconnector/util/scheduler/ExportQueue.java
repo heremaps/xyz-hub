@@ -48,7 +48,7 @@ public class ExportQueue extends JobQueue {
                 return;
 
             //Check Capacity
-            isProcessingPossible(job)
+            ((Future<Job>) job.isProcessingPossible())
                 .compose(j -> loadCurrentConfig(job))
                 .compose(currentJob -> {
                     /*
@@ -102,14 +102,6 @@ public class ExportQueue extends JobQueue {
     @Override
     protected void prepareJob(Job j) {
         //Currently not needed
-    }
-
-    @Override
-    protected boolean needRdsCheck(Job job) {
-        //In next stage we need database resources
-        if (job.getStatus().equals(Job.Status.queued))
-            return true;
-        return false;
     }
 
     protected Future<String> postTrigger(Job j) {

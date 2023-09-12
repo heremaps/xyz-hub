@@ -40,6 +40,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
@@ -50,6 +52,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
@@ -69,6 +73,8 @@ public abstract class Job<T extends Job> {
     public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
     public static String ERROR_TYPE_FAILED_DUE_RESTART = "failed_due_node_restart";
     public static String ERROR_TYPE_ABORTED = "aborted";
+    private static volatile HashMap<String, RDSStatus> RDS_STATUS_MAP = new HashMap<>();
+    private static final Logger logger = LogManager.getLogger();
     private Marker marker;
 
     /**
@@ -284,7 +290,7 @@ public abstract class Job<T extends Job> {
             return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus()
                 + " execution is only allowed on status = waiting"));
         return Future.succeededFuture(this);
-    };
+    }
 
     @JsonIgnore
     public void isValidForAbort() throws HttpException {
@@ -772,6 +778,51 @@ public abstract class Job<T extends Job> {
     @JsonIgnore
     public abstract String getQueryIdentifier();
 
+    public Future<Job> isProcessingPossible() {
+        if (!needRdsCheck())
+            //No RDS check needed - no database intensive stage.
+            return Future.succeededFuture(this);
+        return isProcessingOnRDSPossible();
+    }
+
+    protected Future<Job> isProcessingOnRDSPossible() {
+        return JDBCImporter.getRDSStatus(getTargetConnector())
+            .compose(rdsStatus -> {
+                RDS_STATUS_MAP.put(getTargetConnector(), rdsStatus);
+
+                if (rdsStatus.getCurrentMetrics().getCapacityUnits() > CService.configuration.JOB_MAX_RDS_CAPACITY) {
+                    logger.info("job[{}] JOB_MAX_RDS_CAPACITY to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getCapacityUnits(), CService.configuration.JOB_MAX_RDS_CAPACITY);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                else if (rdsStatus.getCurrentMetrics().getCpuLoad() > CService.configuration.JOB_MAX_RDS_CPU_LOAD) {
+                    logger.info("job[{}] JOB_MAX_RDS_CPU_LOAD to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getCpuLoad(), CService.configuration.JOB_MAX_RDS_CPU_LOAD);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                //TODO: Move following into according sub-clases
+                if (this instanceof Import && rdsStatus.getCurrentMetrics().getTotalInflightImportBytes() > CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES) {
+                    logger.info("job[{}] JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalInflightImportBytes(), CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                if (this instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                if (this instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningImportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                if (this instanceof Export && rdsStatus.getCurrentMetrics().getTotalRunningExportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                return Future.succeededFuture(this);
+            });
+    }
+
+    public boolean needRdsCheck() {
+        return false;
+    }
+
     public abstract void execute();
 
     public static class Public {
@@ -807,6 +858,15 @@ public abstract class Job<T extends Job> {
 
         public ValidationException(String message, Exception cause) {
             super(message, cause);
+        }
+    }
+
+    public static class ProcessingNotPossibleException extends Exception {
+
+        private static final String PROCESSING_NOT_POSSIBLE = "waits on free resources";
+
+        ProcessingNotPossibleException() {
+            super(PROCESSING_NOT_POSSIBLE);
         }
     }
 }

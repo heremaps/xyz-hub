@@ -289,6 +289,23 @@ public class Import extends Job<Import> {
     }
 
     @Override
+    public boolean needRdsCheck() {
+        //In next stage we perform the import
+        if (getStatus().equals(Job.Status.prepared))
+            return true;
+        //In next stage we create indices + other finalizations
+        if (getStatus().equals(Job.Status.executed))
+            return true;
+        return false;
+    }
+
+    public Future<Job> executeStart() {
+        return isValidForStart()
+            .compose(job -> prepareStart())
+            .onSuccess(job -> CService.importQueue.addJob(job));
+    }
+
+    @Override
     public void execute() {
         setExecutedAt(Core.currentTimeMillis() / 1000L);
         String defaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
