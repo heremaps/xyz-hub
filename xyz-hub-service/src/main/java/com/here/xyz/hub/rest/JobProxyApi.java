@@ -346,6 +346,7 @@ public class JobProxyApi extends Api{
 
             try{
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
+                return;
             }catch (Exception e){}
         }
 
