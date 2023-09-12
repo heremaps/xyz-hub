@@ -112,6 +112,7 @@ public abstract class Job<T extends Job> {
      * The job ID
      */
     @JsonView({Public.class})
+    @JsonInclude
     private String id;
 
     @JsonView({Public.class})
@@ -133,7 +134,7 @@ public abstract class Job<T extends Job> {
      * The status of this job. The flow for a job consists of several phases. Each phase corresponds to a status.
      * A newly created Job has status "waiting", so it's waiting to be executed.
      */
-    @JsonView({Public.class})
+    @JsonView({Public.class, Static.class})
     private Status status;
 
     @JsonView({Public.class})
@@ -180,7 +181,7 @@ public abstract class Job<T extends Job> {
 
     public abstract Future<T> init();
 
-    private static String generateRandomId() {
+    protected static String generateRandomId() {
         return RandomStringUtils.randomAlphanumeric(6);
     }
 
@@ -821,11 +822,11 @@ public abstract class Job<T extends Job> {
 
     public abstract void execute();
 
-    public static class Public {
-    }
+    public static class Public {}
 
-    public static class Internal extends Space.Internal {
-    }
+    public static class Static {}
+
+    public static class Internal extends Space.Internal {}
 
     @Override
     public boolean equals(Object o) {
