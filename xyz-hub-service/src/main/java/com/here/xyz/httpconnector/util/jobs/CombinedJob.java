@@ -25,7 +25,6 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Spaces;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
-import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.models.Space;
 import io.vertx.core.Future;
 import java.util.ArrayList;
@@ -51,10 +50,8 @@ public class CombinedJob extends Job<CombinedJob> {
   private List<Job> children = new ArrayList<>();
 
   public CombinedJob() {
+    super();
     //Set basic defaults
-    setCreatedAt(Core.currentTimeMillis() / 1000L);
-    setUpdatedAt(getCreatedAt());
-    setId(Job.generateRandomId());
     setStatus(waiting);
   }
 
@@ -105,7 +102,7 @@ public class CombinedJob extends Job<CombinedJob> {
   }
 
   private void setChildJobParams(Job childJob, Space space) {
-    childJob.setDefaults(); //TODO: Do field initialization at instance initialization time
+    childJob.init(); //TODO: Do field initialization at instance initialization time
     childJob.withTargetConnector(space.getStorage().getId());
     childJob.addParam("versionsToKeep", space.getVersionsToKeep());
     childJob.addParam("persistExport", space.isPersistExport());

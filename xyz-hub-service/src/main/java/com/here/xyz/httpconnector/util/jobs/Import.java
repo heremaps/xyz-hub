@@ -117,14 +117,13 @@ public class Import extends Job<Import> {
                 : Future.failedFuture(new HttpException(BAD_REQUEST, e.getMessage(), e)));
     }
 
-    public Import() {}
+    public Import() {
+        super();
+    }
 
-    public Import(String description, String targetSpaceId, String targetTable,CSVFormat csvFormat, Strategy strategy) {
-        this.description = description;
-        this.targetSpaceId = targetSpaceId;
-        this.targetTable = targetTable;
-        this.csvFormat = csvFormat;
-        this.strategy = strategy;
+    public Import(String description, String targetSpaceId, String targetTable, CSVFormat csvFormat, Strategy strategy) {
+        super(description, targetSpaceId, targetTable, strategy);
+        setCsvFormat(csvFormat);
     }
 
     public static Import validateImportObjects(Import job){

@@ -119,19 +119,18 @@ public class Export extends Job<Export> {
     @JsonView({Public.class})
     private String triggerId;
 
-    public Export() {}
+    public Export() {
+        super();
+    }
+
+    public Export(String description, String targetSpaceId, String targetTable, Strategy strategy) {
+        super(description, targetSpaceId, targetTable, strategy);
+        setClipped(false);
+    }
 
     @Override
     public Future<Export> init() {
         return setDefaults();
-    }
-
-    public Export(String description, String targetSpaceId, String targetTable, Strategy strategy) {
-        this.description = description;
-        this.targetSpaceId = targetSpaceId;
-        this.targetTable = targetTable;
-        this.strategy = strategy;
-        this.clipped = false;
     }
 
     private void addSuperExportPathToJob(String superSpaceId) throws HttpException {

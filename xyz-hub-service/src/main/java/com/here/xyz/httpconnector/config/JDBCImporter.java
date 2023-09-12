@@ -127,7 +127,7 @@ public class JDBCImporter extends JDBCClients{
                 //TODO: Use named parameters for the following!
                 .replace("{trigger_hrn}","TBD")
                 .replace("{addTableName}", Boolean.toString(addTablenameToXYZNs))
-                .replace("{spaceVersion}", Long.toString( job.getSpaceVersion()))
+                .replace("{spaceVersion}", Long.toString(job.getSpaceVersion()))
                 .replace("{author}", author)
         );
 

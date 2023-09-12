@@ -54,7 +54,6 @@ import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
         property = "type")
 @JsonSubTypes({
@@ -72,9 +71,110 @@ public abstract class Job<T extends Job> {
     public static String ERROR_TYPE_ABORTED = "aborted";
     private Marker marker;
 
+    /**
+     * The creation timestamp.
+     */
+    @JsonView({Public.class})
+    private long createdAt = Core.currentTimeMillis() / 1000l;
+
+    /**
+     * The last update timestamp.
+     */
+    @JsonView({Public.class})
+    private long updatedAt = createdAt;
+
+    /**
+     * The timestamp which indicates when the execution began.
+     */
+    @JsonView({Public.class})
+    private long executedAt = -1;
+
+    /**
+     * The timestamp at which time the finalization is completed.
+     */
+    @JsonView({Public.class})
+    private long finalizedAt = -1;
+
+    /**
+     * The expiration timestamp.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonView({Public.class})
+    private Long exp;
+
+    /**
+     * The job ID
+     */
+    @JsonView({Public.class})
+    private String id;
+
+    @JsonView({Public.class})
+    protected String description;
+
+    @JsonView({Internal.class})
+    protected String targetSpaceId;
+
+    @JsonView({Internal.class})
+    protected String targetTable;
+
+    @JsonView({Public.class})
+    private String errorDescription;
+
+    @JsonView({Public.class})
+    private String errorType;
+
+    /**
+     * The status of this job. The flow for a job consists of several phases. Each phase corresponds to a status.
+     * A newly created Job has status "waiting", so it's waiting to be executed.
+     */
+    @JsonView({Public.class})
+    private Status status;
+
+    @JsonView({Public.class})
+    private Status lastStatus;
+
+    @JsonView({Public.class})
+    protected CSVFormat csvFormat;
+
+    @JsonView({Public.class})
+    protected Strategy strategy;
+
+    @JsonView({Internal.class})
+    private String targetConnector;
+
+    @JsonView({Internal.class})
+    private Long spaceVersion;
+
+    @JsonView({Internal.class})
+    private String author;
+
+    @JsonView({Public.class})
+    protected Boolean clipped;
+
+    @JsonView({Public.class})
+    protected Boolean omitOnNull;
+
+    /**
+     * Arbitrary parameters to be provided from hub
+     */
+    @JsonView({Internal.class})
+    protected Map<String, Object> params;
+
+    private DatasetDescription source;
+    private DatasetDescription target;
+
+    public Job() {}
+
+    public Job(String description, String targetSpaceId, String targetTable, Strategy strategy) {
+        setDescription(description);
+        setTargetSpaceId(targetSpaceId);
+        setTargetTable(targetTable);
+        setStrategy(strategy);
+    }
+
     public abstract Future<T> init();
 
-    public static String generateRandomId() {
+    private static String generateRandomId() {
         return RandomStringUtils.randomAlphanumeric(6);
     }
 
@@ -158,8 +258,6 @@ public abstract class Job<T extends Job> {
     @JsonIgnore
     protected Future<T> setDefaults() {
         //TODO: Do field initialization at instance initialization time
-        setCreatedAt(Core.currentTimeMillis() / 1000L);
-        setUpdatedAt(getCreatedAt());
         if (getId() == null)
             setId(generateRandomId());
         if (getErrorType() != null)
@@ -286,100 +384,6 @@ public abstract class Job<T extends Job> {
             }
         }
     }
-
-    /**
-     * Beta release date: 2018-10-01T00:00Z[UTC]
-     */
-    @JsonIgnore
-    private final long DEFAULT_TIMESTAMP = 1538352000000L;
-
-    /**
-     * The creation timestamp.
-     */
-    @JsonView({Public.class})
-    private long createdAt = DEFAULT_TIMESTAMP;
-
-    /**
-     * The last update timestamp.
-     */
-    @JsonView({Public.class})
-    private long updatedAt = DEFAULT_TIMESTAMP;
-
-    /**
-     * The timestamp which indicates when the execution began.
-     */
-    @JsonView({Public.class})
-    private long executedAt = -1;
-
-    /**
-     * The timestamp at which time the finalization is completed.
-     */
-    @JsonView({Public.class})
-    private long finalizedAt = -1;
-
-    /**
-     * The expiration timestamp.
-     */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonView({Public.class})
-    private Long exp;
-
-    /**
-     * The job ID
-     */
-    @JsonView({Public.class})
-    private String id;
-
-    @JsonView({Public.class})
-    protected String description;
-
-    @JsonView({Internal.class})
-    protected String targetSpaceId;
-
-    @JsonView({Internal.class})
-    protected String targetTable;
-
-    @JsonView({Public.class})
-    private String errorDescription;
-
-    @JsonView({Public.class})
-    private String errorType;
-
-    @JsonView({Public.class})
-    private Status status;
-
-    @JsonView({Public.class})
-    private Status lastStatus;
-
-    @JsonView({Public.class})
-    protected CSVFormat csvFormat;
-
-    @JsonView({Public.class})
-    protected Strategy strategy;
-
-    @JsonView({Internal.class})
-    private String targetConnector;
-
-    @JsonView({Internal.class})
-    private Long spaceVersion;
-
-    @JsonView({Internal.class})
-    private String author;
-
-    @JsonView({Public.class})
-    protected Boolean clipped;
-
-    @JsonView({Public.class})
-    protected Boolean omitOnNull;
-
-    /**
-     * Arbitrary parameters to be provided from hub
-     */
-    @JsonView({Internal.class})
-    protected Map<String, Object> params;
-
-    private DatasetDescription source;
-    private DatasetDescription target;
 
     public String getId(){
         return id;
@@ -742,9 +746,8 @@ public abstract class Job<T extends Job> {
      */
     @Deprecated
     public void addParam(String key, Object value){
-        if(this.params == null){
+        if (this.params == null)
             this.params = new HashMap<>();
-        }
         this.params.put(key,value);
     }
     @JsonIgnore
