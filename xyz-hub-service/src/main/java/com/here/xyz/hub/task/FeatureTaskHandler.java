@@ -1517,7 +1517,10 @@ public class FeatureTaskHandler {
         //Ensure the StatisticsResponse is correctly set-up
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
         defineGlobalSearchableField(response, task);
-        defineContentUpdatedAtField(response, task);
+        defineContentUpdatedAtField(response, (FeatureTask.GetStatistics) task)
+                .onSuccess(r -> callback.call(task))
+                .onFailure(t -> callback.exception(t));
+        return;
       }
     } else if (task instanceof FeatureTask.IdsQuery) {
       //Ensure to return a FeatureCollection when there are multiple features in the response (could happen e.g. for a virtual-space)
@@ -1543,11 +1546,38 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static void defineContentUpdatedAtField(StatisticsResponse response, FeatureTask task) {
-    StatisticsResponse.Value<Long> contentUpdatedAtVal = new StatisticsResponse.Value(task.space.contentUpdatedAt);
-    // Due to caching the value of contentUpdatedAt field could be obsolete in some edge cases
-    contentUpdatedAtVal.setEstimated(true);
-    response.setContentUpdatedAt(contentUpdatedAtVal);
+  private static Future<Void> defineContentUpdatedAtField(StatisticsResponse response, FeatureTask.GetStatistics task) {
+    Promise<Void> p = Promise.promise();
+
+    if (task.space.getExtension() != null) {
+      ContextAwareEvent.SpaceContext spaceContext = task.getEvent().getContext();
+      Space.resolveSpace(task.getMarker(), task.space.getExtension().getSpaceId())
+              .onSuccess(space -> {
+                long contentUpdatedAt;
+                if (spaceContext == ContextAwareEvent.SpaceContext.SUPER) {
+                  contentUpdatedAt = space.contentUpdatedAt;
+                } else if (spaceContext == ContextAwareEvent.SpaceContext.DEFAULT) {
+                  contentUpdatedAt = space.contentUpdatedAt > task.space.contentUpdatedAt
+                          ? space.contentUpdatedAt : task.space.contentUpdatedAt;
+                } else {
+                  contentUpdatedAt = task.space.contentUpdatedAt;
+                }
+                StatisticsResponse.Value<Long> contentUpdatedAtVal = new StatisticsResponse.Value(contentUpdatedAt);
+                // Due to caching the value of contentUpdatedAt field could be obsolete in some edge cases
+                contentUpdatedAtVal.setEstimated(true);
+                response.setContentUpdatedAt(contentUpdatedAtVal);
+                p.complete();
+              })
+              .onFailure(t -> p.fail(t));
+    } else {
+      StatisticsResponse.Value<Long> contentUpdatedAtVal = new StatisticsResponse.Value(task.space.contentUpdatedAt);
+      // Due to caching the value of contentUpdatedAt field could be obsolete in some edge cases
+      contentUpdatedAtVal.setEstimated(true);
+      response.setContentUpdatedAt(contentUpdatedAtVal);
+      p.complete();
+    }
+
+    return p.future();
   }
 
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {
