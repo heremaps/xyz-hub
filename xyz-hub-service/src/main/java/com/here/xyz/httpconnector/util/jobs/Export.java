@@ -771,6 +771,14 @@ public class Export extends Job<Export> {
     }
 
     @Override
+    public boolean needRdsCheck() {
+        //In next stage we need database resources
+        if (getStatus().equals(Job.Status.queued))
+            return true;
+        return false;
+    }
+
+    @Override
     public void execute() {
         setExecutedAt(Core.currentTimeMillis() / 1000L);
 

@@ -20,12 +20,15 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Spaces;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,12 +66,10 @@ public class CombinedJob extends Job<CombinedJob> {
 
   @Override
   public Future<Job> prepareStart() {
-    return null;
-  }
-
-  @Override
-  public Future<Job> executeStart() {
-    return null;
+    List<Future<Job>> futures = new ArrayList<>();
+    for (Job childJob : children)
+      futures.add(childJob.prepareStart());
+    return Future.all(futures).map(cf -> this);
   }
 
   private Future<CombinedJob> createChildren() {
@@ -125,23 +126,37 @@ public class CombinedJob extends Job<CombinedJob> {
     super.finalizeJob();
   }
 
+  protected void isValidForRetry() throws HttpException {
+    throw new HttpException(PRECONDITION_FAILED, "Retry is not supported for CombinedJobs.");
+  }
+
   @Override
   public void resetToPreviousState() throws Exception {
-
+    //TODO: implement once retries are supported
   }
 
   @Override
   public String getQueryIdentifier() {
+    //NOTE: Not needed for CombinedJobs, as the CombinedJob itself does not run any queries on the DB
     return null;
   }
 
   @Override
+  public Future<Job> isProcessingPossible() {
+    List<Future<Job>> futures = new ArrayList<>();
+    for (Job childJob : children)
+      futures.add(childJob.isProcessingPossible());
+    return Future.any(futures).map(cf -> this);
+  }
+
+  @Override
   public void execute() {
+    setExecutedAt(Core.currentTimeMillis() / 1000L);
 
   }
 
   public List<Job> getChildren() {
-    return children;
+    return new ArrayList<>(children);
   }
 
   @Override
