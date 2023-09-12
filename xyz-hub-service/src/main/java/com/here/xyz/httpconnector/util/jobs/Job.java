@@ -740,7 +740,7 @@ public abstract class Job<T extends Job> {
         this.target = target;
         //Keep BWC
         if (target instanceof DatasetDescription.Space)
-            setTargetSpaceId(((DatasetDescription.Space) source).getId());
+            setTargetSpaceId(((DatasetDescription.Space) target).getId());
     }
 
     public T withTarget(DatasetDescription target) {
