@@ -121,6 +121,18 @@ public class CombinedJob extends Job<CombinedJob> {
   }
 
   @Override
+  public Future<Job> executeStart() {
+    return isValidForStart()
+        .compose(job -> prepareStart())
+        .compose(job -> enqueueAllChildren());
+  }
+
+  private Future<Job> enqueueAllChildren() {
+    children.forEach(childJob -> CService.exportQueue.addJob(childJob));
+    return Future.succeededFuture(this);
+  }
+
+  @Override
   public void finalizeJob() {
     children.forEach(childJob -> childJob.finalizeJob());
     super.finalizeJob();

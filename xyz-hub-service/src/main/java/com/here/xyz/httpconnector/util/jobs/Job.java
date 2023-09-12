@@ -222,11 +222,7 @@ public abstract class Job<T extends Job> {
             .compose(job -> CService.jobConfigClient.update(getMarker(), job));
     }
 
-    public Future<Job> executeStart() {
-      return isValidForStart()
-          .compose(job -> prepareStart())
-          .onSuccess(job -> CService.exportQueue.addJob(job));
-    }
+    public abstract Future<Job> executeStart();
 
     public Future<Void> abortIfPossible() {
         //Target: we want to terminate all running sqlQueries
