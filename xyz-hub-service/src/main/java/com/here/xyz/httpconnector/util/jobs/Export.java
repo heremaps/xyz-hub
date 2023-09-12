@@ -779,6 +779,13 @@ public class Export extends Job<Export> {
     }
 
     @Override
+    public Future<Job> executeStart() {
+        return isValidForStart()
+            .compose(job -> prepareStart())
+            .onSuccess(job -> CService.exportQueue.addJob(job));
+    }
+
+    @Override
     public void execute() {
         setExecutedAt(Core.currentTimeMillis() / 1000L);
 
