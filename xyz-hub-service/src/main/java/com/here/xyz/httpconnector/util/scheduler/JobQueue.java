@@ -150,7 +150,7 @@ public abstract class JobQueue implements Runnable {
         return updateJobStatus(j, status, null, null);
     }
 
-    protected static Future<Job> updateJobStatus(Job j, Job.Status status, String errorDescription, String errorType ){
+    protected static Future<Job> updateJobStatus(Job j, Job.Status status, String errorDescription, String errorType) {
         if (status != null)
             j.setStatus(status);
         if (errorType != null)

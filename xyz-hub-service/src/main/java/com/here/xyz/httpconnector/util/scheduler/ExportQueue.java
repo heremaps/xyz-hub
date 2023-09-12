@@ -22,6 +22,7 @@ package com.here.xyz.httpconnector.util.scheduler;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
@@ -44,7 +45,7 @@ public class ExportQueue extends JobQueue {
     protected void process() throws InterruptedException, CannotDecodeException {
 
         for (Job job : getQueue()) {
-            if (!(job instanceof Export))
+            if (!(job instanceof Export || job instanceof CombinedJob))
                 return;
 
             //Check Capacity

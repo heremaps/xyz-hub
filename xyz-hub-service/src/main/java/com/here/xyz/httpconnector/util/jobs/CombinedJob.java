@@ -54,12 +54,13 @@ public class CombinedJob extends Job<CombinedJob> {
 
   public CombinedJob() {
     super();
-    //Set basic defaults
-    setStatus(waiting);
+    setId(generateRandomId());
   }
 
   @Override
   public Future<CombinedJob> init() {
+    //Set basic defaults
+    setStatus(waiting); //TODO: Initialize fields at instantiation time (once DynamoJobConfigClient is fixed to use STATIC_MAPPER)
     //Instantiate / fill the child-jobs
     return createChildren();
   }
@@ -173,7 +174,7 @@ public class CombinedJob extends Job<CombinedJob> {
 
   @Override
   public Future<CombinedJob> validate() {
-    return super.validate()
+    return Future.succeededFuture(this)
         .compose(job -> {
           List<Future<Job>> futures = new ArrayList<>();
           for (Job childJob : children)
