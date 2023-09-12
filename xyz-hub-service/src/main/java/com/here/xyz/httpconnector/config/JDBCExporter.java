@@ -477,10 +477,6 @@ public class JDBCExporter extends JDBCClients {
         PSQLConfig config = new PSQLConfig(event, schema);
         dbHandler.setConfig(config);
 
-        SQLQuery sqlQuery;
-        
-        boolean exportDeltaOnlybyPartitionID = ( csvFormat == CSVFormat.PARTITIONID_FC_B64 && isForCompositeContentDetection );
-        
         ViewModus viewMode;
         switch( csvFormat )
         { case PARTITIONID_FC_B64 : 
@@ -490,6 +486,8 @@ public class JDBCExporter extends JDBCClients {
             viewMode = ( isForCompositeContentDetection ? ViewModus.CHANGE_BASE_DELTA : ViewModus.BASE_DELTA );
             break;
         }
+
+        SQLQuery sqlQuery;
 
         try {
           GetFeatures queryRunner;
