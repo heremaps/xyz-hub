@@ -42,8 +42,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   public static long MAX_BIGINT = Long.MAX_VALUE;
 
-  private boolean withoutIdField = false,
-                  deltaOnly = false;
+  private boolean withoutIdField = false;
 
   public GetFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
@@ -53,20 +52,23 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-    boolean isExtended = ( isExtendedSpace(event) && event.getContext() == DEFAULT ) && !deltaOnly; /** deltaOnly -> ignore underlying base, act as not extended  */
+    boolean isExtended = ( isExtendedSpace(event) && event.getContext() == DEFAULT ) && (viewMode != ViewModus.DELTA ); /** deltaOnly -> ignore underlying base, act as not extended  */
     SQLQuery query;
 
     if ( isExtended ) {
+      String UNION_ALL = ( viewMode == ViewModus.BASE_DELTA ? "UNION ALL" : "UNION DISTINCT" ),
+             NOT       = ( viewMode == ViewModus.BASE_DELTA ? "NOT" : "" );
+
       query = new SQLQuery(
           "SELECT * FROM ("
           + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}${{id}}"
           + "        FROM ${schema}.${table}"
           + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{iOffsetExtension}} ${{limit}})"
-          + "    UNION ALL "
+          + "  " + UNION_ALL
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}}${{id}} FROM"
           + "            ("
           + "                ${{baseQuery}}"
-          + "            ) a WHERE NOT exists(SELECT 1 FROM ${schema}.${table} b WHERE ${{notExistsIdComparison}})"
+          + "            ) a WHERE "+ NOT +" exists(SELECT 1 FROM ${schema}.${table} b WHERE ${{notExistsIdComparison}})"
           + ") limitQuery ${{limit}}")
           .withQueryFragment("notExistsIdComparison", buildIdComparisonFragment(event, "a."));
     }
@@ -280,10 +282,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return geoFragment;
   }
 
+
   //TODO: Remove that hack and instantiate & use the whole GetFeatures QR instead from wherever it's needed
-  public SQLQuery _buildQuery(E event, boolean exportDeltaOnly ) throws SQLException, ErrorResponseException {
+  public enum ViewModus { BASE_DELTA, CHANGE_BASE_DELTA, DELTA; }
+  private ViewModus viewMode = ViewModus.BASE_DELTA;
+  
+  public SQLQuery _buildQuery(E event, ViewModus viewMode ) throws SQLException, ErrorResponseException {
     withoutIdField = true;
-    this.deltaOnly = exportDeltaOnly;
+    this.viewMode = viewMode;
     return buildQuery(event);
   }
 }

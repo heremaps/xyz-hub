@@ -32,8 +32,10 @@ import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.query.GetFeatures;
+import com.here.xyz.psql.query.GetFeatures.ViewModus;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.SearchForFeatures;
+
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -478,6 +480,16 @@ public class JDBCExporter extends JDBCClients {
         SQLQuery sqlQuery;
         
         boolean exportDeltaOnlybyPartitionID = ( csvFormat == CSVFormat.PARTITIONID_FC_B64 && isForCompositeContentDetection );
+        
+        ViewModus viewMode;
+        switch( csvFormat )
+        { case PARTITIONID_FC_B64 : 
+            viewMode = ( isForCompositeContentDetection ? ViewModus.DELTA : ViewModus.BASE_DELTA );
+            break;
+          default: 
+            viewMode = ( isForCompositeContentDetection ? ViewModus.CHANGE_BASE_DELTA : ViewModus.BASE_DELTA );
+            break;
+        }
 
         try {
           GetFeatures queryRunner;
@@ -486,7 +498,7 @@ public class JDBCExporter extends JDBCClients {
           else
             queryRunner = new GetFeaturesByGeometry(event);
           queryRunner.setDbHandler(dbHandler);
-          sqlQuery = queryRunner._buildQuery(event, exportDeltaOnlybyPartitionID );
+          sqlQuery = queryRunner._buildQuery(event, viewMode );
         }
         catch (Exception e) {
           throw new SQLException(e);
@@ -510,7 +522,7 @@ public class JDBCExporter extends JDBCClients {
             );
             geoJson.setQueryFragment("contentQuery",sqlQuery);
             geoJson.substitute();
-            return queryToText(geoJson, isForCompositeContentDetection);
+            return queryToText(geoJson);
           }
 
          case PARTITIONID_FC_B64 :
@@ -556,13 +568,13 @@ public class JDBCExporter extends JDBCClients {
 
            geoJson.setQueryFragment("contentQuery", sqlQuery);
            geoJson.substitute();
-           return queryToText(geoJson, false); // false -> no replacement needed, because ${{contentQuery}} fits the needs
+           return queryToText(geoJson); 
          }
 
          default:
          {
             sqlQuery.substitute();
-            return queryToText(sqlQuery, isForCompositeContentDetection);
+            return queryToText(sqlQuery);
          }
         }
 
@@ -577,15 +589,10 @@ public class JDBCExporter extends JDBCClients {
     }
 
     //FIXME: The following works only for very specific kind of queries
-    private static SQLQuery queryToText(SQLQuery q, boolean isForCompositeContentDetection) {
+    private static SQLQuery queryToText(SQLQuery q) {
         String queryText = q.text()
                     .replace("?", "%L")
                     .replace("'","''");
-
-        //TODO: Replace that detection-hack by making the original request(s) more "editable" using named params
-        if (isForCompositeContentDetection)
-          queryText = queryText.replace( "NOT exists", "EXISTS" )
-               .replace( "UNION ALL", "UNION DISTINCT" );
 
         int i = 0;
         String replacement = "";
