@@ -19,7 +19,9 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.here.xyz.httpconnector.CService;
@@ -32,6 +34,10 @@ import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A job which consists of multiple child-jobs.
@@ -50,7 +56,11 @@ import java.util.List;
  */
 public class CombinedJob extends Job<CombinedJob> {
 
+  private static final Logger logger = LogManager.getLogger();
+
   private List<Job> children = new ArrayList<>();
+
+  private AtomicBoolean executing = new AtomicBoolean();
 
   public CombinedJob() {
     super();
@@ -104,6 +114,7 @@ public class CombinedJob extends Job<CombinedJob> {
   }
 
   private void setChildJobParams(Job childJob, Space space) {
+    childJob.setChildJob(true); //TODO: Replace that hack once the scheduler flow was refactored
     childJob.init(); //TODO: Do field initialization at instance initialization time
     childJob.withTargetConnector(space.getStorage().getId());
     childJob.addParam("versionsToKeep", space.getVersionsToKeep());
@@ -121,14 +132,39 @@ public class CombinedJob extends Job<CombinedJob> {
         });
   }
 
+  /**
+   * @deprecated This is a workaround which is needed until the scheduler flow is fixed / refactored.
+   * Please do not rely on this method or use it for other purposes than the current usage.
+   * @return
+   */
+  @Deprecated
+  private Future<List<Job>> reloadChildren() {
+    List<Future<Job>> reloadFutures = children
+        .stream()
+        .map(childJob -> CService.jobConfigClient.get(getMarker(), childJob.getId()))
+        .collect(Collectors.toList());
+    return Future.all(reloadFutures)
+        .map(cf -> {
+          List<Job> reloadedChildren = cf.list();
+          for (int i = 0; i < reloadedChildren.size(); i++)
+            if (reloadedChildren.get(i) == null) {
+              reloadedChildren.set(i, children.get(i));
+              logger.warn(getMarker(), "Child job with Id {} could not be reloaded.", children.get(i).getId());
+            }
+          return reloadedChildren;
+        });
+
+  }
+
   @Override
   public Future<Job> executeStart() {
     return isValidForStart()
         .compose(job -> prepareStart())
-        .compose(job -> enqueueAllChildren());
+        .compose(job -> enqueue());
   }
 
-  private Future<Job> enqueueAllChildren() {
+  private Future<Job> enqueue() {
+    CService.exportQueue.addJob(this);
     children.forEach(childJob -> CService.exportQueue.addJob(childJob));
     return Future.succeededFuture(this);
   }
@@ -164,8 +200,26 @@ public class CombinedJob extends Job<CombinedJob> {
 
   @Override
   public void execute() {
-    setExecutedAt(Core.currentTimeMillis() / 1000L);
-
+    if (executing.compareAndSet(false, true)) {
+      setExecutedAt(Core.currentTimeMillis() / 1000L);
+      new Thread(() -> {
+        while (children.stream().anyMatch(childJob -> !childJob.getStatus().isFinal())) {
+          reloadChildren().onSuccess(reloadedChildren -> {
+            children = reloadedChildren;
+            store();
+          });
+          //TODO: Implement status changes etc.
+          try {
+            Thread.sleep(1000);
+          }
+          catch (InterruptedException ignored) {}
+        }
+        //Everything is processed
+        logger.info("job[{}] CombinedJob completely succeeded!", getId());
+//        addStatistic(statistic);
+        updateJobStatus(this, executed);
+      }).start();
+    }
   }
 
   public List<Job> getChildren() {
