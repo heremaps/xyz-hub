@@ -19,7 +19,9 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
@@ -209,18 +211,47 @@ public class CombinedJob extends Job<CombinedJob> {
             children = reloadedChildren;
             store();
           });
-          //TODO: Implement status changes etc.
+          checkForNonSucceededChildren();
           try {
             Thread.sleep(1000);
           }
           catch (InterruptedException ignored) {}
         }
+        checkForNonSucceededChildren();
         //Everything is processed
         logger.info("job[{}] CombinedJob completely succeeded!", getId());
 //        addStatistic(statistic);
         updateJobStatus(this, executed);
       }).start();
     }
+  }
+
+  private void checkForNonSucceededChildren() {
+    Status nonSucceededStatus = null;
+    if (children.stream().anyMatch(childJob -> childJob.getStatus() == failed))
+      nonSucceededStatus = failed;
+    else if (children.stream().anyMatch(childJob -> childJob.getStatus() == aborted))
+      nonSucceededStatus = aborted;
+
+    if (nonSucceededStatus != null) {
+      Status combinedEndStatus = nonSucceededStatus;
+      abortAllNonFinalChildren()
+          .compose(job -> updateJobStatus(job, combinedEndStatus));
+    }
+  }
+
+  private Future<Job> abortAllNonFinalChildren() {
+    List<Job> nonFinalChildren = children
+        .stream()
+        .filter(childJob -> !childJob.getStatus().isFinal())
+        .collect(Collectors.toList());
+    List<Future<Job>> childrenAbortFutures = new ArrayList<>();
+    for (Job childJob : nonFinalChildren)
+      childrenAbortFutures.add(childJob.executeAbort());
+
+    return Future
+        .all(childrenAbortFutures)
+        .map(compositeFuture -> this);
   }
 
   public List<Job> getChildren() {
