@@ -169,6 +169,9 @@ public abstract class Job<T extends Job> {
 
     private DatasetDescription source;
     private DatasetDescription target;
+    @Deprecated
+    @JsonIgnore
+    private boolean childJob;
 
     public Job() {}
 
@@ -739,6 +742,17 @@ public abstract class Job<T extends Job> {
     public T withTarget(DatasetDescription target) {
         setTarget(target);
         return (T) this;
+    }
+
+    @Deprecated
+    public boolean isChildJob() {
+        return childJob;
+    }
+
+
+    @Deprecated
+    public void setChildJob(boolean childJob) {
+        this.childJob = childJob;
     }
 
     /**

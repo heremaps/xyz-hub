@@ -24,11 +24,10 @@ import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.config.Initializable;
 import io.vertx.core.Future;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
-import java.util.List;
 
 /**
  * Client for reading and writing Jobs
@@ -87,6 +86,8 @@ public abstract class JobConfigClient implements Initializable {
     public Future<Job> update(Marker marker, Job job) {
         /** We are updating jobs in JobHandler (config changes + JobQueue (state changes)*/
         job.setUpdatedAt(Core.currentTimeMillis() / 1000L);
+      if (job.isChildJob())
+        return Future.succeededFuture(job);//TODO: Replace that hack once the scheduler flow was refactored
 
         return storeJob(marker, job, true)
                 .onSuccess(v -> {
@@ -98,6 +99,9 @@ public abstract class JobConfigClient implements Initializable {
     }
 
     public Future<Job> store(Marker marker, Job job) {
+      if (job.isChildJob())
+        return Future.succeededFuture(job);//TODO: Replace that hack once the scheduler flow was refactored
+
         return storeJob(marker, job, false)
                 .onFailure(e -> {
                     logger.error(marker, "job[{}]: failed to store! ", job.getId(), e);

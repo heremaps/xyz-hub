@@ -74,7 +74,7 @@ public class ExportQueue extends JobQueue {
                         case executed:
                             updateJobStatus(currentJob, Job.Status.executing_trigger)
                                 .onSuccess(f -> {
-                                    if (((Export) currentJob).getExportTarget().getType().equals(VML)
+                                    if (currentJob instanceof Export && ((Export) currentJob).getExportTarget().getType().equals(VML)
                                         && ((Export) currentJob).getStatistic() != null
                                         && ((Export) currentJob).getStatistic().getFilesUploaded() > 0)
                                         //Only here we need a trigger

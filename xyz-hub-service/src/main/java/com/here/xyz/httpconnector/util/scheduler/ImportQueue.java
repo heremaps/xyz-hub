@@ -101,8 +101,8 @@ public class ImportQueue extends JobQueue {
     }
 
     @Override
-    protected Import validateJob(Job job){
-        return Import.validateImportObjects((Import)job);
+    protected Import validateJob(Job job) {
+        return Import.validateImportObjects((Import) job);
     }
 
     @Override

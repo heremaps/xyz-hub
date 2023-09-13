@@ -150,31 +150,31 @@ public abstract class JobQueue implements Runnable {
         return updateJobStatus(j, status, null, null);
     }
 
-    protected static Future<Job> updateJobStatus(Job j, Job.Status status, String errorDescription, String errorType) {
+    protected static Future<Job> updateJobStatus(Job job, Job.Status status, String errorDescription, String errorType) {
         if (status != null)
-            j.setStatus(status);
+            job.setStatus(status);
         if (errorType != null)
-            j.setErrorType(errorType);
+            job.setErrorType(errorType);
         if (errorDescription != null)
-            j.setErrorDescription(errorDescription);
+            job.setErrorDescription(errorDescription);
 
         //All end-states
         if (status == failed || status == finalized) {
             //FIXME: Shouldn't that be done also for status == aborted? If yes, we can simply use status.isFinal()
-            if (j instanceof  Import)
-                releaseReadOnlyLockFromSpace(j)
+            if (job instanceof Import)
+                releaseReadOnlyLockFromSpace(job)
                     .onFailure(f -> {
                         //Currently we are only logging this issue
-                        logger.warn("[{}] READONLY_RELEASE_FAILED!", j.getId());
+                        logger.warn("[{}] READONLY_RELEASE_FAILED!", job.getId());
                     });
             //Remove job from queue
-            removeJob(j);
+            removeJob(job);
         }
         else
             //Only for display purpose in system endpoint
-            refreshJob(j);
+            refreshJob(job);
 
-        return CService.jobConfigClient.update(null , j);
+        return CService.jobConfigClient.update(null, job);
     }
 
     protected static Future<Void> releaseReadOnlyLockFromSpace(Job job){
