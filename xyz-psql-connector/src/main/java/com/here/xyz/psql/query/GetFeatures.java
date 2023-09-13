@@ -44,6 +44,9 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private boolean withoutIdField = false;
 
+  public enum ViewModus { BASE_DELTA, CHANGE_BASE_DELTA, DELTA; }
+  private ViewModus viewMode;
+
   public GetFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
@@ -52,12 +55,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-    boolean isExtended = ( isExtendedSpace(event) && event.getContext() == DEFAULT ) && (viewMode != ViewModus.DELTA ); /** deltaOnly -> ignore underlying base, act as not extended  */
+    boolean isExtended = ( isExtendedSpace(event) && event.getContext() == DEFAULT ) && (viewMode == null || viewMode != ViewModus.DELTA ); /** deltaOnly -> ignore underlying base, act as not extended  */
     SQLQuery query;
 
     if ( isExtended ) {
-      String UNION_ALL = ( viewMode == ViewModus.BASE_DELTA ? "UNION ALL" : "UNION DISTINCT" ),
-             NOT       = ( viewMode == ViewModus.BASE_DELTA ? "NOT" : "" );
+      String UNION_ALL = ( viewMode == null || viewMode == ViewModus.BASE_DELTA ? "UNION ALL" : "UNION DISTINCT" ),
+             NOT       = ( viewMode == null || viewMode == ViewModus.BASE_DELTA ? "NOT" : "" );
 
       query = new SQLQuery(
           "SELECT * FROM ("
@@ -284,9 +287,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
 
   //TODO: Remove that hack and instantiate & use the whole GetFeatures QR instead from wherever it's needed
-  public enum ViewModus { BASE_DELTA, CHANGE_BASE_DELTA, DELTA; }
-  private ViewModus viewMode = ViewModus.BASE_DELTA;
-  
   public SQLQuery _buildQuery(E event, ViewModus viewMode ) throws SQLException, ErrorResponseException {
     withoutIdField = true;
     this.viewMode = viewMode;
