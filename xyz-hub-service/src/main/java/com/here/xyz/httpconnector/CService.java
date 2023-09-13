@@ -25,13 +25,11 @@ import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
 import com.here.xyz.hub.Core;
-import io.vertx.core.Future;
+import io.vertx.core.DeploymentOptions;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -116,8 +114,6 @@ public class CService extends Core {
   public static void onConfigLoaded(JsonObject jsonConfig) {
     configuration = jsonConfig.mapTo(Config.class);
 
-    globalRouter = Router.router(vertx);
-
     try {
       for (String rdsConfig : CService.configuration.JOB_SUPPORTED_RDS) {
         String[] config = rdsConfig.split(":");
@@ -165,13 +161,18 @@ public class CService extends Core {
         logger.error("Cant reach jobAPI backend - JOB-API deactivated!");
     });
 
-    // TODO: Remove this when "VERTICLES_CLASS_NAMES" is added in config
-    if (StringUtils.isEmpty(CService.configuration.VERTICLES_CLASS_NAMES)) {
-      CService.configuration.VERTICLES_CLASS_NAMES = PsqlHttpConnectorVerticle.class.getCanonicalName();
-    }
+    final DeploymentOptions options = new DeploymentOptions()
+            .setConfig(jsonConfig)
+            .setWorker(false)
+            .setInstances(Runtime.getRuntime().availableProcessors() * 2);
 
-    Core.onServiceInitialized(Future.succeededFuture(), jsonConfig, CService.configuration.VERTICLES_CLASS_NAMES);
-
+    vertx.deployVerticle(PsqlHttpConnectorVerticle.class, options, result -> {
+      if (result.failed()) {
+        logger.error("Unable to deploy the verticle.");
+        System.exit(1);
+      }
+      logger.info("The http-connector is up and running on port " + configuration.HTTP_PORT );
+    });
   }
 
   /**
@@ -196,11 +197,6 @@ public class CService extends Core {
      * ECPS_PHRASE of Default Connector
      */
     public String ECPS_PHRASE;
-    /**
-     * The verticles class names to be deployed, separated by comma
-     */
-    public String VERTICLES_CLASS_NAMES;
-
     /**
      * Max number of parallel running Maintenance Tasks
      */
