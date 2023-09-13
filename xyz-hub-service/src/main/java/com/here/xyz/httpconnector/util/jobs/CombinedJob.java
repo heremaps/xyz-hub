@@ -24,6 +24,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Spaces;
@@ -60,6 +61,7 @@ public class CombinedJob extends Job<CombinedJob> {
 
   private List<Job> children = new ArrayList<>();
 
+  @JsonIgnore
   private AtomicBoolean executing = new AtomicBoolean();
 
   public CombinedJob() {
@@ -90,7 +92,7 @@ public class CombinedJob extends Job<CombinedJob> {
     if (!(getTarget() instanceof Files))
       return Future.failedFuture(new ValidationException("CombinedJob supports only a target of type \"Files\"."));
 
-    List<Future<Void>> childFutures = new ArrayList<>();
+    List<Future<Job>> childFutures = new ArrayList<>();
     List<String> spaceIds = ((Spaces) getSource()).getSpaceIds();
     for (int i = 0; i < spaceIds.size(); i++) {
       final int childNo = i;
@@ -101,16 +103,15 @@ public class CombinedJob extends Job<CombinedJob> {
                 .withId(getId() + "-" + childNo)
                 .withSource(new DatasetDescription.Space().withId(spaceId))
                 .withTarget(getTarget());
-
             setChildJobParams(job, space);
-
-            children.add(job);
-
-            return Future.succeededFuture();
+            return Future.succeededFuture(job);
           }));
     }
 
-    return Future.all(childFutures).map(v -> this);
+    return Future.all(childFutures).map(compositeFuture -> {
+      children.addAll(compositeFuture.list());
+      return this;
+    });
   }
 
   private void setChildJobParams(Job childJob, Space space) {
