@@ -29,14 +29,21 @@ import com.here.xyz.hub.AbstractHttpServerVerticle;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.psql.PSQLXyzConnector;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.CompositeFuture;
+import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.openapi.RouterBuilder;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
@@ -48,7 +55,7 @@ import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
  * - job execution
  */
 
-public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle {
+public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implements AbstractRouterBuilder {
 
   private static final Logger logger = LogManager.getLogger();
   private static Map<String, String> envMap;
@@ -68,47 +75,79 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle {
 
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
-    connector = new PSQLXyzConnector();
+    populateEnvMap();
 
-    RouterBuilder.create(vertx, LOCATION).onComplete(ar -> {
-      if (ar.succeeded()) {
-        try {
-          final RouterBuilder rb = ar.result();
-          populateEnvMap();
+    if (StringUtils.isEmpty(CService.configuration.ROUTER_BUILDER_CLASS_NAMES)) {
+      CService.configuration.ROUTER_BUILDER_CLASS_NAMES = PsqlHttpConnectorVerticle.class.getCanonicalName();
+    }
+    final List<String> routeBuilderClassList = Arrays.asList(CService.configuration.ROUTER_BUILDER_CLASS_NAMES.split(","));
 
-          new HttpConnectorApi(rb, connector);
-          new JobApi(rb);
+    final Router mainRouter = Router.router(vertx);
+    List<Future> routeFutures = new ArrayList<>();
 
-          final Router router = rb.createRouter();
+    for(String routeBuilderClass : routeBuilderClassList) {
+      Promise<Void> routePromise = Promise.promise();
+      routeFutures.add(routePromise.future());
 
-          new JobStatusApi(router);
+      try {
+        Class<?> cls = Class.forName(routeBuilderClass);
+        AbstractRouterBuilder rb = (AbstractRouterBuilder) cls.newInstance();
+        Future<Router> routerFuture = rb.buildRoutes(vertx);
 
-          //OpenAPI resources
-          router.route("/psql/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
-            final HttpServerResponse res = routingContext.response();
-            res.putHeader("content-type", "application/yaml");
-            final String path = routingContext.request().path();
-            if (path.endsWith("openapi-http-connector.yaml")) {
-              res.headers().add(CONTENT_LENGTH, String.valueOf(API.getBytes().length));
-              res.write(API);
-            }
-            else {
-              res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
-            }
-            res.end();
-          }));
+        routerFuture.onSuccess(router -> {
+          mainRouter.mountSubRouter("/", router);
+          routePromise.complete();
+        }).onFailure(err -> routePromise.fail(err));
 
-          //Add default handlers
-          addDefaultHandlers(router);
-          createHttpServer(CService.configuration.HTTP_PORT, router);
-        }
-        catch (Exception e) {
-          logger.error("An error occurred, during the creation of the router from the Open API specification file.", e);
-        }
+      } catch (Exception e) {
+        logger.error("Unable to build routes for {}", routeBuilderClass);
+        routePromise.fail(e);
       }
-      else {
-        logger.error("An error occurred, during the creation of the router from the Open API specification file.");
+    }
+
+    CompositeFuture.all(routeFutures).onSuccess(done -> {
+      addDefaultHandlers(mainRouter);
+      createHttpServer(CService.configuration.HTTP_PORT, mainRouter)
+              .onSuccess(none -> startPromise.complete())
+              .onFailure(err -> startPromise.fail(err));
+      }).onFailure(err -> startPromise.fail(err));
+
+  }
+
+  @Override
+  public Future<Router> buildRoutes(Vertx vertx) {
+    return RouterBuilder.create(vertx, LOCATION).compose(ar -> {
+      Router router;
+      try {
+        final RouterBuilder rb = ar;
+
+        new HttpConnectorApi(rb, new PSQLXyzConnector());
+        new JobApi(rb);
+
+        router = rb.createRouter();
+
+        new JobStatusApi(router);
+
+        //OpenAPI resources
+        router.route("/psql/static/openapi/*").handler(createCorsHandler()).handler((routingContext -> {
+          final HttpServerResponse res = routingContext.response();
+          res.putHeader("content-type", "application/yaml");
+          final String path = routingContext.request().path();
+          if (path.endsWith("openapi-http-connector.yaml")) {
+            res.headers().add(CONTENT_LENGTH, String.valueOf(API.getBytes().length));
+            res.write(API);
+          }
+          else {
+            res.setStatusCode(HttpResponseStatus.NOT_FOUND.code());
+          }
+          res.end();
+        }));
       }
+      catch (Exception e) {
+        logger.error("An error occurred, during the creation of the router from the Open API specification file.", e);
+        return Future.failedFuture(e);
+      }
+      return Future.succeededFuture(router);
     });
   }
 
@@ -128,4 +167,5 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle {
       logger.error("Cannot populate EnvMap");
     }
   }
+
 }
