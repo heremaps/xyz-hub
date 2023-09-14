@@ -100,7 +100,6 @@ import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics.Searchable
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
-import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
@@ -1550,7 +1549,11 @@ public class FeatureTaskHandler {
     Promise<Void> p = Promise.promise();
 
     if (task.space.getExtension() != null) {
-      ContextAwareEvent.SpaceContext spaceContext = task.getEvent().getContext();
+      MultiMap queryParams = task.context.get("queryParams");
+      String spaceContextStr = queryParams.entries().stream()
+              .filter(entry -> entry.getKey().equalsIgnoreCase("context"))
+              .map(entry -> entry.getValue().toUpperCase()).findFirst().orElse(null);
+      ContextAwareEvent.SpaceContext spaceContext = ContextAwareEvent.SpaceContext.of(spaceContextStr);
       Space.resolveSpace(task.getMarker(), task.space.getExtension().getSpaceId())
               .onSuccess(space -> {
                 long contentUpdatedAt;
@@ -1576,7 +1579,6 @@ public class FeatureTaskHandler {
       response.setContentUpdatedAt(contentUpdatedAtVal);
       p.complete();
     }
-
     return p.future();
   }
 
