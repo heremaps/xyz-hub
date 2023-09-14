@@ -17,7 +17,9 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql.query;
+
+
+ package com.here.xyz.psql.query;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
