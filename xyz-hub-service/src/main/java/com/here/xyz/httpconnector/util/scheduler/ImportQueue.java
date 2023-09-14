@@ -45,7 +45,7 @@ public class ImportQueue extends JobQueue {
             if (!(job instanceof Import))
                 return;
 
-            isProcessingPossible(job)
+            ((Future<Job>) job.isProcessingPossible())
                     .compose(j -> loadCurrentConfig(job))
                     .compose(currentJobConfig -> {
                         /**
@@ -101,8 +101,8 @@ public class ImportQueue extends JobQueue {
     }
 
     @Override
-    protected Import validateJob(Job job){
-        return Import.validateImportObjects((Import)job);
+    protected Import validateJob(Job job) {
+        return Import.validateImportObjects((Import) job);
     }
 
     @Override
@@ -126,17 +126,6 @@ public class ImportQueue extends JobQueue {
                     else
                         setJobFailed(j, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_PREPARATION_FAILED);
                 });
-    }
-
-    @Override
-    protected boolean needRdsCheck(Job job) {
-        /** In next stage we perform the import */
-        if(job.getStatus().equals(Job.Status.prepared))
-            return true;
-        /** In next stage we create indices + other finalizations */
-        if(job.getStatus().equals(Job.Status.executed))
-            return true;
-        return false;
     }
 
     /**

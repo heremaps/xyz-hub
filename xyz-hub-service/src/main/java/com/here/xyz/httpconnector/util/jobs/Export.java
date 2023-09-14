@@ -20,7 +20,10 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.httpconnector.util.Futures.futurify;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
+import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.trigger_executed;
@@ -43,12 +46,14 @@ import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
+import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
+import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import java.util.HashMap;
@@ -114,19 +119,18 @@ public class Export extends Job<Export> {
     @JsonView({Public.class})
     private String triggerId;
 
-    public Export() {}
-
-    @Override
-    public Future<Export> init() {
-        return null;
+    public Export() {
+        super();
     }
 
     public Export(String description, String targetSpaceId, String targetTable, Strategy strategy) {
-        this.description = description;
-        this.targetSpaceId = targetSpaceId;
-        this.targetTable = targetTable;
-        this.strategy = strategy;
-        this.clipped = false;
+        super(description, targetSpaceId, targetTable, strategy);
+        setClipped(false);
+    }
+
+    @Override
+    public Future<Export> init() {
+        return setDefaults();
     }
 
     private void addSuperExportPathToJob(String superSpaceId) throws HttpException {
@@ -163,26 +167,46 @@ public class Export extends Job<Export> {
     }
 
     @Override
-    public void setDefaults() {
+    public Future<Export> setDefaults() {
         //TODO: Do field initialization at instance initialization time
-        super.setDefaults();
-        if (getExportTarget() != null && getExportTarget().getType().equals(ExportTarget.Type.VML)) {
-            if (getCsvFormat() != null && getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64))
-                return;
-            setCsvFormat(TILEID_FC_B64);
-            if (getMaxTilesPerFile() == 0)
-                setMaxTilesPerFile(VML_EXPORT_MAX_TILES_PER_FILE);
-        }
+        return super.setDefaults()
+            .compose(job -> {
+                if (getExportTarget() != null && getExportTarget().getType() == VML
+                    && (getCsvFormat() == null || getCsvFormat() != PARTITIONID_FC_B64)) {
+                    setCsvFormat(TILEID_FC_B64);
+                    if (getMaxTilesPerFile() == 0)
+                        setMaxTilesPerFile(VML_EXPORT_MAX_TILES_PER_FILE);
+                }
+                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId());
+            })
+            .compose(statistics -> {
+                //Store count of features which are in source layer
+                setEstimatedFeatureCount(statistics.getCount().getValue());
+
+                HashMap<String, Long> searchableProperties = new HashMap<>();
+                for (PropertyStatistics property : statistics.getProperties().getValue())
+                    if (property.isSearchable())
+                        searchableProperties.put(property.getKey(), property.getCount());
+                if (!searchableProperties.isEmpty())
+                    setSearchableProperties(searchableProperties);
+
+                return Future.succeededFuture(this);
+            });
     }
 
     @Override
-    public Export validate() throws HttpException {
-        super.validate();
+    public Future<Export> validate() {
+        return super.validate()
+            .compose(job -> futurify(() -> validateExport()))
+            .compose(j -> Future.succeededFuture(j), e -> e instanceof HttpException ? Future.failedFuture(e)
+                : Future.failedFuture(new HttpException(BAD_REQUEST, e.getMessage(), e)));
+    }
 
+    private Export validateExport() throws HttpException {
         if (getExportTarget() == null)
             throw new HttpException(BAD_REQUEST,("Please specify exportTarget!"));
 
-        if (getExportTarget().getType().equals(ExportTarget.Type.VML)){
+        if (getExportTarget().getType().equals(VML)){
 
             switch (getCsvFormat()) {
                 case TILEID_FC_B64:
@@ -190,32 +214,31 @@ public class Export extends Job<Export> {
                     break;
                 default:
                     throw new HttpException(BAD_REQUEST, "Invalid Format! Allowed [" + TILEID_FC_B64 + ","
-                        + CSVFormat.PARTITIONID_FC_B64 + "]");
+                        + PARTITIONID_FC_B64 + "]");
             }
 
             if (getExportTarget().getTargetId() == null)
                 throw new HttpException(BAD_REQUEST,("Please specify the targetId!"));
 
-            if (!getCsvFormat().equals(CSVFormat.PARTITIONID_FC_B64)) {
+            if (!getCsvFormat().equals(PARTITIONID_FC_B64)) {
                 if (getTargetLevel() == null)
                     throw new HttpException(BAD_REQUEST, "Please specify targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL + ":"
                         + VML_EXPORT_MAX_TARGET_LEVEL + "]");
 
-             if (getTargetLevel() < VML_EXPORT_MIN_TARGET_LEVEL || getTargetLevel() > VML_EXPORT_MAX_TARGET_LEVEL)
-                throw new HttpException(BAD_REQUEST, "Invalid targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL
-                    + ":" + VML_EXPORT_MAX_TARGET_LEVEL + "]");
+                if (getTargetLevel() < VML_EXPORT_MIN_TARGET_LEVEL || getTargetLevel() > VML_EXPORT_MAX_TARGET_LEVEL)
+                    throw new HttpException(BAD_REQUEST, "Invalid targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL
+                        + ":" + VML_EXPORT_MAX_TARGET_LEVEL + "]");
             }
 
         }
         else if (getExportTarget().getType().equals(ExportTarget.Type.DOWNLOAD)){
-
             switch (getCsvFormat()) {
                 case JSON_WKB:
-                case GEOJSON: break;
+                case GEOJSON:
+                    break;
                 default:
                     throw new HttpException(BAD_REQUEST,("Invalid Format! Allowed ["+ CSVFormat.JSON_WKB +","+ CSVFormat.GEOJSON +"]"));
             }
-
         }
 
         Filters filters = getFilters();
@@ -228,19 +251,26 @@ public class Export extends Job<Export> {
                     try {
                         geometry.validate();
                         WKTHelper.geometryToWKB(geometry);
-                    }catch (Exception e){
+                    }
+                    catch (Exception e){
                         throw new HttpException(BAD_REQUEST, "Cant parse filter geometry!");
                     }
                 }
             }
         }
 
-        if (readParamPersistExport()){
-            if (!getExportTarget().getType().equals(ExportTarget.Type.VML))
+        if (readParamPersistExport()) {
+            if (!getExportTarget().getType().equals(VML))
                 throw new HttpException(BAD_REQUEST, "Persistent Export not allowed for this target!");
             if (filters != null)
                 throw new HttpException(BAD_REQUEST, "Persistent Export is only allowed without filters!");
         }
+
+        if (getEstimatedFeatureCount() > 1000000 //searchable limit without index
+            && getPartitionKey() != null && !"id".equals(getPartitionKey())
+            && !searchableProperties.containsKey(getPartitionKey().replaceFirst("^(p|properties)\\." ,"")))
+            throw new HttpException(BAD_REQUEST, "partitionKey [" + getPartitionKey() + "] is not a searchable property");
+
         return this;
     }
 
@@ -742,6 +772,21 @@ public class Export extends Job<Export> {
     @Override
     public String getQueryIdentifier() {
         return "export_hint";
+    }
+
+    @Override
+    public boolean needRdsCheck() {
+        //In next stage we need database resources
+        if (getStatus().equals(Job.Status.queued))
+            return true;
+        return false;
+    }
+
+    @Override
+    public Future<Job> executeStart() {
+        return isValidForStart()
+            .compose(job -> prepareStart())
+            .onSuccess(job -> CService.exportQueue.addJob(job));
     }
 
     @Override

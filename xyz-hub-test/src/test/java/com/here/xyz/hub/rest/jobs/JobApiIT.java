@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.hub.rest;
+package com.here.xyz.hub.rest.jobs;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
@@ -36,6 +36,8 @@ import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
+import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
@@ -121,6 +123,20 @@ public class JobApiIT extends TestSpaceWithFeature {
         removeSpace(getScopedSpaceId(testSpaceId2ExtExt, scope));
     }
 
+    public enum Type {
+        Import, Export;
+        public static Type of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
+
     protected static ValidatableResponse postJob(Job job, String spaceId){
         return given()
                 .accept(APPLICATION_JSON)
@@ -141,10 +157,10 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .then();
     }
 
-    protected static Job createTestJobWithId( String spaceId, String id, Job.Type type, Job.CSVFormat csvFormat) {
+    protected static Job createTestJobWithId(String spaceId, String id, Type type, Job.CSVFormat csvFormat) {
         id = id + CService.currentTimeMillis();
         Job job;
-        if(type.equals(Job.Type.Import)) {
+        if(type.equals(Type.Import)) {
             job = new Import()
                     .withDescription("Job Description")
                     .withCsvFormat(csvFormat);

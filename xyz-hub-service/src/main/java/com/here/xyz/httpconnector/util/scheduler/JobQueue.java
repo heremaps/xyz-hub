@@ -22,17 +22,13 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCImporter;
-import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.concurrent.ScheduledFuture;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -42,8 +38,6 @@ public abstract class JobQueue implements Runnable {
 
     //Queue for import and export Jobs
     private volatile static ArrayList<Job> JOB_QUEUE = new ArrayList<>();
-
-    private volatile HashMap<String, RDSStatus> RDS_STATUS_MAP = new HashMap<>();
 
     protected boolean commenced = false;
 
@@ -57,14 +51,7 @@ public abstract class JobQueue implements Runnable {
 
     protected abstract void prepareJob(Job j);
 
-    protected abstract boolean needRdsCheck(Job j0);
 
-    protected Future<Void> isProcessingPossible(Job job){
-        if (!needRdsCheck(job))
-            //No RDS check needed - no database intensive stage.
-            return Future.succeededFuture();
-        return isProcessingOnRDSPossible(job);
-    }
 
     protected Future<Job> loadCurrentConfig(Job job) {
         return CService.jobConfigClient.get(null, job.getId())
@@ -81,43 +68,10 @@ public abstract class JobQueue implements Runnable {
     protected void logError(Throwable e, String jobId) {
         if (e == null)
             return;
-        if (e instanceof ProcessingNotPossibleException)
+        if (e instanceof Job.ProcessingNotPossibleException)
             logger.info("job[{}] {}", jobId, e.getMessage());
         else
             logger.warn("job[{}] ", jobId, e);
-    }
-
-    protected Future<Void> isProcessingOnRDSPossible(Job job){
-        return JDBCImporter.getRDSStatus(job.getTargetConnector())
-            .compose(rdsStatus -> {
-                RDS_STATUS_MAP.put(job.getTargetConnector(), rdsStatus);
-
-                if (rdsStatus.getCurrentMetrics().getCapacityUnits() > CService.configuration.JOB_MAX_RDS_CAPACITY) {
-                    logger.info("job[{}] JOB_MAX_RDS_CAPACITY to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getCapacityUnits(), CService.configuration.JOB_MAX_RDS_CAPACITY);
-                    return Future.failedFuture(new ProcessingNotPossibleException());
-                }
-                else if (rdsStatus.getCurrentMetrics().getCpuLoad() > CService.configuration.JOB_MAX_RDS_CPU_LOAD) {
-                    logger.info("job[{}] JOB_MAX_RDS_CPU_LOAD to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getCpuLoad(), CService.configuration.JOB_MAX_RDS_CPU_LOAD);
-                    return Future.failedFuture(new ProcessingNotPossibleException());
-                }
-                if (job instanceof Import && rdsStatus.getCurrentMetrics().getTotalInflightImportBytes() > CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES) {
-                    logger.info("job[{}] JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalInflightImportBytes(), CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES);
-                    return Future.failedFuture(new ProcessingNotPossibleException());
-                }
-                if (job instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS) {
-                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS);
-                    return Future.failedFuture(new ProcessingNotPossibleException());
-                }
-                if (job instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningImportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES) {
-                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
-                    return Future.failedFuture(new ProcessingNotPossibleException());
-                }
-                if (job instanceof Export && rdsStatus.getCurrentMetrics().getTotalRunningExportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES) {
-                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES to high {} > {}", job.getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
-                    return Future.failedFuture(new ProcessingNotPossibleException());
-                }
-                return Future.succeededFuture();
-            });
     }
 
     public static Job hasJob(Job job) {
@@ -196,31 +150,31 @@ public abstract class JobQueue implements Runnable {
         return updateJobStatus(j, status, null, null);
     }
 
-    protected static Future<Job> updateJobStatus(Job j, Job.Status status, String errorDescription, String errorType ){
+    protected static Future<Job> updateJobStatus(Job job, Job.Status status, String errorDescription, String errorType) {
         if (status != null)
-            j.setStatus(status);
+            job.setStatus(status);
         if (errorType != null)
-            j.setErrorType(errorType);
+            job.setErrorType(errorType);
         if (errorDescription != null)
-            j.setErrorDescription(errorDescription);
+            job.setErrorDescription(errorDescription);
 
         //All end-states
         if (status == failed || status == finalized) {
             //FIXME: Shouldn't that be done also for status == aborted? If yes, we can simply use status.isFinal()
-            if (j instanceof  Import)
-                releaseReadOnlyLockFromSpace(j)
+            if (job instanceof Import)
+                releaseReadOnlyLockFromSpace(job)
                     .onFailure(f -> {
                         //Currently we are only logging this issue
-                        logger.warn("[{}] READONLY_RELEASE_FAILED!", j.getId());
+                        logger.warn("[{}] READONLY_RELEASE_FAILED!", job.getId());
                     });
             //Remove job from queue
-            removeJob(j);
+            removeJob(job);
         }
         else
             //Only for display purpose in system endpoint
-            refreshJob(j);
+            refreshJob(job);
 
-        return CService.jobConfigClient.update(null , j);
+        return CService.jobConfigClient.update(null, job);
     }
 
     protected static Future<Void> releaseReadOnlyLockFromSpace(Job job){
@@ -231,12 +185,4 @@ public abstract class JobQueue implements Runnable {
         return HubWebClient.updateSpaceConfig(new JsonObject().put("readOnly", true), job.getTargetSpaceId());
     }
 
-    private static class ProcessingNotPossibleException extends Exception {
-
-        private static final String PROCESSING_NOT_POSSIBLE = "waits on free resources";
-
-        ProcessingNotPossibleException() {
-            super(PROCESSING_NOT_POSSIBLE);
-        }
-    }
 }

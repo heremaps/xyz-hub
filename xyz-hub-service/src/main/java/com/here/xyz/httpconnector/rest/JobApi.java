@@ -88,7 +88,7 @@ public class JobApi extends Api {
   }
 
   private void getJobs(final RoutingContext context) {
-    Job.Type jobType = HQuery.getJobType(context);
+    String jobType = HQuery.getJobType(context);
     Job.Status jobStatus = HQuery.getJobStatus(context);
     String targetSpaceId = HQuery.getString(context, HQuery.TARGET_SPACEID , null);
 
@@ -152,12 +152,12 @@ public class JobApi extends Api {
             });
   }
 
-  private void sendError(Throwable e, RoutingContext context){
-    if (e instanceof HttpException) {
+  private void sendError(Throwable e, RoutingContext context) {
+    if (e instanceof HttpException)
       this.sendErrorResponse(context, e);
-    }else if (e instanceof AmazonDynamoDBException){
+    else if (e instanceof AmazonDynamoDBException)
       this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Payload is wrong!"));
-    }else {
+    else {
       logger.warn(Api.Context.getMarker(context), "Unexpected Error during saving a Job", e);
       this.sendErrorResponse(context, new HttpException(BAD_GATEWAY, e.getMessage()));
     }

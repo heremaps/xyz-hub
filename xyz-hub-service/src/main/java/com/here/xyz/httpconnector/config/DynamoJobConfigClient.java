@@ -30,7 +30,6 @@ import com.here.xyz.Payload;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
-import com.here.xyz.httpconnector.util.jobs.Job.Type;
 import com.here.xyz.hub.config.dynamo.DynamoClient;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -39,16 +38,15 @@ import io.vertx.core.Promise;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 /**
  * A client for writing and editing JOBs on a DynamoDb
@@ -116,7 +114,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<List<Job>> getJobs(Marker marker, Type type, Status status, String targetSpaceId) {
+    protected Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 final List<Job> result = new ArrayList<>();
@@ -194,7 +192,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         });
     }
 
-    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Type type) {
+    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 List<ScanFilter> filterList = new ArrayList<>();
@@ -247,9 +245,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     @Override
     protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
-        if(!isUpdate && this.expiration != null){
+        if (!isUpdate && this.expiration != null)
             job.setExp(System.currentTimeMillis() / 1000L + expiration * 24 * 60 * 60);
-        }
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
@@ -265,6 +262,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
             json.put("_sourceKey", job.getSource().getKey());
         if(job.getTarget() != null)
             json.put("_targetKey", job.getTarget().getKey());
+        //TODO: Remove the following hacks from the persistence layer!
         if( json.containsKey(IO_IMPORT_ATTR_NAME) )
             return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
         if( json.containsKey(IO_EXPORT_ATTR_NAME) )

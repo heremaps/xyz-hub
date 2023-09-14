@@ -16,8 +16,9 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.hub.rest;
+package com.here.xyz.hub.rest.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
@@ -34,17 +35,18 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.hub.auth.TestAuthenticator;
+import com.here.xyz.hub.rest.TestSpaceWithFeature;
+import com.here.xyz.hub.rest.TestWithSpaceCleanup;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.exceptions.InvalidGeometryException;
 import com.here.xyz.models.geojson.implementation.Point;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class JobApiGeneralIT extends JobApiIT {
@@ -56,7 +58,7 @@ public class JobApiGeneralIT extends JobApiIT {
     public static void init(){
         cleanUpEnv(scope);
         prepareEnv(scope);
-        createSpaceWithCustomStorage(getScopedSpaceId(newSpace, scope), "psql", null);
+        TestSpaceWithFeature.createSpaceWithCustomStorage(getScopedSpaceId(newSpace, scope), "psql", null);
     }
 
     @AfterClass
@@ -64,20 +66,20 @@ public class JobApiGeneralIT extends JobApiIT {
         cleanUpEnv(scope);
 
         deleteAllJobsOnSpace(getScopedSpaceId(newSpace, scope));
-        removeSpace(getScopedSpaceId(newSpace, scope));
+        TestWithSpaceCleanup.removeSpace(getScopedSpaceId(newSpace, scope));
     }
 
     @Test
     public void getAllJobsOnSpace() {
         deleteAllJobsOnSpace(getScopedSpaceId(newSpace, scope));
         /** Create test job */
-        createTestJobWithId(getScopedSpaceId(newSpace, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        createTestJobWithId(getScopedSpaceId(newSpace, scope), testJobId,  JobApiIT.Type.Import, JSON_WKB);
 
         /** Get all jobs */
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .get("/spaces/" + getScopedSpaceId(newSpace, scope) + "/jobs")
                 .then()
                 .body("size()", equalTo(1))
@@ -88,7 +90,7 @@ public class JobApiGeneralIT extends JobApiIT {
     public void createJobWithExistingId(){
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId1, scope));
         /** Create job */
-        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, JSON_WKB);
 
         /** Create job with same Id */
         postJob(job,getScopedSpaceId(testSpaceId1, scope))
@@ -115,12 +117,12 @@ public class JobApiGeneralIT extends JobApiIT {
     @Test
     public void getJob(){
         /** Create job */
-        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, JSON_WKB);
 
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId())
                 .then()
                 .body("createdAt", notNullValue())
@@ -128,7 +130,7 @@ public class JobApiGeneralIT extends JobApiIT {
                 .body("id", equalTo(job.getId()))
                 .body("description", equalTo("Job Description"))
                 .body("status", equalTo(Job.Status.waiting.toString()))
-                .body("csvFormat", equalTo(Job.CSVFormat.JSON_WKB.toString()))
+                .body("csvFormat", equalTo(JSON_WKB.toString()))
                 .body("importObjects.size()", equalTo(0))
                 .body("type", equalTo(Import.class.getSimpleName()))
                 .statusCode(OK.code());
@@ -136,25 +138,25 @@ public class JobApiGeneralIT extends JobApiIT {
 
     @Test
     public void updateMutableFields() {
-        /** Create job */
-        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        //Create job
+        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, JSON_WKB);
 
-        /** Modify job */
+        //Modify job
         Job modified = new Import()
                 .withId(testJobId + CService.currentTimeMillis())
                 .withDescription("New Description")
-                .withCsvFormat(Job.CSVFormat.JSON_WKB);
+                .withCsvFormat(JSON_WKB);
 
         patchJob(modified,"/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/" + job.getId())
                 .body("description", equalTo("New Description"))
-                .body("csvFormat", equalTo(Job.CSVFormat.JSON_WKB.toString()))
+                .body("csvFormat", equalTo(JSON_WKB.toString()))
                 .statusCode(OK.code());
     }
 
     @Test
     public void updateImmutableFields() throws MalformedURLException {
         /** Create job */
-        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, JSON_WKB);
 
         /** Modify job */
         Job modified = new Import()
@@ -192,12 +194,12 @@ public class JobApiGeneralIT extends JobApiIT {
     @Test
     public void createUploadUrlJob() throws InterruptedException {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, JSON_WKB);
 
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/" + job.getId() + "/execute?command=createUploadUrl")
                 .then()
                 .statusCode(CREATED.code());
@@ -218,7 +220,7 @@ public class JobApiGeneralIT extends JobApiIT {
     @Test
     public void createValidExportJob(){
         /** Create job */
-        createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  Job.Type.Export, Job.CSVFormat.JSON_WKB);
+        createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Export, JSON_WKB);
     }
 
     @Test

@@ -19,8 +19,14 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
 import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Spaces;
@@ -31,6 +37,10 @@ import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A job which consists of multiple child-jobs.
@@ -49,30 +59,32 @@ import java.util.List;
  */
 public class CombinedJob extends Job<CombinedJob> {
 
+  private static final Logger logger = LogManager.getLogger();
+
   private List<Job> children = new ArrayList<>();
 
+  @JsonIgnore
+  private AtomicBoolean executing = new AtomicBoolean();
+
   public CombinedJob() {
-    //Set basic defaults
-    setCreatedAt(Core.currentTimeMillis() / 1000L);
-    setUpdatedAt(getCreatedAt());
-    setId(Job.generateRandomId());
-    setStatus(waiting);
+    super();
+    setId(generateRandomId());
   }
 
   @Override
   public Future<CombinedJob> init() {
+    //Set basic defaults
+    setStatus(waiting); //TODO: Initialize fields at instantiation time (once DynamoJobConfigClient is fixed to use STATIC_MAPPER)
     //Instantiate / fill the child-jobs
     return createChildren();
   }
 
   @Override
   public Future<Job> prepareStart() {
-    return null;
-  }
-
-  @Override
-  public Future<Job> executeStart() {
-    return null;
+    List<Future<Job>> futures = new ArrayList<>();
+    for (Job childJob : children)
+      futures.add(childJob.prepareStart());
+    return Future.all(futures).map(cf -> this);
   }
 
   private Future<CombinedJob> createChildren() {
@@ -82,7 +94,7 @@ public class CombinedJob extends Job<CombinedJob> {
     if (!(getTarget() instanceof Files))
       return Future.failedFuture(new ValidationException("CombinedJob supports only a target of type \"Files\"."));
 
-    List<Future<Void>> childFutures = new ArrayList<>();
+    List<Future<Job>> childFutures = new ArrayList<>();
     List<String> spaceIds = ((Spaces) getSource()).getSpaceIds();
     for (int i = 0; i < spaceIds.size(); i++) {
       final int childNo = i;
@@ -93,20 +105,20 @@ public class CombinedJob extends Job<CombinedJob> {
                 .withId(getId() + "-" + childNo)
                 .withSource(new DatasetDescription.Space().withId(spaceId))
                 .withTarget(getTarget());
-
             setChildJobParams(job, space);
-
-            children.add(job);
-
-            return Future.succeededFuture();
+            return Future.succeededFuture(job);
           }));
     }
 
-    return Future.all(childFutures).map(v -> this);
+    return Future.all(childFutures).map(compositeFuture -> {
+      children.addAll(compositeFuture.list());
+      return this;
+    });
   }
 
   private void setChildJobParams(Job childJob, Space space) {
-    childJob.setDefaults(); //TODO: Do field initialization at instance initialization time
+    childJob.setChildJob(true); //TODO: Replace that hack once the scheduler flow was refactored
+    childJob.init(); //TODO: Do field initialization at instance initialization time
     childJob.withTargetConnector(space.getStorage().getId());
     childJob.addParam("versionsToKeep", space.getVersionsToKeep());
     childJob.addParam("persistExport", space.isPersistExport());
@@ -119,8 +131,45 @@ public class CombinedJob extends Job<CombinedJob> {
           List<Future<Job>> futures = new ArrayList<>();
           for (Job childJob : children)
             futures.add(childJob.isValidForStart());
-          return Future.all(futures).compose(v -> Future.succeededFuture(this));
+          return Future.all(futures).map(cf -> this);
         });
+  }
+
+  /**
+   * @deprecated This is a workaround which is needed until the scheduler flow is fixed / refactored.
+   * Please do not rely on this method or use it for other purposes than the current usage.
+   * @return
+   */
+  @Deprecated
+  private Future<List<Job>> reloadChildren() {
+    List<Future<Job>> reloadFutures = children
+        .stream()
+        .map(childJob -> CService.jobConfigClient.get(getMarker(), childJob.getId()))
+        .collect(Collectors.toList());
+    return Future.all(reloadFutures)
+        .map(cf -> {
+          List<Job> reloadedChildren = cf.list();
+          for (int i = 0; i < reloadedChildren.size(); i++)
+            if (reloadedChildren.get(i) == null) {
+              reloadedChildren.set(i, children.get(i));
+              logger.warn(getMarker(), "Child job with Id {} could not be reloaded.", children.get(i).getId());
+            }
+          return reloadedChildren;
+        });
+
+  }
+
+  @Override
+  public Future<Job> executeStart() {
+    return isValidForStart()
+        .compose(job -> prepareStart())
+        .compose(job -> enqueue());
+  }
+
+  private Future<Job> enqueue() {
+    CService.exportQueue.addJob(this);
+    children.forEach(childJob -> CService.exportQueue.addJob(childJob));
+    return Future.succeededFuture(this);
   }
 
   @Override
@@ -129,30 +178,95 @@ public class CombinedJob extends Job<CombinedJob> {
     super.finalizeJob();
   }
 
+  protected void isValidForRetry() throws HttpException {
+    throw new HttpException(PRECONDITION_FAILED, "Retry is not supported for CombinedJobs.");
+  }
+
   @Override
   public void resetToPreviousState() throws Exception {
-
+    //TODO: implement once retries are supported
   }
 
   @Override
   public String getQueryIdentifier() {
+    //NOTE: Not needed for CombinedJobs, as the CombinedJob itself does not run any queries on the DB
     return null;
   }
 
   @Override
-  public void execute() {
-
-  }
-
-  public List<Job> getChildren() {
-    return children;
+  public Future<Job> isProcessingPossible() {
+    List<Future<Job>> futures = new ArrayList<>();
+    for (Job childJob : children)
+      futures.add(childJob.isProcessingPossible());
+    return Future.any(futures).map(cf -> this);
   }
 
   @Override
-  public CombinedJob validate() throws HttpException {
-    for (Job job : children)
-      job.validate();
-    return this;
+  public void execute() {
+    if (executing.compareAndSet(false, true)) {
+      setExecutedAt(Core.currentTimeMillis() / 1000L);
+      new Thread(() -> {
+        while (children.stream().anyMatch(childJob -> !childJob.getStatus().isFinal())) {
+          reloadChildren().onSuccess(reloadedChildren -> {
+            children = reloadedChildren;
+            store();
+          });
+          checkForNonSucceededChildren();
+          try {
+            Thread.sleep(1000);
+          }
+          catch (InterruptedException ignored) {}
+        }
+        checkForNonSucceededChildren();
+        //Everything is processed
+        logger.info("job[{}] CombinedJob completely succeeded!", getId());
+//        addStatistic(statistic);
+        updateJobStatus(this, executed);
+      }).start();
+    }
+  }
+
+  private void checkForNonSucceededChildren() {
+    Status nonSucceededStatus = null;
+    if (children.stream().anyMatch(childJob -> childJob.getStatus() == failed))
+      nonSucceededStatus = failed;
+    else if (children.stream().anyMatch(childJob -> childJob.getStatus() == aborted))
+      nonSucceededStatus = aborted;
+
+    if (nonSucceededStatus != null) {
+      Status combinedEndStatus = nonSucceededStatus;
+      abortAllNonFinalChildren()
+          .compose(job -> updateJobStatus(job, combinedEndStatus));
+    }
+  }
+
+  private Future<Job> abortAllNonFinalChildren() {
+    List<Job> nonFinalChildren = children
+        .stream()
+        .filter(childJob -> !childJob.getStatus().isFinal())
+        .collect(Collectors.toList());
+    List<Future<Job>> childrenAbortFutures = new ArrayList<>();
+    for (Job childJob : nonFinalChildren)
+      childrenAbortFutures.add(childJob.executeAbort());
+
+    return Future
+        .all(childrenAbortFutures)
+        .map(compositeFuture -> this);
+  }
+
+  public List<Job> getChildren() {
+    return new ArrayList<>(children);
+  }
+
+  @Override
+  public Future<CombinedJob> validate() {
+    return Future.succeededFuture(this)
+        .compose(job -> {
+          List<Future<Job>> futures = new ArrayList<>();
+          for (Job childJob : children)
+            futures.add(childJob.validate());
+          return Future.all(futures).map(cf -> this);
+        });
   }
 
   public Future<CombinedJob> store() {

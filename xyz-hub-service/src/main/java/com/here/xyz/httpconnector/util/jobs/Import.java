@@ -27,6 +27,7 @@ import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
@@ -37,6 +38,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
+import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.CompositeFuture;
@@ -82,7 +84,7 @@ public class Import extends Job<Import> {
             return Future.succeededFuture(jobId);
         else
             //Check if other import is running on target
-            return CService.jobConfigClient.getRunningJobsOnSpace(getMarker(), getTargetSpaceId(), Type.Import);
+            return CService.jobConfigClient.getRunningJobsOnSpace(getMarker(), getTargetSpaceId(), "Import");
     }
 
     private Future<Job> checkRunningJobs() {
@@ -98,17 +100,30 @@ public class Import extends Job<Import> {
 
     @Override
     public Future<Import> init() {
-        return null;
+        return setDefaults();
     }
 
-    public Import() {}
+    @Override
+    public Future<Import> validate() {
+        return super.validate()
+            .compose(job ->  HubWebClient.getSpaceStatistics(getTargetSpaceId())
+            .compose(statistics -> {
+                long value = statistics.getCount().getValue();
+                if (value != 0)
+                    return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Layer is not empty!"));
+                return Future.succeededFuture(this);
+            }))
+            .compose(j -> Future.succeededFuture(j), e -> e instanceof HttpException ? Future.failedFuture(e)
+                : Future.failedFuture(new HttpException(BAD_REQUEST, e.getMessage(), e)));
+    }
 
-    public Import(String description, String targetSpaceId, String targetTable,CSVFormat csvFormat, Strategy strategy) {
-        this.description = description;
-        this.targetSpaceId = targetSpaceId;
-        this.targetTable = targetTable;
-        this.csvFormat = csvFormat;
-        this.strategy = strategy;
+    public Import() {
+        super();
+    }
+
+    public Import(String description, String targetSpaceId, String targetTable, CSVFormat csvFormat, Strategy strategy) {
+        super(description, targetSpaceId, targetTable, strategy);
+        setCsvFormat(csvFormat);
     }
 
     public static Import validateImportObjects(Import job){
@@ -271,6 +286,23 @@ public class Import extends Job<Import> {
     @Override
     public String getQueryIdentifier() {
         return "import_hint";
+    }
+
+    @Override
+    public boolean needRdsCheck() {
+        //In next stage we perform the import
+        if (getStatus().equals(Job.Status.prepared))
+            return true;
+        //In next stage we create indices + other finalizations
+        if (getStatus().equals(Job.Status.executed))
+            return true;
+        return false;
+    }
+
+    public Future<Job> executeStart() {
+        return isValidForStart()
+            .compose(job -> prepareStart())
+            .onSuccess(job -> CService.importQueue.addJob(job));
     }
 
     @Override
