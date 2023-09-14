@@ -194,6 +194,10 @@ public class CService extends Core {
      */
     public int HTTP_PORT;
     /**
+     * The router builder class names, separated by comma
+     */
+    public String ROUTER_BUILDER_CLASS_NAMES;
+    /**
      * ECPS_PHRASE of Default Connector
      */
     public String ECPS_PHRASE;
