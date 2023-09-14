@@ -280,9 +280,6 @@ public class Export extends Job<Export> {
             .compose(job -> {
                 Incremental incremental = Incremental.of((String) getParam("incremental"));
                 if (incremental != null && incremental != DEACTIVATED) {
-                    if (incremental.equals(ApiParam.Query.Incremental.CHANGES) && includesSecondLevelExtension())
-                        return Future.failedFuture(new HttpException(NOT_IMPLEMENTED,
-                            "Incremental Export of CHANGES is not supported for 2nd Level composite spaces!"));
 
 	            switch( getCsvFormat() )
         	    { case TILEID_FC_B64: case PARTITIONID_FC_B64 : break;

@@ -503,8 +503,8 @@ public class JobApiIT extends TestSpaceWithFeature {
 
         String result = downloadAndCheck(urls, expectedByteSize, 0, csvMustContain);
         for (String fc64: result.split("\n")) {
-            tileIds.add(fc64.substring(0,fc64.lastIndexOf("\t")));
-            FeatureCollection fc = XyzSerializable.deserialize(new String(Base64.getDecoder().decode((fc64.substring(fc64.lastIndexOf("\t")+1)))));
+            tileIds.add(fc64.substring(0,fc64.lastIndexOf(",")));
+            FeatureCollection fc = XyzSerializable.deserialize(new String(Base64.getDecoder().decode((fc64.substring(fc64.lastIndexOf(",")+1)))));
             featureCount += fc.getFeatures().size();
         }
 
