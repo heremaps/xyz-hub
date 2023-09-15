@@ -34,10 +34,10 @@ import com.amazonaws.services.cloudwatch.model.MetricStat;
 import com.here.xyz.httpconnector.CService;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
@@ -47,15 +47,33 @@ public class AwsCWClient {
 
     private final AmazonCloudWatch client;
     private static final String RDS_NAMESPACE = "AWS/RDS";
+    private static final String DB_CLUSTER_IDENTIFIER = "DBClusterIdentifier";
     private static final DecimalFormat DF = new DecimalFormat("0.0000");
-    private static final HashMap<String,String> METRIC_MAP = new HashMap<String,String>(){{
+
+    private static final HashMap<String,String> METRIC_MAP = new HashMap(){{
         put("DatabaseConnections","dbConnections");
+        put("ACUUtilization","acuUtilization");
         put("CPUUtilization","cpuLoad");
         put("FreeableMemory","freemem");
         put("WriteThroughput","writeThroughput");
         put("NetworkReceiveThroughput","networkReceiveThroughput");
         put("ServerlessDatabaseCapacity","capacity");
     }};
+
+    public enum Role {
+        READER, WRITER;
+
+        public static Role of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
 
     public AwsCWClient(){
         final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
@@ -72,18 +90,25 @@ public class AwsCWClient {
         this.client = builder.build();
     }
 
-    public JSONObject getAvg5MinRDSMetrics(String dbInstanceIdentifier) {
-        return getRDSMetrics(dbInstanceIdentifier , 5 , 5 * 60 , "Average" );
+    public JSONObject getAvg5MinRDSMetrics(String dBClusterIdentifier) {
+        return getRDSMetrics(dBClusterIdentifier , 5 , 5 * 60 , "Average", Role.READER);
     }
 
-    private JSONObject getRDSMetrics(String dbInstanceIdentifier, int timeRangeInMin, int periodInSec, String statistic) {
-        final Dimension dimension = new Dimension().withName("DBInstanceIdentifier").withValue(dbInstanceIdentifier);
+    public JSONObject getAvg5MinRDSMetrics(String dBClusterIdentifier, Role role) {
+        return getRDSMetrics(dBClusterIdentifier , 5 , 5 * 60 , "Average", role);
+    }
+
+    private JSONObject getRDSMetrics(String dBClusterIdentifier, int timeRangeInMin, int periodInSec, String statistic, Role role) {
+        List<Dimension> dimensions = new ArrayList<>();
+        dimensions.add(new Dimension().withName(DB_CLUSTER_IDENTIFIER).withValue(dBClusterIdentifier));
+        dimensions.add(new Dimension().withName("Role").withValue(role.toString()));
+
         final Date endTime = new Date();
 
         List<MetricDataQuery> metricDataQueryList = new ArrayList<>();
 
         METRIC_MAP.keySet().forEach(
-                metric ->  metricDataQueryList.add(createMetricDataQuery(dimension, metric, statistic, periodInSec))
+                metric ->  metricDataQueryList.add(createMetricDataQuery(dimensions, metric, statistic, periodInSec))
         );
 
         final GetMetricDataRequest getMetricDataRequest = new GetMetricDataRequest()
@@ -123,9 +148,10 @@ public class AwsCWClient {
         return rdsStatistic;
     }
 
-    private MetricDataQuery createMetricDataQuery(Dimension dimension, String metricName, String statistic, int periodInSec){
-              final Metric metric = new Metric()
-                .withDimensions(Collections.singletonList(dimension))
+    private MetricDataQuery createMetricDataQuery(List<Dimension> dimensions, String metricName, String statistic, int periodInSec){
+
+        final Metric metric = new Metric()
+                .withDimensions(dimensions)
                 .withMetricName(metricName)
                 .withNamespace(RDS_NAMESPACE);
 

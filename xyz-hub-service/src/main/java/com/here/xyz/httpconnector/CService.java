@@ -49,11 +49,6 @@ public class CService extends Core {
   public static final String HOST_ID = UUID.randomUUID().toString();
 
   /**
-   * The client to access databases for maintenanceTasks
-   */
-  public static MaintenanceClient maintenanceClient;
-
-  /**
    * The client to access job configs
    */
   public static JobConfigClient jobConfigClient;
@@ -98,7 +93,6 @@ public class CService extends Core {
   public static WebClient webClient;
 
   public static final List<String> supportedConnectors = new ArrayList<>();
-  public static final HashMap<String, String> rdsLookupDatabaseIdentifier = new HashMap<>();
   public static final HashMap<String, Integer> rdsLookupCapacity = new HashMap<>();
 
   private static final Logger logger = LogManager.getLogger();
@@ -119,8 +113,7 @@ public class CService extends Core {
         String[] config = rdsConfig.split(":");
         String cId = config[0];
         supportedConnectors.add(cId);
-        rdsLookupDatabaseIdentifier.put(cId, config[1]);
-        rdsLookupCapacity.put(cId, Integer.parseInt(config[2]));
+        rdsLookupCapacity.put(cId, Integer.parseInt(config[1]));
       }
       supportedConnectors.add(JDBCClients.CONFIG_CLIENT_ID);
     }catch (Exception e){
@@ -128,7 +121,6 @@ public class CService extends Core {
       throw new RuntimeException("Configuration-Error - please check service config!",e);
     }
 
-    maintenanceClient = new MaintenanceClient();
     jobConfigClient = JobConfigClient.getInstance();
 
     jobConfigClient.init(jobConfigReady -> {
@@ -141,12 +133,17 @@ public class CService extends Core {
                 .setTcpQuickAck(true)
                 .setTcpFastOpen(true));
 
-        jdbcImporter = new JDBCImporter();
         jobSecretClient = new AwsSecretManagerClient();
         jobS3Client = new JobS3Client();
         jobCWClient = new AwsCWClient();
         importQueue = new ImportQueue();
         exportQueue = new ExportQueue();
+
+        /** Initial initialization of all clients */
+        for (String connectorId : supportedConnectors) {
+            JDBCClients.addClientsIfRequired(connectorId,true)
+                    .onFailure(e -> logger.error("Could not load JDBC Client for connector {}",connectorId, e));
+        }
 
         /** Start Job-Schedulers */
         importQueue.commence();
@@ -180,11 +177,6 @@ public class CService extends Core {
    */
   @JsonIgnoreProperties(ignoreUnknown = true)
   public static class Config {
-    /**
-     * Whether the service should use InstanceProviderCredentialsProfile with cached credential when utilizing AWS clients.
-     */
-    public boolean USE_AWS_INSTANCE_CREDENTIALS_WITH_REFRESH;
-
     /**
      * The arn of the secret (in Secret Manager) that contains bot credentials.
      */
@@ -231,13 +223,9 @@ public class CService extends Core {
      */
     public List<String> JOB_SUPPORTED_RDS;
     /**
-     * RDS maximum ACUs
+     * RDS maximum ACU Utilization 0-100
      */
-    public int JOB_MAX_RDS_CAPACITY;
-    /**
-     * RDS maximum CPU Load in percentage
-     */
-    public int JOB_MAX_RDS_CPU_LOAD;
+    public int JOB_MAX_RDS_MAX_ACU_UTILIZATION;
     /**
      * RDS maximum allowed import bytes
      */
@@ -262,28 +250,19 @@ public class CService extends Core {
      *  DB Pool size per client
      */
     public Integer JOB_DB_POOL_SIZE_PER_CLIENT;
-
+    /**
+     *  DB Pool size per status client
+     */
+    public Integer JOB_DB_POOL_SIZE_PER_STATUS_CLIENT;
+    /**
+     *  DB Pool size per maintenance client
+     */
+    public Integer JOB_DB_POOL_SIZE_PER_MAINTENANCE_CLIENT;
     /** ############## Database related ##################### */
     /**
      * Statement Timeout in Seconds
      */
     public int DB_STATEMENT_TIMEOUT_IN_S;
-    /**
-     * Initial Connection-Pool Size
-     */
-    public int DB_INITIAL_POOL_SIZE;
-    /**
-     * Min size of Connection-Pool
-     */
-    public int DB_MIN_POOL_SIZE;
-    /**
-     * Max size of Connection-Pool
-     */
-    public int DB_MAX_POOL_SIZE;
-    /**
-     * How many connections should get acquired if the pool runs out of available connections.
-     */
-    public int DB_ACQUIRE_INCREMENT;
     /**
      * How many times will try to acquire a new Connection from the database before giving up.
      */
@@ -292,10 +271,6 @@ public class CService extends Core {
      * Max Time to wait for a connection checkout - in Seconds
      */
     public int DB_CHECKOUT_TIMEOUT;
-    /**
-     * Test on checkout if connection is valid
-     */
-    public boolean DB_TEST_CONNECTION_ON_CHECKOUT;
 
     /** Store Jobs inside DB - only possible if no JOBS_DYNAMODB_TABLE_ARN is defined */
     /**

@@ -164,5 +164,4 @@ public class JobHandler {
                 throw new HttpException(BAD_REQUEST, "The property '" + key + "' is immutable!");
         }
     }
-
 }

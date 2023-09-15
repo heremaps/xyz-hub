@@ -38,7 +38,6 @@ public class HApiParam extends ApiParam {
     }
 
     public static class HQuery extends Query{
-        static final String ENABLED_HASHED_SPACE_ID = "enableHashedSpaceId";
         static final String TARGET_SPACEID = "targetSpaceId";
         public static final String FORCE = "force";
         public static final String H_COMMAND = "command";

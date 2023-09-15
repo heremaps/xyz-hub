@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.httpconnector.rest.HttpConnectorApi;
+import com.here.xyz.httpconnector.rest.HttpMaintenanceApi;
 import com.here.xyz.httpconnector.rest.JobApi;
 import com.here.xyz.httpconnector.rest.JobStatusApi;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
@@ -77,6 +78,7 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle {
           populateEnvMap();
 
           new HttpConnectorApi(rb, connector);
+          new HttpMaintenanceApi(rb);
           new JobApi(rb);
 
           final Router router = rb.createRouter();
