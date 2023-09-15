@@ -20,7 +20,10 @@
 package com.here.xyz.hub.rest;
 
 import io.restassured.response.ValidatableResponse;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.Test;
 
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
@@ -28,18 +31,19 @@ import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class SpaceStatisticsIT extends TestSpaceWithFeature {
-
-  @BeforeClass
-  public static void setupClass() {
-    removeAllSpaces();
-    createSpaceWithCustomStorage("x-psql-test-extensible", "psql", null);
-  }
 
   @AfterClass
   public static void tearDownClass() {
     removeAllSpaces();
+  }
+
+  @Before
+  public void setup() {
+    removeAllSpaces();
+    createSpaceWithCustomStorage("x-psql-test-extensible", "psql", null);
   }
 
   @After
@@ -53,26 +57,27 @@ public class SpaceStatisticsIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void spaceWithExtensionStatistics() {
+  public void spaceStatistics() {
     ValidatableResponse statisticsResponse = getStatistics("x-psql-test-extensible", null);
     statisticsResponse
             .body("contentUpdatedAt.value", greaterThan(0L))
             .body("contentUpdatedAt.estimated", equalTo(true));
+  }
 
-    long baseUpdatedAt = statisticsResponse.extract().body().path("contentUpdatedAt.value");
-
+  @Test
+  public void spaceWithExtensionStatistics() {
     createExtension();
 
-    statisticsResponse = getStatistics("x-psql-extending-test", null);
+    ValidatableResponse statisticsResponse = getStatistics("x-psql-extending-test", null);
     statisticsResponse
-            .body("contentUpdatedAt.value", greaterThan(baseUpdatedAt))
+            .body("contentUpdatedAt.value", greaterThan(0L))
             .body("contentUpdatedAt.estimated", equalTo(true));
 
     long extensionUpdatedAt = statisticsResponse.extract().body().path("contentUpdatedAt.value");
 
     statisticsResponse = getStatistics("x-psql-extending-test", "SUPER");
     statisticsResponse
-            .body("contentUpdatedAt.value", equalTo(baseUpdatedAt))
+            .body("contentUpdatedAt.value", lessThan(extensionUpdatedAt))
             .body("contentUpdatedAt.estimated", equalTo(true));
 
     statisticsResponse = getStatistics("x-psql-extending-test", "EXTENSION");

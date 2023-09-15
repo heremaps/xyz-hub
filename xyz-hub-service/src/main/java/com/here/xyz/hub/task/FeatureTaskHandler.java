@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
@@ -1549,34 +1550,27 @@ public class FeatureTaskHandler {
     Promise<Void> p = Promise.promise();
 
     if (task.space.getExtension() != null) {
-      MultiMap queryParams = task.context.get("queryParams");
-      String spaceContextStr = queryParams.entries().stream()
-              .filter(entry -> entry.getKey().equalsIgnoreCase("context"))
-              .map(entry -> entry.getValue().toUpperCase()).findFirst().orElse(null);
-      ContextAwareEvent.SpaceContext spaceContext = ContextAwareEvent.SpaceContext.of(spaceContextStr);
+      SpaceContext spaceContext = task.spaceContext;
       Space.resolveSpace(task.getMarker(), task.space.getExtension().getSpaceId())
               .onSuccess(space -> {
                 long contentUpdatedAt;
-                if (spaceContext == ContextAwareEvent.SpaceContext.SUPER) {
+                if (spaceContext == SUPER) {
                   contentUpdatedAt = space.contentUpdatedAt;
-                } else if (spaceContext == ContextAwareEvent.SpaceContext.DEFAULT) {
-                  contentUpdatedAt = space.contentUpdatedAt > task.space.contentUpdatedAt
-                          ? space.contentUpdatedAt : task.space.contentUpdatedAt;
+                } else if (spaceContext == DEFAULT) {
+                  contentUpdatedAt = Math.max(space.contentUpdatedAt, task.space.contentUpdatedAt);
                 } else {
                   contentUpdatedAt = task.space.contentUpdatedAt;
                 }
-                StatisticsResponse.Value<Long> contentUpdatedAtVal = new StatisticsResponse.Value(contentUpdatedAt);
-                // Due to caching the value of contentUpdatedAt field could be obsolete in some edge cases
-                contentUpdatedAtVal.setEstimated(true);
-                response.setContentUpdatedAt(contentUpdatedAtVal);
+                response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
+                        .withValue(contentUpdatedAt)
+                        .withEstimated(!task.skipCache));
                 p.complete();
               })
               .onFailure(t -> p.fail(t));
     } else {
-      StatisticsResponse.Value<Long> contentUpdatedAtVal = new StatisticsResponse.Value(task.space.contentUpdatedAt);
-      // Due to caching the value of contentUpdatedAt field could be obsolete in some edge cases
-      contentUpdatedAtVal.setEstimated(true);
-      response.setContentUpdatedAt(contentUpdatedAtVal);
+      response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
+              .withValue(task.space.contentUpdatedAt)
+              .withEstimated(!task.skipCache));
       p.complete();
     }
     return p.future();
