@@ -130,14 +130,16 @@ public class RDSStatus {
         private double capacityUnits;
 
         public CloudWatchDBMetric(JSONObject currentMetrics){
+            if(currentMetrics != new JSONObject())
+                return;
             try {
                 this.cpuLoad = (Double) currentMetrics.get("cpuLoad");
                 this.dbConnections = (Double) currentMetrics.get("dbConnections");
                 this.writeThroughput = (Double) currentMetrics.get("writeThroughput");
                 this.freeMem = (Double) currentMetrics.get("freemem");
-                this.acuUsage = Double.parseDouble("acuUtilization");
+                this.acuUsage = (Double) currentMetrics.get("acuUtilization");
                 this.capacityUnits = (Double) currentMetrics.get("capacity");
-            }catch (Exception e){ logger.warn("Can't pars currentMetrics from CW!",e); }
+            }catch (Exception e){ logger.warn("Can't parse currentMetrics from CW!",e); }
         }
 
         public double getCpuLoad() {
