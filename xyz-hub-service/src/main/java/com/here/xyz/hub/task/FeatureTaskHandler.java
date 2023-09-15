@@ -1563,14 +1563,14 @@ public class FeatureTaskHandler {
                 }
                 response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
                         .withValue(contentUpdatedAt)
-                        .withEstimated(!task.skipCache));
+                        .withEstimated(true));
                 p.complete();
               })
               .onFailure(t -> p.fail(t));
     } else {
       response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
               .withValue(task.space.contentUpdatedAt)
-              .withEstimated(!task.skipCache));
+              .withEstimated(true));
       p.complete();
     }
     return p.future();
