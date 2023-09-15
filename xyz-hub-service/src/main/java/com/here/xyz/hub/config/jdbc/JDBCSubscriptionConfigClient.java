@@ -141,8 +141,8 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
         "ON CONFLICT (id) DO " +
         "UPDATE SET id = #{subscriptionId}, source = #{source}, config = cast(#{subscriptionJson} as JSONB)")
         .withNamedParameter("subscriptionId", subscription.getId())
-        .withNamedParameter("subscriptionId", subscription.getSource())
-        .withNamedParameter("subscriptionId", Json.encode(subscription));
+        .withNamedParameter("source", subscription.getSource())
+        .withNamedParameter("subscriptionJson", Json.encode(subscription));
     return JDBCConfig.updateWithParams(query);
   }
 
