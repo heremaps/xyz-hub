@@ -47,7 +47,7 @@ services:
         environment:
             - SWAGGER_JSON_URL=http://localhost:8080/hub/static/openapi/stable.yaml
     aws-localstack:
-        image: "localstack/localstack"
+        image: "localstack/localstack:2.2.0"
         container_name: "aws-localstack"
         hostname: localstack
         ports:
