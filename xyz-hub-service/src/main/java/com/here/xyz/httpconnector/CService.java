@@ -115,7 +115,7 @@ public class CService extends Core {
         supportedConnectors.add(cId);
         rdsLookupCapacity.put(cId, Integer.parseInt(config[1]));
       }
-      supportedConnectors.add(JDBCClients.CONFIG_CLIENT_ID);
+
     }catch (Exception e){
       logger.error("Configuration-Error - please check service config!");
       throw new RuntimeException("Configuration-Error - please check service config!",e);

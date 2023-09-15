@@ -78,20 +78,18 @@ public class JDBCClients {
         /** Add read/write client */
         addClient(id, settings);
 
-        if (!isConfigClient(id)) {
-            /** Add status client */
-            addClient(getStatusClientId(id, false), settings);
+        /** Add status client */
+        addClient(getStatusClientId(id, false), settings);
 
-            /** Add MaintenanceClient */
-            addClient(getMaintenanceClient(id), settings);;
+        /** Add MaintenanceClient */
+        addClient(getMaintenanceClient(id), settings);;
 
-            if(settings.getReplicaHost() != null){
-                /** Add status status ro-client */
-                addClient(getStatusClientId(id, true), settings);
+        if(settings.getReplicaHost() != null){
+            /** Add status status ro-client */
+            addClient(getStatusClientId(id, true), settings);
 
-                /** Add read client, if available */
-                addClient(getReadOnlyClientId(id), settings);;
-            }
+            /** Add read client, if available */
+            addClient(getReadOnlyClientId(id), settings);;
         }
     }
 
