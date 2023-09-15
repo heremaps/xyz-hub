@@ -150,7 +150,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
                 final List<Job> result = new ArrayList<>();
 
-                if(status != null) {
+                if (status != null) {
                     nameMap.put("#status", "status");
                     valueMap.put(":status", status);
                     filterExpression.add("#status = :status");

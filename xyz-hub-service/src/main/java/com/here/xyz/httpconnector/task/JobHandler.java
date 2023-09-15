@@ -48,7 +48,8 @@ public class JobHandler {
     private static List<String> MODIFICATION_WHITELIST = Arrays.asList("description", "csvFormat");
     private static Map<String,String> MODIFICATION_IGNORE_MAP = ImmutableMap.of(
         "createdAt","createdAt",
-        "updatedAt","updatedAt");
+        "updatedAt","updatedAt"/*,
+        "status", "status"*/);
 
     public static Future<Job> loadJob(String jobId, Marker marker) {
         return CService.jobConfigClient.get(marker, jobId)
