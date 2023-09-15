@@ -21,6 +21,7 @@ package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.config.Initializable;
 import io.vertx.core.Future;
@@ -60,7 +61,7 @@ public abstract class JobConfigClient implements Initializable {
                 .onFailure(e -> logger.error(marker, "job[{}]: failed to load! ", jobId, e));
     }
 
-    public Future<List<Job>> getList(Marker marker, String type, Job.Status status, String targetSpaceId) {
+    public Future<List<Job>> getList(Marker marker, String type, Status status, String targetSpaceId) {
         return getJobs(marker, type, status, targetSpaceId)
                 .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
     }
@@ -72,7 +73,7 @@ public abstract class JobConfigClient implements Initializable {
    * @param direction Find all jobs which have the dataset as target, source or both
    * @return All jobs which are reading and or writing into the specified dataset description
    */
-    public Future<List<Job>> getList(Marker marker, Job.Status status, String key, DatasetDirection direction) {
+    public Future<List<Job>> getList(Marker marker, Status status, String key, DatasetDirection direction) {
       //TODO: implement by searching for the key in the stored key of the dataset description. The key will be stored as part of the DatasetDescription within the "key" property @see DatasetDescription#getKey()
       return getJobs(marker, status, key, direction)
               .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
@@ -123,8 +124,8 @@ public abstract class JobConfigClient implements Initializable {
 
     protected abstract Future<Job> getJob(Marker marker, String jobId);
 
-    protected abstract Future<List<Job>> getJobs(Marker marker, String type, Job.Status status, String targetSpaceId);
-    protected abstract Future<List<Job>> getJobs( Marker marker, Job.Status status, String key, DatasetDirection direction);
+    protected abstract Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId);
+    protected abstract Future<List<Job>> getJobs(Marker marker, Status status, String key, DatasetDirection direction);
 
     protected abstract Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type);
 
