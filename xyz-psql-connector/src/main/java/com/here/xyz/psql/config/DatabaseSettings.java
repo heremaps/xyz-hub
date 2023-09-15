@@ -220,7 +220,7 @@ public class DatabaseSettings {
             return null;
 
         //DbClusterIdentifier.ClusterIdentifier.Region.rds.amazonaws.com
-        return host.split(".")[0];
+        return host.split("\\.")[0];
     }
 
     public void setDefaults(){
