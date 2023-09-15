@@ -21,13 +21,11 @@ package com.here.xyz.hub.rest.jobs;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.CHANGES;
 import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 import static org.junit.Assert.assertEquals;
 
@@ -141,16 +139,8 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
             exceptionCnt++;
         }
 
-        job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(Export.ExportTarget.Type.VML).withTargetId("dummy"), PARTITIONID_FC_B64);
-        try {
-            /** unsupported Format - creation fails */
-            performExport(job, testSpaceId1Ext, failed, finalized, DEFAULT, CHANGES);
-        }catch (HttpException e){
-            assertEquals(BAD_REQUEST, e.status);
-            exceptionCnt++;
-        }
         /** Check if we got the expected amount of failures */
-        assertEquals(3, exceptionCnt);
+        assertEquals(2, exceptionCnt);
     }
 
     @Test
@@ -297,11 +287,19 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         /** Incremental Export */
         job =  generateExportJob(testExportJobId+"_2", 6);
 
-        try {
-            performExport(job, testSpaceId1ExtExt, failed, finalized, DEFAULT, CHANGES);
-        }catch (HttpException e){
-            assertEquals(NOT_IMPLEMENTED, e.status);
-        }
+        urls = performExport(job, testSpaceId1ExtExt, failed, finalized, DEFAULT, CHANGES);
+
+        assertEquals(1, urls.size());
+
+        List<String> mustContain = Arrays.asList(
+            "eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0=",  //EmptyFC
+            "pbeyJpZCI6ICJpZDgiLCAidHlwZ",
+            "4949",
+            "5831"
+        );
+
+        downloadAndCheckFC(urls, 492, 1, mustContain, 2);
+
     }
 
     public Export generateExportJob(String id, int targetLevel){

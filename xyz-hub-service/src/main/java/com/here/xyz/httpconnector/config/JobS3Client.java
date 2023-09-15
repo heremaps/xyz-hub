@@ -32,6 +32,7 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.ExportObject;
 import com.here.xyz.httpconnector.util.jobs.validate.Validator;
@@ -329,6 +330,16 @@ public class JobS3Client extends AwsS3Client{
         return null;
     }
 
+    public String getS3Path(String targetSpaceId, String subfolder, boolean subHashed) {
+
+     return String.format("%s/%s/%s", CService.jobS3Client.EXPORT_PERSIST_FOLDER, 
+                                      Hasher.getHash(targetSpaceId), 
+                                      !subHashed ? subfolder : Hasher.getHash(subfolder) );
+                                 
+    }
+
+    public String getS3Path(String targetSpaceId, int targetLevel) { return getS3Path(targetSpaceId, "" + targetLevel, false); }
+
     public String getS3Path(Job job) {
         if(job instanceof Import){
             return IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
@@ -339,16 +350,15 @@ public class JobS3Client extends AwsS3Client{
         if(job instanceof Export && ((Export) job).readParamPersistExport()) {
             Export exportJob = (Export) job;
             if(exportJob.getExportTarget().getType() == Export.ExportTarget.Type.VML && exportJob.getFilters() == null) {
-                String hashedSpaceId = Hasher.getHash(job.getTargetSpaceId());
-                s3Path = CService.jobS3Client.EXPORT_PERSIST_FOLDER + "/" + hashedSpaceId + "/" + exportJob.getTargetLevel();
+              if( job.getCsvFormat() == CSVFormat.TILEID_FC_B64)  
+               s3Path = getS3Path( job.getTargetSpaceId(),exportJob.getTargetLevel() );
+              else
+              { String folder =  exportJob.getPartitionKey() != null && !"id".equalsIgnoreCase(exportJob.getPartitionKey()) ? exportJob.getPartitionKey() : "id";
+                s3Path = getS3Path( job.getTargetSpaceId(), folder, true );
+              }
             }
         }
         return s3Path;
-    }
-
-    public String getS3Path(String targetSpaceId, int targetLevel) {
-        String hashedSpaceId = Hasher.getHash(targetSpaceId);
-        return CService.jobS3Client.EXPORT_PERSIST_FOLDER + "/" + hashedSpaceId + "/" + targetLevel;
     }
 
     public void cleanJobData(Job job, boolean force){
