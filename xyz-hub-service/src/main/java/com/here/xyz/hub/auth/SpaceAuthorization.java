@@ -30,7 +30,6 @@ import static com.here.xyz.hub.auth.XyzHubAttributeMap.SORTABLE_PROPERTIES;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static com.here.xyz.hub.auth.XyzHubAttributeMap.STORAGE;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -88,11 +87,6 @@ public class SpaceAuthorization extends Authorization {
       if (task.canReadConnectorsProperties) {
         final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
         task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
-      }
-
-      if (!authorizationHandler.authorize(task.context)) {
-        callback.exception(new HttpException(UNAUTHORIZED, "Unauthorized access: " + task.context.request().method() + " " + task.context.request().path()));
-        return;
       }
 
       /*
@@ -277,10 +271,6 @@ public class SpaceAuthorization extends Authorization {
           }
 
           evaluateRights(requestRights, tokenRights, task, callback);
-
-          if (!authorizationHandler.authorize(task.context)) {
-            callback.exception(new HttpException(UNAUTHORIZED, "Unauthorized access: " + task.context.request().method() + " " + task.context.request().path()));
-          }
         }).exceptionally(t -> {
           logger.error((Marker) task.context.get("marker"), "Exception while checking connector permissions", t);
           callback.exception(t);

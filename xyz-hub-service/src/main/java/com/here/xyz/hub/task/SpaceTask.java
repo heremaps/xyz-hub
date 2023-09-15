@@ -25,6 +25,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.google.common.base.Strings;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.SpaceAuthorization;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceAuthorizationCondition;
 import com.here.xyz.hub.config.SpaceConfigClient.SpaceSelectionCondition;
@@ -141,6 +142,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     @Override
     public TaskPipeline createPipeline() {
       return TaskPipeline.create(this)
+          .then(Authorization::authorize)
           .then(SpaceAuthorization::authorizeReadSpaces)
           .then(SpaceTaskHandler::readFromJWT)
           .then(SpaceTaskHandler::readSpaces)
@@ -195,6 +197,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
           .then(SpaceTaskHandler::handleReadOnlyUpdate)
           .then(SpaceTaskHandler::validate)
           .then(SpaceTaskHandler::resolveExtensions)
+          .then(Authorization::authorize)
           .then(SpaceAuthorization::authorizeModifyOp)
           .then(SpaceTaskHandler::enforceUsageQuotas)
           .then(SpaceTaskHandler::sendEvents)

@@ -41,6 +41,7 @@ import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -264,6 +265,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::resolveSpace)
           .then(this::resolveRefSpace)
           .then(this::resolveRefConnector)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(this::loadObject)
           .then(this::verifyResourceExists)
@@ -390,6 +392,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<BBoxQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
@@ -418,6 +421,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<TileQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
@@ -452,6 +456,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::validateReadFeaturesParams)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::readCache)
@@ -470,6 +475,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<LoadFeaturesQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -488,6 +494,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<IterateQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
@@ -507,6 +514,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<SearchQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
@@ -526,6 +534,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<GetStatistics> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -622,6 +631,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::verifyResourceExists)
           .then(FeatureTaskHandler::updateTags)
           .then(FeatureTaskHandler::processConditionalOp)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
           .then(FeatureTaskHandler::extractUnmodifiedFeatures)
@@ -675,6 +685,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::injectSpaceParams)
+          .then(Authorization::authorize)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
           .then(FeatureTaskHandler::invoke);

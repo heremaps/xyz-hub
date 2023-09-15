@@ -2,7 +2,7 @@ package com.here.xyz.hub;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.here.xyz.hub.auth.Authorization;
+import com.here.xyz.hub.auth.AuthorizationType;
 import com.here.xyz.hub.util.ARN;
 import java.util.Arrays;
 import java.util.Collections;
@@ -132,7 +132,7 @@ public class Config {
   /**
    * The authorization type.
    */
-  public Authorization.AuthorizationType XYZ_HUB_AUTH;
+  public AuthorizationType XYZ_HUB_AUTH;
 
   /**
    * The public key used for verifying the signature of the JWT tokens.
