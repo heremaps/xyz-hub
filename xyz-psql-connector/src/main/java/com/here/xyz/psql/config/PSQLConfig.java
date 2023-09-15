@@ -26,6 +26,7 @@ import static com.here.xyz.psql.config.DatabaseSettings.PSQL_PORT;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_REPLICA_HOST;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_SCHEMA;
 import static com.here.xyz.psql.config.DatabaseSettings.PSQL_USER;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_REPLICA_USER;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -107,7 +108,7 @@ public class PSQLConfig {
 
       for (String key : decodedECPSDatabaseSettings.keySet()){
         switch (key){
-          case DatabaseSettings.PSQL_DB: databaseSettings.setDb((String) decodedECPSDatabaseSettings.get(PSQL_DB));
+          case PSQL_DB: databaseSettings.setDb((String) decodedECPSDatabaseSettings.get(PSQL_DB));
             break;
           case PSQL_HOST: databaseSettings.setHost((String) decodedECPSDatabaseSettings.get(PSQL_HOST));
             break;
@@ -116,6 +117,8 @@ public class PSQLConfig {
           case PSQL_PORT: databaseSettings.setPort(Integer.parseInt((String)decodedECPSDatabaseSettings.get(PSQL_PORT)));
             break;
           case PSQL_REPLICA_HOST: databaseSettings.setReplicaHost((String) decodedECPSDatabaseSettings.get(PSQL_REPLICA_HOST));
+            break;
+          case PSQL_REPLICA_USER: databaseSettings.setPsqlReplicaUser((String) decodedECPSDatabaseSettings.get(PSQL_REPLICA_USER));
             break;
           case PSQL_SCHEMA: databaseSettings.setSchema((String) decodedECPSDatabaseSettings.get(PSQL_SCHEMA));
             break;

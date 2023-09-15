@@ -94,6 +94,9 @@ public class ECPSTool {
         case PSQL_REPLICA_HOST:
           databaseSettings.setReplicaHost((String) decodedEcps.get(PSQL_REPLICA_HOST));
           break;
+        case PSQL_REPLICA_USER:
+          databaseSettings.setPsqlReplicaUser((String) decodedEcps.get(PSQL_REPLICA_USER));
+          break;
         case PSQL_SCHEMA:
           databaseSettings.setSchema((String) decodedEcps.get(PSQL_SCHEMA));
           break;
