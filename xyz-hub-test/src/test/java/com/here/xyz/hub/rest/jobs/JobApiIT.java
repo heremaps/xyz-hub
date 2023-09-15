@@ -324,7 +324,7 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     protected static void uploadDummyFile(URL url, int type) throws IOException {
-        url = new URL(url.toString().replace("localstack","localhost"));
+        url = new URL(url.toString().replace("//localstack","//localhost"));
 
         String input;
         switch (type){
@@ -468,7 +468,7 @@ public class JobApiIT extends TestSpaceWithFeature {
 
         for (URL url : urls) {
             System.out.println("Download: "+url);
-            url = new URL(url.toString().replace("localstack","localhost"));
+            url = new URL(url.toString().replace("//localstack","//localhost"));
             BufferedInputStream bis = new BufferedInputStream(url.openStream());
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
 
