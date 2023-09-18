@@ -29,6 +29,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.Payload;
 import com.here.xyz.events.Event;
+import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.AWSLambda;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
@@ -334,9 +335,9 @@ public class Connector {
      * If a request from a {@link com.here.xyz.hub.connectors.RemoteFunctionClient} exceeds the timeout,
      * the request to the connector will be cancelled and the user will receive an HTTP 504 response.
      * If not specified, the default value for this property
-     * is {@link com.here.xyz.hub.Service.Config#REMOTE_FUNCTION_REQUEST_TIMEOUT} * 1000.
+     * is {@link Config#REMOTE_FUNCTION_REQUEST_TIMEOUT} * 1000.
      *
-     * NOTE: This value may never be higher than {@link com.here.xyz.hub.Service.Config#REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT} * 1000.
+     * NOTE: This value may never be higher than {@link Config#REMOTE_FUNCTION_MAX_REQUEST_TIMEOUT} * 1000.
      */
     public int timeoutMs;
 

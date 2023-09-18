@@ -21,9 +21,9 @@ package com.here.xyz.hub.connectors;
 
 import static org.junit.Assert.assertEquals;
 
+import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.Vertx;
 import java.util.concurrent.ScheduledFuture;
@@ -31,7 +31,6 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 @SuppressWarnings("unused")
 public class RFCMeasurement {

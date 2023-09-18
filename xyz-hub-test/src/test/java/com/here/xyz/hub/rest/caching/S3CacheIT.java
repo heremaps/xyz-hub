@@ -22,7 +22,7 @@ package com.here.xyz.hub.rest.caching;
 import static org.junit.Assert.assertEquals;
 
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.Service.Config;
+import com.here.xyz.hub.Config;
 import com.here.xyz.hub.cache.CacheClient;
 import com.here.xyz.hub.cache.S3CacheClient;
 import com.here.xyz.hub.rest.RestAssuredTest;

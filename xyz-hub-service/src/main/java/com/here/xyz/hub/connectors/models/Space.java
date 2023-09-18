@@ -127,7 +127,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
       return Future.succeededFuture(Collections.emptyMap());
 
     return resolveSpace(marker, getExtension().getSpaceId())
-        .flatMap(extendedSpace -> extendedSpace == null ?
+        .compose(extendedSpace -> extendedSpace == null ?
                 Future.failedFuture(new InvalidExtensionException("Unable to load extended resource with id: " + getExtension().getSpaceId())):
                 Future.succeededFuture(resolveCompositeParams(extendedSpace)));
   }

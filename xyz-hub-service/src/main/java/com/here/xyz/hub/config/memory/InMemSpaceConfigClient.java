@@ -23,9 +23,7 @@ import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.psql.SQLQuery;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,12 +36,7 @@ import org.apache.logging.log4j.Marker;
 @SuppressWarnings("unused")
 public class InMemSpaceConfigClient extends SpaceConfigClient {
 
-  private Map<String, Space> spaceMap = new ConcurrentHashMap<>();
-
-  @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
-    onReady.handle(Future.succeededFuture());
-  }
+  private final Map<String, Space> spaceMap = new ConcurrentHashMap<>();
 
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
@@ -93,7 +86,8 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
       });
     }
 
-    Predicate<Space> contentUpdatedAtFilter = s -> propsQuery != null? contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList, 1) : true;
+    Predicate<Space> contentUpdatedAtFilter = s -> propsQuery == null || contentUpdatedAtOperation(s.contentUpdatedAt, contentUpdatedAtList,
+        1);
 
     List<Space> spaces = spaceMap.values().stream()
         .filter(authorizationFilter)

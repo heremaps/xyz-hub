@@ -1,7 +1,7 @@
 package com.here.xyz.hub.connectors;
 
+import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;

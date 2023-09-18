@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.task;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
@@ -100,7 +101,6 @@ import com.here.xyz.responses.StatisticsResponse.PropertiesStatistics.Searchable
 import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
-import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
@@ -811,7 +811,7 @@ public class FeatureTaskHandler {
           .compose(
               space -> {
                 if (space != null) {
-                  if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent && SUPER.equals(((ContextAwareEvent<?>) task.getEvent()).getContext()))
+                  if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent && SUPER == ((ContextAwareEvent<?>) task.getEvent()).getContext())
                     return switchToSuperSpace(task, space);
                   task.space = space;
                   //Inject the extension-map
@@ -848,6 +848,7 @@ public class FeatureTaskHandler {
     }
   }
 
+  //TODO: Remove the following hack and perform the switch to super within connector (GetFeatures QR) instead
   private static <X extends FeatureTask> Future<Space> switchToSuperSpace(X task, Space space) {
     //Overwrite the event's space ID to be the ID of the extended (super) space ...
     task.getEvent().setSpace(space.getExtension().getSpaceId());
@@ -1517,7 +1518,10 @@ public class FeatureTaskHandler {
         //Ensure the StatisticsResponse is correctly set-up
         StatisticsResponse response = (StatisticsResponse) task.getResponse();
         defineGlobalSearchableField(response, task);
-        defineContentUpdatedAtField(response, task);
+        defineContentUpdatedAtField(response, (FeatureTask.GetStatistics) task)
+                .onSuccess(r -> callback.call(task))
+                .onFailure(t -> callback.exception(t));
+        return;
       }
     } else if (task instanceof FeatureTask.IdsQuery) {
       //Ensure to return a FeatureCollection when there are multiple features in the response (could happen e.g. for a virtual-space)
@@ -1543,11 +1547,34 @@ public class FeatureTaskHandler {
     }
   }
 
-  private static void defineContentUpdatedAtField(StatisticsResponse response, FeatureTask task) {
-    StatisticsResponse.Value<Long> contentUpdatedAtVal = new StatisticsResponse.Value(task.space.contentUpdatedAt);
-    // Due to caching the value of contentUpdatedAt field could be obsolete in some edge cases
-    contentUpdatedAtVal.setEstimated(true);
-    response.setContentUpdatedAt(contentUpdatedAtVal);
+  private static Future<Void> defineContentUpdatedAtField(StatisticsResponse response, FeatureTask.GetStatistics task) {
+    Promise<Void> p = Promise.promise();
+
+    if (task.space.getExtension() != null) {
+      SpaceContext spaceContext = task.spaceContext;
+      Space.resolveSpace(task.getMarker(), task.space.getExtension().getSpaceId())
+              .onSuccess(space -> {
+                long contentUpdatedAt;
+                if (spaceContext == SUPER) {
+                  contentUpdatedAt = space.contentUpdatedAt;
+                } else if (spaceContext == DEFAULT) {
+                  contentUpdatedAt = Math.max(space.contentUpdatedAt, task.space.contentUpdatedAt);
+                } else {
+                  contentUpdatedAt = task.space.contentUpdatedAt;
+                }
+                response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
+                        .withValue(contentUpdatedAt)
+                        .withEstimated(true));
+                p.complete();
+              })
+              .onFailure(t -> p.fail(t));
+    } else {
+      response.setContentUpdatedAt(new StatisticsResponse.Value<Long>()
+              .withValue(task.space.contentUpdatedAt)
+              .withEstimated(true));
+      p.complete();
+    }
+    return p.future();
   }
 
   static <X extends FeatureTask<?, X>> void checkPreconditions(X task, Callback<X> callback) throws HttpException {

@@ -19,27 +19,24 @@
 
 package com.here.xyz.hub.config.jdbc;
 
+import static com.here.xyz.hub.config.jdbc.JDBCConfig.SUBSCRIPTION_TABLE;
+
 import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.models.hub.Subscription;
 import com.here.xyz.psql.SQLQuery;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.ext.sql.SQLClient;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static com.here.xyz.hub.config.jdbc.JDBCConfig.SUBSCRIPTION_TABLE;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 /**
  * A client for reading and editing subscription definitions.
@@ -63,8 +60,8 @@ public class JDBCSubscriptionConfigClient extends SubscriptionConfigClient {
   }
 
   @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
-    JDBCConfig.init(onReady);
+  public Future<Void> init() {
+    return JDBCConfig.init();
   }
 
   @Override

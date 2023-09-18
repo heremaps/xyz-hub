@@ -27,8 +27,8 @@ import static io.restassured.RestAssured.given;
 import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.equalTo;
 
+import com.here.xyz.hub.Config;
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.Service.Config;
 import com.here.xyz.hub.rest.admin.AdminMessage;
 import com.here.xyz.hub.rest.admin.Node;
 import com.here.xyz.hub.rest.admin.messages.TestMessage;

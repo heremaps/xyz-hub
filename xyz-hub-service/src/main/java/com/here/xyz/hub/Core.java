@@ -24,7 +24,7 @@ import com.here.xyz.hub.util.ConfigDecryptor.CryptoException;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
-import io.vertx.core.Handler;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
@@ -87,18 +87,19 @@ public class Core {
    */
   public static final String BUILD_VERSION = getBuildProperty("xyzhub.version");
 
-  public static void initialize(VertxOptions vertxOptions, boolean debug, String configFilename, Handler<JsonObject> handler) {
-    Configurator.initialize("default", CONSOLE_LOG_CONFIG);
-    final ConfigStoreOptions fileStore = new ConfigStoreOptions().setType("file").setConfig(new JsonObject().put("path", configFilename));
-    final ConfigStoreOptions envConfig = new ConfigStoreOptions().setType("env");
-    final ConfigStoreOptions sysConfig = new ConfigStoreOptions().setType("sys");
-    final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig).setScanPeriod(24 * 60 * 1000);
+  /**
+   * The default config file
+   */
+  public static String CONFIG_FILE = "config.json";
 
+  public static boolean isDebugModeActive;
+
+  public static Future<Vertx> initializeVertx(VertxOptions vertxOptions) {
     vertxOptions = (vertxOptions != null ? vertxOptions : new VertxOptions())
             .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
             .setPreferNativeTransport(true);
 
-    if (debug) {
+    if (isDebugModeActive) {
       vertxOptions
               .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(1))
               .setMaxEventLoopExecuteTime(TimeUnit.MINUTES.toMillis(1))
@@ -107,39 +108,53 @@ public class Core {
     }
 
     vertx = Vertx.vertx(vertxOptions);
-    ConfigRetriever retriever = ConfigRetriever.create(vertx, options);
-    retriever.getConfig(c -> {
-      if (c.failed() || c.result() == null) {
-        System.err.println("Unable to load the configuration.");
-        System.exit(1);
-      }
-      JsonObject config = c.result();
-      config.forEach(entry -> {
-        if (entry.getValue() instanceof String) {
-          if (entry.getValue().equals("")) {
-            config.put(entry.getKey(), null);
-          } else {
-            try {
-              config.put(entry.getKey(), decryptSecret((String) entry.getValue()));
-            } catch (CryptoException e) {
-              System.err.println("Unable to decrypt value for key " + entry.getKey());
-              e.printStackTrace();
-              System.exit(1);
-            }
-          }
-        }
-      });
-      initializeLogger(config, debug);
-      handler.handle(config);
-    });
+    return Future.succeededFuture(Vertx.vertx(vertxOptions));
   }
 
-  private static void initializeLogger(JsonObject config, boolean debug) {
+  public static Future<JsonObject> initializeConfig(Vertx vertx) {
+    final ConfigStoreOptions fileStore = new ConfigStoreOptions().setType("file").setConfig(new JsonObject().put("path", CONFIG_FILE));
+    final ConfigStoreOptions envConfig = new ConfigStoreOptions().setType("env");
+    final ConfigStoreOptions sysConfig = new ConfigStoreOptions().setType("sys");
+    final ConfigRetrieverOptions options = new ConfigRetrieverOptions().addStore(fileStore).addStore(envConfig).addStore(sysConfig)
+        .setScanPeriod(24 * 60 * 1000);
+
+    ConfigRetriever retriever = ConfigRetriever.create(vertx, options);
+    return retriever.getConfig()
+        .map(config -> {
+          config.forEach(entry -> {
+            if (entry.getValue() instanceof String) {
+              if (entry.getValue().equals("")) {
+                config.put(entry.getKey(), null);
+              } else {
+                try {
+                  config.put(entry.getKey(), decryptSecret((String) entry.getValue()));
+                } catch (CryptoException e) {
+                  System.err.println("Unable to decrypt value for key " + entry.getKey());
+                  e.printStackTrace();
+                  System.exit(1);
+                }
+              }
+            }
+          });
+          return config;
+        })
+        .onFailure(e -> {
+          System.err.println("Unable to load the configuration.");
+          e.printStackTrace();
+          System.exit(1);
+        });
+  }
+
+  public static Future<JsonObject> initializeLogger(JsonObject config) {
     if (!CONSOLE_LOG_CONFIG.equals(config.getString("LOG_CONFIG"))) {
       Configurator.reconfigure(NetUtils.toURI(config.getString("LOG_CONFIG")));
     }
-    if (debug)
+
+    if (isDebugModeActive) {
       changeLogLevel("DEBUG");
+    }
+
+    return Future.succeededFuture(config);
   }
 
   static void changeLogLevel(String level) {
