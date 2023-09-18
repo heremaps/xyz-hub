@@ -34,7 +34,8 @@ public abstract class ContextAwareEvent<T extends ContextAwareEvent> extends Eve
   public enum SpaceContext {
     EXTENSION,
     SUPER,
-    DEFAULT;
+    DEFAULT,
+    COMPOSITE_EXTENSION;
 
     public static SpaceContext of(String value) {
       if (value == null) {
