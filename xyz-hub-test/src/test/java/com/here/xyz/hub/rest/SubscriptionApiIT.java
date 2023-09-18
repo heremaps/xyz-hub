@@ -72,6 +72,8 @@ public class SubscriptionApiIT extends TestSpaceWithFeature {
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .body(content("/xyz/hub/createSubscription.json"))
                 .post("/spaces/" + cleanUpSpaceId + "/subscriptions")
+            .then().statusCode(201)
+            .extract()
                 .as(Subscription.class);
     }
 
