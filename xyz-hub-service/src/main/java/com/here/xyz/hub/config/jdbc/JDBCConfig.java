@@ -133,10 +133,10 @@ public class JDBCConfig {
     initialized = true;
 
     return getConnection()
-        .flatMap(JDBCConfig::checkSchemaExists)
-        .flatMap(JDBCConfig::disableAutoCommit)
-        .flatMap(JDBCConfig::executeBachQueries)
-        .flatMap(JDBCConfig::enableAutoCommit)
+        .compose(JDBCConfig::checkSchemaExists)
+        .compose(JDBCConfig::disableAutoCommit)
+        .compose(JDBCConfig::executeBachQueries)
+        .compose(JDBCConfig::enableAutoCommit)
         .<Void>mapEmpty()
         .recover(t -> t instanceof SchemaAlreadyExistsException ? Future.succeededFuture() : Future.failedFuture(t))
         .onSuccess(connection -> logger.info("Initializing of the config table was successful."))

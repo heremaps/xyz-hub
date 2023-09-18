@@ -44,17 +44,17 @@ public class SpaceConnectorBasedHandler {
 
   public static <T extends Event<T>, R extends XyzResponse<R>> Future<R> execute(Marker marker, Function<Space, Future<Space>> authorizationFunction, Event<T> e) {
     return SpaceConfigClient.getInstance().get(marker, e.getSpace())
-      .flatMap(space -> space == null
+      .compose(space -> space == null
           ? Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID '" + e.getSpace() + "' does not exist!"))
           : Future.succeededFuture(space))
-      .flatMap(authorizationFunction)
-      .flatMap(space -> injectEventParameters(marker, e, space))
-      .flatMap(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
+      .compose(authorizationFunction)
+      .compose(space -> injectEventParameters(marker, e, space))
+      .compose(space -> ConnectorConfigClient.getInstance().get(marker, space.getStorage().getId()))
       .map(RpcClient::getInstanceFor)
       .recover(t -> t instanceof HttpException
           ? Future.failedFuture(t)
           : Future.failedFuture(new HttpException(BAD_REQUEST, "Connector is not available", t)))
-      .flatMap(rpcClient -> {
+      .compose(rpcClient -> {
         final Promise<R> promise = Promise.promise();
         rpcClient.execute(marker, e, handler -> {
           if (handler.failed())
@@ -95,10 +95,10 @@ public class SpaceConnectorBasedHandler {
 
   private static Future<Long> getMinTag(Marker marker, String space){
       return TagConfigClient.getInstance().getTags(marker,space)
-            .flatMap(r -> r == null ? Future.succeededFuture(null)
+            .compose(r -> r == null ? Future.succeededFuture(null)
                     : Future.succeededFuture(r.stream().mapToLong(tag -> tag.getVersion()).min())
             )
-            .flatMap(r -> {
+            .compose(r -> {
                 /** Return min tag of this space */
                 return Future.succeededFuture((r.isPresent() ? r.getAsLong() : null));
             });
