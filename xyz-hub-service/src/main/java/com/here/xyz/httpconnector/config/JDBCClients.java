@@ -101,7 +101,7 @@ public class JDBCClients {
 
         PgConnectOptions connectOptions = new PgConnectOptions()
                 .setPort(settings.getPort())
-                .setHost(settings.getHost())
+                .setHost((isReadOnlyClientId(clientId) && settings.getReplicaHost() != null ) ? settings.getReplicaHost() : settings.getHost())
                 .setDatabase(settings.getDb())
                 .setUser((isReadOnlyClientId(clientId) && settings.getReplicaUser() != null) ? settings.getReplicaUser() : settings.getUser())
                 .setPassword(settings.getPassword())
