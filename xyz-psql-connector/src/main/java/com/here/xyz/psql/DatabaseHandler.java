@@ -354,7 +354,7 @@ public abstract class DatabaseHandler extends StorageConnector {
         new ModifySpace(event).write();
 
         if (event.getOperation() != Operation.DELETE)
-            dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event));
+            dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), event.getSpace());
 
         //If we reach this point we are okay!
         return new SuccessResponse().withStatus("OK");
