@@ -74,7 +74,7 @@ public class DatabaseMaintainer {
         if(config.getMaintenanceEndpoint() != null){
             try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()){
                 HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
-                        +"/maintain/connectors/"+traceItem.getConnectorId()+"/indices?connectorId"
+                        +"/maintain/connectors/"+traceItem.getConnectorId()+"/indices"
                 );
 
                 HttpResponse response = client.execute(request);
@@ -295,7 +295,7 @@ public class DatabaseMaintainer {
         if(config.getMaintenanceEndpoint() != null){
             try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()){
                 HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
-                        +"/maintain/spaces/"+spaceId+"&force=true"
+                        +"/maintain/spaces/"+spaceId+"?force=true"
                 );
 
                 HttpResponse response = client.execute(request);
