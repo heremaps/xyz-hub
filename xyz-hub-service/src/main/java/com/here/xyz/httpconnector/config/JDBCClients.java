@@ -89,7 +89,7 @@ public class JDBCClients {
             addClient(getStatusClientId(id, true), settings);
 
             /** Add read client, if available */
-            addClient(getReadOnlyClientId(id), settings);;
+            addClient(getReadOnlyClientId(id), settings);
         }
     }
 
@@ -167,7 +167,7 @@ public class JDBCClients {
     private static boolean isStatusClientId(String clientId){ return clientId.endsWith(STATUS_CLIENT_SUFFIX); }
 
     private static boolean isReadOnlyClientId(String clientId){
-        return clientId.endsWith(RO_CLIENT_SUFFIX);
+        return clientId.endsWith(RO_CLIENT_SUFFIX) || clientId.endsWith(RO_CLIENT_SUFFIX+STATUS_CLIENT_SUFFIX);
     }
 
     private static boolean isMaintenanceClient(String clientId){
