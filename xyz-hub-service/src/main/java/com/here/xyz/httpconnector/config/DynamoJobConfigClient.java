@@ -24,12 +24,12 @@ import com.amazonaws.services.dynamodbv2.document.ScanFilter;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
+import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.here.xyz.Payload;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
-import com.here.xyz.httpconnector.util.jobs.Job.Type;
 import com.here.xyz.hub.config.dynamo.DynamoClient;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -38,7 +38,9 @@ import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -109,7 +111,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<List<Job>> getJobs(Marker marker, Type type, Status status, String targetSpaceId) {
+    protected Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 final List<Job> result = new ArrayList<>();
@@ -137,7 +139,57 @@ public class DynamoJobConfigClient extends JobConfigClient {
         });
     }
 
-    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Type type) {
+    @Override
+    protected Future<List<Job>> getJobs(Marker marker, Status status, String key, DatasetDirection direction) {
+        return DynamoClient.dynamoWorkers.executeBlocking(p -> {
+            try {
+
+                List<String> filterExpression = new ArrayList<>();
+                Map<String, String> nameMap = new HashMap<>();
+                Map<String, Object> valueMap = new HashMap<>();
+
+                final List<Job> result = new ArrayList<>();
+
+                if(status != null) {
+                    nameMap.put("#status", "status");
+                    valueMap.put(":status", status);
+                    filterExpression.add("#status = :status");
+                }
+
+                if(key != null) {
+                    nameMap.put("#sourceKey", "_sourceKey");
+                    nameMap.put("#targetKey", "_targetKey");
+                    valueMap.put(":key", key);
+                    if(direction == DatasetDirection.SOURCE)
+                        filterExpression.add("#sourceKey = :key");
+                    else if(direction == DatasetDirection.TARGET)
+                        filterExpression.add("#targetKey = :key");
+                    else
+                        filterExpression.add("(#sourceKey = :key OR #targetKey = :key)");
+                }
+
+                ScanSpec scanSpec = new ScanSpec()
+                        .withFilterExpression(String.join(" AND ", filterExpression))
+                        .withNameMap(nameMap)
+                        .withValueMap(valueMap);
+
+
+                jobs.scan(scanSpec).pages().forEach(j -> j.forEach(i -> {
+                    try{
+                        final Job job = convertItemToJob(i);
+                        result.add(job);
+                    }catch (DecodeException e){
+                        logger.warn("Cant decode Job-Item - skip!", e);
+                    }
+                }));
+                p.complete(result);
+            } catch (Exception e) {
+                p.fail(e);
+            }
+        });
+    }
+
+    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 List<ScanFilter> filterList = new ArrayList<>();
@@ -190,9 +242,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     @Override
     protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
-        if(!isUpdate && this.expiration != null){
+        if (!isUpdate && this.expiration != null)
             job.setExp(System.currentTimeMillis() / 1000L + expiration * 24 * 60 * 60);
-        }
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
@@ -204,6 +255,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     private static Item convertJobToItem(Job job) {
         JsonObject json = JsonObject.mapFrom(job);
+        if(job.getSource() != null)
+            json.put("_sourceKey", job.getSource().getKey());
+        if(job.getTarget() != null)
+            json.put("_targetKey", job.getTarget().getKey());
+        //TODO: Remove the following hacks from the persistence layer!
         if( json.containsKey(IO_IMPORT_ATTR_NAME) )
             return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
         if( json.containsKey(IO_EXPORT_ATTR_NAME) )

@@ -70,7 +70,7 @@ public class JDBCJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  protected Future<List<Job>> getJobs(Marker marker, Job.Type type, Job.Status status, String targetSpaceId) {
+  protected Future<List<Job>> getJobs(Marker marker, String type, Job.Status status, String targetSpaceId) {
     final List<Job> result = new ArrayList<>();
     List<Object> tuples = new ArrayList<>();
 
@@ -101,7 +101,38 @@ public class JDBCJobConfigClient extends JobConfigClient {
   }
 
   @Override
-  protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Job.Type type) {
+    protected Future<List<Job>> getJobs(Marker marker, Job.Status status, String key, DatasetDirection direction) {
+        final List<Job> result = new ArrayList<>();
+        List<Object> tuples = new ArrayList<>();
+
+        String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 ";
+
+        if (status != null) {
+            tuples.add(status.toString());
+            q += " AND config->>'status' = $" + tuples.size();
+        }
+
+        if (key != null) {
+            tuples.add(key);
+            if(direction == DatasetDirection.SOURCE)
+                q += " AND config->>'_sourceKey' = $" + tuples.size();
+            else if(direction == DatasetDirection.TARGET)
+                q += " AND config->>'_targetKey' = $" + tuples.size();
+            else
+                q += " AND (config->>'_sourceKey' = $" + tuples.size() + " OR config->>'_targetKey' = $" + tuples.size() + ")";
+        }
+        return client.preparedQuery(q)
+                .execute(tuples.size() > 0 ? Tuple.from(tuples) : Tuple.tuple())
+                .map(rows -> {
+                    for (Row row : rows) {
+                        result.add(Json.decodeValue(row.getJsonObject("config").toString(), Job.class));
+                    }
+                    return result;
+                });
+    }
+
+    @Override
+  protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type) {
     String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 AND config->>'status' NOT IN ('waiting','failed','finalized')" +
         " AND config->>'targetSpaceId' = $1" +
         " AND jobtype = $2";
@@ -118,10 +149,14 @@ public class JDBCJobConfigClient extends JobConfigClient {
 
   @Override
   protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
-    return client.preparedQuery("INSERT INTO " + JOB_TABLE + " (id, jobtype, config) VALUES ($1, $2, $3) " +
+    JsonObject json = new JsonObject(Json.encode(job));
+        if(job.getSource() != null)
+            json.put("_sourceKey", job.getSource().getKey());
+        if(job.getTarget() != null)
+            json.put("_targetKey", job.getTarget().getKey());return client.preparedQuery("INSERT INTO " + JOB_TABLE + " (id, jobtype, config) VALUES ($1, $2, $3) " +
             "ON CONFLICT (id) DO " +
             "UPDATE SET id = $1, jobtype = $2, config = $3")
-        .execute(Tuple.of(job.getId(), job.getClass().getSimpleName(), new JsonObject(Json.encode(job))))
+        .execute(Tuple.of(job.getId(), job.getClass().getSimpleName(), json))
         .map(rows -> {
           if (rows.rowCount() == 0) {
             return null;

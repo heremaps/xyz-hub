@@ -25,6 +25,7 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
+import com.amazonaws.services.dynamodbv2.model.ExecuteStatementResult;
 import com.amazonaws.services.dynamodbv2.model.ExecuteTransactionRequest;
 import com.amazonaws.services.dynamodbv2.model.ParameterizedStatement;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
@@ -66,113 +67,92 @@ public class DynamoTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<Tag> getTag(Marker marker, String id, String spaceId) {
-    return DynamoClient.dynamoWorkers.executeBlocking( future -> {
-          try {
-            final ExecuteStatementRequest request = new ExecuteStatementRequest()
-                .withStatement("SELECT * FROM \"" + tagTable.getTableName()+"\" WHERE \"id\" = ? and \"spaceId\" = ?")
-                .withParameters(new AttributeValue(id), new AttributeValue(spaceId));
+    try {
+      final ExecuteStatementRequest request = new ExecuteStatementRequest()
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ? and \"spaceId\" = ?")
+          .withParameters(new AttributeValue(id), new AttributeValue(spaceId));
 
-            List<Tag> tags = getTags(dynamoClient.client.executeStatement(request).getItems());
-            if (tags.size() == 1) {
-              future.complete(tags.get(0));
-            }
-            else {
-              future.complete();
-            }
-          } catch (Exception e) {
-            future.fail(e);
-          }
-        }
-    );
+      return dynamoClient.executeStatement(request)
+          .map(DynamoTagConfigClient::getTags)
+          .map(tags -> tags.size() == 1 ? tags.get(0) : null);
+    } catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, String id, List<String> spaceIds) {
-    return DynamoClient.dynamoWorkers.executeBlocking( future -> {
-          try {
-            String spaceParamsSt = StringUtils.join(Collections.nCopies(spaceIds.size(), "?"), ",");
-            List<AttributeValue> params = Stream.concat(Stream.of(id), spaceIds.stream())
-                .map(AttributeValue::new).collect(Collectors.toList());
+    try {
+      String spaceParamsSt = StringUtils.join(Collections.nCopies(spaceIds.size(), "?"), ",");
+      List<AttributeValue> params = Stream.concat(Stream.of(id), spaceIds.stream())
+          .map(AttributeValue::new).collect(Collectors.toList());
 
-            final ExecuteStatementRequest request = new ExecuteStatementRequest()
-                .withStatement("SELECT * FROM \"" + tagTable.getTableName()+"\" WHERE \"id\" = ? AND \"spaceId\" IN ["+spaceParamsSt+"]")
-                .withParameters(params);
+      final ExecuteStatementRequest request = new ExecuteStatementRequest()
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ? AND \"spaceId\" IN [" + spaceParamsSt + "]")
+          .withParameters(params);
 
-            future.complete(getTags( dynamoClient.client.executeStatement(request).getItems() ));
-          } catch (Exception e) {
-            future.fail(e);
-          }
-        }
-    );
+      return dynamoClient.executeStatement(request)
+          .map(DynamoTagConfigClient::getTags);
+    } catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   public Future<List<Tag>> getTagsByTagId(Marker marker, String tagId) {
-    return DynamoClient.dynamoWorkers.executeBlocking(future -> {
-          try {
-            List<AttributeValue> params = Stream.of(tagId)
-                .map(AttributeValue::new).collect(Collectors.toList());
+    try {
+      ExecuteStatementRequest request = new ExecuteStatementRequest()
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ?")
+          .withParameters(new AttributeValue(tagId));
 
-            final ExecuteStatementRequest request = new ExecuteStatementRequest()
-                .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ?")
-                .withParameters(params);
-
-            future.complete(getTags(dynamoClient.client.executeStatement(request).getItems()));
-          } catch (Exception e) {
-            future.fail(e);
-          }
-        }
-    );
+      return dynamoClient.executeStatement(request)
+          .map(DynamoTagConfigClient::getTags);
+    } catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, String spaceId) {
-    return DynamoClient.dynamoWorkers.executeBlocking(future -> {
-          try {
+    try {
+      final ExecuteStatementRequest request = new ExecuteStatementRequest()
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"spaceId\" = ?")
+          .withParameters(new AttributeValue(spaceId));
 
-            final ExecuteStatementRequest request = new ExecuteStatementRequest()
-                .withStatement("SELECT * FROM \"" + tagTable.getTableName()+"\" WHERE \"spaceId\" = ?")
-                .withParameters(new AttributeValue(spaceId));
-
-            future.complete(getTags( dynamoClient.client.executeStatement(request).getItems() ));
-          } catch (Exception e) {
-            future.fail(e);
-          }
-        }
-    );
+      return dynamoClient.executeStatement(request)
+          .map(DynamoTagConfigClient::getTags);
+    } catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, List<String> spaceIds) {
-    return DynamoClient.dynamoWorkers.executeBlocking( future -> {
-          try {
-            String spaceParamsSt = StringUtils.join(Collections.nCopies(spaceIds.size(), "?"), ",");
-            List<AttributeValue> params = spaceIds.stream().map(AttributeValue::new).collect(Collectors.toList());
+    try {
+      String spaceParamsSt = StringUtils.join(Collections.nCopies(spaceIds.size(), "?"), ",");
+      List<AttributeValue> params = spaceIds.stream().map(AttributeValue::new).collect(Collectors.toList());
 
-            final ExecuteStatementRequest request = new ExecuteStatementRequest()
-                .withStatement("SELECT * FROM \"" + tagTable.getTableName()+"\" WHERE \"spaceId\" IN ["+spaceParamsSt+"]")
-                .withParameters(params);
+      final ExecuteStatementRequest request = new ExecuteStatementRequest()
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"spaceId\" IN [" + spaceParamsSt + "]")
+          .withParameters(params);
 
-            future.complete(getTags( dynamoClient.client.executeStatement(request).getItems() ));
-          } catch (Exception e) {
-            future.fail(e);
-          }
-        }
-    );
+      return dynamoClient.executeStatement(request)
+          .map(DynamoTagConfigClient::getTags);
+    } catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   @Override
   public Future<List<Tag>> getAllTags(Marker marker) {
-    return DynamoClient.dynamoWorkers.executeBlocking( future -> {
-          try {
-            final ExecuteStatementRequest request = new ExecuteStatementRequest()
-                .withStatement("SELECT * FROM \"" + tagTable.getTableName()+"\"");
+    try {
+      final ExecuteStatementRequest request = new ExecuteStatementRequest()
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\"");
 
-            future.complete(getTags( dynamoClient.client.executeStatement(request).getItems() ));
-          } catch (Exception e) {
-            future.fail(e);
-          }
-        }
-    );
+      return dynamoClient.executeStatement(request)
+          .map(DynamoTagConfigClient::getTags);
+    } catch (Exception e) {
+      return Future.failedFuture(e);
+    }
   }
 
   @Override
@@ -185,8 +165,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
                 .withString("spaceId", tag.getSpaceId())
                 .withLong("version", tag.getVersion()));
             future.complete();
-          }
-          catch (Exception e) {
+          } catch (Exception e) {
             future.fail(e);
           }
         }
@@ -201,12 +180,12 @@ public class DynamoTagConfigClient extends TagConfigClient {
                 .withPrimaryKey("id", id, "spaceId", spaceId)
                 .withReturnValues(ReturnValue.ALL_OLD);
             DeleteItemOutcome response = tagTable.deleteItem(deleteItemSpec);
-            if (response.getItem() != null)
+            if (response.getItem() != null) {
               future.complete(Json.decodeValue(response.getItem().toJSON(), Tag.class));
-            else
+            } else {
               future.complete(null);
-          }
-          catch (Exception e) {
+            }
+          } catch (Exception e) {
             future.fail(e);
           }
         }
@@ -215,10 +194,10 @@ public class DynamoTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId) {
-     return DynamoClient.dynamoWorkers.executeBlocking(future -> {
+    return DynamoClient.dynamoWorkers.executeBlocking(future -> {
           try {
             getTags(marker, spaceId)
-                .onSuccess(tags-> {
+                .onSuccess(tags -> {
                   try {
                     if (tags.size() == 0) {
                       future.complete();
@@ -232,25 +211,23 @@ public class DynamoTagConfigClient extends TagConfigClient {
                     });
                     dynamoClient.client.executeTransaction(new ExecuteTransactionRequest().withTransactStatements(statements));
                     future.complete(tags);
-                  }
-                  catch (Exception e) {
+                  } catch (Exception e) {
                     future.fail(e);
                   }
                 })
                 .onFailure(future::fail);
-          }
-          catch (Exception e) {
+          } catch (Exception e) {
             future.fail(e);
           }
         }
     );
   }
 
-  private List<Tag> getTags(List<Map<String, AttributeValue>> items){
-    if(items == null || items.size() == 0){
+  private static List<Tag> getTags(List<Map<String, AttributeValue>> items) {
+    if (items == null || items.size() == 0) {
       return new ArrayList<>();
     }
-    return  items.stream().map(i-> new Tag()
+    return items.stream().map(i -> new Tag()
         .withId(i.get("id").getS())
         .withSpaceId(i.get("spaceId").getS())
         .withVersion(Long.parseLong(i.get("version").getN()))).collect(Collectors.toList());
