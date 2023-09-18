@@ -801,8 +801,8 @@ public abstract class Job<T extends Job> {
             .compose(rdsStatus -> {
                 RDS_STATUS_MAP.put(getTargetConnector(), rdsStatus);
 
-                if (rdsStatus.getCloudWatchDBClusterMetric(this).getCapacityUnits() > CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION) {
-                    logger.info("job[{}] JOB_MAX_RDS_MAX_ACU_UTILIZATION to high {} > {}", getId(), rdsStatus.getCloudWatchDBClusterMetric(this).getCapacityUnits(), CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION);
+                if (rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization() > CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_ACU_UTILIZATION to high {} > {}", getId(), rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization(), CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION);
                     return Future.failedFuture(new ProcessingNotPossibleException());
                 }
 

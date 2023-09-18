@@ -360,9 +360,8 @@ public class JDBCClients {
                     rdsStatus.addRdsMetrics(runningQueryStatistics);
 
                     String dbClusterIdentifier = getDBSettings(connectorId).getDBClusterIdentifier();
-                    if(dbClusterIdentifier == null){
+                    if(dbClusterIdentifier == null && getClientDatabaseSettings(connectorId).getHost().indexOf("localhost") != -1){
                         logger.error("{} - configured ECPS does not use a clusterConfig! {}",connectorId, getDBSettings(connectorId).getHost());
-                        rdsStatus.addCloudWatchDBReaderMetrics(new JSONObject());
                     }
                     else {
                         /** collect cloudwatch metrics for db */

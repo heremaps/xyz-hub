@@ -35,7 +35,7 @@ import com.here.xyz.httpconnector.CService;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
@@ -48,16 +48,20 @@ public class AwsCWClient {
     private final AmazonCloudWatch client;
     private static final String RDS_NAMESPACE = "AWS/RDS";
     private static final String DB_CLUSTER_IDENTIFIER = "DBClusterIdentifier";
+
+    public static final String DATABASE_CONNECTIONS = "DatabaseConnections";
+    public static final String ACU_UTILIZATION = "ACUUtilization";
+    public static final String CPU_UTILIZATION = "CPUUtilization";
+    public static final String FREEABLE_MEMORY = "FreeableMemory";
+    public static final String WRITE_THROUGHPUT = "WriteThroughput";
+    public static final String NETWORK_RECEIVE_THROUGHPUT = "NetworkReceiveThroughput";
+    public static final String SERVERLESS_DATABASE_CAPACITY = "ServerlessDatabaseCapacity";
+
     private static final DecimalFormat DF = new DecimalFormat("0.0000");
 
-    private static final HashMap<String,String> METRIC_MAP = new HashMap(){{
-        put("DatabaseConnections","dbConnections");
-        put("ACUUtilization","acuUtilization");
-        put("CPUUtilization","cpuLoad");
-        put("FreeableMemory","freemem");
-        put("WriteThroughput","writeThroughput");
-        put("NetworkReceiveThroughput","networkReceiveThroughput");
-        put("ServerlessDatabaseCapacity","capacity");
+    public static final HashSet<String> METRIC_LIST = new HashSet<>(){{
+        add(DATABASE_CONNECTIONS);add(ACU_UTILIZATION);add(CPU_UTILIZATION);add(FREEABLE_MEMORY);
+        add(WRITE_THROUGHPUT);add(NETWORK_RECEIVE_THROUGHPUT);add(SERVERLESS_DATABASE_CAPACITY);
     }};
 
     public enum Role {
@@ -107,7 +111,7 @@ public class AwsCWClient {
 
         List<MetricDataQuery> metricDataQueryList = new ArrayList<>();
 
-        METRIC_MAP.keySet().forEach(
+        METRIC_LIST.forEach(
                 metric ->  metricDataQueryList.add(createMetricDataQuery(dimensions, metric, statistic, periodInSec))
         );
 
@@ -132,11 +136,11 @@ public class AwsCWClient {
         for (MetricDataResult res : metricDataResult) {
             res.getValues().forEach(
                     r -> {
-                        if(res.getId().equalsIgnoreCase("freemem")) {
+                        if(res.getId().equalsIgnoreCase(FREEABLE_MEMORY)) {
                             /** to GB */
                             r = r / 1024 / 1024 / 1024;
-                        }if(res.getId().equalsIgnoreCase("networkReceiveThroughput")
-                            || res.getId().equalsIgnoreCase("writeThroughput")) {
+                        }if(res.getId().equalsIgnoreCase(NETWORK_RECEIVE_THROUGHPUT)
+                            || res.getId().equalsIgnoreCase(WRITE_THROUGHPUT)) {
                             /** to MB */
                             r = r / 1024 / 1024 ;
                         }
@@ -161,7 +165,7 @@ public class AwsCWClient {
                 .withStat(statistic);
 
         return new MetricDataQuery()
-                .withId(METRIC_MAP.get(metricName))
+                .withId(metricName.toLowerCase())
                 .withMetricStat(metricStat);
     }
 

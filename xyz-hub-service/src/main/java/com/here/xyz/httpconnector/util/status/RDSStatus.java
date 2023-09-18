@@ -21,6 +21,7 @@ package com.here.xyz.httpconnector.util.status;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.xyz.httpconnector.config.AwsCWClient;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import org.apache.logging.log4j.LogManager;
@@ -124,46 +125,40 @@ public class RDSStatus {
     public class CloudWatchDBMetric{
         private double cpuLoad;
         private double dbConnections;
-        private double writeThroughput;
-        private double freeMem;
-        private double acuUsage;
-        private double capacityUnits;
+        private double networkReceiveThroughputInMb;
+        private double writeThroughputInMb;
+        private double freeMemInGb;
+        private double acuUtilization;
+        private double capacity;
 
         public CloudWatchDBMetric(JSONObject currentMetrics){
-            if(currentMetrics != new JSONObject())
+            if(currentMetrics.isEmpty())
                 return;
             try {
-                this.cpuLoad = (Double) currentMetrics.get("cpuLoad");
-                this.dbConnections = (Double) currentMetrics.get("dbConnections");
-                this.writeThroughput = (Double) currentMetrics.get("writeThroughput");
-                this.freeMem = (Double) currentMetrics.get("freemem");
-                this.acuUsage = (Double) currentMetrics.get("acuUtilization");
-                this.capacityUnits = (Double) currentMetrics.get("capacity");
+                this.cpuLoad = (Double) currentMetrics.get(AwsCWClient.CPU_UTILIZATION.toLowerCase());
+                this.dbConnections = (Double) currentMetrics.get(AwsCWClient.DATABASE_CONNECTIONS.toLowerCase());
+                this.writeThroughputInMb = (Double) currentMetrics.get(AwsCWClient.WRITE_THROUGHPUT.toLowerCase());
+                this.networkReceiveThroughputInMb = (Double) currentMetrics.get(AwsCWClient.NETWORK_RECEIVE_THROUGHPUT.toLowerCase());
+                this.freeMemInGb = (Double) currentMetrics.get(AwsCWClient.FREEABLE_MEMORY.toLowerCase());
+                this.acuUtilization = (Double) currentMetrics.get(AwsCWClient.ACU_UTILIZATION.toLowerCase());
+                this.capacity = (Double) currentMetrics.get(AwsCWClient.SERVERLESS_DATABASE_CAPACITY.toLowerCase());
             }catch (Exception e){ logger.warn("Can't parse currentMetrics from CW!",e); }
         }
 
-        public double getCpuLoad() {
-            return cpuLoad;
-        }
+        public double getCpuLoad() { return cpuLoad; }
 
-        public double getDbConnections() {
-            return dbConnections;
-        }
+        public double getDbConnections() { return dbConnections; }
 
-        public double getWriteThroughput() {
-            return writeThroughput;
-        }
+        public double getNetworkReceiveThroughputInMb() { return networkReceiveThroughputInMb; }
 
-        public double getFreeMem() {
-            return freeMem;
-        }
+        public double getWriteThroughputInMb() { return writeThroughputInMb; }
 
-        public double getAcuUsage() {
-            return acuUsage;
-        }
+        public double getFreeMemInGb() { return freeMemInGb; }
 
-        public double getCapacityUnits() {
-            return capacityUnits;
+        public double getAcuUtilization() { return acuUtilization; }
+
+        public double getCapacity() {
+            return capacity;
         }
     }
 
