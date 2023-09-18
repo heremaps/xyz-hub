@@ -49,7 +49,7 @@ public class TagApi extends SpaceBasedApi {
         final String spaceId = context.pathParam(Path.SPACE_ID);
 
         deserializeTag(context.body().asString())
-                .flatMap(tag -> createTag(Api.Context.getMarker(context), spaceId, tag.getId(), tag.getVersion()))
+                .compose(tag -> createTag(Api.Context.getMarker(context), spaceId, tag.getId(), tag.getVersion()))
                 .onSuccess(result -> sendResponse(context, HttpResponseStatus.OK, result))
                 .onFailure(t -> sendHttpErrorResponse(context, t));
     }
@@ -60,7 +60,7 @@ public class TagApi extends SpaceBasedApi {
         final String tagId = context.pathParam(Path.TAG_ID);
 
         deleteTag(Api.Context.getMarker(context), spaceId, tagId)
-                .flatMap(result -> result != null
+                .compose(result -> result != null
                         ? Future.succeededFuture(result)
                         : Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Tag not found")))
                 .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK, r))
@@ -74,7 +74,7 @@ public class TagApi extends SpaceBasedApi {
         final Marker marker = Api.Context.getMarker(context);
 
         TagConfigClient.getInstance().getTag(marker, tagId, spaceId)
-                .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found")) : Future.succeededFuture(r))
+                .compose(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found")) : Future.succeededFuture(r))
                 .onSuccess(r -> sendResponse(context, HttpResponseStatus.OK, r))
                 .onFailure(t -> sendHttpErrorResponse(context, t));
 
@@ -87,15 +87,15 @@ public class TagApi extends SpaceBasedApi {
         final Marker marker = Api.Context.getMarker(context);
 
         final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
-                .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
+                .compose(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
         final Future<Tag> tagFuture = TagConfigClient.getInstance().getTag(marker, tagId, spaceId)
-                .flatMap(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found")) : Future.succeededFuture(r));
+                .compose(r -> r == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Reader " + tagId + " with space " + spaceId + " not found")) : Future.succeededFuture(r));
         final Future<Long> inputFuture = deserializeTag(context.body().asString())
                 .map(Tag::getVersion);
 
         final Long version = inputFuture.result();
         CompositeFuture.all(spaceFuture, tagFuture, inputFuture)
-                .flatMap(cf -> TagConfigClient.getInstance().storeTag(marker, new Tag().withId(tagId).withSpaceId(spaceId).withVersion(version)))
+                .compose(cf -> TagConfigClient.getInstance().storeTag(marker, new Tag().withId(tagId).withSpaceId(spaceId).withVersion(version)))
                 .onSuccess(v -> sendResponse(context, HttpResponseStatus.OK, tagFuture.result().withVersion(version)))
                 .onFailure(t -> sendHttpErrorResponse(context, t));
     }
@@ -112,10 +112,10 @@ public class TagApi extends SpaceBasedApi {
             return Future.failedFuture("Invalid tagId parameter");
 
         final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
-                .flatMap(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
+                .compose(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
         final Future<ChangesetsStatisticsResponse> changesetFuture = ChangesetApi.getChangesetStatistics(marker, Future::succeededFuture, spaceId);
 
-        return CompositeFuture.all(spaceFuture, changesetFuture).flatMap(cf -> {
+        return CompositeFuture.all(spaceFuture, changesetFuture).compose(cf -> {
             final Tag tag = new Tag()
                     .withId(tagId)
                     .withSpaceId(spaceId)
@@ -130,7 +130,7 @@ public class TagApi extends SpaceBasedApi {
             return Future.failedFuture("Invalid spaceId or tagId parameters");
 
         return SpaceConfigClient.getInstance().get(marker, spaceId)
-                .flatMap(none -> TagConfigClient.getInstance().deleteTag(marker, tagId, spaceId));
+                .compose(none -> TagConfigClient.getInstance().deleteTag(marker, tagId, spaceId));
     }
 
     private static Future<Tag> deserializeTag(String body) {

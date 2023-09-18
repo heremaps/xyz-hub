@@ -94,7 +94,7 @@ public class SpaceTaskHandler {
         Service.tagConfigClient.getTagsByTagId(task.getMarker(), task.selectedCondition.tagId);
 
     tagsFuture
-        .flatMap(tags -> {
+        .compose(tags -> {
           if (task.selectedCondition.tagId != null) {
             if (tags.isEmpty())
               return Future.succeededFuture(Collections.emptyList());
@@ -104,7 +104,7 @@ public class SpaceTaskHandler {
           }
 
           return Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
-              .flatMap(spaces -> augmentWithTags(spaces, tags));
+              .compose(spaces -> augmentWithTags(spaces, tags));
         })
         .onFailure(t -> {
           logger.error(task.getMarker(), "Unable to load space definitions.'", t);

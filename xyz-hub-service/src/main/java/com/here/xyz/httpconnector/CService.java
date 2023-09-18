@@ -121,11 +121,11 @@ public class CService extends Core {
             .setBlockedThreadCheckInterval(TimeUnit.MINUTES.toMillis(15));
 
     initializeVertx(vertxOptions)
-        .flatMap(Core::initializeConfig)
-        .flatMap(Core::initializeLogger)
-        .flatMap(CService::parseConfiguration)
-        .flatMap(CService::initializeClients)
-        .flatMap(CService::initializeService)
+        .compose(Core::initializeConfig)
+        .compose(Core::initializeLogger)
+        .compose(CService::parseConfiguration)
+        .compose(CService::initializeClients)
+        .compose(CService::initializeService)
         .onFailure(t -> logger.error("CService startup failed", t))
         .onSuccess(v -> logger.info("CService startup succeeded"));
   }
@@ -155,7 +155,7 @@ public class CService extends Core {
     jobConfigClient = JobConfigClient.getInstance();
 
     return jobConfigClient.init()
-        .flatMap(v -> {
+        .compose(v -> {
           /** Init webclient */
           webClient = WebClient.create(vertx, new WebClientOptions()
               .setUserAgent(USER_AGENT)

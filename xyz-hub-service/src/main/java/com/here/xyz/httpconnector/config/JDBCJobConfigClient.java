@@ -191,7 +191,7 @@ public class JDBCJobConfigClient extends JobConfigClient {
 
     return client.preparedQuery(q)
         .execute(Tuple.of(JOB_TABLE))
-        .flatMap(rows -> {
+        .compose(rows -> {
           if (rows.rowCount() == 0) {
             return Future.failedFuture("");
           }

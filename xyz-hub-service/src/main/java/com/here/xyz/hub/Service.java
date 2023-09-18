@@ -170,14 +170,14 @@ public class Service extends Core {
               .setFactory(new HubMetricsFactory()));
 
       initializeVertx(vertxOptions)
-          .flatMap(Service::initializeGlobalRouter)
-          .flatMap(Core::initializeConfig)
-          .flatMap(Core::initializeLogger)
-          .flatMap(Service::parseConfiguration)
-          .flatMap(Service::initializeClients)
-          .flatMap(config -> Future.fromCompletionStage(ConfigUpdateThread.initialize()).map(config))
-          .flatMap(config -> Future.fromCompletionStage(WarmupRemoteFunctionThread.initialize()).map(config))
-          .flatMap(Service::initializeService)
+          .compose(Service::initializeGlobalRouter)
+          .compose(Core::initializeConfig)
+          .compose(Core::initializeLogger)
+          .compose(Service::parseConfiguration)
+          .compose(Service::initializeClients)
+          .compose(config -> Future.fromCompletionStage(ConfigUpdateThread.initialize()).map(config))
+          .compose(config -> Future.fromCompletionStage(WarmupRemoteFunctionThread.initialize()).map(config))
+          .compose(Service::initializeService)
           .onFailure(t -> logger.error("Service startup failed", t))
           .onSuccess(v -> logger.info("Service startup succeeded"));
     }
@@ -218,11 +218,11 @@ public class Service extends Core {
     );
 
     return settingsConfigClient.init()
-        .flatMap(v -> spaceConfigClient.init())
-        .flatMap(v -> connectorConfigClient.init())
-        .flatMap(v -> Future.fromCompletionStage(connectorConfigClient.insertLocalConnectors()))
-        .flatMap(v -> subscriptionConfigClient.init())
-        .flatMap(v -> tagConfigClient.init())
+        .compose(v -> spaceConfigClient.init())
+        .compose(v -> connectorConfigClient.init())
+        .compose(v -> Future.fromCompletionStage(connectorConfigClient.insertLocalConnectors()))
+        .compose(v -> subscriptionConfigClient.init())
+        .compose(v -> tagConfigClient.init())
         .map(config)
         .onFailure(t -> logger.error("initializeClients failed", t))
         .onSuccess(v -> logger.info("initializeClients succeeded"));

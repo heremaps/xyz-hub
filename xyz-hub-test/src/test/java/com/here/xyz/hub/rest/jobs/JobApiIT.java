@@ -402,6 +402,16 @@ public class JobApiIT extends TestSpaceWithFeature {
         return performExport(job, spaceId, expectedStatus, failStatus, null, null);
     }
 
+    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, Incremental incremental)
+        throws Exception {
+        return performExport(job, spaceId, expectedStatus, failStatus, null, incremental);
+    }
+
+    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, SpaceContext context)
+        throws Exception {
+        return performExport(job, spaceId, expectedStatus, failStatus, context, null);
+    }
+
     protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, SpaceContext context,
         Incremental incremental) throws Exception {
         if (incremental != null)

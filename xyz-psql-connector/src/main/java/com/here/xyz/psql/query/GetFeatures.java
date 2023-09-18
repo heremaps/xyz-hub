@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.query;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.DELETE;
 import static com.here.xyz.psql.DatabaseWriter.ModificationType.INSERT_HIDE_COMPOSITE;
@@ -42,11 +43,6 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   public static final long GEOMETRY_DECIMAL_DIGITS = 8;
   public static long MAX_BIGINT = Long.MAX_VALUE;
 
-  private boolean withoutIdField = false;
-
-  public enum ViewModus { BASE_DELTA, CHANGE_BASE_DELTA, DELTA; }
-  private ViewModus viewMode;
-
   public GetFeatures(E event) throws SQLException, ErrorResponseException {
     super(event);
     setUseReadReplica(true);
@@ -55,25 +51,23 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   @Override
   protected SQLQuery buildQuery(E event) throws SQLException, ErrorResponseException {
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
-    boolean isExtended = ( isExtendedSpace(event) && event.getContext() == DEFAULT ) && (viewMode == null || viewMode != ViewModus.DELTA ); /** deltaOnly -> ignore underlying base, act as not extended  */
+    boolean useExtensionQuery = isExtendedSpace(event) && (event.getContext() == DEFAULT || event.getContext() == COMPOSITE_EXTENSION);
     SQLQuery query;
-
-    if ( isExtended ) {
-      String UNION_ALL = ( viewMode == null || viewMode == ViewModus.BASE_DELTA ? "UNION ALL" : "UNION DISTINCT" ),
-             NOT       = ( viewMode == null || viewMode == ViewModus.BASE_DELTA ? "NOT" : "" );
-
+    if (useExtensionQuery) {
       query = new SQLQuery(
           "SELECT * FROM ("
           + "    (SELECT ${{selection}}, ${{geo}}${{iColumnExtension}}${{id}}"
           + "        FROM ${schema}.${table}"
           + "        WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{iOffsetExtension}} ${{limit}})"
-          + "  " + UNION_ALL
+          + " ${{unionAll}} "
           + "        SELECT ${{selection}}, ${{geo}}${{iColumn}}${{id}} FROM"
           + "            ("
           + "                ${{baseQuery}}"
-          + "            ) a WHERE "+ NOT +" exists(SELECT 1 FROM ${schema}.${table} b WHERE ${{notExistsIdComparison}})"
+          + "            ) a WHERE ${{exists}} exists(SELECT 1 FROM ${schema}.${table} b WHERE ${{notExistsIdComparison}})"
           + ") limitQuery ${{limit}}")
-          .withQueryFragment("notExistsIdComparison", buildIdComparisonFragment(event, "a."));
+          .withQueryFragment("notExistsIdComparison", buildIdComparisonFragment(event, "a."))
+          .withQueryFragment("unionAll", event.getContext() == COMPOSITE_EXTENSION ? "UNION DISTINCT" : "UNION ALL")
+          .withQueryFragment("exists", event.getContext() == COMPOSITE_EXTENSION ? "" : "NOT");
     }
     else {
       query = new SQLQuery(
@@ -82,7 +76,7 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
               + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{authorCheck}} ${{orderBy}} ${{limit}} ${{offset}}");
     }
 
-    query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, isExtended));
+    query.setQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, useExtensionQuery));
     query.withQueryFragment("versionCheck", buildVersionCheckFragment(event));
     query.withQueryFragment("authorCheck", buildAuthorCheckFragment(event));
     query.setQueryFragment("selection", buildSelectionFragment(event));
@@ -91,12 +85,12 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     query.setQueryFragment("iColumn", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("tableSample", ""); //NOTE: This can be overridden by implementing subclasses
     query.setQueryFragment("limit", ""); //NOTE: This can be overridden by implementing subclasses
-    query.setQueryFragment("id", withoutIdField ? "" : ", id");
+    query.setQueryFragment("id", ", id");
 
     query.setVariable(SCHEMA, getSchema());
     query.setVariable(TABLE, getDefaultTable(event));
 
-    if (isExtended) {
+    if (useExtensionQuery) {
       query.setQueryFragment("iColumnExtension", ""); //NOTE: This can be overridden by implementing subclasses
       query.setQueryFragment("iOffsetExtension", "");
 
@@ -212,18 +206,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return  "id = " + prefix + "id";
   }
 
-  private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended, boolean isDeleted) {
+  private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended) {
     if (v2k <= 1 && !isExtended) return new SQLQuery("");
 
     String operationsParamName = "operationsToFilterOut" + (isExtended ? "Extended" : ""); //TODO: That's a workaround for a minor bug in SQLQuery
-    return new SQLQuery(" AND operation " + (isDeleted ? "" : "NOT") + " IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
+    return new SQLQuery(" AND operation NOT IN (SELECT unnest(#{" + operationsParamName + "}::CHAR[]))")
         .withNamedParameter(operationsParamName, Arrays.stream(isExtended
             ? new ModificationType[]{DELETE, INSERT_HIDE_COMPOSITE, UPDATE_HIDE_COMPOSITE}
             : new ModificationType[]{DELETE}).map(ModificationType::toString).toArray(String[]::new));
-  }
-
-  private SQLQuery buildDeletionCheckFragment(int v2k, boolean isExtended) { 
-    return buildDeletionCheckFragment( v2k, isExtended, false); 
   }
 
   @Override
@@ -285,11 +275,8 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
     return geoFragment;
   }
 
-
   //TODO: Remove that hack and instantiate & use the whole GetFeatures QR instead from wherever it's needed
-  public SQLQuery _buildQuery(E event, ViewModus viewMode ) throws SQLException, ErrorResponseException {
-    withoutIdField = true;
-    this.viewMode = viewMode;
+  public SQLQuery _buildQuery(E event) throws SQLException, ErrorResponseException {
     return buildQuery(event);
   }
 }

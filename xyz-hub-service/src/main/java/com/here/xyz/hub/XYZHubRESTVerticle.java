@@ -104,7 +104,7 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
   @Override
   public void start(Promise<Void> startPromise) throws Exception {
     OpenAPIContract.from(vertx, CONTRACT_LOCATION)
-        .flatMap(this::buildRoutes)
+        .compose(this::buildRoutes)
         .onSuccess(none -> startPromise.complete())
         .onFailure(throwable -> {
           startPromise.fail(throwable);
