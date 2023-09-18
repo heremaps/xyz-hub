@@ -25,7 +25,6 @@ import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.config.JobConfigClient;
 import com.here.xyz.httpconnector.config.JobS3Client;
-import com.here.xyz.httpconnector.config.MaintenanceClient;
 import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
@@ -132,7 +131,7 @@ public class CService extends Core {
         String[] splitConfig = rdsConfig.split(":");
         String cId = splitConfig[0];
         supportedConnectors.add(cId);
-        rdsLookupCapacity.put(cId, Integer.parseInt(config[1]));
+        rdsLookupCapacity.put(cId, Integer.parseInt(splitConfig[1]));
       }
 
     } catch (Exception e) {

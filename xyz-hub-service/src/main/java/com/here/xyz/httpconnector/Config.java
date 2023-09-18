@@ -63,13 +63,9 @@ public class Config {
    */
   public List<String> JOB_SUPPORTED_RDS;
   /**
-   * RDS maximum ACUs
+   * RDS maximum ACU Utilization 0-100
    */
-  public int JOB_MAX_RDS_CAPACITY;
-  /**
-   * RDS maximum CPU Load in percentage
-   */
-  public int JOB_MAX_RDS_CPU_LOAD;
+  public int JOB_MAX_RDS_MAX_ACU_UTILIZATION;
   /**
    * RDS maximum allowed import bytes
    */
@@ -94,29 +90,20 @@ public class Config {
    * DB Pool size per client
    */
   public Integer JOB_DB_POOL_SIZE_PER_CLIENT;
-
+  /**
+   *  DB Pool size per status client
+   */
+  public Integer JOB_DB_POOL_SIZE_PER_STATUS_CLIENT;
+  /**
+   *  DB Pool size per maintenance client
+   */
+  public Integer JOB_DB_POOL_SIZE_PER_MAINTENANCE_CLIENT;
   /** ############## Database related ##################### */
   /**
    * Statement Timeout in Seconds
    */
   public int DB_STATEMENT_TIMEOUT_IN_S;
-  /**
-   * Initial Connection-Pool Size
-   */
-  public int DB_INITIAL_POOL_SIZE;
-  /**
-   * Min size of Connection-Pool
-   */
-  public int DB_MIN_POOL_SIZE;
-  /**
-   * Max size of Connection-Pool
-   */
-  public int DB_MAX_POOL_SIZE;
-  /**
-   * How many connections should get acquired if the pool runs out of available connections.
-   */
-  public int DB_ACQUIRE_INCREMENT;
-  /**
+   /**
    * How many times will try to acquire a new Connection from the database before giving up.
    */
   public int DB_ACQUIRE_RETRY_ATTEMPTS;
@@ -124,10 +111,6 @@ public class Config {
    * Max Time to wait for a connection checkout - in Seconds
    */
   public int DB_CHECKOUT_TIMEOUT;
-  /**
-   * Test on checkout if connection is valid
-   */
-  public boolean DB_TEST_CONNECTION_ON_CHECKOUT;
 
   /** Store Jobs inside DB - only possible if no JOBS_DYNAMODB_TABLE_ARN is defined */
   /**
