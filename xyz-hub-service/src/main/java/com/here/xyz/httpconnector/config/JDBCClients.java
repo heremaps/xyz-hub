@@ -385,9 +385,11 @@ public class JDBCClients {
                     getStatusClient(j.getTargetConnector(), false)
                             .query(q.text())
                             .execute()
-                            .compose(row ->
-                                 //Succeeded in any-case
-                                 Future.succeededFuture()
+                            .compose(row -> {
+                                        logger.info("job[{}] Abort Job on Writer {}@{}", j.getId(), j.getTargetSpaceId(), getDBSettings(getStatusClientId(j.getTargetConnector(),false)).getHost());
+                                        //Succeeded in any-case
+                                        return Future.succeededFuture();
+                                    }
                             )
                 ).compose(f -> {
                     /** Abort readReplica queries */
@@ -395,9 +397,11 @@ public class JDBCClients {
                         return getStatusClient(j.getTargetConnector(), true)
                                 .query(q.text())
                                 .execute()
-                                .compose(row ->
-                                        //Succeeded in any-case
-                                        Future.succeededFuture()
+                                .compose(row -> {
+                                            logger.info("job[{}] Abort Job on Reader {}@{}", j.getId(), j.getTargetSpaceId(), getDBSettings(getStatusClientId(j.getTargetConnector(),true)).getReplicaHost());
+                                            //Succeeded in any-case
+                                           return Future.succeededFuture();
+                                        }
                                 );
                     return Future.succeededFuture();
                 });
