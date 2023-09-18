@@ -19,6 +19,14 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
@@ -26,27 +34,36 @@ import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
+import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.util.status.RDSStatus;
+import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
-import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.hub.Space;
+import com.here.xyz.util.Hasher;
+import io.vertx.core.Future;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
-        include = JsonTypeInfo.As.EXISTING_PROPERTY,
         property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = Import.class, name = "Import"),
-        @JsonSubTypes.Type(value = Export.class, name = "Export")
+        @JsonSubTypes.Type(value = Export.class, name = "Export"),
+        @JsonSubTypes.Type(value = CombinedJob.class, name = "CombinedJob")
 })
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public abstract class Job<T extends Job> {
@@ -56,51 +73,235 @@ public abstract class Job<T extends Job> {
     public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
     public static String ERROR_TYPE_FAILED_DUE_RESTART = "failed_due_node_restart";
     public static String ERROR_TYPE_ABORTED = "aborted";
+    private static volatile HashMap<String, RDSStatus> RDS_STATUS_MAP = new HashMap<>();
+    private static final Logger logger = LogManager.getLogger();
+    private Marker marker;
+
+    /**
+     * The creation timestamp.
+     */
+    @JsonView({Public.class})
+    private long createdAt = Core.currentTimeMillis() / 1000l;
+
+    /**
+     * The last update timestamp.
+     */
+    @JsonView({Public.class})
+    private long updatedAt = createdAt;
+
+    /**
+     * The timestamp which indicates when the execution began.
+     */
+    @JsonView({Public.class})
+    private long executedAt = -1;
+
+    /**
+     * The timestamp at which time the finalization is completed.
+     */
+    @JsonView({Public.class})
+    private long finalizedAt = -1;
+
+    /**
+     * The expiration timestamp.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonView({Public.class})
+    private Long exp;
+
+    /**
+     * The job ID
+     */
+    @JsonView({Public.class})
+    @JsonInclude
+    private String id;
+
+    @JsonView({Public.class})
+    protected String description;
+
+    @JsonView({Internal.class})
+    protected String targetSpaceId;
+
+    @JsonView({Internal.class})
+    protected String targetTable;
+
+    @JsonView({Public.class})
+    private String errorDescription;
+
+    @JsonView({Public.class})
+    private String errorType;
+
+    /**
+     * The status of this job. The flow for a job consists of several phases. Each phase corresponds to a status.
+     * A newly created Job has status "waiting", so it's waiting to be executed.
+     */
+    @JsonView({Public.class, Static.class})
+    private Status status;
+
+    @JsonView({Public.class})
+    private Status lastStatus;
+
+    @JsonView({Public.class})
+    protected CSVFormat csvFormat;
+
+    @JsonView({Public.class})
+    protected Strategy strategy;
+
+    @JsonView({Internal.class})
+    private String targetConnector;
+
+    @JsonView({Internal.class})
+    private Long spaceVersion;
+
+    @JsonView({Internal.class})
+    private String author;
+
+    @JsonView({Public.class})
+    protected Boolean clipped;
+
+    @JsonView({Public.class})
+    protected Boolean omitOnNull;
+
+    /**
+     * Arbitrary parameters to be provided from hub
+     */
+    @JsonView({Internal.class})
+    protected Map<String, Object> params;
+
+    private DatasetDescription source;
+    private DatasetDescription target;
+    @Deprecated
+    @JsonIgnore
+    private boolean childJob;
+
+    public Job() {}
+
+    public Job(String description, String targetSpaceId, String targetTable, Strategy strategy) {
+        setDescription(description);
+        setTargetSpaceId(targetSpaceId);
+        setTargetTable(targetTable);
+        setStrategy(strategy);
+    }
+
+    public abstract Future<T> init();
+
+    protected static String generateRandomId() {
+        return RandomStringUtils.randomAlphanumeric(6);
+    }
+
+    public Future<Job> injectConfigValues() {
+        return readEnableHashedSpaceId()
+            .compose(enableHashedSpaceId -> {
+                addParam("enableHashedSpaceId", enableHashedSpaceId);
+                if (getTargetTable() == null)
+                    //Only for debugging purpose
+                    setTargetTable(enableHashedSpaceId ? Hasher.getHash(getTargetSpaceId()) : getTargetSpaceId());
+                return Future.succeededFuture(this);
+            });
+    }
+
+    private Future<Boolean> readEnableHashedSpaceId() {
+        return HubWebClient.getConnectorConfig(getTargetConnector())
+            .compose(connector -> {
+                boolean enableHashedSpaceId = connector.params.containsKey("enableHashedSpaceId")
+                    ? (boolean) connector.params.get("enableHashedSpaceId") : false;
+                return Future.succeededFuture(enableHashedSpaceId);
+            });
+    }
+
+    public Future<Job> executeAbort() {
+      try {
+        isValidForAbort();
+      }
+      catch (HttpException e) {
+        return Future.failedFuture(e);
+      }
+      //Job will fail - because SQL Queries are getting terminated
+      return JDBCClients.abortJobsByJobId(this)
+          .onFailure(e -> new HttpException(BAD_GATEWAY, "Abort failed [" + getStatus() + "]"))
+          .map(v -> this);
+    }
+
+    public Future<Job> prepareStart() {
+        return injectConfigValues()
+            .compose(job -> CService.jobConfigClient.update(getMarker(), job));
+    }
+
+    public abstract Future<Job> executeStart();
+
+    public Future<Void> abortIfPossible() {
+        //Target: we want to terminate all running sqlQueries
+        return executeAbort()
+            .compose(job -> Future.succeededFuture(), t -> Future.succeededFuture()); //Job is not in state "executing" ignore
+    }
+
+    public Future<Job> executeRetry() {
+      try {
+        isValidForRetry();
+      }
+      catch (HttpException e) {
+        return Future.failedFuture(e);
+      }
+      try {
+        resetToPreviousState();
+      }
+      catch (Exception e) {
+        return Future.failedFuture(new HttpException(BAD_REQUEST, "Job has no lastStatus - can't retry!"));
+      }
+      return CService.jobConfigClient.update(getMarker(), this)
+          .compose(job -> executeStart());
+    }
+
+    /**
+     * @deprecated URL creation will be handled automatically at the inputs / outputs of the job
+     * @param urlCount
+     * @return
+     */
+    @Deprecated
+    public Future<Job> executeCreateUploadUrl(int urlCount) {
+      return Future.failedFuture(new HttpException(NOT_IMPLEMENTED, "For Export not available!"));
+    }
 
     @JsonIgnore
-    public void setDefaults() {
+    protected Future<T> setDefaults() {
         //TODO: Do field initialization at instance initialization time
-        setCreatedAt(Core.currentTimeMillis() / 1000L);
-        setUpdatedAt(Core.currentTimeMillis() / 1000L);
         if (getId() == null)
-            setId(RandomStringUtils.randomAlphanumeric(6));
+            setId(generateRandomId());
         if (getErrorType() != null)
             setErrorType(null);
         if (getErrorDescription() != null)
             setErrorDescription(null);
+        //A newly created Job waits for an execution
+        if (getStatus() == null)
+            setStatus(Job.Status.waiting);
+        return Future.succeededFuture((T) this);
     }
 
-    public void validateCreation() throws HttpException {
+    public Future<T> validate() {
         if (getTargetSpaceId() == null)
-            throw new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!");
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!"));
         if (getCsvFormat() == null)
-            throw new HttpException(BAD_REQUEST, "Please specify 'csvFormat'!");
-    }
-
-    public void isValidForExecution(Command command, Incremental incremental) throws HttpException {
-        switch (command) {
-            case CREATEUPLOADURL:
-                if (this instanceof Export)
-                    throw new HttpException(NOT_IMPLEMENTED, "For Export not available!");
-                else if (this instanceof Import)
-                    Import.isValidForCreateUrl(this);
-                break;
-            case RETRY:
-                    isValidForRetry();
-                break;
-            case START:
-                isValidForStart(incremental);
-                break;
-            case ABORT:
-                isValidForAbort();
-        }
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'csvFormat'!"));
+        return Future.succeededFuture((T) this);
     }
 
     @JsonIgnore
-    protected abstract void isValidForStart(Incremental incremental) throws HttpException;
+    protected Future<Job> isValidForStart() {
+        if (getStatus() != waiting)
+            return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus()
+                + " execution is only allowed on status = waiting"));
+        return Future.succeededFuture(this);
+    }
 
     @JsonIgnore
-    public abstract void isValidForAbort() throws HttpException;
+    public void isValidForAbort() throws HttpException {
+        /*
+        It is only allowed to abort a job inside executing state, because we have multiple nodes running.
+        During the execution we have running SQL-Statements - due to the abortion of them, the client which
+        has executed the Query will handle the abortion.
+         */
+        if (getStatus() != executing && getStatus() != finalizing)
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " for abort!");
+    }
 
     @JsonIgnore
     protected void isValidForRetry() throws HttpException {
@@ -108,28 +309,21 @@ public abstract class Job<T extends Job> {
             throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " for retry!");
     }
 
+    @JsonIgnore
     public static boolean isValidForDelete(Job job, boolean force) {
-        if(force)
+        if (force)
             return true;
-        switch (job.getStatus()){
+        switch (job.getStatus()) {
             case waiting: case finalized: case aborted: case failed: return true;
             default: return false;
         }
     }
 
-    @JsonView({Public.class})
-    public enum Type {
-        Import, Export;
-        public static Type of(String value) {
-            if (value == null) {
-                return null;
-            }
-            try {
-                return valueOf(value);
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }
+
+    @JsonProperty("type")
+    @JsonInclude
+    private String getType() {
+        return getClass().getSimpleName();
     }
 
     @JsonView({Public.class})
@@ -197,102 +391,6 @@ public abstract class Job<T extends Job> {
         }
     }
 
-    /**
-     * Beta release date: 2018-10-01T00:00Z[UTC]
-     */
-    @JsonIgnore
-    private final long DEFAULT_TIMESTAMP = 1538352000000L;
-
-    /**
-     * The creation timestamp.
-     */
-    @JsonView({Public.class})
-    private long createdAt = DEFAULT_TIMESTAMP;
-
-    /**
-     * The last update timestamp.
-     */
-    @JsonView({Public.class})
-    private long updatedAt = DEFAULT_TIMESTAMP;
-
-    /**
-     * The timestamp which indicates when the execution began.
-     */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonView({Public.class})
-    private Long executedAt;
-
-    /**
-     * The timestamp at which time the finalization is completed.
-     */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonView({Public.class})
-    private Long finalizedAt;
-
-    /**
-     * The expiration timestamp.
-     */
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    @JsonView({Public.class})
-    private Long exp;
-
-    /**
-     * The job ID
-     */
-    @JsonView({Public.class})
-    private String id;
-
-    @JsonView({Public.class})
-    protected String description;
-
-    @JsonView({Internal.class})
-    protected String targetSpaceId;
-
-    @JsonView({Internal.class})
-    protected String targetTable;
-
-    @JsonView({Public.class})
-    private String errorDescription;
-
-    @JsonView({Public.class})
-    private String errorType;
-
-    @JsonView({Public.class})
-    private Status status;
-
-    @JsonView({Public.class})
-    private Status lastStatus;
-
-    @JsonView({Public.class})
-    protected CSVFormat csvFormat;
-
-    @JsonView({Public.class})
-    protected Strategy strategy;
-
-    @JsonView({Internal.class})
-    private String targetConnector;
-
-    @JsonView({Internal.class})
-    private Long spaceVersion;
-
-    @JsonView({Internal.class})
-    private String author;
-
-    @JsonView({Public.class})
-    protected Boolean clipped;
-
-    @JsonView({Public.class})
-    protected Boolean omitOnNull;
-
-    /**
-     * Arbitrary parameters to be provided from hub
-     */
-    @JsonView({Internal.class})
-    protected Map<String, Object> params;
-
-    private DatasetDescription source;
-    private DatasetDescription target;
-
     public String getId(){
         return id;
     }
@@ -349,10 +447,10 @@ public abstract class Job<T extends Job> {
     public void setTargetSpaceId(String targetSpaceId) {
         this.targetSpaceId = targetSpaceId;
         //Keep BWC
-        if (this instanceof Import && target == null)
-            setTarget(new DatasetDescription.Space().withId(targetSpaceId));
-        else if (this instanceof Export && source == null)
-            setSource(new DatasetDescription.Space().withId(targetSpaceId));
+//        if (this instanceof Import && target == null)
+//            setTarget(new DatasetDescription.Space().withId(targetSpaceId));
+//        else if (this instanceof Export && source == null)
+//            setSource(new DatasetDescription.Space().withId(targetSpaceId));
     }
 
     /**
@@ -382,9 +480,12 @@ public abstract class Job<T extends Job> {
     public Status getStatus() { return status; }
 
     public void setStatus(Job.Status status) {
-        if(this.status == Status.failed || this.status == Status.finalized || this.status == Status.aborted)
+        if (this.status != null && this.status.isFinal()) {
+            if (getFinalizedAt() == -1)
+                setFinalizedAt(Core.currentTimeMillis() / 1000l);
             return;
-        if((status.equals(Status.aborted) || status.equals(Status.failed)) && lastStatus == null)
+        }
+        if ((status == aborted || status == failed) && lastStatus == null)
             lastStatus = this.status;
         this.status = status;
     }
@@ -456,33 +557,35 @@ public abstract class Job<T extends Job> {
         return (T) this;
     }
 
-    public Long getExecutedAt() {
+    public long getExecutedAt() {
         return executedAt;
     }
 
-    public void setExecutedAt(final Long executedAt) {
+    public void setExecutedAt(final long executedAt) {
         this.executedAt = executedAt;
     }
 
-    public T withExecutedAt(final Long startedAt) {
-        setExecutedAt(startedAt);
+    public T withExecutedAt(final long executedAt) {
+        setExecutedAt(executedAt);
         return (T) this;
     }
 
-    public Long getFinalizedAt() {
+    public long getFinalizedAt() {
         return finalizedAt;
     }
 
-    public void setFinalizedAt(final Long finalizedAt) {
+    public void setFinalizedAt(final long finalizedAt) {
         this.finalizedAt = finalizedAt;
     }
 
-    public T withFinalizedAt(final Long finalizedAt) {
+    public T withFinalizedAt(final long finalizedAt) {
         setFinalizedAt(finalizedAt);
         return (T) this;
     }
 
-    public abstract void finalizeJob();
+    public void finalizeJob() {
+        updateJobStatus(this, finalized);
+    }
 
     public Long getExp() {
         return exp;
@@ -570,20 +673,40 @@ public abstract class Job<T extends Job> {
         return (T) this;
     }
 
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     */
+    @Deprecated
     public Object getParam(String key) {
         if(params == null)
             return null;
         return params.get(key);
     }
 
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     */
     public Map<String, Object> getParams() {
         return params;
     }
 
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     * @param params
+     */
+    @Deprecated
     public void setParams(Map<String, Object> params) {
         this.params = params;
     }
 
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     * @param params
+     */
     public T withParams(Map params) {
         setParams(params);
         return (T) this;
@@ -596,8 +719,8 @@ public abstract class Job<T extends Job> {
     public void setSource(DatasetDescription source) {
         this.source = source;
         //Keep BWC
-//        if (source instanceof DatasetDescription.Space)
-//            setTargetSpaceId(((DatasetDescription.Space) source).getId());
+        if (source instanceof DatasetDescription.Space)
+            setTargetSpaceId(((DatasetDescription.Space) source).getId());
     }
 
     public T withSource(DatasetDescription source) {
@@ -612,8 +735,8 @@ public abstract class Job<T extends Job> {
     public void setTarget(DatasetDescription target) {
         this.target = target;
         //Keep BWC
-//        if (target instanceof DatasetDescription.Space)
-//            setTargetSpaceId(((DatasetDescription.Space) source).getId());
+        if (target instanceof DatasetDescription.Space)
+            setTargetSpaceId(((DatasetDescription.Space) target).getId());
     }
 
     public T withTarget(DatasetDescription target) {
@@ -621,27 +744,103 @@ public abstract class Job<T extends Job> {
         return (T) this;
     }
 
+    @Deprecated
+    public boolean isChildJob() {
+        return childJob;
+    }
+
+
+    @Deprecated
+    public void setChildJob(boolean childJob) {
+        this.childJob = childJob;
+    }
+
+    /**
+     * @deprecated Please use actual fields instead of params.
+     *  Utilization of fields is easier to track than loosely coupled / untyped params in a map.
+     * @param key
+     * @param value
+     */
+    @Deprecated
     public void addParam(String key, Object value){
-        if(this.params == null){
+        if (this.params == null)
             this.params = new HashMap<>();
-        }
         this.params.put(key,value);
     }
     @JsonIgnore
-    public abstract void resetToPreviousState() throws Exception;
+    public void resetToPreviousState() throws Exception {
+        switch (getStatus()) {
+            case failed:
+            case aborted:
+                setErrorType(null);
+                setErrorDescription(null);
+                if (getLastStatus() != null) {
+                    //Set to last valid state
+                    resetStatus(getLastStatus());
+                    setLastStatus(null);
+                    resetToPreviousState();
+                }
+                else
+                    throw new Exception("No last Status found!");
+                break;
+        }
+    };
 
     @JsonIgnore
     public abstract String getQueryIdentifier();
 
+    public Future<Job> isProcessingPossible() {
+        if (!needRdsCheck())
+            //No RDS check needed - no database intensive stage.
+            return Future.succeededFuture(this);
+        return isProcessingOnRDSPossible();
+    }
+
+    protected Future<Job> isProcessingOnRDSPossible() {
+        return JDBCImporter.getRDSStatus(getTargetConnector())
+            .compose(rdsStatus -> {
+                RDS_STATUS_MAP.put(getTargetConnector(), rdsStatus);
+
+                if (rdsStatus.getCurrentMetrics().getCapacityUnits() > CService.configuration.JOB_MAX_RDS_CAPACITY) {
+                    logger.info("job[{}] JOB_MAX_RDS_CAPACITY to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getCapacityUnits(), CService.configuration.JOB_MAX_RDS_CAPACITY);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                else if (rdsStatus.getCurrentMetrics().getCpuLoad() > CService.configuration.JOB_MAX_RDS_CPU_LOAD) {
+                    logger.info("job[{}] JOB_MAX_RDS_CPU_LOAD to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getCpuLoad(), CService.configuration.JOB_MAX_RDS_CPU_LOAD);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                //TODO: Move following into according sub-clases
+                if (this instanceof Import && rdsStatus.getCurrentMetrics().getTotalInflightImportBytes() > CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES) {
+                    logger.info("job[{}] JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalInflightImportBytes(), CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                if (this instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                if (this instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningImportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                if (this instanceof Export && rdsStatus.getCurrentMetrics().getTotalRunningExportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
+                    return Future.failedFuture(new ProcessingNotPossibleException());
+                }
+                return Future.succeededFuture(this);
+            });
+    }
+
+    public boolean needRdsCheck() {
+        return false;
+    }
+
     public abstract void execute();
 
-    public static class Public {
-    }
+    public static class Public {}
 
-    public static class Internal extends Space.Internal {
-    }
+    public static class Static {}
 
-    public Job(){ }
+    public static class Internal extends Space.Internal {}
 
     @Override
     public boolean equals(Object o) {
@@ -654,5 +853,31 @@ public abstract class Job<T extends Job> {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+
+    @JsonIgnore
+    protected Marker getMarker() {
+        if (marker == null)
+            marker = new Log4jMarker(getId());
+        return marker;
+    }
+
+    public static class ValidationException extends Exception {
+        public ValidationException(String message) {
+            super(message);
+        }
+
+        public ValidationException(String message, Exception cause) {
+            super(message, cause);
+        }
+    }
+
+    public static class ProcessingNotPossibleException extends Exception {
+
+        private static final String PROCESSING_NOT_POSSIBLE = "waits on free resources";
+
+        ProcessingNotPossibleException() {
+            super(PROCESSING_NOT_POSSIBLE);
+        }
     }
 }

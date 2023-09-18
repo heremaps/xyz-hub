@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.hub.rest;
+package com.here.xyz.hub.rest.jobs;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
@@ -29,11 +29,15 @@ import static org.junit.Assert.assertNotEquals;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.Job.Status;
+import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
+import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
@@ -44,22 +48,19 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.restassured.response.Response;
 import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.jackson.DatabindCodec;
-import java.util.Collections;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.io.FileInputStream;
-import java.io.File;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -122,6 +123,20 @@ public class JobApiIT extends TestSpaceWithFeature {
         removeSpace(getScopedSpaceId(testSpaceId2ExtExt, scope));
     }
 
+    public enum Type {
+        Import, Export;
+        public static Type of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
+
     protected static ValidatableResponse postJob(Job job, String spaceId){
         return given()
                 .accept(APPLICATION_JSON)
@@ -142,10 +157,10 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .then();
     }
 
-    protected static Job createTestJobWithId( String spaceId, String id, Job.Type type, Job.CSVFormat csvFormat) {
+    protected static Job createTestJobWithId(String spaceId, String id, Type type, Job.CSVFormat csvFormat) {
         id = id + CService.currentTimeMillis();
         Job job;
-        if(type.equals(Job.Type.Import)) {
+        if(type.equals(Type.Import)) {
             job = new Import()
                     .withDescription("Job Description")
                     .withCsvFormat(csvFormat);
@@ -383,13 +398,18 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     /** ------------------- HELPER EXPORT  -------------------- */
-    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus) throws Exception {
+    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus) throws Exception {
         return performExport(job, spaceId, expectedStatus, failStatus, null, null);
     }
 
-    protected List<URL> performExport(Export job, String spaceId, Job.Status expectedStatus, Job.Status failStatus,
-                                      ContextAwareEvent.SpaceContext context, ApiParam.Query.Incremental incremental) throws Exception {
-        /** Create job */
+    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, SpaceContext context,
+        Incremental incremental) throws Exception {
+        if (incremental != null)
+            job.addParam("incremental", incremental.toString());
+        if (context != null)
+            job.addParam("context", context.toString());
+
+        //Create job
         Response resp = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
@@ -407,8 +427,8 @@ public class JobApiIT extends TestSpaceWithFeature {
         String postUrl = "/spaces/{spaceId}/job/{jobId}/execute?command=start&{context}&{incremental}"
                 .replace("{spaceId}", spaceId)
                 .replace("{jobId}", job.getId())
-                .replace("{context}", context == null ? "" : "context="+context.toString().toLowerCase())
-                .replace("{incremental}", incremental == null ? "" : "incremental="+incremental.toString().toLowerCase());
+                .replace("{context}", "")
+                .replace("{incremental}", "");
 
         /** start import */
         resp = given()
@@ -483,8 +503,8 @@ public class JobApiIT extends TestSpaceWithFeature {
 
         String result = downloadAndCheck(urls, expectedByteSize, 0, csvMustContain);
         for (String fc64: result.split("\n")) {
-            tileIds.add(fc64.substring(0,fc64.lastIndexOf("\t")));
-            FeatureCollection fc = XyzSerializable.deserialize(new String(Base64.getDecoder().decode((fc64.substring(fc64.lastIndexOf("\t")+1)))));
+            tileIds.add(fc64.substring(0,fc64.lastIndexOf(",")));
+            FeatureCollection fc = XyzSerializable.deserialize(new String(Base64.getDecoder().decode((fc64.substring(fc64.lastIndexOf(",")+1)))));
             featureCount += fc.getFeatures().size();
         }
 

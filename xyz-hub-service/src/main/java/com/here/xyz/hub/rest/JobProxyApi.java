@@ -71,8 +71,8 @@ public class JobProxyApi extends Api{
                                     if (headSpace == null) {
                                         return Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID does not exist!"));
                                     }
-                                    if (job instanceof Import && headSpace.getVersionsToKeep() != 1) {
-                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "Versioning is not supported!"));
+                                    if (job instanceof Import && headSpace.getVersionsToKeep() > 1) {
+                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
                                     }
 
                                     return Future.succeededFuture(headSpace);
@@ -346,6 +346,7 @@ public class JobProxyApi extends Api{
 
             try{
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
+                return;
             }catch (Exception e){}
         }
 

@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.xyz.hub.rest;
+package com.here.xyz.hub.rest.jobs;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
@@ -30,6 +30,9 @@ import static org.junit.Assert.assertTrue;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.hub.auth.TestAuthenticator;
+import com.here.xyz.hub.rest.TestSpaceWithFeature;
+import com.here.xyz.hub.rest.TestWithSpaceCleanup;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.net.URL;
@@ -56,28 +59,28 @@ public class JobApiImportIT extends JobApiIT {
     @Before
     public void setupAndCleanBefore(){
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId1, scope));
-        removeSpace(getScopedSpaceId(testSpaceId1, scope));
+        TestWithSpaceCleanup.removeSpace(getScopedSpaceId(testSpaceId1, scope));
 
         /** Create empty test space */
-        createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId1, scope), "psql", null);
+        TestSpaceWithFeature.createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId1, scope), "psql", null);
     }
 
     @After
     public void cleanAfter(){
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId1, scope));
-        removeSpace(getScopedSpaceId(testSpaceId1, scope));
+        TestWithSpaceCleanup.removeSpace(getScopedSpaceId(testSpaceId1, scope));
     }
 
     @Test
     public void validWKBImport() throws Exception {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Create Upload URL */
         String resp = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=createUploadUrl")
                 .getBody().asString();
         String url = new JsonObject(resp).getString("url");
@@ -89,7 +92,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=start")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -101,7 +104,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_GEO_JSON)
                 .contentType(APPLICATION_GEO_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
                 .when()
                 .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) +"/search")
                 .then()
@@ -112,14 +115,14 @@ public class JobApiImportIT extends JobApiIT {
     public void duplicateImport() throws Exception {
 
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         for(int i=0; i<3 ; i++) {
             /** Create Upload URL */
             String resp = given()
                     .accept(APPLICATION_JSON)
                     .contentType(APPLICATION_JSON)
-                    .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                    .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                     .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/" + job.getId() + "/execute?command=createUploadUrl")
                     .getBody().asString();
             String url = new JsonObject(resp).getString("url");
@@ -132,7 +135,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=start")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -144,7 +147,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_GEO_JSON)
                 .contentType(APPLICATION_GEO_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
                 .when()
                 .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) +"/search")
                 .then()
@@ -175,13 +178,13 @@ public class JobApiImportIT extends JobApiIT {
     @Test
     public void validGEOJSONImport() throws Exception {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.GEOJSON);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.GEOJSON);
 
         /** Create Upload URL */
         String resp = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=createUploadUrl")
                 .getBody().asString();
         String url = new JsonObject(resp).getString("url");
@@ -193,7 +196,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=start")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -205,7 +208,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_GEO_JSON)
                 .contentType(APPLICATION_GEO_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
                 .when()
                 .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) +"/search")
                 .then()
@@ -216,13 +219,13 @@ public class JobApiImportIT extends JobApiIT {
     public void validMultiUrlImport() throws Exception {
 
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Create single Upload URL */
         String resp1 = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=createUploadUrl")
                 .getBody().asString();
         String url = new JsonObject(resp1).getString("url");
@@ -233,7 +236,7 @@ public class JobApiImportIT extends JobApiIT {
         String resp2 = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=createUploadUrl&urlCount="+urlCount)
                 .getBody().asString();
         JsonArray urls = new JsonObject(resp2).getJsonArray("urls");
@@ -246,7 +249,7 @@ public class JobApiImportIT extends JobApiIT {
         String resp3 = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=createUploadUrl")
                 .getBody().asString();
         urls = new JsonObject(resp3).getJsonArray("urls");
@@ -257,7 +260,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId())
                 .then()
                 .statusCode(OK.code())
@@ -268,7 +271,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=start")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -280,7 +283,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_GEO_JSON)
                 .contentType(APPLICATION_GEO_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
                 .when()
                 .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) +"/search")
                 .then()
@@ -290,13 +293,13 @@ public class JobApiImportIT extends JobApiIT {
     @Test
     public void validationErrorImport() throws Exception {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         /** Create Upload URL */
         String resp = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=createUploadUrl")
                 .getBody().asString();
         String url = new JsonObject(resp).getString("url");
@@ -308,7 +311,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=start")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -323,7 +326,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=retry")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -338,7 +341,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=retry")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -350,12 +353,12 @@ public class JobApiImportIT extends JobApiIT {
     @Test
     public void startIncompleteImportJob() throws InterruptedException {
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=start")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -373,14 +376,14 @@ public class JobApiImportIT extends JobApiIT {
         /** Defines how many upload chunks we want to have */
         int chunkSize = 100;
         /** Create job */
-        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Import job = (Import) createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testImportJobId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         for (int i=0 ;  i< chunkSize; i++){
             /** Create Upload URL */
             String resp = given()
                     .accept(APPLICATION_JSON)
                     .contentType(APPLICATION_JSON)
-                    .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                    .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                     .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=createUploadUrl")
                     .getBody().asString();
             String url = new JsonObject(resp).getString("url");
@@ -393,7 +396,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + getScopedSpaceId(testSpaceId1, scope) + "/job/"+job.getId()+"/execute?command=start")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -405,7 +408,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_GEO_JSON)
                 .contentType(APPLICATION_GEO_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
                 .when()
                 .get("/spaces/" + getScopedSpaceId(testSpaceId1, scope) +"/search")
                 .then()
@@ -417,16 +420,16 @@ public class JobApiImportIT extends JobApiIT {
         String newSpace = "new_empty_space";
         String importId = "manual_big_import";
 
-        removeSpace(newSpace);
+        TestWithSpaceCleanup.removeSpace(newSpace);
         deleteAllJobsOnSpace(newSpace);
-        createSpaceWithCustomStorage(newSpace, "psql", null);
+        TestSpaceWithFeature.createSpaceWithCustomStorage(newSpace, "psql", null);
         /** Create job */
-        Job job = createTestJobWithId(newSpace, importId, Job.Type.Import, Job.CSVFormat.JSON_WKB);
+        Job job = createTestJobWithId(newSpace, importId, JobApiIT.Type.Import, Job.CSVFormat.JSON_WKB);
 
         String resp = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + newSpace + "/job/"+job.getId()+"/execute?command=createUploadUrl")
                 .getBody().asString();
         String url = new JsonObject(resp).getString("url");
@@ -438,7 +441,7 @@ public class JobApiImportIT extends JobApiIT {
         resp = given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + newSpace + "/job/"+job.getId()+"/execute?command=createUploadUrl")
                 .getBody().asString();
         url = new JsonObject(resp).getString("url");
@@ -450,7 +453,7 @@ public class JobApiImportIT extends JobApiIT {
         given()
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .headers(TestAuthenticator.getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .post("/spaces/" + newSpace + "/job/"+job.getId()+"/execute?command=start")
                 .then()
                 .statusCode(NO_CONTENT.code());
@@ -459,6 +462,6 @@ public class JobApiImportIT extends JobApiIT {
         pollStatus(newSpace, job.getId(), Job.Status.finalized, Job.Status.failed);
 
         deleteAllJobsOnSpace(newSpace);
-        removeSpace(newSpace);
+        TestWithSpaceCleanup.removeSpace(newSpace);
     }
 }

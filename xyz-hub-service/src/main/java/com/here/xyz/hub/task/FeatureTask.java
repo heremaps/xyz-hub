@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -525,9 +526,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   public static class GetStatistics extends FeatureTask<GetStatisticsEvent, GetStatistics> {
+    final public SpaceContext spaceContext;
 
     public GetStatistics(GetStatisticsEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
+      spaceContext = event.getContext();
     }
 
     @Override

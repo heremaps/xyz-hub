@@ -743,6 +743,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/SkipCache'
+        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/StatisticsResponse'

@@ -26,11 +26,10 @@ import com.here.xyz.hub.Core;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
 import io.vertx.pgclient.PgException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Job-Queue for IMPORT-Jobs (S3 -> RDS)
@@ -46,7 +45,7 @@ public class ImportQueue extends JobQueue {
             if (!(job instanceof Import))
                 return;
 
-            isProcessingPossible(job)
+            ((Future<Job>) job.isProcessingPossible())
                     .compose(j -> loadCurrentConfig(job))
                     .compose(currentJobConfig -> {
                         /**
@@ -69,12 +68,12 @@ public class ImportQueue extends JobQueue {
                                 updateJobStatus(currentJobConfig,Job.Status.validating)
                                         .compose(j -> {
                                             Import validatedJob = validateJob(j);
-                                            /** Set status of validation */
+                                            //Set status of validation
                                             return updateJobStatus(validatedJob);
                                         });
                                 break;
                             case validated:
-                                /** Reflect that the Job is loaded into job-queue */
+                                //Reflect that the Job is loaded into job-queue
                                 updateJobStatus(currentJobConfig,Job.Status.queued);
                                 break;
                             case queued:
@@ -102,15 +101,15 @@ public class ImportQueue extends JobQueue {
     }
 
     @Override
-    protected Import validateJob(Job job){
-        return Import.validateImportObjects((Import)job);
+    protected Import validateJob(Job job) {
+        return Import.validateImportObjects((Import) job);
     }
 
     @Override
     protected void prepareJob(Job j){
         String defaultSchema = JDBCImporter.getDefaultSchema(j.getTargetConnector());
 
-        CService.jdbcImporter.prepareImport(defaultSchema, (Import)j)
+        CService.jdbcImporter.prepareImport(defaultSchema, (Import) j)
                 .compose(
                         f2 ->  updateJobStatus(j ,Job.Status.prepared))
                 .onFailure(f -> {
@@ -127,17 +126,6 @@ public class ImportQueue extends JobQueue {
                     else
                         setJobFailed(j, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_PREPARATION_FAILED);
                 });
-    }
-
-    @Override
-    protected boolean needRdsCheck(Job job) {
-        /** In next stage we perform the import */
-        if(job.getStatus().equals(Job.Status.prepared))
-            return true;
-        /** In next stage we create indices + other finalizations */
-        if(job.getStatus().equals(Job.Status.executed))
-            return true;
-        return false;
     }
 
     /**
