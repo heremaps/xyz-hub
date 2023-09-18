@@ -19,38 +19,37 @@
 package com.here.xyz.httpconnector.config;
 
 import com.amazonaws.AmazonServiceException;
-
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.ExportObject;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
-import com.here.xyz.httpconnector.util.jobs.Export;
-import com.here.xyz.httpconnector.util.jobs.ExportObject;
 import com.here.xyz.httpconnector.util.jobs.validate.Validator;
 import com.here.xyz.util.Hasher;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import java.io.BufferedReader;
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.io.EOFException;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
-import java.io.ByteArrayInputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JobS3Client extends AwsS3Client{
     private static final Logger logger = LogManager.getLogger();
@@ -331,30 +330,28 @@ public class JobS3Client extends AwsS3Client{
     }
 
     public String getS3Path(String targetSpaceId, String subfolder, boolean subHashed) {
-
-     return String.format("%s/%s/%s", CService.jobS3Client.EXPORT_PERSIST_FOLDER, 
-                                      Hasher.getHash(targetSpaceId), 
-                                      !subHashed ? subfolder : Hasher.getHash(subfolder) );
-                                 
+     return String.join("/", new String[]{CService.jobS3Client.EXPORT_PERSIST_FOLDER, Hasher.getHash(targetSpaceId),
+         !subHashed ? subfolder : Hasher.getHash(subfolder)});
     }
 
-    public String getS3Path(String targetSpaceId, int targetLevel) { return getS3Path(targetSpaceId, "" + targetLevel, false); }
+    public String getS3Path(String targetSpaceId, int targetLevel) {
+        return getS3Path(targetSpaceId, "" + targetLevel, false);
+    }
 
     public String getS3Path(Job job) {
-        if(job instanceof Import){
+        if (job instanceof Import)
             return IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
-        }
 
         String s3Path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER + "/" + job.getId();
 
-        if(job instanceof Export && ((Export) job).readParamPersistExport()) {
+        if (job instanceof Export && ((Export) job).readParamPersistExport()) {
             Export exportJob = (Export) job;
-            if(exportJob.getExportTarget().getType() == Export.ExportTarget.Type.VML && exportJob.getFilters() == null) {
-              if( job.getCsvFormat() == CSVFormat.TILEID_FC_B64)  
-               s3Path = getS3Path( job.getTargetSpaceId(),exportJob.getTargetLevel() );
-              else
-              { String folder =  exportJob.getPartitionKey() != null && !"id".equalsIgnoreCase(exportJob.getPartitionKey()) ? exportJob.getPartitionKey() : "id";
-                s3Path = getS3Path( job.getTargetSpaceId(), folder, true );
+            if (exportJob.getExportTarget().getType() == Export.ExportTarget.Type.VML && exportJob.getFilters() == null) {
+              if (job.getCsvFormat() == CSVFormat.TILEID_FC_B64)
+                  s3Path = getS3Path(job.getTargetSpaceId(),exportJob.getTargetLevel());
+              else {
+                  String folder =  exportJob.getPartitionKey() != null && !"id".equalsIgnoreCase(exportJob.getPartitionKey()) ? exportJob.getPartitionKey() : "id";
+                  s3Path = getS3Path(job.getTargetSpaceId(), folder, true);
               }
             }
         }
