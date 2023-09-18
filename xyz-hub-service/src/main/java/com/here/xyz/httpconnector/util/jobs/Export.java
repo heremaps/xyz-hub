@@ -34,7 +34,6 @@ import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus
 import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.DEACTIVATED;
 import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -280,12 +279,8 @@ public class Export extends Job<Export> {
             .compose(job -> {
                 Incremental incremental = Incremental.of((String) getParam("incremental"));
                 if (incremental != null && incremental != DEACTIVATED) {
-
-	            switch( getCsvFormat() )
-        	    { case TILEID_FC_B64: case PARTITIONID_FC_B64 : break;
-	              default :  return Future.failedFuture(new HttpException(BAD_REQUEST, "CSV format is not supported!"));
-        	    }
-
+                    if (getCsvFormat() != TILEID_FC_B64 && getCsvFormat() != PARTITIONID_FC_B64)
+                        return Future.failedFuture(new HttpException(BAD_REQUEST, "CSV format is not supported!"));
                     if (getExportTarget().getType() == DOWNLOAD)
                         return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST,
                             "Incremental Export is not available for Type Download!"));

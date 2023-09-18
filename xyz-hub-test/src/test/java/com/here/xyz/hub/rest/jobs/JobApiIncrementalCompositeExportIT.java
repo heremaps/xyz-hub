@@ -18,12 +18,12 @@
  */
 package com.here.xyz.hub.rest.jobs;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.CHANGES;
+import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.DEACTIVATED;
 import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.FULL;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
@@ -31,7 +31,6 @@ import static org.junit.Assert.assertEquals;
 
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.hub.rest.TestWithSpaceCleanup;
@@ -122,7 +121,7 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), GEOJSON);
         try {
             /** Invalid Type - creation fails */
-            performExport(job, testSpaceId1Ext, failed, finalized, DEFAULT, FULL);
+            performExport(job, testSpaceId1Ext, failed, finalized, FULL);
         }
         catch (HttpException e){
             assertEquals(BAD_REQUEST, e.status);
@@ -133,7 +132,7 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), GEOJSON);
         try {
             /** No extended layer - creation fails */
-            performExport(job, testSpaceId1, failed, finalized, DEFAULT, CHANGES);
+            performExport(job, testSpaceId1, failed, finalized, CHANGES);
         }catch (HttpException e){
             assertEquals(BAD_REQUEST, e.status);
             exceptionCnt++;
@@ -147,16 +146,18 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
     public void missingPersistentBaseExport() throws Exception{
         Export job =  generateExportJob(testExportJobId, 4);
         try {
-            performExport(job, testSpaceId1Ext, failed, finalized, DEFAULT, FULL);
-        }catch (HttpException e){
+            performExport(job, testSpaceId1Ext, failed, finalized, FULL);
+        }
+        catch (HttpException e){
             assertEquals(PRECONDITION_FAILED, e.status);
         }
 
         deleteJob(job.getId(), testSpaceId1Ext, true);
         job =  generateExportJob(testExportJobId, 4);
         try {
-            performExport(job, testSpaceId1ExtExt, failed, finalized, DEFAULT, FULL);
-        }catch (HttpException e){
+            performExport(job, testSpaceId1ExtExt, failed, finalized, FULL);
+        }
+        catch (HttpException e){
             assertEquals(PRECONDITION_FAILED, e.status);
         }
     }
@@ -166,14 +167,15 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         Export job =  generateExportJob(testExportJobId, 4);
 
         /** Initial Base Export on testSpaceId1 */
-        performExport(job, testSpaceId1, failed, finalized, DEFAULT, ApiParam.Query.Incremental.DEACTIVATED);
+        performExport(job, testSpaceId1, failed, finalized, DEACTIVATED);
         deleteAllJobsOnSpace(testSpaceId1);
 
         job =  generateExportJob(testExportJobId, 8);
         /** Incremental Export on testSpaceId1Ext - Base layer got exported on level 4 now we want an incremental export on another level */
         try {
-            performExport(job, testSpaceId1Ext, failed, finalized, DEFAULT, FULL);
-        }catch (HttpException e){
+            performExport(job, testSpaceId1Ext, failed, finalized, FULL);
+        }
+        catch (HttpException e){
             assertEquals(PRECONDITION_FAILED, e.status);
         }
     }
@@ -183,12 +185,12 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         Export job =  generateExportJob(testExportJobId, 6);
 
         /** Initial Base Export */
-        List<URL> urls = performExport(job, testSpaceId1, failed, finalized, DEFAULT, ApiParam.Query.Incremental.DEACTIVATED);
+        List<URL> urls = performExport(job, testSpaceId1, failed, finalized, DEACTIVATED);
         assertEquals(1, urls.size());
 
         /** Incremental Export */
         job =  generateExportJob(testExportJobId+"_2", 6);
-        urls = performExport(job, testSpaceId1Ext, failed, finalized, DEFAULT, FULL);
+        urls = performExport(job, testSpaceId1Ext, failed, finalized, FULL);
         /** Expect 3 files from persistent super layer + 3 files from composite compound */
         assertEquals(2, urls.size());
 
@@ -212,7 +214,7 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         Export job =  generateExportJob(testExportJobId, 6);
 
         /** Initial Base Export */
-        List<URL> urls = performExport(job, testSpaceId1, failed, finalized, DEFAULT, ApiParam.Query.Incremental.DEACTIVATED);
+        List<URL> urls = performExport(job, testSpaceId1, failed, finalized, DEACTIVATED);
         assertEquals(1, urls.size());
 
         List<String> mustContain = Arrays.asList(
@@ -230,7 +232,7 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
 
         /** Incremental Export */
         job =  generateExportJob(testExportJobId+"_2", 6);
-        urls = performExport(job, testSpaceId1Ext, failed, finalized, DEFAULT, CHANGES);
+        urls = performExport(job, testSpaceId1Ext, failed, finalized, CHANGES);
         /** Expect 1 file with base+delta */
         assertEquals(1, urls.size());
 
@@ -252,12 +254,12 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         Export job =  generateExportJob(testExportJobId, 6);
 
         /** Initial Base Export */
-        List<URL> urls = performExport(job, testSpaceId1, failed, finalized, DEFAULT, ApiParam.Query.Incremental.DEACTIVATED);
+        List<URL> urls = performExport(job, testSpaceId1, failed, finalized, DEACTIVATED);
         assertEquals(1, urls.size());
 
         /** Incremental Export */
         job =  generateExportJob(testExportJobId+"_2", 6);
-        urls = performExport(job, testSpaceId1ExtExt, failed, finalized, DEFAULT, FULL);
+        urls = performExport(job, testSpaceId1ExtExt, failed, finalized, FULL);
         /** Expect 1 files from persistent super layer + 1 files from composite compound */
         assertEquals(2, urls.size());
 
@@ -281,13 +283,13 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         Export job =  generateExportJob(testExportJobId, 6);
 
         /** Initial Base Export */
-        List<URL> urls = performExport(job, testSpaceId1, failed, finalized, DEFAULT, ApiParam.Query.Incremental.DEACTIVATED);
+        List<URL> urls = performExport(job, testSpaceId1, failed, finalized, DEACTIVATED);
         assertEquals(1, urls.size());
 
         /** Incremental Export */
         job =  generateExportJob(testExportJobId+"_2", 6);
 
-        urls = performExport(job, testSpaceId1ExtExt, failed, finalized, DEFAULT, CHANGES);
+        urls = performExport(job, testSpaceId1ExtExt, failed, finalized, CHANGES);
 
         assertEquals(1, urls.size());
 

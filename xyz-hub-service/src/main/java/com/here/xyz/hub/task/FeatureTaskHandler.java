@@ -811,7 +811,7 @@ public class FeatureTaskHandler {
           .compose(
               space -> {
                 if (space != null) {
-                  if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent && SUPER.equals(((ContextAwareEvent<?>) task.getEvent()).getContext()))
+                  if (space.getExtension() != null && task.getEvent() instanceof ContextAwareEvent && SUPER == ((ContextAwareEvent<?>) task.getEvent()).getContext())
                     return switchToSuperSpace(task, space);
                   task.space = space;
                   //Inject the extension-map
@@ -848,6 +848,7 @@ public class FeatureTaskHandler {
     }
   }
 
+  //TODO: Remove the following hack and perform the switch to super within connector (GetFeatures QR) instead
   private static <X extends FeatureTask> Future<Space> switchToSuperSpace(X task, Space space) {
     //Overwrite the event's space ID to be the ID of the extended (super) space ...
     task.getEvent().setSpace(space.getExtension().getSpaceId());
