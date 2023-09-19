@@ -168,8 +168,12 @@ public class CombinedJob extends Job<CombinedJob> {
 
   @Override
   public void finalizeJob() {
-    children.forEach(childJob -> childJob.finalizeJob());
+    finalizeChildren();
     super.finalizeJob();
+  }
+
+  protected void finalizeChildren() {
+    children.forEach(childJob -> childJob.finalizeJob());
   }
 
   @Override

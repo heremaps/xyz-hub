@@ -19,6 +19,8 @@
 
 package com.here.xyz.httpconnector;
 
+import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.connectors.AbstractConnectorHandler;
@@ -37,17 +39,14 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.openapi.RouterBuilder;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Verticle for HTTP-Connector. Includes three API tribes for :
@@ -166,7 +165,8 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implem
   public static synchronized void populateEnvMap(){
     try {
       envMap = new ObjectMapper().convertValue(CService.configuration, HashMap.class);
-    }catch (Exception e){
+    }
+    catch (Exception e){
       logger.error("Cannot populate EnvMap");
     }
   }
