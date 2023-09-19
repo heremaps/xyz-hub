@@ -1520,7 +1520,7 @@ public class FeatureTaskHandler {
         defineGlobalSearchableField(response, task);
         defineContentUpdatedAtField(response, (FeatureTask.GetStatistics) task)
                 .onSuccess(r -> callback.call(task))
-                .onFailure(t -> callback.exception(t));
+                .onFailure(callback::exception);
         return;
       }
     } else if (task instanceof FeatureTask.IdsQuery) {
