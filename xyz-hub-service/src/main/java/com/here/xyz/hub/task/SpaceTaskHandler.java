@@ -52,6 +52,7 @@ import com.here.xyz.hub.task.FeatureTask.ModifySpaceQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
+import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.hub.task.SpaceTask.ReadQuery;
 import com.here.xyz.hub.task.SpaceTask.View;
 import com.here.xyz.hub.task.TaskPipeline.C1;
@@ -196,10 +197,12 @@ public class SpaceTaskHandler {
         storageId = Service.configuration.getDefaultStorageId(input.getString("region"));
         logger.info(task.getMarker(), "default storageId from region " + input.getString("region") + ": " + storageId);
 
-        if (input.getString("id") != null) {
-          String matchedStorageId = SpaceStorageMatchingMap.getIfMatches(input.getString("id"), input.getString("region"));
-          logger.info(task.getMarker(), "storageId from space/region/storage mapping: " + matchedStorageId);
-          if (matchedStorageId != null) storageId = matchedStorageId;
+        if (task.modifyOp.connectorMapping == ConnectorMapping.SPACESTORAGEMATCHINGMAP) {
+          if (input.getString("id") != null) {
+            String matchedStorageId = SpaceStorageMatchingMap.getIfMatches(input.getString("id"), input.getString("region"));
+            logger.info(task.getMarker(), "storageId from space/region/storage mapping: " + matchedStorageId);
+            if (matchedStorageId != null) storageId = matchedStorageId;
+          }
         }
 
         if (storageId == null) {

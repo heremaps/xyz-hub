@@ -117,6 +117,20 @@ recipes:
         replace: /hub
   - name: contract
     extends: base
+    include:
+      - path: paths.'spaces'.post
+        value:
+          parameters:
+            - name: connectorMapping
+              in: query
+              description: >-
+                The strategy used to assign the connector to the space.
+                When not set, uses the default strategy, which is random.
+              required: false
+              schema:
+                type: string
+                enum:
+                  - SpaceStorageMatchingMap
     replace:
       - type: value
         path: servers.0.url
