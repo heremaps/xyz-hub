@@ -55,22 +55,21 @@ public class HubWebClient {
                 .sendJson(job)
                 .compose(res -> {
                     try {
-                        if (res.statusCode() == HttpResponseStatus.NOT_FOUND.code()) {
+                        if (res.statusCode() == HttpResponseStatus.NOT_FOUND.code())
                             throw new HttpException(HttpResponseStatus.NOT_FOUND, "TargetId does not exists!");
-                        }
 
-                        if (res.statusCode() != HttpResponseStatus.OK.code()) {
+                        if (res.statusCode() != HttpResponseStatus.OK.code())
                             throw new Exception("Unexpected response code "+res.statusCode());
-                        }
 
                         JsonObject resp = res.bodyAsJsonObject();
                         String id = resp.getString("id");
 
-                        if(id == null)
+                        if (id == null)
                             throw new Exception("Id is missing!");
 
                         return Future.succeededFuture(id);
-                    }catch (Exception e){
+                    }
+                    catch (Exception e){
                         logger.warn("job[{}] Unexpected HTTPTrigger response: {}! ", job.getId(), res.bodyAsString(), e);
                         return Future.failedFuture(e);
                     }
@@ -86,23 +85,21 @@ public class HubWebClient {
                 .sendJson(job)
                 .compose(res -> {
                     try {
-                        if (res.statusCode() == HttpResponseStatus.NOT_FOUND.code()) {
+                        if (res.statusCode() == HttpResponseStatus.NOT_FOUND.code())
                             throw new HttpException(HttpResponseStatus.NOT_FOUND, "TargetId does not exists!");
-                        }
 
-                        if (res.statusCode() != HttpResponseStatus.OK.code()) {
-                            throw new Exception("Unexpected response code "+res.statusCode());
-                        }
+                        if (res.statusCode() != HttpResponseStatus.OK.code())
+                            throw new Exception("Unexpected response code " + res.statusCode());
 
                         JsonObject resp = res.bodyAsJsonObject();
                         String state = resp.getString("state");
 
-                        if(state == null) {
+                        if (state == null)
                             throw new Exception("State is missing!");
-                        }
 
                         return Future.succeededFuture(state);
-                    }catch (Exception e){
+                    }
+                    catch (Exception e){
                         logger.warn("job[{}] Unexpected HTTPTriggerStatus response! ", job.getId(), e);
                         return Future.failedFuture(e);
                     }

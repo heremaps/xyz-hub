@@ -18,6 +18,11 @@
  */
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Import;
@@ -36,15 +41,11 @@ import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
-
-import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JobProxyApi extends Api{
     private static final Logger logger = LogManager.getLogger();
@@ -66,14 +67,12 @@ public class JobProxyApi extends Api{
             JobAuthorization.authorizeManageSpacesRights(context,spaceId)
                     .onSuccess(auth -> {
                         Service.spaceConfigClient.get(Api.Context.getMarker(context), spaceId)
-                                .onFailure(t ->  this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "The resource ID does not exist!")))
+                                .onFailure(t ->  this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Error fetching space!", t)))
                                 .compose(headSpace -> {
-                                    if (headSpace == null) {
-                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID does not exist!"));
-                                    }
-                                    if (job instanceof Import && headSpace.getVersionsToKeep() > 1) {
+                                    if (headSpace == null)
+                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "The space ID does not exist!"));
+                                    if (job instanceof Import && headSpace.getVersionsToKeep() > 1)
                                         return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
-                                    }
 
                                     return Future.succeededFuture(headSpace);
                                 })

@@ -18,6 +18,9 @@
  */
 package com.here.xyz.httpconnector.rest;
 
+import static com.here.xyz.hub.AbstractHttpServerVerticle.STREAM_INFO_CTX_KEY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.ApiParam;
@@ -25,11 +28,7 @@ import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
-
 import java.util.HashMap;
-
-import static com.here.xyz.hub.AbstractHttpServerVerticle.STREAM_INFO_CTX_KEY;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 public class HApiParam extends ApiParam {
 
@@ -96,11 +95,11 @@ public class HApiParam extends ApiParam {
         protected static String getJobType(RoutingContext context) {
             String type = getString(context, "type", null);
 
-            if(type == null)
+            if (type == null)
                 return null;
 
             //TODO: Dynamnically check if the type is valid
-            switch (type){
+            switch (type) {
                 case "Export":
                 case "Import":
                     return type;
@@ -115,7 +114,7 @@ public class HApiParam extends ApiParam {
                 return job;
             }
             catch (DecodeException e) {
-                throw new HttpException(BAD_REQUEST, e.getMessage());
+                throw new HttpException(BAD_REQUEST, e.getMessage(), e);
             }
         }
 
