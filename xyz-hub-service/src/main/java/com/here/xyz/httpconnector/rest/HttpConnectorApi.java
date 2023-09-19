@@ -21,16 +21,12 @@ package com.here.xyz.httpconnector.rest;
 
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.httpconnector.PsqlHttpConnectorVerticle;
-import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
-import com.here.xyz.httpconnector.task.MaintenanceHandler;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.EmbeddedFunctionClient;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.util.health.MainHealthCheck;
 import com.here.xyz.hub.util.health.schema.Reporter;
 import com.here.xyz.hub.util.health.schema.Response;
-import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.util.Hasher;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import java.io.ByteArrayInputStream;
@@ -47,15 +43,6 @@ public class HttpConnectorApi extends Api {
     this.connector.setEmbedded(true);
     rb.operation("postEvent").handler(this::postEvent);
     rb.operation("getHealthCheck").handler(this::getHealthCheck);
-
-    rb.operation("getStatus").handler(this::getConnectorStatus);
-    rb.operation("postInitialization").handler(this::postDatabaseInitialization);
-    rb.operation("postMaintainIndices").handler(this::postMaintainIndices);
-    rb.operation("postPurgeVersions").handler(this::postPurgeVersions); //TODO: Move responsibility back to connector
-
-    rb.operation("getMaintenanceStatusSpace").handler(this::getMaintenanceStatusSpace);
-    rb.operation("postMaintainSpace").handler(this::postMaintainSpace);
-    rb.operation("postMaintainHistory").handler(this::postMaintainHistory); //TODO: Remove this endpoint
   }
 
   private void getHealthCheck(final RoutingContext context) {
@@ -82,141 +69,5 @@ public class HttpConnectorApi extends Api {
     connector.handleRequest(inputStream, os, embeddedContext, streamId);
     this.sendResponse(context, OK, os);
   }
-
-  private void postDatabaseInitialization(final RoutingContext context) {
-    String[] params = HApiParam.HQuery.parseMainParams(context);
-    final boolean force = HQuery.getBoolean(context, "force", false);
-
-    try {
-      MaintenanceHandler.initializeDatabase(params[0],params[1], params[2], force, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        }
-        else {
-          this.sendResponse(context, OK, ar.result());
-        }
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
-  }
-
-  private void postMaintainIndices(final RoutingContext context) {
-    String[] params = HApiParam.HQuery.parseMainParams(context);
-    final boolean autoIndexing = HQuery.getBoolean(context, "autoIndexing", false);
-
-    try {
-      MaintenanceHandler.maintainIndices(params[0],params[1], params[2], autoIndexing, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        }
-        else {
-          this.sendResponse(context, OK, ar.result());
-        }
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
-  }
-
-  private void postPurgeVersions(final RoutingContext context) {
-    String[] params = HApiParam.HQuery.parseMainParams(context);
-    final Integer versionsToKeep = HQuery.getInteger(context, "versionsToKeep", null);
-    final Long minTagVersion = HQuery.getLong(context, "minTagVersion", null);
-    final Boolean enableHashedSpaceId = HQuery.getBoolean(context, "enableHashedSpaceId", true);
-
-    String spaceId = context.pathParam(HApiParam.Path.SPACE_ID);
-
-    if(enableHashedSpaceId)
-      spaceId = Hasher.getHash(spaceId);
-
-    try {
-      MaintenanceHandler.purgeOldVersions(params[0],params[1], params[2], spaceId, versionsToKeep, minTagVersion, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        }
-        else {
-          this.sendResponse(context, OK, ar.result());
-        }
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
-  }
-
-  private void getConnectorStatus(final RoutingContext context) {
-    String[] params = HApiParam.HQuery.parseMainParams(context);
-
-    try {
-      MaintenanceHandler.getConnectorStatus(params[0],params[1], params[2], ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        }
-        else {
-          this.sendResponse(context, OK, ar.result());
-        }
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
-  }
-
-  private void postMaintainSpace(final RoutingContext context) {
-    String[] params = HApiParam.HQuery.parseMainParams(context);
-
-    String spaceId = null;
-    if (context.pathParam(HApiParam.Path.SPACE_ID) != null) {
-      spaceId = context.pathParam(HApiParam.Path.SPACE_ID);
-    }
-    final boolean force = HQuery.getBoolean(context, "force", false);
-
-    try {
-      MaintenanceHandler.maintainSpace(params[0],params[1], params[2],  spaceId, force, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        }
-        else {
-          this.sendResponse(context, OK, ar.result());
-        }
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
-  }
-
-  private void getMaintenanceStatusSpace(final RoutingContext context) {
-    String[] params = HApiParam.HQuery.parseMainParams(context);
-
-    String spaceId = null;
-    if (context.pathParam(HApiParam.Path.SPACE_ID) != null) {
-      spaceId = context.pathParam(HApiParam.Path.SPACE_ID);
-    }
-
-    try {
-      MaintenanceHandler.getMaintenanceStatusOfSpace(params[0],params[1], params[2],  spaceId, ar -> {
-        if (ar.failed()) {
-          this.sendErrorResponse(context, ar.cause());
-        }
-        else {
-          this.sendResponse(context, OK, ar.result());
-        }
-      });
-    }
-    catch (Exception e) {
-      sendErrorResponse(context, e);
-    }
-  }
-
-  //TODO: Remove this endpoint
-  @Deprecated
-  private void postMaintainHistory(final RoutingContext context) {
-    sendResponse(context, OK, new SuccessResponse().withStatus("Ok"));
-  }
-
 
 }

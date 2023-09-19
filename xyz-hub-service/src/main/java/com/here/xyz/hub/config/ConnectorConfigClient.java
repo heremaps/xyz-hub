@@ -274,8 +274,10 @@ public abstract class ConnectorConfigClient implements Initializable {
     if (Service.configuration.STORAGE_DB_URL != null) {
       URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring(5));
       psqlVars.put("PSQL_HOST", uri.getHost());
+      psqlVars.put("PSQL_REPLICA_HOST", uri.getHost());
       psqlVars.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
       psqlVars.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
+      psqlVars.put("PSQL_REPLICA_USER", "ro_user");
       psqlVars.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
       String[] pathComponent = uri.getPath() == null ? null : uri.getPath().split("/");
       if (pathComponent != null && pathComponent.length > 1)

@@ -322,7 +322,7 @@ public class Import extends Job<Import> {
 
             //Compressed processing of 9,5GB leads into ~120 GB RDS Mem
             long curFileSize = Long.valueOf(importObjects.get(key).isCompressed() ? (importObjects.get(key).getFilesize() * 12)  : importObjects.get(key).getFilesize());
-            double maxMemInGB = new RDSStatus.Limits(CService.rdsLookupCapacity.get(getTargetConnector())).getMaxMemInGB();
+            double maxMemInGB = RDSStatus.calculateMemory(CService.rdsLookupCapacity.get(getTargetConnector()));
 
             logger.info("job[{}] IMPORT_MEMORY {}/{} = {}% of max", getId(), NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
 

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.httpconnector.rest.HttpConnectorApi;
+import com.here.xyz.httpconnector.rest.HttpMaintenanceApi;
 import com.here.xyz.httpconnector.rest.JobApi;
 import com.here.xyz.httpconnector.rest.JobStatusApi;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
@@ -110,7 +111,7 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implem
       createHttpServer(CService.configuration.HTTP_PORT, mainRouter)
               .onSuccess(none -> startPromise.complete())
               .onFailure(err -> startPromise.fail(err));
-      }).onFailure(err -> startPromise.fail(err));
+    }).onFailure(err -> startPromise.fail(err));
 
   }
 
@@ -122,6 +123,7 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implem
         final RouterBuilder rb = ar;
 
         new HttpConnectorApi(rb, new PSQLXyzConnector());
+        new HttpMaintenanceApi(rb);
         new JobApi(rb);
 
         router = rb.createRouter();

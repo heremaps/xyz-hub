@@ -2277,7 +2277,7 @@ iindata as
 ( select row_number() over () as idx, r.* from
 	(	select i.s as schem, unnest( array_remove( array[i.t, m.meta#>>'{extends,intermediateTable}', m.meta#>>'{extends,extendedTable}'], null ) ) as tbl from xyz_config.space_meta m right join indata i on ( m.schem = i.s and m.h_id = regexp_replace( i.t, '_head$', '' ))  ) r
 ),
-iiindata as ( select * from iindata i, lateral ( select * from public.xyz_statistic_space_v1(i.schem,i.tbl) ) l ),
+iiindata as ( select * from iindata i, lateral ( select * from xyz_statistic_space_v1(i.schem,i.tbl) ) l ),
 c1 as ( select jsonb_build_object( 'value', sum( (tablesize->'value')::bigint ), 'estimated', max( (tablesize->>'estimated') )::boolean) as tablesize from iiindata ),
 c2 as
 ( select jsonb_build_object( 'value', coalesce( jsonb_agg( distinct e1 ),'[]'::jsonb ), 'estimated', coalesce( max( e2::text )::boolean, false ) ) as geometrytypes
@@ -3695,7 +3695,7 @@ $_$;
 
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION public.qk_s_get_fc_of_tiles_txt_v1(
+CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v1(
 	here_tile_qk boolean,
 	tile_list text[],
 	sql_with_jsondata_geo text,
@@ -3786,7 +3786,7 @@ end
 $_$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION public.qk_s_get_fc_of_tiles_txt_v3(
+CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v3(
 	here_tile_qk boolean,
 	tile_list text[],
 	sql_with_jsondata_geo text,
@@ -3849,7 +3849,7 @@ begin
 end
 $BODY$;
 
-CREATE OR REPLACE FUNCTION public.qk_s_get_fc_of_tiles_txt_v4(
+CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v4(
 	here_tile_qk boolean,
 	tile_list text[],
 	sql_with_jsondata_geo text,

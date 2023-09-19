@@ -138,52 +138,54 @@ public abstract class DatabaseHandler extends StorageConnector {
     }
 
     @Override
-    protected synchronized void initialize(Event event) {
-        this.event = event;
-        config = new PSQLConfig(event, context);
-        String connectorId = traceItem.getConnectorId();
+    protected void initialize(Event event) {
+        synchronized (dbInstanceMap) {
+            this.event = event;
+            config = new PSQLConfig(event, context);
+            String connectorId = traceItem.getConnectorId();
 
-        if (connectorId == null) {
-            logger.warn("{} ConnectorId is missing as param in the Connector-Config! {} / {}@{}", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
-            connectorId =config.getConfigValuesAsString();
-        }
-
-        if (dbInstanceMap.get(connectorId) != null){
-            /** Check if db-params has changed*/
-            if(!dbInstanceMap.get(connectorId).getConfigValuesAsString().equalsIgnoreCase(config.getConfigValuesAsString())) {
-                logger.info("{} Config has changed -> remove dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
-                removeDbInstanceFromMap(connectorId);
-            }else{
-                logger.debug("{} Config already loaded -> load dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
+            if (connectorId == null) {
+                logger.warn("{} ConnectorId is missing as param in the Connector-Config! {} / {}@{}", traceItem, config.getDatabaseSettings().getDb(), config.getDatabaseSettings().getUser(), config.getDatabaseSettings().getHost());
+                connectorId = config.getConfigValuesAsString();
             }
-        }
 
-        if (dbInstanceMap.get(connectorId) == null) {
-
-            /** Init dataSource, readDataSource ..*/
-            logger.info("{} Config is missing -> add new dbInstance to Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
-            final ComboPooledDataSource source = getComboPooledDataSource(config.getDatabaseSettings(), config.getConnectorParams(), config.applicationName() , false);
-
-            Map<String, String> m = new HashMap<>();
-            m.put(C3P0EXT_CONFIG_SCHEMA, config.getDatabaseSettings().getSchema());
-            source.setExtensions(m);
-            config.addDataSource(source);
-
-            if (config.getDatabaseSettings().getReplicaHost() != null) {
-                final ComboPooledDataSource replicaDataSource = getComboPooledDataSource(config.getDatabaseSettings(), config.getConnectorParams(),  config.applicationName() , true);
-                replicaDataSource.setExtensions(m);
-                config.addReadDataSource(replicaDataSource);
+            if (dbInstanceMap.get(connectorId) != null) {
+                /** Check if db-params has changed*/
+                if (!dbInstanceMap.get(connectorId).getConfigValuesAsString().equalsIgnoreCase(config.getConfigValuesAsString())) {
+                    logger.info("{} Config has changed -> remove dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
+                    removeDbInstanceFromMap(connectorId);
+                } else {
+                    logger.debug("{} Config already loaded -> load dbInstance from Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
+                }
             }
-            dbInstanceMap.put(connectorId, config);
-        }
 
-        retryAttempted = false;
-        dataSource = dbInstanceMap.get(connectorId).getDataSource();
-        readDataSource = dbInstanceMap.get(connectorId).getReadDataSource();
-        dbMaintainer = new DatabaseMaintainer(dataSource, config);
-        //Always use the writer in case of event.preferPrimaryDataSource == true
-        if (event.getPreferPrimaryDataSource() != null && event.getPreferPrimaryDataSource() == Boolean.TRUE)
-            this.readDataSource = this.dataSource;
+            if (dbInstanceMap.get(connectorId) == null) {
+
+                /** Init dataSource, readDataSource ..*/
+                logger.info("{} Config is missing -> add new dbInstance to Pool. DbInstanceMap size:{}", traceItem, dbInstanceMap.size());
+                final ComboPooledDataSource source = getComboPooledDataSource(config.getDatabaseSettings(), config.getConnectorParams(), config.applicationName(), false);
+
+                Map<String, String> m = new HashMap<>();
+                m.put(C3P0EXT_CONFIG_SCHEMA, config.getDatabaseSettings().getSchema());
+                source.setExtensions(m);
+                config.addDataSource(source);
+
+                if (config.getDatabaseSettings().getReplicaHost() != null) {
+                    final ComboPooledDataSource replicaDataSource = getComboPooledDataSource(config.getDatabaseSettings(), config.getConnectorParams(), config.applicationName(), true);
+                    replicaDataSource.setExtensions(m);
+                    config.addReadDataSource(replicaDataSource);
+                }
+                dbInstanceMap.put(connectorId, config);
+            }
+
+            retryAttempted = false;
+            dataSource = dbInstanceMap.get(connectorId).getDataSource();
+            readDataSource = dbInstanceMap.get(connectorId).getReadDataSource();
+            dbMaintainer = new DatabaseMaintainer(dataSource, config);
+            //Always use the writer in case of event.preferPrimaryDataSource == true
+            if (event.getPreferPrimaryDataSource() != null && event.getPreferPrimaryDataSource() == Boolean.TRUE)
+                this.readDataSource = this.dataSource;
+        }
     }
 
     private void removeDbInstanceFromMap(String connectorId){
@@ -199,8 +201,9 @@ public abstract class DatabaseHandler extends StorageConnector {
 
     private static ComboPooledDataSource getComboPooledDataSource(DatabaseSettings dbSettings, ConnectorParameters connectorParameters, String applicationName, boolean useReplica) {
         String jdbcUrl = DhString.format("jdbc:postgresql://%1$s:%2$d/%3$s?ApplicationName=%4$s&tcpKeepAlive=true",
-            useReplica ? dbSettings.getReplicaHost() : dbSettings.getHost(), dbSettings.getPort(), dbSettings.getDb(), applicationName);
-        ComboPooledDataSource pooledDataSource = getComboPooledDataSource(jdbcUrl, dbSettings.getUser(), dbSettings.getPassword(), connectorParameters.getDbMinPoolSize(),
+            dbSettings.getHost(useReplica), dbSettings.getPort(), dbSettings.getDb(), applicationName);
+
+        ComboPooledDataSource pooledDataSource = getComboPooledDataSource(jdbcUrl, dbSettings.getUser(useReplica), dbSettings.getPassword(), connectorParameters.getDbMinPoolSize(),
             connectorParameters.getDbMaxPoolSize(), connectorParameters.getDbInitialPoolSize(),
             connectorParameters.getDbAcquireRetryAttempts(), connectorParameters.getDbAcquireIncrement(),
             connectorParameters.getDbCheckoutTimeout() * 1000,
@@ -349,8 +352,9 @@ public abstract class DatabaseHandler extends StorageConnector {
         }
 
         new ModifySpace(event).write();
+
         if (event.getOperation() != Operation.DELETE)
-            dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), XyzEventBasedQueryRunner.readTableFromEvent(event));
+            dbMaintainer.maintainSpace(traceItem, config.getDatabaseSettings().getSchema(), event.getSpace());
 
         //If we reach this point we are okay!
         return new SuccessResponse().withStatus("OK");
