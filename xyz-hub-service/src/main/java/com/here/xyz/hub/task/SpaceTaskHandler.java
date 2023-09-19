@@ -353,7 +353,7 @@ public class SpaceTaskHandler {
     }
 
     Service.spaceConfigClient.get(task.getMarker(), (String)spaceId)
-        .onFailure(t -> callback.exception(t))
+        .onFailure(callback::exception)
         .onSuccess(headSpace -> {
           task.modifyOp.entries.get(0).head = headSpace;
           task.modifyOp.entries.get(0).base = headSpace;
@@ -372,7 +372,7 @@ public class SpaceTaskHandler {
     if (entry.input != null && entry.result == null)
       Service.spaceConfigClient
           .delete(task.getMarker(), entry.head.getId())
-          .onFailure(t -> callback.exception(t))
+          .onFailure(callback::exception)
           .onSuccess(v -> {
             task.responseSpaces = Collections.singletonList(task.modifyOp.entries.get(0).head);
             callback.call(task);
@@ -380,7 +380,7 @@ public class SpaceTaskHandler {
     else
       Service.spaceConfigClient
           .store(task.getMarker(), entry.result)
-          .onFailure(t -> callback.exception(t))
+          .onFailure(callback::exception)
           .onSuccess(v -> {
             task.responseSpaces = Collections.singletonList(entry.result);
             callback.call(task);
@@ -641,7 +641,7 @@ public class SpaceTaskHandler {
         //... update the readOnlyHeadVersion on the space object
         updateReadOnlyHeadVersion(task.getMarker(), entry.result)
             .onSuccess(r -> callback.call(task))
-            .onFailure(t -> callback.exception(t));
+            .onFailure(callback::exception);
       else {
         //... if it was set to inactive, reset the readOnlyHeadVersion
         entry.result.setReadOnlyHeadVersion(-1);
