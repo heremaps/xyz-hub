@@ -37,6 +37,7 @@ import io.vertx.ext.web.RoutingContext;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
@@ -101,10 +102,19 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     public static final String OTHERS = "others";
     public static final String ALL = "*";
 
+    public MatrixReadQuery(RoutingContext context, String id) {
+      this(context, ApiResponseType.SPACE, false, false, null, null, null, null, Collections.singleton(id));
+    }
+
     public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, PropertiesQuery propsQuery, String tagId, String region) {
+      this(context, returnType, includeRights, includeConnectors, owner, propsQuery, tagId, region, null);
+    }
+
+    public MatrixReadQuery(RoutingContext context, ApiResponseType returnType, boolean includeRights, boolean includeConnectors, String owner, PropertiesQuery propsQuery, String tagId, String region, Set<String> ids) {
       super(context, returnType, null, null);
 
       selectedCondition = new SpaceSelectionCondition();
+      selectedCondition.spaceIds = ids;
       selectedCondition.tagId = tagId;
       selectedCondition.region = region;
 
@@ -133,7 +143,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
       }
 
       this.canReadConnectorsProperties = includeConnectors;
-      if( propsQuery != null ) {
+      if (propsQuery != null) {
         propertiesQuery = propsQuery;
       }
     }
@@ -206,5 +216,21 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
 
   public static class SpaceEvent extends Event<SpaceEvent> {
 
+  }
+
+  public enum ConnectorMapping {
+    RANDOM,
+    SPACESTORAGEMATCHINGMAP;
+
+    public static ConnectorMapping of(String value) {
+      if (value == null) {
+        return null;
+      }
+      try {
+        return valueOf(value.toUpperCase());
+      } catch (IllegalArgumentException e) {
+        return null;
+      }
+    }
   }
 }
