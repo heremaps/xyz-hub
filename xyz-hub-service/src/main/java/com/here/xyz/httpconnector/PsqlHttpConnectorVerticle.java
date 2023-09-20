@@ -144,6 +144,7 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implem
           }
           res.end();
         }));
+        router.route().order(1).handler(createCorsHandler());
       }
       catch (Exception e) {
         logger.error("An error occurred, during the creation of the router from the Open API specification file.", e);
