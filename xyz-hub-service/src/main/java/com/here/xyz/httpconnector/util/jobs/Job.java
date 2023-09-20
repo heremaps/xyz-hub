@@ -112,7 +112,6 @@ public abstract class Job<T extends Job> {
      * The job ID
      */
     @JsonView({Public.class})
-    @JsonInclude
     private String id;
 
     @JsonView({Public.class})
