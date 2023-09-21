@@ -91,7 +91,7 @@ public class SpaceApi extends SpaceBasedApi {
       return;
     }
 
-    ConnectorMapping connectorMapping = ConnectorMapping.of(ApiParam.Query.getString(context, Query.CONNECTOR_MAPPING, ConnectorMapping.RANDOM.name()));
+    ConnectorMapping connectorMapping = ConnectorMapping.of(ApiParam.Query.getString(context, Query.CONNECTOR_MAPPING, ConnectorMapping.RANDOM.name()), ConnectorMapping.RANDOM);
     ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.CREATE, IfExists.ERROR, true, connectorMapping);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, false)
