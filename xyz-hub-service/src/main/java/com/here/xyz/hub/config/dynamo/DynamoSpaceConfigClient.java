@@ -19,8 +19,6 @@
 
 package com.here.xyz.hub.config.dynamo;
 
-import static com.here.xyz.XyzSerializable.Mappers.STATIC_MAPPER;
-
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.dynamodbv2.document.BatchGetItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Item;
@@ -37,7 +35,8 @@ import com.amazonaws.services.dynamodbv2.model.GetItemResult;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
 import com.amazonaws.util.CollectionUtils;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.SpaceConfigClient;
@@ -164,7 +163,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   }
 
   private void storeSpaceSync(Space space, Promise<Void> p) {
-    final Map<String, Object> itemData = STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
+    final Map<String, Object> itemData = XyzSerializable.toMap(space, Static.class);
     itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
     sanitize(itemData);
     spaces.putItem(Item.fromMap(itemData));

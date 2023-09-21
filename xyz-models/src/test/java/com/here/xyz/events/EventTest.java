@@ -52,7 +52,7 @@ public class EventTest {
   @Test
   public void testClone() throws Exception {
     final Event<?> event = new ObjectMapper().readValue(eventJson, Event.class);
-    final Event<?> clone = XyzSerializable.copy(event);
+    final Event<?> clone = event.copy();
 
     assertNotSame(event, clone);
     assertTrue(event instanceof IterateFeaturesEvent);
@@ -108,7 +108,7 @@ public class EventTest {
     assertEquals("customValue", event.getTrustedParams().get("customKey"));
     assertFalse(event.getTrustedParams().isEmpty());
 
-    String json = XyzSerializable.serialize(event);
+    String json = event.serialize();
     event = om.readValue(json, IterateFeaturesEvent.class);
 
     assertNotNull(event.getTrustedParams());

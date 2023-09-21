@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.task;
 
-import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.AUTHOR;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
@@ -27,7 +26,6 @@ import static com.here.xyz.hub.task.FeatureTask.FeatureKey.SPACE;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.VERSION;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
@@ -125,17 +123,18 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
       } catch (Exception e) {
         try {
           throw new HttpException(HttpResponseStatus.BAD_REQUEST,
-              "Unable to create a Feature from the provided input: " + DEFAULT_MAPPER.get().writeValueAsString(map));
-        } catch (JsonProcessingException jsonProcessingException) {
+              "Unable to create a Feature from the provided input: " + XyzSerializable.serialize(map));
+        }
+        catch (Exception jsonProcessingException) {
           throw new HttpException(HttpResponseStatus.BAD_REQUEST,
-              "Unable to create a Feature from the provided input. id: " + map.get("id") + ",type: " + map.get("type"));
+              "Unable to create a Feature from the provided input. id: " + map.get("id") + ", type: " + map.get("type"));
         }
       }
     }
 
     @Override
     public Map<String, Object> toMap(Feature record) throws ModifyOpError, HttpException {
-      return filterMetadata(record.asMap());
+      return filterMetadata(record.toMap());
     }
 
     @Override

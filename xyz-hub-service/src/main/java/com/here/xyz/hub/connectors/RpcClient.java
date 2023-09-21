@@ -19,7 +19,6 @@
 
 package com.here.xyz.hub.connectors;
 
-import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static io.netty.handler.codec.http.HttpHeaderValues.APPLICATION_JSON;
@@ -34,7 +33,6 @@ import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TO
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
@@ -551,12 +549,11 @@ public class RpcClient {
    */
   private HttpException getJsonMappingErrorMessage(final String stringResponse) {
     try {
-      final JsonNode node = DEFAULT_MAPPER.get().readTree(stringResponse);
-      if (node.has("errorMessage")) {
-        final String errorMessage = node.get("errorMessage").asText();
-        if (errorMessage.contains("Task timed out after ")) {
+      Map<String, Object> response = XyzSerializable.deserialize(stringResponse, Map.class);
+      if (response.containsKey("errorMessage")) {
+        final String errorMessage = response.get("errorMessage").toString();
+        if (errorMessage.contains("timed out"))
           return new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
-        }
       }
     }
     catch (Exception e) {
