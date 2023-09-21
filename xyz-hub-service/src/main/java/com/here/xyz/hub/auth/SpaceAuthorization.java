@@ -34,6 +34,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.ModifyOp.Entry;
@@ -74,24 +75,58 @@ public class SpaceAuthorization extends Authorization {
 
   public static List<String> packageEdit = Collections.singletonList(PACKAGES);
 
-  public static void authorizeReadSpaces(MatrixReadQuery task, Callback<MatrixReadQuery> callback) {
+  public static void authorizeReadSpaces(MatrixReadQuery task, Callback<MatrixReadQuery> callback) throws Exception {
     //Check if anonymous token is being used
     if (task.getJwt().anonymous) {
       callback.exception(new HttpException(FORBIDDEN, "Accessing this resource with an anonymous token is not possible."));
-    } else if (task.getJwt().getXyzHubMatrix() == null) {
+      return;
+    }
+
+    if (task.getJwt().getXyzHubMatrix() == null) {
       callback.exception(new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource."));
-    } else {
-      if (task.canReadConnectorsProperties) {
-        final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
-        task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
+      return;
+    }
+
+    if (task.canReadConnectorsProperties) {
+      final XyzHubActionMatrix connectorsReadMatrix = new XyzHubActionMatrix().accessConnectors(new XyzHubAttributeMap());
+      task.canReadConnectorsProperties = task.getJwt().getXyzHubMatrix().matches(connectorsReadMatrix);
+    }
+
+    if (task.responseType == ApiResponseType.SPACE && task.responseSpaces != null && task.responseSpaces.size() == 1) {
+      Space space = task.responseSpaces.get(0);
+
+      final XyzHubActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
+      if (tokenRights == null)
+        throw new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource.");
+
+      task.canReadConnectorsProperties = tokenRights.containsKey(XyzHubActionMatrix.ACCESS_CONNECTORS) && !tokenRights.get(XyzHubActionMatrix.ACCESS_CONNECTORS).isEmpty();
+
+      AttributeMap xyzhubFilter = new XyzHubAttributeMap()
+          .withValue(OWNER, space.getOwner())
+          .withValue(SPACE, space.getId())
+          .withValue(PACKAGES, space.getPackages());
+
+      //Mark in the task, if the app is allowed to read the admin properties.
+      final XyzHubActionMatrix adminMatrix = new XyzHubActionMatrix().adminSpaces(xyzhubFilter);
+      task.canReadAdminProperties = tokenRights.matches(adminMatrix);
+
+      if (space.isShared()) {
+        // User is trying to read a shared space this is allowed for any authenticated user
+        callback.call(task);
+        return;
       }
 
-      /*
-       * No further checks are necessary. Authenticated users generally have access to this resource.
-       * The resulting list response will only contain spaces the token has access to.
-       */
-      callback.call(task);
+      if (tokenRights.entrySet().stream().flatMap(e -> e.getValue().stream())
+          .noneMatch(f -> f.matches(xyzhubFilter))) {
+        throw new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource.");
+      }
     }
+
+    /*
+     * No further checks are necessary. Authenticated users generally have access to this resource.
+     * The resulting list response will only contain spaces the token has access to or the individual space access has been checked.
+     */
+    callback.call(task);
   }
 
   public static void authorizeModifyOp(ConditionalOperation task, Callback<ConditionalOperation> callback) throws Exception {
@@ -142,7 +177,7 @@ public class SpaceAuthorization extends Authorization {
             .collect(Collectors.toList()));
       }
     }
-    //READ, UPDATE, DELETE
+    // UPDATE, DELETE
     else {
       xyzhubFilter = new XyzHubAttributeMap()
           .withValue(OWNER, head.getOwner())
@@ -164,23 +199,6 @@ public class SpaceAuthorization extends Authorization {
 
     //Mark in the task, if the user is allowed to read the connectors on READ and WRITE operations.
     task.canReadConnectorsProperties = canReadConnectorProperties(tokenRights);
-
-    //On Read operations, any access to the space grants read access, this includes readFeatures, createFeatures, etc.
-    if (task.isRead()) {
-      if (head.isShared()) {
-        //User is trying to read a shared space this is allowed for any authenticated user
-        callback.call(task);
-        return;
-      }
-
-      if (tokenRights == null || tokenRights.entrySet().stream().flatMap(e -> e.getValue().stream())
-          .noneMatch(f -> f.matches(xyzhubFilter))) {
-        throw new HttpException(FORBIDDEN, "Insufficient rights to read the requested resource.");
-      }
-
-      callback.call(task);
-      return;
-    }
 
     List<CompletableFuture<Void>> futureList = new ArrayList<>();
     final XyzHubActionMatrix connectorsRights = new XyzHubActionMatrix();
