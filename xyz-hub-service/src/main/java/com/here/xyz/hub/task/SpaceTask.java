@@ -151,9 +151,10 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     @Override
     public TaskPipeline createPipeline() {
       return TaskPipeline.create(this)
-          .then(SpaceAuthorization::authorizeReadSpaces)
           .then(SpaceTaskHandler::readFromJWT)
           .then(SpaceTaskHandler::readSpaces)
+          .then(SpaceTaskHandler::checkSpaceExists)
+          .then(SpaceAuthorization::authorizeReadSpaces)
           .then(SpaceTaskHandler::convertResponse);
     }
   }
@@ -173,9 +174,10 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     private void verifyResourceExists(ConditionalOperation task, Callback<ConditionalOperation> callback) {
       if (task.requireResourceExists && task.modifyOp.entries.get(0).head == null) {
         callback.exception(new HttpException(NOT_FOUND, "The requested resource does not exist."));
-      } else {
-        callback.call(task);
+        return;
       }
+
+      callback.call(task);
     }
 
     public boolean isRead() {
@@ -231,6 +233,13 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
       } catch (IllegalArgumentException e) {
         return null;
       }
+    }
+
+    public static ConnectorMapping of(String value, ConnectorMapping defaultValue) {
+      ConnectorMapping result = of(value);
+      if (result == null)
+        return defaultValue;
+      return result;
     }
   }
 }
