@@ -22,7 +22,6 @@ import static io.restassured.path.json.JsonPath.with;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.amazonaws.util.IOUtils;
@@ -171,7 +170,7 @@ public class PSQLWriteIT extends PSQLAbstractIT {
 
         // =========== UPDATE ==========
         FeatureCollection featureCollection = XyzSerializable.deserialize(insertResponse);
-        String featuresList = XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {});
+        XyzSerializable.serialize(featureCollection.getFeatures(), new TypeReference<List<Feature>>() {});
 
         ModifyFeaturesEvent mfevent = new ModifyFeaturesEvent()
                 .withConnectorParams(defaultTestConnectorParams)

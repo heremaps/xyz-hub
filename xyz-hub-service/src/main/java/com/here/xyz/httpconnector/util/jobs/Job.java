@@ -32,12 +32,12 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.Payload;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
@@ -57,16 +57,13 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
-        property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = Import.class, name = "Import"),
         @JsonSubTypes.Type(value = Export.class, name = "Export"),
         @JsonSubTypes.Type(value = CombinedJob.class, name = "CombinedJob")
 })
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-public abstract class Job<T extends Job> {
+public abstract class Job<T extends Job> extends Payload {
     public static String ERROR_TYPE_VALIDATION_FAILED = "validation_failed";
     public static String ERROR_TYPE_PREPARATION_FAILED = "preparation_failed";
     public static String ERROR_TYPE_EXECUTION_FAILED = "execution_failed";
@@ -879,5 +876,9 @@ public abstract class Job<T extends Job> {
         ProcessingNotPossibleException() {
             super(PROCESSING_NOT_POSSIBLE);
         }
+    }
+
+    static {
+        XyzSerializable.registerSubtypes(Job.class);
     }
 }

@@ -26,6 +26,8 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.google.common.primitives.Longs;
+import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.Service;
 import io.vertx.core.AsyncResult;
@@ -136,7 +138,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     if (getExtension() == null)
       return Collections.emptyMap();
     //Storage params are taken from the input and then resolved based on the extensions
-    final Map<String, Object> extendsMap = getExtension().asMap();
+    final Map<String, Object> extendsMap = getExtension().toMap();
 
     //TODO: Remove this once Job-API was fixed to configure that on job-level
     if (extendedSpace.isPersistExport())
@@ -145,7 +147,7 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     //Check if the extended space itself is extending some other space (2-level extension)
     if (extendedSpace != null && extendedSpace.getExtension() != null)
       //Get the extension definition from the extended space and add it to this one additionally
-      extendsMap.put("extends", extendedSpace.getExtension().asMap());
+      extendsMap.put("extends", extendedSpace.getExtension().toMap());
     return Collections.singletonMap("extends", extendsMap);
   }
 

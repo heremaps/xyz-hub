@@ -19,9 +19,8 @@
 
 package com.here.xyz;
 
-import static com.here.xyz.XyzSerializable.Mappers.DEFAULT_MAPPER;
-import static com.here.xyz.responses.XyzError.EXCEPTION;
-import static com.here.xyz.responses.XyzError.TIMEOUT;
+import static com.here.xyz.XyzSerializable.Mappers.getDefaultMapper;
+import static com.here.xyz.XyzSerializable.Mappers.getMapperForView;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -29,8 +28,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.LazyParsable.ProxyStringReader;
-import com.here.xyz.models.hub.Space.Static;
-import com.here.xyz.responses.ErrorResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -41,14 +38,20 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import org.apache.commons.lang3.StringUtils;
 
 public interface XyzSerializable {
 
   class Mappers {
+    public static final ThreadLocal<ObjectMapper> DEFAULT_MAPPER = ThreadLocal.withInitial(
+        () -> registerNewMapper(new ObjectMapper().setSerializationInclusion(Include.NON_NULL)));
+    private static final ThreadLocal<ObjectMapper> STATIC_MAPPER = ThreadLocal.withInitial(
+        () -> registerNewMapper(new ObjectMapper().setConfig(DEFAULT_MAPPER.get().getSerializationConfig().withView(Static.class))));
+    protected static final ThreadLocal<ObjectMapper> SORTED_MAPPER = ThreadLocal.withInitial(
+        () -> registerNewMapper(new ObjectMapper().configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
+            .setSerializationInclusion(Include.NON_NULL)));
     private static final Collection<Class<?>> REGISTERED_SUBTYPES = new ConcurrentLinkedQueue<>();
-
     private static final Collection<ObjectMapper> ALL_MAPPERS = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
+
     private static ObjectMapper registerNewMapper(ObjectMapper om) {
       ALL_MAPPERS.add(om);
       om.registerSubtypes(REGISTERED_SUBTYPES.toArray(Class<?>[]::new));
@@ -61,13 +64,17 @@ public interface XyzSerializable {
       //Register the new subtypes on all existing mappers
       ALL_MAPPERS.forEach(om -> om.registerSubtypes(classes));
     }
-    public static final ThreadLocal<ObjectMapper> DEFAULT_MAPPER = ThreadLocal.withInitial(
-        () -> registerNewMapper(new ObjectMapper().setSerializationInclusion(Include.NON_NULL)));
-    public static final ThreadLocal<ObjectMapper> STATIC_MAPPER = ThreadLocal.withInitial(
-        () -> registerNewMapper(new ObjectMapper().setConfig(DEFAULT_MAPPER.get().getSerializationConfig().withView(Static.class))));
-    public static final ThreadLocal<ObjectMapper> SORTED_MAPPER = ThreadLocal.withInitial(
-        () -> registerNewMapper(new ObjectMapper().configure(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY, true)
-            .setSerializationInclusion(Include.NON_NULL)));
+
+    protected static ObjectMapper getMapperForView(Class<? extends SerializationView> view) {
+      if (Static.class.isAssignableFrom(view))
+        return STATIC_MAPPER.get();
+      else
+        return getDefaultMapper();
+    }
+
+    protected static ObjectMapper getDefaultMapper() {
+      return DEFAULT_MAPPER.get();
+    }
   }
 
   /**
@@ -79,22 +86,105 @@ public interface XyzSerializable {
     Mappers.registerSubtypes(classes);
   }
 
+  default String serialize() {
+    return serialize(this);
+  }
+
+  default String serialize(Class<? extends SerializationView> view) {
+    return serialize(this, view);
+  }
+
   @SuppressWarnings("unused")
-  static <T extends Typed> String serialize(T object) {
+  default String serialize(boolean pretty) {
+    return serialize(this, Public.class, pretty);
+  }
+
+  @SuppressWarnings("unused")
+  static String serialize(Object object) {
+    return serialize(object, Public.class, false);
+  }
+
+  static String serialize(Object object, Class<? extends SerializationView> view) {
+    return serialize(object, view, false);
+  }
+
+  private static String serialize(Object object, Class<? extends SerializationView> view, boolean pretty) {
+    ObjectMapper mapper = getMapperForView(view);
     try {
-      return DEFAULT_MAPPER.get().writeValueAsString(object);
-    } catch (JsonProcessingException e) {
+      return pretty ? mapper.writerWithDefaultPrettyPrinter().writeValueAsString(object) : mapper.writeValueAsString(object);
+    }
+    catch (JsonProcessingException e) {
+      throw new RuntimeException("Failed to encode as JSON: " + e.getMessage(), e);
+    }
+  }
+
+  /**
+   * @deprecated Please use {@link #serialize(Object)} instead.
+   * @param object
+   * @param typeReference
+   * @return
+   */
+  @Deprecated
+  @SuppressWarnings("unused")
+  static String serialize(Object object, TypeReference typeReference) {
+    try {
+      return getDefaultMapper().writerFor(typeReference).writeValueAsString(object);
+    }
+    catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
   }
 
+  default byte[] toByteArray() {
+    return toByteArray(this);
+  }
+
+  default byte[] toByteArray(Class<? extends SerializationView> view) {
+    return toByteArray(this, view);
+  }
+
+  static byte[] toByteArray(Object object) {
+    return toByteArray(object, Public.class);
+  }
+
+  static byte[] toByteArray(Object object, Class<? extends SerializationView> view) {
+    return serialize(object, view).getBytes();
+  }
+
+  @SuppressWarnings("UnusedReturnValue")
+  default Map<String, Object> toMap() {
+    return toMap(this);
+  }
+
+  default Map<String, Object> toMap(Class<? extends SerializationView> view) {
+    //noinspection unchecked
+    return toMap(this, view);
+  }
+
+  static Map<String, Object> toMap(Object object) {
+    return toMap(object, Public.class);
+  }
+
+  static Map<String, Object> toMap(Object object, Class<? extends SerializationView> view) {
+    return getMapperForView(view).convertValue(object, Map.class);
+  }
+
   @SuppressWarnings("unused")
-  static String serialize(Object object, TypeReference typeReference) {
-    try {
-      return DEFAULT_MAPPER.get().writerFor(typeReference).writeValueAsString(object);
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+  default List<Object> toList() {
+    return toList(this);
+  }
+
+  default List<Object> toList(Class<? extends SerializationView> view) {
+    //noinspection unchecked
+    return toList(this, view);
+  }
+
+  static List<Object> toList(Object object) {
+    return toList(object, Public.class);
+  }
+
+  static List<Object> toList(Object object, Class<? extends SerializationView> view) {
+    return getMapperForView(view).convertValue(object, List.class);
   }
 
   @SuppressWarnings("unchecked")
@@ -108,107 +198,87 @@ public interface XyzSerializable {
     }
   }
 
-  static <T extends Typed> T deserialize(String string) throws JsonProcessingException {
-    //noinspection unchecked
-    return (T) deserialize(string, Typed.class);
-  }
-
-  static <T> T deserialize(String string, Class<T> klass) throws JsonProcessingException {
-    // Jackson always wraps larger strings, with a string reader, which hides the original string from the lazy raw deserializer.
-    // To circumvent that wrap the source string with a custom string reader, which provides access to the input string.
-    try {
-      return DEFAULT_MAPPER.get().readValue(new ProxyStringReader(string), klass);
-    } catch (JsonProcessingException e) {
-      throw e;
-    } catch (IOException e) {
-      return null;
+  static <T> T deserialize(InputStream is, TypeReference<T> type) throws JsonProcessingException {
+    try (Scanner scanner = new java.util.Scanner(is)) {
+      return deserialize(scanner.useDelimiter("\\A").next(), type);
     }
   }
 
-  @SuppressWarnings("unused")
-  static <T> T deserialize(String string, TypeReference<T> type) throws JsonProcessingException {
-    return DEFAULT_MAPPER.get().readerFor(type).readValue(string);
+  static <T extends Typed> T deserialize(byte[] bytes) throws JsonProcessingException {
+    return (T) deserialize(bytes, Typed.class);
   }
 
   static <T> T deserialize(byte[] bytes, Class<T> klass) throws JsonProcessingException {
     return deserialize(new String(bytes), klass);
   }
 
-  static ErrorResponse fixAWSLambdaResponse(final ErrorResponse errorResponse) {
-    if (errorResponse == null) {
+  static <T> T deserialize(byte[] bytes, TypeReference<T> type) throws JsonProcessingException {
+    return deserialize(new String(bytes), type);
+  }
+
+  static <T extends Typed> T deserialize(String string) throws JsonProcessingException {
+    //noinspection unchecked
+    return (T) deserialize(string, Typed.class);
+  }
+
+  static <T> T deserialize(String string, Class<T> klass) throws JsonProcessingException {
+    /*
+    Jackson always wraps larger strings, with a string reader, which hides the original string from the lazy raw deserializer.
+    To circumvent that wrap the source string with a custom string reader, which provides access to the input string.
+     */
+    try {
+      return getDefaultMapper().readValue(new ProxyStringReader(string), klass);
+    }
+    catch (JsonProcessingException e) {
+      //NOTE: This catch block must stay, because JsonProcessingException extends IOException
+      throw e;
+    }
+    catch (IOException e) {
       return null;
     }
+  }
 
-    final String errorMessage = errorResponse.getErrorMessage();
-    if (StringUtils.isEmpty(errorMessage)) {
-      return errorResponse;
-    }
+  @SuppressWarnings("unused")
+  static <T> T deserialize(String string, TypeReference<T> type) throws JsonProcessingException {
+    return getDefaultMapper().readerFor(type).readValue(string);
+  }
 
-    boolean timeout = errorMessage.contains("timed out");
-    return new ErrorResponse()
-        .withErrorMessage(errorMessage)
-        .withError(timeout ? TIMEOUT : EXCEPTION);
+  static <T extends Typed> T fromMap(Map<String, Object> map) {
+    return (T) fromMap(map, Typed.class);
+  }
+
+  @SuppressWarnings("unused")
+  static <T> T fromMap(Map<String, Object> map, Class<T> klass) {
+    return getDefaultMapper().convertValue(map, klass);
+  }
+
+  static <T> T fromMap(Map<String, Object> map, TypeReference<T> type) {
+    return getDefaultMapper().convertValue(map, type);
   }
 
   @SuppressWarnings("unchecked")
-  static <T extends XyzSerializable> T copy(T serializable) {
-    try {
-      return (T) XyzSerializable.deserialize(serializable.serialize(), serializable.getClass());
-    } catch (Exception e) {
-      return null;
-    }
-  }
-
-  @SuppressWarnings("unused")
-  static <T extends XyzSerializable> T fromMap(Map<String, Object> map, Class<T> klass) {
-    return DEFAULT_MAPPER.get().convertValue(map, klass);
-  }
-
-  default byte[] toByteArray() {
-    return serialize().getBytes();
-  }
-
-  default String serialize() {
-    return serialize(DEFAULT_MAPPER.get(), false);
-  }
-
-  @SuppressWarnings("unused")
-  default String serialize(boolean pretty) {
-    return serialize(DEFAULT_MAPPER.get(), pretty);
-  }
-
-  @SuppressWarnings("unused")
-  default String serialize(ObjectMapper mapper) {
-    return serialize(mapper, false);
-  }
-
-  default String serialize(ObjectMapper mapper, boolean pretty) {
-    try {
-      return pretty ? mapper.writerWithDefaultPrettyPrinter().writeValueAsString(this) : mapper.writeValueAsString(this);
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
   default <T extends XyzSerializable> T copy() {
     try {
       //noinspection unchecked
-      return (T) XyzSerializable.copy(this);
-
-    } catch (Exception e) {
+      return (T) XyzSerializable.deserialize(serialize(), getClass());
+    }
+    catch (Exception e) {
       return null;
     }
   }
 
-  @SuppressWarnings("UnusedReturnValue")
-  default Map<String, Object> asMap() {
-    //noinspection unchecked
-    return DEFAULT_MAPPER.get().convertValue(this, Map.class);
-  }
+  interface SerializationView {}
 
-  @SuppressWarnings("unused")
-  default List<Object> asList() {
-    //noinspection unchecked
-    return DEFAULT_MAPPER.get().convertValue(this, List.class);
-  }
+  /**
+   * Used as a JsonView on {@link Payload} models to indicate that a property should be serialized as part of public responses.
+   * (e.g. when it comes to REST API responses)
+   */
+  @SuppressWarnings("WeakerAccess")
+  class Public implements SerializationView {}
+
+  /**
+   * Used as a JsonView on {@link Payload} models to indicate that a property should be serialized in the persistence layer.
+   * (e.g. when it comes to saving the instance to a database)
+   */
+  class Static implements SerializationView {}
 }

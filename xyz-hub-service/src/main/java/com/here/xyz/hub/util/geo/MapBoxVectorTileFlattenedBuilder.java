@@ -96,7 +96,7 @@ public class MapBoxVectorTileFlattenedBuilder extends MvtTileBuilder {
     this.layerProps = layerProps;
     this.featureBuilder = featureBuilder;
 
-    addMap("", currentFeature().asMap());
+    addMap("", currentFeature().toMap());
   }
 
 }
