@@ -21,7 +21,6 @@ package com.here.xyz.httpconnector;
 
 import com.here.xyz.httpconnector.config.AwsCWClient;
 import com.here.xyz.httpconnector.config.AwsSecretManagerClient;
-import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.config.JobConfigClient;
 import com.here.xyz.httpconnector.config.JobS3Client;
@@ -160,12 +159,6 @@ public class CService extends Core {
           jobCWClient = new AwsCWClient();
           importQueue = new ImportQueue();
           exportQueue = new ExportQueue();
-
-        /** Initial initialization of all clients */
-        for (String connectorId : supportedConnectors) {
-            JDBCClients.addClientsIfRequired(connectorId,true)
-                    .onFailure(e -> logger.error("Could not load JDBC Client for connector {}",connectorId, e));
-        }
 
           /** Start Job-Schedulers */
           importQueue.commence();
