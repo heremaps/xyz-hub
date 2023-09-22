@@ -161,26 +161,25 @@ public class Service extends Core {
    * The service entry point.
    */
   public static void main(String[] arguments) {
-    try (LoggerContext context = Configurator.initialize("default", CONSOLE_LOG_CONFIG)) {
-      isDebugModeActive = Arrays.asList(arguments).contains("--debug");
+    Configurator.initialize("default", CONSOLE_LOG_CONFIG);
+    isDebugModeActive = Arrays.asList(arguments).contains("--debug");
 
-      VertxOptions vertxOptions = new VertxOptions()
-          .setMetricsOptions(new MetricsOptions()
-              .setEnabled(true)
-              .setFactory(new HubMetricsFactory()));
+    VertxOptions vertxOptions = new VertxOptions()
+        .setMetricsOptions(new MetricsOptions()
+            .setEnabled(true)
+            .setFactory(new HubMetricsFactory()));
 
-      initializeVertx(vertxOptions)
-          .compose(Service::initializeGlobalRouter)
-          .compose(Core::initializeConfig)
-          .compose(Core::initializeLogger)
-          .compose(Service::parseConfiguration)
-          .compose(Service::initializeClients)
-          .compose(config -> Future.fromCompletionStage(ConfigUpdateThread.initialize()).map(config))
-          .compose(config -> Future.fromCompletionStage(WarmupRemoteFunctionThread.initialize()).map(config))
-          .compose(Service::initializeService)
-          .onFailure(t -> logger.error("Service startup failed", t))
-          .onSuccess(v -> logger.info("Service startup succeeded"));
-    }
+    initializeVertx(vertxOptions)
+        .compose(Service::initializeGlobalRouter)
+        .compose(Core::initializeConfig)
+        .compose(Core::initializeLogger)
+        .compose(Service::parseConfiguration)
+        .compose(Service::initializeClients)
+        .compose(config -> Future.fromCompletionStage(ConfigUpdateThread.initialize()).map(config))
+        .compose(config -> Future.fromCompletionStage(WarmupRemoteFunctionThread.initialize()).map(config))
+        .compose(Service::initializeService)
+        .onFailure(t -> logger.error("Service startup failed", t))
+        .onSuccess(v -> logger.info("Service startup succeeded"));
   }
 
   private static Future<Vertx> initializeGlobalRouter(Vertx vertx) {
