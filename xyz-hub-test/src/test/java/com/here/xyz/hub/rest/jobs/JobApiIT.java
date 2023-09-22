@@ -296,7 +296,7 @@ public class JobApiIT extends TestSpaceWithFeature {
 
             System.out.println("Current Status of Job["+jobId+"]: "+status);
             //Should be higher than JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS
-            Thread.sleep(150);
+            Thread.sleep(120);
 
             /** Abort after 60 seconds */
             if(i++ == 400)
