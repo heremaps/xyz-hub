@@ -26,7 +26,9 @@ import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
@@ -293,7 +295,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
                 .put(attrName, ioObjects);
-        return Json.decodeValue(json.toString(), Job.class);
+        try {
+            return XyzSerializable.deserialize(json.toString());
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static byte[] compressString(String input) {
