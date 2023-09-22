@@ -307,8 +307,11 @@ public class JDBCClients {
     }
 
     public static SqlClient getClient(String id, boolean useReadOnlyClient){
-        if(useReadOnlyClient && hasClient(getReadOnlyClientId(id)))
+        if(useReadOnlyClient && hasClient(getReadOnlyClientId(id))) {
+            logger.info("Use read-only client for {}.", id);
             return getRoClient(id);
+        }
+
         /** if useReadOnlyClient=true and no ro-client is available we fall back to default client */
         return getClient(id);
     }
@@ -367,7 +370,7 @@ public class JDBCClients {
                         /** collect cloudwatch metrics for db */
                         CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier);
                         rdsStatus.addCloudWatchDBWriterMetrics(CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier, AwsCWClient.Role.WRITER));
-                        if(getDBSettings(connectorId).getReplicaHost() == null)
+                        if(getDBSettings(connectorId).getReplicaHost() != null)
                             rdsStatus.addCloudWatchDBReaderMetrics(CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier, AwsCWClient.Role.READER));
                     }
 
