@@ -217,6 +217,7 @@ public class Service extends Core {
     );
 
     return settingsConfigClient.init()
+        .compose(v -> settingsConfigClient.insertLocalSettings())
         .compose(v -> spaceConfigClient.init())
         .compose(v -> connectorConfigClient.init())
         .compose(v -> Future.fromCompletionStage(connectorConfigClient.insertLocalConnectors()))
