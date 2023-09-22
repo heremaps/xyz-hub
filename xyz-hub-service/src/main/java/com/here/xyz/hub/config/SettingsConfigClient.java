@@ -24,6 +24,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.dynamo.DynamoSettingsConfigClient;
+import com.here.xyz.hub.config.memory.InMemSettingsConfigClient;
 import com.here.xyz.hub.config.settings.Setting;
 import com.here.xyz.hub.connectors.models.Connector;
 import io.vertx.core.AsyncResult;
@@ -61,19 +62,7 @@ public abstract class SettingsConfigClient implements Initializable {
   public static SettingsConfigClient getInstance() {
     if (Service.configuration.SETTINGS_DYNAMODB_TABLE_ARN != null)
       return new DynamoSettingsConfigClient(Service.configuration.SETTINGS_DYNAMODB_TABLE_ARN);
-    else
-      //No overrides are needed when running locally
-      return new SettingsConfigClient() {
-        @Override
-        protected Future<Setting> getSetting(Marker marker, String settingId) {
-          return Future.succeededFuture();
-        }
-
-        @Override
-        protected Future<Setting> storeSetting(Marker marker, Setting setting) {
-          return Future.succeededFuture(null);
-        }
-      };
+    return new InMemSettingsConfigClient();
   }
 
   public Future<Setting> get(Marker marker, String settingId) {
