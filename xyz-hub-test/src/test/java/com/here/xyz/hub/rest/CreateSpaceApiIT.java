@@ -426,4 +426,9 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
 
     response.statusCode(OK.code());
   }
+
+  @Test
+  public void createSpaceUsingConnectorMapping() {
+
+  }
 }
