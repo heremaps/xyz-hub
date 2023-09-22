@@ -22,6 +22,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
@@ -84,6 +85,8 @@ public abstract class JobQueue implements Runnable {
     public synchronized static void addJob(Job job) {
         if (hasJob(job) == null) {
             logger.info("job[{}] added to JobQueue! {}", job.getId(), job);
+            if(job.getTargetConnector() != null)
+                JDBCClients.addClientsIfRequired(job.getTargetConnector());
             JOB_QUEUE.add(job);
         }
         else
