@@ -792,6 +792,7 @@ public class Export extends Job<Export> {
                     String message = String.format("Another job already started for %s and targetLevel %s with status %s",
                         existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
                     setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
+                    return;
                 }
                 else {
                     addDownloadLinksAndWriteMetaFile(existingJob);
