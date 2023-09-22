@@ -363,7 +363,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         contentType(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body(XyzSerializable.serialize(featureCollection)).
+        body(featureCollection.serialize()).
         when().
         post(getSpacesPath() + "/x-psql-test/features").
         then().
@@ -379,7 +379,7 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
         accept(APPLICATION_GEO_JSON).
         contentType(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body(XyzSerializable.serialize(feature)).
+        body(feature.serialize()).
         when().
         patch(getSpacesPath() + "/x-psql-test/features/Q2838923").
         then().

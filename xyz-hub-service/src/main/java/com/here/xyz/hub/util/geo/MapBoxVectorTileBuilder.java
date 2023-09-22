@@ -95,7 +95,7 @@ public class MapBoxVectorTileBuilder extends MvtTileBuilder {
 
     addProperty("", "id", currentFeature().getId());
     if (currentFeature().getProperties() != null) {
-      addProperties("", currentFeature().getProperties().asMap());
+      addProperties("", currentFeature().getProperties().toMap());
     }
   }
 

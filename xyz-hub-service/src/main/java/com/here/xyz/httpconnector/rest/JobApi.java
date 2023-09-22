@@ -92,7 +92,7 @@ public class JobApi extends Api {
     Job.Status jobStatus = HQuery.getJobStatus(context);
     String targetSpaceId = HQuery.getString(context, HQuery.TARGET_SPACEID , null);
 
-    JobHandler.loadJobs( Api.Context.getMarker(context), jobType, jobStatus, targetSpaceId)
+    JobHandler.loadJobs(Api.Context.getMarker(context), jobType, jobStatus, targetSpaceId)
             .onFailure(e -> this.sendError(e, context))
             .onSuccess(jobs -> this.sendResponse(context, OK, jobs));
   }

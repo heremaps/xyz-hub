@@ -24,7 +24,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.google.common.collect.ImmutableMap;
-import com.here.xyz.XyzSerializable.Mappers;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JobConfigClient;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
@@ -48,7 +48,8 @@ public class JobHandler {
     private static List<String> MODIFICATION_WHITELIST = Arrays.asList("description", "csvFormat");
     private static Map<String,String> MODIFICATION_IGNORE_MAP = ImmutableMap.of(
         "createdAt","createdAt",
-        "updatedAt","updatedAt");
+        "updatedAt","updatedAt"/*,
+        "status", "status"*/);
 
     public static Future<Job> loadJob(String jobId, Marker marker) {
         return CService.jobConfigClient.get(marker, jobId)
@@ -139,16 +140,16 @@ public class JobHandler {
 
   private static Map asMap(Object object) {
         try {
-            return Mappers.DEFAULT_MAPPER.get().convertValue(object, Map.class);
+            return XyzSerializable.toMap(object);
         }
         catch (Exception e) {
             return Collections.emptyMap();
         }
     }
 
-    private static Job asJob(Marker marker, Map object) throws HttpException {
+    private static Job asJob(Marker marker, Map map) throws HttpException {
         try {
-            return Mappers.DEFAULT_MAPPER.get().convertValue(object, Job.class);
+            return (Job) XyzSerializable.fromMap(map);
         }
         catch (Exception e) {
             logger.error(marker, "Could not convert resource.", e.getCause());

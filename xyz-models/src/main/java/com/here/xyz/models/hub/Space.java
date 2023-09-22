@@ -29,6 +29,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.XyzSerializable.Static;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -549,26 +551,18 @@ public class Space {
     return this;
   }
 
+  /**
+   * Used as a JsonView on a {@link Space} to indicate that a property should be part of a response which was requested to contain
+   * connector information.
+   */
   @SuppressWarnings("WeakerAccess")
-  public static class Public {
-
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public static class WithConnectors extends Public {
-
-  }
-
-  public static class Internal extends WithConnectors {
-
-  }
+  public static class WithConnectors extends Public {}
 
   /**
-   * Used for properties which are intended to be persisted.
+   * Used as a JsonView on models to indicate that a property should be only serialized in internal JSON representations.
+   * (e.g. when it comes RPC calls between inner software components)
    */
-  public static class Static {
-
-  }
+  public static class Internal extends WithConnectors {}
 
   /**
    * The reference to a connector configuration.

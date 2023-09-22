@@ -31,9 +31,9 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.here.xyz.events.EventNotification;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.responses.ErrorResponse;
+import com.here.xyz.responses.XyzError;
 import java.io.IOException;
 import org.junit.Test;
 
@@ -78,18 +78,6 @@ public class JsonMappingTest {
     assertNotNull(obj);
     assertSame(XyzError.NOT_IMPLEMENTED, obj.getError());
     assertEquals("Hello World!", obj.getErrorMessage());
-  }
-
-  @Test
-  public void testNativeAWSLambdaErrorMessage() throws Exception {
-    final String json = "{\"errorMessage\":\"2018-09-15T07:12:25.013Z a368c0ea-b8b6-11e8-b894-eb5a7755e998 Task timed out after 25.01 seconds\"}";
-    ErrorResponse obj = new ErrorResponse();
-    obj = new ObjectMapper().readerForUpdating(obj).readValue(json);
-    assertNotNull(obj);
-    obj = XyzSerializable.fixAWSLambdaResponse(obj);
-    assertSame(XyzError.TIMEOUT, obj.getError());
-    assertEquals("2018-09-15T07:12:25.013Z a368c0ea-b8b6-11e8-b894-eb5a7755e998 Task timed out after 25.01 seconds",
-        obj.getErrorMessage());
   }
 
   //@Test

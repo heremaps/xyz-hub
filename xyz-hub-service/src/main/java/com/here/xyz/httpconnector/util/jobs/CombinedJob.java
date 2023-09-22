@@ -44,7 +44,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * A job which consists of multiple child-jobs.
- * This CombinedJob itself does not process any data by itself. Instead, it's used to manage & hold a set of child-jobs of which each
+ * This CombinedJob does not process any data by itself. Instead, it's used to manage & hold a set of child-jobs of which each
  * is performing data processing.
  *
  * Some rules apply to CombinedJobs:
@@ -61,7 +61,7 @@ public class CombinedJob extends Job<CombinedJob> {
 
   private static final Logger logger = LogManager.getLogger();
 
-  private List<Job> children = new ArrayList<>();
+  protected List<Job> children = new ArrayList<>();
 
   @JsonIgnore
   private AtomicBoolean executing = new AtomicBoolean();
@@ -88,12 +88,6 @@ public class CombinedJob extends Job<CombinedJob> {
   }
 
   private Future<CombinedJob> createChildren() {
-    //Currently only spaces -> files export is supported by this class
-    if (!(getSource() instanceof Spaces))
-      return Future.failedFuture(new ValidationException("CombinedJob supports only a source of type \"Spaces\"."));
-    if (!(getTarget() instanceof Files))
-      return Future.failedFuture(new ValidationException("CombinedJob supports only a target of type \"Files\"."));
-
     List<Future<Job>> childFutures = new ArrayList<>();
     List<String> spaceIds = ((Spaces) getSource()).getSpaceIds();
     for (int i = 0; i < spaceIds.size(); i++) {
@@ -116,7 +110,7 @@ public class CombinedJob extends Job<CombinedJob> {
     });
   }
 
-  private void setChildJobParams(Job childJob, Space space) {
+  protected void setChildJobParams(Job childJob, Space space) {
     childJob.setChildJob(true); //TODO: Replace that hack once the scheduler flow was refactored
     childJob.init(); //TODO: Do field initialization at instance initialization time
     childJob.withTargetConnector(space.getStorage().getId());
@@ -174,16 +168,22 @@ public class CombinedJob extends Job<CombinedJob> {
 
   @Override
   public void finalizeJob() {
-    children.forEach(childJob -> childJob.finalizeJob());
+    finalizeChildren();
     super.finalizeJob();
   }
 
+  protected void finalizeChildren() {
+    children.forEach(childJob -> childJob.finalizeJob());
+  }
+
+  @Override
   protected void isValidForRetry() throws HttpException {
     throw new HttpException(PRECONDITION_FAILED, "Retry is not supported for CombinedJobs.");
   }
 
   @Override
   public void resetToPreviousState() throws Exception {
+    throw new HttpException(PRECONDITION_FAILED, "Retry is not supported for CombinedJobs.");
     //TODO: implement once retries are supported
   }
 
@@ -260,13 +260,20 @@ public class CombinedJob extends Job<CombinedJob> {
 
   @Override
   public Future<CombinedJob> validate() {
-    return Future.succeededFuture(this)
-        .compose(job -> {
-          List<Future<Job>> futures = new ArrayList<>();
-          for (Job childJob : children)
-            futures.add(childJob.validate());
-          return Future.all(futures).map(cf -> this);
-        });
+    //Currently only spaces -> files export is supported by this class
+    if (!(getSource() instanceof Spaces))
+      return Future.failedFuture(new ValidationException("CombinedJob supports only a source of type \"Spaces\"."));
+    if (!(getTarget() instanceof Files))
+      return Future.failedFuture(new ValidationException("CombinedJob supports only a target of type \"Files\"."));
+
+    return validateChildren();
+  }
+
+  protected Future<CombinedJob> validateChildren() {
+    List<Future<Job>> futures = new ArrayList<>();
+    for (Job childJob : children)
+      futures.add(childJob.validate());
+    return Future.all(futures).map(cf -> this);
   }
 
   public Future<CombinedJob> store() {

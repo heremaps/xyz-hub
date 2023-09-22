@@ -67,7 +67,7 @@ public abstract class DatasetDescription implements Typed {
     }
 
     public String getKey() {
-      return id;
+      return getId();
     }
   }
 
