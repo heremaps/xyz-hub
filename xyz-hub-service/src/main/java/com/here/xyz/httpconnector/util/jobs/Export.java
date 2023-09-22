@@ -58,6 +58,7 @@ import io.vertx.core.Future;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -71,6 +72,8 @@ public class Export extends Job<Export> {
     private static int VML_EXPORT_MIN_TARGET_LEVEL = 4;
     private static int VML_EXPORT_MAX_TARGET_LEVEL = 13;
     private static int VML_EXPORT_MAX_TILES_PER_FILE = 8192;
+    @JsonIgnore
+    private AtomicBoolean executing = new AtomicBoolean();
 
     @JsonView({Public.class})
     private Map<String,ExportObject> exportObjects;
@@ -783,6 +786,9 @@ public class Export extends Job<Export> {
 
     @Override
     public void execute() {
+        if (!executing.compareAndSet(false, true))
+            return;
+
         setExecutedAt(Core.currentTimeMillis() / 1000L);
 
         if (readParamPersistExport()) {
