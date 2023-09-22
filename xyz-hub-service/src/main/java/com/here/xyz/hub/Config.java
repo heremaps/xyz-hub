@@ -499,4 +499,9 @@ public class Config {
     }
     return (List<String>) XYZ_HUB_DEFAULT_STORAGE_REGION_MAPPING.get(region);
   }
+
+  /**
+   * If set to true, the settings configuration will be populated with settings defined in settings.json.
+   */
+  public boolean INSERT_LOCAL_SETTINGS;
 }
