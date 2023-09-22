@@ -73,7 +73,6 @@ public abstract class Job<T extends Job> {
     public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
     public static String ERROR_TYPE_FAILED_DUE_RESTART = "failed_due_node_restart";
     public static String ERROR_TYPE_ABORTED = "aborted";
-    private static volatile HashMap<String, RDSStatus> RDS_STATUS_MAP = new HashMap<>();
     private static final Logger logger = LogManager.getLogger();
     private Marker marker;
 
@@ -332,7 +331,6 @@ public abstract class Job<T extends Job> {
             finalizing, finalized(true), aborted(true), failed(true);
 
         private final boolean isFinal;
-
 
         Status() {
             this(false);
@@ -798,7 +796,6 @@ public abstract class Job<T extends Job> {
     protected Future<Job> isProcessingOnRDSPossible() {
         return JDBCImporter.getRDSStatus(getTargetConnector())
             .compose(rdsStatus -> {
-                RDS_STATUS_MAP.put(getTargetConnector(), rdsStatus);
 
                 if (rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization() > CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION) {
                     logger.info("job[{}] JOB_MAX_RDS_MAX_ACU_UTILIZATION to high {} > {}", getId(), rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization(), CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION);
