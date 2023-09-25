@@ -32,12 +32,12 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.Payload;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
@@ -57,23 +57,19 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager.Log4jMarker;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME,
-        property = "type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = Import.class, name = "Import"),
         @JsonSubTypes.Type(value = Export.class, name = "Export"),
         @JsonSubTypes.Type(value = CombinedJob.class, name = "CombinedJob")
 })
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-public abstract class Job<T extends Job> {
+public abstract class Job<T extends Job> extends Payload {
     public static String ERROR_TYPE_VALIDATION_FAILED = "validation_failed";
     public static String ERROR_TYPE_PREPARATION_FAILED = "preparation_failed";
     public static String ERROR_TYPE_EXECUTION_FAILED = "execution_failed";
     public static String ERROR_TYPE_FINALIZATION_FAILED = "finalization_failed";
     public static String ERROR_TYPE_FAILED_DUE_RESTART = "failed_due_node_restart";
     public static String ERROR_TYPE_ABORTED = "aborted";
-    private static volatile HashMap<String, RDSStatus> RDS_STATUS_MAP = new HashMap<>();
     private static final Logger logger = LogManager.getLogger();
     private Marker marker;
 
@@ -112,7 +108,6 @@ public abstract class Job<T extends Job> {
      * The job ID
      */
     @JsonView({Public.class})
-    @JsonInclude
     private String id;
 
     @JsonView({Public.class})
@@ -333,7 +328,6 @@ public abstract class Job<T extends Job> {
             finalizing, finalized(true), aborted(true), failed(true);
 
         private final boolean isFinal;
-
 
         Status() {
             this(false);
@@ -799,31 +793,31 @@ public abstract class Job<T extends Job> {
     protected Future<Job> isProcessingOnRDSPossible() {
         return JDBCImporter.getRDSStatus(getTargetConnector())
             .compose(rdsStatus -> {
-                RDS_STATUS_MAP.put(getTargetConnector(), rdsStatus);
 
-                if (rdsStatus.getCurrentMetrics().getCapacityUnits() > CService.configuration.JOB_MAX_RDS_CAPACITY) {
-                    logger.info("job[{}] JOB_MAX_RDS_CAPACITY to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getCapacityUnits(), CService.configuration.JOB_MAX_RDS_CAPACITY);
+                if (rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization() > CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_ACU_UTILIZATION to high {} > {}", getId(), rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization(), CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION);
                     return Future.failedFuture(new ProcessingNotPossibleException());
                 }
-                else if (rdsStatus.getCurrentMetrics().getCpuLoad() > CService.configuration.JOB_MAX_RDS_CPU_LOAD) {
-                    logger.info("job[{}] JOB_MAX_RDS_CPU_LOAD to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getCpuLoad(), CService.configuration.JOB_MAX_RDS_CPU_LOAD);
-                    return Future.failedFuture(new ProcessingNotPossibleException());
-                }
+
+                /** Stop here */
+                if(this instanceof Export)
+                    return Future.succeededFuture(this);
+
                 //TODO: Move following into according sub-clases
-                if (this instanceof Import && rdsStatus.getCurrentMetrics().getTotalInflightImportBytes() > CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES) {
-                    logger.info("job[{}] JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalInflightImportBytes(), CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES);
+                if (this instanceof Import && rdsStatus.getRdsMetrics().getTotalInflightImportBytes() > CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES) {
+                    logger.info("job[{}] JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES to high {} > {}", getId(), rdsStatus.getRdsMetrics().getTotalInflightImportBytes(), CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES);
                     return Future.failedFuture(new ProcessingNotPossibleException());
                 }
-                if (this instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS) {
-                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalRunningIDXQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS);
+                if (this instanceof Import && rdsStatus.getRdsMetrics().getTotalRunningIDXQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS to high {} > {}", getId(), rdsStatus.getRdsMetrics().getTotalRunningIDXQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IDX_CREATIONS);
                     return Future.failedFuture(new ProcessingNotPossibleException());
                 }
-                if (this instanceof Import && rdsStatus.getCurrentMetrics().getTotalRunningImportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES) {
-                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
+                if (this instanceof Import && rdsStatus.getRdsMetrics().getTotalRunningImportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES to high {} > {}", getId(), rdsStatus.getRdsMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
                     return Future.failedFuture(new ProcessingNotPossibleException());
                 }
-                if (this instanceof Export && rdsStatus.getCurrentMetrics().getTotalRunningExportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES) {
-                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES to high {} > {}", getId(), rdsStatus.getCurrentMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
+                if (this instanceof Export && rdsStatus.getRdsMetrics().getTotalRunningExportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES) {
+                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES to high {} > {}", getId(), rdsStatus.getRdsMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
                     return Future.failedFuture(new ProcessingNotPossibleException());
                 }
                 return Future.succeededFuture(this);
@@ -879,5 +873,9 @@ public abstract class Job<T extends Job> {
         ProcessingNotPossibleException() {
             super(PROCESSING_NOT_POSSIBLE);
         }
+    }
+
+    static {
+        XyzSerializable.registerSubtypes(Job.class);
     }
 }

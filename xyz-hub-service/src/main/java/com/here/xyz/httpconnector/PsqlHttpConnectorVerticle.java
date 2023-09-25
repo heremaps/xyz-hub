@@ -19,10 +19,13 @@
 
 package com.here.xyz.httpconnector;
 
+import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.httpconnector.rest.HttpConnectorApi;
+import com.here.xyz.httpconnector.rest.HttpMaintenanceApi;
 import com.here.xyz.httpconnector.rest.JobApi;
 import com.here.xyz.httpconnector.rest.JobStatusApi;
 import com.here.xyz.hub.AbstractHttpServerVerticle;
@@ -36,17 +39,14 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.openapi.RouterBuilder;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static io.vertx.core.http.HttpHeaders.CONTENT_LENGTH;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Verticle for HTTP-Connector. Includes three API tribes for :
@@ -110,7 +110,7 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implem
       createHttpServer(CService.configuration.HTTP_PORT, mainRouter)
               .onSuccess(none -> startPromise.complete())
               .onFailure(err -> startPromise.fail(err));
-      }).onFailure(err -> startPromise.fail(err));
+    }).onFailure(err -> startPromise.fail(err));
 
   }
 
@@ -122,6 +122,7 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implem
         final RouterBuilder rb = ar;
 
         new HttpConnectorApi(rb, new PSQLXyzConnector());
+        new HttpMaintenanceApi(rb);
         new JobApi(rb);
 
         router = rb.createRouter();
@@ -142,6 +143,7 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implem
           }
           res.end();
         }));
+        router.route().order(1).handler(createCorsHandler());
       }
       catch (Exception e) {
         logger.error("An error occurred, during the creation of the router from the Open API specification file.", e);
@@ -163,7 +165,8 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implem
   public static synchronized void populateEnvMap(){
     try {
       envMap = new ObjectMapper().convertValue(CService.configuration, HashMap.class);
-    }catch (Exception e){
+    }
+    catch (Exception e){
       logger.error("Cannot populate EnvMap");
     }
   }

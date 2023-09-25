@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -68,6 +69,8 @@ public class Import extends Job<Import> {
     public static String ERROR_DESCRIPTION_IDS_NOT_UNIQUE = "IDS_NOT_UNIQUE";
     public static String ERROR_DESCRIPTION_READONLY_MODE_FAILED= "READONLY_MODE_FAILED";
     public static String ERROR_DESCRIPTION_SEQUENCE_NOT_0 = "SEQUENCE_NOT_0";
+    @JsonIgnore
+    private AtomicBoolean executing = new AtomicBoolean();
 
     @JsonInclude
     @JsonView({Public.class})
@@ -307,6 +310,9 @@ public class Import extends Job<Import> {
 
     @Override
     public void execute() {
+        if (!executing.compareAndSet(false, true))
+            return;
+
         setExecutedAt(Core.currentTimeMillis() / 1000L);
         String defaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
         List<Future> importFutures = new ArrayList<>();
@@ -322,7 +328,7 @@ public class Import extends Job<Import> {
 
             //Compressed processing of 9,5GB leads into ~120 GB RDS Mem
             long curFileSize = Long.valueOf(importObjects.get(key).isCompressed() ? (importObjects.get(key).getFilesize() * 12)  : importObjects.get(key).getFilesize());
-            double maxMemInGB = new RDSStatus.Limits(CService.rdsLookupCapacity.get(getTargetConnector())).getMaxMemInGB();
+            double maxMemInGB = RDSStatus.calculateMemory(CService.rdsLookupCapacity.get(getTargetConnector()));
 
             logger.info("job[{}] IMPORT_MEMORY {}/{} = {}% of max", getId(), NODE_EXECUTED_IMPORT_MEMORY, (maxMemInGB * 1024 * 1024 * 1024) , (NODE_EXECUTED_IMPORT_MEMORY/ (maxMemInGB * 1024 * 1024 * 1024)));
 

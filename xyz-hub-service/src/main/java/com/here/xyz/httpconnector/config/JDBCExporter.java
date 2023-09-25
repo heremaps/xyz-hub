@@ -62,7 +62,7 @@ public class JDBCExporter extends JDBCClients {
     private static final Logger logger = LogManager.getLogger();
 
     public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region) {
-      return addClientIfRequired(job.getTargetConnector())
+      return addClientsIfRequired(job.getTargetConnector())
           .compose(v -> {
             try {
               String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
@@ -211,7 +211,7 @@ public class JDBCExporter extends JDBCClients {
         SQLQuery q = buildS3CalculateQuery(j, schema, exportQuery);
         logger.info("job[{}] Calculate S3-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 
-        return getClient(j.getTargetConnector())
+        return getClient(j.getTargetConnector(), true)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .map(row -> {
@@ -230,7 +230,7 @@ public class JDBCExporter extends JDBCClients {
         SQLQuery q = buildVMLCalculateQuery(j, schema, exportQuery, qkQuery);
         logger.info("job[{}] Calculate VML-Export {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 
-        return getClient(j.getTargetConnector())
+        return getClient(j.getTargetConnector(), false)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .map(row -> {
@@ -247,7 +247,7 @@ public class JDBCExporter extends JDBCClients {
     private static Future<Export.ExportStatistic> exportTypeDownload(String clientId, SQLQuery q, Export j , String s3Path){
         logger.info("job[{}] Execute S3-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
 
-        return getClient(clientId)
+        return getClient(clientId, true)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .map(row -> {
@@ -265,7 +265,7 @@ public class JDBCExporter extends JDBCClients {
     private static Future<Export.ExportStatistic> exportTypeVML(String clientId, SQLQuery q, Export j, String s3Path){
         logger.info("job[{}] Execute VML-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
 
-        return getClient(clientId)
+        return getClient(clientId, true)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .map(rows -> {
@@ -472,8 +472,7 @@ public class JDBCExporter extends JDBCClients {
         }
 
         PSQLXyzConnector dbHandler = new PSQLXyzConnector(false);
-        PSQLConfig config = new PSQLConfig(event, schema);
-        dbHandler.setConfig(config);
+        dbHandler.setConfig(new PSQLConfig(event, schema));
 
         if (isForCompositeContentDetection)
             event.setContext(csvFormat == PARTITIONID_FC_B64 ? EXTENSION : COMPOSITE_EXTENSION);

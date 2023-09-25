@@ -89,7 +89,7 @@ public class JDBCImporter extends JDBCClients{
         q.substitute();
         q = q.substituteAndUseDollarSyntax(q);
 
-        return getClient(clientID)
+        return getClient(clientID, true)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .map(rows -> {
@@ -111,7 +111,7 @@ public class JDBCImporter extends JDBCClients{
         SQLQuery q = SQLQuery.join(dropQueries, "")
             .withVariable("schema", schema);
 
-        return getClient(clientID).query(q.substitute().text())
+        return getClient(clientID, false).query(q.substitute().text())
                 .execute()
                 .map(f -> null);
     }
@@ -135,7 +135,7 @@ public class JDBCImporter extends JDBCClients{
         q.setVariable("tablename", job.getTargetTable());
 
         //TODO: Use a QueryRunner for the following!!
-        return getClient(job.getTargetConnector())
+        return getClient(job.getTargetConnector(), false)
                 .query(q.substitute().text())
                 .execute()
                 .map(job.getTargetTable());
@@ -147,7 +147,7 @@ public class JDBCImporter extends JDBCClients{
         q.setVariable("schema", schema);
         q.setVariable("table", tablename+"_version_seq");
 
-        return getClient(clientID).query(q.substitute().text())
+        return getClient(clientID, false).query(q.substitute().text())
                 .execute()
                 .map(row -> row.iterator().next().getLong(0));
     }
@@ -158,7 +158,7 @@ public class JDBCImporter extends JDBCClients{
         q.setVariable("schema", schema);
         q.setVariable("table", tablename);
 
-        return getClient(clientID).query(q.substitute().text())
+        return getClient(clientID, true).query(q.substitute().text())
                 .execute()
                 .map(row -> row.iterator().next().getLong(0));
     }
@@ -167,7 +167,7 @@ public class JDBCImporter extends JDBCClients{
      * Import Data from S3
      */
     public static Future<String> executeImport(Import job, String clientID, String schema, String tablename, String s3Bucket, String s3Path, String s3Region, long curFileSize, CSVFormat csvFormat) {
-        return addClientIfRequired(job.getTargetConnector())
+        return addClientsIfRequired(job.getTargetConnector())
             .compose(v -> {
                 SQLQuery q = new SQLQuery(("SELECT /* import_hint " + (s3Path + ":" + curFileSize) + " m499#jobId(" + job.getId()
                     + ") */ aws_s3.table_import_from_s3( "
@@ -190,7 +190,7 @@ public class JDBCImporter extends JDBCClients{
                 q = q.substituteAndUseDollarSyntax(q); //TODO: Replace this by standard substitution technique!
 
                 logger.info("job[{}] Execute S3-Import {}->{} {}", job.getId(), tablename, s3Path, q.text());
-                return getClient(clientID)
+                return getClient(clientID, false)
                     .preparedQuery(q.text())
                     .execute(new ArrayTuple(q.parameters()))
                     .map(row -> row.iterator().next().getString(0));
@@ -243,8 +243,8 @@ public class JDBCImporter extends JDBCClients{
                                         t3-> {
                                             deleteImportTrigger(clientId, schema, tableName)
                                                     .compose(t4 -> triggerAnalyse(clientId, schema, tableName))
-                                                    .compose(t5 -> {
-                                                            markMaintenance(clientId, schema, tableName);
+                                                    .compose(t5 ->  markMaintenance(clientId, schema, tableName))
+                                                    .compose(t6 -> {
                                                             p.complete();
                                                             return p.future();
                                                         }
@@ -268,7 +268,7 @@ public class JDBCImporter extends JDBCClients{
         q.setVariable("schema", schema);
         q.setVariable("tablename", tableName);
 
-        return getClient(clientID).query(q.substitute().text())
+        return getClient(clientID, false).query(q.substitute().text())
                 .execute()
                 .map(f -> null);
     }
@@ -278,7 +278,7 @@ public class JDBCImporter extends JDBCClients{
         q.setVariable("schema", schema);
         q.setVariable("tablename", tableName);
 
-        return getClient(clientID).query(q.substitute().text())
+        return getClient(clientID, false).query(q.substitute().text())
                 .execute()
                 .map(f -> null);
     }
@@ -295,7 +295,7 @@ public class JDBCImporter extends JDBCClients{
         q = q.substituteAndUseDollarSyntax(q);
 
         logger.info("Mark maintenance for {}", spaceId);
-        return getClient(clientID)
+        return getClient(clientID, false)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .map(f -> null);
@@ -362,7 +362,7 @@ public class JDBCImporter extends JDBCClients{
     }
 
     public static Future<String> createIndex(String clientID, SQLQuery q, String idxName){
-        return getClient(clientID).query(q.text())
+        return getClient(clientID, false).query(q.text())
                 .execute()
                 .map(idxName);
     }

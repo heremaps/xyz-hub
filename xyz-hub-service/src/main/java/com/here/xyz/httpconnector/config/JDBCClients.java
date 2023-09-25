@@ -26,10 +26,11 @@ import com.here.xyz.httpconnector.util.status.RunningQueryStatistic;
 import com.here.xyz.httpconnector.util.status.RunningQueryStatistics;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
+import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.tools.ECPSTool;
-import com.mchange.v3.decode.CannotDecodeException;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import io.vertx.pgclient.PgConnectOptions;
 import io.vertx.pgclient.PgPool;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 /**
  * @deprecated Use standard JDBC based clients instead
@@ -61,18 +63,34 @@ public class JDBCClients {
      * Each client has its on ConnectionPool with a different configuration of maxConnections.
      * */
 
+    /** ConfigClient is used if job-configs are getting stored via JDBC.*/
     public static final String CONFIG_CLIENT_ID = "config_client";
+    private static final int CONFIG_CLIENTS_MAX_POOL_SIZE = 4;
 
     private static final Logger logger = LogManager.getLogger();
-    private static final int STATUS_AND_CONFIG_CLIENTS_MAX_POOL_SIZE = 4;
-    private static final String APPLICATION_NAME_PREFIX = "job_engine_";
+    private static final String APPLICATION_NAME_PREFIX = "jobEngine";
     private static final String STATUS_CLIENT_SUFFIX = "_status";
+    private static final String RO_CLIENT_SUFFIX = "_ro";
+    private static final String MAINTENANCE_CLIENT_SUFFIX = "_maintenance";
     private static volatile Map<String, DBClient> clients = new HashMap<>();
 
     private static void addClients(String id, DatabaseSettings settings) {
+        /** Add read/write client */
         addClient(id, settings);
-        if (!id.equalsIgnoreCase(CONFIG_CLIENT_ID))
-            addClient(getStatusClientId(id), settings);
+
+        /** Add status client */
+        addClient(getStatusClientId(id, false), settings);
+
+        /** Add MaintenanceClient */
+        addClient(getMaintenanceClient(id), settings);;
+
+        if(settings.getReplicaHost() != null){
+            /** Add status status ro-client */
+            addClient(getStatusClientId(id, true), settings);
+
+            /** Add read client, if available */
+            addClient(getReadOnlyClientId(id), settings);
+        }
     }
 
     private static void addClient(String clientId, DatabaseSettings settings){
@@ -83,9 +101,9 @@ public class JDBCClients {
 
         PgConnectOptions connectOptions = new PgConnectOptions()
                 .setPort(settings.getPort())
-                .setHost(settings.getHost())
+                .setHost((isReadOnlyClientId(clientId) && settings.getReplicaHost() != null ) ? settings.getReplicaHost() : settings.getHost())
                 .setDatabase(settings.getDb())
-                .setUser(settings.getUser())
+                .setUser((isReadOnlyClientId(clientId) && settings.getReplicaUser() != null) ? settings.getReplicaUser() : settings.getUser())
                 .setPassword(settings.getPassword())
                 .setConnectTimeout(CService.configuration.DB_CHECKOUT_TIMEOUT  * 1000)
                 .setReconnectAttempts(CService.configuration.DB_ACQUIRE_RETRY_ATTEMPTS)
@@ -108,7 +126,7 @@ public class JDBCClients {
         return clients.get(id).getDbSettings();
     }
 
-    private static void removeClient(String id){
+    protected static void removeClient(String id){
         if(clients == null || clients.get(id) == null)
             return;
         logger.info("Remove SQL-Client [{}]", id);
@@ -116,9 +134,11 @@ public class JDBCClients {
         clients.remove(id);
     }
 
-    private static void removeClients(String id){
+    protected static void removeClients(String id){
         removeClient(id);
-        removeClient(getStatusClientId(id));
+        removeClient(getReadOnlyClientId(id));
+        removeClient(getStatusClientId(id, true));
+        removeClient(getStatusClientId(id, false));
     }
 
     public static Set<String> getClientList(){
@@ -128,23 +148,44 @@ public class JDBCClients {
     }
 
     private static String getApplicationName(String clientId){
-        String applicationName = APPLICATION_NAME_PREFIX + clientId + "_"+Core.START_TIME;
+        String applicationName = APPLICATION_NAME_PREFIX + Core.START_TIME +"#"+ clientId;
         if(applicationName.length() > 63)
             return applicationName.substring(0, 63);
         return applicationName;
     }
 
-    private static String getStatusClientId(String clientId) {
-        return clientId + STATUS_CLIENT_SUFFIX;
+    private static String getStatusClientId(String clientId, boolean readonly) {
+        return readonly ?  (getReadOnlyClientId(clientId) + STATUS_CLIENT_SUFFIX) : (clientId + STATUS_CLIENT_SUFFIX);
     }
 
-    private static boolean isStatusClientId(String clientId){
-        return clientId.endsWith(STATUS_CLIENT_SUFFIX);
+    private static String getReadOnlyClientId(String clientId){ return clientId + RO_CLIENT_SUFFIX; }
+
+    private static String getMaintenanceClient(String clientId) {
+        return clientId + MAINTENANCE_CLIENT_SUFFIX;
+    }
+
+    private static boolean isStatusClientId(String clientId){ return clientId.endsWith(STATUS_CLIENT_SUFFIX); }
+
+    private static boolean isReadOnlyClientId(String clientId){
+        return clientId.endsWith(RO_CLIENT_SUFFIX) || clientId.endsWith(RO_CLIENT_SUFFIX+STATUS_CLIENT_SUFFIX);
+    }
+
+    private static boolean isMaintenanceClient(String clientId){
+        return clientId.endsWith(MAINTENANCE_CLIENT_SUFFIX);
+    }
+
+    private static boolean isConfigClient(String clientId){
+        return clientId.equalsIgnoreCase(CONFIG_CLIENT_ID);
     }
 
     private static int getDBPoolSize(String clientId){
-        if(isStatusClientId(clientId) || clientId.equalsIgnoreCase(CONFIG_CLIENT_ID))
-            return STATUS_AND_CONFIG_CLIENTS_MAX_POOL_SIZE;
+        if(isConfigClient(clientId))
+            return CONFIG_CLIENTS_MAX_POOL_SIZE;
+        else if(isStatusClientId(clientId))
+            return CService.configuration.JOB_DB_POOL_SIZE_PER_STATUS_CLIENT;
+        else if(isMaintenanceClient(clientId))
+            return CService.configuration.JOB_DB_POOL_SIZE_PER_MAINTENANCE_CLIENT;
+
         return CService.configuration.JOB_DB_POOL_SIZE_PER_CLIENT != null ? CService.configuration.JOB_DB_POOL_SIZE_PER_CLIENT : 10;
     }
 
@@ -152,18 +193,22 @@ public class JDBCClients {
         SQLQuery q = new SQLQuery(
                 "select '!ignore!' as ignore, datname,pid,state,backend_type,query_start,state_change,application_name,query from pg_stat_activity "
                         +"WHERE 1=1 "
-                        +"AND application_name=#{applicationName} "
+                        +"AND application_name like #{applicationName} "
                         +"AND datname=#{db} "
                         +"AND state='active' "
                         +"AND backend_type='client backend' "
                         +"AND POSITION('!ignore!' in query) = 0"
         );
 
-        q.setNamedParameter("applicationName", getApplicationName(clientID));
-        q.setNamedParameter("db", getStatusClientDatabaseSettings(clientID).getDb());
+        String applicationName = getApplicationName(clientID);
+        /** Cut suffix of different clients */
+        applicationName = applicationName.indexOf("_") == -1 ? applicationName :applicationName.substring(0,applicationName.lastIndexOf("_"));
+
+        q.setNamedParameter("applicationName", applicationName+"%");
+        q.setNamedParameter("db", getStatusClientDatabaseSettings(clientID, false).getDb());
         q = q.substituteAndUseDollarSyntax(q);
 
-        return getStatusClient(clientID)
+        return getStatusClient(clientID, false)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .onFailure(f -> logger.warn(f))
@@ -184,34 +229,45 @@ public class JDBCClients {
                 });
     }
 
-    public static Future<Void> addClientIfRequired(String connectorId) {
+    public static Future<DatabaseSettings> addClientsIfRequired(String connectorId) {
+        return addClientsIfRequired(connectorId, true);
+    }
+
+    public static Future<DatabaseSettings> addClientsIfRequired(String connectorId, boolean checkIfSupported) {
+        if(checkIfSupported && CService.supportedConnectors != null && CService.supportedConnectors.indexOf(connectorId) == -1)
+            return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Connector is not supported"));
+
+        //* todo caching! */
+        if(hasClient(connectorId))
+            return Future.succeededFuture(getClientDatabaseSettings(connectorId));
+
         return HubWebClient.getConnectorConfig(connectorId)
             .compose(connector -> {
                 try {
                     if (connector.params != null && connector.params.get("ecps") != null) {
-                        addClientIfRequired(connectorId, (String) connector.params.get("ecps"));
-                        return Future.succeededFuture();
+                        DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS( (String) connector.params.get("ecps") , CService.configuration.ECPS_PHRASE);
+                        settings.setEnabledHashSpaceId(connector.params.get("enableHashedSpaceId") != null ? (boolean) connector.params.get("enableHashedSpaceId") : false);
+                        addClientsIfRequired(connectorId, settings);
+                        return Future.succeededFuture(settings);
                     }
                     else
-                        return Future.failedFuture("ECPS is missing! " + connectorId);
+                        return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Connector ["+connectorId+"] cant get found/loaded!"));
                 }
                 catch (Exception e) {
-                    return Future.failedFuture("Cant load dbClients for " + connectorId);
+                    return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST, "Cant decode ECPS of Connector ["+connectorId+"]!"));
                 }
             });
     }
 
-    public static void addClientIfRequired(String id, String ecps) throws CannotDecodeException, UnsupportedOperationException {
-        DatabaseSettings settings = ECPSTool.readDBSettingsFromECPS(ecps, CService.configuration.ECPS_PHRASE);
-
-        if (CService.supportedConnectors != null && CService.supportedConnectors.indexOf(id) == -1)
-            throw new UnsupportedOperationException();
-
-        if (JDBCImporter.getClient(id) == null)
-            addClients(id, settings);
-        else if (!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
-            removeClients(id);
-            addClients(id, settings);
+    public static DatabaseSettings addClientsIfRequired(String id, DatabaseSettings settings) {
+        synchronized (clients){
+            if (!hasClient(id))
+                addClients(id, settings);
+            else if (!clients.get(id).cacheKey().equals(settings.getCacheKey(id))) {
+                removeClients(id);
+                addClients(id, settings);
+            }
+            return settings;
         }
     }
 
@@ -242,8 +298,22 @@ public class JDBCClients {
         return null;
     }
 
-    public static SqlClient getStatusClient(String id) {
-        return getClient(getStatusClientId(id));
+    public static SqlClient getStatusClient(String id, boolean readOnly) {
+        return getClient(getStatusClientId(id, readOnly));
+    }
+
+    public static SqlClient getRoClient(String id){
+        return getClient(getReadOnlyClientId(id));
+    }
+
+    public static SqlClient getClient(String id, boolean useReadOnlyClient){
+        if(useReadOnlyClient && hasClient(getReadOnlyClientId(id))) {
+            logger.info("Use read-only client for {}.", id);
+            return getRoClient(id);
+        }
+
+        /** if useReadOnlyClient=true and no ro-client is available we fall back to default client */
+        return getClient(id);
     }
 
     public static SqlClient getClient(String id){
@@ -252,8 +322,22 @@ public class JDBCClients {
         return clients.get(id).getClient();
     }
 
-    public static DatabaseSettings getStatusClientDatabaseSettings(String id){
-        return getClientDatabaseSettings(getStatusClientId(id));
+    public static boolean hasClient(String id){
+        if(clients == null || clients.get(id) == null)
+            return false;
+        return true;
+    }
+
+    public static boolean hasStatusClient(String id, boolean readonly){
+        return hasClient(getStatusClientId(id, readonly));
+    }
+
+    public static boolean hasROClient(String id){
+        return hasClient(getReadOnlyClientId(id));
+    }
+
+    public static DatabaseSettings getStatusClientDatabaseSettings(String id, boolean readonly){
+        return getClientDatabaseSettings(getStatusClientId(id,readonly));
     }
 
     public static DatabaseSettings getClientDatabaseSettings(String id){
@@ -262,34 +346,67 @@ public class JDBCClients {
         return clients.get(id).dbSettings;
     }
 
-    public static Future<RDSStatus> getRDSStatus(String clientId) {
+    public static Future<RDSStatus> getRDSStatus(String connectorId) {
         return Future.succeededFuture()
-            .compose(v -> {
-                if (getStatusClient(clientId) == null) {
-                    logger.info("DB-Client not Ready, adding one ... [{}]", clientId);
-                    return addClientIfRequired(clientId);
-                }
-                return Future.succeededFuture();
-            })
-            .compose(v -> collectRunningQueries(clientId)) //Collect current metrics from Cloudwatch
-            .map(runningQueryStatistics -> new RDSStatus(clientId,
-                CService.jobCWClient.getAvg5MinRDSMetrics(CService.rdsLookupDatabaseIdentifier.get(clientId)), runningQueryStatistics))
-            .onFailure(e -> logger.warn("Cant get RDS-Resources! ", e));
+                .compose(v -> {
+                    if (getStatusClient(connectorId, false) == null) {
+                        logger.info("DB-Client not Ready, adding one ... [{}]", connectorId);
+                        return addClientsIfRequired(connectorId);
+                    }
+                    return Future.succeededFuture();
+                })
+                .compose(v ->
+                    /** collect running queries from db */
+                    collectRunningQueries(connectorId)
+                ).compose(runningQueryStatistics -> {
+                    RDSStatus rdsStatus = new RDSStatus(connectorId);
+                    rdsStatus.addRdsMetrics(runningQueryStatistics);
+
+                    String dbClusterIdentifier = getDBSettings(connectorId).getDBClusterIdentifier();
+                    if(dbClusterIdentifier == null && getClientDatabaseSettings(connectorId).getHost().indexOf("localhost") != -1){
+                        logger.error("{} - configured ECPS does not use a clusterConfig! {}",connectorId, getDBSettings(connectorId).getHost());
+                    }
+                    else {
+                        /** collect cloudwatch metrics for db */
+                        CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier);
+                        rdsStatus.addCloudWatchDBWriterMetrics(CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier, AwsCWClient.Role.WRITER));
+                        if(getDBSettings(connectorId).getReplicaHost() != null)
+                            rdsStatus.addCloudWatchDBReaderMetrics(CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier, AwsCWClient.Role.READER));
+                    }
+
+                    return Future.succeededFuture(rdsStatus);
+                })
+                .onFailure(e -> logger.warn("Cant get RDS-Resources! ", e));
     }
 
     public static Future<Void> abortJobsByJobId(Job j)  {
-        return addClientIfRequired(j.getTargetConnector())
-                .compose(f -> {
-                    SQLQuery q = buildAbortsJobQuery(j);
-                    logger.info("job[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
+        SQLQuery q = buildAbortsJobQuery(j);
+        logger.info("job[{}] Abort Job {}: {}", j.getId(), j.getTargetSpaceId(), q.text());
 
-                    return getStatusClient(j.getTargetConnector())
+        return addClientsIfRequired(j.getTargetConnector())
+                .compose(f ->
+                    getStatusClient(j.getTargetConnector(), false)
                             .query(q.text())
                             .execute()
-                            .compose(row ->
-                                 //Succeeded in any-case
-                                 Future.succeededFuture()
-                            );
+                            .compose(row -> {
+                                        logger.info("job[{}] Abort Job on Writer {}@{}", j.getId(), j.getTargetSpaceId(), getDBSettings(getStatusClientId(j.getTargetConnector(),false)).getHost());
+                                        //Succeeded in any-case
+                                        return Future.succeededFuture();
+                                    }
+                            )
+                ).compose(f -> {
+                    /** Abort readReplica queries */
+                    if(hasStatusClient(j.getTargetConnector(), true))
+                        return getStatusClient(j.getTargetConnector(), true)
+                                .query(q.text())
+                                .execute()
+                                .compose(row -> {
+                                            logger.info("job[{}] Abort Job on Reader {}@{}", j.getId(), j.getTargetSpaceId(), getDBSettings(getStatusClientId(j.getTargetConnector(),true)).getReplicaHost());
+                                            //Succeeded in any-case
+                                           return Future.succeededFuture();
+                                        }
+                                );
+                    return Future.succeededFuture();
                 });
     }
 

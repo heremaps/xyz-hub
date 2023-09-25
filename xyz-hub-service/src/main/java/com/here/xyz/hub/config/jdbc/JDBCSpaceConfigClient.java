@@ -19,18 +19,16 @@
 
 package com.here.xyz.hub.config.jdbc;
 
-import static com.here.xyz.XyzSerializable.Mappers.STATIC_MAPPER;
 import static com.here.xyz.hub.config.jdbc.JDBCConfig.SPACE_TABLE;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
-import io.vertx.core.json.EncodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.jackson.DatabindCodec;
@@ -94,24 +92,19 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
 
   @Override
   protected Future<Void> storeSpace(Marker marker, Space space) {
-    SQLQuery query = null;
-    try {
-      //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
-      final Map<String, Object> itemData = STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
-      if (itemData.get("versionsToKeep") != null && itemData.get("versionsToKeep") instanceof Integer && ((int) itemData.get("versionsToKeep")) == 0)
-        itemData.remove("versionsToKeep");
-      query = new SQLQuery(
-          "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config, region) VALUES (#{spaceId}, #{owner}, #{cid}, cast(#{spaceJson} as JSONB), #{region}) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config, region = excluded.region")
-          .withNamedParameter("spaceId", space.getId())
-          .withNamedParameter("owner", space.getOwner())
-          .withNamedParameter("cid", space.getCid())
-          .withNamedParameter("spaceJson", STATIC_MAPPER.get().writeValueAsString(itemData))
-          .withNamedParameter("region", space.getRegion());
-      return JDBCConfig.updateWithParams(query).mapEmpty();
-    }
-    catch (JsonProcessingException e) {
-      return Future.failedFuture(new EncodeException("Failed to encode as JSON: " + e.getMessage(), e));
-    }
+    SQLQuery query;
+    //NOTE: The following is a temporary implementation to keep backwards compatibility for non-versioned spaces
+    final Map<String, Object> itemData = XyzSerializable.toMap(space, Static.class);
+    if (itemData.get("versionsToKeep") != null && itemData.get("versionsToKeep") instanceof Integer && ((int) itemData.get("versionsToKeep")) == 0)
+      itemData.remove("versionsToKeep");
+    query = new SQLQuery(
+        "INSERT INTO " + SPACE_TABLE + " (id, owner, cid, config, region) VALUES (#{spaceId}, #{owner}, #{cid}, cast(#{spaceJson} as JSONB), #{region}) ON CONFLICT (id) DO UPDATE SET owner = excluded.owner, cid = excluded.cid, config = excluded.config, region = excluded.region")
+        .withNamedParameter("spaceId", space.getId())
+        .withNamedParameter("owner", space.getOwner())
+        .withNamedParameter("cid", space.getCid())
+        .withNamedParameter("spaceJson", XyzSerializable.serialize(itemData, Static.class))
+        .withNamedParameter("region", space.getRegion());
+    return JDBCConfig.updateWithParams(query).mapEmpty();
   }
 
   @Override

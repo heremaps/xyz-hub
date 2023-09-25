@@ -21,11 +21,9 @@ package com.here.xyz.httpconnector;
 
 import com.here.xyz.httpconnector.config.AwsCWClient;
 import com.here.xyz.httpconnector.config.AwsSecretManagerClient;
-import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.config.JobConfigClient;
 import com.here.xyz.httpconnector.config.JobS3Client;
-import com.here.xyz.httpconnector.config.MaintenanceClient;
 import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
@@ -56,11 +54,6 @@ public class CService extends Core {
    * The host ID.
    */
   public static final String HOST_ID = UUID.randomUUID().toString();
-
-  /**
-   * The client to access databases for maintenanceTasks
-   */
-  public static MaintenanceClient maintenanceClient;
 
   /**
    * The client to access job configs
@@ -107,7 +100,6 @@ public class CService extends Core {
   public static WebClient webClient;
 
   public static final List<String> supportedConnectors = new ArrayList<>();
-  public static final HashMap<String, String> rdsLookupDatabaseIdentifier = new HashMap<>();
   public static final HashMap<String, Integer> rdsLookupCapacity = new HashMap<>();
 
   private static final Logger logger = LogManager.getLogger();
@@ -138,10 +130,9 @@ public class CService extends Core {
         String[] splitConfig = rdsConfig.split(":");
         String cId = splitConfig[0];
         supportedConnectors.add(cId);
-        rdsLookupDatabaseIdentifier.put(cId, splitConfig[1]);
-        rdsLookupCapacity.put(cId, Integer.parseInt(splitConfig[2]));
+        rdsLookupCapacity.put(cId, Integer.parseInt(splitConfig[1]));
       }
-      supportedConnectors.add(JDBCClients.CONFIG_CLIENT_ID);
+
     } catch (Exception e) {
       logger.error("Configuration-Error - please check service config!");
       throw new RuntimeException("Configuration-Error - please check service config!",e);
@@ -151,7 +142,6 @@ public class CService extends Core {
   }
 
   private static Future<JsonObject> initializeClients(JsonObject config) {
-    maintenanceClient = new MaintenanceClient();
     jobConfigClient = JobConfigClient.getInstance();
 
     return jobConfigClient.init()
@@ -164,7 +154,6 @@ public class CService extends Core {
               .setTcpQuickAck(true)
               .setTcpFastOpen(true));
 
-          jdbcImporter = new JDBCImporter();
           jobSecretClient = new AwsSecretManagerClient();
           jobS3Client = new JobS3Client();
           jobCWClient = new AwsCWClient();

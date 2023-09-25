@@ -35,6 +35,7 @@ import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.auth.JWTPayload;
@@ -47,7 +48,6 @@ import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.hub.util.logging.AccessLog;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space.Internal;
-import com.here.xyz.models.hub.Space.Public;
 import com.here.xyz.models.hub.Space.WithConnectors;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
@@ -60,6 +60,7 @@ import com.here.xyz.responses.changesets.ChangesetCollection;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpHeaders;
@@ -137,6 +138,24 @@ public abstract class Api {
     }
 
     return false;
+  }
+
+  protected Handler<RoutingContext> handleErrors(ThrowingHandler<RoutingContext> handler) {
+    return context -> {
+      try {
+        handler.handle(context);
+      }
+      catch (HttpException e) {
+        sendErrorResponse(context, e);
+      }
+      catch (Exception e) {
+        sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Server error!", e));
+      }
+    };
+  }
+
+  public interface ThrowingHandler<E> {
+    void handle(E event) throws Exception;
   }
 
   /**

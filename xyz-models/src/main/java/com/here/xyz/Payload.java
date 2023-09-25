@@ -22,6 +22,7 @@ package com.here.xyz;
 import static com.here.xyz.XyzSerializable.Mappers.SORTED_MAPPER;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.io.ByteStreams;
@@ -44,18 +45,17 @@ import java.util.zip.ZipException;
     @JsonSubTypes.Type(value = ChangeNotification.class),
     @JsonSubTypes.Type(value = FeatureChange.class)
 })
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Payload implements Typed {
 
   public static final String VERSION = "0.6.0";
 
   public static InputStream prepareInputStream(InputStream input) throws IOException {
-    if (!input.markSupported()) {
+    if (!input.markSupported())
       input = new BufferedInputStream(input);
-    }
 
-    if (isCompressed(input)) {
+    if (isCompressed(input))
       input = gunzip(input);
-    }
 
     return input;
   }
@@ -64,7 +64,8 @@ public class Payload implements Typed {
   public static InputStream gunzip(InputStream is) throws IOException {
     try {
       return new BufferedInputStream(new GZIPInputStream(is));
-    } catch (ZipException z) {
+    }
+    catch (ZipException z) {
       return is;
     }
   }
@@ -72,7 +73,8 @@ public class Payload implements Typed {
   public static OutputStream gzip(OutputStream os) throws IOException {
     try {
       return new GZIPOutputStream(os);
-    } catch (ZipException z) {
+    }
+    catch (ZipException z) {
       return os;
     }
   }
@@ -86,16 +88,16 @@ public class Payload implements Typed {
    */
   public static boolean isCompressed(InputStream is) {
     try {
-      if (!is.markSupported()) {
+      if (!is.markSupported())
         is = new BufferedInputStream(is);
-      }
 
       byte[] bytes = new byte[2];
       is.mark(2);
       is.read(bytes);
       is.reset();
       return isGzipped(bytes);
-    } catch (Exception e) {
+    }
+    catch (Exception e) {
       return false;
     }
   }
@@ -109,7 +111,8 @@ public class Payload implements Typed {
 
     try (GZIPOutputStream gos = new GZIPOutputStream(baos)) {
       gos.write(bytes);
-    } catch (IOException e) {
+    }
+    catch (IOException e) {
       return null;
     }
 
@@ -128,7 +131,8 @@ public class Payload implements Typed {
   public static int compareVersions(String versionA, String versionB) {
     String[] partsA = versionA.split(".");
     String[] partsB = versionB.split(".");
-    if (partsA.length != partsB.length) throw new IllegalArgumentException("Incompatible version strings.");
+    if (partsA.length != partsB.length)
+      throw new IllegalArgumentException("Incompatible version strings.");
     for (int i = 0; i < partsA.length; i++) {
       int versionPartA = Integer.parseInt(partsA[i]), versionPartB = Integer.parseInt(partsB[i]);
       if (versionPartA < versionPartB)
@@ -146,7 +150,8 @@ public class Payload implements Typed {
   public String getHash() {
     try {
       return Hasher.getHash(getCacheString());
-    } catch (JsonProcessingException e) {
+    }
+    catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
   }
@@ -155,9 +160,11 @@ public class Payload implements Typed {
   @JsonIgnore
   public String getCacheString() throws JsonProcessingException {
     return SORTED_MAPPER.get()
-        // Adding .writerWithView(Object.class) will serialize all properties, which do not have a view annotation. Any properties, which
-        // are not used as an input to generate the response(e.g. the request log stream Id) and do not result in a change of the response
-        // must be annotated with a view ( e.g. @JsonView(ExcludeFromHash.class) )
+        /*
+        Adding .writerWithView(Object.class) will serialize all properties, which do not have a view annotation. Any properties, which
+        are not used as an input to generate the response(e.g. the request log stream ID) and do not result in a change of the response
+        must be annotated with a view (e.g. @JsonView(ExcludeFromHash.class))
+         */
         .writerWithView(Object.class)
         .writeValueAsString(this);
   }
@@ -167,7 +174,9 @@ public class Payload implements Typed {
     return serialize();
   }
 
-  protected static class ExcludeFromHash {
-
-  }
+  /**
+   * Used as a JsonView on {@link Payload} models to indicate that a property should not be taken into account for hashing.
+   * (e.g. when it comes to cache-key generation)
+   */
+  public static class ExcludeFromHash {}
 }

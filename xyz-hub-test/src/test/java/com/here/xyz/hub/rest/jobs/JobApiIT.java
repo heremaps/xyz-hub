@@ -26,6 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.fail;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
@@ -280,6 +281,7 @@ public class JobApiIT extends TestSpaceWithFeature {
 
         Job.Status status = Job.Status.waiting;
         Job job = null;
+        int i = 0;
 
         while(!status.equals(expectedStatus)){
             /**
@@ -294,7 +296,11 @@ public class JobApiIT extends TestSpaceWithFeature {
 
             System.out.println("Current Status of Job["+jobId+"]: "+status);
             //Should be higher than JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS
-            Thread.sleep(120);
+            Thread.sleep(150);
+
+            /** Abort after 60 seconds */
+            if(i++ == 400)
+                fail("Unexpected loop!");
         }
         return job;
     }

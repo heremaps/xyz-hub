@@ -21,6 +21,7 @@ package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.config.Initializable;
 import io.vertx.core.Future;
@@ -60,7 +61,7 @@ public abstract class JobConfigClient implements Initializable {
                 .onFailure(e -> logger.error(marker, "job[{}]: failed to load! ", jobId, e));
     }
 
-    public Future<List<Job>> getList(Marker marker, String type, Job.Status status, String targetSpaceId) {
+    public Future<List<Job>> getList(Marker marker, String type, Status status, String targetSpaceId) {
         return getJobs(marker, type, status, targetSpaceId)
                 .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
     }
@@ -72,64 +73,62 @@ public abstract class JobConfigClient implements Initializable {
    * @param direction Find all jobs which have the dataset as target, source or both
    * @return All jobs which are reading and or writing into the specified dataset description
    */
-    public Future<List<Job>> getList(Marker marker, Job.Status status, String key, DatasetDirection direction) {
+    public Future<List<Job>> getList(Marker marker, Status status, String key, DatasetDirection direction) {
       //TODO: implement by searching for the key in the stored key of the dataset description. The key will be stored as part of the DatasetDescription within the "key" property @see DatasetDescription#getKey()
       return getJobs(marker, status, key, direction)
-              .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
+          .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e));
     }
 
     public Future<String> getRunningJobsOnSpace(Marker marker, String targetSpaceId, String type) {
         return findRunningJobOnSpace(marker, targetSpaceId, type)
-                .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e ));
+            .onFailure(e -> logger.error(marker, "Failed to load jobList! ", e ));
     }
 
     public Future<Job> update(Marker marker, Job job) {
-        /** We are updating jobs in JobHandler (config changes + JobQueue (state changes)*/
-        job.setUpdatedAt(Core.currentTimeMillis() / 1000L);
+      //We are updating jobs in JobHandler (config changes + JobQueue (state changes)
+      job.setUpdatedAt(Core.currentTimeMillis() / 1000L);
       if (job.isChildJob())
-        return Future.succeededFuture(job);//TODO: Replace that hack once the scheduler flow was refactored
+        return Future.succeededFuture(job); //TODO: Replace that hack once the scheduler flow was refactored
 
-        return storeJob(marker, job, true)
-                .onSuccess(v -> {
-                    logger.info(marker, "job[{}] / status[{}]: successfully updated!", job.getId(), job.getStatus());
-                })
-                .onFailure(e -> {
-                    logger.error(marker, "job[{}]: failed to update! ", job.getId(), e);
-                });
+      return storeJob(marker, job, true)
+          .onSuccess(v -> {
+              logger.info(marker, "job[{}] / status[{}]: successfully updated!", job.getId(), job.getStatus());
+          })
+          .onFailure(e -> {
+              logger.error(marker, "job[{}]: failed to update! ", job.getId(), e);
+          });
     }
 
     public Future<Job> store(Marker marker, Job job) {
       if (job.isChildJob())
-        return Future.succeededFuture(job);//TODO: Replace that hack once the scheduler flow was refactored
+        return Future.succeededFuture(job); //TODO: Replace that hack once the scheduler flow was refactored
 
-        return storeJob(marker, job, false)
-                .onFailure(e -> {
-                    logger.error(marker, "job[{}]: failed to store! ", job.getId(), e);
-                });
+      return storeJob(marker, job, false)
+          .onFailure(e -> {
+              logger.error(marker, "job[{}]: failed to store! ", job.getId(), e);
+          });
     }
 
     public Future<Job> delete(Marker marker, String jobId, boolean force) {
         return getJob(marker, jobId)
-                .onSuccess(j -> {
-                            if (j == null) {
-                                logger.debug(marker, "job[{}]: nothing to delete!", jobId);
-                            }else {
-                                deleteJob(marker, j)
-                                        .onFailure(e -> logger.error(marker, "job[{}]: failed delete! ", jobId, e));
-                            }
-                })
-                .onFailure(e -> logger.error(marker, "job[{}]: failed to delete! ", jobId, e));
+            .onSuccess(job -> {
+              if (job == null)
+                  logger.debug(marker, "job[{}]: nothing to delete!", jobId);
+              else
+                  deleteJob(marker, job)
+                      .onFailure(e -> logger.error(marker, "job[{}]: failed delete! ", jobId, e));
+            })
+            .onFailure(e -> logger.error(marker, "job[{}]: failed to delete! ", jobId, e));
     }
 
     protected abstract Future<Job> getJob(Marker marker, String jobId);
 
-    protected abstract Future<List<Job>> getJobs(Marker marker, String type, Job.Status status, String targetSpaceId);
-    protected abstract Future<List<Job>> getJobs( Marker marker, Job.Status status, String key, DatasetDirection direction);
+    protected abstract Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId);
+    protected abstract Future<List<Job>> getJobs(Marker marker, Status status, String key, DatasetDirection direction);
 
     protected abstract Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type);
 
     protected abstract Future<Job> storeJob(Marker marker, Job job, boolean isUpdate);
 
     protected abstract Future<Job> deleteJob(Marker marker, Job job);
-
 }
