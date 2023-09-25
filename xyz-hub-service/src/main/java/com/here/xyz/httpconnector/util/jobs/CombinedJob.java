@@ -66,6 +66,8 @@ public class CombinedJob extends Job<CombinedJob> {
   @JsonIgnore
   private AtomicBoolean executing = new AtomicBoolean();
 
+  private RuntimeStatus status = new RuntimeStatus();
+
   public CombinedJob() {
     super();
     setId(generateRandomId());
@@ -279,5 +281,10 @@ public class CombinedJob extends Job<CombinedJob> {
   public Future<CombinedJob> store() {
     return CService.jobConfigClient.store(getMarker(), this)
         .map(job -> (CombinedJob) job);
+  }
+
+  @JsonIgnore
+  public RuntimeStatus getRuntimeStatus() {
+    return status;
   }
 }
