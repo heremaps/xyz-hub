@@ -21,6 +21,7 @@ package com.here.xyz.httpconnector.util.jobs;
 
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.validated;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
 import static com.here.xyz.httpconnector.util.scheduler.ImportQueue.NODE_EXECUTED_IMPORT_MEMORY;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
@@ -130,13 +131,14 @@ public class Import extends Job<Import> {
     }
 
     public static Import validateImportObjects(Import job){
-        /** Validate if provided files are existing and ok */
-        if(job.getImportObjects().size() == 0){
+        //Validate if provided files are existing and ok
+        if (job.getImportObjects().size() == 0) {
             job.setErrorDescription(ERROR_DESCRIPTION_UPLOAD_MISSING);
             job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
-        }else {
+        }
+        else {
             try {
-                /** scan S3 Path for existing Uploads and validate first line of CSV */
+                //Scan S3 Path for existing Uploads and validate first line of CSV
                 Map<String, ImportObject> scannedObjects = CService.jobS3Client.scanImportPath(job, job.getCsvFormat());
                 if (scannedObjects.size() == 0) {
                     job.setErrorDescription(ERROR_DESCRIPTION_UPLOAD_MISSING);
@@ -146,26 +148,27 @@ public class Import extends Job<Import> {
                     boolean foundOneValid = false;
                     for (String key : job.getImportObjects().keySet()) {
                         if (scannedObjects.get(key) != null) {
-                            /** S3 Object is found - update job with file metadata */
+                            //S3 Object is found - update job with file metadata
                             ImportObject scannedFile = scannedObjects.get(key);
 
                             if (!scannedFile.isValid()) {
-                                /** Keep Upload-URL for retry */
+                                //Keep Upload-URL for retry
                                 scannedFile.setUploadUrl(job.getImportObjects().get(key).getUploadUrl());
-                                /** If file is invalid fail validation */
+                                //If file is invalid fail validation
                                 job.setErrorDescription(ERROR_DESCRIPTION_INVALID_FILE);
                                 job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
-                            } else
+                            }
+                            else
                                 foundOneValid = true;
-                            /** Add meta-data */
+                            //Add meta-data
                             job.addImportObject(scannedFile);
-                        } else {
-                            job.getImportObjects().get(key).setFilesize(-1);
                         }
+                        else
+                            job.getImportObjects().get(key).setFilesize(-1);
                     }
 
                     if (!foundOneValid) {
-                        /** No Uploads found */
+                        //No Uploads found
                         job.setErrorDescription(ERROR_DESCRIPTION_NO_VALID_FILES_FOUND);
                         job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
                     }
@@ -173,16 +176,15 @@ public class Import extends Job<Import> {
             }
             catch (Exception e) {
                 logger.warn("job[{}] validation has failed! ", job.getId(), e);
-                job.setStatus(failed);
                 job.setErrorType(ERROR_TYPE_VALIDATION_FAILED);
             }
         }
 
-        //ToDo: Decide if we want to proceed partially
+        //TODO: Decide if we want to proceed partially
         if (job.getErrorType() != null)
-            job.setStatus(failed);
+            updateJobStatus(job, failed);
         else
-            job.setStatus(Status.validated);
+            updateJobStatus(job, validated);
 
         return job;
     }

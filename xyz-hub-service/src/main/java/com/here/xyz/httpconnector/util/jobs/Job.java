@@ -41,13 +41,14 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
-import com.here.xyz.httpconnector.util.status.RDSStatus;
+import com.here.xyz.httpconnector.util.jobs.Job.Status.IllegalStateTransition;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -323,32 +324,69 @@ public abstract class Job<T extends Job> extends Payload {
 
     @JsonView({Public.class})
     public enum Status {
-        waiting, queued, validating, validated, preparing, prepared, executing, executed,
-            executing_trigger, trigger_executed, collecting_trigger_status, trigger_status_collected,
-            finalizing, finalized(true), aborted(true), failed(true);
+        failed,
+        aborted,
+        finalized,
+        finalizing(finalized, failed, aborted),
+        collecting_trigger_status(finalized, finalizing, failed, aborted),
+        trigger_executed(collecting_trigger_status, failed, aborted),
+        executing_trigger(trigger_executed, finalized, failed, aborted),
+        executed(executing_trigger, finalizing, failed, aborted),
+        executing(executed, failed, aborted),
+        prepared(executing, failed, aborted),
+        preparing(prepared, failed, aborted),
+        queued(executing, preparing, failed, aborted),
+        validated(queued, failed, aborted),
+        validating(validated, failed, aborted),
+        waiting(queued, executing, validating, failed, aborted);
 
         private final boolean isFinal;
+        private final Status[] validSuccessors;
 
         Status() {
-            this(false);
+            this(true);
         }
 
         Status(boolean isFinal) {
+            this(isFinal, new Status[]{});
+        }
+
+        Status(Status... validSuccessors) {
+            this(false, validSuccessors);
+        }
+
+        Status(boolean isFinal, Status... validSuccessors) {
             this.isFinal = isFinal;
+            this.validSuccessors = validSuccessors;
         }
 
         public boolean isFinal() {
             return isFinal;
         }
 
+        public boolean isValidSuccessor(Status successorStatus) {
+            return Arrays.stream(validSuccessors).anyMatch(validSuccessor -> validSuccessor == successorStatus);
+        }
+
         public static Status of(String value) {
-            if (value == null) {
+            if (value == null)
                 return null;
-            }
             try {
                 return valueOf(value.toLowerCase());
-            } catch (IllegalArgumentException e) {
+            }
+            catch (IllegalArgumentException e) {
                 return null;
+            }
+        }
+
+        public static class IllegalStateTransition extends IllegalStateException {
+            public final Status sourceState;
+            public final Status targetState;
+
+            public IllegalStateTransition(Status sourceState, Status targetState) {
+                super("Illegal state transition: " + sourceState + " -> " + targetState);
+                this.sourceState = sourceState;
+                this.targetState = targetState;
             }
         }
     }
@@ -471,13 +509,22 @@ public abstract class Job<T extends Job> extends Payload {
         return (T) this;
     }
 
-    public Status getStatus() { return status; }
+    public Status getStatus() {
+        return status;
+    }
 
     public void setStatus(Job.Status status) {
-        if (this.status != null && this.status.isFinal()) {
-            if (getFinalizedAt() == -1)
-                setFinalizedAt(Core.currentTimeMillis() / 1000l);
-            return;
+        if (this.status != null) {
+            if (!this.status.isValidSuccessor(status)) {
+                logger.warn(getMarker(), "Illegal state transition: {} -> {}", this.status, status);
+                throw new IllegalStateTransition(this.status, status);
+            }
+
+            if (this.status.isFinal()) {
+                if (getFinalizedAt() == -1)
+                    setFinalizedAt(Core.currentTimeMillis() / 1000l);
+                return;
+            }
         }
         if ((status == aborted || status == failed) && lastStatus == null)
             lastStatus = this.status;

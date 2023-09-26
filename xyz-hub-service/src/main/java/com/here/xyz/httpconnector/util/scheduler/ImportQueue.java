@@ -66,11 +66,7 @@ public class ImportQueue extends JobQueue {
                                 break;
                             case waiting:
                                 updateJobStatus(currentJobConfig,Job.Status.validating)
-                                        .compose(j -> {
-                                            Import validatedJob = validateJob(j);
-                                            //Set status of validation
-                                            return updateJobStatus(validatedJob);
-                                        });
+                                        .compose(j -> Future.succeededFuture(validateJob(j)));
                                 break;
                             case validated:
                                 //Reflect that the Job is loaded into job-queue
