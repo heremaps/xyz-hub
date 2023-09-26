@@ -101,7 +101,7 @@ public class TagApi extends SpaceBasedApi {
     }
 
     public static Future<Tag> createTag(Marker marker, String spaceId, String tagId) {
-        return createTag(marker, spaceId, tagId, 0);
+        return createTag(marker, spaceId, tagId, -2);
     }
 
     // TODO auth
@@ -119,7 +119,7 @@ public class TagApi extends SpaceBasedApi {
             final Tag tag = new Tag()
                     .withId(tagId)
                     .withSpaceId(spaceId)
-                    .withVersion(version == 0 ? changesetFuture.result().getMaxVersion() : version);
+                    .withVersion(version == -2 ? changesetFuture.result().getMaxVersion() : version);
             return TagConfigClient.getInstance().storeTag(marker, tag).map(v -> tag);
         });
     }
