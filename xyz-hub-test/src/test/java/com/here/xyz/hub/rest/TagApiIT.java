@@ -60,7 +60,7 @@ public class TagApiIT extends TestSpaceWithFeature {
                 .contentType(ContentType.JSON)
                 .body("{\"id\":\"XYZ_1\"}")
                 .post("/spaces/" + getSpaceId() + "/tags")
-                .then();
+                .then().statusCode(OK.code());
     }
 
   private ValidatableResponse _addOneFeature() {
@@ -311,5 +311,18 @@ public class TagApiIT extends TestSpaceWithFeature {
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(0));
+  }
+
+  @Test
+  public void testUpdateTagWithVersionMinusTen() {
+    _createTag();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"version\":-10}")
+        .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .then()
+        .statusCode(BAD_REQUEST.code());
   }
 }
