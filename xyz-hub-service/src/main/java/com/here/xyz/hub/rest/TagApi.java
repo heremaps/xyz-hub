@@ -110,6 +110,8 @@ public class TagApi extends SpaceBasedApi {
             return Future.failedFuture("Invalid spaceId parameter");
         if (tagId == null )
             return Future.failedFuture("Invalid tagId parameter");
+        if (version < -2)
+          return Future.failedFuture("Invalid version parameter");
 
         final Future<Space> spaceFuture = SpaceConfigClient.getInstance().get(marker, spaceId)
                 .compose(s -> s == null ? Future.failedFuture(new HttpException(HttpResponseStatus.NOT_FOUND, "Resource with id " + spaceId + " not found.")) : Future.succeededFuture(s));
