@@ -233,15 +233,6 @@ public class Export extends Job<Export> {
             }
 
         }
-        else if (getExportTarget().getType().equals(ExportTarget.Type.DOWNLOAD)){
-            switch (getCsvFormat()) {
-                case JSON_WKB:
-                case GEOJSON:
-                    break;
-                default:
-                    throw new HttpException(BAD_REQUEST,("Invalid Format! Allowed ["+ CSVFormat.JSON_WKB +","+ CSVFormat.GEOJSON +"]"));
-            }
-        }
 
         Filters filters = getFilters();
         if (filters != null) {

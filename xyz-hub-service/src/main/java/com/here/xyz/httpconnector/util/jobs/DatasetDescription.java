@@ -73,6 +73,8 @@ public abstract class DatasetDescription implements Typed {
 
   public static class Files extends DatasetDescription {
     CSVFormat format;
+    int tileLevel = 12;
+    boolean clipped = false;
 
     public CSVFormat getFormat() {
       return format;
@@ -85,6 +87,22 @@ public abstract class DatasetDescription implements Typed {
     public Files withFormat(CSVFormat format) {
       setFormat(format);
       return this;
+    }
+
+    public int getTileLevel() {
+      return tileLevel;
+    }
+
+    public void setTileLevel(int tileLevel) {
+      this.tileLevel = tileLevel;
+    }
+
+    public boolean isClipped() {
+      return clipped;
+    }
+
+    public void setClipped(boolean clipped) {
+      this.clipped = clipped;
     }
 
     @Override
