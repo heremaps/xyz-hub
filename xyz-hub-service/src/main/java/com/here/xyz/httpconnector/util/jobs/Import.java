@@ -43,9 +43,8 @@ import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
-import io.vertx.pgclient.PgException;
-import io.vertx.sqlclient.ClosedConnectionException;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -312,7 +311,6 @@ public class Import extends JDBCBasedJob<Import> {
             return;
 
         setExecutedAt(Core.currentTimeMillis() / 1000L);
-        String defaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
         List<Future> importFutures = new ArrayList<>();
 
         Map<String, ImportObject> importObjects = getImportObjects();
@@ -336,7 +334,7 @@ public class Import extends JDBCBasedJob<Import> {
                 logger.info("job[{}] start execution of {}! mem: {}", getId(), importObjects.get(key).getS3Key(getId(), key), NODE_EXECUTED_IMPORT_MEMORY);
 
                 importFutures.add(
-                    CService.jdbcImporter.executeImport(this, getTargetConnector(), defaultSchema, getTargetTable(),
+                    JDBCImporter.getInstance().executeImport(this, getTargetTable(),
                             CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(getId(), key), CService.configuration.JOBS_REGION, curFileSize, getCsvFormat() )
                         .onSuccess(result -> {
                                 NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
@@ -352,8 +350,8 @@ public class Import extends JDBCBasedJob<Import> {
                         .onFailure(e -> {
                                 NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
                                 logger.warn("JOB[{}] Import of '{}' - {} failed - mem: {}!", getId(), key, importObjects.get(key).getFilesize(), NODE_EXECUTED_IMPORT_MEMORY, e);
-                                if(e instanceof PgException){
-                                    if(((PgException) e).getSqlState().equalsIgnoreCase("22P02") || ((PgException) e).getSqlState().equalsIgnoreCase("22P04")){
+                                if (e instanceof SQLException sqlException) {
+                                    if(sqlException.getSQLState().equalsIgnoreCase("22P02") || sqlException.getSQLState().equalsIgnoreCase("22P04")){
                                         if(importObjects.get(key).isRetryPossible()) {
                                             logger.info("JOB[{}] Mark '{}' for retry - {} attempt!", getId(), key, importObjects.get(key).getRetryCount());
                                             importObjects.get(key).increaseRetryCount();
@@ -378,12 +376,13 @@ public class Import extends JDBCBasedJob<Import> {
                                 String getErrorDescription = Import.ERROR_DESCRIPTION_UNEXPECTED;
                                 logger.warn("job[{}] Import into '{}' failed! ", getId(), getTargetSpaceId(), t);
 
-                                if(t.cause() instanceof PgException){
-                                    if(((PgException) t.cause()).getSqlState().equalsIgnoreCase("23505") ){
+                                if (t.cause() instanceof SQLException sqlException) {
+                                    if (sqlException.getSQLState().equalsIgnoreCase("23505")) {
                                         //duplicate key value violates unique constraint
                                         getErrorDescription = ERROR_DESCRIPTION_IDS_NOT_UNIQUE;
-                                    }else if(((PgException) t.cause()).getSqlState().equalsIgnoreCase("22P02")
-                                            || ((PgException) t.cause()).getSqlState().equalsIgnoreCase("22P04")){
+                                    }
+                                    else if (sqlException.getSQLState().equalsIgnoreCase("22P02")
+                                            || sqlException.getSQLState().equalsIgnoreCase("22P04")) {
                                         //invalid input syntax for type json (22P02)
                                         //extra data after last expected column (22P04)
                                         /** Those errors we are getting sporadically - usually a retry helps */
@@ -402,10 +401,6 @@ public class Import extends JDBCBasedJob<Import> {
                                         }
                                         getErrorDescription = Import.ERROR_DESCRIPTION_INVALID_FILE;
                                     }
-                                }else if (t.cause() instanceof ClosedConnectionException) {
-                                    //Fail to read any response from the server, the underlying connection might get lost unexpectedly.
-                                    setJobAborted(this);
-                                    return;
                                 }
                                 setJobFailed(this, getErrorDescription, Job.ERROR_TYPE_EXECUTION_FAILED);
                             }
@@ -437,10 +432,8 @@ public class Import extends JDBCBasedJob<Import> {
 
     @Override
     public Future<Void> finalizeJob() {
-        String getDefaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
-
         //@TODO: Limit parallel Creations
-        return CService.jdbcImporter.finalizeImport(this, getDefaultSchema)
+        return JDBCImporter.getInstance().finalizeImport(this)
             .onFailure(t -> {
                 logger.warn("job[{}] finalization failed!", getId(), t);
 

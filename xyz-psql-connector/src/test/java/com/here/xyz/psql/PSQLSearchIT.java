@@ -6,6 +6,7 @@ import com.amazonaws.util.IOUtils;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.Event;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import java.util.ArrayList;
@@ -70,8 +71,12 @@ public class PSQLSearchIT extends PSQLAbstractIT {
     ((List) json.get("tags")).add(new ArrayList(Arrays.asList(tags)));
   }
 
-  protected void invokeAndAssert(Map<String, Object> json, int size, String... names) throws Exception {
-    String response = invokeLambda(new ObjectMapper().writeValueAsString(json));
+  /**
+   * @deprecated Please use {@link #invokeLambda(Event)} instead.
+   */
+  @Deprecated
+  protected void invokeAndAssert(Map<String, Object> eventAsMap, int size, String... names) throws Exception {
+    String response = invokeLambda(XyzSerializable.fromMap(eventAsMap, Event.class));
 
     final FeatureCollection responseCollection = XyzSerializable.deserialize(response);
     final List<Feature> responseFeatures = responseCollection.getFeatures();
@@ -261,7 +266,7 @@ public class PSQLSearchIT extends PSQLAbstractIT {
     properties14_1.put("values", Collections.singletonList(0));
     addPropertiesQueryToSearchObject(test14, false, properties14_1);
 
-    String response = invokeLambda(MAPPER.writeValueAsString(test14));
+    String response = invokeLambda(XyzSerializable.fromMap(test14, Event.class));
     FeatureCollection responseCollection = XyzSerializable.deserialize(response);
     List<Feature> responseFeatures = responseCollection.getFeatures();
     String id = responseFeatures.get(0).getId();
@@ -278,7 +283,7 @@ public class PSQLSearchIT extends PSQLAbstractIT {
     addPropertiesQueryToSearchObject(test15, false, properties15_1);
     addPropertiesQueryToSearchObject(test15, true, properties15_1);
 
-    String response = invokeLambda(MAPPER.writeValueAsString(test15));
+    String response = invokeLambda(XyzSerializable.fromMap(test15, Event.class));
     FeatureCollection responseCollection = XyzSerializable.deserialize(response);
     List<Feature> responseFeatures = responseCollection.getFeatures();
     assertEquals(1, responseFeatures.size());

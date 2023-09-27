@@ -44,7 +44,7 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
 
   private static <E extends Event> String getFirstLevelExtendedTable(E event) {
     if (isExtendedSpace(event))
-      return XyzEventBasedQueryRunner.getTableNameForSpaceId((String) ((Map<String, Object>) event.getParams().get(EXTENDS)).get(SPACE_ID));
+      return XyzEventBasedQueryRunner.getTableNameForSpaceId(event, (String) ((Map<String, Object>) event.getParams().get(EXTENDS)).get(SPACE_ID));
     return null;
   }
 
@@ -52,7 +52,7 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     if (is2LevelExtendedSpace(event)) {
       Map<String, Object> extSpec = (Map<String, Object>) event.getParams().get(EXTENDS);
       Map<String, Object> baseExtSpec = (Map<String, Object>) extSpec.get(EXTENDS);
-      return XyzEventBasedQueryRunner.getTableNameForSpaceId((String) baseExtSpec.get(SPACE_ID));
+      return XyzEventBasedQueryRunner.getTableNameForSpaceId(event, (String) baseExtSpec.get(SPACE_ID));
     }
     return null;
   }
@@ -65,7 +65,7 @@ public abstract class ExtendedSpace<E extends Event, R extends XyzResponse> exte
     return null;
   }
 
-  protected static <E extends Event> String getIntermediateTable(E event) {
+  protected <E extends Event> String getIntermediateTable(E event) {
     if (is2LevelExtendedSpace(event))
       return getFirstLevelExtendedTable(event);
     return null;

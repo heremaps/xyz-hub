@@ -23,8 +23,8 @@ import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE_FQN;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 

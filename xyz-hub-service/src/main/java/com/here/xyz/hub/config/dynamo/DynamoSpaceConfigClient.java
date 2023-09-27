@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub.config.dynamo;
 
+import static com.here.xyz.hub.Service.configuration;
+import static io.vertx.core.json.jackson.DatabindCodec.mapper;
+
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.dynamodbv2.document.BatchGetItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Item;
@@ -26,32 +29,46 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.TableKeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
-import com.amazonaws.services.dynamodbv2.model.*;
+import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.DeleteItemRequest;
+import com.amazonaws.services.dynamodbv2.model.DeleteItemResult;
+import com.amazonaws.services.dynamodbv2.model.GetItemRequest;
+import com.amazonaws.services.dynamodbv2.model.GetItemResult;
+import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
+import com.amazonaws.services.dynamodbv2.model.PutItemResult;
 import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.util.ARN;
-import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
-import org.apache.commons.lang3.NotImplementedException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.Marker;
-
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static com.here.xyz.hub.Service.configuration;
-import static io.vertx.core.json.jackson.DatabindCodec.mapper;
+import org.apache.commons.lang3.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
@@ -376,7 +393,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       var contentUpdatedAt = propsQuery.get(0).get(0).getValues().get(0);
       valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
-      String operator = SQLQuery.getOperation(propsQuery.get(0).get(0).getOperation());
+      String operator = QueryOperation.getOperation(propsQuery.get(0).get(0).getOperation());
 
       spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
               .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " + operator + " :contentUpdatedAtValue")
@@ -563,7 +580,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       var valueMap = new HashMap<String, Object>();
       valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
-      String operator = SQLQuery.getOperation(propsQuery.get(0).get(0).getOperation());
+      String operator = QueryOperation.getOperation(propsQuery.get(0).get(0).getOperation());
       var contentUpdatedAtSpaceIds = new HashSet<String>();
       spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
                       .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " +  operator + " :contentUpdatedAtValue")

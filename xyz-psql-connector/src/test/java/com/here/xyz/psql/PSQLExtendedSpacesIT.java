@@ -18,6 +18,11 @@
  */
 package com.here.xyz.psql;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
@@ -27,11 +32,6 @@ import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.query.ModifySpace;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.responses.SuccessResponse;
-import org.json.JSONObject;
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -39,8 +39,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.Assert.*;
+import org.json.JSONObject;
+import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
     private static final String BASE1 = "base1_test";
@@ -86,7 +88,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                             .withSearchableProperties(searchableProperties)
                             .withSortableProperties(sortableProperties)
             );
-        SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent));
         assertEquals("OK",response.getStatus());
 
         /** Check if IDX-Table reflects this changes */
@@ -105,7 +107,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                         new Space()
                                 .withId(DELTA1)
                 );
-        response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+        response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent));
         assertEquals("OK",response.getStatus());
 
         /** Check if IDX-Table reflects this changes */
@@ -153,7 +155,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                                 .withSearchableProperties(searchableProperties)
                                 .withSortableProperties(sortableProperties)
                     );
-            SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent.serialize()));
+            SuccessResponse response = XyzSerializable.deserialize(invokeLambda(modifySpaceEvent));
             assertEquals("OK",response.getStatus());
 
             final List<Feature> features = new ArrayList<Feature>(){{
@@ -165,7 +167,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                     .withConnectorParams(connectorParams)
                     .withTransaction(true)
                     .withInsertFeatures(features);
-            invokeLambda(modifyFeaturesEvent.serialize());
+            invokeLambda(modifyFeaturesEvent);
         }
     }
 
@@ -196,7 +198,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                 delta1_ref = base2_ref;
         }
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             Statement stmt = connection.createStatement();
             ResultSet resultSet = stmt.executeQuery(q);
             int i = 0;
@@ -246,7 +248,7 @@ public class PSQLExtendedSpacesIT extends PSQLAbstractIT {
                 "COMMENT ON INDEX public.idx_base_test_foo_a" +
                 "    IS 'foo';";
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute(q);
         }

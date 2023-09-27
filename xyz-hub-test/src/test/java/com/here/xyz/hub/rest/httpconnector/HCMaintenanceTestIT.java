@@ -20,7 +20,6 @@
 package com.here.xyz.hub.rest.httpconnector;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
@@ -100,7 +99,7 @@ public class HCMaintenanceTestIT {
                 .when()
                 .get(host+"/connectors/NA/status")
                 .then()
-                .statusCode(BAD_REQUEST.code())
+                .statusCode(NOT_FOUND.code())
                 .body("errorMessage", notNullValue());
     }
 
@@ -135,8 +134,8 @@ public class HCMaintenanceTestIT {
                 .when()
                 .post(host+"/connectors/NA/maintain/indices")
                 .then()
-                .statusCode(BAD_REQUEST.code())
-                .body("errorMessage", equalTo("Connector [NA] cant get found/loaded!"));
+                .statusCode(NOT_FOUND.code())
+                .body("errorMessage", equalTo("Connector with ID NA was not found."));
     }
 
     @Test
@@ -216,7 +215,7 @@ public class HCMaintenanceTestIT {
                 .then()
                 .statusCode(OK.code())
                 .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size()", equalTo(13))
+                .body("idxAvailable.size()", equalTo(12))
                 .body("idxManual.searchableProperties.foo", equalTo(true))
                 .body("idxManual.sortableProperties", nullValue());
     }

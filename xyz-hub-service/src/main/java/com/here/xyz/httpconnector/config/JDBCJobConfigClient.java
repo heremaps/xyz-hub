@@ -19,204 +19,155 @@
 
 package com.here.xyz.httpconnector.config;
 
+import static com.here.xyz.hub.config.jdbc.JDBCConfigClient.configListParser;
+
+import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.hub.config.jdbc.JDBCConfig;
+import com.here.xyz.hub.config.jdbc.JDBCConfigClient;
+import com.here.xyz.util.db.SQLQuery;
 import io.vertx.core.Future;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
-import io.vertx.sqlclient.Row;
-import io.vertx.sqlclient.SqlClient;
-import io.vertx.sqlclient.Tuple;
-import java.util.ArrayList;
+import java.sql.SQLException;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.postgresql.util.PGobject;
 
 /**
  * A client for reading and editing job definitions.
  */
 public class JDBCJobConfigClient extends JobConfigClient {
-
+  private static final String JOB_API_SCHEMA = "xyz_job_api";
+  private static final String JOBS_TABLE = "xyz_jobs";
   private static final Logger logger = LogManager.getLogger();
-  public static final String JOB_TABLE = JDBCConfig.SCHEMA + ".xyz_job";
   private static JDBCJobConfigClient instance;
-  private final SqlClient client;
-  private static boolean initialized = false;
-
-  private JDBCJobConfigClient() {
-    JDBCClients.addConfigClient();
-    this.client = JDBCClients.getClient(JDBCClients.CONFIG_CLIENT_ID);
-  }
+  private static volatile boolean initialized = false;
+  private final JDBCConfigClient client = new JDBCConfigClient(JOB_API_SCHEMA, JOBS_TABLE, CService.configuration);
 
   public static JDBCJobConfigClient getInstance() {
-    if (instance == null) {
+    if (instance == null)
       instance = new JDBCJobConfigClient();
-    }
     return instance;
+  }
+
+  private static PGobject toJsonb(String json) throws SQLException {
+    final PGobject jsonbObject = new PGobject();
+    jsonbObject.setType("jsonb");
+    jsonbObject.setValue(json);
+    return jsonbObject;
   }
 
   @Override
   protected Future<Job> getJob(Marker marker, String jobId) {
-    return client.preparedQuery("SELECT * FROM " + JOB_TABLE + " WHERE ID=$1")
-        .execute(Tuple.of(jobId))
-        .map(rows -> {
-          if (rows.rowCount() == 0) {
-            return null;
-          }
-          JsonObject config = rows.iterator().next().getJsonObject("config");
-          return Json.decodeValue(config.toString(), Job.class);
-        });
+    return client.run(
+        client.getQuery("SELECT * FROM ${schema}.${table} WHERE ID=#{id}").withNamedParameter("id", jobId),
+        rs -> rs.next() ? Json.decodeValue(rs.getString("config"), Job.class) : null
+    );
   }
 
   @Override
   protected Future<List<Job>> getJobs(Marker marker, String type, Job.Status status, String targetSpaceId) {
-    final List<Job> result = new ArrayList<>();
-    List<Object> tuples = new ArrayList<>();
+    SQLQuery q = client.getQuery("SELECT * FROM ${schema}.${table} WHERE TRUE ${{type}} ${{status}} ${{targetSpaceId}}")
+        .withQueryFragment("type", "")
+        .withQueryFragment("status", "")
+        .withQueryFragment("targetSpaceId", "");
 
-    String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 ";
+    if (type != null)
+      q.setQueryFragment("type", new SQLQuery("AND config->>'type' = #{type}").withNamedParameter("type", type));
 
-    if (type != null) {
-      tuples.add(type.toString());
-      q += " AND config->>'type' = $" + tuples.size();
-    }
+    if (status != null)
+      q.setQueryFragment("status", new SQLQuery("AND config->>'status' = #{status}")
+          .withNamedParameter("status", status.toString()));
 
-    if (status != null) {
-      tuples.add(status.toString());
-      q += " AND config->>'status' = $" + tuples.size();
-    }
+    if (targetSpaceId != null)
+      q.setQueryFragment("targetSpaceId", new SQLQuery("AND config->>'targetSpaceId' = #{targetSpaceId}")
+          .withNamedParameter("targetSpaceId", targetSpaceId));
 
-    if (targetSpaceId != null) {
-      tuples.add(targetSpaceId);
-      q += " AND config->>'targetSpaceId' = $" + tuples.size();
-    }
-    return client.preparedQuery(q)
-        .execute(tuples.size() > 0 ? Tuple.from(tuples) : Tuple.tuple())
-        .map(rows -> {
-          for (Row row : rows) {
-            result.add(Json.decodeValue(row.getJsonObject("config").toString(), Job.class));
-          }
-          return result;
-        });
+    return client.run(q, configListParser(Job.class));
   }
 
   @Override
-    protected Future<List<Job>> getJobs(Marker marker, Job.Status status, String key, DatasetDirection direction) {
-        final List<Job> result = new ArrayList<>();
-        List<Object> tuples = new ArrayList<>();
+  protected Future<List<Job>> getJobs(Marker marker, Job.Status status, String key, DatasetDirection direction) {
+    SQLQuery q = client.getQuery("SELECT * FROM ${schema}.${table} WHERE TRUE ${{status}} ${{direction}}")
+        .withQueryFragment("status", "")
+        .withQueryFragment("direction", "");
 
-        String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 ";
+    if (status != null)
+      q.setQueryFragment("status", new SQLQuery(" AND config->>'status' = #{status}")
+          .withNamedParameter("status", status.toString()));
 
-        if (status != null) {
-            tuples.add(status.toString());
-            q += " AND config->>'status' = $" + tuples.size();
-        }
-
-        if (key != null) {
-            tuples.add(key);
-            if(direction == DatasetDirection.SOURCE)
-                q += " AND config->>'_sourceKey' = $" + tuples.size();
-            else if(direction == DatasetDirection.TARGET)
-                q += " AND config->>'_targetKey' = $" + tuples.size();
-            else
-                q += " AND (config->>'_sourceKey' = $" + tuples.size() + " OR config->>'_targetKey' = $" + tuples.size() + ")";
-        }
-        return client.preparedQuery(q)
-                .execute(tuples.size() > 0 ? Tuple.from(tuples) : Tuple.tuple())
-                .map(rows -> {
-                    for (Row row : rows) {
-                        result.add(Json.decodeValue(row.getJsonObject("config").toString(), Job.class));
-                    }
-                    return result;
-                });
+    if (key != null) {
+      SQLQuery directionCondition;
+      if (direction == DatasetDirection.SOURCE)
+        directionCondition = new SQLQuery("AND config->>'_sourceKey' = #{key}");
+      else if (direction == DatasetDirection.TARGET)
+        directionCondition = new SQLQuery("AND config->>'_targetKey' = #{key}");
+      else
+        directionCondition = new SQLQuery("AND (config->>'_sourceKey' = #{key} OR config->>'_targetKey' = #{key})");
+      q.setQueryFragment("direction", directionCondition);
     }
+    return client.run(q, configListParser(Job.class));
+  }
 
-    @Override
+  @Override
   protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type) {
-    String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 AND config->>'status' NOT IN ('waiting','failed','finalized')" +
-        " AND config->>'targetSpaceId' = $1" +
-        " AND jobtype = $2";
+    SQLQuery q = client.getQuery("SELECT * FROM ${schema}.${table} "
+        + "WHERE TRUE AND config->>'status' NOT IN ('waiting', 'failed', 'finalized') "
+        + "AND config->>'targetSpaceId' = #{targetSpaceId} "
+        + "AND jobtype = #{type}")
+        .withNamedParameter("targetSpaceId", targetSpaceId)
+        .withNamedParameter("type", type);
 
-    return client.preparedQuery(q)
-        .execute(Tuple.of(targetSpaceId, type))
-        .map(rows -> {
-          if (rows.rowCount() == 0) {
-            return null;
-          }
-          return rows.iterator().next().getString("id");
-        });
+    return client.run(q, rs -> rs.next() ? rs.getString("id") : null);
   }
 
   @Override
   protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
     JsonObject json = new JsonObject(Json.encode(job));
-        if(job.getSource() != null)
-            json.put("_sourceKey", job.getSource().getKey());
-        if(job.getTarget() != null)
-            json.put("_targetKey", job.getTarget().getKey());return client.preparedQuery("INSERT INTO " + JOB_TABLE + " (id, jobtype, config) VALUES ($1, $2, $3) " +
-            "ON CONFLICT (id) DO " +
-            "UPDATE SET id = $1, jobtype = $2, config = $3")
-        .execute(Tuple.of(job.getId(), job.getClass().getSimpleName(), json))
-        .map(rows -> {
-          if (rows.rowCount() == 0) {
-            return null;
-          }
-          return job;
-        });
+    if (job.getSource() != null)
+      json.put("_sourceKey", job.getSource().getKey());
+    if (job.getTarget() != null)
+      json.put("_targetKey", job.getTarget().getKey());
+
+    SQLQuery q;
+    try {
+      q = client.getQuery("INSERT INTO ${schema}.${table} (id, jobtype, config) VALUES ($1, $2, $3) " +
+          "ON CONFLICT (id) DO " +
+          "UPDATE SET id = #{id}, jobtype = #{type}, config = #{config}")
+          .withNamedParameter("id", job.getId())
+          .withNamedParameter("type", job.getClass().getSimpleName())
+          .withNamedParameter("config", toJsonb(json.toString()));
+    }
+    catch (SQLException e) {
+      return Future.failedFuture(e);
+    }
+
+    return client.write(q)
+        .map(rowCount -> rowCount > 0 ? job : null);
   }
 
   @Override
   protected Future<Job> deleteJob(Marker marker, Job job) {
-    return client.preparedQuery("DELETE FROM " + JOB_TABLE + " WHERE id = $1 ")
-        .execute(Tuple.of(job.getId()))
-        .map(rows -> {
-          if (rows.rowCount() == 0) {
-            return null;
-          }
-          return job;
-        });
+    return client.write(client.getQuery("DELETE FROM ${schema}.${table} WHERE id = #{id}").withNamedParameter("id", job.getId()))
+        .map(rowCount -> rowCount > 0 ? job : null);
   }
 
   @Override
   public Future<Void> init() {
-    if (initialized) {
+    if (initialized)
       return Future.succeededFuture();
-    }
+
     initialized = true;
+    return client.init()
+        .compose(v -> initTable());
+  }
 
-    String q = "SELECT " +
-        "to_regclass as table_exists," +
-        "(SELECT schema_name as schema_exists FROM information_schema.schemata WHERE schema_name='xyz_config') " +
-        "from to_regclass($1)";
-
-    return client.preparedQuery(q)
-        .execute(Tuple.of(JOB_TABLE))
-        .compose(rows -> {
-          if (rows.rowCount() == 0) {
-            return Future.failedFuture("");
-          }
-
-          String tableExists = rows.iterator().next().getString("table_exists");
-          String schemaExists = rows.iterator().next().getString("schema_exists");
-
-          if (schemaExists == null) {
-            logger.error("Config-Schema is missing!");
-            return Future.failedFuture("Config-Schema is missing!");
-          }
-
-          if (tableExists != null) {
-            return Future.succeededFuture();
-          }
-          logger.info("Job Table is missing - create Table!");
-
-          return client.preparedQuery(
-                  "CREATE TABLE IF NOT EXISTS " + JOB_TABLE + " (id VARCHAR(255) primary key, jobtype VARCHAR (255), config JSONB)")
-              .execute()
-              .onFailure(f -> {
-                logger.error("Cant create JOB-Config Table!", f);
-              });
-        })
-        .onFailure(t -> logger.error("Initialization Error", t))
+  private Future<Void> initTable() {
+    return client.write(client.getQuery("CREATE TABLE IF NOT EXISTS ${schema}.${table} "
+        + "(id TEXT primary key, jobtype TEXT, config JSONB)"))
+        .onFailure(e -> logger.error("Can not create table {}!", JOBS_TABLE, e))
         .mapEmpty();
   }
 }

@@ -27,6 +27,8 @@ public class LambdaConnectorRuntime extends ConnectorRuntime {
   private String streamId;
 
   public LambdaConnectorRuntime(Context context, String streamId) {
+    if (context == null)
+      throw new NullPointerException("Context is missing for LambdaConnectorRuntime.");
     this.context = context;
     this.streamId = streamId == null ? "no-stream-id" : streamId;
     ConnectorRuntime.setInstance(this);
@@ -44,9 +46,8 @@ public class LambdaConnectorRuntime extends ConnectorRuntime {
 
   @Override
   public String getEnvironmentVariable(String variableName) {
-    if (context instanceof SimulatedContext) {
+    if (context instanceof SimulatedContext)
       return ((SimulatedContext) context).getEnv(variableName);
-    }
     return System.getenv(variableName);
   }
 

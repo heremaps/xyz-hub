@@ -17,12 +17,13 @@
  * License-Filename: LICENSE
  */
 
-package com.here.xyz.psql;
+package com.here.xyz.util.db;
 
-import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.psql.datasource.StaticDataSources;
-import com.here.xyz.psql.query.InlineQueryRunner;
+import static com.here.xyz.util.db.SQLQuery.XyzSqlErrors.XYZ_FAILED_ATTEMPT;
+
+import com.here.xyz.util.db.datasource.DataSourceProvider;
+import com.here.xyz.util.db.datasource.PooledDataSources;
+import com.mchange.v2.c3p0.ComboPooledDataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -34,15 +35,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.sql.DataSource;
+import org.apache.commons.dbutils.QueryRunner;
 import org.apache.commons.dbutils.ResultSetHandler;
+import org.apache.commons.dbutils.StatementConfiguration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
  */
 public class SQLQuery {
+  private static final Logger logger = LogManager.getLogger();
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
   private static final String FRAGMENT_PREFIX = "${{";
@@ -53,10 +60,11 @@ public class SQLQuery {
   private Map<String, String> variables;
   private Map<String, SQLQuery> queryFragments;
   private boolean async = false;
-
+  private int timeout = Integer.MAX_VALUE;
+  private int maximumRetries;
   private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
-
   private PreparedStatement preparedStatement;
+  private String queryId;
 
   public SQLQuery(String text) {
     if (text != null)
@@ -148,6 +156,7 @@ public class SQLQuery {
    * in the form of variables / query-fragments / named-parameters.
    */
   @Deprecated
+  //TODO: Make private
   public List<Object> parameters() {
     return parameters;
   }
@@ -155,14 +164,7 @@ public class SQLQuery {
   public SQLQuery substitute() {
     replaceVars();
     replaceFragments();
-    replaceNamedParameters(!async);
-    if (async) {
-      SQLQuery asyncQuery = new SQLQuery("SELECT asyncify(#{query}, #{password})")
-          .withNamedParameter("query", text())
-          .withNamedParameter("password", PSQLXyzConnector.getInstance().getConfig().getDatabaseSettings().getPassword());
-      statement = asyncQuery.substitute().text();
-      return asyncQuery;
-    }
+    replaceNamedParameters(!isAsync());
     return this;
   }
 
@@ -309,30 +311,6 @@ public class SQLQuery {
     replaceNamedParametersInt(usePlaceholders);
     //Clear all named parameters
     namedParameters = null;
-  }
-
-  public static String getOperation(PropertyQuery.QueryOperation op) {
-    if (op == null)
-      throw new NullPointerException("op is required");
-
-    switch (op) {
-      case EQUALS:
-        return "=";
-      case NOT_EQUALS:
-        return "<>";
-      case LESS_THAN:
-        return "<";
-      case GREATER_THAN:
-        return ">";
-      case LESS_THAN_OR_EQUALS:
-        return "<=";
-      case GREATER_THAN_OR_EQUALS:
-        return ">=";
-      case CONTAINS:
-        return "@>";
-    }
-
-    return "";
   }
 
   public Map<String, Object> getNamedParameters() {
@@ -486,6 +464,58 @@ public class SQLQuery {
     return this;
   }
 
+  public int getTimeout() {
+    return timeout;
+  }
+
+  /**
+   * Set a timeout (in seconds) for the execution of this query. That value must be >0.
+   * If this value was set to a value `<= 0`, an execution of this query will throw an exception.
+   * @param timeout The timeout in seconds. A value larger than 0.
+   */
+  public void setTimeout(int timeout) {
+    this.timeout = timeout;
+  }
+
+  /**
+   * Set a timeout (in seconds) for the execution of this query. That value must be >0.
+   * If this value was set to a value `<= 0`, an execution of this query will throw an exception.
+   * @param timeout The timeout in seconds. A value larger than 0.
+   * @return The SQLQuery object itself for chaining.
+   */
+  public SQLQuery withTimeout(int timeout) {
+    setTimeout(timeout);
+    return this;
+  }
+
+  public int getMaximumRetries() {
+    return maximumRetries;
+  }
+
+  public void setMaximumRetries(int maximumRetries) {
+    this.maximumRetries = maximumRetries;
+  }
+
+  public SQLQuery withMaximumRetries(int maximumRetries) {
+    setMaximumRetries(maximumRetries);
+    return this;
+  }
+
+  public String getQueryId() {
+    if (queryId == null)
+      setQueryId(UUID.randomUUID().toString());
+    return queryId;
+  }
+
+  public void setQueryId(String queryId) {
+    this.queryId = queryId;
+  }
+
+  public SQLQuery withQueryId(String queryId) {
+    setQueryId(queryId);
+    return this;
+  }
+
   private static String getClashing(Map<String, ?> map1, Map<String, ?> map2) {
     if (map1 == null || map2 == null)
       return null;
@@ -495,36 +525,199 @@ public class SQLQuery {
     return null;
   }
 
-  public void run(DataSource dataSource) throws SQLException, ErrorResponseException {
-    run(dataSource, rs -> null);
+  public void run(DataSourceProvider dataSourceProvider) throws SQLException {
+    run(dataSourceProvider, false);
   }
 
-  public <R> R run(DataSource dataSource, ResultSetHandler<R> handler) throws SQLException, ErrorResponseException {
-    return new InlineQueryRunner<>(() -> this, handler).run(new StaticDataSources(dataSource));
+  public <R> R run(DataSourceProvider dataSourceProvider, ResultSetHandler<R> handler) throws SQLException {
+    return run(dataSourceProvider, handler, false);
   }
 
-  public int write(DataSource dataSource) throws SQLException, ErrorResponseException {
-    return new InlineQueryRunner<Void>(() -> this).write(new StaticDataSources(dataSource));
+  public void run(DataSourceProvider dataSourceProvider, boolean useReplica) throws SQLException {
+    run(dataSourceProvider, rs -> null, useReplica);
   }
 
-  /**
-   * @deprecated Can be removed, once the db client interface has been streamlined.
-   */
-  /** from ? to $1-$N */
-  @Deprecated
-  public static SQLQuery substituteAndUseDollarSyntax(SQLQuery q) {
-    q.substitute();
+  public <R> R run(DataSourceProvider dataSourceProvider, ResultSetHandler<R> handler, boolean useReplica) throws SQLException {
+    return (R) execute(dataSourceProvider, useReplica, handler, ExecutionOperation.QUERY,
+        new ExecutionContext(getTimeout(), getMaximumRetries()));
+  }
 
-    String translatedQuery = "";
-    int i = 1;
-    for (char c: q.text().toCharArray()) {
-      if(c == '?') {
-        translatedQuery += "$"+i++;
-      }else
-        translatedQuery += c;
+  public int write(DataSourceProvider dataSourceProvider) throws SQLException {
+    return (int) execute(dataSourceProvider, false, null, ExecutionOperation.UPDATE,
+        new ExecutionContext(getTimeout(), getMaximumRetries()));
+  }
+
+  private enum ExecutionOperation {
+    QUERY,
+    UPDATE
+  }
+
+  private Object execute(DataSourceProvider dataSourceProvider, boolean useReplica, ResultSetHandler<?> handler,
+      ExecutionOperation operation, ExecutionContext executionContext) throws SQLException {
+    //TODO: Add proper query logging including full structure, types and parameters
+    String queryText = substitute().text();
+    List<Object> queryParameters = parameters();
+
+    if (isAsync()) {
+      if (dataSourceProvider instanceof PooledDataSources pooledDataSources) {
+        SQLQuery asyncQuery = new SQLQuery("SELECT asyncify(#{query}, #{password})")
+            .withNamedParameter("query", queryText)
+            .withNamedParameter("password", pooledDataSources.getDatabaseSettings().getPassword());
+        queryText = asyncQuery.substitute().text();
+      }
+      else
+        throw new RuntimeException("Async SQLQueries must be performed using an instance of PooledDataSources as DataSourceProvider");
     }
 
-    q.statement = translatedQuery;
-    return q;
+    final DataSource dataSource = useReplica ? dataSourceProvider.getReader() : dataSourceProvider.getWriter();
+    StatementConfiguration statementConfig = executionContext.remainingQueryTimeout > 0
+        ? new StatementConfiguration.Builder().queryTimeout(executionContext.remainingQueryTimeout).build()
+        : null;
+    executionContext.attemptExecution();
+    final QueryRunner runner = new QueryRunner(dataSource, statementConfig);
+    try {
+      logger.debug("{} executeQuery: {} - Parameters: {}", getQueryId(), this, queryParameters);
+      return switch (operation) {
+        case QUERY -> runner.query(queryText, handler, queryParameters.toArray());
+        case UPDATE -> runner.update(queryText, queryParameters.toArray());
+      };
+    }
+    catch (SQLException e) {
+      if (executionContext.mayRetry(e)) {
+        logger.info("{} Retry Query permitted.", getQueryId());
+        executionContext.addRetriedException(e);
+        return execute(dataSourceProvider, useReplica, handler, operation, executionContext);
+      }
+      else
+        throw e;
+    }
+    finally {
+      final long endTs = System.currentTimeMillis();
+
+      long usedTimeForAttempt = endTs - executionContext.lastAttemptTime;
+      executionContext.consumeTime((int) usedTimeForAttempt / 1000);
+
+      long overallTime = endTs - executionContext.startTime;
+      String usedTimeMsg = "";
+      if (executionContext.executionAttempts > 1)
+        usedTimeMsg = "attempt time: " + usedTimeForAttempt + "ms, ";
+
+      logger.info("{} query time: {}ms, {}dataSource: {}", getQueryId(), overallTime, usedTimeMsg,
+          dataSource instanceof ComboPooledDataSource comboPooledDataSource ? comboPooledDataSource.getJdbcUrl() : "n/a");
+    }
+  }
+
+  private class ExecutionContext {
+    private int queryTimeout;
+    private int remainingQueryTimeout;
+    private int executionAttempts;
+    private int maximumRetries;
+    private long startTime;
+    private long lastAttemptTime;
+    private List<Exception> retriedExceptions;
+
+    public ExecutionContext(int queryTimeout, int maximumRetries) {
+      this.queryTimeout = remainingQueryTimeout = queryTimeout;
+      this.maximumRetries = maximumRetries;
+    }
+
+    public void consumeTime(int usedTime) {
+      if (queryTimeout <= 0)
+        return;
+      if (usedTime > remainingQueryTimeout) {
+        logger.warn("{} Query used more time than its timeout.", getQueryId());
+        remainingQueryTimeout = 0;
+      }
+      else remainingQueryTimeout -= usedTime;
+    }
+
+    public void attemptExecution() throws FailedExecutionAttempt {
+      //NOTE: The 1st retry is already the 2nd execution attempt
+      if (executionAttempts > maximumRetries)
+        throw new FailedExecutionAttempt("Too many execution attempts.");
+      if (remainingQueryTimeout <= 0) {
+        logger.warn("{} No time left to execute query.", getQueryId());
+        throw new FailedExecutionAttempt("No time left to execute query.", "54000");
+      }
+      executionAttempts++;
+      lastAttemptTime = System.currentTimeMillis();
+      if (executionAttempts == 1)
+        startTime = lastAttemptTime;
+    }
+
+    public boolean mayRetry(Exception e) {
+      int usedTimeForAttempt = (int) (System.currentTimeMillis() - lastAttemptTime) / 1000;
+      return remainingQueryTimeout > usedTimeForAttempt / 1000 && isRecoverable(e);
+    }
+
+    private boolean isRecoverable(Exception e) {
+      if (e instanceof SQLException sqlEx && sqlEx.getSQLState() != null && (
+          /*
+          If a timeout occurs right after the invocation it could be caused
+          by a serverless aurora scaling. Then we should retry again.
+          57014 - query_canceled
+          57P01 - admin_shutdown
+           */
+          sqlEx.getSQLState().equalsIgnoreCase("57014")
+              || sqlEx.getSQLState().equalsIgnoreCase("57P01")
+              || sqlEx.getSQLState().equalsIgnoreCase("08003")
+              || sqlEx.getSQLState().equalsIgnoreCase("08006")
+      )) {
+        logger.warn("{} Error based on serverless scaling detected! RemainingTime: {}", getQueryId(), remainingQueryTimeout, e);
+        return true;
+      }
+      return false;
+    }
+
+    public void addRetriedException(Exception e) {
+      if (retriedExceptions == null)
+        retriedExceptions = new ArrayList<>();
+      retriedExceptions.add(e);
+    }
+
+    public List<Exception> getRetriedExceptions() {
+      return Collections.unmodifiableList(retriedExceptions);
+    }
+
+    public SQLQuery getQuery() {
+      return SQLQuery.this;
+    }
+
+    public class FailedExecutionAttempt extends SQLException {
+      public FailedExecutionAttempt(String message) {
+        super(message, XYZ_FAILED_ATTEMPT.errorCode);
+      }
+
+      public FailedExecutionAttempt(String message, String sqlState) {
+        super(message, sqlState);
+      }
+
+      public FailedExecutionAttempt(String message, SQLException failedAttemptCause) {
+        super(message, XYZ_FAILED_ATTEMPT.errorCode, failedAttemptCause);
+      }
+
+      public ExecutionContext getExecutionContext() {
+        return ExecutionContext.this;
+      }
+    }
+  }
+
+  public enum XyzSqlErrors {
+    XYZ_CONFLICT("XYZ49", "xyz_conflict"),
+    XYZ_UNEXPECTED_ERROR("XYZ50", "xyz_unexpected_error"),
+    XYZ_FAILED_ATTEMPT("XYZ51", "xyz_failed_attempt");
+
+    public final String errorCode;
+    public final String errorName;
+
+    XyzSqlErrors(String errorCode, String errorName) {
+      this.errorCode = errorCode;
+      this.errorName = errorName;
+    }
+
+    @Override
+    public String toString() {
+      return errorName;
+    }
   }
 }
