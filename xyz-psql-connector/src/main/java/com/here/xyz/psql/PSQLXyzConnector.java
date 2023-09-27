@@ -22,12 +22,11 @@ package com.here.xyz.psql;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT;
 import static com.here.xyz.events.GetFeaturesByTileEvent.ResponseType.MVT_FLATTENED;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
-import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
+import static com.here.xyz.responses.XyzError.NOT_IMPLEMENTED;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.connectors.runtime.ConnectorRuntime;
 import com.here.xyz.events.DeleteChangesetsEvent;
-import com.here.xyz.events.Event;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -43,11 +42,9 @@ import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.datasource.DataSourceProvider;
-import com.here.xyz.psql.datasource.StaticDataSources;
+import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.query.DeleteChangesets;
 import com.here.xyz.psql.query.GetChangesetStatistics;
 import com.here.xyz.psql.query.GetFeaturesByBBox;
@@ -67,9 +64,10 @@ import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.tools.DhString;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.HealthStatus;
-import com.here.xyz.responses.SuccessResponse;
 import com.here.xyz.responses.XyzError;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
@@ -85,36 +83,6 @@ import org.apache.logging.log4j.Logger;
 public class PSQLXyzConnector extends DatabaseHandler {
 
   private static final Logger logger = LogManager.getLogger();
-
-  private static ThreadLocal<PSQLXyzConnector> instance = new ThreadLocal<>();
-
-  private DataSourceProvider dsProvider;
-
-  //TODO: Remove that workaround after refactoring is complete
-  public PSQLXyzConnector() {
-    this(true);
-  }
-
-  //TODO: Remove that workaround after refactoring is complete
-  @Deprecated
-  public PSQLXyzConnector(boolean singleton) {
-    super();
-    if (singleton)
-      instance.set(this);
-  }
-
-  //TODO: Remove that workaround after refactoring is complete
-  @Deprecated
-  public static PSQLXyzConnector getInstance() {
-    return instance.get();
-  }
-
-  @Override
-  protected synchronized void initialize(Event event) {
-    super.initialize(event);
-    dsProvider = new StaticDataSources(readDataSource, dataSource);
-    DataSourceProvider.setDefaultProvider(dsProvider);
-  }
 
   @Override
   protected XyzResponse processHealthCheckEvent(HealthCheckEvent event) {
@@ -145,11 +113,11 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
 
     SQLQuery query = new SQLQuery("SELECT 1");
-    query.run(dsProvider.getWriter());
+    query.run(dataSourceProvider);
 
     //Run health-check query on the replica, if such is set.
-    if (dsProvider.hasReader())
-      query.run(dsProvider.getReader());
+    if (dataSourceProvider.hasReader())
+      query.run(dataSourceProvider, true);
 
     return ((HealthStatus) super.processHealthCheckEvent(event)).withStatus("OK");
   }
@@ -158,7 +126,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetStatistics(GetStatisticsEvent event) throws ErrorResponseException {
     try {
       logger.info("{} Received GetStatisticsEvent", traceItem);
-      return new GetStatistics(event).run();
+      return run(new GetStatistics(event));
     }
     catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
@@ -175,7 +143,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if (event.getIds() == null || event.getIds().size() == 0)
         return new FeatureCollection();
 
-      return new GetFeaturesById(event).run();
+      return run(new GetFeaturesById(event));
     }
     catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
@@ -189,7 +157,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetFeaturesByGeometryEvent(GetFeaturesByGeometryEvent event) throws Exception {
     try {
       logger.info("{} Received GetFeaturesByGeometryEvent", traceItem);
-        return new GetFeaturesByGeometry(event).run();
+        return run(new GetFeaturesByGeometry(event));
     }catch (SQLException e){
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }finally {
@@ -203,10 +171,10 @@ public class PSQLXyzConnector extends DatabaseHandler {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
 
       if (event.getClusteringType() != null)
-        return new GetFeaturesByBBoxClustered<>(event).run();
+        return run(new GetFeaturesByBBoxClustered<>(event));
       if (event.getTweakType() != null || "viz".equals(event.getOptimizationMode()))
-          return new GetFeaturesByBBoxTweaked<>(event).run();
-      return new GetFeaturesByBBox<>(event).run();
+          return run(new GetFeaturesByBBoxTweaked<>(event));
+      return run(new GetFeaturesByBBox<>(event));
     }
     catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
@@ -232,12 +200,12 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processIterateFeaturesEvent(IterateFeaturesEvent event) throws Exception {
     try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      SearchForFeatures.checkCanSearchFor(event, this);
+      SearchForFeatures.checkCanSearchFor(event, dataSourceProvider);
 
-      if (isOrderByEvent(event))
-        return new IterateFeaturesSorted(event).run();
+      if (IterateFeatures.isOrderByEvent(event))
+        return run(new IterateFeaturesSorted(event));
 
-      return new IterateFeatures(event).run();
+      return run(new IterateFeatures(event));
     }
     catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
@@ -247,27 +215,18 @@ public class PSQLXyzConnector extends DatabaseHandler {
     }
   }
 
-  /**
-   * Kept for backwards compatibility. Will be removed after refactoring.
-   */
-  @Deprecated
-  public static boolean isOrderByEvent(IterateFeaturesEvent event) {
-    return event.getSort() != null || event.getPropertiesQuery() != null || event.getPart() != null || event.getHandle() != null && event.getHandle().startsWith(
-        IterateFeatures.HPREFIX);
-  }
-
   @Override
   protected XyzResponse processSearchForFeaturesEvent(SearchForFeaturesEvent event) throws Exception {
     try {
       logger.info("{} Received "+event.getClass().getSimpleName(), traceItem);
-      SearchForFeatures.checkCanSearchFor(event, this);
+      SearchForFeatures.checkCanSearchFor(event, dataSourceProvider);
 
       // For testing purposes.
       if (event.getSpace().contains("illegal_argument")) //TODO: Remove testing code from the actual connector implementation
         return new ErrorResponse().withStreamId(streamId).withError(XyzError.ILLEGAL_ARGUMENT)
             .withErrorMessage("Invalid request parameters.");
 
-      return new SearchForFeatures<>(event).run();
+      return run(new SearchForFeatures<>(event));
     }
     catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
@@ -284,7 +243,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
       if (event.getIdsMap() == null || event.getIdsMap().size() == 0)
         return new FeatureCollection();
 
-      return new LoadFeatures(event).run();
+      return run(new LoadFeatures(event));
     }catch (SQLException e){
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }finally {
@@ -294,33 +253,33 @@ public class PSQLXyzConnector extends DatabaseHandler {
 
   @Override
   protected XyzResponse processModifyFeaturesEvent(ModifyFeaturesEvent event) throws Exception {
-    try{
+    try {
       logger.info("{} Received ModifyFeaturesEvent", traceItem);
 
-      if (config.getDatabaseSettings().isReadOnly()) {
-        return new ErrorResponse().withStreamId(streamId).withError(XyzError.NOT_IMPLEMENTED)
-                .withErrorMessage("ModifyFeaturesEvent is not supported by this storage connector.");
-      }
+      if (ConnectorParameters.fromEvent(event).isReadOnly())
+        throw new ErrorResponseException(NOT_IMPLEMENTED, "ModifyFeaturesEvent is not supported by this storage connector.");
 
-      // Update the features to insert
+      //Update the features to insert
       final List<Feature> inserts = Optional.ofNullable(event.getInsertFeatures()).orElse(Collections.emptyList());
       final List<Feature> updates = Optional.ofNullable(event.getUpdateFeatures()).orElse(Collections.emptyList());
       final List<Feature> upserts = Optional.ofNullable(event.getUpsertFeatures()).orElse(Collections.emptyList());
 
-      // Generate feature ID
+      //Generate feature ID
       Stream.of(inserts, upserts)
           .flatMap(Collection::stream)
           .filter(feature -> feature.getId() == null)
           .forEach(feature -> feature.setId(RandomStringUtils.randomAlphanumeric(16)));
 
-      // Call finalize feature
+      //Call finalize feature
       Stream.of(inserts, updates, upserts)
           .flatMap(Collection::stream)
           .forEach(feature -> Feature.finalizeFeature(feature, event.getSpace()));
       return executeModifyFeatures(event);
-    } catch (SQLException e) {
+    }
+    catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
-    }finally {
+    }
+    finally {
       logger.info("{} Finished ModifyFeaturesEvent", traceItem);
     }
   }
@@ -329,9 +288,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processModifySpaceEvent(ModifySpaceEvent event) throws Exception {
     try{
       logger.info("{} Received ModifySpaceEvent", traceItem);
-
-      if (config.getConnectorParams().isIgnoreCreateMse())
-        return new SuccessResponse().withStatus("OK");
 
       this.validateModifySpaceEvent(event);
 
@@ -347,8 +303,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processModifySubscriptionEvent(ModifySubscriptionEvent event) throws Exception {
     try {
       logger.info("{} Received ModifySpaceEvent", traceItem);
-      new ModifySubscription(event).write();
-      return new FeatureCollection().withCount(1L); //TODO: Fix return type of this operation should not be a FeatureCollection but simply a SuccessResponse
+      return write(new ModifySubscription(event));
     }
     catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
@@ -362,7 +317,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetStorageStatisticsEvent(GetStorageStatisticsEvent event) throws Exception {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
-      return new GetStorageStatistics(event).run();
+      return run(new GetStorageStatistics(event));
     }
     catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
@@ -376,10 +331,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processDeleteChangesetsEvent(DeleteChangesetsEvent event) throws Exception {
     try {
       logger.info("{} Received " + event.getClass().getSimpleName(), traceItem);
-      int write = new DeleteChangesets(event).write();
-      if(write == 0)
-        throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Version < '"+event.getRequestedMinVersion()+"' is already deleted!");
-      return new SuccessResponse();
+      return write(new DeleteChangesets(event));
     }
     catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
@@ -393,7 +345,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processIterateChangesetsEvent(IterateChangesetsEvent event) throws Exception {
     try {
       logger.info("{} Received IterateChangesetsEvent", traceItem);
-      return new IterateChangesets(event).run();
+      return run(new IterateChangesets(event));
     }
     catch (SQLException e) {
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
@@ -407,7 +359,7 @@ public class PSQLXyzConnector extends DatabaseHandler {
   protected XyzResponse processGetChangesetsStatisticsEvent(GetChangesetStatisticsEvent event) throws Exception {
     try {
       logger.info("{} Received GetChangesetsStatisticsEvent", traceItem);
-      return new GetChangesetStatistics(event).run();
+      return run(new GetChangesetStatistics(event));
     }catch (SQLException e){
       return checkSQLException(e, XyzEventBasedQueryRunner.readTableFromEvent(event));
     }finally {
@@ -416,13 +368,14 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   private void validateModifySpaceEvent(ModifySpaceEvent event) throws Exception{
-    final boolean connectorSupportsAI = config.getConnectorParams().isAutoIndexing();
+    final ConnectorParameters connectorParameters = ConnectorParameters.fromEvent(event);
+    final boolean connectorSupportsAI = connectorParameters.isAutoIndexing();
 
     if ((ModifySpaceEvent.Operation.UPDATE == event.getOperation()
             || ModifySpaceEvent.Operation.CREATE == event.getOperation())
-            && config.getConnectorParams().isPropertySearch()) {
+            && connectorParameters.isPropertySearch()) {
 
-      int onDemandLimit = config.getConnectorParams().getOnDemandIdxLimit();
+      int onDemandLimit = connectorParameters.getOnDemandIdxLimit();
       int onDemandCounter = 0;
       if (event.getSpaceDefinition().getSearchableProperties() != null) {
 
@@ -550,6 +503,6 @@ public class PSQLXyzConnector extends DatabaseHandler {
   }
 
   public DataSourceProvider getDataSourceProvider() {
-    return dsProvider;
+    return dataSourceProvider;
   }
 }

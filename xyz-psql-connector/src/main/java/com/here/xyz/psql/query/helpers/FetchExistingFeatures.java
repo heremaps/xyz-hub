@@ -28,9 +28,9 @@ import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.XyzEventBasedQueryRunner;
 import com.here.xyz.psql.query.helpers.FetchExistingFeatures.FetchExistingFeaturesInput;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -57,7 +57,7 @@ public class FetchExistingFeatures extends QueryRunner<FetchExistingFeaturesInpu
   @Override
   public List<Feature> handle(ResultSet rs) throws SQLException {
     List<Feature> existingFeatures = null;
-    FeatureCollection fc = dbHandler.defaultFeatureResultSetHandler(rs);
+    FeatureCollection fc = new FeatureResultSetHandler(false, true).handle(rs);
 
     if (fc != null) {
       try {

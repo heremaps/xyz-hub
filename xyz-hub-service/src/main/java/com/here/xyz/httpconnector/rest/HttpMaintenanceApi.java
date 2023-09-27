@@ -19,6 +19,13 @@
 
 package com.here.xyz.httpconnector.rest;
 
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
+
 import com.here.xyz.httpconnector.config.JDBCMaintainer;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery;
 import com.here.xyz.httpconnector.task.MaintenanceHandler;
@@ -27,13 +34,9 @@ import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.json.DecodeException;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
-import io.vertx.pgclient.PgException;
-
-import javax.naming.NoPermissionException;
-
 import java.io.IOException;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
+import java.sql.SQLException;
+import javax.naming.NoPermissionException;
 
 public class HttpMaintenanceApi extends Api {
 
@@ -104,10 +107,11 @@ public class HttpMaintenanceApi extends Api {
     String source = connector != null ? "Connector["+connector+"]: " : "Space["+spaceId+"]: ";
     if(e instanceof HttpException) {
       httpException = (HttpException)e;
-    }else if(e instanceof PgException) {
-      if(((PgException) e).getSqlState() != null){
+    }
+    else if (e instanceof SQLException sqlException) {
+      if (sqlException.getSQLState() != null) {
         logger.warn("{} {}", source, shortenedMessage(e));
-        switch (((PgException) e).getSqlState()){
+        switch (sqlException.getSQLState()) {
           case "42501" :
             httpException = new HttpException(UNAUTHORIZED, "Permission denied!");
             break;
@@ -115,7 +119,7 @@ public class HttpMaintenanceApi extends Api {
             httpException =  new HttpException(GATEWAY_TIMEOUT, "Query got aborted due to timeout!");
             break;
           default:
-            httpException = new HttpException(BAD_GATEWAY, "SQL Query error "+((PgException) e).getSqlState()+"!");
+            httpException = new HttpException(BAD_GATEWAY, "SQL Query error " + sqlException.getSQLState() + "!");
         }
       }
       else {

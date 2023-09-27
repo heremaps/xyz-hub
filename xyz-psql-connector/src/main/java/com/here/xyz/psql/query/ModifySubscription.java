@@ -28,7 +28,7 @@ import static com.here.xyz.responses.XyzError.EXCEPTION;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -58,6 +58,12 @@ public class ModifySubscription extends XyzQueryRunner<ModifySubscriptionEvent, 
         .withQueryFragment("spaceMetaTable", SPACE_META_TABLE_FQN)
         .withNamedParameter("spaceId", event.getSpace())
         .withNamedParameter(SCHEMA, getSchema());
+  }
+
+  @Override
+  protected FeatureCollection handleWrite(int rowCount) {
+    //TODO: Fix return type of this operation should not be a FeatureCollection but simply a SuccessResponse
+    return new FeatureCollection().withCount(1L);
   }
 
   @Override

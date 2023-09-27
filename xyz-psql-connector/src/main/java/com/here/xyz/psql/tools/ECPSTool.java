@@ -19,18 +19,17 @@
 
 package com.here.xyz.psql.tools;
 
-import com.here.xyz.psql.config.DatabaseSettings;
-import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.psql.config.PSQLConfig.AESGCMHelper;
-import com.mchange.v3.decode.CannotDecodeException;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.crypto.tink.aead.AeadConfig;
+import com.google.crypto.tink.subtle.AesGcmJce;
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-
-import static com.here.xyz.psql.config.DatabaseSettings.*;
-import static com.here.xyz.psql.config.DatabaseSettings.PSQL_USER;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This tool can be used to prepare a new secret ECPS string for the connectorParams of the PSQL storage connector.
@@ -38,6 +37,7 @@ import static com.here.xyz.psql.config.DatabaseSettings.PSQL_USER;
  * e.g: java ECPSTool encrypt secret "{\"foo\":\"bar\"}"
  */
 public class ECPSTool {
+  private static final Logger logger = LogManager.getLogger();
   public static final String USAGE = "java ECPSTool encrypt|decrypt <ecps_phrase> <data>";
 
   public static void main(String[] args) throws GeneralSecurityException, UnsupportedEncodingException {
@@ -58,53 +58,76 @@ public class ECPSTool {
   }
 
   public static String encrypt(String phrase, String data) throws GeneralSecurityException, UnsupportedEncodingException {
-    return new AESGCMHelper(phrase).encrypt(data);
+    return AESGCMHelper.getInstance(phrase).encrypt(data);
   }
 
   public static String decrypt(String phrase, String data) throws GeneralSecurityException {
-    return new AESGCMHelper(phrase).decrypt(data);
+    return AESGCMHelper.getInstance(phrase).decrypt(data);
   }
 
-  public static DatabaseSettings readDBSettingsFromECPS(String ecps, String passphrase) throws CannotDecodeException{
-    Map<String, Object> decodedEcps = new HashMap<>();
+  /**
+   * Decrypts data and tries to read it to a {@link Map}.
+   */
+  @SuppressWarnings("unchecked")
+  public static Map<String, Object> decryptToMap(String phrase, String data) {
     try {
-      if(ecps != null)
-        ecps = ecps.replaceAll(" ","+");
-      decodedEcps = PSQLConfig.decryptECPS(ecps, passphrase);
-    }catch (Exception e){
-      throw new CannotDecodeException("ECPS Decryption has failed");
+      return new ObjectMapper().readValue(decrypt(phrase, data), Map.class);
     }
+    catch (Exception e) {
+      logger.error("Unable to decrypt data to map.");
+      throw new RuntimeException(e);
+    }
+  }
 
-    DatabaseSettings databaseSettings = new DatabaseSettings();
+  /**
+   * Encrypt and decrypt ECPS Strings by using AesGcm
+   */
+  private static class AESGCMHelper {
+    private static Map<String, AESGCMHelper> helpers = new HashMap<>();
+    private AesGcmJce key;
 
-    for (String key : decodedEcps.keySet()) {
-      switch (key) {
-        case DatabaseSettings.PSQL_DB:
-          databaseSettings.setDb((String) decodedEcps.get(PSQL_DB));
-          break;
-        case PSQL_HOST:
-          databaseSettings.setHost((String) decodedEcps.get(PSQL_HOST));
-          break;
-        case PSQL_PASSWORD:
-          databaseSettings.setPassword((String) decodedEcps.get(PSQL_PASSWORD));
-          break;
-        case PSQL_PORT:
-          databaseSettings.setPort(Integer.parseInt((String) decodedEcps.get(PSQL_PORT)));
-          break;
-        case PSQL_REPLICA_HOST:
-          databaseSettings.setReplicaHost((String) decodedEcps.get(PSQL_REPLICA_HOST));
-          break;
-        case PSQL_REPLICA_USER:
-          databaseSettings.setPsqlReplicaUser((String) decodedEcps.get(PSQL_REPLICA_USER));
-          break;
-        case PSQL_SCHEMA:
-          databaseSettings.setSchema((String) decodedEcps.get(PSQL_SCHEMA));
-          break;
-        case PSQL_USER:
-          databaseSettings.setUser((String) decodedEcps.get(PSQL_USER));
-          break;
+    {
+      try {
+        AeadConfig.register();
+      }
+      catch (Exception e) {
+        logger.error("Can't register AeadConfig", e);
       }
     }
-    return databaseSettings;
+
+    private AESGCMHelper(String passphrase) throws GeneralSecurityException {
+      //If required - adjust passphrase to 128bit length
+      this.key = new AesGcmJce(Arrays.copyOfRange((passphrase == null ? "" : passphrase).getBytes(), 0, 16));
+    }
+
+    /**
+     * Returns an instance helper for this passphrase.
+     * @param passphrase The passphrase from which to derive a key.
+     */
+    @SuppressWarnings("WeakerAccess")
+    public static AESGCMHelper getInstance(String passphrase) throws GeneralSecurityException {
+      if (helpers.get(passphrase) == null)
+        helpers.put(passphrase, new AESGCMHelper(passphrase));
+      return helpers.get(passphrase);
+    }
+
+    /**
+     * Decrypts the given string.
+     * @param data The Base 64 encoded string representation of the encrypted bytes.
+     */
+    public String decrypt(String data) throws GeneralSecurityException {
+      byte[] decrypted = key.decrypt(Base64.getDecoder().decode(data), null);
+      return new String(decrypted);
+    }
+
+    /**
+     * Encrypts the provided string.
+     * @param data The string to encode
+     * @return A Base 64 encoded string, which represents the encoded bytes.
+     */
+    public String encrypt(String data) throws GeneralSecurityException {
+      byte[] encrypted = key.encrypt(data.getBytes(), null);
+      return new String(Base64.getEncoder().encode(encrypted));
+    }
   }
 }

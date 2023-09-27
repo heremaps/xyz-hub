@@ -99,7 +99,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                     .withBbox(new BBox(-170, -170, 170, 170))
                     .withLimit(30000);
 
-        String queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
+        String queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
         FeatureCollection featureCollection = deserializeResponse(queryResponse);
         assertNotNull(featureCollection);
@@ -115,7 +115,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
                 .withBbox(new BBox(-170, -170, 170, 170));
 
-        queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
+        queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
@@ -132,7 +132,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withSelection(new ArrayList<String>(){{ add("id");add("type");add("geometry");add("properties.name");}})
                 .withBbox(new BBox(-170, -170, 170, 170));
 
-        queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
+        queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
         XyzResponse response = deserializeResponse(queryResponse);
         featureCollection = (FeatureCollection) response;
@@ -155,7 +155,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withSelection(new ArrayList<String>(){{ add("properties.@ns:com:here:xyz.tags");}})
                 .withBbox(new BBox(-170, -170, 170, 170));
 
-        queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
+        queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
@@ -174,7 +174,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withSelection(new ArrayList<String>(){{ add("properties");}})
                 .withBbox(new BBox(-170, -170, 170, 170));
 
-        queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
+        queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
@@ -191,7 +191,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withTags(TagsQuery.fromQueryParameter(new ArrayList<String>(){{ add("yellow"); }}))
                 .withBbox(new BBox(10, -5, 20, 5));
 
-        queryResponse = invokeLambda(getFeaturesByBBoxEvent.serialize());
+        queryResponse = invokeLambda(getFeaturesByBBoxEvent);
         assertNotNull(queryResponse);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
@@ -280,7 +280,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withConflictDetectionEnabled(true)
                 .withInsertFeatures(collection.getFeatures());
 
-        invokeLambda(mfevent.serialize());
+        invokeLambda(mfevent);
         LOGGER.info("Insert feature tested successfully");
         // =========== QUERY WITH POLYGON ==========
         PolygonCoordinates polyCoords = new PolygonCoordinates();
@@ -299,7 +299,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withSpace("foo")
                 .withGeometry(geo);
 
-        String queryResponse = invokeLambda(geometryEvent.serialize());
+        String queryResponse = invokeLambda(geometryEvent);
         FeatureCollection featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(124, featureCollection.getFeatures().size());
@@ -319,7 +319,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withSpace("foo")
                 .withGeometry(geo);
 
-        queryResponse = invokeLambda(geometryEvent.serialize());
+        queryResponse = invokeLambda(geometryEvent);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         for (Feature feature : featureCollection.getFeatures()) {
@@ -350,7 +350,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withSpace("foo")
                 .withGeometry(geo);
 
-        queryResponse = invokeLambda(geometryEvent.serialize());
+        queryResponse = invokeLambda(geometryEvent);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         int cnt = 0;
@@ -377,7 +377,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withGeometry(geo)
                 .withPropertiesQuery(pq);
 
-        queryResponse = invokeLambda(geometryEvent.serialize());
+        queryResponse = invokeLambda(geometryEvent);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(121, featureCollection.getFeatures().size());
@@ -390,7 +390,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withGeometry(geo)
                 .withSelection(new ArrayList<>(Collections.singletonList("properties.foo2")));
 
-        queryResponse = invokeLambda(geometryEvent.serialize());
+        queryResponse = invokeLambda(geometryEvent);
         XyzResponse response = deserializeResponse(queryResponse);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
@@ -408,7 +408,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 //Large one
                 .withH3Index("821fa7fffffffff");
 
-        queryResponse = invokeLambda(geometryEvent.serialize());
+        queryResponse = invokeLambda(geometryEvent);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(404, featureCollection.getFeatures().size());
@@ -420,7 +420,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 //Small one
                 .withH3Index("861fa3a07ffffff");
 
-        queryResponse = invokeLambda(geometryEvent.serialize());
+        queryResponse = invokeLambda(geometryEvent);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(42, featureCollection.getFeatures().size());
@@ -439,7 +439,7 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 //Small one
                 .withH3Index("861fa3a07ffffff");
 
-        queryResponse = invokeLambda(geometryEvent.serialize());
+        queryResponse = invokeLambda(geometryEvent);
         featureCollection = XyzSerializable.deserialize(queryResponse);
         assertNotNull(featureCollection);
         assertEquals(1, featureCollection.getFeatures().size());
@@ -458,12 +458,11 @@ public class PSQLReadIT extends PSQLAbstractIT {
         LOGGER.info("Insert feature tested successfully");
 
         // =========== GetStatistics ==========
-        GetStatisticsEvent event = new GetStatisticsEvent()
+        GetStatisticsEvent getStatsEvent = new GetStatisticsEvent()
             .withConnectorParams(defaultTestConnectorParams)
             .withSpace("foo");
 
-        String eventJson = event.serialize();
-        String statisticsJson = invokeLambda(eventJson);
+        String statisticsJson = invokeLambda(getStatsEvent);
         StatisticsResponse response = XyzSerializable.deserialize(statisticsJson);
 
         assertNotNull(response);
@@ -513,15 +512,15 @@ public class PSQLReadIT extends PSQLAbstractIT {
                 .withConflictDetectionEnabled(true)
                 .withInsertFeatures(collection.getFeatures()); // TODO use get11kFeatureCollection() and extract pKeys
 
-        invokeLambda(mfevent.serialize());
+        invokeLambda(mfevent);
 
         /* Needed to trigger update on pg_stat*/
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             Statement stmt = connection.createStatement();
             stmt.execute("ANALYZE \"foo\";");
         }
 
-        statisticsJson = invokeLambda(eventJson);
+        statisticsJson = invokeLambda(getStatsEvent);
         // =========== GetStatistics ==========
         response = XyzSerializable.deserialize(statisticsJson);
 

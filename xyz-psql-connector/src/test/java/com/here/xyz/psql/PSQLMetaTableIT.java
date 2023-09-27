@@ -18,17 +18,19 @@
  */
 package com.here.xyz.psql;
 
-import org.junit.After;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.junit.Assert.*;
+import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class PSQLMetaTableIT extends PSQLAbstractIT {
     protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
@@ -51,7 +53,7 @@ public class PSQLMetaTableIT extends PSQLAbstractIT {
 
         invokeCreateTestSpace(connectorParams,TEST_SPACE_ID);
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             Statement stmt = connection.createStatement();
             ResultSet resultSet = stmt.executeQuery(q);
 
@@ -65,7 +67,7 @@ public class PSQLMetaTableIT extends PSQLAbstractIT {
         // Delete Space
         invokeDeleteTestSpace(connectorParams);
 
-        try (final Connection connection = LAMBDA.dataSource.getConnection()) {
+        try (final Connection connection = LAMBDA.dataSourceProvider.getWriter().getConnection()) {
             Statement stmt = connection.createStatement();
             /** Check Meta if record is deleted*/
             ResultSet resultSet = stmt.executeQuery(q);

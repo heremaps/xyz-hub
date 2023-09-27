@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,16 @@
 
 package com.here.xyz.connectors;
 
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.Typed;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.runtime.SimulatedContext;
 import com.here.xyz.events.Event;
+import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.RelocatedEvent;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -31,6 +36,8 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
+import com.here.xyz.responses.HealthStatus;
+import com.here.xyz.responses.XyzResponse;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -43,13 +50,13 @@ import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.Ignore;
 import org.junit.Test;
-
-import static org.junit.Assert.*;
 
 @SuppressWarnings("unused")
 public class AbstractConnectorHandlerTest {
 
+  public static final SimulatedContext TEST_CONTEXT = new SimulatedContext("test-function", null);
   private String HealthCheckEventString = "{\"type\":\"HealthCheckEvent\", \"streamId\":\"STREAM_ID_EXAMPLE\"}";
 
   @SuppressWarnings("SameParameterValue")
@@ -73,64 +80,54 @@ public class AbstractConnectorHandlerTest {
   }
 
   @Test
-  public void readEvent() {
-    InputStream is = new ByteArrayInputStream(HealthCheckEventString.getBytes());
+  public void writeDataOut() throws ErrorResponseException, JsonProcessingException {
     TestStorageConnector testStorageConnector = new TestStorageConnector();
-    try {
-      Event<?> event = testStorageConnector.readEvent(is);
-      assertTrue(event instanceof HealthCheckEvent);
-    } catch (ErrorResponseException e) {
-      e.printStackTrace();
-      fail("Expected was that a HealthCheckEvent object will be created.");
-    }
-  }
-
-  @Test
-  public void writeDataOut() throws ErrorResponseException {
-    TestStorageConnector testStorageConnector = new TestStorageConnector();
-    HealthCheckEvent healthCheckEvent = new HealthCheckEvent().withStreamId("TEST_STREAM_ID");
+    ByteArrayInputStream is = new ByteArrayInputStream(HealthCheckEventString.getBytes());
     ByteArrayOutputStream os = new ByteArrayOutputStream();
 
-    // Convert the event to output stream
-    testStorageConnector.writeDataOut(os, healthCheckEvent, healthCheckEvent.getIfNoneMatch());
+    //Convert the event to output stream
+    testStorageConnector.handleRequest(is, os, TEST_CONTEXT);
 
-    // Read back the result
+    //Read back the result
     byte[] outputBytes = os.toByteArray();
 
-    Event<?> outputEvent = testStorageConnector.readEvent(new ByteArrayInputStream(outputBytes));
-    assertTrue(outputEvent instanceof HealthCheckEvent);
+    XyzResponse response = XyzSerializable.deserialize(outputBytes, XyzResponse.class);
+    assertTrue(response instanceof HealthStatus);
   }
 
   @Test
   public void testWriteLargeDataOut() throws IOException {
     TestStorageConnector testStorageConnector = new TestStorageConnector();
-    FeatureCollection fc = generateRandomFeatures(417, 100);
+    GetFeaturesByBBoxEvent event = new GetFeaturesByBBoxEvent();
+    ByteArrayInputStream is = new ByteArrayInputStream(event.serialize().getBytes());
     ByteArrayOutputStream os = new ByteArrayOutputStream();
 
-    // Convert the event to output stream
-    testStorageConnector.writeDataOut(os, fc, null);
+    //Convert the event to output stream
+    testStorageConnector.handleRequest(is, os, TEST_CONTEXT);
 
-    // Read back the result
+    //Read back the result
     byte[] outputBytes = os.toByteArray();
 
-    InputStream is = new ByteArrayInputStream(outputBytes);
-    is = Payload.prepareInputStream(is);
+    InputStream outIs = new ByteArrayInputStream(outputBytes);
+    outIs = Payload.prepareInputStream(outIs);
 
     StringBuilder stringBuilder = new StringBuilder();
     String line;
 
-    try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(is))) {
+    try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(outIs))) {
       while ((line = bufferedReader.readLine()) != null) {
         stringBuilder.append(line);
       }
     }
 
-    FeatureCollection result = XyzSerializable.deserialize(stringBuilder.toString());
+    XyzResponse result = XyzSerializable.deserialize(stringBuilder.toString());
     assertNotNull(result);
+    assertTrue(result instanceof FeatureCollection);
+    assertTrue(!((FeatureCollection) result).getFeatures().isEmpty());
   }
 
-  //This is a test for the relocation client. To run it, an S3 bucket and valid credentials are required.
-  //@Test
+  @Ignore("This is a test for the relocation client. To run it, an S3 bucket and valid credentials are required.")
+  @Test
   public void testRelocatedEvent() throws Exception {
     RelocationClient client = new RelocationClient("some-s3-bucket-name");
     byte[] bytes = client.relocate("STREAM_ID_EXAMPLE", HealthCheckEventString.getBytes());
@@ -143,15 +140,18 @@ public class AbstractConnectorHandlerTest {
   }
 
   @SuppressWarnings("rawtypes")
-  static class TestStorageConnector extends AbstractConnectorHandler {
+  private static class TestStorageConnector extends AbstractConnectorHandler {
 
     @Override
-    public Typed processEvent(Event event) {
+    public Typed processEvent(Event event) throws JsonProcessingException {
+      if (event instanceof HealthCheckEvent)
+        return new HealthStatus().withStatus("OK");
+      if (event instanceof GetFeaturesByBBoxEvent<?>)
+        return generateRandomFeatures(417, 100);
       return null;
     }
 
     @Override
-    protected void initialize(Event event) {
-    }
+    protected void initialize(Event event) {}
   }
 }

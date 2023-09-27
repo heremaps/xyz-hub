@@ -21,21 +21,22 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
-import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.QueryRunner;
+import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.util.Hasher;
 import java.sql.SQLException;
 
 public abstract class XyzEventBasedQueryRunner<E extends Event, R extends Object> extends QueryRunner<E, R> {
+  private static final String TABLE_NAME = "tableName";
+  private boolean preferPrimaryDataSource;
 
-  public XyzEventBasedQueryRunner(E input)
-      throws SQLException, ErrorResponseException {
-    super(input);
+  public XyzEventBasedQueryRunner(E event) throws SQLException, ErrorResponseException {
+    super(event);
+    preferPrimaryDataSource = event.getPreferPrimaryDataSource();
   }
 
   public static String readTableFromEvent(Event event) {
     if (event != null && event.getParams() != null) {
-      final String TABLE_NAME = "tableName";
       Object tableName = event.getParams().get(TABLE_NAME);
       if (tableName instanceof String && ((String) tableName).length() > 0)
         return (String) tableName;
@@ -43,12 +44,12 @@ public abstract class XyzEventBasedQueryRunner<E extends Event, R extends Object
     String spaceId = null;
     if (event != null && event.getSpace() != null && event.getSpace().length() > 0)
       spaceId = event.getSpace();
-    return getTableNameForSpaceId(spaceId);
+    return getTableNameForSpaceId(event, spaceId);
   }
 
-  protected static String getTableNameForSpaceId(String spaceId) {
+  protected static String getTableNameForSpaceId(Event event, String spaceId) {
     if (spaceId != null && spaceId.length() > 0) {
-      if (PSQLXyzConnector.getInstance().getConfig().getConnectorParams().isEnableHashedSpaceId())
+      if (ConnectorParameters.fromEvent(event).isEnableHashedSpaceId())
         return Hasher.getHash(spaceId);
       else
         return spaceId;
@@ -58,5 +59,11 @@ public abstract class XyzEventBasedQueryRunner<E extends Event, R extends Object
 
   protected String getDefaultTable(E event) {
     return readTableFromEvent(event);
+  }
+
+  @Override
+  public boolean isUseReadReplica() {
+    //Always use the writer in case of event.preferPrimaryDataSource == true
+    return super.isUseReadReplica() && !preferPrimaryDataSource;
   }
 }

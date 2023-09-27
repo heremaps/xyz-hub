@@ -19,14 +19,14 @@
 package com.here.xyz.httpconnector.util.scheduler;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.Core;
 import com.mchange.v3.decode.CannotDecodeException;
 import io.vertx.core.Future;
-import io.vertx.pgclient.PgException;
+import java.sql.SQLException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -56,7 +56,7 @@ public class ImportQueue extends JobQueue {
                             case aborted:
                                 //Abort has happened on other node
                                 removeJob(job);
-                                JDBCClients.abortJobsByJobId(job);
+                                StatusHandler.getInstance().abortJob(job);
                                 break;
                             case waiting:
                                 updateJobStatus(currentJob,Job.Status.validating)
@@ -100,17 +100,15 @@ public class ImportQueue extends JobQueue {
     }
 
     @Override
-    protected void prepareJob(Job j){
-        String defaultSchema = JDBCImporter.getDefaultSchema(j.getTargetConnector());
-
-        CService.jdbcImporter.prepareImport(defaultSchema, (Import) j)
+    protected void prepareJob(Job j) {
+        JDBCImporter.getInstance().prepareImport((Import) j)
                 .compose(
                         f2 ->  updateJobStatus(j ,Job.Status.prepared))
                 .onFailure(f -> {
                     logger.warn("job[{}] preparation has failed!", j.getId(), f);
 
-                    if (f instanceof PgException && ((PgException) f).getCode() != null) {
-                        if (((PgException) f).getCode().equalsIgnoreCase("42P01")) {
+                    if (f instanceof SQLException sqlException && sqlException.getSQLState() != null) {
+                        if (sqlException.getSQLState().equalsIgnoreCase("42P01")) {
                             logger.info("job[{}] TargetTable '{}' does not exist!", j.getId(), j.getTargetTable());
                             setJobFailed(j, Import.ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS, Job.ERROR_TYPE_PREPARATION_FAILED);
                         }

@@ -58,7 +58,6 @@ import com.google.common.collect.ImmutableList;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCExporter;
-import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.emr.EMRManager;
 import com.here.xyz.httpconnector.util.emr.config.EmrConfig;
 import com.here.xyz.httpconnector.util.emr.config.Step.ConvertToGeoparquet;
@@ -758,14 +757,17 @@ public class Export extends JDBCBasedJob<Export> {
             return this;
         }
 
-        public void addRows(long rows){
+        public ExportStatistic addRows(long rows){
             rowsUploaded += rows;
+            return this;
         }
-        public void addBytes(long bytes){
+        public ExportStatistic addBytes(long bytes){
             bytesUploaded += bytes;
+            return this;
         }
-        public void addFiles(long files){
+        public ExportStatistic addFiles(long files){
             filesUploaded += files;
+            return this;
         }
     }
 
@@ -1118,7 +1120,7 @@ public class Export extends JDBCBasedJob<Export> {
 
         setExecutedAt(Core.currentTimeMillis() / 1000L);
 
-        JDBCExporter.executeExport(this, JDBCImporter.getDefaultSchema(getTargetConnector()), CService.configuration.JOBS_S3_BUCKET,
+        JDBCExporter.getInstance().executeExport(this, CService.configuration.JOBS_S3_BUCKET,
                 CService.jobS3Client.getS3Path(this), CService.configuration.JOBS_REGION)
             .onSuccess(statistic -> {
                     //Everything is processed

@@ -21,15 +21,13 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.psql.QueryRunner;
-import com.here.xyz.psql.SQLQuery;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.function.Supplier;
 import org.apache.commons.dbutils.ResultSetHandler;
 
-public class InlineQueryRunner<R> extends QueryRunner<Void, R> {
-
-  private final Supplier<SQLQuery> querySupplier;
+public class InlineQueryRunner<R> extends QueryRunner<Supplier<SQLQuery>, R> {
   private final ResultSetHandler<R> handler;
 
   public InlineQueryRunner(Supplier<SQLQuery> querySupplier) throws SQLException, ErrorResponseException {
@@ -37,13 +35,12 @@ public class InlineQueryRunner<R> extends QueryRunner<Void, R> {
   }
 
   public InlineQueryRunner(Supplier<SQLQuery> querySupplier, ResultSetHandler<R> handler) throws SQLException, ErrorResponseException {
-    super(null);
-    this.querySupplier = querySupplier;
+    super(querySupplier);
     this.handler = handler;
   }
 
   @Override
-  protected SQLQuery buildQuery(Void input) throws SQLException, ErrorResponseException {
+  protected SQLQuery buildQuery(Supplier<SQLQuery> querySupplier) throws SQLException, ErrorResponseException {
     return querySupplier.get();
   }
 
