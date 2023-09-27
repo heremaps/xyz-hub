@@ -97,12 +97,22 @@ public abstract class DatasetDescription implements Typed {
       this.tileLevel = tileLevel;
     }
 
+    public Files withTileLevel(int tileLevel) {
+      setTileLevel(tileLevel);
+      return this;
+    }
+
     public boolean isClipped() {
       return clipped;
     }
 
     public void setClipped(boolean clipped) {
       this.clipped = clipped;
+    }
+
+    public Files withClipped(boolean clipped) {
+      setClipped(clipped);
+      return this;
     }
 
     @Override
