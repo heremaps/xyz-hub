@@ -81,9 +81,9 @@ public class JDBCTagConfigClient extends TagConfigClient {
   }
 
   @Override
-  public Future<List<Tag>> getTags(Marker marker, String id, List<String> spaceIds) {
-    SQLQuery query = new SQLQuery("WHERE id = #{id} AND space IN (#{spaceIds})")
-        .withNamedParameter("id", id)
+  public Future<List<Tag>> getTags(Marker marker, String tagId, List<String> spaceIds) { //FIXME: Failing with test testListSpacesFilterByTagId()
+    SQLQuery query = new SQLQuery("WHERE id = #{tagId} AND space IN (#{spaceIds})")
+        .withNamedParameter("tagId", tagId)
         .withNamedParameter("spaceIds", spaceIds.toArray(new String[0]));
     return _getTags(marker, query);
   }
