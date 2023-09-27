@@ -406,6 +406,8 @@ public class Export extends Job<Export> {
         if (target instanceof Files) {
             setExportTarget(new ExportTarget().withType(DOWNLOAD));
             setCsvFormat(((Files) target).getFormat());
+            setTargetLevel(((Files) target).getTileLevel());
+            setClipped(((Files) target).isClipped());
         }
     }
 
