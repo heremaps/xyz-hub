@@ -72,9 +72,9 @@ public abstract class DatasetDescription implements Typed {
   }
 
   public static class Files extends DatasetDescription {
-    CSVFormat format;
-    int tileLevel = 12;
-    boolean clipped = false;
+    private CSVFormat format;
+    private int tileLevel = 12;
+    private boolean clipped = false;
 
     public CSVFormat getFormat() {
       return format;
