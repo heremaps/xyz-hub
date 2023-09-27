@@ -26,6 +26,7 @@ import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
@@ -91,7 +92,8 @@ public class SpaceApi extends SpaceBasedApi {
       return;
     }
 
-    ConnectorMapping connectorMapping = ConnectorMapping.of(ApiParam.Query.getString(context, Query.CONNECTOR_MAPPING, ConnectorMapping.RANDOM.name()), ConnectorMapping.RANDOM);
+    ConnectorMapping defaultConnectorMapping = ConnectorMapping.of(Service.configuration.DEFAULT_CONNECTOR_MAPPING_STRATEGY);
+    ConnectorMapping connectorMapping = ConnectorMapping.of(ApiParam.Query.getString(context, Query.CONNECTOR_MAPPING, defaultConnectorMapping.name()), defaultConnectorMapping);
     ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.CREATE, IfExists.ERROR, true, connectorMapping);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, false)
