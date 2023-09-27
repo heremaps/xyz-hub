@@ -92,31 +92,28 @@ public class SpaceTaskHandler {
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
-    Future<List<Tag>> tagsFuture = StringUtils.isBlank(task.selectedCondition.tagId) ?
-        Future.succeededFuture(Collections.emptyList()) :
-        Service.tagConfigClient.getTagsByTagId(task.getMarker(), task.selectedCondition.tagId);
-
-    tagsFuture
-        .compose(tags -> {
-          if (task.selectedCondition.tagId != null) {
-            if (tags.isEmpty())
-              return Future.succeededFuture(Collections.emptyList());
-
-            task.selectedCondition.ownerIds = Collections.emptySet();
-            task.selectedCondition.spaceIds = tags.stream().map(Tag::getSpaceId).collect(Collectors.toSet());
-          }
-
-          return Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
-              .compose(spaces -> augmentWithTags(spaces, tags));
-        })
-        .onFailure(t -> {
-          logger.error(task.getMarker(), "Unable to load space definitions.'", t);
-          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
-        })
-        .onSuccess(spaces -> {
-          task.responseSpaces = spaces;
-          callback.call(task);
-        });
+    Service.spaceConfigClient.getSelected(task.getMarker(),
+            task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
+            .compose(spaces -> {
+              if (StringUtils.isBlank(task.selectedCondition.tagId)) {
+                return Future.succeededFuture(spaces);
+              }
+              List<String> spaceIds = spaces.stream().map(Space::getId).toList();
+              return Service.tagConfigClient.getTags(task.getMarker(), task.selectedCondition.tagId, spaceIds)
+                      .compose(tags -> {
+                        List<String> spaceIdsFromTag = tags.stream().map(Tag::getSpaceId).toList();
+                        List<Space> spacesFilteredByTag = spaces.stream().filter(space -> spaceIdsFromTag.contains(space.getId())).toList();
+                        return augmentWithTags(spacesFilteredByTag, tags);
+                      });
+            })
+            .onFailure(t -> {
+              logger.error(task.getMarker(), "Unable to load space definitions.'", t);
+              callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
+            })
+            .onSuccess(spaces -> {
+              task.responseSpaces = spaces;
+              callback.call(task);
+            });
   }
 
   static <X extends ReadQuery<?>> void checkSpaceExists(final X task, final Callback<X> callback) {
