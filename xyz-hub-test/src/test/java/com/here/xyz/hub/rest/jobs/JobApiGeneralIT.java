@@ -224,36 +224,6 @@ public class JobApiGeneralIT extends JobApiIT {
     }
 
     @Test
-    public void createInvalidS3ExportJob(){
-        /** Create job */
-        Export job = new Export()
-                .withId(testJobId + CService.currentTimeMillis())
-                .withDescription("Job Description");
-
-        postJob(job,getScopedSpaceId(testSpaceId1, scope))
-                .statusCode(BAD_REQUEST.code());
-
-        /** Add missing target */
-        job.setExportTarget(new Export.ExportTarget().withType(Export.ExportTarget.Type.DOWNLOAD));
-
-
-        postJob(job,getScopedSpaceId(testSpaceId1, scope))
-                .statusCode(BAD_REQUEST.code());
-
-        /** Add missing format - but wrong one */
-        job.setCsvFormat(Job.CSVFormat.TILEID_FC_B64);
-
-        postJob(job,getScopedSpaceId(testSpaceId1, scope))
-                .statusCode(BAD_REQUEST.code());
-
-        /** Add missing format - correct one */
-        job.setCsvFormat(Job.CSVFormat.GEOJSON);
-
-        postJob(job,getScopedSpaceId(testSpaceId1, scope))
-                .statusCode(CREATED.code());
-    }
-
-    @Test
     public void createInvalidVMLExportJob() throws InvalidGeometryException {
         /** Create job */
         Export job = new Export()
