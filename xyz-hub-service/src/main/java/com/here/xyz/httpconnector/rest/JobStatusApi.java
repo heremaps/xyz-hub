@@ -19,15 +19,13 @@
 package com.here.xyz.httpconnector.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCClients;
-import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.task.JobHandler;
+import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.scheduler.ImportQueue;
 import com.here.xyz.httpconnector.util.scheduler.JobQueue;
 import com.here.xyz.httpconnector.util.status.RDSStatus;
@@ -97,20 +95,18 @@ public class JobStatusApi {
                     if(JobQueue.hasJob(job) != null) {
                         resp.put("STATUS", "already_present");
                         httpResponse.end(resp.toString());
-                    }else{
-                        JDBCImporter.addClientsIfRequired(job.getTargetConnector())
-                                .onSuccess(f -> {
-                                    try{
-                                        JobQueue.addJob(job);
-                                        logger.info("JOB[{}] got added manually to queue! Host-id: {}", job.getId(), CService.HOST_ID);
-                                        resp.put("STATUS", "job_added");
-                                    }catch (Exception e){
-                                        logger.info("JOB[{}] state has no last state {}", job.getId(), CService.HOST_ID);
-                                        resp.put("STATUS", "not_added");
-                                    }
-                                    httpResponse.end(resp.toString());
-                                })
-                                .onFailure(e -> httpResponse.setStatusCode(BAD_GATEWAY.code()).end());
+                    }
+                    else {
+                        try{
+                            JobQueue.addJob(job);
+                            logger.info("JOB[{}] got added manually to queue! Host-id: {}", job.getId(), CService.HOST_ID);
+                            resp.put("STATUS", "job_added");
+                        }
+                        catch (Exception e){
+                            logger.info("JOB[{}] state has no last state {}", job.getId(), CService.HOST_ID);
+                            resp.put("STATUS", "not_added");
+                        }
+                        httpResponse.end(resp.toString());
                     }
                 });
     }
@@ -157,12 +153,7 @@ public class JobStatusApi {
         }).toArray());
 
         List<Future> statusFutures = new ArrayList<>();
-        JDBCClients.getClientList().forEach(
-                clientId -> {
-                    if(CService.supportedConnectors.indexOf(clientId) != -1 && !clientId.equals(JDBCClients.CONFIG_CLIENT_ID))
-                        statusFutures.add(JDBCClients.getRDSStatus(clientId));
-                }
-        );
+        CService.supportedConnectors.forEach(connectorId -> statusFutures.add(StatusHandler.getInstance().getRDSStatus(connectorId)));
 
         CompositeFuture.join(statusFutures)
                 .onComplete(f -> {

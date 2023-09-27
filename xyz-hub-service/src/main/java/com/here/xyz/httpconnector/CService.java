@@ -21,7 +21,6 @@ package com.here.xyz.httpconnector;
 
 import com.here.xyz.httpconnector.config.AwsCWClient;
 import com.here.xyz.httpconnector.config.AwsSecretManagerClient;
-import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.config.JobConfigClient;
 import com.here.xyz.httpconnector.config.JobS3Client;
 import com.here.xyz.httpconnector.util.scheduler.ExportQueue;
@@ -54,6 +53,7 @@ public class CService extends Core {
    * The host ID.
    */
   public static final String HOST_ID = UUID.randomUUID().toString();
+  public static final String APPLICATION_NAME_PREFIX = "jobEngine";
 
   /**
    * The client to access job configs
@@ -74,11 +74,6 @@ public class CService extends Core {
    * The client to access secrets from AWS Secret Manager
    */
   public static AwsSecretManagerClient jobSecretClient;
-
-  /**
-   * The client to access the database
-   */
-  public static JDBCImporter jdbcImporter;
 
   /**
    * Queue for executed importJobs
@@ -104,9 +99,11 @@ public class CService extends Core {
 
   private static final Logger logger = LogManager.getLogger();
 
-  public static void main(String[] args) {
+  static {
     CONFIG_FILE = "connector-config.json";
+  }
 
+  public static void main(String[] args) {
     VertxOptions vertxOptions = new VertxOptions()
             .setWorkerPoolSize(NumberUtils.toInt(System.getenv(Core.VERTX_WORKER_POOL_SIZE), 128))
             .setPreferNativeTransport(true)

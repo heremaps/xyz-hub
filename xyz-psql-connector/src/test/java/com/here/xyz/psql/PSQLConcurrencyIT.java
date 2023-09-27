@@ -31,12 +31,11 @@ import com.here.xyz.responses.XyzError;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
-
-import java.util.*;
 
 public class PSQLConcurrencyIT extends PSQLAbstractIT {
 
@@ -77,7 +76,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
         if (withConflictDetection)
             mfevent.setConflictDetectionEnabled(true);
 
-        String response = invokeLambda(mfevent.serialize());
+        String response = invokeLambda(mfevent);
         FeatureCollection responseCollection = XyzSerializable.deserialize(response);
         assertEquals("doesnotexist", responseCollection.getFailed().get(0).getId());
         assertEquals(0,responseCollection.getFeatures().size());
@@ -92,7 +91,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
 
         //Transactional
         mfevent.setTransaction(true);
-        response = invokeLambda(mfevent.serialize());
+        response = invokeLambda(mfevent);
 
         // Transaction should have failed
         ErrorResponse errorResponse = XyzSerializable.deserialize(response);
@@ -142,7 +141,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
         mfevent.setUpdateFeatures(Collections.singletonList(existing));
         mfevent.setTransaction(false);
 
-        response = invokeLambda(mfevent.serialize());
+        response = invokeLambda(mfevent);
         responseCollection = XyzSerializable.deserialize(response);
         assertEquals(existing.getId(), responseCollection.getFailed().get(0).getId());
         assertEquals(0,responseCollection.getFeatures().size());
@@ -157,7 +156,7 @@ public class PSQLConcurrencyIT extends PSQLAbstractIT {
 
         //Transactional
         mfevent.setTransaction(true);
-        response = invokeLambda(mfevent.serialize());
+        response = invokeLambda(mfevent);
 
         errorResponse = XyzSerializable.deserialize(response);
         assertEquals(XyzError.CONFLICT, errorResponse.getError());

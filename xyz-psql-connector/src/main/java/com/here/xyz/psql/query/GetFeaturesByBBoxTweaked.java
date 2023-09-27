@@ -25,11 +25,12 @@ import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByTileEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.factory.TweaksSQL;
 import com.here.xyz.psql.query.bbox.GetSamplingStrengthEstimation;
 import com.here.xyz.psql.query.bbox.GetSamplingStrengthEstimation.SamplingStrengthEstimation;
+import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.responses.XyzResponse;
+import com.here.xyz.util.db.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -90,7 +91,7 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
     if (isMvtRequested)
       return (R) GetFeaturesByBBox.defaultBinaryResultSetHandler(rs);
     else {
-      FeatureCollection collection = dbHandler.defaultFeatureResultSetHandlerSkipIfGeomIsNull(rs);
+      FeatureCollection collection = new FeatureResultSetHandler(true, true).handle(rs);
       if (resultIsPartial)
         collection.setPartial(true);
       return (R) collection;
@@ -151,9 +152,11 @@ public class GetFeaturesByBBoxTweaked<E extends GetFeaturesByBBoxEvent, R extend
     return m;
   }
 
-  public static HashMap<String, Object> getTweakParamsForEnsureMode(GetFeaturesByBBoxEvent event,
-      Map<String, Object> tweakParams) throws SQLException, ErrorResponseException {
-    SamplingStrengthEstimation estimationResult = new GetSamplingStrengthEstimation<>(event).run();
+  public HashMap<String, Object> getTweakParamsForEnsureMode(GetFeaturesByBBoxEvent event, Map<String, Object> tweakParams)
+      throws SQLException, ErrorResponseException {
+    SamplingStrengthEstimation estimationResult = new GetSamplingStrengthEstimation<>(event)
+        .withDataSourceProvider(getDataSourceProvider())
+        .run();
 
     HashMap<String, Object> hmap = new HashMap<>();
 

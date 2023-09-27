@@ -20,9 +20,9 @@
 package com.here.xyz.hub.config.memory;
 
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
-import com.here.xyz.psql.SQLQuery;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.List;
@@ -91,7 +91,7 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
       propsQuery.forEach(conjunctions -> {
         conjunctions.forEach(conj -> {
             conj.getValues().forEach(v -> {
-              String operator = SQLQuery.getOperation(conj.getOperation());
+              String operator = QueryOperation.getOperation(conj.getOperation());
               contentUpdatedAtList.add(operator);
               contentUpdatedAtList.add(v.toString());
             });

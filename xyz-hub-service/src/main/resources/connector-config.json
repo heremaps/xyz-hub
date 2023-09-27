@@ -7,6 +7,10 @@
   "DB_ACQUIRE_RETRY_ATTEMPTS" : 10,
   "DB_CHECKOUT_TIMEOUT" : 10,
 
+  "STORAGE_DB_URL": "jdbc:postgresql://localhost/postgres",
+  "STORAGE_DB_USER": "postgres",
+  "STORAGE_DB_PASSWORD": "password",
+
   "MAX_CONCURRENT_MAINTENANCE_TASKS" : 1 ,
   "MISSING_MAINTENANCE_WARNING_IN_HR" : 12,
 

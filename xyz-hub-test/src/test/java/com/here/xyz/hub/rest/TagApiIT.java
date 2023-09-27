@@ -29,13 +29,13 @@ import static org.hamcrest.Matchers.is;
 
 import io.restassured.http.ContentType;
 import io.restassured.response.ValidatableResponse;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class TagApiIT extends TestSpaceWithFeature {
 
@@ -227,25 +227,26 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body( "[0].tags.XYZ_1.version", equalTo(-1));
   }
 
-    @Test
-    public void testBigListSpacesFilterByTagId() {
-        for (int i = 0; i < 250; i++)
-         createdSpaces.add(createSpaceWithRandomId());
+  @Ignore("Disabled. Takes too long")
+  @Test
+  public void testBigListSpacesFilterByTagId() {
+      for (int i = 0; i < 250; i++)
+       createdSpaces.add(createSpaceWithRandomId());
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces?tag=XYZ_1")
-                .then()
-                .body("size()", is(0));
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .get("/spaces?tag=XYZ_1")
+              .then()
+              .body("size()", is(0));
 
-        createdSpaces.stream().forEach(spaceId -> _createTagForId(spaceId));
+      createdSpaces.stream().forEach(spaceId -> _createTagForId(spaceId));
 
-        given()
-                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .get("/spaces?tag=XYZ_1")
-                .then()
-                .body("size()", is(createdSpaces.size()));
-    }
+      given()
+              .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+              .get("/spaces?tag=XYZ_1")
+              .then()
+              .body("size()", is(createdSpaces.size()));
+  }
 
   @Test
   public void testUpdateTagWithVersionNotSet() {

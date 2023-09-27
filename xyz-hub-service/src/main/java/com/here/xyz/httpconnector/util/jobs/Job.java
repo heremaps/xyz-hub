@@ -55,7 +55,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.task.StatusHandler;
 import com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
@@ -162,7 +162,7 @@ public abstract class Job<T extends Job> extends Payload {
     private String targetConnector;
 
     @JsonView({Internal.class})
-    private Long spaceVersion;
+    private long spaceVersion;
 
     @JsonView({Internal.class})
     private String author;
@@ -664,11 +664,11 @@ public abstract class Job<T extends Job> extends Payload {
         return (T) this;
     }
 
-    public Long getSpaceVersion() {
+    public long getSpaceVersion() {
         return spaceVersion;
     }
 
-    public void setSpaceVersion(final Long spaceVersion) {
+    public void setSpaceVersion(final long spaceVersion) {
         this.spaceVersion = spaceVersion;
     }
 
@@ -838,7 +838,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     protected Future<Job> isProcessingOnRDSPossible() {
-        return JDBCClients.getRDSStatus(getTargetConnector())
+        return StatusHandler.getInstance().getRDSStatus(getTargetConnector())
             .compose(rdsStatus -> {
 
                 if (rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization() > CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION) {

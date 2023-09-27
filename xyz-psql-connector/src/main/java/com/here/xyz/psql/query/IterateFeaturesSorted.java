@@ -30,13 +30,13 @@ import com.here.xyz.events.PropertyQuery.QueryOperation;
 import com.here.xyz.events.PropertyQueryList;
 import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.PSQLXyzConnector;
-import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.config.PSQLConfig.AESGCMHelper;
-import com.here.xyz.psql.datasource.DataSourceProvider;
+import com.here.xyz.psql.query.helpers.FeatureResultSetHandler;
 import com.here.xyz.psql.query.helpers.GetIndexList;
 import com.here.xyz.psql.tools.DhString;
+import com.here.xyz.psql.tools.ECPSTool;
 import com.here.xyz.responses.XyzError;
+import com.here.xyz.util.db.SQLQuery;
+import com.here.xyz.util.db.datasource.DataSourceProvider;
 import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -60,9 +60,9 @@ public class IterateFeaturesSorted extends IterateFeatures {
     if( !hasHandle )  // decrypt handle and configure event
     {
       if( event.getPart() != null && event.getPart()[0] == -1 )
-        return new GetIterationHandles(event).run(dbHandler.getDataSourceProvider());
+        return new GetIterationHandles(event).withDataSourceProvider(dataSourceProvider).run();
 
-      if (!canSortBy(tableName, event.getSort(), dbHandler)) {
+      if (!canSortBy(tableName, event.getSort())) {
         throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
             "Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
       }
@@ -92,23 +92,16 @@ public class IterateFeaturesSorted extends IterateFeatures {
     return super.handle(rs);
   }
 
-
-
-
-
-
-
-  private static boolean canSortBy(String tableName, List<String> sort, PSQLXyzConnector dbHandler)
-  {
+  private boolean canSortBy(String tableName, List<String> sort) {
     if (sort == null || sort.isEmpty() ) return true;
 
-    try
-    {
+    try {
      String normalizedSortProp = "o:" + IdxMaintenance.normalizedSortProperties(sort);
 
      switch( normalizedSortProp.toLowerCase() ) { case "o:f.id" : case "o:f.createdat" : case "o:f.updatedat" : return true; }
 
-     List<String> indices = new GetIndexList(tableName).run(dbHandler.getDataSourceProvider());
+     List<String> indices = ((GetIndexList) new GetIndexList(tableName).withUseReadReplica(isUseReadReplica()))
+         .run(getDataSourceProvider());
 
      if (indices == null) return true; // The table is small and not indexed. It's not listed in the xyz_idxs_status table
 
@@ -157,10 +150,10 @@ public class IterateFeaturesSorted extends IterateFeatures {
 
   @SuppressWarnings("unused")
   private static String decrypt(String encryptedtext, String phrase) throws GeneralSecurityException {
-    return AESGCMHelper.getInstance(phrase).decrypt(encryptedtext);
+    return ECPSTool.decrypt(phrase, encryptedtext);
   }
 
-  private static class GetIterationHandles extends XyzQueryRunner<IterateFeaturesEvent, FeatureCollection> {
+  private class GetIterationHandles extends XyzQueryRunner<IterateFeaturesEvent, FeatureCollection> {
 
     //TODO: Remove after refactoring
     private IterateFeaturesEvent tmpEvent;
@@ -196,7 +189,7 @@ public class IterateFeaturesSorted extends IterateFeatures {
     @Override
     public FeatureCollection handle(ResultSet rs) throws SQLException {
       //FIXME: Do not use FeatureCollection as response vehicle
-      FeatureCollection cl = dbHandler.defaultFeatureResultSetHandler(rs);
+      FeatureCollection cl = new FeatureResultSetHandler(false, true, limit).handle(rs);
       List<List<Object>> hdata;
       try {
         hdata = cl.getFeatures().get(0).getProperties().get("handles");

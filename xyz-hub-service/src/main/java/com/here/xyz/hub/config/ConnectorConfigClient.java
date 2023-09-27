@@ -26,6 +26,7 @@ import com.here.xyz.hub.config.jdbc.JDBCConnectorConfigClient;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Connector.RemoteFunctionConfig.Embedded;
 import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
+import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.tools.ECPSTool;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -98,7 +99,7 @@ public abstract class ConnectorConfigClient implements Initializable {
     return p.future();
   }
 
-  public void get(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
+  public void get(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) { //TODO: Use Future as return type
     final Connector connectorFromCache = cache.get(connectorId);
 
     if (connectorFromCache != null) {
@@ -107,44 +108,40 @@ public abstract class ConnectorConfigClient implements Initializable {
       return;
     }
 
-    getConnector(marker, connectorId, ar -> {
-      if (ar.succeeded()) {
-        final Connector connector = ar.result();
-        if (connector.owner != null && connector.owner.equals(ANONYMOUS_OWNER))
-          connector.owner = null;
-        cache.put(connectorId, connector);
-        handler.handle(Future.succeededFuture(connector));
-      }
-      else {
-        logger.warn(marker, "storageId[{}]: Connector not found", connectorId);
-        handler.handle(Future.failedFuture(ar.cause()));
-      }
-    });
+    getConnector(marker, connectorId)
+        .onSuccess(connector -> {
+          if (connector.owner != null && connector.owner.equals(ANONYMOUS_OWNER))
+            connector.owner = null;
+          cache.put(connectorId, connector);
+          handler.handle(Future.succeededFuture(connector));
+        })
+        .onFailure(t -> {
+          logger.info(marker, "storageId[{}]: Connector not found", connectorId);
+          handler.handle(Future.failedFuture(t));
+        });
   }
 
-  public void getByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
-    getConnectorsByOwner(marker, ownerId, ar -> {
-      if (ar.succeeded()) {
-        final List<Connector> connectors = ar.result();
-        connectors.forEach(c -> {
-          if (c.owner != null && c.owner.equals(ANONYMOUS_OWNER))
-            c.owner = null;
-          cache.put(c.id, c);
+  public void getByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) { //TODO: Use Future as return type
+    getConnectorsByOwner(marker, ownerId)
+        .onSuccess(connectors -> {
+          connectors.forEach(c -> {
+            if (c.owner != null && c.owner.equals(ANONYMOUS_OWNER))
+              c.owner = null;
+            cache.put(c.id, c);
+          });
+          handler.handle(Future.succeededFuture(connectors));
+        })
+        .onFailure(t -> {
+          logger.info(marker, "storageId[{}]: Connectors for owner not found", ownerId);
+          handler.handle(Future.failedFuture(t));
         });
-        handler.handle(Future.succeededFuture(connectors));
-      }
-      else {
-        logger.warn(marker, "storageId[{}]: Connectors for owner not found", ownerId);
-        handler.handle(Future.failedFuture(ar.cause()));
-      }
-    });
   }
 
   public void store(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
     store(marker, connector, handler, true);
   }
 
-  private void store(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler, boolean withInvalidation) {
+  private void store(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler, boolean withInvalidation) { //TODO: Use Future as return type
     if (connector.id == null) {
       connector.id = RandomStringUtils.randomAlphanumeric(10);
     }
@@ -168,7 +165,7 @@ public abstract class ConnectorConfigClient implements Initializable {
     });
   }
 
-  public void delete(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
+  public void delete(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) { //TODO: Use Future as return type
     deleteConnector(marker, connectorId, ar -> {
       if (ar.succeeded()) {
         final Connector connectorResult = ar.result();
@@ -183,7 +180,7 @@ public abstract class ConnectorConfigClient implements Initializable {
     });
   }
 
-  public void getAll(Marker marker, Handler<AsyncResult<List<Connector>>> handler) {
+  public void getAll(Marker marker, Handler<AsyncResult<List<Connector>>> handler) { //TODO: Use Future as return type
     getAllConnectors(marker, ar -> {
       if (ar.succeeded()) {
         final List<Connector> connectors = ar.result();
@@ -236,12 +233,13 @@ public abstract class ConnectorConfigClient implements Initializable {
   }
 
   private void replaceConnectorVars(final Connector connector) {
-    if (connector == null) {
+    if (connector == null)
       return;
-    }
 
     replaceVarsInMap(connector.params, ecpsJson -> {
-      String ecpsPhrase = Service.configuration.DEFAULT_ECPS_PHRASE;
+      String ecpsPhrase = connector.getRemoteFunction() instanceof Embedded embeddedRf
+          ? embeddedRf.env.get(DatabaseHandler.ECPS_PHRASE)
+          : "local";
       if (ecpsPhrase == null) return null;
       //Replace vars in the ECPS JSON
       JsonObject ecpsValues = new JsonObject(ecpsJson);
@@ -276,10 +274,8 @@ public abstract class ConnectorConfigClient implements Initializable {
     if (Service.configuration.STORAGE_DB_URL != null) {
       URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring(5));
       psqlVars.put("PSQL_HOST", uri.getHost());
-      psqlVars.put("PSQL_REPLICA_HOST", uri.getHost());
       psqlVars.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
       psqlVars.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
-      psqlVars.put("PSQL_REPLICA_USER", "ro_user");
       psqlVars.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
       String[] pathComponent = uri.getPath() == null ? null : uri.getPath().split("/");
       if (pathComponent != null && pathComponent.length > 1)
@@ -303,7 +299,7 @@ public abstract class ConnectorConfigClient implements Initializable {
     map.putAll(replacement);
   }
 
-  private void storeConnectorIfNotExists(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
+  private void storeConnectorIfNotExists(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) { //TODO: Use Future as return type
     get(marker, connector.id, r -> {
       if (r.failed()) {
         logger.info("Connector with ID {} does not exist. Creating it ...", connector.id);
@@ -317,15 +313,15 @@ public abstract class ConnectorConfigClient implements Initializable {
     });
   }
 
-  protected abstract void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler);
+  protected abstract Future<Connector> getConnector(Marker marker, String connectorId);
 
-  protected abstract void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler);
+  protected abstract Future<List<Connector>> getConnectorsByOwner(Marker marker, String ownerId);
 
-  protected abstract void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler);
+  protected abstract void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler); //TODO: Use Future as return type
 
-  protected abstract void deleteConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler);
+  protected abstract void deleteConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler); //TODO: Use Future as return type
 
-  protected abstract void getAllConnectors(Marker marker, Handler<AsyncResult<List<Connector>>> handler);
+  protected abstract void getAllConnectors(Marker marker, Handler<AsyncResult<List<Connector>>> handler); //TODO: Use Future as return type
 
   public void invalidateCache(String id) {
     new InvalidateConnectorCacheMessage().withId(id).withBroadcastIncludeLocalNode(true).broadcast();
