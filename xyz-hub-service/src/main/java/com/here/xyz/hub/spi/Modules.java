@@ -8,12 +8,8 @@ import org.apache.logging.log4j.Logger;
 
 public final class Modules {
   private static final Logger logger = LogManager.getLogger();
-  private static final RestConfiguration restConfigurationInstance = load(RestConfiguration.class);
   private static final AuthorizationHandler authorizationHandlerInstance = load(AuthorizationHandler.class);
 
-  public static RestConfiguration getRestConfiguration() {
-    return restConfigurationInstance;
-  }
 
   public static AuthorizationHandler getAuthorizationHandler() {
     return authorizationHandlerInstance;
