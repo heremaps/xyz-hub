@@ -41,7 +41,6 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
-import com.here.xyz.httpconnector.util.status.RDSStatus;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
@@ -294,6 +293,7 @@ public abstract class Job<T extends Job> extends Payload {
         During the execution we have running SQL-Statements - due to the abortion of them, the client which
         has executed the Query will handle the abortion.
          */
+        //TODO: Allow abortion also in other states (e.g. queued), because it could be the user started a job accidentally and wants to stop & recreate
         if (getStatus() != executing && getStatus() != finalizing)
             throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " for abort!");
     }

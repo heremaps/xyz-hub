@@ -169,16 +169,6 @@ public class CombinedJob extends Job<CombinedJob> {
   }
 
   @Override
-  public void finalizeJob() {
-    finalizeChildren();
-    super.finalizeJob();
-  }
-
-  protected void finalizeChildren() {
-    children.forEach(childJob -> childJob.finalizeJob());
-  }
-
-  @Override
   protected void isValidForRetry() throws HttpException {
     throw new HttpException(PRECONDITION_FAILED, "Retry is not supported for CombinedJobs.");
   }
