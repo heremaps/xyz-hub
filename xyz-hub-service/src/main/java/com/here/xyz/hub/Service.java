@@ -72,7 +72,6 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 
 public class Service extends Core {
@@ -243,9 +242,6 @@ public class Service extends Core {
 
     final Promise<Void> sharedDataPromise = Promise.promise();
     final Future<Void> sharedDataFuture = sharedDataPromise.future();
-    final Hashtable<String, Object> sharedData = new Hashtable<>() {{
-      put(GLOBAL_ROUTER, globalRouter);
-    }};
 
     sharedDataFuture.compose(r -> {
       final List<Future> futures = new ArrayList<>();
@@ -265,13 +261,16 @@ public class Service extends Core {
 
       return CompositeFuture.all(futures);
     }).onComplete(done -> {
-      // at this point all verticles were initiated and all routers added as subrouter of globalRouter.
+      //At this point all verticles were initiated and all routers added as subrouter of globalRouter.
       vertx.eventBus().publish(SHARED_DATA, GLOBAL_ROUTER);
 
       logger.info("XYZ Hub " + BUILD_VERSION + " was started at " + new Date().toString());
       logger.info("Native transport enabled: " + vertx.isNativeTransportEnabled());
     });
 
+    final Hashtable<String, Object> sharedData = new Hashtable<>() {{
+      put(GLOBAL_ROUTER, globalRouter);
+    }};
     //Shared data initialization
     vertx.sharedData()
         .getAsyncMap(SHARED_DATA, asyncMapResult -> asyncMapResult.result().put(SHARED_DATA, sharedData, sharedDataPromise));
