@@ -25,10 +25,10 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
-import com.amazonaws.services.dynamodbv2.model.ExecuteStatementResult;
 import com.amazonaws.services.dynamodbv2.model.ExecuteTransactionRequest;
 import com.amazonaws.services.dynamodbv2.model.ParameterizedStatement;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
+import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
 import io.vertx.core.Future;
@@ -82,6 +82,9 @@ public class DynamoTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, String id, List<String> spaceIds) {
+    if (CollectionUtils.isNullOrEmpty(spaceIds))
+      return Future.succeededFuture(Collections.emptyList());
+
     try {
       String spaceParamsSt = StringUtils.join(Collections.nCopies(spaceIds.size(), "?"), ",");
       List<AttributeValue> params = Stream.concat(Stream.of(id), spaceIds.stream())
