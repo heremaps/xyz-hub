@@ -152,8 +152,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
     @Override
     public TaskPipeline createPipeline() {
       return TaskPipeline.create(this)
-          .then(Authorization::authorize)
-          .then(SpaceAuthorization::authorizeReadSpaces)
+          .then(Authorization::authorizeComposite)
           .then(SpaceTaskHandler::readFromJWT)
           .then(SpaceTaskHandler::readSpaces)
           .then(SpaceTaskHandler::checkSpaceExists)
@@ -210,7 +209,7 @@ public abstract class SpaceTask<X extends SpaceTask<?>> extends Task<Event, X> {
           .then(SpaceTaskHandler::handleReadOnlyUpdate)
           .then(SpaceTaskHandler::validate)
           .then(SpaceTaskHandler::resolveExtensions)
-          .then(Authorization::authorize)
+          .then(Authorization::authorizeComposite)
           .then(SpaceAuthorization::authorizeModifyOp)
           .then(SpaceTaskHandler::enforceUsageQuotas)
           .then(SpaceTaskHandler::sendEvents)

@@ -23,7 +23,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.spi.AuthorizationHandler;
 import com.here.xyz.hub.spi.Modules;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
@@ -36,12 +35,12 @@ import org.apache.logging.log4j.Marker;
 public abstract class Authorization {
 
   private static final Logger logger = LogManager.getLogger();
-  private static final AuthorizationHandler authorizationHandler = Modules.getAuthorizationHandler();
+  private static final CompositeAuthorizationHandler compositeAuthorizationHandler = Modules.getCompositeAuthorizationHandler();
 
-  public static <X extends Task> void authorize(X task, Callback<X> callback) {
+  public static <X extends Task> void authorizeComposite(X task, Callback<X> callback) {
     final HttpException unauthorized = new HttpException(UNAUTHORIZED, "Authorization failed");
 
-    authorizationHandler.authorize(task.context)
+    compositeAuthorizationHandler.authorize(task.context)
         .flatMap(authorized -> authorized ? Future.succeededFuture() : Future.failedFuture(unauthorized))
         .onSuccess(v -> callback.call(task))
         .onFailure(e -> {

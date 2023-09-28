@@ -37,7 +37,6 @@ import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.ApiResponseType;
 import com.here.xyz.hub.rest.HttpException;
-import com.here.xyz.hub.spi.AuthorizationHandler;
 import com.here.xyz.hub.spi.Modules;
 import com.here.xyz.hub.task.ModifyOp;
 import com.here.xyz.hub.task.ModifyOp.Entry;
@@ -70,7 +69,6 @@ import org.apache.logging.log4j.Marker;
 @SuppressWarnings("rawtypes")
 public class SpaceAuthorization extends Authorization {
   private static final Logger logger = LogManager.getLogger();
-  static final AuthorizationHandler authorizationHandler = Modules.getAuthorizationHandler();
 
   public static List<String> basicEdit = Arrays
       .asList("id", "title", "description", "client", "copyright", "license", "shared", "cacheTTL", "readOnly", "extends",
