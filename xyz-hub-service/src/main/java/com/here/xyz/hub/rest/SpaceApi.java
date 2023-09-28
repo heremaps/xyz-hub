@@ -26,12 +26,14 @@ import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.here.xyz.hub.Service;
 import com.here.xyz.hub.rest.ApiParam.Path;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.ModifyOp.IfExists;
 import com.here.xyz.hub.task.ModifyOp.IfNotExists;
 import com.here.xyz.hub.task.ModifySpaceOp;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
+import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.hub.task.SpaceTask.MatrixReadQuery;
 import com.here.xyz.models.hub.Space.Copyright;
 import io.vertx.core.json.DecodeException;
@@ -56,11 +58,10 @@ public class SpaceApi extends SpaceBasedApi {
    * Read a space.
    */
   public void getSpace(final RoutingContext context) {
-    Map<String, Object> input = new JsonObject().put("id", context.pathParam(ApiParam.Path.SPACE_ID)).getMap();
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input), IfNotExists.ERROR, IfExists.RETAIN, true);
-
-    new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, true)
-        .execute(this::sendResponse, this::sendErrorResponse);
+    new MatrixReadQuery(
+        context,
+        context.pathParam(ApiParam.Path.SPACE_ID)
+    ).execute(this::sendResponse, this::sendErrorResponse);
   }
 
   /**
@@ -90,7 +91,10 @@ public class SpaceApi extends SpaceBasedApi {
       context.fail(new HttpException(BAD_REQUEST, "Invalid JSON string"));
       return;
     }
-    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.CREATE, IfExists.ERROR, true);
+
+    ConnectorMapping defaultConnectorMapping = ConnectorMapping.of(Service.configuration.DEFAULT_CONNECTOR_MAPPING_STRATEGY);
+    ConnectorMapping connectorMapping = ConnectorMapping.of(ApiParam.Query.getString(context, Query.CONNECTOR_MAPPING, defaultConnectorMapping.name()), defaultConnectorMapping);
+    ModifySpaceOp modifyOp = new ModifySpaceOp(Collections.singletonList(input.getMap()), IfNotExists.CREATE, IfExists.ERROR, true, connectorMapping);
 
     new ConditionalOperation(context, ApiResponseType.SPACE, modifyOp, false)
         .execute(this::sendResponse, this::sendErrorResponse);

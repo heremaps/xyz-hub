@@ -30,7 +30,9 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
+import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.events.ModifySpaceEvent.Operation;
@@ -52,6 +54,7 @@ import com.here.xyz.hub.task.FeatureTask.ModifySpaceQuery;
 import com.here.xyz.hub.task.ModifyOp.Entry;
 import com.here.xyz.hub.task.ModifyOp.ModifyOpError;
 import com.here.xyz.hub.task.SpaceTask.ConditionalOperation;
+import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.hub.task.SpaceTask.ReadQuery;
 import com.here.xyz.hub.task.SpaceTask.View;
 import com.here.xyz.hub.task.TaskPipeline.C1;
@@ -89,31 +92,37 @@ public class SpaceTaskHandler {
   private static final int CLIENT_VALUE_MAX_SIZE = 1024;
 
   static <X extends ReadQuery<?>> void readSpaces(final X task, final Callback<X> callback) {
-    Future<List<Tag>> tagsFuture = StringUtils.isBlank(task.selectedCondition.tagId) ?
-        Future.succeededFuture(Collections.emptyList()) :
-        Service.tagConfigClient.getTagsByTagId(task.getMarker(), task.selectedCondition.tagId);
+    Service.spaceConfigClient.getSelected(task.getMarker(),
+            task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
+            .compose(spaces -> {
+              if (StringUtils.isBlank(task.selectedCondition.tagId)) {
+                return Future.succeededFuture(spaces);
+              }
+              List<String> spaceIds = spaces.stream().map(Space::getId).toList();
+              return Service.tagConfigClient.getTags(task.getMarker(), task.selectedCondition.tagId, spaceIds)
+                      .compose(tags -> {
+                        List<String> spaceIdsFromTag = tags.stream().map(Tag::getSpaceId).toList();
+                        List<Space> spacesFilteredByTag = spaces.stream().filter(space -> spaceIdsFromTag.contains(space.getId())).toList();
+                        return augmentWithTags(spacesFilteredByTag, tags);
+                      });
+            })
+            .onFailure(t -> {
+              logger.error(task.getMarker(), "Unable to load space definitions.'", t);
+              callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
+            })
+            .onSuccess(spaces -> {
+              task.responseSpaces = spaces;
+              callback.call(task);
+            });
+  }
 
-    tagsFuture
-        .compose(tags -> {
-          if (task.selectedCondition.tagId != null) {
-            if (tags.isEmpty())
-              return Future.succeededFuture(Collections.emptyList());
+  static <X extends ReadQuery<?>> void checkSpaceExists(final X task, final Callback<X> callback) {
+    if (task.responseType == ApiResponseType.SPACE && CollectionUtils.isNullOrEmpty(task.responseSpaces)) {
+      callback.exception(new HttpException(NOT_FOUND, "The requested resource does not exist."));
+      return;
+    }
 
-            task.selectedCondition.ownerIds = Collections.emptySet();
-            task.selectedCondition.spaceIds = tags.stream().map(Tag::getSpaceId).collect(Collectors.toSet());
-          }
-
-          return Service.spaceConfigClient.getSelected(task.getMarker(), task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
-              .compose(spaces -> augmentWithTags(spaces, tags));
-        })
-        .onFailure(t -> {
-          logger.error(task.getMarker(), "Unable to load space definitions.'", t);
-          callback.exception(new HttpException(INTERNAL_SERVER_ERROR, "Unable to load the resource definitions.", t));
-        })
-        .onSuccess(spaces -> {
-          task.responseSpaces = spaces;
-          callback.call(task);
-        });
+    callback.call(task);
   }
 
   static Future<List<Space>> augmentWithTags(List<Space> spaces, List<Tag> tags) {
@@ -140,40 +149,47 @@ public class SpaceTaskHandler {
   }
 
   static <X extends ReadQuery<?>> void readFromJWT(final X task, final Callback<X> callback) {
-    final List<String> authorizedListSpacesOps = Arrays
-        .asList(ADMIN_SPACES, MANAGE_SPACES, READ_FEATURES, CREATE_FEATURES, UPDATE_FEATURES, DELETE_FEATURES);
-    final ActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
-
     task.authorizedCondition = new SpaceSelectionCondition();
     task.authorizedCondition.spaceIds = new HashSet<>();
     task.authorizedCondition.ownerIds = new HashSet<>();
     task.authorizedCondition.packages = new HashSet<>();
 
-    final Supplier<Stream<AttributeMap>> sup = () -> tokenRights
-        .entrySet()
-        .stream()
-        .filter(e -> authorizedListSpacesOps.contains(e.getKey()))
-        .flatMap(e -> e.getValue().stream());
+    if (task.responseType == ApiResponseType.SPACE) {
+      callback.call(task);
+      return;
+    }
 
-    boolean readAll = sup.get().anyMatch(HashMap::isEmpty);
-    if (!readAll) {
-      sup.get().forEach(am -> {
-            if (am.get("space") instanceof String) {
-              String spaceId = (String) am.get("space");
-              task.authorizedCondition.spaceIds.add(spaceId);
+    final List<String> authorizedListSpacesOps = Arrays
+        .asList(ADMIN_SPACES, MANAGE_SPACES, READ_FEATURES, CREATE_FEATURES, UPDATE_FEATURES, DELETE_FEATURES);
+    final ActionMatrix tokenRights = task.getJwt().getXyzHubMatrix();
+
+    if (tokenRights != null) {
+      final Supplier<Stream<AttributeMap>> sup = () -> tokenRights
+          .entrySet()
+          .stream()
+          .filter(e -> authorizedListSpacesOps.contains(e.getKey()))
+          .flatMap(e -> e.getValue().stream());
+
+      boolean readAll = sup.get().anyMatch(HashMap::isEmpty);
+      if (!readAll) {
+        sup.get().forEach(am -> {
+              if (am.get("space") instanceof String) {
+                String spaceId = (String) am.get("space");
+                task.authorizedCondition.spaceIds.add(spaceId);
+              }
+              //A filter without space ID, but with an owner.
+              else if (am.get("owner") instanceof String) {
+                String ownerId = (String) am.get("owner");
+                task.authorizedCondition.ownerIds.add(ownerId);
+              }
+              //A filter for packages.
+              else if (am.get("packages") instanceof String) {
+                String packages = (String) am.get("packages");
+                task.authorizedCondition.packages.add(packages);
+              }
             }
-            //A filter without space ID, but with an owner.
-            else if (am.get("owner") instanceof String) {
-              String ownerId = (String) am.get("owner");
-              task.authorizedCondition.ownerIds.add(ownerId);
-            }
-            //A filter for packages.
-            else if (am.get("packages") instanceof String) {
-              String packages = (String) am.get("packages");
-              task.authorizedCondition.packages.add(packages);
-            }
-          }
-      );
+        );
+      }
     }
 
     callback.call(task);
@@ -189,17 +205,22 @@ public class SpaceTaskHandler {
       String cid = task.getJwt().cid;
       task.template = getSpaceTemplate(owner, cid);
 
+      String spaceId = input.getString("id");
+      String region = input.getString("region");
+
       String storageId = task.template.getStorage().getId();
       logger.info(task.getMarker(), "storageId from space template: " + storageId);
 
-      if (input.getString("region") != null) {
-        storageId = Service.configuration.getDefaultStorageId(input.getString("region"));
-        logger.info(task.getMarker(), "default storageId from region " + input.getString("region") + ": " + storageId);
+      if (region != null) {
+        storageId = Service.configuration.getDefaultStorageId(region);
+        logger.info(task.getMarker(), "default storageId from region " + region + ": " + storageId);
 
-        if (input.getString("id") != null) {
-          String matchedStorageId = SpaceStorageMatchingMap.getIfMatches(input.getString("id"), input.getString("region"));
-          logger.info(task.getMarker(), "storageId from space/region/storage mapping: " + matchedStorageId);
-          if (matchedStorageId != null) storageId = matchedStorageId;
+        if (task.modifyOp.connectorMapping == ConnectorMapping.SPACESTORAGEMATCHINGMAP) {
+          if (spaceId != null) {
+            String matchedStorageId = SpaceStorageMatchingMap.getIfMatches(spaceId, region);
+            logger.info(task.getMarker(), "SpaceStorageMatchingMap from space/region/storage mapping: {}/{}/{}", spaceId, region, matchedStorageId);
+            if (matchedStorageId != null) storageId = matchedStorageId;
+          }
         }
 
         if (storageId == null) {
@@ -300,11 +321,9 @@ public class SpaceTaskHandler {
 
       // normalize params in case of null, so the diff calculator considers: null params == empty params
       // normalization is necessary because params from head or result are always a map, unless the user specifies params: null and params from space template is null
-      if (inputStorage.get("params") == null)
-        inputStorage.put("params", new HashMap<>());
+      inputStorage.computeIfAbsent("params", k -> new HashMap<>());
 
-      if (resultStorage.get("params") == null)
-        resultStorage.put("params", new HashMap<>());
+      resultStorage.computeIfAbsent("params", k -> new HashMap<>());
 
       // if there is any modification, means the user tried to submit 'storage' and 'extends' properties together
       if (Patcher.getDifference(inputStorage, resultStorage) != null) {
@@ -350,7 +369,7 @@ public class SpaceTaskHandler {
     }
 
     Service.spaceConfigClient.get(task.getMarker(), (String)spaceId)
-        .onFailure(t -> callback.exception(t))
+        .onFailure(callback::exception)
         .onSuccess(headSpace -> {
           task.modifyOp.entries.get(0).head = headSpace;
           task.modifyOp.entries.get(0).base = headSpace;
@@ -369,7 +388,7 @@ public class SpaceTaskHandler {
     if (entry.input != null && entry.result == null)
       Service.spaceConfigClient
           .delete(task.getMarker(), entry.head.getId())
-          .onFailure(t -> callback.exception(t))
+          .onFailure(callback::exception)
           .onSuccess(v -> {
             task.responseSpaces = Collections.singletonList(task.modifyOp.entries.get(0).head);
             callback.call(task);
@@ -377,7 +396,7 @@ public class SpaceTaskHandler {
     else
       Service.spaceConfigClient
           .store(task.getMarker(), entry.result)
-          .onFailure(t -> callback.exception(t))
+          .onFailure(callback::exception)
           .onSuccess(v -> {
             task.responseSpaces = Collections.singletonList(entry.result);
             callback.call(task);
@@ -638,7 +657,7 @@ public class SpaceTaskHandler {
         //... update the readOnlyHeadVersion on the space object
         updateReadOnlyHeadVersion(task.getMarker(), entry.result)
             .onSuccess(r -> callback.call(task))
-            .onFailure(t -> callback.exception(t));
+            .onFailure(callback::exception);
       else {
         //... if it was set to inactive, reset the readOnlyHeadVersion
         entry.result.setReadOnlyHeadVersion(-1);
@@ -658,7 +677,7 @@ public class SpaceTaskHandler {
           space.setReadOnlyHeadVersion(response.getMaxVersion());
           p.complete();
         }))
-        .onFailure(t -> p.fail(t));
+        .onFailure(p::fail);
     return p.future();
   }
 

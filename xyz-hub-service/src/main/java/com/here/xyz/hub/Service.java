@@ -217,6 +217,7 @@ public class Service extends Core {
     );
 
     return settingsConfigClient.init()
+        .compose(v -> settingsConfigClient.insertLocalSettings())
         .compose(v -> spaceConfigClient.init())
         .compose(v -> connectorConfigClient.init())
         .compose(v -> Future.fromCompletionStage(connectorConfigClient.insertLocalConnectors()))
@@ -234,7 +235,7 @@ public class Service extends Core {
     }
 
     final List<String> verticlesClassNames = Arrays.asList(Service.configuration.VERTICLES_CLASS_NAMES.split(","));
-    int numInstances = Runtime.getRuntime().availableProcessors() * 2 / verticlesClassNames.size();
+    int numInstances = Runtime.getRuntime().availableProcessors();
     final DeploymentOptions options = new DeploymentOptions()
         .setConfig(config)
         .setWorker(false)

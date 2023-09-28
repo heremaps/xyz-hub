@@ -60,7 +60,7 @@ public class TagApiIT extends TestSpaceWithFeature {
                 .contentType(ContentType.JSON)
                 .body("{\"id\":\"XYZ_1\"}")
                 .post("/spaces/" + getSpaceId() + "/tags")
-                .then();
+                .then().statusCode(OK.code());
     }
 
   private ValidatableResponse _addOneFeature() {
@@ -230,7 +230,7 @@ public class TagApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void testCreateTagWithoutVersionNot() {
+  public void testCreateTagWithoutVersion() {
     _addOneFeature();
     _addOneFeature();
 
@@ -252,5 +252,77 @@ public class TagApiIT extends TestSpaceWithFeature {
         .post("/spaces/" + getSpaceId() + "/tags")
         .then()
         .body("version", equalTo(555));
+  }
+
+  @Test
+  public void testCreateTagWithVersionMinusTen() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"id\":\"XYZ_1\",\"version\":-10}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void testCreateTagWithVersionMinusOneOnEmptySpace() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"id\":\"XYZ_1\",\"version\":-1}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .body("version", equalTo(-1));
+  }
+
+  @Test
+  public void testCreateTagWithVersionMinusOneOnSpaceWithData() {
+    _addOneFeature();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"id\":\"XYZ_1\",\"version\":-1}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .body("version", equalTo(-1));
+  }
+
+  @Test
+  public void testCreateTagWithVersionZeroOnEmptySpace() {
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"id\":\"XYZ_1\",\"version\":0}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .body("version", equalTo(0));
+  }
+
+  @Test
+  public void testCreateTagWithVersionZeroOnSpaceWithData() {
+    _addOneFeature();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"id\":\"XYZ_1\",\"version\":0}")
+        .post("/spaces/" + getSpaceId() + "/tags")
+        .then()
+        .body("version", equalTo(0));
+  }
+
+  @Test
+  public void testUpdateTagWithVersionMinusTen() {
+    _createTag();
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(ContentType.JSON)
+        .body("{\"version\":-10}")
+        .patch("/spaces/" + getSpaceId() + "/tags/XYZ_1")
+        .then()
+        .statusCode(BAD_REQUEST.code());
   }
 }

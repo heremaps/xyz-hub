@@ -187,6 +187,8 @@ public class ApiParam {
 
     static final String REGION = "region";
 
+    static final String CONNECTOR_MAPPING = "connectorMapping";
+
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
       put(">=", QueryOperation.GREATER_THAN_OR_EQUALS);

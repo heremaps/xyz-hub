@@ -201,11 +201,13 @@ public abstract class ConnectorConfigClient implements Initializable {
   }
 
   public CompletableFuture<Void> insertLocalConnectors() {
-    if (!Service.configuration.INSERT_LOCAL_CONNECTORS) {
+    if (!Service.configuration.INSERT_LOCAL_CONNECTORS)
       return CompletableFuture.completedFuture(null);
-    }
 
     final InputStream input = ConnectorConfigClient.class.getResourceAsStream("/connectors.json");
+    if (input == null)
+      return CompletableFuture.completedFuture(null);
+
     try (BufferedReader buffer = new BufferedReader(new InputStreamReader(input))) {
       final String connectorsFile = buffer.lines().collect(Collectors.joining("\n"));
       final List<Connector> connectors = JacksonCodec.decodeValue(connectorsFile, new TypeReference<>() {});
@@ -314,7 +316,6 @@ public abstract class ConnectorConfigClient implements Initializable {
       }
     });
   }
-
 
   protected abstract void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler);
 

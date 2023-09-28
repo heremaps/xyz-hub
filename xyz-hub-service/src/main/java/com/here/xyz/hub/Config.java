@@ -3,6 +3,7 @@ package com.here.xyz.hub;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.here.xyz.hub.auth.AuthorizationType;
+import com.here.xyz.hub.task.SpaceTask.ConnectorMapping;
 import com.here.xyz.hub.util.ARN;
 import java.util.Arrays;
 import java.util.Collections;
@@ -499,4 +500,14 @@ public class Config {
     }
     return (List<String>) XYZ_HUB_DEFAULT_STORAGE_REGION_MAPPING.get(region);
   }
+
+  /**
+   * If set to true, the settings configuration will be populated with settings defined in settings.json.
+   */
+  public boolean INSERT_LOCAL_SETTINGS;
+
+  /**
+   * When creating space, the default strategy is used if not informed on the request
+   */
+  public String DEFAULT_CONNECTOR_MAPPING_STRATEGY = ConnectorMapping.RANDOM.name();
 }

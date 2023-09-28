@@ -54,5 +54,6 @@
   "DECOMPRESSED_OUTPUT_SIZE_HEADER_NAME" : "X-Decompressed-Output-Size",
 
   "LOCALSTACK_ENDPOINT" : "http://localhost:4566",
-  "XYZ_HUB_S3_BUCKET": "test-bucket"
+  "XYZ_HUB_S3_BUCKET": "test-bucket",
+  "INSERT_LOCAL_SETTINGS": true
 }
