@@ -95,9 +95,10 @@ public class SpaceTaskHandler {
     Service.spaceConfigClient.getSelected(task.getMarker(),
             task.authorizedCondition, task.selectedCondition, task.propertiesQuery)
             .compose(spaces -> {
-              if (StringUtils.isBlank(task.selectedCondition.tagId)) {
+              if (StringUtils.isBlank(task.selectedCondition.tagId) || spaces.isEmpty()) {
                 return Future.succeededFuture(spaces);
               }
+
               List<String> spaceIds = spaces.stream().map(Space::getId).toList();
               return Service.tagConfigClient.getTags(task.getMarker(), task.selectedCondition.tagId, spaceIds)
                       .compose(tags -> {
