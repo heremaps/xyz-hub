@@ -169,6 +169,13 @@ public class CombinedJob extends Job<CombinedJob> {
   }
 
   @Override
+  public Future<Job> executeAbort() {
+    return super.executeAbort()
+        .compose(job -> updateJobStatus(job, aborted))
+        .compose(job -> abortAllNonFinalChildren());
+  }
+
+  @Override
   protected void isValidForRetry() throws HttpException {
     throw new HttpException(PRECONDITION_FAILED, "Retry is not supported for CombinedJobs.");
   }
@@ -213,7 +220,8 @@ public class CombinedJob extends Job<CombinedJob> {
         //Everything is processed
         logger.info("job[{}] CombinedJob completely succeeded!", getId());
 //        addStatistic(statistic);
-        updateJobStatus(this, executed);
+        if (!getStatus().isFinal())
+          updateJobStatus(this, executed);
       }).start();
     }
   }
