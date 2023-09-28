@@ -40,14 +40,15 @@ The interfaces are basically defined like:
 
 ## IReadTransaction
 
-| Method                                                                                                  | Description                                                                              |
-|---------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|
-| readFeatures(List\<String\> collections, long version, ST stOp, PT propertyOp) : IResultSet<XyzFeature> | Read features from the given collections in the given version, using the given query.    |
-| readVersions(long start) : IResultSet<Version>                                                          | Read the transaction-log, starting with the given version till the end.                  |
-| readVersions(long start, long end) : IResultSet<Version>                                                | Read the transaction-log, starting with the given version till the given end version.    |
-| readVersions(String commentId) : IResultSet<Version>                                                    | Read the transaction-log, return all version with a comment with the given identifier.   |
-| readPublic(long start, int limit) : List<Version>                                                       | Read the transaction-log, return all public versions greater than the given start value. |
-| close()                                                                                                 | Close the transaction and all open cursors.                                              |
+| Method                                                                                                  | Description                                                                                       |
+|---------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| readFeatures(List\<String\> collections, long version, ST stOp, PT propertyOp) : IResultSet<XyzFeature> | Read features from the given collections in the given version, using the given query.             |
+| readVersions(long start) : IResultSet\<Version\>                                                        | Read the transaction-log, starting with the given version till the end.                           |
+| readVersions(long start, long end) : IResultSet\<Version\>                                              | Read the transaction-log, starting with the given version till the given end version.             |
+| readVersions(String commentId) : IResultSet\<Version\>                                                  | Read the transaction-log, return all version with a comment with the given identifier.            |
+| readPublic(long start, int limit) : List\<Version\>                                                     | Read the transaction-log, return all public versions greater than the given start value.          |
+| latestConsistentVersion() : long                                                                        | Returns the last version that is guaranteed to be consistent, so there is no pending transaction. |
+| close()                                                                                                 | Close the transaction and all open cursors.                                                       |
 
 ## IWriteTransaction
 
