@@ -115,6 +115,12 @@ public class PsqlHttpConnectorVerticle extends AbstractHttpServerVerticle implem
   }
 
   @Override
+  protected void addDefaultHandlers(Router router) {
+    super.addDefaultHandlers(router);
+    router.route().last().handler(createNotFoundHandler());
+  }
+
+  @Override
   public Future<Router> buildRoutes(Vertx vertx) {
     return RouterBuilder.create(vertx, LOCATION).compose(ar -> {
       Router router;
