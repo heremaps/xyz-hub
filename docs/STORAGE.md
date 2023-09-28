@@ -35,30 +35,47 @@ The storage context offers a couple of methods related to the storage.
 
 The interfaces are basically defined like:
 
-- `IMasterTransaction extends IWriteTransaction, IReadTransaction, IFeatureReader, IFeatureWriter, AutoClosable`
+- `IMasterTransaction extends IAdminTransaction, IAdminManager, IWriteTransaction, IReadTransaction, IFeatureReader, IFeatureWriter, AutoClosable`
 - `IReplicaTransaction extends IReadTransaction, IFeatureReader, AutoClosable`
+
+## IAdminTransaction
+
+| Method                                                                                           | Description                                                                        |
+|--------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| initStorage()                                                                                    | Initialize the storage and ensure the latest Naksha extension is installed.        |
+| maintainStorage()                                                                                | Perform maintenance tasks, for example like purging outdated history, run vacuum.  |
+| getCollections( List\<String\> ids ) : IResultSet\<StorageCollection\>                           | Return the requested collections.                                                  |
+| listCollections() : IResultSet\<StorageCollection\>                                              | Return all storage collections.                                                    |
+| upsertCollection( StorageCollection collection ) : StorageCollection                             | Insert or update the given storage collection.                                     |
+| deleteCollectionAt( StorageCollection collection, long time ) : StorageCollection                | Ask for deletion of the collection at a specific time in the future.               |
+| deleteCollectionIn( StorageCollection collection, long time, TimeUnit unit ) : StorageCollection | Ask for deletion of the collection in the future.                                  |
+| restoreCollection( StorageCollection collection ) : StorageCollection                            | Restores a collection that was marked for deletion.                                |
+| purgeCollection( StorageCollection collection ) : StorageCollection                              | Delete the collection now (instant).                                               |
+
+We need to add methods to create and manage indices on collections.
 
 ## IReadTransaction
 
-| Method                                                                                                  | Description                                                                                       |
-|---------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| readFeatures(List\<String\> collections, long version, ST stOp, PT propertyOp) : IResultSet<XyzFeature> | Read features from the given collections in the given version, using the given query.             |
-| readVersions(long start) : IResultSet\<Version\>                                                        | Read the transaction-log, starting with the given version till the end.                           |
-| readVersions(long start, long end) : IResultSet\<Version\>                                              | Read the transaction-log, starting with the given version till the given end version.             |
-| readVersions(String commentId) : IResultSet\<Version\>                                                  | Read the transaction-log, return all version with a comment with the given identifier.            |
-| readPublic(long start, int limit) : List\<Version\>                                                     | Read the transaction-log, return all public versions greater than the given start value.          |
-| latestConsistentVersion() : long                                                                        | Returns the last version that is guaranteed to be consistent, so there is no pending transaction. |
-| close()                                                                                                 | Close the transaction and all open cursors.                                                       |
+| Method                                                                                                                      | Description                                                                                       |
+|-----------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| readFeatures(List\<String\> collections, long version, SOp stOp, Pop propertyOp, OOp orderBy...) : IResultSet\<XyzFeature\> | Read features from the given collections in the given version, using the given query.             |
+| readVersions(long start) : IResultSet\<Version\>                                                                            | Read the transaction-log, starting with the given version till the end.                           |
+| readVersions(long start, long end) : IResultSet\<Version\>                                                                  | Read the transaction-log, starting with the given version till the given end version.             |
+| readVersions(String commentId) : IResultSet\<Version\>                                                                      | Read the transaction-log, return all version with a comment with the given identifier.            |
+| readPublicVersions(long start, int limit) : List\<Version\>                                                                 | Read the transaction-log, return all public versions greater than the given start value.          |
+| calculateOptimalPartitioning(long version) : Map\<String, Long\>                                                            | Returns the last version that is guaranteed to be consistent, so there is no pending transaction. |
+| latestConsistentVersion() : long                                                                                            | Returns the last version that is guaranteed to be consistent, so there is no pending transaction. |
+| close()                                                                                                                     | Close the transaction and all open cursors.                                                       |
 
 ## IWriteTransaction
 
-| Method                                                                | Description                                                                 |
-|-----------------------------------------------------------------------|-----------------------------------------------------------------------------|
-| writeFeatures( WriteQuery query ) : WriteResult                       | Returns the low-level read access.                                          |
-| setComment( String id, String message, Object object, byte[] binary ) | Set a comment with the given identifier, message and optional attachments.  |
-| commit()                                                              | Commit all performed writes, closes all open cursors.                       |
-| rollback()                                                            | Rollback (revert) all not yet committed writes, closes all open cursors.    |
-| close()                                                               | Perform a rollback and then close the transaction and all open cursors.     |
+| Method                                                                | Description                                                                    |
+|-----------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| writeFeatures( WriteQuery query ) : WriteResult                       | Write the given features and return the result.                                |
+| setComment( String id, String message, Object object, byte[] binary ) | Write a comment with the given identifier, message and optional attachments.   |
+| commit()                                                              | Commit all performed writes, closes all open cursors.                          |
+| rollback()                                                            | Rollback (revert) all not yet committed writes, closes all open cursors.       |
+| close()                                                               | Perform a rollback and then close the transaction and all open cursors.        |
 
 ## IResultSet<TYPE> extends Iterator<TYPE>, AutoClosable
 
@@ -69,47 +86,57 @@ The interfaces are basically defined like:
 | next() : TYPE                                          | Returns the next feature.                              |
 | close()                                                | Close the cursor.                                      |
 
-## IFeatureReader / IFeatureWriter
+## IFeatureReader / IFeatureWriter / IAdminManager
 
 These interfaces will offer helper methods that not implemented by the storage itself, rather they are helper methods provided by the 
 Naksha library itself, for example `getFeatureById(String id, Class<TYPE> typeClass) : TYPE`. It is not yet clear what is needed here.
 
-## ST, PT and VT
+## SRef, PRef, ORed, SOp, POp and Oop
 
 The Naksha library comes with three classes for operations:
 
-- **ST**: spatial type operation
-- **PT**: property type operation
+- **SRef**: spatial reference
+- **SOp**: spatial operation
+- **PRef**: property reference
+- **POp**: property operation
+- **OOp**: order operation
 
 They are used to query for features. The three classes are public with static public methods that return protected classes extending the
 corresponding type class. The following table shows all static methods and what they return. Some methods are available for all types,
 some are only available for a specific type:
 
-| Method                                             | Description                                                              |
-|----------------------------------------------------|--------------------------------------------------------------------------|
-| *.and( ops... ) : op                               | Creates an logical AND for the given operations and returns the AND.     |
-| *.or( ops... ) : op                                | Creates an logical OR for the given operations and returns the OR.       |
-| *.not( op ) : op                                   | Inverts the operation, so true becomes false and false becomes true.     |
-| ST.geometry( Geometry geo ) : ST_Geo               | Wraps a geometry into a ST-geometry.                                     |
-| ST.buffer( Geometry geo, radius: double ) : ST_Geo | Wraps a geometry with a buffer around it into a ST-geometry.             |
-| ST.intersects2d( ST_Geo geo ) : ST                 | Tests if a feature intersects with the given geometry.                   |
-| ST.intersects3d( ST_Geo geo ) : ST                 | Tests if a feature intersects with the given geometry.                   |
-| PT.id() : PT_Ref                                   | Returns a reference to the **id** property.                              |
-| PT.uuid() : PT_Ref                                 | Returns a reference to the **uuid** property from the XYZ-namespace.     |
-| PT.uts() : PT_Ref                                  | Returns a reference to the **uts** property from the XYZ-namespace.      |
-| PT.appId() : PT_Ref                                | Returns a reference to the **appId** property from the XYZ-namespace.    |
-| PT.author() : PT_Ref                               | Returns a reference to the **author** property from the XYZ-namespace.   |
-| PT.tag(String name) : PT_Ref                       | Returns a reference to a specific tag in the XYZ-namespace.              |
-| PT.property(String path...) : PT_Ref               | Returns a reference to an arbitrary property using the given path.       |
-| PT.exists( PT_Ref ref ) : PT                       | Tests if a feature does have the given property.                         |
-| PT.equals( PT_Ref ref, String value ) : PT         | Tests if the property equals the given value.                            |
-| PT.equals( PT_Ref ref, long value ) : PT           | Tests if the property equals the given value.                            |
-| PT.equals( PT_Ref ref, double value ) : PT         | Tests if the property equals the given value.                            |
-| PT.equals( PT_Ref ref, boolean value ) : PT        | Tests if the property equals the given value.                            |
-| PT.lt( PT_Ref ref, long value ) : PT               | Tests if the property value is less than the given value.                |
-| PT.lte( PT_Ref ref, long value ) : PT              | Tests if the property value is less than or equal the given value.       |
-| PT.gt( PT_Ref ref, long value ) : PT               | Tests if the property value is greater than the given value.             |
-| PT.gte( PT_Ref ref, long value ) : PT              | Tests if the property value is greater than or equal the given value.    |
+| Method                                               | Description                                                            |
+|------------------------------------------------------|------------------------------------------------------------------------|
+| *Op.and( ops... ) : *Op                              | Creates an logical AND for the given operations and returns the AND.   |
+| *Op.or( ops... ) : *Op                               | Creates an logical OR for the given operations and returns the OR.     |
+| *Op.not( op ) : *Op                                  | Inverts the operation, so true becomes false and false becomes true.   |
+| SRef.geometry( Geometry geo ) : SRef                 | Wraps a geometry into a ST-geometry.                                   |
+| SRef.buffer( Geometry geo, radius: double ) : SRef   | Wraps a geometry with a buffer around it into a ST-geometry.           |
+| SRef.tile( long x, long y, int srid ) : SRef         | Wraps a projected tile into a ST-geometry.                             |
+| SRef.webTile( String id ) : SRef                     | Wraps a web-mercator tile into a ST-geometry.                          |
+| SRef.hereTile( String id ) : SRef                    | Wraps a HERE tile into a ST-geometry.                                  |
+| SOp.intersects2d( ST_Geo geo ) : SOp                 | Tests if a feature intersects with the given geometry.                 |
+| SOp.intersects3d( ST_Geo geo ) : SOp                 | Tests if a feature intersects with the given geometry.                 |
+| PRef.id() : PRef                                     | Returns a reference to the **id** property.                            |
+| PRef.uuid() : PRef                                   | Returns a reference to the **uuid** property from the XYZ-namespace.   |
+| PRef.uts() : PRef                                    | Returns a reference to the **uts** property from the XYZ-namespace.    |
+| PRef.appId() : PRef                                  | Returns a reference to the **appId** property from the XYZ-namespace.  |
+| PRef.author() : PRef                                 | Returns a reference to the **author** property from the XYZ-namespace. |
+| PRef.tag(String name) : PRef                         | Returns a reference to a specific tag in the XYZ-namespace.            |
+| PRef.hereQuadRefId() : PRef                          | Returns a reference to the **hqrid** XYZ-namespace.                    |
+| PRef.webQuadRefId() : PRef                           | Returns a reference to the **wqrid** XYZ-namespace.                    |
+| PRef.property(String path...) : PRef                 | Returns a reference to an arbitrary property using the given path.     |
+| POp.exists( PRef ref ) : POp                         | Tests if a feature does have the given property.                       |
+| POp.startsWith( PRef ref, String value ) : POp       | Tests if the property value stars with the string.                     |
+| POp.equals( PRef ref, String value ) : POp           | Tests if the property equals the given value.                          |
+| POp.equals( PRef ref, number value ) : POp           | Tests if the property equals the given value.                          |
+| POp.equals( PRef ref, boolean value ) : POp          | Tests if the property equals the given value.                          |
+| POp.lt( PRef ref, number value ) : POp               | Tests if the property value is less than the given value.              |
+| POp.lte( PRef ref, number value ) : POp              | Tests if the property value is less than or equal the given value.     |
+| POp.gt( PRef ref, number value ) : POp               | Tests if the property value is greater than the given value.           |
+| POp.gte( PRef ref, number value ) : POp              | Tests if the property value is greater than or equal the given value.  |
+| OOp.orderAsc( PRef ref, nullsFirst: boolean ) : OOp  | Order the results ascending by the given property.                     |
+| OOp.orderDesc( PRef ref, nullsFirst: boolean ) : OOp | Order the results descending by the given property.                    |
 
 More operations may be added later.
 
