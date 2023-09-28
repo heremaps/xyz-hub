@@ -26,7 +26,6 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
@@ -39,7 +38,6 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
@@ -209,10 +207,7 @@ public abstract class Job<T extends Job> extends Payload {
       catch (HttpException e) {
         return Future.failedFuture(e);
       }
-      //Job will fail - because SQL Queries are getting terminated
-      return JDBCClients.abortJobsByJobId(this)
-          .onFailure(e -> new HttpException(BAD_GATEWAY, "Abort failed [" + getStatus() + "]"))
-          .map(v -> this);
+      return Future.succeededFuture(this);
     }
 
     public Future<Job> prepareStart() {

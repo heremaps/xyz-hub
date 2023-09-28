@@ -64,7 +64,7 @@ import org.apache.logging.log4j.Logger;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
-public class Export extends Job<Export> {
+public class Export extends JDBCBasedJob<Export> {
     private static final Logger logger = LogManager.getLogger();
     public static String ERROR_TYPE_HTTP_TRIGGER_FAILED = "http_trigger_failed";
     public static String ERROR_TYPE_TARGET_ID_INVALID = "targetId_invalid";
@@ -123,11 +123,6 @@ public class Export extends Job<Export> {
 
     public Export() {
         super();
-    }
-
-    public Export(String description, String targetSpaceId, String targetTable, Strategy strategy) {
-        super(description, targetSpaceId, targetTable, strategy);
-        setClipped(false);
     }
 
     @Override
