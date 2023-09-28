@@ -169,13 +169,10 @@ public class CombinedJob extends Job<CombinedJob> {
   }
 
   @Override
-  public void finalizeJob() {
-    finalizeChildren();
-    super.finalizeJob();
-  }
-
-  protected void finalizeChildren() {
-    children.forEach(childJob -> childJob.finalizeJob());
+  public Future<Job> executeAbort() {
+    return super.executeAbort()
+        .compose(job -> updateJobStatus(job, aborted))
+        .compose(job -> abortAllNonFinalChildren());
   }
 
   @Override
@@ -223,7 +220,8 @@ public class CombinedJob extends Job<CombinedJob> {
         //Everything is processed
         logger.info("job[{}] CombinedJob completely succeeded!", getId());
 //        addStatistic(statistic);
-        updateJobStatus(this, executed);
+        if (!getStatus().isFinal())
+          updateJobStatus(this, executed);
       }).start();
     }
   }

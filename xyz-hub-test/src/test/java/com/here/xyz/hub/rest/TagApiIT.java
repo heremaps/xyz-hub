@@ -325,4 +325,16 @@ public class TagApiIT extends TestSpaceWithFeature {
         .then()
         .statusCode(BAD_REQUEST.code());
   }
+
+  @Test
+  public void testListSpacesFilterByContentUpdatedAtAndTagIdAndRegion() {
+    createSpaceWithVersionsToKeep(SECOND_SPACE, 2);
+
+    given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .get("/spaces?contentUpdatedAt=gt=1&tag=XYZ_1&region=invalid_region")
+        .then()
+        .body("size()", is(0))
+        .statusCode(OK.code());
+  }
 }
