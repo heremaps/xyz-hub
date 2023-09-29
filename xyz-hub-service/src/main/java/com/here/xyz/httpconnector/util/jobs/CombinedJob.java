@@ -28,8 +28,9 @@ import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
-import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Spaces;
+import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
+import com.here.xyz.httpconnector.util.jobs.datasets.Files;
+import com.here.xyz.httpconnector.util.jobs.datasets.Spaces;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.models.Space;
@@ -91,15 +92,15 @@ public class CombinedJob extends Job<CombinedJob> {
 
   private Future<CombinedJob> createChildren() {
     List<Future<Job>> childFutures = new ArrayList<>();
-    List<String> spaceIds = ((Spaces) getSource()).getSpaceIds();
-    for (int i = 0; i < spaceIds.size(); i++) {
+    List<DatasetDescription.Space> childSpaces = ((Spaces) getSource()).createChildEntities();
+    for (int i = 0; i < childSpaces.size(); i++) {
       final int childNo = i;
-      String spaceId = spaceIds.get(childNo);
-      childFutures.add(HubWebClient.getSpace(spaceId)
+      DatasetDescription.Space childSpace = childSpaces.get(childNo);
+      childFutures.add(HubWebClient.getSpace(childSpace.getId())
           .compose(space -> {
             Export job = new Export()
                 .withId(getId() + "-" + childNo)
-                .withSource(new DatasetDescription.Space().withId(spaceId))
+                .withSource(childSpace)
                 .withTarget(getTarget());
             setChildJobParams(job, space);
             return Future.succeededFuture(job);
