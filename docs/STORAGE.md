@@ -40,32 +40,34 @@ The interfaces are basically defined like:
 
 ## IAdminTransaction
 
-| Method                                                                                           | Description                                                                        |
-|--------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| initStorage()                                                                                    | Initialize the storage and ensure the latest Naksha extension is installed.        |
-| maintainStorage()                                                                                | Perform maintenance tasks, for example like purging outdated history, run vacuum.  |
-| getCollections( List\<String\> ids ) : IResultSet\<StorageCollection\>                           | Return the requested collections.                                                  |
-| listCollections() : IResultSet\<StorageCollection\>                                              | Return all storage collections.                                                    |
-| upsertCollection( StorageCollection collection ) : StorageCollection                             | Insert or update the given storage collection.                                     |
-| deleteCollectionAt( StorageCollection collection, long time ) : StorageCollection                | Ask for deletion of the collection at a specific time in the future.               |
-| deleteCollectionIn( StorageCollection collection, long time, TimeUnit unit ) : StorageCollection | Ask for deletion of the collection in the future.                                  |
-| restoreCollection( StorageCollection collection ) : StorageCollection                            | Restores a collection that was marked for deletion.                                |
-| purgeCollection( StorageCollection collection ) : StorageCollection                              | Delete the collection now (instant).                                               |
+| Method                                                                                               | Description                                                                        |
+|------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| initStorage()                                                                                        | Initialize the storage and ensure the latest Naksha extension is installed.        |
+| maintainStorage()                                                                                    | Perform maintenance tasks, for example like purging outdated history, run vacuum.  |
+| getCollections( List\<String\> ids ) : IResultSet\<StorageCollection\>                               | Return the requested collections.                                                  |
+| listCollections() : IResultSet\<StorageCollection\>                                                  | Return all storage collections.                                                    |
+| upsertCollection( StorageCollection collection ) : StorageCollection                                 | Insert or update the given storage collection.                                     |
+| ~~deleteCollectionAt( StorageCollection collection, long time ) : StorageCollection~~                | Ask for deletion of the collection at a specific time in the future.               |
+| ~~deleteCollectionIn( StorageCollection collection, long time, TimeUnit unit ) : StorageCollection~~ | Ask for deletion of the collection in the future.                                  |
+| ~~restoreCollection( StorageCollection collection ) : StorageCollection~~                            | Restores a collection that was marked for deletion.                                |
+| purgeCollection( StorageCollection collection ) : StorageCollection                                  | Delete the collection now (instant).                                               |
 
-We need to add methods to create and manage indices on collections.
+We need to add methods to create and manage indices on collections. The struck out methods are not needed initially.
 
 ## IReadTransaction
 
-| Method                                                                                                                      | Description                                                                                       |
-|-----------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| readFeatures(List\<String\> collections, long version, SOp stOp, Pop propertyOp, OOp orderBy...) : IResultSet\<XyzFeature\> | Read features from the given collections in the given version, using the given query.             |
-| readVersions(long start) : IResultSet\<Version\>                                                                            | Read the transaction-log, starting with the given version till the end.                           |
-| readVersions(long start, long end) : IResultSet\<Version\>                                                                  | Read the transaction-log, starting with the given version till the given end version.             |
-| readVersions(String commentId) : IResultSet\<Version\>                                                                      | Read the transaction-log, return all version with a comment with the given identifier.            |
-| readPublicVersions(long start, int limit) : List\<Version\>                                                                 | Read the transaction-log, return all public versions greater than the given start value.          |
-| calculateOptimalPartitioning(long version) : Map\<String, Long\>                                                            | Returns the last version that is guaranteed to be consistent, so there is no pending transaction. |
-| latestConsistentVersion() : long                                                                                            | Returns the last version that is guaranteed to be consistent, so there is no pending transaction. |
-| close()                                                                                                                     | Close the transaction and all open cursors.                                                       |
+| Method                                                                 | Description                                                                                                         |
+|------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| readFeatures( ReadQuery query ) : IResultSet\<XyzFeature\>             | Read features from the given collections in the given version, using the given query.                               |
+| readTx( long txn ) : UniMapTx                                          | Read the transaction with the given transaction number from the transaction-log.                                    |
+| readTx( long startTxn, int limit ) : IResultSet\<UniMapTx\>            | Read all transactions from the transaction-log, starting with the given transaction-number, but no more than limit. |
+| readTx( String commentId ) : IResultSet\<UniMapTx\>                    | Read all transactions from the transaction-log, that have a comment with the given identifier.                      |
+| readSeqTx( long seqNum, int limit ) : List\<UniMapTx\>                 | Read all transactions from the transaction-log, starting with the given sequence-number, but no more than limit.    |
+| ~~calculateOptimalPartitioning( long version ) : Map\<String, Long\>~~ | Returns the last version that is guaranteed to be consistent, so there is no pending transaction.                   |
+| ~~latestConsistentVersion() : long~~                                   | Returns the last version that is guaranteed to be consistent, so there is no pending transaction.                   |
+| close()                                                                | Close the transaction and all open cursors.                                                                         |
+
+The struck out methods are subject to discussion.
 
 ## IWriteTransaction
 
@@ -91,7 +93,37 @@ We need to add methods to create and manage indices on collections.
 These interfaces will offer helper methods that not implemented by the storage itself, rather they are helper methods provided by the 
 Naksha library itself, for example `getFeatureById(String id, Class<TYPE> typeClass) : TYPE`. It is not yet clear what is needed here.
 
-## SRef, PRef, ORed, SOp, POp and Oop
+## ReadQuery
+
+| Property                     | Description                                    |
+|------------------------------|------------------------------------------------|
+| collections : List\<String\> | The identifiers of the collections to be read. |
+| version : long               | The version to read.                           |
+| spatialOp : SOp              | The (optional) spatial operation to execute.   |
+| propertyOp : POp             | The (optional) property operation to execute.  |
+| orderBy : OOp                | The (optional) ordering operation to execute.  |
+
+## WriteQuery
+
+| Property                    | Description                                                            |
+|-----------------------------|------------------------------------------------------------------------|
+| collection : String         | The identifier of the collection to which to apply the modifications.  |
+| insert : List\<XyzFeature\> | Features to be inserted.                                               |
+| update : List\<XyzFeature\> | Features to be updated.                                                |
+| upsert : List\<XyzFeature\> | Features to be inserted or updated.                                    |
+| delete : List\<XyzFeature\> | Features to be deleted.                                                |
+| returnModified : boolean    | If the result of the write should be returned.                         |
+
+## WriteResult
+
+| Property                      | Description                                |
+|-------------------------------|--------------------------------------------|
+| writeQuery : WriteQuery       | The reference to the original write query. |
+| inserted : List\<XyzFeature\> | Features that have been inserted.          |
+| updated : List\<XyzFeature\>  | Features that have been updated.           |
+| deleted : List\<XyzFeature\>  | Features that have been deleted.           |
+
+## SRef, PRef, ORef, SOp and Oop
 
 The Naksha library comes with three classes for operations:
 
@@ -115,16 +147,16 @@ some are only available for a specific type:
 | SRef.tile( long x, long y, int srid ) : SRef         | Wraps a projected tile into a ST-geometry.                             |
 | SRef.webTile( String id ) : SRef                     | Wraps a web-mercator tile into a ST-geometry.                          |
 | SRef.hereTile( String id ) : SRef                    | Wraps a HERE tile into a ST-geometry.                                  |
-| SOp.intersects2d( ST_Geo geo ) : SOp                 | Tests if a feature intersects with the given geometry.                 |
-| SOp.intersects3d( ST_Geo geo ) : SOp                 | Tests if a feature intersects with the given geometry.                 |
+| SOp.intersects2d( SRef geo ) : SOp                   | Tests if a feature intersects with the given geometry.                 |
+| SOp.intersects3d( SRef geo ) : SOp                   | Tests if a feature intersects with the given geometry.                 |
 | PRef.id() : PRef                                     | Returns a reference to the **id** property.                            |
 | PRef.uuid() : PRef                                   | Returns a reference to the **uuid** property from the XYZ-namespace.   |
 | PRef.uts() : PRef                                    | Returns a reference to the **uts** property from the XYZ-namespace.    |
 | PRef.appId() : PRef                                  | Returns a reference to the **appId** property from the XYZ-namespace.  |
 | PRef.author() : PRef                                 | Returns a reference to the **author** property from the XYZ-namespace. |
 | PRef.tag(String name) : PRef                         | Returns a reference to a specific tag in the XYZ-namespace.            |
-| PRef.hereQuadRefId() : PRef                          | Returns a reference to the **hqrid** XYZ-namespace.                    |
-| PRef.webQuadRefId() : PRef                           | Returns a reference to the **wqrid** XYZ-namespace.                    |
+| ~~PRef.hereQuadRefId() : PRef~~                      | Returns a reference to the **hqrid** XYZ-namespace.                    |
+| ~~PRef.webQuadRefId() : PRef~~                       | Returns a reference to the **wqrid** XYZ-namespace.                    |
 | PRef.property(String path...) : PRef                 | Returns a reference to an arbitrary property using the given path.     |
 | POp.exists( PRef ref ) : POp                         | Tests if a feature does have the given property.                       |
 | POp.startsWith( PRef ref, String value ) : POp       | Tests if the property value stars with the string.                     |
@@ -140,49 +172,28 @@ some are only available for a specific type:
 
 More operations may be added later.
 
-## WriteQuery
+The stroke out methods are subject to discussion.
 
-| Property                    | Description                                    |
-|-----------------------------|------------------------------------------------|
-| insert : List\<XyzFeature\> | Features to be inserted.                       |
-| update : List\<XyzFeature\> | Features to be updated.                        |
-| upsert : List\<XyzFeature\> | Features to be inserted or updated.            |
-| delete : List\<XyzFeature\> | Features to be deleted.                        |
-| read : boolean              | If the result of the write should be returned. |
+## Transaction-Log
 
-## WriteResult
+Naksha expects that every storage does come with an audit-log. Logically, Naksha expects that the storage provides transaction information in the following structure.
 
-| Property                      | Description                                  |
-|-------------------------------|----------------------------------------------|
-| query : WriteQuery            | The reference to the original write query.   |
-| inserted : List\<XyzFeature\> | Features to inserted.                        |
-| updated : List\<XyzFeature\>  | Features to updated.                         |
-| deleted : List\<XyzFeature\>  | Features to deleted.                         |
+### UniMapTx
 
-## Version
+| Property                                              | Description                                                                    |
+|-------------------------------------------------------|--------------------------------------------------------------------------------|
+| ts : long                                             | The time when the transaction was started.                                     |
+| txn : long                                            | The database wide unique transaction number.                                   |
+| seqNum : Long                                         | The sequence number, if available.                                             |
+| seqTs : Long                                          | The timestamp when the sequencer set the sequence number, if yet available.    |
+| comments : Map\<String, UniMapTxComment\>             | All comments added to the transaction.                                         |
+| collections : Map\<String, List\<List\<TxAction\>\>\> | A map between the collection name and the actions performed to the collection. |
 
-A version is a set of transaction-log entries that share the same version number.
+Note that transactions need to be prepared for publication via the subscription sub-system. For this purpose every version will receive a unique publication identifier, which is a continues number starting with 1 to n. Naksha guarantees for this identifier that there are no holes in the numeration (therefore the name sequence-number), and it guarantees that lower numbers have lower timestamps.
 
-| Property                                      | Description                                                                    |
-|-----------------------------------------------|--------------------------------------------------------------------------------|
-| version : long                                | The version number.                                                            |
-| publicId : Long                               | The publishing identifier, if yet available.                                   |
-| publicTs : Long                               | The publishing timestamp, if yet available.                                    |
-| comments : Map\<String, Comment\>             | All comments added to the transaction.                                         |
-| collections : Map\<String, List\<TxAction\>\> | A map between the collection name and the actions performed to the collection. |
+**Warning**: The transaction-number is not fully reliable for publication, because theoretically version 1 can be a very long-running transaction (hours) and meanwhile other transactions may be finished, having higher version numbers. Even while the transactions must be commutative logically, so technically it does not matter for the final result in which order they are executed, the order can have a big impact on subscriptions. Therefore, Naksha observes the transaction table and creates sequence-numbers assigned in the order in which transactions become visible rather than the order in which they were started. This is to guarantee that the subscriptions are re-playable in exactly the same order in which they became visible, not the order in which the transactions started. This is important to avoid that subscriptions have to wait for pending transactions, what would make them (in some cases) extremely slow. 
 
-Note that versions need to be prepared for publication via the subscription sub-system. For this purpose every version will receive a 
-unique publication identifier, which is a continues number starting with 1 to n. Naksha guarantees for this identifier that there are
-no holes in the numeration, and it guarantees that lower numbers have lower timestamps. This can be used to reset a subscription by 
-n steps or to start at a specific state and to guarantee an order.
-
-**Warning**: The version number is not fully reliable for publication, because theoretically version 1 can be a very long-running 
-transaction (hours) and meanwhile there can other transactions appearing, that have higher version numbers. Even while the transactions
-must be commutative, so technically it does not matter for the result in which order they are applied, the order can have a big impact
-on subscriptions. Therefore, Naksha observes the transaction table and creates publication numbers to guarantee that the subscriptions
-are re-playable in exactly the same order as they became visible, not the order in which the transactions started.
-
-## Comment
+### UniMapTxComment
 
 | Property          | Description                         |
 |-------------------|-------------------------------------|
@@ -191,3 +202,10 @@ are re-playable in exactly the same order as they became visible, not the order 
 | Object : object   | The JSON deserialized object added. |
 | binary : byte[]   | The binary attachment added.        |
 
+### TxAction
+
+An alias for strings with pre-defined values:
+
+* MODIFY_FEATURES
+* UPSERT_COLLECTION
+* PURGE_COLLECTION
