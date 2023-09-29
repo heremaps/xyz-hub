@@ -39,6 +39,7 @@ import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
@@ -708,8 +709,11 @@ public abstract class Job<T extends Job> extends Payload {
     public void setSource(DatasetDescription source) {
         this.source = source;
         //Keep BWC
-        if (source instanceof DatasetDescription.Space)
-            setTargetSpaceId(((DatasetDescription.Space) source).getId());
+        if (source instanceof DatasetDescription.Space space) {
+            setTargetSpaceId(space.getId());
+            if (this instanceof Export export)
+                export.setFilters(space.getFilters());
+        }
     }
 
     public T withSource(DatasetDescription source) {
@@ -724,8 +728,8 @@ public abstract class Job<T extends Job> extends Payload {
     public void setTarget(DatasetDescription target) {
         this.target = target;
         //Keep BWC
-        if (target instanceof DatasetDescription.Space)
-            setTargetSpaceId(((DatasetDescription.Space) target).getId());
+        if (target instanceof DatasetDescription.Space space)
+            setTargetSpaceId(space.getId());
     }
 
     public T withTarget(DatasetDescription target) {
