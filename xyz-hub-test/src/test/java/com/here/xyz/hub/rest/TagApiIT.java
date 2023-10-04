@@ -34,13 +34,18 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class TagApiIT extends TestSpaceWithFeature {
 
     private static final String SECOND_SPACE = "secondSpace";
+    private static final List<String> createdSpaces = new ArrayList<>();
 
     @BeforeClass
     public static void setupClass() {
         removeSpace(getSpaceId());
+        createdSpaces.stream().forEach(TagApiIT::removeSpace);
     }
 
     @Before
@@ -52,14 +57,19 @@ public class TagApiIT extends TestSpaceWithFeature {
     public void teardown() {
         removeSpace(getSpaceId());
         removeSpace(SECOND_SPACE);
+        createdSpaces.stream().forEach(TagApiIT::removeSpace);
     }
 
     private ValidatableResponse _createTag() {
+        return _createTagForId(getSpaceId());
+    }
+
+    private ValidatableResponse _createTagForId(String spaceId) {
         return given()
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .contentType(ContentType.JSON)
                 .body("{\"id\":\"XYZ_1\"}")
-                .post("/spaces/" + getSpaceId() + "/tags")
+                .post("/spaces/" + spaceId + "/tags")
                 .then().statusCode(OK.code());
     }
 
@@ -216,6 +226,26 @@ public class TagApiIT extends TestSpaceWithFeature {
         .body( "[0].tags.XYZ_1.spaceId", equalTo("x-psql-test"))
         .body( "[0].tags.XYZ_1.version", equalTo(-1));
   }
+
+    @Test
+    public void testBigListSpacesFilterByTagId() {
+        for (int i = 0; i < 250; i++)
+         createdSpaces.add(createSpaceWithRandomId());
+
+        given()
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .get("/spaces?tag=XYZ_1")
+                .then()
+                .body("size()", is(0));
+
+        createdSpaces.stream().forEach(spaceId -> _createTagForId(spaceId));
+
+        given()
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .get("/spaces?tag=XYZ_1")
+                .then()
+                .body("size()", is(createdSpaces.size()));
+    }
 
   @Test
   public void testUpdateTagWithVersionNotSet() {
