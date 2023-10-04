@@ -172,8 +172,6 @@ public abstract class AbstractHttpServerVerticle extends AbstractVerticle {
         .handler(BodyHandler.create())
         .handler(createReceiveHandler())
         .handler(createMaxRequestSizeHandler());
-    //Default NotFound handler
-    router.route().last().handler(createNotFoundHandler());
   }
 
   /**

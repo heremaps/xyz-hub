@@ -193,6 +193,8 @@ public class XYZHubRESTVerticle extends AbstractHttpServerVerticle {
           final Router globalRouter = (Router) sharedData.get(Service.GLOBAL_ROUTER);
 
           globalRouter.mountSubRouter("/", router);
+          //Default NotFound handler
+          globalRouter.route().last().handler(createNotFoundHandler());
 
           vertx.eventBus().localConsumer(Service.SHARED_DATA, event -> {
             //Create the main service listener
