@@ -1,0 +1,113 @@
+# Namespaces
+
+The XYZ-Hub supports namespaces within the `properties` of features. The most namespaces have historic meaning, see [confluence](https://confluence.in.here.com/pages/viewpage.action?pageId=800919496). The following sections show details about the existing definitions:
+
+## XYZ-Metadata [`@ns:com:here:xyz`]
+
+The XYZ namespace was originally introduced by the XYZ-Hub to store state related information, exclusively managed by the XYZ-Hub. Certain changes have been applied meanwhile to this namespace. Naksha tries to stay compatible with the last version of the namespace that was  used by Map-Creator application (aka UniMap-Editor):
+
+| Property   | Type            | RO  | Meaning                                                                                                |
+|------------|-----------------|-----|--------------------------------------------------------------------------------------------------------|
+| createdAt  | Long            | yes | The epoch-timestamp in milliseconds when the transaction started, that created the feature originally. |
+| updatedAt  | Long            | yes | The epoch-timestamp in milliseconds when the transaction started, that created this state.             |
+| rtuts      | Long            | yes | The real-time epoch-timestamp in milliseconds when this state was created.                             |
+| txn        | Long            | yes | The transaction-number of the transaction in which this state was created.                             |
+| txn_next   | Long            | yes | The transaction-number of the next state, being `0` if this is the HEAD (latest) state.                |
+| txuuid     | GUID            | yes | The transaction-number as GUID.                                                                        |
+| uuid       | GUID            | yes | The state identifier.                                                                                  |
+| puuid      | GUID?           | yes | The previous state identifier.                                                                         |
+| muuid      | GUID?           | yes | The merge state identifier.                                                                            |
+| action     | String          | yes | The action that lead to this state: CREATE, UPDATE, DELETE.                                            |
+| version    | Long            | yes | The version of this feature (change counter).                                                          |
+| app_id     | String          | yes | The UPM identifier of the application that created this state.                                         |
+| author     | String          | yes | The UPM identifier of the author of this state.                                                        |
+| tags       | List\<String\>? | no  | The tags.                                                                                              |
+| crid       | String?         | no  | An arbitrary custom-ref-id. If this is set, the feature is added into this partition, ignoring `hrid`. |
+| hrid       | String          | yes | The 31 character long HERE-ref-id, based upon the center of the geometry.                              |
+| ~~space~~  | String?         | yes | Set to the space that was used to modify the feature. This property is no longer supported.            |
+
+**Note**: The **author** must not be `null` in the namespace, but the client does not need to set an author. In this case, the author of features being updated will stay unchanged. For created features, the author defined in the collection-information will be used, if this is as well `null`, then the **app_id** is used (all features **must** eventually have an author).
+
+In the tags Naksha stores:
+
+* References via: `rel_<urn>`, for example `rel_urn:here:...`
+* The MOM feature-type as read from `properties->featureType` or `momType` into: `mom_type={feature-type}`
+* The rule code of violations into: `violation_rule_code={rule-code}`
+* The status of a violation into: `violation_state={violations-status}`
+* The validation type into: `violation_val_type={val-type}`
+
+The **hrid** is automatically set by the Naksha storage engine at part of the normal triggers.
+## MOM-Metadata [`@ns:com:here:meta`]
+
+The MOM metadata was traditionally stored in the base-collection of the Data-Hub and extended the data originating from the RMOB. The Data-Hub was the predecessor of XYZ-Hub, which is the predecessor of the Interactive-Map-Service. Naksha will continue to support this namespace, but only through the `lib-naksha-moderation`. The updates to this namespace are now-a-days done by the `Wikvaya` service (aka Map-Creator Middleware), which eventually will be replaced by the `lib-naksha-moderation`.
+
+| Property                 | Type    | Meaning                                                                                                                                                                                                         |
+|--------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| lastUpdatedBy            | String  | The MapHub-User-Id of the user or application that made the last edit. This property is automatically set for edits, while clients in `BOT` mode need to set this property on their own.                        |
+| lastUpdatedTS            | String  | This property contains the time when the last modification was done. It is in sync with the **lastUpdatedBy** property, therefore when the client operates in BOT mode it needs to set this property correctly. |
+| lastUpdatedTrustCategory | Long    | This property holds the trust category of the principal that did the last edit and is in sync with **lastUpdatedBy**.                                                                                           |
+| updatedByUser            | String  | The MapHub-User-Id of the user (natural person) that produced the current state of the object. This property is always set by the Middleware and can't be overridden from outside.                              |
+| updatedByApp             | String  | The MapHub User-Id of the application that produced the current state of the object. This property is always set by the Middleware and can't be overridden from outside.                                        |
+| ~~createdTS~~            | Long    | This property is set by the Middleware, if a object is created in the delta space.                                                                                                                              |
+| ~~owner~~                | String? | The owner of the object (currently should be ignored).                                                                                                                                                          |
+| ~~group~~                | String? | The group that owns the object (currently should be ignored).                                                                                                                                                   |
+
+## Moderation-Metadata [`@ns:com:here:delta`]
+
+The moderation metadata was historically managed by the Map-Creator Middleware and were part of the moderation process. This namespace only exists for features being in the moderation process, it does not exist in the base collections (so not in the consistent store). The updates to this namespace are now-a-days done by the `Wikvaya` service (aka Map-Creator Middleware), which eventually will be replaced by the `lib-naksha-moderation`.
+
+| Property         | Type    | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+|------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| streamId         | String? | The stream-identifier of the request that created this state. Can be used to search the logs to find the request that eventually produced this state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| changeCounter    | Long    | Whenever a new object is created, the the change-counter is reset to 1. When an existing object is modified the change counter is incremented for every change.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| originId         | String? | The origin-ID is a write-once value and must refer to an existing base object. Therefore there is no guarantee that when this property is set, the corresponding base object does exist, it is only guaranteed that this object existed at the time the origin-ID was set. If a base object is modified the originId is always set automatically and refers to itself.                                                                                                                                                                                                                                                                                                                                                                          |
+| parentLink       | String? | When a feature is split, all children must have the **parentLink** property referring to the feature that has the **changeState** set to `SPLIT`. If an object has a **parentLink** property and the object referred does have an **originId** set, then this children will automatically derive the **originId** value. This tracks all changes done back to the original object being modified.                                                                                                                                                                                                                                                                                                                                               |
+| changeState      | String  | The change-state of the object                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| reviewState      | String  | The review-state of the object.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| potentialValue   | Long    | This value is currently set to 0 as default values. Any client operating in `MODERATION` or `BOT` mode can set this value to whatever value he wants; normal users may not explicitly set this property, therefore for them the value is kept as it is, when not existing, it is set 0 for normal users.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| priorityCategory | Long    | The priority category assigned to this edit. A value between 0 (no priority, no SLA) and 9. It is never valid to decrease the value (see https://devzone.it.here.com/jira/browse/CMECMSSUP-1945)!                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| dueTS            | Long    | The UNIX epoch timestamp in milliseconds of the time until when the edit must be taken care of. This property is only set automatically for edits. If the SLA is `null` or the **priorityCategory** is 0 (so, no priority), then the value will be set to 0; otherwise the `meta::lastUpdatedTS` time plus the `SLA::dueIn` value will be taken to calculate this value (except the `SLA::dueIn` is 0, then `meta::dueTS` is as well 0). It is never valid to increase the value (see https://devzone.it.here.com/jira/browse/CMECMSSUP-1945). We treat 0 as the highest value, therefore it can not override any other **dueTS** value. Be aware that the `SLA::dueIn` is set in seconds, while the **dueTS** property is set in milliseconds. |
+ 
+**Note**: The **priorityCategory** and the **dueTS** properties are called SLA properties, and set based upon the SLA of the editor (the user that performed the edit). The SLA properties are normally updated when the **review-state** is set to `UNPUBLISHED`. If an edit is made, the service will iterate all communities the editor is a members of. It will pick the SLA with the highest pc value and update the properties as described.
+
+**Edge cases**: Normally the values provided by the client are ignored. The only exception to this rule is when the client is a **SUPER_BOT** (it has the **allowToSetSLAValues** ability). In that case it is allowed to set the **priorityCategory** to a value greater/equal than 0, to enforce this value to be set.
+
+If the **priorityCategory** is not set or set to a value less than zero, then the `Wikvaya` service will restore the priority category from the base/delta or origin. If that is not possible, it will try to restore it using the lastUpdatedBy/TS properties and if even that fails, the default values will be set, which are 0.
+
+The `Wikvaya` service will clip the value into the allowed range, even for **SUPER_BOT** clients. This means the priorityCategory is guaranteed to be a value between 0 and 9 and dueTS is guaranteed to be no negative value.
+
+Some review-states will cause the `Wikvaya` service to not update the object, but to delete the object from the delta table:
+
+`Wikvaya` deletes the feature from delta, if the review-state is set to `AUTO_ROLLBACK`, the object does not exist in the base, and the object does not have an **originId** set,  This happens when a user set the **changeState** of an object to `REMOVED` or `SPLIT`, and the feature is new (does not exists in base). When the review-state is set to `INTEGRATED`, this happens when a moderator integrates the object via another tool (positive rollback), for example the moderator uses Atlas to integrate the change. When the review-state is set to ROLLBACK, this happens when a moderator manually rejects a requested change.
+
+## Change-State
+
+The logical change-state of the feature. 
+
+| State      | Meaning                                                                |
+|------------|------------------------------------------------------------------------|
+| `CREATED`  | Set when the feature is created.                                       |
+| `UPDATED`  | Set when the feature is updated.                                       |
+| `REMOVED`  | Set when the feature is removed from the map.                          |
+| `SPLIT`    | Set when the feature is removed and replaced by multiple new features. |
+
+**Note**: Features being in the moderation process are never really deleted. They are just set to **change-state** `REMOVED` or `SPLIT`, both having the same meaning.
+
+## Review-State
+
+The review-state is the current moderation-state of a feature.
+
+| State                   | Final    | Meaning                                                                                                                                      |
+|-------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| `UNPUBLISHED`           | false    | This is the initial state for any un-moderated feature. The default for all new features.                                                    |
+| `AUTO_ENDORSED`         | false    | Set by the auto-endorser, if the feature is ready to be send into the bucket-processor.                                                      |
+| `AUTO_ROLLBACK`         | **true** | Set by the auto-endorser, if the change should be reverted.                                                                                  |
+| `AUTO_REVIEW_DEFERRED`  | false    | Set by the auto-endorser, if the feature must be reviewed by a moderator.                                                                    |
+| `AUTO_INTEGRATED`       | **true** | Set by the change-set-publisher, if the feature was integrated into consistent-store.                                                        |
+| `FAILED`                | false    | Set by the change-set-publisher, if the feature integration failed and more moderation is needed.                                            |
+| `ENDORSED`              | false    | Set by a moderator, when the feature is ready to be send to the bucket-processor.                                                            |
+| `UNDECIDED`             | false    | Set by a moderator, when the feature need more moderation.                                                                                   |
+| `ROLLBACK`              | **true** | Set by a moderator, when the feature is rejected, the change should be reverted.                                                             |
+| `INTEGRATED`            | false    | Set by a moderator, when the feautre was manually coded into RMOB. In-between state, that eventually will be changed into `AUTO_INTEGRATED`. |
+
+**Note**: When the **change-state** is set to `REMOVED` or `SPLIT`, the feature does not exist in the consistent-store, and the feature does not have an **originId** set, then `lib-naksha-moderation` will automatically set the **reviewState** to `AUTO_ROLLBACK`, what essentially will remove the feature from delta.
