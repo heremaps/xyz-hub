@@ -176,7 +176,7 @@ The transaction logs are stored in the `naksha_tx` table. Each transaction persi
 
 The transaction-log should have a combined unique index on (**txn**, **action**, **id**).
 
-**Note**: The transaction table itself is partitioned by month, so there will be child tables aka `transactions_YYYY_MM`.
+**Note**: The transaction table itself is partitioned by `txn`, the same way the history of all collections is partitioned (`naksha_tx_YYYY_MM_DD`). This is mainly helpful to purge transaction-logs and to improve the access speed.
 
 ### Actions
 
