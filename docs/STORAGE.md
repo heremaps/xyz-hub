@@ -81,12 +81,12 @@ The struck out methods are subject to discussion.
 
 ## IResultSet<TYPE> extends Iterator<TYPE>, AutoClosable
 
-| Method                                                 | Description                                            |
-|--------------------------------------------------------|--------------------------------------------------------|
-| withType(Class\<TYPE\> typeClass) : IResultSet\<TYPE\> | Changes the feature-type to be returned, returns this. |
-| hasNext() : boolean                                    | True if this result-set has more features.             |
-| next() : TYPE                                          | Returns the next feature.                              |
-| close()                                                | Close the cursor.                                      |
+| Method                                                   | Description                                            |
+|----------------------------------------------------------|--------------------------------------------------------|
+| withType(Class\<TYPE\> typeClass) : IResultSet\<TYPE\>   | Changes the feature-type to be returned, returns this. |
+| hasNext() : boolean                                      | True if this result-set has more features.             |
+| next() : TYPE                                            | Return the next feature.                               |
+| close()                                                  | Close the cursor.                                      |
 
 ## IFeatureReader / IFeatureWriter / IAdminManager
 
@@ -150,13 +150,14 @@ some are only available for a specific type:
 | SOp.intersects2d( SRef geo ) : SOp                   | Tests if a feature intersects with the given geometry.                 |
 | SOp.intersects3d( SRef geo ) : SOp                   | Tests if a feature intersects with the given geometry.                 |
 | PRef.id() : PRef                                     | Returns a reference to the **id** property.                            |
+| PRef.txn() : PRef                                    | Returns a reference to the **txn** property from the XYZ-namespace.    |
 | PRef.uuid() : PRef                                   | Returns a reference to the **uuid** property from the XYZ-namespace.   |
 | PRef.uts() : PRef                                    | Returns a reference to the **uts** property from the XYZ-namespace.    |
 | PRef.appId() : PRef                                  | Returns a reference to the **appId** property from the XYZ-namespace.  |
 | PRef.author() : PRef                                 | Returns a reference to the **author** property from the XYZ-namespace. |
 | PRef.tag(String name) : PRef                         | Returns a reference to a specific tag in the XYZ-namespace.            |
-| ~~PRef.hereQuadRefId() : PRef~~                      | Returns a reference to the **hqrid** XYZ-namespace.                    |
-| ~~PRef.webQuadRefId() : PRef~~                       | Returns a reference to the **wqrid** XYZ-namespace.                    |
+| ~~PRef.crid() : PRef~~                               | Returns a reference to the **crid** XYZ-namespace.                     |
+| ~~PRef.hrid() : PRef~~                               | Returns a reference to the **hrid** XYZ-namespace.                     |
 | PRef.property(String path...) : PRef                 | Returns a reference to an arbitrary property using the given path.     |
 | POp.exists( PRef ref ) : POp                         | Tests if a feature does have the given property.                       |
 | POp.startsWith( PRef ref, String value ) : POp       | Tests if the property value stars with the string.                     |
