@@ -34,6 +34,7 @@ import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -86,29 +87,9 @@ public class DynamoTagConfigClient extends TagConfigClient {
     if (CollectionUtils.isNullOrEmpty(spaceIds))
       return Future.succeededFuture(Collections.emptyList());
 
-    try {
-      List<Map<String, AttributeValue>> responses = new ArrayList<>();
-
-      // Splitting list of spaces into sublists of up to 100 elements according to DynamoDB constraints
-      for (int i = 0; i < spaceIds.size(); i += 100) {
-        List<String> spaceIdsSublist = spaceIds.subList(i, Math.min(i+100, spaceIds.size()));
-        TableKeysAndAttributes tableKeysAndAttributes = new TableKeysAndAttributes(tagTable.getTableName());
-        String[] rangeKeys = spaceIdsSublist.stream().collect(ArrayList::new,
-                (list, spaceId) -> {
-                  list.add(tagId);
-                  list.add(spaceId);
-                },
-                ArrayList::addAll).toArray(String[]::new);
-        tableKeysAndAttributes.addHashAndRangePrimaryKeys("id", "spaceId", rangeKeys);
-
-        BatchGetItemResult batchGetResult = dynamoClient.db.batchGetItem(tableKeysAndAttributes).getBatchGetItemResult();
-        responses.addAll(batchGetResult.getResponses().get(tagTable.getTableName()));
-      }
-
-      return Future.succeededFuture(getTags(responses));
-    } catch (Exception e) {
-      return Future.failedFuture(e);
-    }
+    return DynamoClient.dynamoWorkers.<List<Tag>>executeBlocking(p -> batchGetTags(tagId, spaceIds, p))
+            .onSuccess(tags -> logger.info(marker, "Number of tags retrieved from DynamoDB: {}", tags.size()))
+            .onFailure(t -> logger.error(marker, "Failure getting tags", t));
   }
 
   public Future<List<Tag>> getTagsByTagId(Marker marker, String tagId) {
@@ -234,6 +215,30 @@ public class DynamoTagConfigClient extends TagConfigClient {
           }
         }
     );
+  }
+
+  private void batchGetTags(String tagId, List<String> spaceIds, Promise<List<Tag>> p) {
+    List<Map<String, AttributeValue>> responses = new ArrayList<>();
+    try {
+      int batches = (int) Math.ceil((double) spaceIds.size() / 100);
+      for (int i = 0; i < batches; i++) {
+        final TableKeysAndAttributes tableKeysAndAttributes = new TableKeysAndAttributes(tagTable.getTableName());
+        String[] rangeKeys = spaceIds.stream().skip(i * 100L).limit(100).collect(ArrayList::new,
+                (list, spaceId) -> {
+                  list.add(tagId);
+                  list.add(spaceId);
+                },
+                ArrayList::addAll).toArray(String[]::new);
+        tableKeysAndAttributes.addHashAndRangePrimaryKeys("id", "spaceId", rangeKeys);
+
+        BatchGetItemResult batchGetResult = dynamoClient.db.batchGetItem(tableKeysAndAttributes).getBatchGetItemResult();
+        responses.addAll(batchGetResult.getResponses().get(tagTable.getTableName()));
+      }
+      p.complete(getTags(responses));
+    }
+    catch (Exception e) {
+      p.fail(e);
+    }
   }
 
   private static List<Tag> getTags(List<Map<String, AttributeValue>> items) {
