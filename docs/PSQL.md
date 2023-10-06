@@ -13,11 +13,17 @@ Within PostgresQL a collection is a set of database tables. All these tables are
 - `{collection}`: The HEAD table (`PARTITION BY HASH (i)`) with all features in their live state. This table is the only one that should be directly accessed for manual SQL queries and has triggers attached that will ensure that the history is written accordingly.
 - `{collection}_[n]`: The HEAD partitions from 0 to 9 (`FOR VALUES WITH (MODULUS 10, REMAINDER n)`).
 - `{collection}_del`: The HEAD deletion table holding all features that are deleted from the HEAD table. This can be used to read zombie features (features that have been deleted, but are not yet fully unrecoverable dead).
-- `{collection}_hst`: The history view, this is partitioned table, partitioned by `txn`.
-- `{collection}_hst_{YYYY}_{MM}_{YY}`: The history partition for a specific day (`txn >= naksha_txn('2023-09-29',0) AND txn < naksha_txn('2023-09-30',0)`.
+- `{collection}_hst`: The history view, this is partitioned table, partitioned by `txn_next`.
+- `{collection}_hst_{YYYY}_{MM}_{YY}`: The history partition for a specific day (`txn_next >= naksha_txn('2023-09-29',0) AND txn_next < naksha_txn('2023-09-30',0)`.
 - `{collection}_meta`: The meta-data sub-table, used for arbitrary meta-information and statistics.
 
-**WARNING**: The collection names must be lower-cased and only persist out of the following characters: `^[a-z][a-z0-9_-:]{0,31}$`!
+**Notes:**
+
+The collection names must be lower-cased and only persist out of the following characters: `^[a-z][a-z0-9_-:]{0,31}$`.
+
+The partitioning in the history is based upon `txn_next`. The reason is, because `txn_next` basically is the time when the change was moved into history. The `txn` is the time when a state was originally created. So, at a first view it might be more logical to partition by `txn`, so when a state was created. However, by doing so we run into one problem, assume we decide to keep the history for one year, what do we want? We want to be able to revert all changes that have been done in the last year. Assume a feature is created in 2010 and then stays unchanged for 13 years. In 2023 this feature is modified. If we partition by the time when the state was created, this feature would be directly garbage collected, because it is in a partition being older than one year. However, this is not what we want! We want this feature to stay here until 2024, which means, we need to add it into the partition of `txn_next`, which will link to the today state, so the 2023 state, and therefore it will be added into the 2023 partition.
+
+So, even while the partitioning based upon `txn_next` is first counter-intuitive, it still is necessary.
 
 ## Triggers
 
@@ -52,8 +58,6 @@ Naksha PSQL-Storage will add two triggers to the HEAD table to ensure the desire
     * Update XYZ namespace of OLD: `txn_next=naksha_txn()` (only this!)
     * INSERT a copy of OLD into `{collection}_hst`
     * This basically creates a backup of the DELETE state.
-
-Beware, part of the XYZ-namespace fixing is the calculation of the **hrid** from the _geometry_ using [`ST_Centroid(coalesc(geo, ST_Point(0,0)))`](https://postgis.net/docs/ST_Centroid.html).
 
 Naksha will implement a special PURGE operation, which will remove elements from the special deletion table (which is a special HEAD table).
 
@@ -127,12 +131,28 @@ All collections do have a comment on the HEAD table, which is a JSON objects wit
 | historyEnabled        | bool    | If `true`, history will be written (defaults to _true_).                                                                          |
 | idPrefix              | String? | If not `null` and a feature is inserted, updated or deleted with an **id** that starts with this string, the **id** is truncated. |
 | author                | String? | If not `null` and a feature is inserted without an author, this value will be used.                                               |
+| optimalPartitioning   | bool    | If _true_, then optimal partitioning is enabled (default to _false_).                                                             |
 
 ## Optimal Partitioning
 
-Naksha supports optimal partitioning. It creates as a background job a statistic for every new version appearing in the transaction table. The statistic basically creates an optimal partitioning distribution. It will try to merge as many features into each partition, so that not more than 10mb of raw-json is stored in each partition (using the `byteSize` information of the _collection-info_ to decide for the optimal number of features per partition). It will basically perform the partitioning based upon the spatial distribution, using the same schema that the HERE tiles are using. Therefore the auto-partitioning will use as well the HERE-ref-ids, but in mixed level, automatically detected by feature count and size.
+Naksha supports optimal partitioning. It creates a background job to do a statistic for every new version appearing in the transaction table. The statistic basically creates an optimal partitioning distribution. It will try to distribute features partitions of equals size, so that not more than 10mb of raw-json is stored in each partition (using the `byteSize` information of the _collection-info_ to decide for the optimal number of features per partition). It will perform the partitioning based upon the spatial distribution, using the `qrid`. As the `crid` is an unknown format, a spatial partitioning can't be guaranteed and `crid` is ignored in this case.
 
-The optimal partitioning is basically just a special feature that is stored within the meta-table of a collection. The properties of this features should basically hold a property `by_hrid`, which is a map like `Map<HereRefIdPrefix, FeatureCount>` and `by_crid`, which is a map like `Map<CustomRefIdPrefix, FeatureCount>`.
+The algorithm will have two input parameters:
+
+- **bbox** = Bounding box of the whole planet earth (initially start with the whole world)
+- **MAX** = Maximal number of features per partition, calculated via `Math.min(10MiB / byteSize, 1_000_000)`.
+
+The steps are:
+
+1. Query all features in the **bbox**. Limit the query by the partition size (**MAX**). Only read the ids.
+2. If less than **MAX** ids are returned, create the feature count, _done_.
+3. Otherwise, create four sub-tasks that each get a new **bbox**, being a fourth of the current **bbox** (so top-left, top-right, bottom-left and bottom-right).
+   - Every child should use an own database connection.
+   - This can be optimized, by creating 4 read-replicas and use them round-robin, when we have too many features.
+   - This will as well distribute the load fair between the four replicas.
+4. Start all four sub-tasks, each will start over again at (1) using the new **bbox**.
+
+This results in an optimal partitioning, basically just a special feature that is stored within the meta-table of a collection. The properties of this features should hold a property `by_qrid`, which is a map like `Map<HereRefIdPrefix, FeatureCount>`.
 
 ## Indices and Queries
 
@@ -144,11 +164,10 @@ The indices are all created only directly on the partitions. To keep the documen
   * `SELECT * FROM ${table} WHERE i = i UNION ALL SELECT * FROM ${table}_hst WHERE txn >= naksha_txn($date,0) AND txn < naksha_txn($date+1, 0) AND i = $i`
 * `CREATE INDEX ... USING btree (id text_pattern_ops ASC, xyz.txn DESC, xyz.txn_next DESC)`
   * Used to search features by **id**, optionally in a specific version.
-* `CREATE INDEX ... USING btree (xyz.crid text_pattern_ops ASC, xyz.txn DESC, xyz.txn_next DESC) INCLUDE id WHERE xyz.crid IS NOT NULL`
-  * Used to search for all features customer ref-ids.
-  * Used to calculate the optimal partitioning.
-* `CREATE INDEX ... USING btree (xyz.href text_pattern_ops ASC, xyz.txn DESC, xyz.txn_next DESC) INCLUDE id`
-  * Used to search for HERE ref-ids.
+* `CREATE INDEX ... USING btree (xyz.mrid text_pattern_ops ASC, xyz.txn DESC, xyz.txn_next DESC) INCLUDE id`
+  * Used to search for all features using either customer or quad ref-ids.
+* `CREATE INDEX ... USING btree (xyz.qrid text_pattern_ops ASC, xyz.txn DESC, xyz.txn_next DESC) INCLUDE id`
+  * Used to search for features by quad-ref-ids.
   * Used to calculate the optimal partitioning.
 * `CREATE INDEX ... USING gist[-sp] (geo, xyz.txn, xyz.txn_next)`
   * Search for features intersecting a geometry, optionally in a specific version.
@@ -163,30 +182,30 @@ The indices are all created only directly on the partitions. To keep the documen
 
 The Naksha design allows history queries to directly find the correct features using index-only scans in a couple of tables. This design requires that the `txn_next` value it set for all history records. For example, looking for a specific feature in a specific version means to search for `jsondata->>'id'` match where the `txn` is the closest to the one requested. Assume the following states of the feature "foo":
 
-* `{"id":"foo", "speedLimit":10, "txn":20230101000000000, "txn_next":20230102000000000}` partition 2023_01_01
-* `{"id":"foo", "speedLimit":20, "txn":20230102000000000, "txn_next":20230102000010000}` partition 2023_01_02
-* `{"id":"foo", "speedLimit":25, "txn":20230102000010000, "txn_next":20230104000000000}` partition 2023_01_02
-* `{"id":"foo", "speedLimit":40, "txn":20230104000000000, "txn_next":20230115000000000}` partition 2023_01_04
-* `{"id":"foo", "speedLimit":50, "txn":20230115000000000, "txn_next":0}` HEAD (today, 2023_01_15)
+**Note**: We partition the history based upon `txn_next`, not upon `txn`!
 
-This is a simplified example to basically show how the queries work. Assume we want to know the version that matches the transaction-number `20230103000000000` (so done on the 3'th January 2023). We expect to get back the version with **speedLimit** being `25` (`txn=20230102000010000`), because it is the version before the 3'th January being the closest to the requested version.
+* `{"id":"foo", "speedLimit":10, "txn":20230101000000000, "txn_next":20230102000000000}` partition: 2023_01_02 `txn_next >= 20230102000000000`
+* `{"id":"foo", "speedLimit":20, "txn":20230102000000000, "txn_next":20230102000010000}` partition: 2023_01_02 `txn_next >= 20230102000000000`
+* `{"id":"foo", "speedLimit":25, "txn":20230102000010000, "txn_next":20230104000000000}` partition: 2023_01_04 `txn_next >= 20230104000000000`
+* `{"id":"foo", "speedLimit":40, "txn":20230104000000000, "txn_next":20230115000000000}` partition: 2023_01_05 `txn_next >= 20230105000000000`
+* `{"id":"foo", "speedLimit":50, "txn":20230115000000000, "txn_next":0}` partition: HEAD
+
+This is a simplified example to basically show how the queries work. Assume we want to know the version that matches the transaction-number `20230103000000000` (so done on the 3'th January 2023). We expect to get back the version with **speedLimit** being `25` (`txn=20230102000010000`), because it is the latest version before the 3'th January, being the closest to the requested version.
 
 ```sql
-SELECT * FROM ${table} WHERE xyz.txn <= 20230110000000000 AND jsondata->>'id' = 'foo'
+SELECT * FROM ${table} WHERE xyz.txn <= 20230103000000000 AND jsondata->>'id' = 'foo'
 UNION ALL
-SELECT * FROM ${table}_hst WHERE xyz.txn <= 20230110000000000 AND txn_next > 20230110000000000 AND jsondata->>'id' = 'foo'
+SELECT * FROM ${table}_hst WHERE xyz.txn <= 20230103000000000 AND txn_next > 20230103000000000 AND jsondata->>'id' = 'foo'
 ```
 
 The first query will only look into the HEAD table, but the feature there has a `txn` value being bigger than the searched one (`20230103000000000`). This query should hit the `id, txn, txn_next` index and return nothing.
 
-The second query will look into all history tables that can contain features for the requested `txn`, so into the first two history partitions. The queries should as well hit the `id, txn, txn_next` index of each history table.
+The second query will look into all history tables that can contain features for the requested `txn_next`, so into the partitions 2023_01_04 and 2023_01_05. The queries should as well hit the `id, txn, txn_next` index of each history table.
 
-* 2023_01_01: The version of `foo` stored does not match, because `txn_next` is less than the requested `20230103000000000`
-* 2023_01_02: There are two versions of `foo` stored.
-  * The first one (`speedLimit=20`) does not match, because `txn_next` is less than the requested `20230103000000000`
-  * The second one (`speedLimit=25`) **does** match, because `txn_next` is greater than the requested `20230103000000000`, actually being `20230104000000000`
+* 2023_01_05: The version of `foo` (`speedLimit=40`) stored here **does not** match, because `txn=20230104000000000` is bigger than the requested `20230103000000000`
+* 2023_01_04: The version of `foo` (`speedLimit=25`) stored here **does** match, because `txn=20230102000010000` is less than the requested `20230103000000000`
 
-Therefore, the union of all the query returns only exactly one feature, the searched one, only using index-only scans, done in parallel through all partition.
+Therefore, the union of all the query returns only exactly one feature, the searched one (`foo,speedLimit=25`). This operation does use index-only scans, and is done in parallel for all potential partition.
 
 ## Transaction Logs
 
@@ -210,7 +229,7 @@ The transaction logs are stored in the `naksha_tx` table. Each transaction persi
 
 The transaction-log should have a combined unique index on (**txn**, **action**, **id**).
 
-**Note**: The transaction table itself is partitioned by `txn`, the same way the history of all collections is partitioned (`naksha_tx_YYYY_MM_DD`). This is mainly helpful to purge transaction-logs and to improve the access speed.
+**Note**: The transaction table itself is partitioned by `txn`, not by `txn_next`, but except for this the same way the history of the collections is partitioned (`naksha_tx_YYYY_MM_DD`). This is mainly helpful to purge transaction-logs and to improve the access speed.
 
 ### Actions
 
