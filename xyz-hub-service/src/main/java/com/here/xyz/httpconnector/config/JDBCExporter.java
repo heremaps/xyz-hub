@@ -69,104 +69,100 @@ public class JDBCExporter extends JDBCClients {
               Export.SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
               SQLQuery exportQuery = null;
 
-              switch (job.getExportTarget().getType()) {
-                case DOWNLOAD:
-                  exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
-                      job.getTargetVersion(), job.getParams(), job.getCsvFormat());
-                  return calculateThreadCountForDownload(job, schema, exportQuery)
-                      .compose(threads -> {
-                        try {
-                          Promise<Export.ExportStatistic> promise = Promise.promise();
-                          List<Future> exportFutures = new ArrayList<>();
-
-                          for (int i = 0; i < threads; i++) {
-                            String s3Prefix = i + "_";
-                            SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region,
-                                (threads > 1 ? new SQLQuery("AND i%% " + threads + " = " + i) : null));
-                            exportFutures.add(exportTypeDownload(job.getTargetConnector(), q2, job, s3Path));
-                          }
-
-                          return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
-                        }
-                        catch (SQLException e) {
-                          logger.warn("job[{}] ", job.getId(), e);
-                          return Future.failedFuture(e);
-                        }
-                      });
-                case VML:
-                default:
-
-                  if (job.getCsvFormat().equals(PARTITIONID_FC_B64)) {
-                    exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
-                                                              job.getTargetVersion(), job.getParams(), job.getCsvFormat(),null,
-                        job.readParamIncremental() == CHANGES, job.getPartitionKey(),job.getOmitOnNull());
+              switch (job.getCsvFormat()) {
+                  case PARTITIONID_FC_B64:
+                      exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+                              job.getTargetVersion(), job.getParams(), job.getCsvFormat(),null,
+                              job.readParamIncremental() == CHANGES, job.getPartitionKey(),job.getOmitOnNull());
 
 
-                    return calculateThreadCountForDownload(job, schema, exportQuery)
-                        .compose(threads -> {
-                          try {
-                            Promise<Export.ExportStatistic> promise = Promise.promise();
-                            List<Future> exportFutures = new ArrayList<>();
+                      return calculateThreadCountForDownload(job, schema, exportQuery)
+                              .compose(threads -> {
+                                  try {
+                                      Promise<Export.ExportStatistic> promise = Promise.promise();
+                                      List<Future> exportFutures = new ArrayList<>();
 
-                            int tCount = threads,
-                                maxPartitionPerFile = 500000; /* tbd ? */
+                                      int tCount = threads,
+                                              maxPartitionPerFile = 500000; /* tbd ? */
 
-                            if (job.getPartitionKey() == null || "id".equalsIgnoreCase(job.getPartitionKey()))
-                              if (job.getFilters() != null && ((job.getFilters().getPropertyFilter() != null) || (
-                                  job.getFilters().getSpatialFilter() != null)))
-                                tCount = threads;
-                              else // only when export by id and no filter is used
-                                tCount = Math.max(threads, (int) Math.floor(job.getEstimatedFeatureCount() / (long) maxPartitionPerFile));
+                                      if (job.getPartitionKey() == null || "id".equalsIgnoreCase(job.getPartitionKey()))
+                                          if (job.getFilters() != null && ((job.getFilters().getPropertyFilter() != null) || (
+                                                  job.getFilters().getSpatialFilter() != null)))
+                                              tCount = threads;
+                                          else // only when export by id and no filter is used
+                                              tCount = Math.max(threads, (int) Math.floor(job.getEstimatedFeatureCount() / (long) maxPartitionPerFile));
 
-                            for (int i = 0; i < tCount; i++) {
-                                String s3Prefix = i + "_";
-                                SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region,
-                                    tCount > 1 ? new SQLQuery("AND i%% " + tCount + " = " + i) : null);
-                                exportFutures.add(exportTypeVML(job.getTargetConnector(), q2, job, s3Path));
-                            }
+                                      for (int i = 0; i < tCount; i++) {
+                                          String s3Prefix = i + "_";
+                                          SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region,
+                                                  tCount > 1 ? new SQLQuery("AND i%% " + tCount + " = " + i) : null);
+                                          exportFutures.add(exportTypeVML(job.getTargetConnector(), q2, job, s3Path));
+                                      }
 
-                            return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
-                          }
-                          catch (SQLException e) {
-                            logger.warn("job[{}] ", job.getId(), e);
-                            return Future.failedFuture(e);
-                          }
-                        });
-                  }
-
-                    exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
-                        job.getTargetVersion(), job.getParams(), job.getCsvFormat());
+                                      return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+                                  }
+                                  catch (SQLException e) {
+                                      logger.warn("job[{}] ", job.getId(), e);
+                                      return Future.failedFuture(e);
+                                  }
+                              });
+                  case TILEID_FC_B64:
+                      exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+                              job.getTargetVersion(), job.getParams(), job.getCsvFormat());
 
                     /*
                     Is used for incremental exports (tiles) - here we have to export modified tiles.
                     Those tiles we need to calculate separately
                      */
-                    final SQLQuery qkQuery = job.readParamIncremental() == CHANGES
-                        //Create query which calculate all Tiles which are effected from delta changes
-                        ? generateFilteredExportQueryForCompositeTileCalculation(job.getId(), schema, job.getTargetSpaceId(),
-                          propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat())
-                        : null;
+                      final SQLQuery qkQuery = job.readParamIncremental() == CHANGES
+                              //Create query which calculate all Tiles which are effected from delta changes
+                              ? generateFilteredExportQueryForCompositeTileCalculation(job.getId(), schema, job.getTargetSpaceId(),
+                              propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat())
+                              : null;
 
-                  return calculateTileListForVMLExport(job, schema, exportQuery, qkQuery)
-                      .compose(tileList -> {
-                        try {
-                          Promise<Export.ExportStatistic> promise = Promise.promise();
-                          List<Future> exportFutures = new ArrayList<>();
-                          job.setProcessingList(tileList);
+                      return calculateTileListForVMLExport(job, schema, exportQuery, qkQuery)
+                              .compose(tileList -> {
+                                  try {
+                                      Promise<Export.ExportStatistic> promise = Promise.promise();
+                                      List<Future> exportFutures = new ArrayList<>();
+                                      job.setProcessingList(tileList);
 
-                          for (int i = 0; i < tileList.size(); i++) {
-                            /** Build export for each tile of the weighted tile list */
-                            SQLQuery q2 = buildVMLExportQuery(job, schema, s3Bucket, s3Path, s3Region, tileList.get(i), qkQuery);
-                            exportFutures.add(exportTypeVML(job.getTargetConnector(), q2, job, s3Path));
-                          }
+                                      for (int i = 0; i < tileList.size(); i++) {
+                                          /** Build export for each tile of the weighted tile list */
+                                          SQLQuery q2 = buildVMLExportQuery(job, schema, s3Bucket, s3Path, s3Region, tileList.get(i), qkQuery);
+                                          exportFutures.add(exportTypeVML(job.getTargetConnector(), q2, job, s3Path));
+                                      }
 
-                          return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
-                        }
-                        catch (SQLException e) {
-                          logger.warn("job[{}] ", job.getId(), e);
-                          return Future.failedFuture(e);
-                        }
-                      });
+                                      return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+                                  }
+                                  catch (SQLException e) {
+                                      logger.warn("job[{}] ", job.getId(), e);
+                                      return Future.failedFuture(e);
+                                  }
+                              });
+                  default:
+                      exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+                              job.getTargetVersion(), job.getParams(), job.getCsvFormat());
+                      return calculateThreadCountForDownload(job, schema, exportQuery)
+                              .compose(threads -> {
+                                  try {
+                                      Promise<Export.ExportStatistic> promise = Promise.promise();
+                                      List<Future> exportFutures = new ArrayList<>();
+
+                                      for (int i = 0; i < threads; i++) {
+                                          String s3Prefix = i + "_";
+                                          SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region,
+                                                  (threads > 1 ? new SQLQuery("AND i%% " + threads + " = " + i) : null));
+                                          exportFutures.add(exportTypeDownload(job.getTargetConnector(), q2, job, s3Path));
+                                      }
+
+                                      return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+                                  }
+                                  catch (SQLException e) {
+                                      logger.warn("job[{}] ", job.getId(), e);
+                                      return Future.failedFuture(e);
+                                  }
+                              });
               }
             }
             catch (Exception e) {
