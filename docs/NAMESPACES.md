@@ -37,6 +37,8 @@ In the tags Naksha stores:
 * The status of a violation into: `violation_state={violations-status}`
 * The validation type into: `violation_val_type={val-type}`
 
+With Naksha a special tag syntax will be supported that is `{key}={value}`. Searching for this tag is still only possible, when key and value are known, but Naksha will ensure that later tags, with the same key, will replace (override) all more early tags with the same key. For example, the tags `["foo=1", "bar", "restaurant", "foo=2", "foo=3"]` will be compacted by Naksha into `["bar", "restaurant", "foo=3"]`. The purpose of this feature is to be able to add unique keys, for example, tagging transactions for the UniMap-Editor is done using the property `sourceId`. Indexing this property would be too expensive, therefore there will be a handler that allows a property to tag conversion. This handler basically just adds the tag to the end of the list and then compacts it. For example, when the tag list is `["foo=1", "sourceId=MapTask:1234", "bar", "restaurant", "foo=2", "foo=3"]` and the **sourceId** is `MapTask:9993`, then the handler would just add the tag `sourceId=MapTask:9993`, so the final tags would be `["foo=1", "sourceId=MapTask:1234", "bar", "restaurant", "foo=2", "foo=3", "sourceId=MapTask:9993"]`, compaction would reduce this to `["bar", "restaurant", "foo=3", "sourceId=MapTask:9993"]`. This behavior simplifies tagging for applications, because they do not need to think about, if the corresponding tag exists already.
+
 The **hrid** is automatically set by the Naksha storage engine at part of the normal triggers.
 
 ## MOM-Metadata [`@ns:com:here:meta`]
@@ -53,6 +55,9 @@ The MOM metadata was traditionally stored in the base-collection of the Data-Hub
 | ~~createdTS~~            | Long    | This property is set by the Middleware, if a object is created in the delta space.                                                                                                                              |
 | ~~owner~~                | String? | The owner of the object (currently should be ignored).                                                                                                                                                          |
 | ~~group~~                | String? | The group that owns the object (currently should be ignored).                                                                                                                                                   |
+| sourceId                 | String? | Unique identifier of the data source, not the object.                                                                                                                                                           |
+
+The **sourceId** is used differently in different contexts. For example, in Map-Creator, for normal edits, the app and date are stored here, like `COM_1000001_20220713`. For the UTM (User-Task-Management) the task-id is stored in it, for example  `MapTask:LqBzOJyAo2pTa12l`. In other contexts it is used to logically group parts of a distributed transaction to later query all collections that have features belonging to the same logical transaction.
 
 ## Moderation-Metadata [`@ns:com:here:delta`]
 
