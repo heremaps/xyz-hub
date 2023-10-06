@@ -1571,6 +1571,72 @@ BEGIN
 END
 $$;
 
+-- returns current transaction i.e. 2023100600000000010, which is build as yyyyMMddXXXXXXXXXXX.
+CREATE OR REPLACE FUNCTION naksha_txn()
+    RETURNS int8
+    LANGUAGE 'plpgsql' STABLE
+AS $$
+declare
+    -- 20230101 is just a magic number for naming lock, it looks like date without special reason, just to associate it with what we are doing here.
+    LOCK_NAME constant int4 := 20230101;
+    SEQ_DIVIDER constant int8 := 100000000000;
+    value    text;
+    txi      int8;
+    txn      int8;
+    tx_date  int4;
+    seq_date int4;
+BEGIN
+    value := current_setting('naksha.txn', true);
+    IF coalesce(value, '') <> '' THEN
+        -- RAISE NOTICE 'found value = %', value;
+        return value::int8;
+    END IF;
+
+    -- prepare current yyyyMMdd as number i.e. 20231006
+    tx_date := extract('year' from current_timestamp) * 10000 + extract('month' from current_timestamp) * 100 + extract('day' from current_timestamp);
+
+    txi := nextval('naksha_tx_object_id_seq');
+    -- txi should start with current date  20231006 with seq number "at the end"
+    -- example: 2023100600000000007
+    seq_date := txi / SEQ_DIVIDER; -- returns as number seq prefix which is yyyyMMdd  i.e. 20231006
+
+    -- verification, if current day is not same as day in txi we have to reset sequence to new date and counting from start.
+    IF seq_date <> tx_date then
+        -- not sure if this lock it's enough, 'cause this is session lock that might be acquired multiple times within same session
+        -- it has to be discussed if there is a chance of calling this function multiple times in parallel in same session.
+        PERFORM pg_advisory_lock(LOCK_NAME);
+        txi := nextval('naksha_tx_object_id_seq');
+        seq_date := txi / SEQ_DIVIDER ;
+
+        IF seq_date <> tx_date then
+            txn := tx_date * SEQ_DIVIDER;
+            -- is_called set to true guarantee that next val will be +1
+            PERFORM setval('naksha_tx_object_id_seq', txn, true);
+        ELSE
+            txn := txi;
+        END if;
+
+        PERFORM pg_advisory_unlock(LOCK_NAME);
+    else
+        txn := txi;
+    END IF;
+
+    PERFORM SET_CONFIG('naksha.txn', txn::text, true);
+    RETURN txn::int8;
+
+EXCEPTION WHEN OTHERS then PERFORM pg_advisory_unlock(LOCK_NAME);
+END
+$$;
+
+CREATE OR REPLACE FUNCTION naksha_txn(tstamp timestamp, num int8)
+    RETURNS int8
+    LANGUAGE 'plpgsql' STABLE
+AS $$
+BEGIN
+    return (extract('year' from tstamp) * 10000 + extract('month' from tstamp) * 100 + extract('day' from tstamp)) * 100000000000 + num;
+END
+$$;
+
 -- Return the unique transaction number for the current transaction. If no transaction number is
 -- yet acquired, it acquire a new one.
 CREATE OR REPLACE FUNCTION naksha_tx_current()
