@@ -144,11 +144,6 @@ The indices are all created only directly on the partitions. To keep the documen
   * `SELECT * FROM ${table} WHERE i = i UNION ALL SELECT * FROM ${table}_hst WHERE txn >= naksha_txn($date,0) AND txn < naksha_txn($date+1, 0) AND i = $i`
 * `CREATE INDEX ... USING btree (id text_pattern_ops ASC, xyz.txn DESC, xyz.txn_next DESC)`
   * Used to search features by **id**, optionally in a specific version.
-  * `SELECT * FROM ${table} WHERE xyz.txn <= $txn AND jsondata->>'id' = $id UNION ALL SELECT * FROM ${table}_hst WHERE xyz.txn <= $txn AND txn_next > $txn AND jsondata->>'id' = $id`
-  * This query will read from the HEAD table and all history partition that may contain the desired version.
-  * The HEAD query is likely clear in itself, the history query actually works by:
-    * Reads all partitions that can hold the latest `txn`
-    * Within each partition, filter out the one record that links to a newer version, one being newer than $txn, but older than HEAD (because head is always zero).
 * `CREATE INDEX ... USING btree (xyz.crid text_pattern_ops ASC, xyz.txn DESC, xyz.txn_next DESC) INCLUDE id WHERE xyz.crid IS NOT NULL`
   * Used to search for all features customer ref-ids.
   * Used to calculate the optimal partitioning.
@@ -164,7 +159,34 @@ The indices are all created only directly on the partitions. To keep the documen
 * `CREATE INDEX ... USING gin (xyz.tags array_ops, xyz.txn, xyz.txn_next)`
   * Used to search for tags, optionally in a specific version.
 
-The history queries allow to directly find the correct feature using index-only scans in a couple of tables. This requires the `txn_next` value as explained above for the history query.
+### History Queries
+
+The Naksha design allows history queries to directly find the correct features using index-only scans in a couple of tables. This design requires that the `txn_next` value it set for all history records. For example, looking for a specific feature in a specific version means to search for `jsondata->>'id'` match where the `txn` is the closest to the one requested. Assume the following states of the feature "foo":
+
+* `{"id":"foo", "speedLimit":10, "txn":20230101000000000, "txn_next":20230102000000000}` partition 2023_01_01
+* `{"id":"foo", "speedLimit":20, "txn":20230102000000000, "txn_next":20230102000010000}` partition 2023_01_02
+* `{"id":"foo", "speedLimit":25, "txn":20230102000010000, "txn_next":20230104000000000}` partition 2023_01_02
+* `{"id":"foo", "speedLimit":40, "txn":20230104000000000, "txn_next":20230115000000000}` partition 2023_01_04
+* `{"id":"foo", "speedLimit":50, "txn":20230115000000000, "txn_next":0}` HEAD (today, 2023_01_15)
+
+This is a simplified example to basically show how the queries work. Assume we want to know the version that matches the transaction-number `20230103000000000` (so done on the 3'th January 2023). We expect to get back the version with **speedLimit** being `25` (`txn=20230102000010000`), because it is the version before the 3'th January being the closest to the requested version.
+
+```sql
+SELECT * FROM ${table} WHERE xyz.txn <= 20230110000000000 AND jsondata->>'id' = 'foo'
+UNION ALL
+SELECT * FROM ${table}_hst WHERE xyz.txn <= 20230110000000000 AND txn_next > 20230110000000000 AND jsondata->>'id' = 'foo'
+```
+
+The first query will only look into the HEAD table, but the feature there has a `txn` value being bigger than the searched one (`20230103000000000`). This query should hit the `id, txn, txn_next` index and return nothing.
+
+The second query will look into all history tables that can contain features for the requested `txn`, so into the first two history partitions. The queries should as well hit the `id, txn, txn_next` index of each history table.
+
+* 2023_01_01: The version of `foo` stored does not match, because `txn_next` is less than the requested `20230103000000000`
+* 2023_01_02: There are two versions of `foo` stored.
+  * The first one (`speedLimit=20`) does not match, because `txn_next` is less than the requested `20230103000000000`
+  * The second one (`speedLimit=25`) **does** match, because `txn_next` is greater than the requested `20230103000000000`, actually being `20230104000000000`
+
+Therefore, the union of all the query returns only exactly one feature, the searched one, only using index-only scans, done in parallel through all partition.
 
 ## Transaction Logs
 
