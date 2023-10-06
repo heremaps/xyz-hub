@@ -10,30 +10,35 @@ The admin database of Naksha will (currently) be based upon a PostgresQL databas
 
 Within PostgresQL a collection is a set of database tables. All these tables are prefixed by the `collection` identifier. The tables are:
 
-- `{collection}`: The HEAD table with all features in their live state. This table is the only one that should be directly accessed for manual SQL queries and has triggers attached that will ensure that the history is written accordingly.
-- `{collection}_del`: The HEAD deletion table holding all features that are deleted from the HEAD table. This can be used to read zombie features (features that have been deleted, but are not yet fully unrecoverable dead)
+- `{collection}`: The HEAD table (`PARTITION BY HASH (i)`) with all features in their live state. This table is the only one that should be directly accessed for manual SQL queries and has triggers attached that will ensure that the history is written accordingly.
+- `{collection}_[n]`: The HEAD partitions from 0 to 9 (`FOR VALUES WITH (MODULUS 10, REMAINDER n)`).
+- `{collection}_del`: The HEAD deletion table holding all features that are deleted from the HEAD table. This can be used to read zombie features (features that have been deleted, but are not yet fully unrecoverable dead).
 - `{collection}_hst`: The history view, this is partitioned table, partitioned by `txn`.
 - `{collection}_hst_{YYYY}_{MM}_{YY}`: The history partition for a specific day (`txn >= naksha_txn('2023-09-29',0) AND txn < naksha_txn('2023-09-30',0)`.
 - `{collection}_meta`: The meta-data sub-table, used for arbitrary meta-information and statistics.
 
+**WARNING**: The collection names must be lower-cased and only persist out of the following characters: `^[a-z][a-z0-9_-:]{0,31}$`!
+
 ## Triggers
 
-Naksha PSQL-Storage will add two triggers to the HEAD table to ensure the desired behavior, even when direct SQL queries are executed. This trigger implements the following behavior (it basically exists in two variants: with history enabled or disabled):
+Naksha PSQL-Storage will add two triggers to the HEAD table to ensure the desired behavior, even when direct SQL queries are executed. One trigger is added _before_ `INSERT` and `UPDATE`, the other _after_ all. The triggers implement the following behavior (it basically exists in two variants: with history enabled or disabled):
 
-1. On INSERT
-   * Fix the XYZ namespace `txn=naksha_txn(), txn_next=0, app_id=, author=, ...`
+* **before** `INSERT`
+  * Fix the XYZ namespace `txn=naksha_txn(), txn_next=0, app_id=, author=, ...`
+* **after** `INSERT`
    * Update the transaction-log
    * Delete the inserted feature (by id) from the `{collection}_del`
-2. On UPDATE
-   * Fix the XYZ namespace `txn=naksha_txn(), txn_next=0, app_id=, author=, ...`
-   * Update the transaction-log
-   * Delete the updated feature (by id) from the `{collection}_del`
-   * If history is enabled:
-     * Ensure that the history partition exists
-     * Update XYZ namespace of OLD: `txn_next=naksha_txn()` (only this!)
-     * INSERT a copy of OLD into `{collection}_hst`
-     * This basically creates a backup of the old state, linked to the new HEAD state.
-3. On DELETE
+* **before** `UPDATE`
+  * Fix the XYZ namespace `txn=naksha_txn(), txn_next=0, app_id=, author=, ...`
+* **after** `UPDATE`
+  * Update the transaction-log
+  * Delete the updated feature (by id) from the `{collection}_del`
+  * If history is enabled:
+    * Ensure that the history partition exists
+    * Update XYZ namespace of OLD: `txn_next=naksha_txn()` (only this!)
+    * INSERT a copy of OLD into `{collection}_hst`
+    * This basically creates a backup of the old state, linked to the new HEAD state.
+* **after** `DELETE` 
   * If history is enabled:
     * Ensure that the history partition exists
     * Update XYZ namespace of OLD: `txn_next=naksha_txn()` (only this!)
@@ -112,16 +117,16 @@ The only minor change is that `i` becomes a primary key and is no `BIGSERIAL` an
 
 All collections do have a comment on the HEAD table, which is a JSON objects with the following setup:
 
-| Property              | Type   | Meaning                                                                                                                           |
-|-----------------------|--------|-----------------------------------------------------------------------------------------------------------------------------------|
-| id                    | String | The collection name again.                                                                                                        |
-| estimatedFeatureCount | long   | The estimated total amount of features in the collection.                                                                         |
-| byteSize              | long   | The maximum size of the raw JSON of features in this collection.                                                                  |
-| compressedSize        | long   | The maximum compressed size of the JSON of features in this collection.                                                           |
-| maxAge                | long   | The maximum amount of days of history to keep (defaults to 9,223,372,036,854,775,807).                                            |
-| historyEnabled        | bool   | If `true`, history will be written (defaults to _true_).                                                                          |
-| idPrefix              | String | If not `null` and a feature is inserted, updated or deleted with an **id** that starts with this string, the **id** is truncated. |
-| author                | String | If not `null` and a feature is inserted without an author, this value will be used.                                               |
+| Property              | Type    | Meaning                                                                                                                           |
+|-----------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------|
+| id                    | String  | The collection name again.                                                                                                        |
+| estimatedFeatureCount | long    | The estimated total amount of features in the collection.                                                                         |
+| byteSize              | long    | The maximum size of the raw JSON of features in this collection.                                                                  |
+| compressedSize        | long    | The maximum compressed size of the JSON of features in this collection.                                                           |
+| maxAge                | long    | The maximum amount of days of history to keep (defaults to 36,500 which means 100 years).                                         |
+| historyEnabled        | bool    | If `true`, history will be written (defaults to _true_).                                                                          |
+| idPrefix              | String? | If not `null` and a feature is inserted, updated or deleted with an **id** that starts with this string, the **id** is truncated. |
+| author                | String? | If not `null` and a feature is inserted without an author, this value will be used.                                               |
 
 ## Optimal Partitioning
 
@@ -139,6 +144,11 @@ The indices are all created only directly on the partitions. To keep the documen
   * `SELECT * FROM ${table} WHERE i = i UNION ALL SELECT * FROM ${table}_hst WHERE txn >= naksha_txn($date,0) AND txn < naksha_txn($date+1, 0) AND i = $i`
 * `CREATE INDEX ... USING btree (id text_pattern_ops ASC, xyz.txn DESC, xyz.txn_next DESC)`
   * Used to search features by **id**, optionally in a specific version.
+  * `SELECT * FROM ${table} WHERE xyz.txn <= $txn AND jsondata->>'id' = $id UNION ALL SELECT * FROM ${table}_hst WHERE xyz.txn <= $txn AND txn_next > $txn AND jsondata->>'id' = $id`
+  * This query will read from the HEAD table and all history partition that may contain the desired version.
+  * The HEAD query is likely clear in itself, the history query actually works by:
+    * Reads all partitions that can hold the latest `txn`
+    * Within each partition, filter out the one record that links to a newer version, one being newer than $txn, but older than HEAD (because head is always zero).
 * `CREATE INDEX ... USING btree (xyz.crid text_pattern_ops ASC, xyz.txn DESC, xyz.txn_next DESC) INCLUDE id WHERE xyz.crid IS NOT NULL`
   * Used to search for all features customer ref-ids.
   * Used to calculate the optimal partitioning.
@@ -150,9 +160,11 @@ The indices are all created only directly on the partitions. To keep the documen
   * We use `gist-sp` only when there are only point features in the collection.
 * `CREATE INDEX ... USING btree (xyz.action text_pattern_ops ASC, xyz.author text_pattern_ops DESC, xyz.txn DESC, xyz.txn_next)`
   * Search for features with a specific action (CREATE, UPDATE or DELETE). Because the cardinality is very low, there are sub-indices.
-  * Search for features that where updated by a specific author, optionally limited to a specific version.
+  * Search for features that were updated by a specific author, optionally limited to a specific version.
 * `CREATE INDEX ... USING gin (xyz.tags array_ops, xyz.txn, xyz.txn_next)`
   * Used to search for tags, optionally in a specific version.
+
+The history queries allow to directly find the correct feature using index-only scans in a couple of tables. This requires the `txn_next` value as explained above for the history query.
 
 ## Transaction Logs
 
