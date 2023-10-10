@@ -80,7 +80,7 @@ public class JobProxyApi extends Api{
                                     job.setTargetSpaceId(spaceId);
                                     job.setTargetConnector(headSpace.getStorage().getId());
                                     job.addParam("versionsToKeep",headSpace.getVersionsToKeep());
-                                    job.addParam("persistExport", headSpace.isPersistExport());
+                                    job.addParam("readOnly", headSpace.isReadOnly());
 
                                     Promise<Map> p = Promise.promise();
 
@@ -101,10 +101,10 @@ public class JobProxyApi extends Api{
                                         /** Resolve 2nd Level Extension */
                                         Service.spaceConfigClient.get(Api.Context.getMarker(context), (String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
                                                 .onSuccess(baseSpace -> {
-                                                    /** Add persistExport flag to Parameters */
+                                                    /** Add readOnly flag to Parameters */
                                                     Map<String, Object> ext = new HashMap<>();
                                                     ext.putAll(extension);
-                                                    ((Map)((Map)ext.get("extends")).get("extends")).put("persistExport", baseSpace.isPersistExport());
+                                                    ((Map)((Map)ext.get("extends")).get("extends")).put("readOnly", baseSpace.isReadOnly());
 
                                                     p.complete(ext);
                                                 })
@@ -244,8 +244,6 @@ public class JobProxyApi extends Api{
     private void postExecute(final RoutingContext context) {
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
-        ContextAwareEvent.SpaceContext _context = ApiParam.Query.getContext(context);
-        ApiParam.Query.Incremental incremental = HApiParam.HQuery.getIncremental(context);
         String command = ApiParam.Query.getString(context, HApiParam.HQuery.H_COMMAND, null);
         int urlCount = ApiParam.Query.getInteger(context, HApiParam.HQuery.URL_COUNT, 1);
 
@@ -284,7 +282,6 @@ public class JobProxyApi extends Api{
                                                     +"&connectorId={connectorId}"
                                                     +"&ecps={ecps}"
                                                     +"&enableHashedSpaceId={enableHashedSpaceId}"
-                                                    +"&incremental={incremental}"
                                                     +"&context={context}"
                                                     +"&command={command}"
                                                     +"&urlCount={urlCount}")
@@ -292,8 +289,6 @@ public class JobProxyApi extends Api{
                                                         .replace("{connectorId}",connector.id)
                                                         .replace("{ecps}",ecps)
                                                         .replace("{enableHashedSpaceId}", Boolean.toString(enableHashedSpaceId))
-                                                        .replace("{incremental}", incremental.toString().toLowerCase())
-                                                        .replace("{context}",_context.toString().toLowerCase())
                                                         .replace("{command}",command)
                                                         .replace("{urlCount}",Integer.toString(urlCount));
 
