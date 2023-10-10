@@ -289,16 +289,18 @@ public class JobS3Client extends AwsS3Client{
     }
 
     public void writeMetaFile(Export job, String bucketName){
+        String path = getS3Path(job) + "/manifest.json";
+        writeMetaFile(job, path, bucketName);
+    }
+
+    public void writeMetaFile(Export job , String filePath, String bucketName){
         try {
-
-            String path = getS3Path(job) + "/manifest.json";
-
             byte[] meta = new ObjectMapper().writeValueAsBytes(job);
 
             ObjectMetadata omd = new ObjectMetadata();
             omd.setContentLength(meta.length);
             omd.setContentType("application/json");
-            client.putObject(bucketName, path, new ByteArrayInputStream(meta), omd);
+            client.putObject(bucketName, filePath, new ByteArrayInputStream(meta), omd);
 
         } catch (AmazonServiceException | IOException e) {
             logger.error("job[{}] cant write Metafile! ", job.getId(), e);
