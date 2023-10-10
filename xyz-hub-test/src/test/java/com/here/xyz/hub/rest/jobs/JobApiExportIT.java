@@ -372,7 +372,7 @@ public class JobApiExportIT extends JobApiIT {
 
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         /** VML Trigger cant get tested here - so its okay that the job will fail in Triggerstate */
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "eyJ0eXBlIjogIkZl");
 
@@ -396,7 +396,7 @@ public class JobApiExportIT extends JobApiIT {
 
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
         /** VML Trigger cant get tested here - so its okay that the job will fail in Triggerstate */
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("23600780", "23600794", "W9uIiwgImZlYXR1cmV");
 
@@ -426,7 +426,7 @@ public class JobApiExportIT extends JobApiIT {
 
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2,scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2,scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwg");
 
@@ -449,7 +449,7 @@ public class JobApiExportIT extends JobApiIT {
 
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "VzIjpbeyJpZC");
 
@@ -469,7 +469,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withPropertyFilter(propertyFilter);
 
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "Onh5eiI6IHsidGFncyI6IF");
 
@@ -495,7 +495,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withPropertyFilter(propertyFilter);
 
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2,scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2,scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "aW9uIiwgImZlYXR");
 
@@ -517,7 +517,7 @@ public class JobApiExportIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("280", "306", "IkZlYXR1cmU");
 
@@ -535,7 +535,7 @@ public class JobApiExportIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("374", "352", "HVyZSIsICJnZW9", "374");
 
@@ -558,7 +558,7 @@ public class JobApiExportIT extends JobApiIT {
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
 
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext,scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext,scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "RyeSI6IHsidHlwZSI6I");
 
@@ -584,7 +584,7 @@ public class JobApiExportIT extends JobApiIT {
                 .withPropertyFilter(propertyFilter);
 
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList("360", "ZXMiOiBbOC42MTk5NjE1");
 
@@ -609,7 +609,7 @@ public class JobApiExportIT extends JobApiIT {
 
         /** Create job */
         Export job =  buildVMTestJob(testExportJobId, filters, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
-        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), failed, finalized);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2ExtExt, scope), finalized, failed);
 
         List<String> mustContain = Arrays.asList(
             "360",
