@@ -99,9 +99,10 @@ public class JobApi extends Api {
 
   private void deleteJob(final RoutingContext context) {
     String jobId = context.pathParam(Path.JOB_ID);
+    boolean deleteData = HApiParam.HQuery.getBoolean(context, HQuery.DELETE_DATA, false);
     boolean force = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.FORCE, false);
 
-    JobHandler.deleteJob(jobId, force, Api.Context.getMarker(context))
+    JobHandler.deleteJob(jobId, deleteData, force, Api.Context.getMarker(context))
             .onFailure(e -> this.sendError(e, context))
             .onSuccess(job -> this.sendResponse(context, OK, job));
   }

@@ -56,7 +56,6 @@ import org.apache.logging.log4j.Logger;
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class Import extends JDBCBasedJob<Import> {
     private static final Logger logger = LogManager.getLogger();
-    public static String ERROR_TYPE_NO_DB_CONNECTION = "no_db_connection";
 
     public static String ERROR_DESCRIPTION_UPLOAD_MISSING = "UPLOAD_MISSING";
     public static String ERROR_DESCRIPTION_INVALID_FILE = "INVALID_FILE";

@@ -54,7 +54,7 @@ public abstract class JobQueue implements Runnable {
 
 
 
-    protected Future<Job> loadCurrentConfig(Job job) {
+    protected synchronized Future<Job> loadCurrentConfig(Job job) {
         return CService.jobConfigClient.get(null, job.getId())
             .compose(currentJobConfig -> {
                 if (currentJobConfig == null) {
@@ -75,7 +75,7 @@ public abstract class JobQueue implements Runnable {
             logger.warn("job[{}] ", jobId, e);
     }
 
-    public static Job hasJob(Job job) {
+    public synchronized static Job hasJob(Job job) {
         return JOB_QUEUE.stream()
                 .filter(j -> j.getId().equalsIgnoreCase(job.getId()))
                 .findAny()
@@ -124,7 +124,7 @@ public abstract class JobQueue implements Runnable {
         return null;
     }
 
-    public static ArrayList<Job> getQueue() {
+    public synchronized static ArrayList<Job> getQueue() {
         return JOB_QUEUE;
     }
 

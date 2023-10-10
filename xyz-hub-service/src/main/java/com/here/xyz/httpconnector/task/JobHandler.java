@@ -108,24 +108,19 @@ public class JobHandler {
           });
     }
 
-    public static Future<Job> deleteJob(String jobId, boolean force, Marker marker) {
+    public static Future<Job> deleteJob(String jobId, boolean deleteData, boolean force, Marker marker) {
         return loadJob(jobId, marker)
-            .compose(job -> {
-                if (!Job.isValidForDelete(job, force))
+                .compose(job -> {
+                    if (job.isValidForDelete() || force)
+                        return Future.succeededFuture(job);
                     return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Job is not in end state - current status: "+ job.getStatus()) );
-                else {
-                    if (force) {
-                        //In force mode abort running SQLs
-                        return job.abortIfPossible()
-                                .onSuccess(f -> {
-                                    //Clean S3 Job Folder
-                                    CService.jobS3Client.cleanJobData(job, force);
-                                }).compose(f -> CService.jobConfigClient.delete(marker, job.getId(), force));
+                }).compose(job -> {
+                    if (deleteData || force) {
+                        //In force mode we are cleaning data on s3.
+                        return CService.jobS3Client.cleanJobData(job);
                     }
-                    else
-                        return CService.jobConfigClient.delete(marker, job.getId(), force);
-                }
-            });
+                    return Future.succeededFuture(job);
+                }).compose(job -> CService.jobConfigClient.delete(marker, job.getId()));
     }
 
     public static Future<Job> executeCommand(String jobId, Command command, int urlCount, Marker marker) {

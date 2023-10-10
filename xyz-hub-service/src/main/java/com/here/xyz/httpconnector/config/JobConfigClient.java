@@ -109,7 +109,7 @@ public abstract class JobConfigClient implements Initializable {
           });
     }
 
-    public Future<Job> delete(Marker marker, String jobId, boolean force) {
+    public Future<Job> delete(Marker marker, String jobId) {
         return getJob(marker, jobId)
             .onSuccess(job -> {
               if (job == null)

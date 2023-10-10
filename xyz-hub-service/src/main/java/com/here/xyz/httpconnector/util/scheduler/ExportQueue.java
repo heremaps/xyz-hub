@@ -19,7 +19,7 @@
 
 package com.here.xyz.httpconnector.util.scheduler;
 
-import static com.here.xyz.httpconnector.util.jobs.Export.ERROR_TYPE_HTTP_TRIGGER_FAILED;
+import static com.here.xyz.httpconnector.util.jobs.Export.ERROR_DESCRIPTION_HTTP_TRIGGER_FAILED;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
 import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_FINALIZATION_FAILED;
 
@@ -64,6 +64,8 @@ public class ExportQueue extends JobQueue {
                             logger.info("job[{}] is finalized!", currentJob.getId());
                             break;
                         case failed:
+                            /** Write MetaFile to S3 */
+                            CService.jobS3Client.writeMetaFile((Export) currentJob);
                             logger.info("job[{}] has failed!", currentJob.getId());
                             break;
                         case waiting:
@@ -77,8 +79,9 @@ public class ExportQueue extends JobQueue {
                             updateJobStatus(currentJob, Job.Status.executing_trigger)
                                 .onSuccess(f -> {
                                     if (currentJob instanceof Export && ((Export) currentJob).getExportTarget().getType() == VML
-                                        && ((Export) currentJob).getStatistic() != null
-                                        && ((Export) currentJob).getStatistic().getFilesUploaded() > 0)
+                                            && ((Export) currentJob).getStatistic() != null
+                                            && ((Export) currentJob).getStatistic().getFilesUploaded() > 0
+                                            && !((Export) currentJob).readParamSkipTrigger())
                                         //Only here we need a trigger
                                         postTrigger(currentJob);
                                     else
@@ -116,9 +119,9 @@ public class ExportQueue extends JobQueue {
             })
             .onFailure(e -> {
                 if (e instanceof HttpException)
-                    setJobFailed(job, Export.ERROR_TYPE_TARGET_ID_INVALID, ERROR_TYPE_FINALIZATION_FAILED);
+                    setJobFailed(job, Export.ERROR_DESCRIPTION_TARGET_ID_INVALID, ERROR_TYPE_FINALIZATION_FAILED);
                 else
-                    setJobFailed(job, ERROR_TYPE_HTTP_TRIGGER_FAILED, ERROR_TYPE_FINALIZATION_FAILED);
+                    setJobFailed(job, ERROR_DESCRIPTION_HTTP_TRIGGER_FAILED, ERROR_TYPE_FINALIZATION_FAILED);
             });
     }
 
@@ -128,9 +131,9 @@ public class ExportQueue extends JobQueue {
             HubWebClient.executeHTTPTriggerStatus((Export) job)
                 .onFailure(e -> {
                     if (e instanceof HttpException)
-                        setJobFailed(job, Export.ERROR_TYPE_TARGET_ID_INVALID, ERROR_TYPE_FINALIZATION_FAILED);
+                        setJobFailed(job, Export.ERROR_DESCRIPTION_TARGET_ID_INVALID, ERROR_TYPE_FINALIZATION_FAILED);
                     else
-                        setJobFailed(job, Export.ERROR_TYPE_HTTP_TRIGGER_STATUS_FAILED, ERROR_TYPE_FINALIZATION_FAILED);
+                        setJobFailed(job, Export.ERROR_DESCRIPTION_HTTP_TRIGGER_STATUS_FAILED, ERROR_TYPE_FINALIZATION_FAILED);
                 })
                 .onSuccess(status -> {
                     switch (status) {
@@ -146,7 +149,7 @@ public class ExportQueue extends JobQueue {
                         case "cancelled":
                         case "failed":
                             logger.warn("job[{}] Trigger '{}' failed with state '{}'", job.getId(), ((Export) job).getTriggerId(), status);
-                            setJobFailed(job, ERROR_TYPE_HTTP_TRIGGER_FAILED, ERROR_TYPE_FINALIZATION_FAILED);
+                            setJobFailed(job, ERROR_DESCRIPTION_HTTP_TRIGGER_FAILED, ERROR_TYPE_FINALIZATION_FAILED);
                     }
                 });
         }

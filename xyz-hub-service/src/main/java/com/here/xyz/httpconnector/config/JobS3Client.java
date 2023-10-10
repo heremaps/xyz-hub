@@ -33,9 +33,8 @@ import com.here.xyz.httpconnector.util.jobs.ExportObject;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 import com.here.xyz.httpconnector.util.jobs.validate.Validator;
-import com.here.xyz.util.Hasher;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -48,6 +47,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
+
+import com.here.xyz.util.Hasher;
+import io.vertx.core.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -305,12 +307,16 @@ public class JobS3Client extends AwsS3Client{
         }
     }
 
-    public String checkPersistentS3ExportOfSuperLayer(String superLayer, Export sourceJob) {
-        String path = getS3Path(superLayer, sourceJob.getTargetLevel());
-        Export superExport = readMetaFileFromPath(path);
-        if(superExport == null)
-            return null;
-        return path;
+    public String getPersistentS3ExportOfSuperLayer(String superLayer, Export sourceJob) {
+        return getS3Path(sourceJob, superLayer);
+    }
+
+    public Job.Status checkStatusOfPersistentS3ExportOfSuperLayer(String superExportPath) {
+        Export superExport = readMetaFileFromPath(superExportPath);
+
+        if(superExport != null)
+            return superExport.getStatus();
+        return null;
     }
 
     public Export readMetaFileFromJob(Export job) {
@@ -324,51 +330,43 @@ public class JobS3Client extends AwsS3Client{
             if(s3Object != null)
                 return new ObjectMapper().readValue(s3Object.getObjectContent(), Export.class);
         } catch (Exception e) {
-            logger.error("Cant read Metafile from path '{}'! ", path, e);
+            logger.info("Cant read Metafile from path '{}'! ", path);
         }
         return null;
     }
 
-    public String getS3Path(String targetSpaceId, String subfolder, boolean subHashed) {
-     return String.join("/", new String[]{CService.jobS3Client.EXPORT_PERSIST_FOLDER, Hasher.getHash(targetSpaceId),
-         !subHashed ? subfolder : Hasher.getHash(subfolder)});
+    public String getS3Path(Job job){
+        return getS3Path(job, null);
     }
 
-    public String getS3Path(String targetSpaceId, int targetLevel) {
-        return getS3Path(targetSpaceId, "" + targetLevel, false);
-    }
-
-    public String getS3Path(Job job) {
+    public String getS3Path(Job job, String targetSpaceId) {
         if (job instanceof Import)
             return IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
 
+        // default S3 path
         String s3Path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER + "/" + job.getId();
 
-        if (job instanceof Export && ((Export) job).readParamPersistExport()) {
-            Export exportJob = (Export) job;
-            if (exportJob.getExportTarget().getType() == Export.ExportTarget.Type.VML && exportJob.getFilters() == null) {
-              if (job.getCsvFormat() == CSVFormat.TILEID_FC_B64)
-                  s3Path = getS3Path(job.getTargetSpaceId(),exportJob.getTargetLevel());
-              else {
-                  String folder =  exportJob.getPartitionKey() != null && !"id".equalsIgnoreCase(exportJob.getPartitionKey()) ? exportJob.getPartitionKey() : "id";
-                  s3Path = getS3Path(job.getTargetSpaceId(), folder, true);
-              }
+        if (job instanceof Export) {
+            // if Export has readOnlyParam - all exports should get persisted.
+            // if a targetSpace got provided, we want to load existing files.
+            if(((Export) job).readParamReadOnly()
+                    || targetSpaceId != null) {
+
+                if (targetSpaceId == null)
+                    targetSpaceId = job.getTargetSpaceId();
+
+                s3Path = String.join("/", new String[]{CService.jobS3Client.EXPORT_PERSIST_FOLDER,
+                        Hasher.getHash(targetSpaceId),
+                        ((Export) job).getSubFolderHashForPersistentStorage()});
             }
         }
+
         return s3Path;
     }
 
-    public void cleanJobData(Job job, boolean force){
+    public Future<Job> cleanJobData(Job job){
         String path = getS3Path(job);
-
-        if(job instanceof Export && ((Export) job).readParamPersistExport() && !force){
-            //force is required!
-            return;
-        }else if(job instanceof Import && !force){
-            //force is required!
-            return;
-        }
-
         this.deleteS3Folder(CService.configuration.JOBS_S3_BUCKET, path + "/");
+        return Future.succeededFuture(job);
     }
 }

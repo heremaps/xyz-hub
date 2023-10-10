@@ -117,7 +117,7 @@ public class CombinedJob extends Job<CombinedJob> {
     childJob.init(); //TODO: Do field initialization at instance initialization time
     childJob.withTargetConnector(space.getStorage().getId());
     childJob.addParam("versionsToKeep", space.getVersionsToKeep());
-    childJob.addParam("persistExport", space.isPersistExport());
+    childJob.addParam("readOnly", space.isReadOnly());
   }
 
   @Override

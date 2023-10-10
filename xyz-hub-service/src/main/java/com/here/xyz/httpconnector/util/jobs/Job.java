@@ -25,6 +25,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.addJob;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
@@ -38,7 +39,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
@@ -236,8 +237,9 @@ public abstract class Job<T extends Job> extends Payload {
       catch (Exception e) {
         return Future.failedFuture(new HttpException(BAD_REQUEST, "Job has no lastStatus - can't retry!"));
       }
+      //Add job directly to queue instead executing Start to skip validations.
       return CService.jobConfigClient.update(getMarker(), this)
-          .compose(job -> executeStart());
+          .onSuccess(job -> addJob(this));
     }
 
     /**
@@ -300,13 +302,10 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     @JsonIgnore
-    public static boolean isValidForDelete(Job job, boolean force) {
-        if (force)
+    public boolean isValidForDelete() {
+        if(getStatus().isFinal() || getStatus().equals(waiting))
             return true;
-        switch (job.getStatus()) {
-            case waiting: case finalized: case aborted: case failed: return true;
-            default: return false;
-        }
+        return false;
     }
 
 
@@ -786,7 +785,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     protected Future<Job> isProcessingOnRDSPossible() {
-        return JDBCImporter.getRDSStatus(getTargetConnector())
+        return JDBCClients.getRDSStatus(getTargetConnector())
             .compose(rdsStatus -> {
 
                 if (rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization() > CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION) {
