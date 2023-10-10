@@ -301,6 +301,8 @@ public class JobApiIT extends TestSpaceWithFeature {
             if(i++ == 400)
                 fail("Unexpected loop!");
         }
+        Thread.sleep(200);
+
         return job;
     }
 

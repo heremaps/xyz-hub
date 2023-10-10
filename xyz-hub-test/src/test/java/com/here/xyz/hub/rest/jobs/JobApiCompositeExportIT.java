@@ -235,6 +235,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         Export.Filters filters = new Export.Filters().withSpatialFilter(spatialFilter);
         job.setFilters(filters);
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
+        Thread.sleep(100);
         assertNotNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
 
         /** Composite Export with different targetLevel - requires new Export of base */
@@ -242,6 +243,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         job.setFilters(filters);
 
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
+        Thread.sleep(100);
         assertNotNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
 
         /** Composite Export with new property filter - requires new Export of base */
@@ -251,6 +253,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         job.setFilters(filters);
 
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
+        Thread.sleep(100);
         assertNotNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
 
         /** Composite Export with existing configuration - requires NO new Export of base */
