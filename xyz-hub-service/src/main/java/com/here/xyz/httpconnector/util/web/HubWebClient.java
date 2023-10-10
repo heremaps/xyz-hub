@@ -22,6 +22,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
@@ -104,6 +105,48 @@ public class HubWebClient {
                         return Future.failedFuture(e);
                     }
                 });
+    }
+
+    public static Future<Job> performBaseLayerExport(String spaceId, Export job) {
+        String statusUrl = CService.configuration.HUB_ENDPOINT+"/spaces/"+spaceId+"/jobs";
+
+        return CService.webClient.postAbs(statusUrl)
+                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                .sendJson(job)
+                .compose(res -> {
+                    try {
+                        if(res.statusCode() == HttpResponseStatus.BAD_REQUEST.code()) {
+                            return Future.succeededFuture(null);
+                        }else if(res.statusCode() != HttpResponseStatus.CREATED.code()) {
+                            return Future.failedFuture("Can't create Job!");
+                        }
+
+                        JsonObject resp = res.bodyAsJsonObject();
+                        String id = resp.getString("id");
+                        return Future.succeededFuture(id);
+                    }
+                    catch (Exception e){
+                        logger.warn("job[{}] Unexpected response for creatJob! ", job.getId(), e);
+                        return Future.failedFuture(e);
+                    }
+                })
+                .compose(jobId -> {
+                        /** Job is already Existing! */
+                        if(jobId == null)
+                            return Future.succeededFuture(job);
+
+                        String startJobUrl = CService.configuration.HUB_ENDPOINT + "/spaces/" + spaceId + "/job/"+jobId+"/execute?command=start";
+                        return CService.webClient.postAbs(startJobUrl)
+                                .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
+                                .sendJson(job)
+                                .compose(res -> {
+                                        if (res.statusCode() != HttpResponseStatus.NO_CONTENT.code()) {
+                                            return Future.failedFuture("Cant start Job!");
+                                        }
+                                        return Future.succeededFuture(job);
+                                });
+                    }
+                );
     }
 
     public static Future<Connector> getConnectorConfig(String connectorId) {
