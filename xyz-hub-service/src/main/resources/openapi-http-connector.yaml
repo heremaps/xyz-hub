@@ -241,7 +241,7 @@ paths:
       operationId: deleteJob
       parameters:
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/Force'
+        - $ref: '#/components/parameters/DeleteData'
       responses:
         '200':
           $ref: '#/components/responses/JobResponse'
@@ -258,23 +258,6 @@ paths:
       operationId: postExecute
       parameters:
         - $ref: '#/components/parameters/JobId'
-        - name: connectorId
-          in: query
-          description: >-
-            Provide ConnectorId
-          required: false
-          schema:
-            type: string
-        - name: ecps
-          in: query
-          description: >-
-            Provide ECPS
-          required: false
-          schema:
-            type: string
-        - $ref: '#/components/parameters/EnableHashedSpaceId'
-        - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Incremental'
         - $ref: '#/components/parameters/UrlCount'
         - $ref: '#/components/parameters/Command'
       responses:
@@ -333,27 +316,6 @@ components:
       required: false
       schema:
         type: string
-    Context:
-      name: context
-      in: query
-      description: |
-        The context where the operation will be performed on a composite space.
-        If not specified, the operation occurs based on the extension rules.
-        For additional information, see Space.extends.
-
-        Available context are:
-        |Context|Description|
-        |-------|-----------|
-        |default|The default value if none is given. For composite spaces the operation occurs based on the extension rules. For normal spaces this is the only valid context.|
-        |extension|The operation will be executed only in the extension and no operation will be performed in the extended space.|
-        |super|Only applicable for read-operations. The operation will be executed only in the space being extended (super space).|
-      schema:
-        type: string
-        enum:
-          - default
-          - extension
-          - super
-        default: default
     Command:
       name: command
       in: query
@@ -380,26 +342,11 @@ components:
         default: 1
         minimum: 1
         maximum: 1000
-    Incremental:
-      name: incremental
+    DeleteData:
+      name: deleteData
       in: query
       description: >-
-        Available for composite spaces where the super space has a "persistExport" configuration.
-        Full: reuse existing super export and add changed tiles of composite compound on top.
-        Changes: changed tiles of composite compound.
-      required: false
-      schema:
-        type: string
-        enum:
-          - deactivated
-          - full
-          - changes
-        default: deactivated
-    Force:
-      name: force
-      in: query
-      description: >-
-        With force also persistent job data gets deleted.
+        By setting deleteData=true also immediate deletion of import and export files is getting performed.
       required: false
       schema:
         type: boolean
@@ -425,15 +372,6 @@ components:
       required: true
       schema:
         type: string
-    EnableHashedSpaceId:
-      name: enableHashedSpaceId
-      in: query
-      description: >-
-        Do we hava a hashedSpaceId?
-      required: true
-      schema:
-        type: boolean
-        default: true
     ECPS:
       name: ecps
       in: query

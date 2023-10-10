@@ -33,8 +33,6 @@ recipes:
       - paths.'/spaces/{spaceId}/spatial'.post.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/search'.get.parameters.$ref~=^.*Context$
       - paths.'/spaces/{spaceId}/iterate'.get.parameters.$ref~=^.*Context$
-      - paths.'/spaces/{spaceId}/job/{jobId}/execute'.post.parameters.$ref~=^.*Context$
-      - paths.'/spaces/{spaceId}/job/{jobId}/execute'.post.parameters.$ref~=^.*Incremental$
       - components.parameters.Context
       - components.schemas.Extension
       - components.schemas.Space.properties.extends
