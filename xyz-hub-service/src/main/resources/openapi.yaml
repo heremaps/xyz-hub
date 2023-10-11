@@ -432,7 +432,7 @@ paths:
       operationId: getFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/RequiredIds'
+        - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
@@ -1543,6 +1543,7 @@ components:
         for this field:
           * id=value1,value2
           * id=value1,id=value2
+      required: true
       schema:
         type: array
         items:
@@ -1784,19 +1785,6 @@ components:
         Required if refFeatureId is used.
       schema:
         type: string
-    RequiredIds:
-      name: id
-      in: query
-      description: >-
-        A comma separated list of unique feature identifiers. These are the acceptable formats
-        for this field:
-          * id=value1,value2
-          * id=value1,id=value2
-      required: true
-      schema:
-        type: array
-        items:
-          type: string
     VersionLowerThan:
       name: version
       in: query
