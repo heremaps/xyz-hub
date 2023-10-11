@@ -136,6 +136,10 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
     @After
     public void after(){
+        //deleteAllJobsOnSpace(testSpaceId1);
+        //deleteAllJobsOnSpace(testSpaceId1Ext);
+        //deleteAllJobsOnSpace(testSpaceId1ExtExt);
+
         TestWithSpaceCleanup.removeSpace(testSpaceId1);
         TestWithSpaceCleanup.removeSpace(testSpaceId1Ext);
         TestWithSpaceCleanup.removeSpace(testSpaceId1ExtExt);
@@ -183,21 +187,12 @@ public class JobApiCompositeExportIT extends JobApiIT{
     @Test
     public void missingPersistentBaseExport() throws Exception{
         Export job =  generateExportJob(testExportJobId, 4);
-        try {
-            performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-        }
-        catch (HttpException e){
-            assertEquals(PRECONDITION_FAILED, e.status);
-        }
+        List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
+        checkUrls(urls, true);
 
-        deleteJob(job.getId(), testSpaceId1Ext, true);
         job =  generateExportJob(testExportJobId, 4);
-        try {
-            performExport(job, testSpaceId1ExtExt, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-        }
-        catch (HttpException e){
-            assertEquals(PRECONDITION_FAILED, e.status);
-        }
+        performExport(job, testSpaceId1ExtExt, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
+        checkUrls(urls, true);
     }
 
     @Test
@@ -237,6 +232,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         Thread.sleep(100);
         assertNotNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
+        assertEquals(finalized, getJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
 
         /** Composite Export with different targetLevel - requires new Export of base */
         job =  generateExportJob(testExportJobId, 7);
@@ -245,6 +241,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         Thread.sleep(100);
         assertNotNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
+        assertEquals(finalized, getJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
 
         /** Composite Export with new property filter - requires new Export of base */
         job =  generateExportJob(testExportJobId, 7);
@@ -255,6 +252,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         Thread.sleep(100);
         assertNotNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
+        assertEquals(finalized, getJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
 
         /** Composite Export with existing configuration - requires NO new Export of base */
         job =  generateExportJob(testExportJobId, 7);
@@ -277,8 +275,8 @@ public class JobApiCompositeExportIT extends JobApiIT{
         job =  generateExportJob(testExportJobId+"_2", 6);
         urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
 
-        /** Expect 3 files from persistent super layer + 3 files from composite compound */
-        assertEquals(2, urls.size());
+        /** Expect 2 files - 1 persistent 1 not persistent*/
+        checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
         mustContain.addAll(baseContent);
@@ -295,7 +293,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         /** Initial Base Export */
         List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL);
-        assertEquals(1, urls.size());
+        checkUrls(urls, false);
 
         List<String> mustContain = Arrays.asList(
                 "zI3NjQ3LCA",
@@ -313,8 +311,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         Export job =  generateExportJob(testExportJobId, 6);
         List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
 
-        /** Expect 3 files from persistent super layer + 3 files from composite compound */
-        assertEquals(2, urls.size());
+        checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
         mustContain.addAll(baseContent);
@@ -329,8 +326,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         /** Composite Export */
         Export job =  generateExportJob(testExportJobId, 6);
         List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.CHANGES);
-        /** Expect 1 file with base+delta */
-        assertEquals(1, urls.size());
+        checkUrls(urls, false);
 
         //3 Features from base+delta changes. 5 Tiles including two empty tiles.
         downloadAndCheckFC(urls, 1466, 3, l1ChangesContent, 5);
@@ -340,15 +336,15 @@ public class JobApiCompositeExportIT extends JobApiIT{
     public void validCompositeL2ExportFullOptimizedWithExistingBase() throws Exception {
         Export job =  generateExportJob(testExportJobId, 6);
 
-        /** Initial Base Export */
+        /** Initial persistent Base Export */
         List<URL> urls = performExport(job, testSpaceId1, finalized, failed);
         assertEquals(1, urls.size());
+        assertNotEquals(-1, urls.get(0).toString().indexOf("persistent"));
 
         /** Composite Export */
         job =  generateExportJob(testExportJobId, 6);
         urls = performExport(job, testSpaceId1ExtExt, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-        /** Expect 1 files from persistent super layer + 1 files from composite compound */
-        assertEquals(2, urls.size());
+        checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
         mustContain.addAll(baseContent);
@@ -364,10 +360,21 @@ public class JobApiCompositeExportIT extends JobApiIT{
         Export job =  generateExportJob(testExportJobId, 6);
         List<URL> urls = performExport(job, testSpaceId1ExtExt, finalized, failed, Export.CompositeMode.CHANGES);
 
-        assertEquals(1, urls.size());
+        checkUrls(urls, false);
 
         //* One Feature got added and one got deleted .. so we expect 1 Feature + 2 Tiles (one is empty) */
         downloadAndCheckFC(urls, 492, 1, l2ChangesContent, 2);
+    }
+
+    private void checkUrls(List<URL> urls, boolean expectPersistent){
+        if(expectPersistent) {
+            assertEquals(2, urls.size());
+            assertEquals(-1, urls.get(0).toString().indexOf("persistent"));
+            assertNotEquals(-1, urls.get(1).toString().indexOf("persistent"));
+        }else {
+            assertEquals(1, urls.size());
+            assertEquals(-1, urls.get(0).toString().indexOf("persistent"));
+        }
     }
 
     public Export generateExportJob(String id, int targetLevel){
