@@ -69,7 +69,8 @@ public class ExportQueue extends JobQueue {
                             logger.info("job[{}] has failed!", currentJob.getId());
                             break;
                         case waiting:
-                            updateJobStatus(currentJob, Job.Status.queued);
+                            updateJobStatus(currentJob, Job.Status.queued)
+                                    .onComplete(f-> CService.jobS3Client.writeMetaFileIfNotExists((Export) currentJob));
                             break;
                         case queued:
                             updateJobStatus(currentJob, Job.Status.executing)
@@ -84,8 +85,10 @@ public class ExportQueue extends JobQueue {
                                             && !((Export) currentJob).readParamSkipTrigger())
                                         //Only here we need a trigger
                                         postTrigger(currentJob);
-                                    else
+                                    else {
                                         currentJob.finalizeJob();
+                                        CService.jobS3Client.writeMetaFile((Export) currentJob);
+                                    }
                                 });
                             break;
                         case trigger_executed:

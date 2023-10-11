@@ -22,6 +22,7 @@ package com.here.xyz.httpconnector.task;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 
 import com.google.common.collect.ImmutableMap;
 import com.here.xyz.XyzSerializable;
@@ -75,7 +76,7 @@ public class JobHandler {
         return CService.jobConfigClient.get(marker, job.getId())
             .compose(loadedJob -> {
                 if (loadedJob != null)
-                    return Future.failedFuture(new HttpException(BAD_REQUEST, "Job with id '" + job.getId() + "' already exists!"));
+                    return Future.failedFuture(new HttpException(CONFLICT, "Job with id '" + job.getId() + "' already exists!"));
                 else
                   return job.init()
                       .compose(j -> job.validate())

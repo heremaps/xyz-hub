@@ -286,6 +286,12 @@ public class JobS3Client extends AwsS3Client{
         return exportObjectList;
     }
 
+    public void writeMetaFileIfNotExists(Export job){
+        Export export = readMetaFileFromJob(job);
+        if(export == null)
+            writeMetaFile(job, CService.configuration.JOBS_S3_BUCKET);
+    }
+
     public void writeMetaFile(Export job){
         writeMetaFile(job, CService.configuration.JOBS_S3_BUCKET);
     }

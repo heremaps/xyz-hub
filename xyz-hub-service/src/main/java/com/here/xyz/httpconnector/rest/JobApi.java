@@ -119,7 +119,10 @@ public class JobApi extends Api {
     String jobId = context.pathParam(Path.JOB_ID);
 
     JobHandler.executeCommand(jobId, command, urlCount, Api.Context.getMarker(context))
-            .onFailure(t -> this.sendErrorResponse(context, t))
+            .onFailure(t -> {
+              logger.info(Api.Context.getMarker(context),"[{}] can't execute command",jobId, t);
+              this.sendErrorResponse(context, t);
+            })
             .onSuccess(job -> {
               switch (command) {
                 case START:

@@ -108,14 +108,15 @@ public class HubWebClient {
     }
 
     public static Future<Job> performBaseLayerExport(String spaceId, Export job) {
-        String statusUrl = CService.configuration.HUB_ENDPOINT+"/spaces/"+spaceId+"/jobs";
+        String executeUrl = CService.configuration.HUB_ENDPOINT+"/spaces/"+spaceId+"/jobs";
 
-        return CService.webClient.postAbs(statusUrl)
+        return CService.webClient.postAbs(executeUrl)
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                 .sendJson(job)
                 .compose(res -> {
                     try {
-                        if(res.statusCode() == HttpResponseStatus.BAD_REQUEST.code()) {
+                        if(res.statusCode() == HttpResponseStatus.CONFLICT.code()) {
+                            //Job already present
                             return Future.succeededFuture(null);
                         }else if(res.statusCode() != HttpResponseStatus.CREATED.code()) {
                             return Future.failedFuture("Can't create Job!");
@@ -140,7 +141,8 @@ public class HubWebClient {
                                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                                 .sendJson(job)
                                 .compose(res -> {
-                                        if (res.statusCode() != HttpResponseStatus.NO_CONTENT.code()) {
+                                        if (res.statusCode() != HttpResponseStatus.NO_CONTENT.code()
+                                            && res.statusCode() != HttpResponseStatus.PRECONDITION_FAILED.code()) {
                                             return Future.failedFuture("Cant start Job!");
                                         }
                                         return Future.succeededFuture(job);

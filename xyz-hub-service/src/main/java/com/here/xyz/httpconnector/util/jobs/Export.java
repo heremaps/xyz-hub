@@ -812,19 +812,28 @@ public class Export extends JDBCBasedJob<Export> {
         setExecutedAt(Core.currentTimeMillis() / 1000L);
 
         if (readParamReadOnly()) {
+            //Check if we can find already exported data.
             Export existingJob = CService.jobS3Client.readMetaFileFromJob(this);
-            if (existingJob != null) {
-                if (existingJob.getExportObjects() == null || existingJob.getExportObjects().isEmpty()) {
-                    String message = String.format("Another job already started for %s and targetLevel %s with status %s",
-                        existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
-                    setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
-                }
-                else {
-                    addDownloadLinksAndWriteMetaFile(existingJob);
+
+            if(existingJob != null) {
+                if(existingJob.getId().equals(getId()) && existingJob.getStatus().equals(queued))
+                    ; // fall through to jdbc export.
+                else if(existingJob.getStatus().equals(finalized)) {
+                    addDownloadLinks(existingJob);
                     setExportObjects(existingJob.getExportObjects());
                     updateJobStatus(this, executed);
+                    logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
+                    return;
+                }else if(existingJob.getStatus().equals(failed)){
+                    String message = String.format("Another related job "+existingJob.getId()+" has failed.",
+                            existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
+                    logger.warn("job[{}] Export {}", getId(), message);
+                    setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
+                    return;
+                }else {
+                    updateJobStatus(this, queued);
+                    return;
                 }
-                return;
             }
         }
 
@@ -834,7 +843,7 @@ public class Export extends JDBCBasedJob<Export> {
                     //Everything is processed
                     logger.info("job[{}] Export of '{}' completely succeeded!", getId(), getTargetSpaceId());
                     addStatistic(statistic);
-                    addDownloadLinksAndWriteMetaFile(this);
+                    addDownloadLinks(this);
                     updateJobStatus(this, executed);
                 }
             )
@@ -849,7 +858,7 @@ public class Export extends JDBCBasedJob<Export> {
             );
     }
 
-    protected void addDownloadLinksAndWriteMetaFile(Job j){
+    protected void addDownloadLinks(Job j){
         /** Add file statistics and downloadLinks */
         Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
         ((Export) j).setExportObjects(exportObjects);
@@ -859,11 +868,9 @@ public class Export extends JDBCBasedJob<Export> {
             Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath((Export) j, true, true);
             ((Export) j).setSuperExportObjects(superExportObjects);
         }
-
-        /** Write MetaFile to S3 */
-        CService.jobS3Client.writeMetaFile((Export) j);
     }
 
+    @JsonIgnore
     public String getSubFolderHashForPersistentStorage(){
         return Hasher.getHash("" + targetLevel + maxTilesPerFile + partitionKey + csvFormat
                 + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().geometry.getJTSGeometry().hashCode() :"")

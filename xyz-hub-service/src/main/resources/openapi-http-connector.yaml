@@ -181,6 +181,8 @@ paths:
           $ref: '#/components/responses/JobResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
     get:
       tags:
         - Jobs
