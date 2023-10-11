@@ -9,14 +9,4 @@ Below diagram intends to provide high level overview of how **REST API request**
 
 Below diagram intends to provide high level overview of how **Event request** by one Connector can be internally processed using different components.
 
-![Task request flow][img_task_req_flow]
-
----
-
-## How to create and add a new Connector
-
-TODO 
-
-### Step 1
-
-### Step 2
+TODO
