@@ -109,7 +109,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
   public Future<List<Tag>> getTags(Marker marker, String spaceId) {
     try {
       final ExecuteStatementRequest request = new ExecuteStatementRequest()
-          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"spaceId\" = ?")
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\".\"spaceId-index\" WHERE \"spaceId\" = ?")
           .withParameters(new AttributeValue(spaceId));
 
       return dynamoClient.executeStatement(request)
