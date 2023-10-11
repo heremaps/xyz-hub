@@ -24,8 +24,8 @@ The XYZ namespace was originally introduced by the XYZ-Hub to store state relate
 | tags      | List\<String\>? | no   | The tags.                                                                                                                            |
 | crid      | String?         | no   | An arbitrary custom-ref-id.                                                                                                          |
 | qrid      | String          | yes  | The 31 character long quad-ref-id, based upon the center of the geometry, calculated as `ST_Centroid(coalesc(geo, ST_Point(0,0)))`.  |
-| mrid      | String?         | yes  | The merged reference-id, calculated as `coalesc(crid,qrid)`.                                                                         |
-| ~~space~~ | String?         | yes  | Set to the space that was used to modify the feature. This property is no longer supported.                                          |
+| mrid      | String          | yes  | The merged reference-id, calculated as `coalesc(crid,qrid)`.                                                                         |
+| ~~space~~ | -               | yes  | Set to the space that was used to modify the feature. This property is no longer supported.                                          |
 
 * The **author** must not be `null` in the namespace, but the client does not need to set an author. In this case, the author of features being updated will stay unchanged. For created features, the author defined in the collection-information will be used, if this is as well `null`, then the **app_id** is used (all features **must** eventually have an author).
 

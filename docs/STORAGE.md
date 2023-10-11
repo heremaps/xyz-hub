@@ -98,10 +98,10 @@ Naksha library itself, for example `getFeatureById(String id, Class<TYPE> typeCl
 | Property                     | Description                                    |
 |------------------------------|------------------------------------------------|
 | collections : List\<String\> | The identifiers of the collections to be read. |
-| version : long               | The version to read.                           |
-| spatialOp : SOp              | The (optional) spatial operation to execute.   |
-| propertyOp : POp             | The (optional) property operation to execute.  |
-| orderBy : OOp                | The (optional) ordering operation to execute.  |
+| versionOp : VOp?             | The version to read.                           |
+| spatialOp : SOp?             | The (optional) spatial operation to execute.   |
+| propertyOp : POp?            | The (optional) property operation to execute.  |
+| orderBy : OOp?               | The (optional) ordering operation to execute.  |
 
 ## WriteQuery
 
@@ -181,14 +181,14 @@ Naksha expects that every storage does come with an audit-log. Logically, Naksha
 
 ### UniMapTx
 
-| Property                                              | Description                                                                    |
-|-------------------------------------------------------|--------------------------------------------------------------------------------|
-| ts : long                                             | The time when the transaction was started.                                     |
-| txn : long                                            | The database wide unique transaction number.                                   |
-| seqNum : Long                                         | The sequence number, if available.                                             |
-| seqTs : Long                                          | The timestamp when the sequencer set the sequence number, if yet available.    |
-| comments : Map\<String, UniMapTxComment\>             | All comments added to the transaction.                                         |
-| collections : Map\<String, List\<List\<TxAction\>\>\> | A map between the collection name and the actions performed to the collection. |
+| Property                                       | Description                                                                    |
+|------------------------------------------------|--------------------------------------------------------------------------------|
+| ts : long                                      | The time when the transaction was started.                                     |
+| txn : long                                     | The database wide unique transaction number.                                   |
+| seqNum : Long                                  | The sequence number, if available.                                             |
+| seqTs : Long                                   | The timestamp when the sequencer set the sequence number, if yet available.    |
+| comments : Map\<String, UniMapTxComment\>      | All comments added to the transaction.                                         |
+| collections : Map\<String, List\<TxAction\>\>  | A map between the collection name and the actions performed to the collection. |
 
 Note that transactions need to be prepared for publication via the subscription sub-system. For this purpose every version will receive a unique publication identifier, which is a continues number starting with 1 to n. Naksha guarantees for this identifier that there are no holes in the numeration (therefore the name sequence-number), and it guarantees that lower numbers have lower timestamps.
 

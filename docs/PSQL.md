@@ -10,8 +10,8 @@ The admin database of Naksha will (currently) be based upon a PostgresQL databas
 
 Within PostgresQL a collection is a set of database tables. All these tables are prefixed by the `collection` identifier. The tables are:
 
-- `{collection}`: The HEAD table (`PARTITION BY HASH (i)`) with all features in their live state. This table is the only one that should be directly accessed for manual SQL queries and has triggers attached that will ensure that the history is written accordingly.
-- `{collection}_[n]`: The HEAD partitions from 0 to 9 (`FOR VALUES WITH (MODULUS 10, REMAINDER n)`).
+- `{collection}`: The HEAD table (`PARTITION BY LIST substring(md5(jsondata->>'id'),1,1)`) with all features in their live state. This table is the only one that should be directly accessed for manual SQL queries and has triggers attached that will ensure that the history is written accordingly.
+- `{collection}_[n]`: The 16 HEAD partitions (`FOR VALUES FROM '{n}' TO '{n+1}'`, `n=[0..9a..f]`).
 - `{collection}_del`: The HEAD deletion table holding all features that are deleted from the HEAD table. This can be used to read zombie features (features that have been deleted, but are not yet fully unrecoverable dead).
 - `{collection}_hst`: The history view, this is partitioned table, partitioned by `txn_next`.
 - `{collection}_hst_{YYYY}_{MM}_{YY}`: The history partition for a specific day (`txn_next >= naksha_txn('2023-09-29',0) AND txn_next < naksha_txn('2023-09-30',0)`.
@@ -19,11 +19,10 @@ Within PostgresQL a collection is a set of database tables. All these tables are
 
 **Notes:**
 
-The collection names must be lower-cased and only persist out of the following characters: `^[a-z][a-z0-9_-:]{0,31}$`.
-
-The partitioning in the history is based upon `txn_next`. The reason is, because `txn_next` basically is the time when the change was moved into history. The `txn` is the time when a state was originally created. So, at a first view it might be more logical to partition by `txn`, so when a state was created. However, by doing so we run into one problem, assume we decide to keep the history for one year, what do we want? We want to be able to revert all changes that have been done in the last year. Assume a feature is created in 2010 and then stays unchanged for 13 years. In 2023 this feature is modified. If we partition by the time when the state was created, this feature would be directly garbage collected, because it is in a partition being older than one year. However, this is not what we want! We want this feature to stay here until 2024, which means, we need to add it into the partition of `txn_next`, which will link to the today state, so the 2023 state, and therefore it will be added into the 2023 partition.
-
-So, even while the partitioning based upon `txn_next` is first counter-intuitive, it still is necessary.
+- The collection names must be lower-cased and only persist out of the following characters: `^[a-z][a-z0-9_-:]{0,31}$`.
+- The partitioning in the history is based upon `txn_next`. The reason is, because `txn_next` basically is the time when the change was moved into history. The `txn` is the time when a state was originally created. So, at a first view it might be more logical to partition by `txn`, so when a state was created. However, by doing so we run into one problem, assume we decide to keep the history for one year, what do we want? We want to be able to revert all changes that have been done in the last year. Assume a feature is created in 2010 and then stays unchanged for 13 years. In 2023 this feature is modified. If we partition by the time when the state was created, this feature would be directly garbage collected, because it is in a partition being older than one year. However, this is not what we want! We want this feature to stay here until 2024, which means, we need to add it into the partition of `txn_next`, which will link to the today state, so the 2023 state, and therefore it will be added into the 2023 partition.
+- Even while the partitioning based upon `txn_next` is first counter-intuitive, it still is necessary.
+- The partitioning of the HEAD table can be used to bulk-load data. As the history is not written for the first insert, it is possible to load all data into 16 tables in parallel and then to index them later in parallel and eventually to simply add them together to the HEAD table. This does not break the history, nor does it require any trigger, when the client manually performs the necessary steps to create a valid XYZ-namespace, instead of relying on the trigger.
 
 ## Triggers
 
