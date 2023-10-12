@@ -19,33 +19,24 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-
+import com.fasterxml.jackson.annotation.JsonView;
+import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.Job.Internal;
 import java.net.URL;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class ExportObject {
-    @JsonIgnore
+    private static final Logger logger = LogManager.getLogger();
+    @JsonView(Internal.class)
     private String s3Key;
     private URL downloadUrl;
     private Status status;
     private long filesize;
 
-    public enum Status {
-        exported, failed;
-        public static ExportObject.Status of(String value) {
-            if (value == null) {
-                return null;
-            }
-            try {
-                return valueOf(value.toLowerCase());
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }
-    }
+    public ExportObject() {}
 
-    public ExportObject(){}
-
-    public ExportObject(String s3Key, Long fileSize){
+    public ExportObject(String s3Key, Long fileSize) {
         this.s3Key = s3Key;
         this.filesize = fileSize;
         this.status = Status.exported;
@@ -74,7 +65,15 @@ public class ExportObject {
         this.s3Key = s3Key;
     }
 
-    public URL getDownloadUrl(){
+    public URL getDownloadUrl() {
+        if (downloadUrl == null && s3Key != null) {
+            try {
+                downloadUrl = CService.jobS3Client.generateDownloadURL(CService.configuration.JOBS_S3_BUCKET, s3Key);
+            }
+            catch (Exception e) {
+                logger.warn("Error generating pre-signed download URL for key {} on demand.", s3Key, e);
+            }
+        }
         return downloadUrl;
     }
 
@@ -100,6 +99,20 @@ public class ExportObject {
 
     public void setStatus(Status status) {
         this.status = status;
+    }
+
+    public enum Status {
+        exported, failed;
+        public static ExportObject.Status of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value.toLowerCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
     }
 
     @Override

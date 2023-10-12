@@ -29,8 +29,6 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.httpconnector.CService;
-
-import java.io.IOException;
 import java.net.URL;
 import java.util.Date;
 
@@ -47,38 +45,38 @@ public class AwsS3Client {
     public AwsS3Client() {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
 
-        if(isLocal()){
+        if (isLocal()) {
             builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(
                     CService.configuration.LOCALSTACK_ENDPOINT, CService.configuration.JOBS_REGION))
                     .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("localstack", "localstack")))
                     .withPathStyleAccessEnabled(true);
-        }else{
+        }
+        else {
             final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
             builder.setRegion(region);
         }
 
         if (CService.configuration != null && CService.configuration.JOB_BOT_SECRET_ARN != null) {
-            synchronized(AwsS3Client.class) {
+            synchronized (AwsS3Client.class) {
                 builder.setCredentials(new SecretManagerCredentialsProvider(CService.configuration.JOB_BOT_SECRET_ARN));
             }
         }
         client = builder.build();
     }
 
-    public URL generateDownloadURL(String bucketName, String key) throws IOException {
+    public URL generateDownloadURL(String bucketName, String key) {
         return generatePresignedUrl(bucketName, key, HttpMethod.GET);
     }
 
-    public URL generateUploadURL(String bucketName, String key) throws IOException {
+    public URL generateUploadURL(String bucketName, String key) {
         return generatePresignedUrl(bucketName, key, HttpMethod.PUT);
     }
 
-    public URL generatePresignedUrl(String bucketName, String key, HttpMethod method) throws IOException {
-
+    public URL generatePresignedUrl(String bucketName, String key, HttpMethod method) {
         GeneratePresignedUrlRequest generatePresignedUrlRequest =
                 new GeneratePresignedUrlRequest(bucketName, key)
-                        .withMethod(method)
-                        .withExpiration(new Date(System.currentTimeMillis() + PRESIGNED_URL_EXPIRATION_SECONDS * 1000));
+                    .withMethod(method)
+                    .withExpiration(new Date(System.currentTimeMillis() + PRESIGNED_URL_EXPIRATION_SECONDS * 1000));
 
         return client.generatePresignedUrl(generatePresignedUrlRequest);
     }
