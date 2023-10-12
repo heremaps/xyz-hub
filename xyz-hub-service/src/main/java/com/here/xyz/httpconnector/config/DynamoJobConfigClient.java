@@ -261,9 +261,18 @@ public class DynamoJobConfigClient extends JobConfigClient {
         if(job.getTarget() != null)
             json.put("_targetKey", job.getTarget().getKey());
         //TODO: Remove the following hacks from the persistence layer!
-        if( json.containsKey(IO_IMPORT_ATTR_NAME) )
+        if (json.containsKey(IO_IMPORT_ATTR_NAME))
             return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
+        if (json.containsKey(IO_EXPORT_ATTR_NAME)) {
+            Map<String, Object> exportObjects = json.getJsonObject(IO_EXPORT_ATTR_NAME).getMap();
+            sanitizeUrls(exportObjects);
+            json.put(IO_EXPORT_ATTR_NAME, exportObjects);
+        }
         return Item.fromJSON(json.toString());
+    }
+
+    public static void sanitizeUrls(Map<String, Object> exportObjects) {
+        exportObjects.forEach((fileName, exportObject) -> ((Map<String, Object>) exportObject).remove("downloadUrl"));
     }
 
     private static Job convertItemToJob(Item item){
@@ -279,7 +288,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         return item.withBinary(attrName, compressString(str));
     }
 
-    private static Job convertItemToJob(Item item, String attrName){
+    private static Job convertItemToJob(Item item, String attrName) {
         JsonObject ioObjects = null;
         if(item.isPresent(attrName)) {
             try{
@@ -294,7 +303,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 .put(attrName, ioObjects);
         try {
             return XyzSerializable.deserialize(json.toString(), Job.class);
-        } catch (JsonProcessingException e) {
+        }
+        catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
     }
