@@ -27,7 +27,8 @@ import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
-import com.here.xyz.httpconnector.util.jobs.DatasetDescription.Files;
+import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
+import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
@@ -403,11 +404,12 @@ public class Export extends JDBCBasedJob<Export> {
     public void setTarget(DatasetDescription target) {
         super.setTarget(target);
         //Keep BWC
-        if (target instanceof Files) {
+        if (target instanceof Files files) {
             setExportTarget(new ExportTarget().withType(DOWNLOAD));
-            setCsvFormat(((Files) target).getFormat());
-            setTargetLevel(((Files) target).getTileLevel());
-            setClipped(((Files) target).isClipped());
+            setCsvFormat(files.getOutputSettings().getFormat());
+            setTargetLevel(files.getOutputSettings().getTileLevel());
+            setClipped(files.getOutputSettings().isClipped());
+            setMaxTilesPerFile(files.getOutputSettings().getMaxTilesPerFile());
         }
     }
 

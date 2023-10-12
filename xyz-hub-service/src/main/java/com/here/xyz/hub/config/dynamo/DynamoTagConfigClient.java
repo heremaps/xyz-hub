@@ -22,8 +22,10 @@ package com.here.xyz.hub.config.dynamo;
 import com.amazonaws.services.dynamodbv2.document.DeleteItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Item;
 import com.amazonaws.services.dynamodbv2.document.Table;
+import com.amazonaws.services.dynamodbv2.document.TableKeysAndAttributes;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.BatchGetItemResult;
 import com.amazonaws.services.dynamodbv2.model.ExecuteStatementRequest;
 import com.amazonaws.services.dynamodbv2.model.ExecuteTransactionRequest;
 import com.amazonaws.services.dynamodbv2.model.ParameterizedStatement;
@@ -32,13 +34,13 @@ import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.hub.config.TagConfigClient;
 import com.here.xyz.models.hub.Tag;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -81,24 +83,13 @@ public class DynamoTagConfigClient extends TagConfigClient {
   }
 
   @Override
-  public Future<List<Tag>> getTags(Marker marker, String id, List<String> spaceIds) {
+  public Future<List<Tag>> getTags(Marker marker, String tagId, List<String> spaceIds) {
     if (CollectionUtils.isNullOrEmpty(spaceIds))
       return Future.succeededFuture(Collections.emptyList());
 
-    try {
-      String spaceParamsSt = StringUtils.join(Collections.nCopies(spaceIds.size(), "?"), ",");
-      List<AttributeValue> params = Stream.concat(Stream.of(id), spaceIds.stream())
-          .map(AttributeValue::new).collect(Collectors.toList());
-
-      final ExecuteStatementRequest request = new ExecuteStatementRequest()
-          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"id\" = ? AND \"spaceId\" IN [" + spaceParamsSt + "]")
-          .withParameters(params);
-
-      return dynamoClient.executeStatement(request)
-          .map(DynamoTagConfigClient::getTags);
-    } catch (Exception e) {
-      return Future.failedFuture(e);
-    }
+    return DynamoClient.dynamoWorkers.<List<Tag>>executeBlocking(p -> batchGetTags(tagId, spaceIds, p))
+            .onSuccess(tags -> logger.info(marker, "Number of tags retrieved from DynamoDB: {}", tags.size()))
+            .onFailure(t -> logger.error(marker, "Failure getting tags", t));
   }
 
   public Future<List<Tag>> getTagsByTagId(Marker marker, String tagId) {
@@ -118,7 +109,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
   public Future<List<Tag>> getTags(Marker marker, String spaceId) {
     try {
       final ExecuteStatementRequest request = new ExecuteStatementRequest()
-          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\" WHERE \"spaceId\" = ?")
+          .withStatement("SELECT * FROM \"" + tagTable.getTableName() + "\".\"spaceId-index\" WHERE \"spaceId\" = ?")
           .withParameters(new AttributeValue(spaceId));
 
       return dynamoClient.executeStatement(request)
@@ -224,6 +215,30 @@ public class DynamoTagConfigClient extends TagConfigClient {
           }
         }
     );
+  }
+
+  private void batchGetTags(String tagId, List<String> spaceIds, Promise<List<Tag>> p) {
+    List<Map<String, AttributeValue>> responses = new ArrayList<>();
+    try {
+      int batches = (int) Math.ceil((double) spaceIds.size() / 100);
+      for (int i = 0; i < batches; i++) {
+        final TableKeysAndAttributes tableKeysAndAttributes = new TableKeysAndAttributes(tagTable.getTableName());
+        String[] rangeKeys = spaceIds.stream().skip(i * 100L).limit(100).collect(ArrayList::new,
+                (list, spaceId) -> {
+                  list.add(tagId);
+                  list.add(spaceId);
+                },
+                ArrayList::addAll).toArray(String[]::new);
+        tableKeysAndAttributes.addHashAndRangePrimaryKeys("id", "spaceId", rangeKeys);
+
+        BatchGetItemResult batchGetResult = dynamoClient.db.batchGetItem(tableKeysAndAttributes).getBatchGetItemResult();
+        responses.addAll(batchGetResult.getResponses().get(tagTable.getTableName()));
+      }
+      p.complete(getTags(responses));
+    }
+    catch (Exception e) {
+      p.fail(e);
+    }
   }
 
   private static List<Tag> getTags(List<Map<String, AttributeValue>> items) {
