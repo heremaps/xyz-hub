@@ -153,7 +153,7 @@ public class JobApiImportIT extends JobApiIT {
                 .then()
                 .body("features.size()", equalTo(1));
 
-        job = (Import)getJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
+        job = (Import) loadJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
 
         assertTrue(job.getErrorDescription().equalsIgnoreCase(Import.ERROR_DESCRIPTION_IDS_NOT_UNIQUE));
 
@@ -364,7 +364,7 @@ public class JobApiImportIT extends JobApiIT {
                 .statusCode(NO_CONTENT.code());
 
         pollStatus(getScopedSpaceId(testSpaceId1, scope), job.getId(), Job.Status.failed, Job.Status.finalized);
-        job = (Import) getJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
+        job = (Import) loadJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
 
         assertEquals(job.getErrorDescription(), Import.ERROR_DESCRIPTION_UPLOAD_MISSING );
         assertEquals(job.getErrorType(), Import.ERROR_TYPE_VALIDATION_FAILED);

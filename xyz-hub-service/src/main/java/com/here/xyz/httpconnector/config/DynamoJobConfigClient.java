@@ -36,7 +36,6 @@ import com.here.xyz.hub.config.dynamo.DynamoClient;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.DecodeException;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -264,8 +263,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
         //TODO: Remove the following hacks from the persistence layer!
         if( json.containsKey(IO_IMPORT_ATTR_NAME) )
             return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
-        if( json.containsKey(IO_EXPORT_ATTR_NAME) )
-            return convertJobToItem(json, IO_EXPORT_ATTR_NAME);
         return Item.fromJSON(json.toString());
     }
 

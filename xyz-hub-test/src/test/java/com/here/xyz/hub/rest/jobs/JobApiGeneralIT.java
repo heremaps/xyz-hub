@@ -205,7 +205,7 @@ public class JobApiGeneralIT extends JobApiIT {
                 .statusCode(CREATED.code());
 
 
-        job = (Import) getJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
+        job = (Import) loadJob(getScopedSpaceId(testSpaceId1, scope), job.getId());
         Map<String, ImportObject> importObjects = job.getImportObjects();
 
         assertEquals(importObjects.size(), 1);
