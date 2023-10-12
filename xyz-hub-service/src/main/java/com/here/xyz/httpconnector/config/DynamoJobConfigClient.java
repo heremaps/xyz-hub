@@ -293,7 +293,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
                 .put(attrName, ioObjects);
         try {
-            return XyzSerializable.deserialize(json.toString());
+            return XyzSerializable.deserialize(json.toString(), Job.class);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
