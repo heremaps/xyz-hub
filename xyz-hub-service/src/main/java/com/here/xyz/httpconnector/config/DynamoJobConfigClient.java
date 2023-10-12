@@ -265,7 +265,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         //TODO: Remove the following hacks from the persistence layer!
         if (json.containsKey(IO_IMPORT_ATTR_NAME))
             return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
-        else if (job instanceof CombinedJob)
+        else if (job instanceof CombinedJob && ((CombinedJob) job).getChildren().size() > 0)
             sanitizeChildren(json);
         else if (json.containsKey(IO_EXPORT_ATTR_NAME))
             sanitizeJob(json);
@@ -282,7 +282,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
         JsonArray children = combinedJob.getJsonArray("children");
         for (int i = 0; i < children.size(); i++) {
             JsonObject childJob = children.getJsonObject(i);
-            sanitizeJob(childJob);
+            if (childJob.containsKey(IO_EXPORT_ATTR_NAME))
+                sanitizeJob(childJob);
         }
     }
 
