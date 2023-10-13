@@ -256,7 +256,7 @@ public class JobS3Client extends AwsS3Client{
         return exportObjectMap;
     }
 
-    public Map<String,ExportObject> scanExportPath(String prefix, String bucketName, boolean createDownloadUrl){
+    public Map<String,ExportObject> scanExportPath(String prefix, String bucketName, boolean createDownloadUrl) {
         Map<String, ExportObject> exportObjectList = new HashMap<>();
         ListObjectsRequest listObjects = new ListObjectsRequest()
                 .withPrefix(prefix)
@@ -270,17 +270,18 @@ public class JobS3Client extends AwsS3Client{
                 continue;
 
             ExportObject eo = new ExportObject(objectSummary.getKey(), objectSummary.getSize());
-            if(eo.getFilename().equalsIgnoreCase("manifest.json"))
+            if (eo.getFilename().equalsIgnoreCase("manifest.json"))
                 continue;;
 
             exportObjectList.put(eo.getFilename(prefix), eo);
-            if(createDownloadUrl){
-                try {
-                    eo.setDownloadUrl(generateDownloadURL(bucketName, eo.getS3Key()));
-                }catch (IOException e){
-                    logger.error("[{}] Cant create download-url! ", prefix, e);
-                }
-            }
+            //if (createDownloadUrl) {
+            //    try {
+            //        eo.setDownloadUrl(generateDownloadURL(bucketName, eo.getS3Key()));
+            //    }
+            //    catch (Exception e) {
+            //        logger.error("[{}] Cant create download-url! ", prefix, e);
+            //    }
+            //}
         }
 
         return exportObjectList;

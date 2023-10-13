@@ -830,7 +830,7 @@ public abstract class Job<T extends Job> extends Payload {
 
     public static class Public {}
 
-    public static class Static {}
+    public static class Static implements SerializationView {}
 
     public static class Internal extends Space.Internal {}
 
