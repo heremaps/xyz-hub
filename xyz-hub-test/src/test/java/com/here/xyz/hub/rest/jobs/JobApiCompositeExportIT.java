@@ -231,8 +231,8 @@ public class JobApiCompositeExportIT extends JobApiIT{
         job.setFilters(filters);
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         Thread.sleep(100);
-        assertNotNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
-        assertEquals(finalized, getJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
+        assertNotNull(loadJob(testSpaceId1, job.getId()+ "_missing_base"));
+        assertEquals(finalized, loadJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
 
         /** Composite Export with different targetLevel - requires new Export of base */
         job =  generateExportJob(testExportJobId, 7);
@@ -240,8 +240,8 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         Thread.sleep(100);
-        assertNotNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
-        assertEquals(finalized, getJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
+        assertNotNull(loadJob(testSpaceId1, job.getId()+ "_missing_base"));
+        assertEquals(finalized, loadJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
 
         /** Composite Export with new property filter - requires new Export of base */
         job =  generateExportJob(testExportJobId, 7);
@@ -251,8 +251,8 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         Thread.sleep(100);
-        assertNotNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
-        assertEquals(finalized, getJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
+        assertNotNull(loadJob(testSpaceId1, job.getId()+ "_missing_base"));
+        assertEquals(finalized, loadJob(testSpaceId1, job.getId()+ "_missing_base").getStatus());
 
         /** Composite Export with existing configuration - requires NO new Export of base */
         job =  generateExportJob(testExportJobId, 7);
@@ -260,7 +260,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
                 .withPropertyFilter( "p.foo=test2");
         job.setFilters(filters);
         performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-        assertNull(getJob(testSpaceId1, job.getId()+ "_missing_base"));
+        assertNull(loadJob(testSpaceId1, job.getId()+ "_missing_base"));
     }
 
     @Test
