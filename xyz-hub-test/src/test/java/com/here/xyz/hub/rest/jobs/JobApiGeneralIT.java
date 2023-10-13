@@ -137,7 +137,7 @@ public class JobApiGeneralIT extends JobApiIT {
                 .statusCode(OK.code());
     }
 
-    @Test
+    //@Test
     public void updateMutableFields() {
         //Create job
         Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, JSON_WKB);

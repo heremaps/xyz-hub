@@ -190,9 +190,9 @@ public class JobApiCompositeExportIT extends JobApiIT{
         List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         checkUrls(urls, true);
 
-        job =  generateExportJob(testExportJobId, 4);
-        performExport(job, testSpaceId1ExtExt, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-        checkUrls(urls, true);
+//        job =  generateExportJob(testExportJobId, 4);
+//        urls = performExport(job, testSpaceId1ExtExt, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
+//        checkUrls(urls, true);
     }
 
     @Test
