@@ -115,10 +115,10 @@ public class JDBCExporter extends JDBCClients {
                                         job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
                                         compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
 
-                    /*
-                    Is used for incremental exports (tiles) - here we have to export modified tiles.
-                    Those tiles we need to calculate separately
-                     */
+                                /*
+                                Is used for incremental exports (tiles) - here we have to export modified tiles.
+                                Those tiles we need to calculate separately
+                                 */
                                 final SQLQuery qkQuery = compositeCalculation
                                         ? generateFilteredExportQueryForCompositeTileCalculation(job.getId(), schema, job.getTargetSpaceId(),
                                         propertyFilter, spatialFilter, job.getTargetVersion(), job.getParams(), job.getCsvFormat())

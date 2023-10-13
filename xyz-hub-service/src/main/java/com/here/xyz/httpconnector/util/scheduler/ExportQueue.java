@@ -73,8 +73,12 @@ public class ExportQueue extends JobQueue {
                                     .onComplete(f-> CService.jobS3Client.writeMetaFileIfNotExists((Export) currentJob));
                             break;
                         case queued:
-                            updateJobStatus(currentJob, Job.Status.executing)
-                                .onSuccess(f -> currentJob.execute());
+                            updateJobStatus(currentJob, Job.Status.preparing)
+                                .onSuccess(f -> prepareJob(currentJob));
+                            break;
+                        case prepared:
+                            updateJobStatus(currentJob,Job.Status.executing)
+                                    .onSuccess(f -> currentJob.execute());
                             break;
                         case executed:
                             updateJobStatus(currentJob, Job.Status.executing_trigger)
@@ -110,7 +114,7 @@ public class ExportQueue extends JobQueue {
 
     @Override
     protected void prepareJob(Job job) {
-        //Currently not needed
+        ((Export)job).checkPersistentExports();
     }
 
     protected Future<String> postTrigger(Job job) {
