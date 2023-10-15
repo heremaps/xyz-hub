@@ -30,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
  * @param id   the identifier of the feature to delete.
  * @param uuid the UUID of the state to delete, {@code null}, if any state is acceptable.
  */
+@Deprecated
 @AvailableSince(v2_0_5)
 public record DeleteOp(@NotNull String id, @Nullable String uuid) {
 

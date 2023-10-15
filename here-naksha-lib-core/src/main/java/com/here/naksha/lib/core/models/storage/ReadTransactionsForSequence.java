@@ -16,20 +16,23 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.storage;
+package com.here.naksha.lib.core.models.storage;
 
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import java.util.ArrayList;
-import java.util.List;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+public class ReadTransactionsForSequence extends ReadRequest {
 
-@Deprecated
-public record ModifyFeaturesResp(
-    @NotNull List<@Nullable XyzFeature> inserted,
-    @NotNull List<@Nullable XyzFeature> updated,
-    @NotNull List<@Nullable XyzFeature> deleted) {
-  public ModifyFeaturesResp() {
-    this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+  /**
+   * Reading transactions will start with values > seqNum (excluding seqNum)
+   */
+  public final long seqNum;
+
+  public final int limit;
+
+  public ReadTransactionsForSequence(long seqNum) {
+    this(seqNum, 1000);
+  }
+
+  public ReadTransactionsForSequence(long seqNum, int limit) {
+    this.seqNum = seqNum;
+    this.limit = limit;
   }
 }

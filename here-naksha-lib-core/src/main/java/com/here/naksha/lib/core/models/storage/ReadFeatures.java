@@ -16,20 +16,33 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.storage;
+package com.here.naksha.lib.core.models.storage;
 
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-@Deprecated
-public record ModifyFeaturesResp(
-    @NotNull List<@Nullable XyzFeature> inserted,
-    @NotNull List<@Nullable XyzFeature> updated,
-    @NotNull List<@Nullable XyzFeature> deleted) {
-  public ModifyFeaturesResp() {
-    this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+public class ReadFeatures extends ReadRequest<ReadFeatures> {
+  public ReadFeatures() {
+    collections = new ArrayList<>();
   }
+
+  protected boolean returnDeleted;
+  protected boolean returnAllVersions;
+  protected @NotNull List<@NotNull String> collections;
+
+  // TODO: Review if txnOp is really needed and give us any advantage?
+  // TODO: Implement spatial op!
+  protected @Nullable Object spatialOp;
+  protected @Nullable POp propertyOp;
+  // TODO: Implement ordering!
+  protected @Nullable Object orderOp;
+
+  public @NotNull ReadFeatures withProperties(@NotNull POp propertyOp) {
+    this.propertyOp = propertyOp;
+    return this;
+  }
+
+  // TODO: Add more setter and getter!
 }

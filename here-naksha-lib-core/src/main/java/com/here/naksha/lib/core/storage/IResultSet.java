@@ -33,6 +33,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * @param <FEATURE> the feature-type.
  */
+@Deprecated
 @AvailableSince(v2_0_5)
 public interface IResultSet<FEATURE extends XyzFeature> extends AutoCloseable {
 

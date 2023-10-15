@@ -18,18 +18,32 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import java.util.ArrayList;
-import java.util.List;
+import com.here.naksha.lib.core.NakshaContext;
+import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-@Deprecated
-public record ModifyFeaturesResp(
-    @NotNull List<@Nullable XyzFeature> inserted,
-    @NotNull List<@Nullable XyzFeature> updated,
-    @NotNull List<@Nullable XyzFeature> deleted) {
-  public ModifyFeaturesResp() {
-    this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-  }
+public interface IStorageContext extends AutoCloseable {
+
+  @NotNull
+  NakshaContext getNakshaContext();
+
+  void setNakshaContext(@NotNull NakshaContext context);
+
+  @NotNull
+  IStorageContext withStmtTimeout(long timeout, TimeUnit timeUnit);
+
+  @NotNull
+  IStorageContext withLockTimeout(long timeout, TimeUnit timeUnit);
+
+  @NotNull
+  IMasterTransaction openMasterTransaction();
+
+  @NotNull
+  IReadTransaction openReadTransaction();
+
+  @NotNull
+  IAdminTransaction openAdminTransaction();
+
+  @Override
+  void close();
 }

@@ -18,18 +18,16 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import java.util.ArrayList;
-import java.util.List;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+public interface IAdminTransaction extends AutoCloseable {
 
-@Deprecated
-public record ModifyFeaturesResp(
-    @NotNull List<@Nullable XyzFeature> inserted,
-    @NotNull List<@Nullable XyzFeature> updated,
-    @NotNull List<@Nullable XyzFeature> deleted) {
-  public ModifyFeaturesResp() {
-    this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
-  }
+  void initStorage();
+
+  void startMaintainer();
+
+  void maintainNow();
+
+  void stopMaintainer();
+
+  @Override
+  void close();
 }

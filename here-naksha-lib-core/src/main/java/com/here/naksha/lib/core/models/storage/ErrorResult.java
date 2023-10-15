@@ -16,20 +16,19 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.storage;
+package com.here.naksha.lib.core.models.storage;
 
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import java.util.ArrayList;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-@Deprecated
-public record ModifyFeaturesResp(
-    @NotNull List<@Nullable XyzFeature> inserted,
-    @NotNull List<@Nullable XyzFeature> updated,
-    @NotNull List<@Nullable XyzFeature> deleted) {
-  public ModifyFeaturesResp() {
-    this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+@SuppressWarnings("ClassCanBeRecord")
+public final class ErrorResult {
+  public ErrorResult(@NotNull String errCode, @NotNull String errMessage, @NotNull Throwable exception) {
+    this.errCode = errCode;
+    this.errMessage = errMessage;
+    this.exception = exception;
   }
+
+  public final @NotNull String errCode;
+  public final @NotNull String errMessage;
+  public final @NotNull Throwable exception;
 }

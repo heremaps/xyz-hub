@@ -45,6 +45,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * @param <FEATURE> The feature-type.
  */
+@Deprecated
 @AvailableSince(v2_0_5)
 public abstract class AbstractResultSet<FEATURE extends XyzFeature> implements IResultSet<FEATURE> {
 

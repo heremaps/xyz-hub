@@ -26,6 +26,7 @@ import org.jetbrains.annotations.NotNull;
  * underlying storage collection in memory using weak references or to keep all features of the
  * storage in memory.
  */
+@Deprecated
 public abstract class CollectionCache<FEATURE extends XyzFeature> {
   // TODO: Implement me!
 

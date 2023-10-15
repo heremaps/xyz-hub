@@ -29,6 +29,7 @@ import org.jetbrains.annotations.NotNull;
  *
  * @param <FEATURE> the feature-type to modify.
  */
+@Deprecated
 @AvailableSince(v2_0_5)
 public interface IFeatureWriter<FEATURE extends XyzFeature> extends IFeatureReader<FEATURE> {
 

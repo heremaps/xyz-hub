@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.core.storage;
 
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import java.util.List;
@@ -27,12 +28,21 @@ import org.jetbrains.annotations.NotNull;
  * Storage API to gain access to storages.
  */
 public interface IStorage {
+
+  /**
+   * Creates a new context, bound by default to the current {@link NakshaContext#currentContext()}.
+   * @return the new context.
+   */
+  @NotNull
+  IStorageContext newContext();
+
   // TODO: - Add transaction log access.
   //       - Add history access.
 
   /**
    * Perform storage initialization, especially useful when invoked for the first time storage is to be accessed.
    */
+  @Deprecated
   void init();
 
   /**
@@ -40,6 +50,7 @@ public interface IStorage {
    * task is at least called ones every 12 hours. It is guaranteed that this is only executed on one Naksha instances at a given time, so
    * there is no concurrent execution.
    */
+  @Deprecated
   void maintain(@NotNull List<CollectionInfo> collectionInfoList);
 
   /**
@@ -47,6 +58,7 @@ public interface IStorage {
    *
    * @return New transaction settings.
    */
+  @Deprecated
   @NotNull
   ITransactionSettings createSettings();
 
@@ -57,6 +69,7 @@ public interface IStorage {
    * @param settings Optional settings for the transaction.
    * @return the read transaction.
    */
+  @Deprecated
   @NotNull
   IReadTransaction openReplicationTransaction(@NotNull ITransactionSettings settings);
 
@@ -75,6 +88,7 @@ public interface IStorage {
    *
    * @param listener The change listener to invoke, receiving the transaction set.
    */
+  @Deprecated
   void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener);
 
   /**
@@ -83,10 +97,12 @@ public interface IStorage {
    * @param listener the change listener to remove.
    * @return {@code true} if the listener was removed; {@code false} otherwise.
    */
+  @Deprecated
   boolean removeListener(@NotNull Pe1<@NotNull TxSignalSet> listener);
 
   /**
    * Closes the storage, may block for cleanup work.
    */
+  @Deprecated
   void close();
 }

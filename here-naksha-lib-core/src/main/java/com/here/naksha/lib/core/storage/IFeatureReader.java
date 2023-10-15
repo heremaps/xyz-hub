@@ -29,6 +29,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * API to read features from a collection.
  */
+@Deprecated
 @AvailableSince(v2_0_5)
 public interface IFeatureReader<FEATURE extends XyzFeature> {
 

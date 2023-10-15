@@ -20,6 +20,10 @@ package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.storage.Notification;
+import com.here.naksha.lib.core.models.storage.ReadRequest;
+import com.here.naksha.lib.core.models.storage.Request;
+import com.here.naksha.lib.core.models.storage.Result;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -30,11 +34,15 @@ import org.jetbrains.annotations.Nullable;
 @AvailableSince(NakshaVersion.v2_0_0)
 public interface IReadTransaction extends AutoCloseable {
 
+  @NotNull Result execute(@NotNull ReadRequest<?> readRequest);
+  @NotNull Result process(@NotNull Notification<?> notification);
+
   /**
    * Returns the current transaction number, if none has been created yet, creating a new one.
    *
    * @throws Exception if access to the storage failed or any other error occurred.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   String transactionNumber();
@@ -44,6 +52,7 @@ public interface IReadTransaction extends AutoCloseable {
    *
    * @return The settings of the transaction.
    */
+  @Deprecated
   @NotNull
   ITransactionSettings settings();
 
@@ -56,6 +65,7 @@ public interface IReadTransaction extends AutoCloseable {
    *
    * @return the iterator above all storage collections.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   ClosableIterator<@NotNull CollectionInfo> iterateCollections();
@@ -66,10 +76,12 @@ public interface IReadTransaction extends AutoCloseable {
    * @param id the identifier of the collection to return.
    * @return the collection or {@code null}, if no such collection exists.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @Nullable
   CollectionInfo getCollectionById(@NotNull String id);
 
+  @Deprecated
   /**
    * Returns the reader for the given feature-type and collection.
    *

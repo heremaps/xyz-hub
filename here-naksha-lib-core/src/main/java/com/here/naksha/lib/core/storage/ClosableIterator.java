@@ -28,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
  * A closable iterator.
  * @param <E> The element-type to iterate.
  */
+@Deprecated
 public interface ClosableIterator<E> extends Iterator<E>, Closeable {
 
   /**

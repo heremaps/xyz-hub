@@ -38,11 +38,26 @@ import org.jetbrains.annotations.NotNull;
 public interface INaksha {
 
   /**
+   * Returns a thin wrapper above the admin-database that adds authorization and internal event handling. Basically, this allows access to the admin collections.
+   * @return the admin-storage.
+   */
+  @NotNull
+  IStorage getAdminStorage();
+
+  /**
+   * Returns a virtual storage that maps spaces to collections and allows to execute requests in spaces.
+   * @return the virtual space-storage.
+   */
+  @NotNull
+  IStorage getSpaceStorage();
+
+  /**
    * Ask the Naksha-Hub to generate an error response.
    *
    * @param throwable The exception to convert.
    * @return The error response.
    */
+  @Deprecated
   @NotNull
   ErrorResponse toErrorResponse(@NotNull Throwable throwable);
 
@@ -53,6 +68,7 @@ public interface INaksha {
    * @param execute    The method to be executed in an {@link AbstractTask<RESPONSE>}.
    * @return The future of the response.
    */
+  @Deprecated
   <RESPONSE> @NotNull Future<@NotNull RESPONSE> executeTask(@NotNull Supplier<@NotNull RESPONSE> execute);
 
   /**
@@ -64,6 +80,7 @@ public interface INaksha {
    * @param eventFeature The feature to which to send the event.
    * @return The response future.
    */
+  @Deprecated
   @NotNull
   Future<@NotNull XyzResponse> executeEvent(@NotNull Event event, @NotNull EventFeature eventFeature);
 
@@ -73,6 +90,7 @@ public interface INaksha {
    *
    * @return the administration storage.
    */
+  @Deprecated
   @NotNull
   IStorage storage();
 
@@ -81,6 +99,7 @@ public interface INaksha {
    *
    * @return The transaction settings.
    */
+  @Deprecated
   @NotNull
   ITransactionSettings settings();
 }

@@ -25,6 +25,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The transaction settings.
  */
+@Deprecated
 public interface ITransactionSettings {
 
   /**

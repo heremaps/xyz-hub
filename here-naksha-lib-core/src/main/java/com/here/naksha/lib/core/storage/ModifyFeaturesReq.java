@@ -34,6 +34,7 @@ import org.jetbrains.annotations.Nullable;
  * @param read_results {@code true} to request results from the database; {@code false} if the database should not send back results.
  * @param <FEATURE>    the feature type store.
  */
+@Deprecated
 public record ModifyFeaturesReq<FEATURE extends XyzFeature>(
     @NotNull List<@NotNull FEATURE> insert,
     @NotNull List<@NotNull FEATURE> update,

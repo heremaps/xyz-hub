@@ -20,11 +20,21 @@ package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteRequest;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /** Interface to grant write-access to a storage. */
 public interface IMasterTransaction extends IReadTransaction {
+
+  @NotNull Result execute(@NotNull WriteRequest<?> writeRequest);
+
+  @NotNull IStorageLock lockFeature(@NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit) throws TimeoutException;
+
+  @NotNull IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit) throws TimeoutException;
 
   /**
    * Commit all changes.
@@ -42,10 +52,12 @@ public interface IMasterTransaction extends IReadTransaction {
   void close();
 
   /** Acquire global (multi-instance) lock for a given key. */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_6)
   boolean acquireLock(final @NotNull String lockKey);
 
   /** Release global lock for a given key, which was previously acquired using acquireLock(). */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_6)
   boolean releaseLock(final @NotNull String lockKey);
 
@@ -55,6 +67,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @param collection the collection to create.
    * @return the created collection.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo createCollection(@NotNull CollectionInfo collection);
@@ -66,6 +79,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the updated collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo updateCollection(@NotNull CollectionInfo collection);
@@ -77,6 +91,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the updated or inserted collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo upsertCollection(@NotNull CollectionInfo collection);
@@ -90,6 +105,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the dropped collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo deleteCollection(@NotNull CollectionInfo collection, long deleteAt);
@@ -101,6 +117,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the dropped collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_4)
   @NotNull
   CollectionInfo dropCollection(@NotNull CollectionInfo collection);
@@ -112,6 +129,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the modified collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo enableHistory(@NotNull CollectionInfo collection);
@@ -123,6 +141,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @return the modified collection.
    * @throws Exception if access to the storage failed or any other error occurred.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @NotNull
   CollectionInfo disableHistory(@NotNull CollectionInfo collection);
@@ -137,6 +156,7 @@ public interface IMasterTransaction extends IReadTransaction {
    * @throws Exception if access to the storage failed or any other error occurred.
    */
   // TODO HP_QUERY : Should be renamed to something like featureWriter() and similarly featureReader()
+  @Deprecated
   <F extends XyzFeature> @NotNull IFeatureWriter<F> writeFeatures(
       @NotNull Class<F> featureClass, @NotNull CollectionInfo collection);
 }
