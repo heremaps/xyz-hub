@@ -96,6 +96,7 @@ val jayway_restassured = "com.jayway.restassured:rest-assured:2.9.0"
 val assertj_core = "org.assertj:assertj-core:3.24.2"
 val awaitility = "org.awaitility:awaitility:4.2.0"
 val junit_jupiter = "org.junit.jupiter:junit-jupiter:5.9.2"
+val json_assert = "org.skyscreamer:jsonassert:1.5.1"
 
 val flipkart_zjsonpatch = "com.flipkart.zjsonpatch:zjsonpatch:0.4.13"
 
@@ -368,6 +369,9 @@ try {
             implementation(vertx_web)
             implementation(vertx_web_client)
             implementation(vertx_web_openapi)
+        }
+        dependencies {
+            testImplementation(json_assert)
         }
     }
 } catch (ignore: UnknownProjectException) {

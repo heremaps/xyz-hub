@@ -388,7 +388,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     routingContext.next();
   }
 
-  private static final Pattern FATAL_ERROR_MSG_PATTERN = Pattern.compile("^[0-9a-zA-Z .-_]+$");
+  private static final Pattern FATAL_ERROR_MSG_PATTERN = Pattern.compile("^[0-9a-zA-Z.-_\\-]+$");
 
   /**
    * Returns the stream-identifier for this routing context.
