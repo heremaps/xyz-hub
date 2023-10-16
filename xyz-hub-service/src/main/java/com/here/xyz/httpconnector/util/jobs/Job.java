@@ -291,13 +291,13 @@ public abstract class Job<T extends Job> extends Payload {
          */
         //TODO: Allow abortion also in other states (e.g. queued), because it could be the user started a job accidentally and wants to stop & recreate
         if (getStatus() != executing && getStatus() != finalizing)
-            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " for abort!");
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: [" + getStatus() + "] for abort!");
     }
 
     @JsonIgnore
     protected void isValidForRetry() throws HttpException {
         if (!getStatus().equals(Status.failed) && !getStatus().equals(Status.aborted))
-            throw new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus() + " for retry!");
+            throw new HttpException(PRECONDITION_FAILED, "Invalid state: [" + getStatus() + "] for retry!");
     }
 
     @JsonIgnore

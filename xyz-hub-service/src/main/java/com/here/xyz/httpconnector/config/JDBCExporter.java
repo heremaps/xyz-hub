@@ -71,9 +71,11 @@ public class JDBCExporter extends JDBCClients {
 
               switch (job.getCsvFormat()) {
                   case PARTITIONID_FC_B64:
+                      
+                      boolean bChangesOnly = /* job.readParamIncremental() == CHANGES */ false;
                       exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
                               job.getTargetVersion(), job.getParams(), job.getCsvFormat(),null,
-                              job.readParamIncremental() == CHANGES, job.getPartitionKey(),job.getOmitOnNull());
+                              bChangesOnly, job.getPartitionKey(),job.getOmitOnNull());
 
 
                       return calculateThreadCountForDownload(job, schema, exportQuery)
@@ -94,7 +96,7 @@ public class JDBCExporter extends JDBCClients {
 
                                       for (int i = 0; i < tCount; i++) {
                                           String s3Prefix = i + "_";
-                                          SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region,
+                                          SQLQuery q2 = buildPartIdVMLExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region, bChangesOnly,
                                                   tCount > 1 ? new SQLQuery("AND i%% " + tCount + " = " + i) : null);
                                           exportFutures.add(exportTypeVML(job.getTargetConnector(), q2, job, s3Path));
                                       }
@@ -508,8 +510,16 @@ public class JDBCExporter extends JDBCClients {
          case PARTITIONID_FC_B64 :
          {
             boolean partById = true;
-            String partQry =   "select /* vml_export_hint m499#jobId(" + jobId + ") */ jsondata->>'id' as id, replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
-                            + "from ( ${{contentQuery}}) X";
+            String partQry = isForCompositeContentDetection
+                             ? "select /* vml_export_hint m499#jobId(" + jobId + ") */ jsondata->>'id' as id, " 
+                              + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) "
+                              + "  when true then replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') "
+                              + "  else null::text "
+                              + " end as data "
+                              + "from ( ${{contentQuery}}) X"
+                             :  "select /* vml_export_hint m499#jobId(" + jobId + ") */ jsondata->>'id' as id, " 
+                              + " replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
+                              + "from ( ${{contentQuery}}) X";
 
            if( partitionKey != null && !"id".equalsIgnoreCase(partitionKey) )
            {  partById = false;
