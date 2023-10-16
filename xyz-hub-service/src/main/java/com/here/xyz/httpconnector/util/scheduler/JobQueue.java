@@ -23,6 +23,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
@@ -136,8 +137,9 @@ public abstract class JobQueue implements Runnable {
         return JOB_QUEUE.size();
     }
 
-    public static Future<Job> setJobFailed(Job j, String errorDescription, String errorType){
-        return updateJobStatus(j, failed, errorDescription, errorType);
+    public static Future<Job> setJobFailed(Job job, String errorDescription, String errorType){
+        logger.info("job[{}] has failed!", job.getId());
+        return updateJobStatus(job, failed, errorDescription, errorType);
     }
 
     public static Future<Job> setJobAborted(Job j) {
@@ -164,12 +166,16 @@ public abstract class JobQueue implements Runnable {
         //All end-states
         if (status == failed || status == finalized) {
             //FIXME: Shouldn't that be done also for status == aborted? If yes, we can simply use status.isFinal()
-            if (job instanceof Import)
+            if (job instanceof Import) {
                 releaseReadOnlyLockFromSpace(job)
-                    .onFailure(f -> {
-                        //Currently we are only logging this issue
-                        logger.warn("[{}] READONLY_RELEASE_FAILED!", job.getId());
-                    });
+                        .onFailure(f -> {
+                            //Currently we are only logging this issue
+                            logger.warn("[{}] READONLY_RELEASE_FAILED!", job.getId());
+                        });
+            }else if(job instanceof Export) {
+                /** Write MetaFile to S3 */
+                CService.jobS3Client.writeMetaFile((Export) job);
+            }
             //Remove job from queue
             removeJob(job);
         }

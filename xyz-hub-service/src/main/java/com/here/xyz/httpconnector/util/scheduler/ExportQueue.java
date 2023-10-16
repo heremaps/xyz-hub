@@ -60,14 +60,6 @@ public class ExportQueue extends JobQueue {
                     all stages can end up in failed
                      */
                     switch (currentJob.getStatus()) {
-                        case finalized:
-                            logger.info("job[{}] is finalized!", currentJob.getId());
-                            break;
-                        case failed:
-                            /** Write MetaFile to S3 */
-                            CService.jobS3Client.writeMetaFile((Export) currentJob);
-                            logger.info("job[{}] has failed!", currentJob.getId());
-                            break;
                         case waiting:
                             updateJobStatus(currentJob, Job.Status.queued)
                                     .onComplete(f-> CService.jobS3Client.writeMetaFileIfNotExists((Export) currentJob));
@@ -91,7 +83,6 @@ public class ExportQueue extends JobQueue {
                                         postTrigger(currentJob);
                                     else {
                                         currentJob.finalizeJob();
-                                        CService.jobS3Client.writeMetaFile((Export) currentJob);
                                     }
                                 });
                             break;
@@ -122,7 +113,8 @@ public class ExportQueue extends JobQueue {
             .onSuccess(triggerId -> {
                 //Add import ID
                 ((Export) job).setTriggerId(triggerId);
-                updateJobStatus(job, Job.Status.trigger_executed);
+                updateJobStatus(job, Job.Status.trigger_executed)
+                        .onSuccess(f-> CService.jobS3Client.writeMetaFile((Export) job));
             })
             .onFailure(e -> {
                 if (e instanceof HttpException)

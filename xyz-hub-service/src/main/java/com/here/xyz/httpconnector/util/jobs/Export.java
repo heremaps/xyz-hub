@@ -359,6 +359,7 @@ public class Export extends JDBCBasedJob<Export> {
         return this.statistic;
     }
 
+    @JsonIgnore
     public ExportStatistic getTotalStatistic(){
         if(this.statistic == null)
             return null;
@@ -819,7 +820,7 @@ public class Export extends JDBCBasedJob<Export> {
             if(existingJob.getId().equals(getId()) && existingJob.getStatus().equals(queued)) {
                 /** We need to start the export by ourselves */
                 return updateJobStatus(this, prepared);
-            }else if(existingJob.getStatus().equals(finalized)) {
+            }else if(existingJob.getStatus().equals(finalized) || existingJob.getStatus().equals(trigger_executed) ) {
                 /** Export is available - use it and skip jdbc-export */
                 logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
 
@@ -937,5 +938,11 @@ public class Export extends JDBCBasedJob<Export> {
                 + (filters != null && filters.getPropertyFilter() !=null ? filters.getPropertyFilter().hashCode() :""))
                 + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().getRadius() :"")
                 + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().isClipped() : false);
+    }
+
+    @Override
+    public void finalizeJob() {
+        updateJobStatus(this, finalized)
+                .onSuccess(f-> CService.jobS3Client.writeMetaFile(this));
     }
 }

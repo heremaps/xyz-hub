@@ -573,6 +573,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     public void finalizeJob() {
+        logger.info("job[{}] is finalized!", id);
         updateJobStatus(this, finalized);
     }
 
