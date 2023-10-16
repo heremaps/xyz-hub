@@ -30,11 +30,16 @@ import org.jetbrains.annotations.NotNull;
 /** Interface to grant write-access to a storage. */
 public interface IMasterTransaction extends IReadTransaction {
 
-  @NotNull Result execute(@NotNull WriteRequest<?> writeRequest);
+  @NotNull
+  Result execute(@NotNull WriteRequest<?> writeRequest);
 
-  @NotNull IStorageLock lockFeature(@NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit) throws TimeoutException;
+  @NotNull
+  IStorageLock lockFeature(
+      @NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit)
+      throws TimeoutException;
 
-  @NotNull IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit) throws TimeoutException;
+  @NotNull
+  IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit) throws TimeoutException;
 
   /**
    * Commit all changes.

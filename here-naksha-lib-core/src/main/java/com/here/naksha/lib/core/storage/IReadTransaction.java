@@ -22,7 +22,6 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.storage.Notification;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
-import com.here.naksha.lib.core.models.storage.Request;
 import com.here.naksha.lib.core.models.storage.Result;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -34,8 +33,11 @@ import org.jetbrains.annotations.Nullable;
 @AvailableSince(NakshaVersion.v2_0_0)
 public interface IReadTransaction extends AutoCloseable {
 
-  @NotNull Result execute(@NotNull ReadRequest<?> readRequest);
-  @NotNull Result process(@NotNull Notification<?> notification);
+  @NotNull
+  Result execute(@NotNull ReadRequest<?> readRequest);
+
+  @NotNull
+  Result process(@NotNull Notification<?> notification);
 
   /**
    * Returns the current transaction number, if none has been created yet, creating a new one.

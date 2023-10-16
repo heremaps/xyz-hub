@@ -257,8 +257,8 @@ public class EventPipeline extends NakshaBound {
           }
           final Connector connector;
           try {
-            connector = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
-                .getFeatureById(connectorId);
+            // TODO: Fix me!
+            connector = tx.readFeatures(Connector.class, null).getFeatureById(connectorId);
           } catch (Exception e) {
             throw new XyzErrorException(
                 XyzError.EXCEPTION,

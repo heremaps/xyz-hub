@@ -31,7 +31,7 @@ The XYZ namespace was originally introduced by the XYZ-Hub to store state relate
 
 In the tags Naksha stores:
 
-* References via: `rel_<urn>`, for example `rel_urn:here:...`
+* Relations (aka references) via: `rel_<urn>`, for example `rel_urn:here:...`
 * The MOM feature-type as read from `properties->featureType` or `momType` into: `mom_type={feature-type}`
 * The rule code of violations into: `violation_rule_code={rule-code}`
 * The status of a violation into: `violation_state={violations-status}`
