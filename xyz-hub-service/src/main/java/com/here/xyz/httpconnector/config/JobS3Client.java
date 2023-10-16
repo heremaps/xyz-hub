@@ -320,14 +320,6 @@ public class JobS3Client extends AwsS3Client{
         return getS3Path(sourceJob, superLayer);
     }
 
-    public Job.Status checkStatusOfPersistentS3ExportOfSuperLayer(String superExportPath) {
-        Export superExport = readMetaFileFromPath(superExportPath);
-
-        if(superExport != null)
-            return superExport.getStatus();
-        return null;
-    }
-
     public Export readMetaFileFromJob(Export job) {
         return readMetaFileFromPath(getS3Path(job));
     }
@@ -356,9 +348,9 @@ public class JobS3Client extends AwsS3Client{
         String s3Path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER + "/" + job.getId();
 
         if (job instanceof Export) {
-            // if Export has readOnlyParam - all exports should get persisted.
+            // if Export has persistExportParam - all exports should get persisted.
             // if a targetSpace got provided, we want to load existing files.
-            if(((Export) job).readParamReadOnly()
+            if(((Export) job).readPersistExport()
                     || targetSpaceId != null) {
 
                 if (targetSpaceId == null)

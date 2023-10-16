@@ -80,6 +80,9 @@ public class Export extends JDBCBasedJob<Export> {
     private ExportStatistic statistic;
 
     @JsonView({Public.class})
+    private ExportStatistic superStatistic;
+
+    @JsonView({Public.class})
     private ExportTarget exportTarget;
 
     @JsonView({Internal.class})
@@ -136,7 +139,7 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     private static String PARAM_COMPOSITE_MODE = "compositeMode";
-    private static String PARAM_READ_ONLY = "readOnly";
+    private static String PARAM_PERSIST_EXPORT = "persistExport";
     private static String PARAM_VERSIONS_TO_KEEP = "versionsToKeep";
     private static String PARAM_ENABLE_HASHED_SPACEID = "enableHashedSpaceId";
     private static String PARAM_RUN_AS_ID = "runAsId";
@@ -246,21 +249,39 @@ public class Export extends JDBCBasedJob<Export> {
             }
         }
 
-        if(!readParamCompositeMode().equals(CompositeMode.DEACTIVATED)) {
+        CompositeMode compositeMode = readParamCompositeMode();
+        Map ext = readParamExtends();
+
+        if(!compositeMode.equals(CompositeMode.DEACTIVATED)) {
             if (getExportTarget().getType() == DOWNLOAD)
                 throw new HttpException(HttpResponseStatus.BAD_REQUEST, "CompositeMode is not available for Type Download!");
 
             if (getCsvFormat() != TILEID_FC_B64 && getCsvFormat() != PARTITIONID_FC_B64)
                 throw new HttpException(BAD_REQUEST, "CompositeMode does not support the provided CSV format!");
+
+            if(ext == null) {
+                throw new HttpException(BAD_REQUEST, "CompositeMode only allowed on composite spaces!");
+            }
         }
 
-        CompositeMode compositeMode = readParamCompositeMode();
-        ContextAwareEvent.SpaceContext context = readParamContext();
-
         if (compositeMode.equals(CompositeMode.FULL_OPTIMIZED)){
+
+            boolean superIsReadOnly = ext.get("readOnly") != null ? (boolean) ext.get("readOnly") : false;
+            Map l2Ext = (Map) ext.get("extends");
+
+            if(l2Ext != null){
+                //L2 Composite
+                superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
+            }
+
+            if(!superIsReadOnly)
+                throw new HttpException(BAD_REQUEST, "CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer!");
+
             /** Add persistent path of super layer */
             addSuperExportPathToJob(extractSuperSpaceId());
         }
+
+        ContextAwareEvent.SpaceContext context = readParamContext();
 
         if (readParamExtends() != null && context == null) {
             addParam("context", DEFAULT);
@@ -330,13 +351,32 @@ public class Export extends JDBCBasedJob<Export> {
         return this;
     }
 
+    public ExportStatistic getSuperStatistic(){
+        return this.superStatistic;
+    }
+
     public ExportStatistic getStatistic(){
         return this.statistic;
+    }
+
+    public ExportStatistic getTotalStatistic(){
+        if(this.statistic == null)
+            return null;
+
+        if(this.superStatistic == null)
+            return this.statistic;
+
+        return new ExportStatistic()
+                .withBytesUploaded(this.statistic.bytesUploaded + this.superStatistic.bytesUploaded)
+                .withFilesUploaded(this.statistic.filesUploaded + this.superStatistic.filesUploaded)
+                .withRowsUploaded(this.statistic.rowsUploaded + this.superStatistic.rowsUploaded);
     }
 
     public void setStatistic(ExportStatistic statistic) {
         this.statistic = statistic;
     }
+
+    public void setSuperStatistic(ExportStatistic superStatistic){ this.superStatistic = superStatistic;}
 
     public void addStatistic(ExportStatistic statistic) {
         if(this.statistic == null)
@@ -508,8 +548,8 @@ public class Export extends JDBCBasedJob<Export> {
         return this.params.containsKey(PARAM_SUPER_EXPORT_PATH) ? (String) this.getParam(PARAM_SUPER_EXPORT_PATH) : null;
     }
 
-    public boolean readParamReadOnly(){
-        return this.params.containsKey(PARAM_READ_ONLY) ? (boolean) this.getParam(PARAM_READ_ONLY) : false;
+    public boolean readPersistExport(){
+        return this.params.containsKey(PARAM_PERSIST_EXPORT) ? (boolean) this.getParam(PARAM_PERSIST_EXPORT) : false;
     }
 
     public Map readParamExtends(){
@@ -762,7 +802,7 @@ public class Export extends JDBCBasedJob<Export> {
 
     public Future<Job> checkPersistentExports() {
         //Check if we already have persistent exports. May trigger one.
-        if(readParamReadOnly())
+        if(readPersistExport())
             return checkPersistentExport();
         else if(readParamSuperExportPath() != null)
             return checkPersistentSuperExport();
@@ -785,6 +825,8 @@ public class Export extends JDBCBasedJob<Export> {
 
                 addDownloadLinks(existingJob);
                 setExportObjects(existingJob.getExportObjects());
+
+                setStatistic(existingJob.getStatistic());
                 return updateJobStatus(this, executed);
             }else if(existingJob.getStatus().equals(failed)){
                 /** Export is available but is failed - abort also this export. */
@@ -802,13 +844,12 @@ public class Export extends JDBCBasedJob<Export> {
             return updateJobStatus(this, prepared);
     }
 
-
     public Future<Job> checkPersistentSuperExport() {
         /** Check if we can find a persistent export and check status. If no persistent export is available we are starting one. */
-        Status status = CService.jobS3Client.checkStatusOfPersistentS3ExportOfSuperLayer(readParamSuperExportPath());
+        Export existingJob = CService.jobS3Client.readMetaFileFromPath(readParamSuperExportPath());
 
         //TODO: if status is failed no retry is implemented/possible
-        if(status == null){
+        if(existingJob == null){
             logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), readParamSuperExportPath());
 
             Export baseExport = new Export()
@@ -829,11 +870,12 @@ public class Export extends JDBCBasedJob<Export> {
                         return updateJobStatus(this,queued);
                     })
                     .onFailure(f -> setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED));
-        }else if(status.equals(failed)){
+        }else if(existingJob.getStatus().equals(failed)){
             logger.info("job[{}] Persist Export {} of Super-Layer has failed!", getId(), readParamSuperExportPath());
             return setJobFailed(this,ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED);
-        }else if(status.equals(finalized)){
+        }else if(existingJob.getStatus().equals(finalized)){
             logger.info("job[{}] Persist Export {} of Super-Layer is available!", getId(), readParamSuperExportPath());
+            setSuperStatistic(existingJob.getStatistic());
             return updateJobStatus(this, prepared);
         }else{
             logger.info("job[{}] Persist Export {} - need to wait for finalization of persist Export of base-layer!", getId(), readParamSuperExportPath());

@@ -80,7 +80,7 @@ public class JobProxyApi extends Api{
                                     job.setTargetSpaceId(spaceId);
                                     job.setTargetConnector(headSpace.getStorage().getId());
                                     job.addParam("versionsToKeep",headSpace.getVersionsToKeep());
-                                    job.addParam("readOnly", headSpace.isReadOnly());
+                                    job.addParam("persistExport", headSpace.isReadOnly());
 
                                     Promise<Map> p = Promise.promise();
 
