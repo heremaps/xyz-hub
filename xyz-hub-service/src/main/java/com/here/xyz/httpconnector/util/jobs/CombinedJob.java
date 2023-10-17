@@ -20,14 +20,32 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.collecting_trigger_status;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executing_trigger;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.prepared;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.preparing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.queued;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.trigger_executed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.trigger_status_collected;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.validated;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.validating;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.CANCELLED;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.FAILED;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.PENDING;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.RUNNING;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.SUBMITTED;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.SUCCEEDED;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.jobs.datasets.Spaces;
@@ -37,7 +55,9 @@ import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
@@ -285,5 +305,31 @@ public class CombinedJob extends Job<CombinedJob> {
   @JsonIgnore
   public RuntimeStatus getRuntimeStatus() {
     return status;
+  }
+
+  private static final Map<Status, State> bwcStatusMapping = new HashMap<>() {{
+    put(waiting, SUBMITTED);
+    put(queued, PENDING);
+    put(validating, PENDING);
+    put(validated, PENDING);
+    put(preparing, PENDING);
+    put(prepared, PENDING);
+    put(Status.executing, RUNNING);
+    put(executed, RUNNING);
+    put(executing_trigger, RUNNING);
+    put(trigger_executed, RUNNING);
+    put(collecting_trigger_status, RUNNING);
+    put(trigger_status_collected, RUNNING);
+    put(finalizing, RUNNING);
+
+    put(finalized, SUCCEEDED);
+    put(aborted, CANCELLED);
+    put(failed, FAILED);
+  }};
+
+  @Override
+  public void setStatus(Status status) {
+    super.setStatus(status);
+    getRuntimeStatus().setState(bwcStatusMapping.get(status));
   }
 }
