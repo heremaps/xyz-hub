@@ -52,6 +52,14 @@ public interface INaksha {
   IStorage getSpaceStorage();
 
   /**
+   * Returns the user defined space storage instance based on storageId as per space collection defined in Naksha admin storage.
+   * @param storageId Id of the space storage
+   * @return the space-storage
+   */
+  @NotNull
+  IStorage getStorageById(final @NotNull String storageId);
+
+  /**
    * Ask the Naksha-Hub to generate an error response.
    *
    * @param throwable The exception to convert.
