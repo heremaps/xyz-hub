@@ -23,21 +23,20 @@ import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Storage API to gain access to storages.
  */
 public interface IStorage {
 
-  /**
-   * Creates a new context, bound by default to the current {@link NakshaContext#currentContext()}.
-   * @return the new context.
-   */
-  @NotNull
-  IStorageContext newContext();
+  default @NotNull IMasterSession newMasterSession(@Nullable NakshaContext context) {
+    throw new UnsupportedOperationException();
+  }
 
-  // TODO: - Add transaction log access.
-  //       - Add history access.
+  default @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useReplica) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Perform storage initialization, especially useful when invoked for the first time storage is to be accessed.
@@ -80,6 +79,7 @@ public interface IStorage {
    * @param settings Optional settings for the transaction.
    * @return The mutator transaction.
    */
+  @Deprecated
   @NotNull
   IMasterTransaction openMasterTransaction(@NotNull ITransactionSettings settings);
 

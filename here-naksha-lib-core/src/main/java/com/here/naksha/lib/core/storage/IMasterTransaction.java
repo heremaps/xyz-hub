@@ -20,26 +20,11 @@ package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteRequest;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /** Interface to grant write-access to a storage. */
 public interface IMasterTransaction extends IReadTransaction {
-
-  @NotNull
-  Result execute(@NotNull WriteRequest<?> writeRequest);
-
-  @NotNull
-  IStorageLock lockFeature(
-      @NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit)
-      throws TimeoutException;
-
-  @NotNull
-  IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit) throws TimeoutException;
 
   /**
    * Commit all changes.

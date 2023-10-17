@@ -18,32 +18,16 @@
  */
 package com.here.naksha.lib.core.storage;
 
-import com.here.naksha.lib.core.NakshaContext;
-import java.util.concurrent.TimeUnit;
+import com.here.naksha.lib.core.models.storage.Notification;
+import com.here.naksha.lib.core.models.storage.ReadRequest;
+import com.here.naksha.lib.core.models.storage.Result;
 import org.jetbrains.annotations.NotNull;
 
-public interface IStorageContext extends AutoCloseable {
+public interface IReadSession {
 
   @NotNull
-  NakshaContext getNakshaContext();
-
-  void setNakshaContext(@NotNull NakshaContext context);
+  Result execute(@NotNull ReadRequest<?> readRequest);
 
   @NotNull
-  IStorageContext withStmtTimeout(long timeout, TimeUnit timeUnit);
-
-  @NotNull
-  IStorageContext withLockTimeout(long timeout, TimeUnit timeUnit);
-
-  @NotNull
-  IMasterTransaction openMasterTransaction();
-
-  @NotNull
-  IReadTransaction openReadTransaction();
-
-  @NotNull
-  IAdminTransaction openAdminTransaction();
-
-  @Override
-  void close();
+  Result process(@NotNull Notification<?> notification);
 }
