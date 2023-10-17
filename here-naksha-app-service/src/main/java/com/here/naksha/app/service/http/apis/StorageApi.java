@@ -22,7 +22,6 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
-import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.storage.*;
@@ -52,8 +51,12 @@ public class StorageApi extends Api {
   private void getStorages(final @NotNull RoutingContext routingContext) {
     naksha().executeTask(() -> {
       try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
+        // TODO HP : Fix adding a new Storage
+        /*
         final IResultSet<Storage> rs = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
-            .getAll(0, Integer.MAX_VALUE);
+        .getAll(0, Integer.MAX_VALUE);
+        */
+        final IResultSet<Storage> rs = null;
         final List<@NotNull Storage> featureList = rs.toList(0, Integer.MAX_VALUE);
         rs.close();
         final XyzFeatureCollection response = new XyzFeatureCollection();
@@ -78,9 +81,13 @@ public class StorageApi extends Api {
       }
       // Insert storage in database
       try (final IMasterTransaction tx = naksha().storage().openMasterTransaction(naksha().settings())) {
+        // TODO HP : Fix adding a new Storage
+        /*
         final ModifyFeaturesResp modifyResponse = tx.writeFeatures(
-                Storage.class, NakshaAdminCollection.STORAGES)
-            .modifyFeatures(new ModifyFeaturesReq<Storage>(true).insert(storage));
+        Storage.class, NakshaAdminCollection.STORAGES)
+        .modifyFeatures(new ModifyFeaturesReq<Storage>(true).insert(storage));
+        */
+        final ModifyFeaturesResp modifyResponse = null;
         tx.commit();
         final XyzFeatureCollection response = verticle.transformModifyResponse(modifyResponse);
         verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);

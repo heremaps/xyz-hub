@@ -35,6 +35,18 @@ public abstract class AbstractSimulatedNakshaHub extends Thread implements INaks
   Exception exception;
 
   @Override
+  public IStorage getAdminStorage() {
+    // TODO : Add logic
+    return null;
+  }
+
+  @Override
+  public IStorage getSpaceStorage() {
+    // TODO : Add logic
+    return null;
+  }
+
+  @Override
   public abstract void run();
 
   @Override

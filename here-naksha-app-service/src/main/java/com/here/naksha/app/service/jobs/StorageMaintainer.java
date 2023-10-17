@@ -22,7 +22,6 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.app.service.NakshaHubConfig;
 import com.here.naksha.app.service.models.MaintenanceTrigger;
-import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.features.Storage;
@@ -131,22 +130,34 @@ public class StorageMaintainer {
       }
 
       // Fetch all Spaces
+      // TODO HP : Fix reading all spaces
+      /*
       final IResultSet<Space> rsp =
-          tx.readFeatures(Space.class, NakshaAdminCollection.SPACES).getAll(0, Integer.MAX_VALUE);
+      tx.readFeatures(Space.class, NakshaAdminCollection.SPACES).getAll(0, Integer.MAX_VALUE);
+       */
+      final IResultSet<Space> rsp = null;
       final List<@NotNull Space> spaces = rsp.toList(0, Integer.MAX_VALUE);
       rsp.close();
 
       // Fetch all Connectors
+      // TODO HP : Fix reading all connectors
+      /*
       final IResultSet<Connector> rc = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
-          .getAll(0, Integer.MAX_VALUE);
+      .getAll(0, Integer.MAX_VALUE);
+       */
+      final IResultSet<Connector> rc = null;
       final List<@NotNull Connector> connectors = rc.toList(0, Integer.MAX_VALUE);
       final Map<String, Connector> connectorMap =
           connectors.stream().collect(Collectors.toMap(Connector::getId, Function.identity()));
       rc.close();
 
       // Fetch all Storages
+      // TODO HP : Fix reading all storages
+      /*
       final IResultSet<Storage> rst = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
-          .getAll(0, Integer.MAX_VALUE);
+      .getAll(0, Integer.MAX_VALUE);
+       */
+      final IResultSet<Storage> rst = null;
       final List<@NotNull Storage> storages = rst.toList(0, Integer.MAX_VALUE);
       final Map<String, Storage> storageMap =
           storages.stream().collect(Collectors.toMap(Storage::getId, Function.identity()));
@@ -189,9 +200,12 @@ public class StorageMaintainer {
         }
       }
       // add Admin DB collections also for maintenance
+      // TODO HP : Fix running maintenance for admin resources as well
+      /*
       final MaintenanceTrigger trigger = new MaintenanceTrigger(
-          "naksha-admin-db", null, defStorage, adminStorageImpl, NakshaAdminCollection.COLLECTION_INFO_LIST);
+      "naksha-admin-db", null, defStorage, adminStorageImpl, NakshaAdminCollection.COLLECTION_INFO_LIST);
       triggerMap.put(trigger.key(), trigger);
+       */
 
       /*
        * distribute all Maintenance Trigger events to a thread pool for processing

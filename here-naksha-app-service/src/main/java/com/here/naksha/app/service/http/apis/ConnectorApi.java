@@ -22,7 +22,6 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
-import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
@@ -60,8 +59,12 @@ public class ConnectorApi extends Api {
     // TODO : To support filtering id's supplied as query parameters
     naksha().executeTask(() -> {
       try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
+        // TODO HP : Fix reading all connectors
+        /*
         final IResultSet<Connector> rs = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
-            .getAll(0, Integer.MAX_VALUE);
+        .getAll(0, Integer.MAX_VALUE);
+         */
+        final IResultSet<Connector> rs = null;
         final List<@NotNull Connector> featureList = rs.toList(0, Integer.MAX_VALUE);
         // TODO HP_QUERY : Is this right place to close resource? (change in StorageApi accordingly)
         rs.close();
@@ -87,9 +90,13 @@ public class ConnectorApi extends Api {
       }
       // Insert connector in database
       try (final IMasterTransaction tx = naksha().storage().openMasterTransaction(naksha().settings())) {
+        // TODO HP : Fix adding new connector
+        /*
         final ModifyFeaturesResp modifyResponse = tx.writeFeatures(
-                Connector.class, NakshaAdminCollection.CONNECTORS)
-            .modifyFeatures(new ModifyFeaturesReq<Connector>(true).insert(connector));
+        Connector.class, NakshaAdminCollection.CONNECTORS)
+        .modifyFeatures(new ModifyFeaturesReq<Connector>(true).insert(connector));
+         */
+        final ModifyFeaturesResp modifyResponse = null;
         tx.commit();
         final XyzFeatureCollection response = verticle.transformModifyResponse(modifyResponse);
         verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, response);

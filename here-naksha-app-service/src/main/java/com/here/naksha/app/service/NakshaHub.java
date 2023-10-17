@@ -19,7 +19,6 @@
 package com.here.naksha.app.service;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.cause;
-import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.NakshaHelper.listToMap;
 import static java.lang.System.err;
 
@@ -38,7 +37,6 @@ import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.ITransactionSettings;
-import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.IoHelp.LoadedBytes;
 import com.here.naksha.lib.core.util.json.Json;
@@ -79,6 +77,18 @@ import org.slf4j.LoggerFactory;
 public final class NakshaHub extends Thread implements INaksha {
 
   private static final Logger log = LoggerFactory.getLogger(NakshaHub.class);
+
+  @Override
+  public IStorage getAdminStorage() {
+    // TODO HP : Add logic
+    return null;
+  }
+
+  @Override
+  public IStorage getSpaceStorage() {
+    // TODO HP : Add logic
+    return null;
+  }
 
   /**
    * Entry point when used in a JAR as bootstrap class.
@@ -169,81 +179,91 @@ public final class NakshaHub extends Thread implements INaksha {
     adminStorage = new PsqlStorage(adminDbConfig, 1L);
     adminStorage.init();
     final ITransactionSettings tempSettings = adminStorage.createSettings().withAppId(adminDbConfig.appName);
-    NakshaHubConfig config;
+    NakshaHubConfig config = null;
     try (final PsqlTxWriter tx = adminStorage.openMasterTransaction(tempSettings)) {
       final Map<@NotNull String, @NotNull CollectionInfo> existing =
           listToMap(tx.iterateCollections().readAll(), CollectionInfo::getId);
-      if (!existing.containsKey(NakshaAdminCollection.CATALOGS.getId())) {
-        tx.createCollection(NakshaAdminCollection.CATALOGS);
-        tx.commit();
+      // TODO HP : create all collections using new storage API functions
+      /*if (!existing.containsKey(NakshaAdminCollection.CATALOGS.getId())) {
+      tx.createCollection(NakshaAdminCollection.CATALOGS);
+      tx.commit();
       }
       if (!existing.containsKey(NakshaAdminCollection.EXTENSIONS.getId())) {
-        tx.createCollection(NakshaAdminCollection.EXTENSIONS);
-        tx.commit();
+      tx.createCollection(NakshaAdminCollection.EXTENSIONS);
+      tx.commit();
       }
       if (!existing.containsKey(NakshaAdminCollection.CONNECTORS.getId())) {
-        tx.createCollection(NakshaAdminCollection.CONNECTORS);
-        tx.commit();
+      tx.createCollection(NakshaAdminCollection.CONNECTORS);
+      tx.commit();
       }
       if (!existing.containsKey(NakshaAdminCollection.STORAGES.getId())) {
-        tx.createCollection(NakshaAdminCollection.STORAGES);
-        tx.commit();
+      tx.createCollection(NakshaAdminCollection.STORAGES);
+      tx.commit();
       }
       if (!existing.containsKey(NakshaAdminCollection.SPACES.getId())) {
-        tx.createCollection(NakshaAdminCollection.SPACES);
-        tx.commit();
+      tx.createCollection(NakshaAdminCollection.SPACES);
+      tx.commit();
       }
       if (!existing.containsKey(NakshaAdminCollection.SUBSCRIPTIONS.getId())) {
-        tx.createCollection(NakshaAdminCollection.SUBSCRIPTIONS);
-        tx.commit();
+      tx.createCollection(NakshaAdminCollection.SUBSCRIPTIONS);
+      tx.commit();
       }
       if (!existing.containsKey(NakshaAdminCollection.CONFIGS.getId())) {
-        tx.createCollection(NakshaAdminCollection.CONFIGS);
-        tx.commit();
-      }
+      tx.createCollection(NakshaAdminCollection.CONFIGS);
+      tx.commit();
+      }*/
       // Run maintenance on AdminDB (to ensure table partitions exist) before performing any DML operations
-      adminStorage.maintain(NakshaAdminCollection.COLLECTION_INFO_LIST);
+      // TODO HP : run maintenance during startup
+      // adminStorage.maintain(NakshaAdminCollection.COLLECTION_INFO_LIST);
 
       // read default storage config and add to DB if not already present
+      // TODO HP : fetch / add default storage
+      /*
       Storage defStorage = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
-          .getFeatureById("psql");
+      .getFeatureById("psql");
       if (defStorage == null) {
-        try (final Json json = Json.get()) {
-          final String storageJson = IoHelp.readResource("config/storage.json");
-          defStorage = json.reader(ViewDeserialize.Storage.class)
-              .forType(Storage.class)
-              .readValue(storageJson);
-          // TODO HP_QUERY : How do I generate "number" for Storage class here?
-          tx.writeFeatures(Storage.class, NakshaAdminCollection.STORAGES)
-              .modifyFeatures(new ModifyFeaturesReq<Storage>(false).insert(defStorage));
-          tx.commit();
-        } catch (Exception e) {
-          throw unchecked(e);
-        }
+      try (final Json json = Json.get()) {
+      final String storageJson = IoHelp.readResource("config/storage.json");
+      defStorage = json.reader(ViewDeserialize.Storage.class)
+      .forType(Storage.class)
+      .readValue(storageJson);
+      // TODO HP_QUERY : How do I generate "number" for Storage class here?
+      tx.writeFeatures(Storage.class, NakshaAdminCollection.STORAGES)
+      .modifyFeatures(new ModifyFeaturesReq<Storage>(false).insert(defStorage));
+      tx.commit();
+      } catch (Exception e) {
+      throw unchecked(e);
+      }
       }
       this.storage = defStorage;
+      */
+      // TODO HP : This is just to ensure code compiles. Needs to fix with appropriate storage object
+      this.storage = new Storage("", 1, "");
 
       // read default config and add to DB if not already present
+      // TODO HP : fetch / add default config
+      /*
       boolean dbConfigExists = false;
       config = tx.readFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
-          .getFeatureById(configId);
+      .getFeatureById(configId);
       if (config != null) {
-        dbConfigExists = true;
+      dbConfigExists = true;
       }
       try (final Json json = Json.get()) {
-        final String configJson = IoHelp.readResource("config/local.json");
-        config = json.reader(ViewDeserialize.Storage.class)
-            .forType(NakshaHubConfig.class)
-            .readValue(configJson);
-        ModifyFeaturesReq<NakshaHubConfig> req = new ModifyFeaturesReq<>(false);
-        req = dbConfigExists ? req.update(config) : req.insert(config);
-        tx.writeFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
-            .modifyFeatures(req);
-        tx.commit();
+      final String configJson = IoHelp.readResource("config/local.json");
+      config = json.reader(ViewDeserialize.Storage.class)
+      .forType(NakshaHubConfig.class)
+      .readValue(configJson);
+      ModifyFeaturesReq<NakshaHubConfig> req = new ModifyFeaturesReq<>(false);
+      req = dbConfigExists ? req.update(config) : req.insert(config);
+      tx.writeFeatures(NakshaHubConfig.class, NakshaAdminCollection.CONFIGS)
+      .modifyFeatures(req);
+      tx.commit();
       } catch (Exception e) {
-        throw unchecked(e);
+      throw unchecked(e);
       }
       log.info("Loaded default configuration '{}' as: {}", configId, config);
+      */
 
       // Read the configuration.
       try (final Json json = Json.get()) {

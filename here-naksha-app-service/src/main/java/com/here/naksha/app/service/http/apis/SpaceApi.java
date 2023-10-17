@@ -23,7 +23,6 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.EventPipeline;
-import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.features.Storage;
@@ -63,8 +62,12 @@ public class SpaceApi extends Api {
   private void getSpaces(final @NotNull RoutingContext routingContext) {
     naksha().executeTask(() -> {
       try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
+        // TODO HP : Fix reading of all spaces
+        /*
         final IResultSet<Space> rs = tx.readFeatures(Space.class, NakshaAdminCollection.SPACES)
-            .getAll(0, Integer.MAX_VALUE);
+        .getAll(0, Integer.MAX_VALUE);
+        */
+        final IResultSet<Space> rs = null;
         final List<@NotNull Space> featureList = rs.toList(0, Integer.MAX_VALUE);
         rs.close();
         final XyzFeatureCollection response = new XyzFeatureCollection();
@@ -93,14 +96,22 @@ public class SpaceApi extends Api {
         // TODO : Validate if spaceId already exist
         // TODO : Validate if connectorIds exist
         // Insert space details in Admin database
+        // TODO HP : Fix adding new space
+        /*
         final ModifyFeaturesResp modifyResponse = tx.writeFeatures(Space.class, NakshaAdminCollection.SPACES)
-            .modifyFeatures(new ModifyFeaturesReq<Space>(true).insert(space));
+        .modifyFeatures(new ModifyFeaturesReq<Space>(true).insert(space));
+        */
+        final ModifyFeaturesResp modifyResponse = null;
         tx.commit();
 
         // TODO HP_QUERY : How to trigger feature task pipeline and create table as part of pipeline?
         // With connectorId (attached to a storage) ensure backend tables are created successfully
+        // TODO HP : Fix fetching connectors
+        /*
         final IResultSet<Connector> rsc = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
-            .getFeaturesById(space.getConnectorIds());
+        .getFeaturesById(space.getConnectorIds());
+        */
+        final IResultSet<Connector> rsc = null;
         final List<Connector> connectorList = rsc.toList(0, Integer.MAX_VALUE);
         rsc.close();
         final EventPipeline eventPipeline = new EventPipeline(naksha());
@@ -108,8 +119,12 @@ public class SpaceApi extends Api {
           // fetch storage associated with this connector
           Storage storage = null;
           if (connector.getStorageId() != null) {
+            // TODO HP : Fix fetching storages
+            /*
             final IResultSet<Storage> rss = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
-                .getFeaturesById(connector.getStorageId());
+            .getFeaturesById(connector.getStorageId());
+            */
+            final IResultSet<Storage> rss = null;
             if (rss.next()) {
               storage = rss.getFeature();
             }

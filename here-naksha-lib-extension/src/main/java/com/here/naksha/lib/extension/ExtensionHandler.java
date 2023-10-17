@@ -23,7 +23,6 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.cause;
 import com.here.naksha.lib.core.IEventContext;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaBound;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
@@ -78,10 +77,11 @@ public class ExtensionHandler extends NakshaBound implements IEventHandler {
   @AvailableSince(NakshaVersion.v2_0_3)
   public ExtensionHandler(@NotNull INaksha naksha, @NotNull Connector connector) {
     super(naksha);
-    final Extension config;
+    Extension config = null;
     try (final IReadTransaction tx = naksha.storage().openReplicationTransaction(naksha.settings())) {
-      config = tx.readFeatures(Extension.class, NakshaAdminCollection.EXTENSIONS)
-          .getFeatureById(connector.getId());
+      // TODO : Need to use new storage API to fetch extension config (old way is deprecated, so comment it out)
+      /*config = tx.readFeatures(Extension.class, NakshaAdminCollection.EXTENSIONS)
+      .getFeatureById(connector.getId());*/
       if (config == null) {
         throw new IllegalArgumentException("No such extension exists: " + connector.getId());
       }
