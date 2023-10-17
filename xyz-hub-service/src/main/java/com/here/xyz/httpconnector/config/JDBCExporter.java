@@ -28,6 +28,7 @@ import static com.here.xyz.hub.rest.ApiParam.Query.Incremental.CHANGES;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
@@ -72,7 +73,7 @@ public class JDBCExporter extends JDBCClients {
               switch (job.getCsvFormat()) {
                   case PARTITIONID_FC_B64:
                       
-                      boolean bChangesOnly = /* job.readParamIncremental() == CHANGES */ false;
+                      boolean bChangesOnly = job.readParamIncremental() == CHANGES; // true;
                       exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
                               job.getTargetVersion(), job.getParams(), job.getCsvFormat(),null,
                               bChangesOnly, job.getPartitionKey(),job.getOmitOnNull());
@@ -472,18 +473,33 @@ public class JDBCExporter extends JDBCClients {
         PSQLXyzConnector dbHandler = new PSQLXyzConnector(false);
         dbHandler.setConfig(new PSQLConfig(event, schema));
 
-        if (isForCompositeContentDetection)
-            event.setContext(csvFormat == PARTITIONID_FC_B64 ? EXTENSION : COMPOSITE_EXTENSION);
+        boolean partitionByPropertyValue = ( csvFormat == PARTITIONID_FC_B64 && partitionKey != null && !"id".equalsIgnoreCase(partitionKey)),
+                partitionByFeatureId     = ( csvFormat == PARTITIONID_FC_B64 && !partitionByPropertyValue );
+                
+        SpaceContext ctxStashed = event.getContext();        
 
-        SQLQuery sqlQuery;
+        if (isForCompositeContentDetection)
+            event.setContext( partitionByFeatureId ? EXTENSION : COMPOSITE_EXTENSION);
+
+        SQLQuery sqlQuery,
+                 sqlQueryContentByPropertyValue = null;
+
         try {
           GetFeatures queryRunner;
+
           if (spatialFilter == null)
             queryRunner = new SearchForFeatures(event);
           else
             queryRunner = new GetFeaturesByGeometry(event);
+
           queryRunner.setDbHandler(dbHandler);
           sqlQuery = queryRunner._buildQuery(event);
+
+          if( partitionByPropertyValue && isForCompositeContentDetection )
+          { event.setContext(ctxStashed);
+            sqlQueryContentByPropertyValue = queryRunner._buildQuery(event);
+          }
+
         }
         catch (Exception e) {
           throw new SQLException(e);
@@ -493,6 +509,12 @@ public class JDBCExporter extends JDBCClients {
         sqlQuery.setQueryFragment("geo", geoFragment);
         //Remove Limit
         sqlQuery.setQueryFragment("limit", "");
+
+        if( sqlQueryContentByPropertyValue != null )
+        {
+         sqlQueryContentByPropertyValue.setQueryFragment("geo", geoFragment);
+         sqlQueryContentByPropertyValue.setQueryFragment("limit", "");
+        }
 
         if (customWhereCondition != null && csvFormat != PARTITIONID_FC_B64 )
             addCustomWhereClause(sqlQuery, customWhereCondition);
@@ -509,20 +531,19 @@ public class JDBCExporter extends JDBCClients {
 
          case PARTITIONID_FC_B64 :
          {
-            boolean partById = true;
             String partQry = isForCompositeContentDetection
-                             ? "select /* vml_export_hint m499#jobId(" + jobId + ") */ jsondata->>'id' as id, " 
+                             ? "select jsondata->>'id' as id, " 
                               + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) "
                               + "  when true then replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') "
                               + "  else null::text "
                               + " end as data "
                               + "from ( ${{contentQuery}}) X"
-                             :  "select /* vml_export_hint m499#jobId(" + jobId + ") */ jsondata->>'id' as id, " 
+                             :  "select jsondata->>'id' as id, " 
                               + " replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
                               + "from ( ${{contentQuery}}) X";
 
-           if( partitionKey != null && !"id".equalsIgnoreCase(partitionKey) )
-           {  partById = false;
+           if( partitionByPropertyValue )
+           {  
               String converted = ApiParam.getConvertedKey(partitionKey);
               partitionKey =  String.join("'->'",(converted != null ? converted : partitionKey).split("\\."));
               partQry = String.format(
@@ -535,28 +556,32 @@ public class JDBCExporter extends JDBCClients {
                 +"       from ( select distinct jsondata->'%1$s' as key from ( ${{contentQuery}} ) X "+ (( omitOnNull == null || !omitOnNull ) ? "" : " where not jsondata->'%1$s' isnull " ) +" ) oo "
                 +"     ) d1"
                 +"   ) o "
-                +"   where 1 = 1 " + (( !partById && customWhereCondition != null ) ? "${{customWhereClause}}" :"" )
+                +"   where 1 = 1 " + ( customWhereCondition != null ? "${{customWhereClause}}" :"" )
                 +" ), "
                 +" iidata as  "
-                +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 100000)::integer as chunk, r.jsondata, r.geo from ( ${{contentQuery}} ) r join plist l on ( coalesce( r.jsondata->'%1$s', '\"CSVNULL\"'::jsonb) = l.key )  "
+                +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 20000000)::integer as chunk, r.jsondata, r.geo from ( ${{%2$s}} ) r right join plist l on ( coalesce( r.jsondata->'%1$s', '\"CSVNULL\"'::jsonb) = l.key )  "
                 +" ), "
                 +" iiidata as  "
                 +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, count(1) as nrfeatures, replace( encode(convert_to(('{\"type\":\"FeatureCollection\",\"features\":[' || coalesce( string_agg( (jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb))::text, ',' ), '' ) || ']}'),'UTF8'),'base64') ,chr(10),'') as data "
                 +"     from iidata    group by 1, chunk order by 1, 3 desc   "
                 +" )   "
-                +" select id, data from iiidata ", partitionKey );
+                +" select id, data from iiidata ", partitionKey, sqlQueryContentByPropertyValue != null ? "contentQueryReal" : "contentQuery" );
            }
 
            SQLQuery geoJson = new SQLQuery(partQry)
                .withQueryFragment("customWhereCondition", "");
 
-           if (  partById && customWhereCondition != null )
+           if (  partitionByFeatureId && customWhereCondition != null )
             addCustomWhereClause(sqlQuery, customWhereCondition);
 
-           if ( !partById && customWhereCondition != null )
+           if ( partitionByPropertyValue && customWhereCondition != null )
              geoJson.withQueryFragment("customWhereClause", customWhereCondition);
 
            geoJson.setQueryFragment("contentQuery", sqlQuery);
+
+           if( sqlQueryContentByPropertyValue != null )
+            geoJson.setQueryFragment("contentQueryReal", sqlQueryContentByPropertyValue);
+
            geoJson.substitute();
            return queryToText(geoJson);
          }
