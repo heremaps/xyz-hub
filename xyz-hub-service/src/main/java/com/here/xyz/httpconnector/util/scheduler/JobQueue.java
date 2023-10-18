@@ -172,9 +172,6 @@ public abstract class JobQueue implements Runnable {
                             //Currently we are only logging this issue
                             logger.warn("[{}] READONLY_RELEASE_FAILED!", job.getId());
                         });
-            }else if(job instanceof Export) {
-                /** Write MetaFile to S3 */
-                CService.jobS3Client.writeMetaFile((Export) job);
             }
             //Remove job from queue
             removeJob(job);

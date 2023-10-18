@@ -83,6 +83,9 @@ public class Export extends JDBCBasedJob<Export> {
     private ExportStatistic superStatistic;
 
     @JsonView({Public.class})
+    private String superId;
+
+    @JsonView({Public.class})
     private ExportTarget exportTarget;
 
     @JsonView({Internal.class})
@@ -252,6 +255,10 @@ public class Export extends JDBCBasedJob<Export> {
         CompositeMode compositeMode = readParamCompositeMode();
         Map ext = readParamExtends();
 
+        if(readPersistExport()){
+            this.setExp(-1l);
+        }
+
         if(!compositeMode.equals(CompositeMode.DEACTIVATED)) {
             if (getExportTarget().getType() == DOWNLOAD)
                 throw new HttpException(HttpResponseStatus.BAD_REQUEST, "CompositeMode is not available for Type Download!");
@@ -372,6 +379,10 @@ public class Export extends JDBCBasedJob<Export> {
                 .withFilesUploaded(this.statistic.filesUploaded + this.superStatistic.filesUploaded)
                 .withRowsUploaded(this.statistic.rowsUploaded + this.superStatistic.rowsUploaded);
     }
+
+    public void setSuperId(String superId){ this.superId = superId;}
+
+    public String getSuperId(){ return this.superId; }
 
     public void setStatistic(ExportStatistic statistic) {
         this.statistic = statistic;
@@ -811,77 +822,107 @@ public class Export extends JDBCBasedJob<Export> {
         return updateJobStatus(this, prepared);
     }
 
+    public Future<Export> searchPersistentJobOnTarget(String targetId){
+        return CService.jobConfigClient.getList(getMarker(), Export.class.getSimpleName() , null, targetId)
+                .compose(jobs -> {
+                    Export existingJob = null;
+
+                    for (Job jobCandidate :jobs) {
+                        //exp=-1 => persistent
+                        //hash must fit
+                        if( jobCandidate.getExp() == -1 && ((Export)jobCandidate).getHashForPersistentStorage().equals(getHashForPersistentStorage())){
+                            logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} "+getId(), jobCandidate.getId()+" "+jobCandidate.getStatus());
+                            existingJob = (Export) jobCandidate;
+                            //try to find a finalized one - doesn't matter if its the origin export
+                            if(existingJob.getStatus().equals(finalized) || existingJob.getStatus().equals(trigger_executed))
+                                break;
+                        }
+                    }
+                    return Future.succeededFuture(existingJob);
+                });
+    }
+
     public Future<Job> checkPersistentExport() {
         /** Deliver result if Export is already available */
 
-        Export existingJob = CService.jobS3Client.readMetaFileFromJob(this);
-        if(existingJob != null) {
-            /** metafile is present but Export is not started yet */
-            if(existingJob.getId().equals(getId()) && existingJob.getStatus().equals(queued)) {
-                /** We need to start the export by ourselves */
-                return updateJobStatus(this, prepared);
-            }else if(existingJob.getStatus().equals(finalized) || existingJob.getStatus().equals(trigger_executed) ) {
-                /** Export is available - use it and skip jdbc-export */
-                logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
+        return searchPersistentJobOnTarget(targetSpaceId)
+                .compose(existingJob -> {
 
-                addDownloadLinks(existingJob);
-                setExportObjects(existingJob.getExportObjects());
+                    if(existingJob != null) {
+                        /** metafile is present but Export is not started yet */
+                        if(existingJob.getId().equals(getId()) && existingJob.getStatus().equals(preparing)) {
+                            /** We need to start the export by ourselves */
+                            return updateJobStatus(this, prepared);
+                        }else if(existingJob.getStatus().equals(finalized) || existingJob.getStatus().equals(trigger_executed) ) {
+                            /** Export is available - use it and skip jdbc-export */
+                            logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
+                            setSuperId(existingJob.getId());
+                            addDownloadLinks(existingJob);
+                            setExportObjects(existingJob.getExportObjects());
 
-                setStatistic(existingJob.getStatistic());
-                return updateJobStatus(this, executed);
-            }else if(existingJob.getStatus().equals(failed)){
-                /** Export is available but is failed - abort also this export. */
-                String message = String.format("Another related job "+existingJob.getId()+" has failed.",
-                        existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
-                logger.warn("job[{}] Export {}", getId(), message);
-                setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
-                return Future.failedFuture(Job.ERROR_TYPE_EXECUTION_FAILED);
-            }else {
-                /** Go back to queuing - we need to wait for the completion of an already running persist export. */
-                return updateJobStatus(this, queued);
-            }
-        }
-        else
-            return updateJobStatus(this, prepared);
+                            setStatistic(existingJob.getStatistic());
+                            return updateJobStatus(this, executed);
+                        }else if(existingJob.getStatus().equals(failed)){
+                            /** Export is available but is failed - abort also this export. */
+                            String message = String.format("Another related job "+existingJob.getId()+" has failed.",
+                                    existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
+                            logger.warn("job[{}] Export {}", getId(), message);
+                            setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
+                            return Future.failedFuture(Job.ERROR_TYPE_EXECUTION_FAILED);
+                        }else {
+                            /** Go back to queuing - we need to wait for the completion of an already running persist export. */
+                            return updateJobStatus(this, queued);
+                        }
+                    }
+                    else
+                        return updateJobStatus(this, prepared);
+                });
     }
 
     public Future<Job> checkPersistentSuperExport() {
         /** Check if we can find a persistent export and check status. If no persistent export is available we are starting one. */
-        Export existingJob = CService.jobS3Client.readMetaFileFromPath(readParamSuperExportPath());
+        return searchPersistentJobOnTarget(extractSuperSpaceId())
+                .compose(existingJob -> {
 
-        //TODO: if status is failed no retry is implemented/possible
-        if(existingJob == null){
-            logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), readParamSuperExportPath());
+                    //TODO: if status is failed no retry is implemented/possible
+                    if(existingJob == null){
+                        logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), readParamSuperExportPath());
 
-            Export baseExport = new Export()
-                    .withId(getId()+"_missing_base")
-                    .withDescription("Persistent Base Export for "+getId())
-                    .withExportTarget(getExportTarget())
-                    .withFilters(getFilters())
-                    .withMaxTilesPerFile(getMaxTilesPerFile())
-                    .withTargetLevel(getTargetLevel());
+                        Export baseExport = new Export()
+                                .withId(getId()+"_missing_base")
+                                .withDescription("Persistent Base Export for "+getId())
+                                .withExportTarget(getExportTarget())
+                                .withFilters(getFilters())
+                                .withMaxTilesPerFile(getMaxTilesPerFile())
+                                .withTargetLevel(getTargetLevel());
 
-            //We only need reusable data on S3
-            baseExport.addParam(PARAM_SKIP_TRIGGER, true);
+                        //We only need reusable data on S3
+                        baseExport.addParam(PARAM_SKIP_TRIGGER, true);
 
-            logger.info("job[{}] Trigger Persist Export {} of Super-Layer!", getId(), readParamSuperExportPath());
-            return HubWebClient.performBaseLayerExport(extractSuperSpaceId(), baseExport)
-                    .compose(f -> {
-                        logger.info("job[{}] Need to wait for finalization of persist Export of base-layer!", getId());
-                        return updateJobStatus(this,queued);
-                    })
-                    .onFailure(f -> setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED));
-        }else if(existingJob.getStatus().equals(failed)){
-            logger.info("job[{}] Persist Export {} of Super-Layer has failed!", getId(), readParamSuperExportPath());
-            return setJobFailed(this,ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED);
-        }else if(existingJob.getStatus().equals(finalized)){
-            logger.info("job[{}] Persist Export {} of Super-Layer is available!", getId(), readParamSuperExportPath());
-            setSuperStatistic(existingJob.getStatistic());
-            return updateJobStatus(this, prepared);
-        }else{
-            logger.info("job[{}] Persist Export {} - need to wait for finalization of persist Export of base-layer!", getId(), readParamSuperExportPath());
-            return updateJobStatus(this, queued);
-        }
+                        logger.info("job[{}] Trigger Persist Export {} of Super-Layer!", getId(), readParamSuperExportPath());
+                        return HubWebClient.performBaseLayerExport(extractSuperSpaceId(), baseExport)
+                                .compose(newBaseExport -> {
+                                    logger.info("job[{}] Need to wait for finalization of persist Export {} of base-layer!", getId(), newBaseExport.getId());
+                                    setSuperId(newBaseExport.getId());
+
+                                    return updateJobStatus(this,queued);
+                                })
+                                .onFailure(f -> setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED));
+                    }else if(existingJob.getStatus().equals(failed)){
+                        logger.info("job[{}] Persist Export {} of Super-Layer has failed!", getId(), readParamSuperExportPath());
+                        return setJobFailed(this,ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED);
+                    }else if(existingJob.getStatus().equals(finalized)){
+                        logger.info("job[{}] Persist Export {} of Super-Layer is available!", getId(), readParamSuperExportPath());
+                        if(superId == null)
+                            setSuperId(existingJob.getId());
+
+                        setSuperStatistic(existingJob.getStatistic());
+                        return updateJobStatus(this, prepared);
+                    }else{
+                        logger.info("job[{}] Persist Export {} - need to wait for finalization of persist Export of base-layer!", getId(), readParamSuperExportPath());
+                        return updateJobStatus(this, queued);
+                    }
+                });
     }
 
     @Override
@@ -924,7 +965,7 @@ public class Export extends JDBCBasedJob<Export> {
         Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
         ((Export) j).setExportObjects(exportObjects);
 
-        if(((Export)j).readParamSuperExportPath() != null) {
+        if(((Export)j).getSuperId() != null) {
             /** Add exportObjects including fresh download links for persistent base exports */
             Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath((Export) j, true, true);
             ((Export) j).setSuperExportObjects(superExportObjects);
@@ -932,17 +973,20 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     @JsonIgnore
-    public String getSubFolderHashForPersistentStorage(){
-        return Hasher.getHash("" + targetLevel + maxTilesPerFile + partitionKey + csvFormat
+    public String getHashForPersistentStorage(){
+        return Hasher.getHash(
+                ( targetLevel != null ? targetLevel.toString() : "")
+                + maxTilesPerFile
+                + partitionKey
+                + csvFormat
                 + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().geometry.getJTSGeometry().hashCode() :"")
-                + (filters != null && filters.getPropertyFilter() !=null ? filters.getPropertyFilter().hashCode() :""))
+                + (filters != null && filters.getPropertyFilter() !=null ? filters.getPropertyFilter().hashCode() :"")
                 + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().getRadius() :"")
-                + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().isClipped() : false);
+                + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().isClipped() : false));
     }
 
     @Override
     public void finalizeJob() {
-        updateJobStatus(this, finalized)
-                .onSuccess(f-> CService.jobS3Client.writeMetaFile(this));
+        updateJobStatus(this, finalized);
     }
 }

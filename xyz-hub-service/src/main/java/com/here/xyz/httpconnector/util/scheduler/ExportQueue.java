@@ -61,8 +61,7 @@ public class ExportQueue extends JobQueue {
                      */
                     switch (currentJob.getStatus()) {
                         case waiting:
-                            updateJobStatus(currentJob, Job.Status.queued)
-                                    .onComplete(f-> CService.jobS3Client.writeMetaFileIfNotExists((Export) currentJob));
+                            updateJobStatus(currentJob, Job.Status.queued);
                             break;
                         case queued:
                             updateJobStatus(currentJob, Job.Status.preparing)
@@ -113,8 +112,7 @@ public class ExportQueue extends JobQueue {
             .onSuccess(triggerId -> {
                 //Add import ID
                 ((Export) job).setTriggerId(triggerId);
-                updateJobStatus(job, Job.Status.trigger_executed)
-                        .onSuccess(f-> CService.jobS3Client.writeMetaFile((Export) job));
+                updateJobStatus(job, Job.Status.trigger_executed);
             })
             .onFailure(e -> {
                 if (e instanceof HttpException)

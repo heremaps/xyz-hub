@@ -18,10 +18,12 @@
  */
 package com.here.xyz.hub.rest.jobs;
 
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.hub.rest.TestWithSpaceCleanup;
+import io.restassured.response.Response;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,6 +35,8 @@ import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWN
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static io.restassured.RestAssured.given;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
@@ -58,6 +62,8 @@ public class ReadOnlyPersistExportIT extends JobApiIT {
     public void testFullReadOnlyWKBExport() throws Exception {
         /** Export JSON_WKB */
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), Job.CSVFormat.JSON_WKB);
+        assertEquals(true, job.readPersistExport());
+
         List<URL> urls = performExport(job, testSpaceId1 , finalized, failed);
         assertNotEquals(-1, urls.get(0).toString().indexOf("persistent"));
 
@@ -70,5 +76,22 @@ public class ReadOnlyPersistExportIT extends JobApiIT {
         job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), GEOJSON);
         urls2 = performExport(job, testSpaceId1 , finalized, failed);
         assertNotEquals(urls.get(0).getPath(), urls2.get(0).getPath());
+    }
+
+    @Test
+    public void testExpiry() throws Exception {
+        /** Export JSON_WKB */
+        Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), Job.CSVFormat.JSON_WKB);
+
+        Response resp = given()
+                .accept(APPLICATION_JSON)
+                .contentType(APPLICATION_JSON)
+                .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+                .body(job)
+                .post("/spaces/" + testSpaceId1 + "/jobs");
+
+        Export export = XyzSerializable.deserialize(resp.getBody().asString());
+        /** set to -1 if export should get persisted (readOnly) */
+        assertEquals(Long.valueOf(-1) , export.getExp());
     }
 }
