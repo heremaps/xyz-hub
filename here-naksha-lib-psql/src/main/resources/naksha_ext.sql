@@ -39,6 +39,14 @@
 CREATE SCHEMA IF NOT EXISTS "${schema}";
 SET SESSION search_path TO "${schema}", public, topology;
 
+CREATE OR REPLACE FUNCTION test_init() RETURNS jsonb AS $$
+  ${NAKSHA_PLV8_CODE}
+$$ LANGUAGE plv8 VOLATILE STRICT;
+
+CREATE OR REPLACE FUNCTION test_log(t text) RETURNS void AS $$
+  plv8.naksha.log(t);
+$$ LANGUAGE plv8 VOLATILE STRICT;
+
 -- Returns the packed Naksha extension version: 16 bit reserved, 16 bit major, 16 bit minor, 16 bit revision.
 CREATE OR REPLACE FUNCTION naksha_version() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
