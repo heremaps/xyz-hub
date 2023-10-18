@@ -18,4 +18,8 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+/**
+ *
+ * @param <SELF>
+ */
 public abstract class Notification<SELF extends Notification<SELF>> extends Request<SELF> {}

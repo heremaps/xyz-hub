@@ -44,13 +44,14 @@ public record NakshaVersion(int major, int minor, int revision) implements Compa
   public static final String v2_0_4 = "2.0.4";
   public static final String v2_0_5 = "2.0.5";
   public static final String v2_0_6 = "2.0.6";
+  public static final String v2_0_7 = "2.0.7";
 
   /**
    * The latest version of the naksha-extension stored in the resources.
    */
   // TODO: Need to be generated and read from gradle.build.kts or gradle.properties!
   @AvailableSince(v2_0_5)
-  public static final NakshaVersion latest = of(v2_0_6);
+  public static final NakshaVersion latest = of(v2_0_7);
 
   /**
    * Parses the given version string and returns the Naksha version.

@@ -16,13 +16,17 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.storage;
+package com.here.naksha.lib.core.exceptions;
 
-/**
- * An interface implemented by the locks returned by the storage sessions.
- */
-public interface IStorageLock extends AutoCloseable {
+import org.jetbrains.annotations.NotNull;
 
-  @Override
-  void close();
+public class StorageLockNoSuchCollection extends Exception {
+
+  public StorageLockNoSuchCollection(@NotNull String collectionId, @NotNull String featureId) {
+    this.collectionId = collectionId;
+    this.featureId = featureId;
+  }
+
+  public final @NotNull String collectionId;
+  public final @NotNull String featureId;
 }

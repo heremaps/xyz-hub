@@ -19,22 +19,47 @@
 package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Storage API to gain access to storages.
  */
+@AvailableSince(NakshaVersion.v2_0_6)
 public interface IStorage {
 
-  default @NotNull IMasterSession newMasterSession(@Nullable NakshaContext context) {
+  /**
+   * Open a new write-session, optionally to a master-node (when being in a multi-writer cluster).
+   *
+   * @param context   the {@link NakshaContext} to which to link the session.
+   * @param useMaster {@code true} if the master-node should be connected to; false if any writer is okay.
+   * @return the write-session.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  default @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
+    if (context == null) {
+      context = NakshaContext.currentContext();
+    }
     throw new UnsupportedOperationException();
   }
 
-  default @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useReplica) {
+  /**
+   * Open a new read-session, optionally to a master-node to prevent replication lags.
+   *
+   * @param context   the {@link NakshaContext} to which to link the session.
+   * @param useMaster {@code true} if the master-node should be connected to, to avoid replication lag; false if any reader is okay.
+   * @return the read-session.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  default @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
+    if (context == null) {
+      context = NakshaContext.currentContext();
+    }
     throw new UnsupportedOperationException();
   }
 

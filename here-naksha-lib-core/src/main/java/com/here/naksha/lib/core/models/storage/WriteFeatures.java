@@ -25,27 +25,38 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * All write requests should extend this base class.
+ * A request to modify features into a collection of the storage.
  *
- * @param <T> the object-type to write.
- * @param <SELF> the self-type.
+ * @param <T> the feature-type to write.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
-public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extends Request<SELF> {
+public class WriteFeatures<T> extends WriteRequest<T, WriteFeatures<T>> {
 
   /**
-   * Creates a new write request.
+   * Creates a new empty feature write request.
    *
-   * @param ops the operations to execute.
+   * @param collectionId the identifier of the collection to write into.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  protected WriteRequest(@NotNull List<@NotNull WriteOp<T>> ops) {
-    this.ops = new ArrayList<>();
+  public WriteFeatures(@NotNull String collectionId) {
+    this(collectionId, new ArrayList<>());
   }
 
   /**
-   * The operations to be executed.
+   * Creates a new feature write request.
+   *
+   * @param collectionId the identifier of the collection to write into.
+   * @param writeOps     the operations to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull List<@NotNull WriteOp<T>> ops;
+  public WriteFeatures(@NotNull String collectionId, @NotNull List<@NotNull WriteOp<T>> writeOps) {
+    super(writeOps);
+    this.collectionId = collectionId;
+  }
+
+  /**
+   * The identifier of the collection to write into.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull String collectionId;
 }

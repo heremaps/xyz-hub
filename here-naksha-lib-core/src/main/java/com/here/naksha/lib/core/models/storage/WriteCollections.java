@@ -18,34 +18,35 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.here.naksha.lib.core.NakshaVersion;
+import java.util.ArrayList;
+import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * All requests send to a storage should extend this base class.
+ * A request to modify collections of the storage.
  *
- * @param <SELF> the self-type.
+ * @param <T> the collection-type to write.
  */
-@JsonTypeInfo(use = Id.NAME, property = "type")
-@JsonSubTypes({
-  @JsonSubTypes.Type(value = ReadRequest.class),
-  @JsonSubTypes.Type(value = WriteRequest.class),
-  @JsonSubTypes.Type(value = Notification.class)
-})
 @AvailableSince(NakshaVersion.v2_0_7)
-public abstract class Request<SELF extends Request<SELF>> {
+public class WriteCollections<T> extends WriteRequest<T, WriteCollections<T>> {
 
   /**
-   * Helper to return this.
-   *
-   * @return returns this.
+   * Creates a new empty write collections request.
    */
-  @SuppressWarnings("unchecked")
-  protected final @NotNull SELF self() {
-    return (SELF) this;
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public WriteCollections() {
+    this(new ArrayList<>());
+  }
+
+  /**
+   * Creates a new write collections request.
+   *
+   * @param writeOps the operations to execute.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public WriteCollections(@NotNull List<@NotNull WriteOp<T>> writeOps) {
+    super(writeOps);
   }
 }

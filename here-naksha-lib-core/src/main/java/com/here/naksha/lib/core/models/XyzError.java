@@ -24,10 +24,9 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * An enumeration of all possible error codes that can happen while processing a request. Be aware
- * that the XYZ Hub itself will respond already with an HTTP status code
+ * An enumeration of all possible error codes that can happen while processing a request.
  */
-@JsonFormat(shape = JsonFormat.Shape.OBJECT)
+@JsonFormat(shape = JsonFormat.Shape.OBJECT) // TODO: Why not shape STRING?
 public enum XyzError {
 
   /**
@@ -66,8 +65,7 @@ public enum XyzError {
   FORBIDDEN("Forbidden"),
 
   /**
-   * The connector cannot handle the request due to a processing limitation in an upstream service
-   * or a database.
+   * The connector cannot handle the request due to a processing limitation in an upstream service or a database.
    *
    * <p>This will result in an 429 Too Many Requests response.
    */
@@ -101,7 +99,9 @@ public enum XyzError {
    */
   PAYLOAD_TO_LARGE("PayloadToLarge");
 
-  /** The error code. */
+  /**
+   * The error code.
+   */
   @JsonValue
   public final @NotNull String value;
 
@@ -115,8 +115,7 @@ public enum XyzError {
   }
 
   /**
-   * Returns the enumeration item for the given value or null, when the given string is no valid
-   * error code.
+   * Returns the enumeration item for the given value or null, when the given string is no valid error code.
    *
    * @param error the error code as string.
    * @return the error code as enumeration value.
@@ -126,7 +125,7 @@ public enum XyzError {
       return null;
     }
     for (final XyzError e : XyzError.values()) {
-      if (e.value.equalsIgnoreCase(error)) {
+      if (e.value.equalsIgnoreCase(error) || e.name().equalsIgnoreCase(error)) {
         return e;
       }
     }
@@ -134,10 +133,9 @@ public enum XyzError {
   }
 
   /**
-   * Returns the enumeration item for the given value or null, when the given string is no valid
-   * error code.
+   * Returns the enumeration item for the given value or null, when the given string is no valid error code.
    *
-   * @param error the error code as string.
+   * @param error        the error code as string.
    * @param defaultValue the default error to return, when the given error is unknown.
    * @return the error code as enumeration value.
    */
@@ -146,7 +144,7 @@ public enum XyzError {
       return defaultValue;
     }
     for (final XyzError e : XyzError.values()) {
-      if (e.value.equalsIgnoreCase(error)) {
+      if (e.value.equalsIgnoreCase(error) || e.name().equalsIgnoreCase(error)) {
         return e;
       }
     }

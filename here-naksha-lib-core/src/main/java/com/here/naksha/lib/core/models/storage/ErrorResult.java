@@ -18,17 +18,36 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.XyzError;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-@SuppressWarnings("ClassCanBeRecord")
-public final class ErrorResult {
-  public ErrorResult(@NotNull String errCode, @NotNull String errMessage, @NotNull Throwable exception) {
-    this.errCode = errCode;
-    this.errMessage = errMessage;
+/**
+ * When a request failed, this returns the error details.
+ */
+@AvailableSince(NakshaVersion.v2_0_7)
+public class ErrorResult {
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public ErrorResult(@NotNull XyzError reason, @NotNull String message) {
+    this(reason, message, null);
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public ErrorResult(@NotNull XyzError reason, @NotNull String message, @Nullable Throwable exception) {
+    this.reason = reason;
+    this.message = message;
     this.exception = exception;
   }
 
-  public final @NotNull String errCode;
-  public final @NotNull String errMessage;
-  public final @NotNull Throwable exception;
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public final @NotNull XyzError reason;
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public final @NotNull String message;
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public final @Nullable Throwable exception;
 }

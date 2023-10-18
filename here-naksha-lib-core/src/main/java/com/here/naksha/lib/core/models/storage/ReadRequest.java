@@ -18,21 +18,38 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import org.jetbrains.annotations.NotNull;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.here.naksha.lib.core.NakshaVersion;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
-public abstract class ReadRequest<SELF extends ReadRequest<SELF>> extends Request<SELF> {
+/**
+ * All read requests should extend this base class.
+ *
+ * @param <SELF> the self-type.
+ */
+@AvailableSince(NakshaVersion.v2_0_7)
+@JsonSubTypes({
+  @JsonSubTypes.Type(value = ReadFeatures.class),
+  @JsonSubTypes.Type(value = ReadCollections.class),
+  @JsonSubTypes.Type(value = ReadTransactionsByComment.class),
+  @JsonSubTypes.Type(value = ReadTransactionsForSequence.class),
+  @JsonSubTypes.Type(value = ReadTransactionsByTxn.class)
+})
+public class ReadRequest<SELF extends ReadRequest<SELF>> extends Request<SELF> {
 
-  protected int fetchSize = 1000;
+  // We do not make the class abstract, so that Jackson can create an instance to fiddle out the default value of
+  // properties.
+  protected ReadRequest() {}
 
-  public int getFetchSize() {
-    return fetchSize;
-  }
-
-  public @NotNull SELF widthFetchSize(int size) {
-    if (size < 1 || size > 1_000_000) {
-      throw new IllegalArgumentException("size");
-    }
-    this.fetchSize = size;
-    return self();
-  }
+  /**
+   * The amount of features to fetch at ones from the storage. The storage should use this as a strong hint, still, the storage may use
+   * different values on demand.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  @JsonInclude(Include.NON_DEFAULT)
+  @JsonProperty
+  public int fetchSize = 1000;
 }

@@ -18,4 +18,7 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+/**
+ * All results must extend this abstract base class.
+ */
 public abstract class Result {}

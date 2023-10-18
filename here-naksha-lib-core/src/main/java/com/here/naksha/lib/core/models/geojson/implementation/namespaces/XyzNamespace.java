@@ -56,89 +56,107 @@ public class XyzNamespace extends JsonObject {
   public static final String APP_ID = "appId";
   public static final String OWNER = "owner";
 
-  /** The collection the feature belongs to. */
+  /**
+   * The collection the feature belongs to.
+   */
   @JsonProperty(COLLECTION)
   @JsonInclude(Include.NON_EMPTY)
   private String collection;
 
-  /** The timestamp in Epoch-Millis, when the feature was created. */
+  /**
+   * The timestamp in Epoch-Millis, when the feature was created.
+   */
   @JsonProperty(CREATED_AT)
   @JsonInclude(Include.NON_DEFAULT)
   private long createdAt;
 
-  /** The transaction start timestamp in Epoch-Millis, when the feature was updated. */
+  /**
+   * The transaction start timestamp in Epoch-Millis, when the feature was updated.
+   */
   @JsonProperty(UPDATED_AT)
   @JsonInclude(Include.NON_DEFAULT)
   private long updatedAt;
 
-  /** The realtime timestamp in Epoch-Millis, when the feature was created. */
+  /**
+   * The realtime timestamp in Epoch-Millis, when the feature was created.
+   */
   @JsonProperty(RT_CTS)
   @JsonInclude(Include.NON_DEFAULT)
   private long rtcts;
 
-  /** The realtime timestamp in Epoch-Millis, when the feature was updated. */
+  /**
+   * The realtime timestamp in Epoch-Millis, when the feature was updated.
+   */
   @JsonProperty(RT_UTS)
   @JsonInclude(Include.NON_DEFAULT)
   private long rtuts;
 
-  /** The transaction number of this feature state. */
+  /**
+   * The transaction number of this feature state.
+   */
   @JsonProperty(TXN)
   @JsonInclude(Include.NON_EMPTY)
   private String txn;
 
   /**
-   * The uuid of the current state of the feature. When the client modifies the feature, it must not
-   * modify the uuid. For change requests the uuid is read and used to identify the base state that
-   * was modified.
+   * The uuid of the current state of the feature. When the client modifies the feature, it must not modify the uuid. For change requests
+   * the uuid is read and used to identify the base state that was modified.
    */
   @JsonProperty(UUID)
-  private String uuid;
+  public String uuid;
 
   /**
-   * The uuid of the previous feature state; {@code null} if this feature is new and has no previous
-   * state.
+   * The uuid of the previous feature state; {@code null} if this feature is new and has no previous state.
    */
   @JsonProperty(PUUID)
   @JsonInclude(Include.NON_EMPTY)
   private String puuid;
 
   /**
-   * The uuid of the feature state merged; {@code null} if the state is not the result of an
-   * auto-merge operation.
+   * The uuid of the feature state merged; {@code null} if the state is not the result of an auto-merge operation.
    */
   @JsonProperty(MUUID)
   @JsonInclude(Include.NON_EMPTY)
   private String muuid;
 
-  /** The list of tags attached to the feature. */
+  /**
+   * The list of tags attached to the feature.
+   */
   @JsonProperty(TAGS)
   @JsonInclude(Include.NON_EMPTY)
   private List<@NotNull String> tags;
 
   /**
-   * The operation that lead to the current state of the namespace. Should be a value from {@link
-   * XyzAction}.
+   * The operation that lead to the current state of the namespace. Should be a value from {@link XyzAction}.
    */
   @JsonProperty(ACTION)
   @JsonInclude(Include.NON_EMPTY)
   private String action;
 
-  /** The version of the feature, the first version (1) will always be in the state CREATED. */
+  /**
+   * The version of the feature, the first version (1) will always be in the state CREATED.
+   */
   @JsonProperty(VERSION)
   @JsonInclude(Include.NON_DEFAULT)
   private long version;
 
-  /** The author (user or application) that created the current revision of the feature. */
+  /**
+   * The author (user or application) that created the current revision of the feature.
+   */
   @JsonProperty(AUTHOR)
   @JsonInclude(Include.NON_EMPTY)
   private String author;
 
-  /** The application that create the current revision of the feature. */
+  /**
+   * The application that create the current revision of the feature.
+   */
   @JsonProperty(APP_ID)
   @JsonInclude(Include.NON_EMPTY)
   private String appId;
 
-  /** The space, normally added dynamically by Naksha. */
+  /**
+   * The space, normally added dynamically by Naksha.
+   */
   @JsonProperty(SPACE)
   @JsonInclude(Include.NON_EMPTY)
   private String space;
@@ -159,8 +177,7 @@ public class XyzNamespace extends JsonObject {
    * A method to normalize and lower case a tag.
    *
    * @param tag the tag.
-   * @param sb The string builder to use for normalization; if {@code null}, then a new string
-   *     builder is created.
+   * @param sb  The string builder to use for normalization; if {@code null}, then a new string builder is created.
    * @return the normalized and lower cased version of it.
    */
   public static @NotNull String normalizeTag(final @NotNull String tag, @Nullable StringBuilder sb) {
@@ -213,16 +230,15 @@ public class XyzNamespace extends JsonObject {
   }
 
   /**
-   * This method is a hot-fix for an issue of plenty of frameworks. For example vertx does
-   * automatically URL decode query parameters (as certain other frameworks may as well). This is
-   * often hard to fix, even while RFC-3986 is clear about that reserved characters may have
-   * semantic meaning when not being URI encoded and MUST be URI encoded to take away the meaning.
-   * Therefore, there normally must be a way to detect if a reserved character in a query parameter
-   * was originally URI encoded or not, because in the later case it may have a semantic meaning.
+   * This method is a hot-fix for an issue of plenty of frameworks. For example vertx does automatically URL decode query parameters (as
+   * certain other frameworks may as well). This is often hard to fix, even while RFC-3986 is clear about that reserved characters may have
+   * semantic meaning when not being URI encoded and MUST be URI encoded to take away the meaning. Therefore, there normally must be a way
+   * to detect if a reserved character in a query parameter was originally URI encoded or not, because in the later case it may have a
+   * semantic meaning.
    *
    * <p>As many frameworks fail to follow this important detail, this method fixes tags for all
-   * those frameworks, effectively it removes the commas from tags and splits the tags by the comma.
-   * Therefore, a comma is not allowed as part of a tag.
+   * those frameworks, effectively it removes the commas from tags and splits the tags by the comma. Therefore, a comma is not allowed as
+   * part of a tag.
    *
    * @param tags The list of tags, will be modified if any tag contains a comma (so may extend).
    * @see <a href="https://tools.ietf.org/html/rfc3986#section-2.2">https://tools.ietf.org/html/rfc3986#section-2.2</a>
@@ -435,7 +451,7 @@ public class XyzNamespace extends JsonObject {
   /**
    * Set the tags to the given array.
    *
-   * @param tags The tags to set.
+   * @param tags      The tags to set.
    * @param normalize {@code true} if the given tags should be normalized; {@code false}, if they are already normalized.
    */
   public @NotNull XyzNamespace setTags(@Nullable List<@NotNull String> tags, boolean normalize) {
@@ -455,7 +471,7 @@ public class XyzNamespace extends JsonObject {
   /**
    * Returns 'true' if the tag added, 'false' if it was already present.
    *
-   * @param tag The tag to add.
+   * @param tag       The tag to add.
    * @param normalize {@code true} if the tag should be normalized; {@code false} otherwise.
    * @return true if the tag added; false otherwise.
    */
@@ -477,9 +493,8 @@ public class XyzNamespace extends JsonObject {
   /**
    * Add the given tags.
    *
-   * @param tags The tags to add.
-   * @param normalize {@code true} if the given tags should be normalized; {@code false}, if they
-   *     are already normalized.
+   * @param tags      The tags to add.
+   * @param normalize {@code true} if the given tags should be normalized; {@code false}, if they are already normalized.
    * @return this.
    */
   public @NotNull XyzNamespace addTags(@Nullable List<@NotNull String> tags, boolean normalize) {
@@ -531,9 +546,8 @@ public class XyzNamespace extends JsonObject {
   /**
    * Returns 'true' if the tag was removed, 'false' if it was not present.
    *
-   * @param tag The normalized tag to remove.
-   * @param normalize {@code true} if the tag should be normalized before trying to remove; {@code
-   *     false} if the tag is normalized.
+   * @param tag       The normalized tag to remove.
+   * @param normalize {@code true} if the tag should be normalized before trying to remove; {@code false} if the tag is normalized.
    * @return true if the tag was removed; false otherwise.
    */
   public boolean removeTag(@NotNull String tag, boolean normalize) {
@@ -550,9 +564,8 @@ public class XyzNamespace extends JsonObject {
   /**
    * Removes the given tags.
    *
-   * @param tags The tags to remove.
-   * @param normalize {@code true} if the tags should be normalized before trying to remove; {@code
-   *     false} if the tags are normalized.
+   * @param tags      The tags to remove.
+   * @param normalize {@code true} if the tags should be normalized before trying to remove; {@code false} if the tags are normalized.
    * @return this.
    */
   public @NotNull XyzNamespace removeTags(@Nullable List<@NotNull String> tags, boolean normalize) {
