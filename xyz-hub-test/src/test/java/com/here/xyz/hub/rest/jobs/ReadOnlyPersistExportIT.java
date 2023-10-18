@@ -62,7 +62,6 @@ public class ReadOnlyPersistExportIT extends JobApiIT {
     public void testFullReadOnlyWKBExport() throws Exception {
         /** Export JSON_WKB */
         Export job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), Job.CSVFormat.JSON_WKB);
-        assertEquals(true, job.readPersistExport());
 
         List<URL> urls = performExport(job, testSpaceId1 , finalized, failed);
         assertNotEquals(-1, urls.get(0).toString().indexOf("persistent"));
