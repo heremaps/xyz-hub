@@ -352,6 +352,23 @@ project(":here-naksha-handler-psql") {
 }
 
 try {
+    project(":here-naksha-lib-hub") {
+        description = "NakshaHub library"
+        dependencies {
+            implementation(project(":here-naksha-lib-core"))
+            implementation(project(":here-naksha-lib-psql"))
+            implementation(project(":here-naksha-lib-extension"))
+            implementation(project(":here-naksha-handler-psql"))
+
+            implementation(commons_lang3)
+            implementation(vividsolutions_jts_core)
+            implementation(postgres)
+        }
+    }
+} catch (ignore: UnknownProjectException) {
+}
+
+try {
     project(":here-naksha-app-service") {
         description = "Naksha Service"
         dependencies {
@@ -359,6 +376,7 @@ try {
             implementation(project(":here-naksha-lib-psql"))
             implementation(project(":here-naksha-lib-extension"))
             implementation(project(":here-naksha-handler-psql"))
+            implementation(project(":here-naksha-lib-hub"))
 
             implementation(commons_lang3)
             implementation(vividsolutions_jts_core)

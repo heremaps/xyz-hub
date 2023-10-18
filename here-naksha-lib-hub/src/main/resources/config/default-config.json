@@ -1,5 +1,5 @@
 {
-  "id": "local",
+  "id": "default-config",
   "type": "Config",
 
   "httpPort": 8080,

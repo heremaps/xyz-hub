@@ -20,12 +20,12 @@ package com.here.naksha.app.service.jobs;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
-import com.here.naksha.app.service.NakshaHubConfig;
 import com.here.naksha.app.service.models.MaintenanceTrigger;
 import com.here.naksha.lib.core.models.features.Connector;
 import com.here.naksha.lib.core.models.features.Space;
 import com.here.naksha.lib.core.models.features.Storage;
 import com.here.naksha.lib.core.storage.*;
+import com.here.naksha.lib.hub.NakshaHubConfig;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Function;

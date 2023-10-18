@@ -19,6 +19,7 @@
 package com.here.naksha.app.service;
 
 import com.here.naksha.lib.core.INakshaBound;
+import com.here.naksha.lib.hub.NakshaHub;
 import io.vertx.core.AbstractVerticle;
 import org.jetbrains.annotations.NotNull;
 
@@ -33,19 +34,29 @@ public class AbstractNakshaHubVerticle extends AbstractVerticle implements INaks
    * @param naksha The naksha-hub.
    * @param index  The index in the {@link NakshaHub#verticles} array of the Naksha-Hub.
    */
-  protected AbstractNakshaHubVerticle(@NotNull NakshaHub naksha, int index) {
+  protected AbstractNakshaHubVerticle(@NotNull NakshaHub naksha, int index, @NotNull NakshaApp app) {
     this.naksha = naksha;
     this.index = index;
+    this.app = app;
   }
 
   /**
-   * The Naksha-Hub to which the verticle belongs.
+   * The Naksha-Hub to be used for API processing flow
    */
   final @NotNull NakshaHub naksha;
+
+  /**
+   * The Naksha-App to which the verticle belongs.
+   */
+  final @NotNull NakshaApp app;
 
   @Override
   public @NotNull NakshaHub naksha() {
     return naksha;
+  }
+
+  public @NotNull NakshaApp app() {
+    return app;
   }
 
   /**
