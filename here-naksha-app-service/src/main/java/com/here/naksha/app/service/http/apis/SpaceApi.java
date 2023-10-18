@@ -60,7 +60,7 @@ public class SpaceApi extends Api {
   public void addManualRoutes(final @NotNull Router router) {}
 
   private void getSpaces(final @NotNull RoutingContext routingContext) {
-    naksha().executeTask(() -> {
+    app().executeTask(() -> {
       try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
         // TODO HP : Fix reading of all spaces
         /*
@@ -80,7 +80,7 @@ public class SpaceApi extends Api {
 
   private void createSpace(final @NotNull RoutingContext routingContext) {
     // TODO HP_QUERY : How to ensure streamId is logged correctly throughout code?
-    naksha().executeTask(() -> {
+    app().executeTask(() -> {
       Space space = null;
       // Read request JSON
       try (final Json json = Json.get()) {

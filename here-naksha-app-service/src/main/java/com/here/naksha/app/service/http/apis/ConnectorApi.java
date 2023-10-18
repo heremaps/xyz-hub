@@ -57,7 +57,7 @@ public class ConnectorApi extends Api {
 
   private void getConnectors(final @NotNull RoutingContext routingContext) {
     // TODO : To support filtering id's supplied as query parameters
-    naksha().executeTask(() -> {
+    app().executeTask(() -> {
       try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
         // TODO HP : Fix reading all connectors
         /*
@@ -77,7 +77,7 @@ public class ConnectorApi extends Api {
   }
 
   private void createConnector(final @NotNull RoutingContext routingContext) {
-    naksha().executeTask(() -> {
+    app().executeTask(() -> {
       Connector connector = null;
       // Read request JSON
       try (final Json json = Json.get()) {
