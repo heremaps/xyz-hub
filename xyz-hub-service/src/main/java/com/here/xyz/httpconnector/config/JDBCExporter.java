@@ -562,7 +562,7 @@ public class JDBCExporter extends JDBCClients {
                 +" ( select l.key, (( row_number() over ( partition by l.key ) )/ 20000000)::integer as chunk, r.jsondata, r.geo from ( ${{%2$s}} ) r right join plist l on ( coalesce( r.jsondata->'%1$s', '\"CSVNULL\"'::jsonb) = l.key )  "
                 +" ), "
                 +" iiidata as  "
-                +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, count(1) as nrfeatures, replace( encode(convert_to(('{\"type\":\"FeatureCollection\",\"features\":[' || coalesce( string_agg( (jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb))::text, ',' ), '' ) || ']}'),'UTF8'),'base64') ,chr(10),'') as data "
+                +" ( select coalesce( ('[]'::jsonb || key)->>0, 'CSVNULL' ) as id, (count(1) over ()) as nrbuckets, count(1) as nrfeatures, replace( encode(convert_to(('{\"type\":\"FeatureCollection\",\"features\":[' || coalesce( string_agg( (jsondata || jsonb_build_object('geometry',st_asgeojson(geo,8)::jsonb))::text, ',' ), null::text ) || ']}'),'UTF8'),'base64') ,chr(10),'') as data "
                 +"     from iidata    group by 1, chunk order by 1, 3 desc   "
                 +" )   "
                 +" select id, data from iiidata ", partitionKey, sqlQueryContentByPropertyValue != null ? "contentQueryReal" : "contentQuery" );

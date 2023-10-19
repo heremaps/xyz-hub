@@ -71,22 +71,27 @@ public class JobApiIT extends TestSpaceWithFeature {
     protected static String testSpaceId2 = "x-psql-job-space2";
     protected static String testSpaceId2Ext = "x-psql-job-space2-ext";
     protected static String testSpaceId2ExtExt = "x-psql-job-space2-ext-ext";
+    protected static String testSpaceId3 = "x-psql-job-space3";
+    protected static String testSpaceId3Ext = "x-psql-job-space3-ext";
 
     protected static String getScopedSpaceId(String spaceId, String scope){
         return scope + "-" + spaceId;
     }
 
     protected static void prepareEnv(String scope){
+//TestSpace1
         /** Create empty test space */
         createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId1, scope), "psql", null);
 
+//TestSpace2        
         /** Create test space with content */
         createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId2, scope), "psql", null);
         addFeatures(getScopedSpaceId(testSpaceId2, scope), "/xyz/hub/mixedGeometryTypes.json", 11);
+
         /** Create L1 composite space with content*/
         createSpaceWithExtension(getScopedSpaceId(testSpaceId2, scope));
-
         addFeatures(getScopedSpaceId(testSpaceId2Ext,scope),"/xyz/hub/processedData.json",252);
+
         /** Create L2 composite with content */
         createSpaceWithExtension(getScopedSpaceId(testSpaceId2Ext,scope));
 
@@ -105,11 +110,43 @@ public class JobApiIT extends TestSpaceWithFeature {
                         .withProperties(new Properties().with("foo", "test")),
                 AuthProfile.ACCESS_OWNER_1_ADMIN
         );
+//TestSpace3
+        /** Create test space3 with CompostitSpace and content */
+        createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId3, scope), "psql", null);
+        postFeature(getScopedSpaceId(testSpaceId3,scope), newFeature()
+                        .withId("id000")
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093)))
+                        .withProperties(new Properties().with("group", "shouldBeEmpty")),
+                AuthProfile.ACCESS_OWNER_1_ADMIN
+        );
+        postFeature(getScopedSpaceId(testSpaceId3,scope), newFeature()
+                        .withId("id001")
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093)))
+                        .withProperties(new Properties().with("group", "baseonly")),
+                AuthProfile.ACCESS_OWNER_1_ADMIN
+        );
 
+        createSpaceWithExtension(getScopedSpaceId(testSpaceId3, scope));
+        postFeature(getScopedSpaceId(testSpaceId3Ext,scope), newFeature()
+                        .withId("id000")
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093)))
+                        .withProperties(new Properties().with("group", "movedFromEmpty")),
+                AuthProfile.ACCESS_OWNER_1_ADMIN
+        );
+        postFeature(getScopedSpaceId(testSpaceId3Ext,scope), newFeature()
+                        .withId("id002")
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093)))
+                        .withProperties(new Properties().with("group", "deltaonly")),
+                AuthProfile.ACCESS_OWNER_1_ADMIN
+        );
+
+/* */
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId1, scope));
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2, scope));
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2Ext, scope));
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2ExtExt, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId3, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId3Ext, scope));
     }
 
     protected static void cleanUpEnv(String scope){
@@ -117,11 +154,15 @@ public class JobApiIT extends TestSpaceWithFeature {
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2, scope));
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2Ext, scope));
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId2ExtExt, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId3, scope));
+        deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId3Ext, scope));
 
         removeSpace(getScopedSpaceId(testSpaceId1, scope));
         removeSpace(getScopedSpaceId(testSpaceId2, scope));
         removeSpace(getScopedSpaceId(testSpaceId2Ext, scope));
         removeSpace(getScopedSpaceId(testSpaceId2ExtExt, scope));
+        removeSpace(getScopedSpaceId(testSpaceId3, scope));
+        removeSpace(getScopedSpaceId(testSpaceId3Ext, scope));
     }
 
     public enum Type {
@@ -518,10 +559,14 @@ public class JobApiIT extends TestSpaceWithFeature {
         int featureCount = 0;
 
         String result = downloadAndCheck(urls, expectedByteSize, 0, csvMustContain);
+
         for (String fc64: result.split("\n")) {
-            tileIds.add(fc64.substring(0,fc64.lastIndexOf(",")));
-            FeatureCollection fc = XyzSerializable.deserialize(new String(Base64.getDecoder().decode((fc64.substring(fc64.lastIndexOf(",")+1)))));
-            featureCount += fc.getFeatures().size();
+            String s[] = fc64.split(",");
+             tileIds.add( s[0] );
+             if( s.length > 1 && s[1].length() > 0)
+             { FeatureCollection fc = XyzSerializable.deserialize(new String(Base64.getDecoder().decode( s[1] )));
+               featureCount += fc.getFeatures().size();
+             }
         }
 
         if(expectedTileCount != null)
