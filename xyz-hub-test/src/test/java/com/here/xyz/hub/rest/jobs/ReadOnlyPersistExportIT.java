@@ -18,12 +18,13 @@
  */
 package com.here.xyz.hub.rest.jobs;
 
-import com.here.xyz.XyzSerializable;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.hub.rest.TestWithSpaceCleanup;
 import io.restassured.response.Response;
+import io.vertx.core.json.jackson.DatabindCodec;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -89,7 +90,8 @@ public class ReadOnlyPersistExportIT extends JobApiIT {
                 .body(job)
                 .post("/spaces/" + testSpaceId1 + "/jobs");
 
-        Export export = XyzSerializable.deserialize(resp.getBody().asString());
+        Job export = DatabindCodec.mapper().readValue(resp.getBody().asString(), new TypeReference<Export>() {});
+
         /** set to -1 if export should get persisted (readOnly) */
         assertEquals(Long.valueOf(-1) , export.getExp());
     }

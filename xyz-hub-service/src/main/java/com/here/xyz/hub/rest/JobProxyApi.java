@@ -212,6 +212,7 @@ public class JobProxyApi extends Api{
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
         boolean deleteData = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.DELETE_DATA, false);
+        boolean force = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.FORCE, false);
 
         JobAuthorization.authorizeManageSpacesRights(context,spaceId)
                 .onSuccess(auth -> {
@@ -229,7 +230,7 @@ public class JobProxyApi extends Api{
                                         this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
                                         return;
                                     }
-                                    Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId+"?deleteData="+deleteData)
+                                    Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId+"?deleteData="+deleteData+"&force="+force)
                                             .timeout(JOB_API_TIMEOUT)
                                             .send()
                                             .onSuccess(res2 -> jobAPIResultHandler(context,res2,spaceId))
