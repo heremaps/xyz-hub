@@ -27,7 +27,7 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * If the feature exists, but the state (represented via {@link XyzNamespace#uuid}) differs from the requested one ({@link ModifyQuery#uuid}).
+ * If the feature exists, but the state (represented via {@link XyzNamespace#uuid}) differs from the requested one ({@link WriteOp#uuid}).
  */
 @AvailableSince(NakshaVersion.v2_0_7)
 @JsonFormat(shape = Shape.STRING)
@@ -57,13 +57,13 @@ public enum IfConflict {
   PURGE,
 
   /**
-   * The existing state should be replaced with the given one in {@link ModifyQuery#object}, overriding foreign changes.
+   * The existing state should be replaced with the given one in {@link WriteOp#object}, overriding foreign changes.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   REPLACE,
 
   /**
-   * The given {@link ModifyQuery#patch} should be applied, overriding foreign changes.
+   * The given {@link WriteOp#patch} should be applied, overriding foreign changes.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   PATCH,
@@ -76,7 +76,7 @@ public enum IfConflict {
 
   /**
    * The changes should be merged on-top of the foreign changes, properties that conflict will be overridden with the value from
-   * {@link ModifyQuery#object} (foreign changes loose).
+   * {@link WriteOp#object} (foreign changes loose).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   MERGE_OR_OVERRIDE,

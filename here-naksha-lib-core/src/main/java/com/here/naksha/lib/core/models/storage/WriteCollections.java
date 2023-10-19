@@ -19,6 +19,7 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -30,7 +31,7 @@ import org.jetbrains.annotations.NotNull;
  * @param <T> the collection-type to write.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
-public class WriteCollections<T> extends WriteRequest<T, WriteCollections<T>> {
+public class WriteCollections<T extends NakshaFeature> extends WriteRequest<T, WriteCollections<T>> {
 
   /**
    * Creates a new empty write collections request.
@@ -46,7 +47,7 @@ public class WriteCollections<T> extends WriteRequest<T, WriteCollections<T>> {
    * @param modifies the operations to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteCollections(@NotNull List<@NotNull ModifyQuery<T>> modifies) {
+  public WriteCollections(@NotNull List<@NotNull WriteOp<T>> modifies) {
     super(modifies);
   }
 }

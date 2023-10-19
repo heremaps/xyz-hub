@@ -40,12 +40,12 @@ public class WriteResult<T> extends SuccessResult {
    * Create a result-set from the given modification result list.
    * @param results the list to use.
    */
-  public WriteResult(@NotNull List<ModifyResult<T>> results) {
+  public WriteResult(@NotNull List<WriteOpResult<T>> results) {
     this.results = results;
   }
 
   /**
    * The results.
    */
-  public @NotNull List<ModifyResult<T>> results;
+  public @NotNull List<WriteOpResult<T>> results;
 }

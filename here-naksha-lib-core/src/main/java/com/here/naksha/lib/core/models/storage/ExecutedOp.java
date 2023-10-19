@@ -30,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @JsonFormat(shape = Shape.STRING)
 @AvailableSince(NakshaVersion.v2_0_7)
-public enum ModifyOp {
+public enum ExecutedOp {
   /**
    * A new feature was created.
    */
@@ -56,13 +56,13 @@ public enum ModifyOp {
   PURGED,
 
   /**
-   * The existing state was replaced with the given one in {@link ModifyQuery#object}.
+   * The existing state was replaced with the given one in {@link WriteOp#object}.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   REPLACED,
 
   /**
-   * The given {@link ModifyQuery#patch} was applied.
+   * The given {@link WriteOp#patch} was applied.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   PATCHED,
@@ -87,9 +87,9 @@ public enum ModifyOp {
 
   @AvailableSince(NakshaVersion.v2_0_7)
   @JsonCreator
-  public static @Nullable ModifyOp of(@Nullable String value) {
+  public static @Nullable ExecutedOp of(@Nullable String value) {
     if (value != null) {
-      for (final ModifyOp e : ModifyOp.values()) {
+      for (final ExecutedOp e : ExecutedOp.values()) {
         if (e.name().equalsIgnoreCase(value)) {
           return e;
         }

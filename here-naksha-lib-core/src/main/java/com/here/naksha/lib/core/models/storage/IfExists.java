@@ -26,8 +26,8 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * If the feature that should be modified does exist (optionally in the requested state, so having the provided {@link ModifyQuery#uuid}). If
- * the feature exists, but not in the requested state ({@link ModifyQuery#uuid} given, but does not match), then an {@link IfConflict} action is
+ * If the feature that should be modified does exist (optionally in the requested state, so having the provided {@link WriteOp#uuid}). If
+ * the feature exists, but not in the requested state ({@link WriteOp#uuid} given, but does not match), then an {@link IfConflict} action is
  * execute instead of the {@link IfExists}.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
@@ -58,13 +58,13 @@ public enum IfExists {
   PURGE,
 
   /**
-   * The existing state should be replaced with the given one in {@link ModifyQuery#object}.
+   * The existing state should be replaced with the given one in {@link WriteOp#object}.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   REPLACE,
 
   /**
-   * The given {@link ModifyQuery#patch} should be applied.
+   * The given {@link WriteOp#patch} should be applied.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   PATCH,

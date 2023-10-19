@@ -42,7 +42,7 @@ public enum IfNotExists {
   FAIL,
 
   /**
-   * The {@link ModifyQuery#object} should be created.
+   * The {@link WriteOp#object} should be created.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   CREATE,

@@ -201,4 +201,23 @@ public final class NakshaContext {
    * The attachments of this context.
    */
   private final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments;
+
+  public @Nullable String getAppId() {
+    return app_id;
+  }
+
+  public void setAppId(@Nullable String app_id) {
+    this.app_id = app_id;
+  }
+
+  public @Nullable String getAuthor() {
+    return author;
+  }
+
+  public void setAuthor(@Nullable String author) {
+    this.author = author;
+  }
+
+  private @Nullable String app_id;
+  private @Nullable String author;
 }

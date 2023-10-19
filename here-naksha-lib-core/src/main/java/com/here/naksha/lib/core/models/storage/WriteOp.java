@@ -30,10 +30,10 @@ import org.jetbrains.annotations.Nullable;
  * @param <T> The type of the object to modify.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
-public class ModifyQuery<T> {
+public class WriteOp<T> {
 
   @AvailableSince(NakshaVersion.v2_0_7)
-  public ModifyQuery(
+  public WriteOp(
       @Nullable T object,
       @Nullable Object patch,
       @Nullable String id,
@@ -86,7 +86,7 @@ public class ModifyQuery<T> {
   public final boolean noResult;
 
   /**
-   * The action to be performed if the object does exist already, with either not state requirement given ({@link ModifyQuery#uuid} being
+   * The action to be performed if the object does exist already, with either not state requirement given ({@link WriteOp#uuid} being
    * {@code null}) or the state matches the required one.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
@@ -94,13 +94,13 @@ public class ModifyQuery<T> {
 
   /**
    * The action to be performed if the object does exist already, but the state does not match the given (required) one
-   * ({@link ModifyQuery#uuid}).
+   * ({@link WriteOp#uuid}).
    */
   public final @NotNull IfConflict onConflict;
 
   /**
    * The action to be performed if the object does not exist. This action is executed even when a specific state was required
-   * ({@link ModifyQuery#uuid}).
+   * ({@link WriteOp#uuid}).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @NotNull IfNotExists onNotExists;

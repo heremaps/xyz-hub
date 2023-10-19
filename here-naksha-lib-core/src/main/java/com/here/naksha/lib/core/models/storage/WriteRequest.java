@@ -39,7 +39,7 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
    * @param queries the operations to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  protected WriteRequest(@NotNull List<@NotNull ModifyQuery<T>> queries) {
+  protected WriteRequest(@NotNull List<@NotNull WriteOp<T>> queries) {
     this.queries = new ArrayList<>();
   }
 
@@ -47,16 +47,16 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
    * The queries to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull List<@NotNull ModifyQuery<T>> queries;
+  public @NotNull List<@NotNull WriteOp<T>> queries;
 
   /**
    * Add a modification and return this.
    *
-   * @param modifyQuery the modification to add.
+   * @param writeOp the modification to add.
    * @return this.
    */
-  public @NotNull SELF add(@NotNull ModifyQuery<T> modifyQuery) {
-    queries.add(modifyQuery);
+  public @NotNull SELF add(@NotNull WriteOp<T> writeOp) {
+    queries.add(writeOp);
     return self();
   }
 
@@ -67,7 +67,7 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
    */
   public final @NotNull SELF insert(@NotNull T object) {
     queries.add(
-        new ModifyQuery<>(object, null, null, null, false, IfExists.FAIL, IfConflict.FAIL, IfNotExists.CREATE));
+        new WriteOp<>(object, null, null, null, false, IfExists.FAIL, IfConflict.FAIL, IfNotExists.CREATE));
     return self();
   }
 

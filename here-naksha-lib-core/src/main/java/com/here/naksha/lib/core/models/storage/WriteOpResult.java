@@ -27,13 +27,13 @@ import org.jetbrains.annotations.Nullable;
  * The result of a write-operation.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
-public class ModifyResult<T> {
+public class WriteOpResult<T> {
 
-  public ModifyResult(@NotNull ModifyOp op, @Nullable T object) {
+  public WriteOpResult(@NotNull ExecutedOp op, @Nullable T object) {
     this.op = op;
     this.object = object;
   }
 
-  public final @NotNull ModifyOp op;
+  public final @NotNull ExecutedOp op;
   public final @Nullable T object;
 }

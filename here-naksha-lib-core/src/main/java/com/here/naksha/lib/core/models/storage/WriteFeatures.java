@@ -49,7 +49,7 @@ public class WriteFeatures<T> extends WriteRequest<T, WriteFeatures<T>> {
    * @param modifies     the operations to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteFeatures(@NotNull String collectionId, @NotNull List<@NotNull ModifyQuery<T>> modifies) {
+  public WriteFeatures(@NotNull String collectionId, @NotNull List<@NotNull WriteOp<T>> modifies) {
     super(modifies);
     this.collectionId = collectionId;
   }
