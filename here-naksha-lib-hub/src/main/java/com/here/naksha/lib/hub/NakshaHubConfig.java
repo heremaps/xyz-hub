@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.app.service;
+package com.here.naksha.lib.hub;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 

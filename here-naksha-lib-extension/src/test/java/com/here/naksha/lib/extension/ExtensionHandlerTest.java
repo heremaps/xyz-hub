@@ -29,6 +29,7 @@ import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
+import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.ITransactionSettings;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.extension.messages.ExtensionMessage;
@@ -75,6 +76,11 @@ class ExtensionHandlerTest {
       } catch (Exception e) {
         exception = e;
       }
+    }
+
+    @Override
+    public @NotNull IStorage getStorageById(@NotNull String storageId) {
+      return null;
     }
 
     @Override

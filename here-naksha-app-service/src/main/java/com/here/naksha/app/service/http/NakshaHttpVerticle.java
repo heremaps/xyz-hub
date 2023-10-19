@@ -41,7 +41,7 @@ import static io.vertx.core.http.HttpMethod.POST;
 import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.naksha.app.service.AbstractNakshaHubVerticle;
-import com.here.naksha.app.service.NakshaHub;
+import com.here.naksha.app.service.NakshaApp;
 import com.here.naksha.app.service.http.apis.*;
 import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
@@ -57,6 +57,7 @@ import com.here.naksha.lib.core.models.payload.responses.NotModifiedResponse;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.MIMEType;
+import com.here.naksha.lib.hub.NakshaHub;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
@@ -114,8 +115,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
    * @param naksha The Naksha-Hub.
    * @param index  The verticle index.
    */
-  public NakshaHttpVerticle(@NotNull NakshaHub naksha, int index) {
-    super(naksha, index);
+  public NakshaHttpVerticle(@NotNull NakshaHub naksha, int index, @NotNull NakshaApp app) {
+    super(naksha, index, app);
 
     corsHandler = CorsHandler.create().allowCredentials(true); // .addRelativeOrigin(".*") <-- Not needed, default
     // The methods the client allowed to use.
@@ -129,8 +130,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, STREAM_INFO, ETAG);
     exposeHeaders.stream().map(String::valueOf).forEach(corsHandler::exposedHeader);
 
-    if (naksha.config().webRoot != null) {
-      staticHandler = StaticHandler.create(FileSystemAccess.ROOT, naksha.config().webRoot)
+    if (naksha.getConfig().webRoot != null) {
+      staticHandler = StaticHandler.create(FileSystemAccess.ROOT, naksha.getConfig().webRoot)
           .setIndexPage("index.html")
           .setDirectoryListing(true)
           .setIncludeHidden(false);
@@ -167,8 +168,11 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
         // TODO: Port the JWT authentication handler.
         final AuthenticationHandler jwtHandler =
-            new NakshaJwtAuthHandler(new NakshaAuthProvider(vertx, naksha().authOptions), null);
+            new NakshaJwtAuthHandler(new NakshaAuthProvider(vertx, app().authOptions), null);
         rb.securityHandler("Bearer", jwtHandler);
+
+        final List<@NotNull Api> apiControllers =
+            List.of(new HealthApi(this), new ConnectorApi(this), new StorageApi(this), new SpaceApi(this));
 
         // Add automatic routes.
         for (final Api api : apiControllers) {
@@ -188,7 +192,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         if (staticHandler != null) {
           log.atInfo()
               .setMessage("Serving extra web-root folder in file-system with location: {}")
-              .addArgument(naksha().config().webRoot)
+              .addArgument(naksha().getConfig().webRoot)
               .log();
           router.route("/hub/web/*").handler(staticHandler);
         }
@@ -206,11 +210,11 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         // https://vertx.io/docs/vertx-core/java/#_server_sharing
         vertx.createHttpServer(SERVER_OPTIONS)
             .requestHandler(router)
-            .listen(naksha().config().httpPort, result -> {
+            .listen(naksha().getConfig().httpPort, result -> {
               if (result.succeeded()) {
                 log.atInfo()
                     .setMessage("HTTP Server started on port {}")
-                    .addArgument(naksha().config().httpPort)
+                    .addArgument(naksha().getConfig().httpPort)
                     .log();
               } else {
                 log.atError()
@@ -233,9 +237,6 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
   private final @NotNull CorsHandler corsHandler;
   private final @Nullable StaticHandler staticHandler;
-
-  private final List<@NotNull Api> apiControllers =
-      List.of(new HealthApi(this), new ConnectorApi(this), new StorageApi(this), new SpaceApi(this));
 
   private static final ConcurrentHashMap<@NotNull String, @NotNull Buffer> fileCache = new ConcurrentHashMap<>();
 

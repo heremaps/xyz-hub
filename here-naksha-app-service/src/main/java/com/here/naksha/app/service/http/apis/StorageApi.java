@@ -49,7 +49,7 @@ public class StorageApi extends Api {
   public void addManualRoutes(final @NotNull Router router) {}
 
   private void getStorages(final @NotNull RoutingContext routingContext) {
-    naksha().executeTask(() -> {
+    app().executeTask(() -> {
       try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
         // TODO HP : Fix adding a new Storage
         /*
@@ -68,7 +68,7 @@ public class StorageApi extends Api {
   }
 
   private void createStorage(final @NotNull RoutingContext routingContext) {
-    naksha().executeTask(() -> {
+    app().executeTask(() -> {
       Storage storage = null;
       // Read request JSON
       try (final Json json = Json.get()) {
