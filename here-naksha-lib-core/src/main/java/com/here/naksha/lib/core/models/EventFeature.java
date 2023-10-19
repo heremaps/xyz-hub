@@ -40,6 +40,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_0)
+@Deprecated
 public abstract class EventFeature extends XyzFeature {
 
   /**

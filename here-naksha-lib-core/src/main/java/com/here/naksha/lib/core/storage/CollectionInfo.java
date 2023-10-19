@@ -24,7 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.features.Storage;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.util.StringHelper;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;

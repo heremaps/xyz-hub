@@ -22,9 +22,9 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.app.service.NakshaHubConfig;
 import com.here.naksha.app.service.models.MaintenanceTrigger;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Space;
-import com.here.naksha.lib.core.models.features.Storage;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Space;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.storage.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -145,10 +145,10 @@ public class StorageMaintainer {
       final IResultSet<Connector> rc = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
       .getAll(0, Integer.MAX_VALUE);
        */
-      final IResultSet<Connector> rc = null;
-      final List<@NotNull Connector> connectors = rc.toList(0, Integer.MAX_VALUE);
-      final Map<String, Connector> connectorMap =
-          connectors.stream().collect(Collectors.toMap(Connector::getId, Function.identity()));
+      final IResultSet<EventHandler> rc = null;
+      final List<@NotNull EventHandler> eventHandlers = rc.toList(0, Integer.MAX_VALUE);
+      final Map<String, EventHandler> connectorMap =
+          eventHandlers.stream().collect(Collectors.toMap(EventHandler::getId, Function.identity()));
       rc.close();
 
       // Fetch all Storages
@@ -173,14 +173,14 @@ public class StorageMaintainer {
       for (final Space space : spaces) {
         for (final String connectorId : space.getConnectorIds()) {
           // find associated Connector by Id
-          final Connector connector = connectorMap.get(connectorId);
-          if (connector == null || !connector.isActive() || connector.getStorageId() == null) {
+          final EventHandler eventHandler = connectorMap.get(connectorId);
+          if (eventHandler == null || !eventHandler.isActive() || eventHandler.getStorageId() == null) {
             // this connector is removed/disabled or not associated with storageId (so, no need to run
             // maintenance)
             continue;
           }
           // find associated Storage by Id
-          final Storage storage = storageMap.get(connector.getStorageId());
+          final Storage storage = storageMap.get(eventHandler.getStorageId());
           if (storage == null) {
             // this storage is removed (for some reason). so, can't run maintenance
             continue;
@@ -192,7 +192,7 @@ public class StorageMaintainer {
           MaintenanceTrigger trigger = triggerMap.get(triggerKey);
           if (trigger == null) {
             trigger = new MaintenanceTrigger(
-                triggerKey, connector, storage, null, new ArrayList<>(List.of(collectionInfo)));
+                triggerKey, eventHandler, storage, null, new ArrayList<>(List.of(collectionInfo)));
             triggerMap.put(triggerKey, trigger);
           } else {
             trigger.collectionInfoList().add(collectionInfo);
@@ -288,9 +288,9 @@ public class StorageMaintainer {
 
       // Invoke maintenance() using appropriate storage implementation class, by passing list of collections
       IStorage storageImpl = null;
-      if (trigger.connector() != null) {
+      if (trigger.eventHandler() != null) {
         // applicable when connector provided DBConfig is required for IStorage instantiation
-        storageImpl = trigger.connector().newStorageImpl(trigger.storage());
+        storageImpl = trigger.eventHandler().newStorageImpl(trigger.storage());
       } else if (trigger.storageImpl() != null) {
         // applicable when IStorage implementation is already available (e.g. AdminDB)
         storageImpl = trigger.storageImpl();

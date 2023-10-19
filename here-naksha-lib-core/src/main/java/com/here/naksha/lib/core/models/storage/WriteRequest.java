@@ -27,7 +27,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * All write requests should extend this base class.
  *
- * @param <T> the object-type to write.
+ * @param <T>    the object-type to write.
  * @param <SELF> the self-type.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
@@ -36,16 +36,44 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
   /**
    * Creates a new write request.
    *
-   * @param ops the operations to execute.
+   * @param queries the operations to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  protected WriteRequest(@NotNull List<@NotNull WriteOp<T>> ops) {
-    this.ops = new ArrayList<>();
+  protected WriteRequest(@NotNull List<@NotNull ModifyQuery<T>> queries) {
+    this.queries = new ArrayList<>();
   }
 
   /**
-   * The operations to be executed.
+   * The queries to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull List<@NotNull WriteOp<T>> ops;
+  public @NotNull List<@NotNull ModifyQuery<T>> queries;
+
+  /**
+   * Add a modification and return this.
+   *
+   * @param modifyQuery the modification to add.
+   * @return this.
+   */
+  public @NotNull SELF add(@NotNull ModifyQuery<T> modifyQuery) {
+    queries.add(modifyQuery);
+    return self();
+  }
+
+  /**
+   * Generate default INSERT operations for the given object.
+   * @param object the object to insert.
+   * @return this.
+   */
+  public final @NotNull SELF insert(@NotNull T object) {
+    queries.add(
+        new ModifyQuery<>(object, null, null, null, false, IfExists.FAIL, IfConflict.FAIL, IfNotExists.CREATE));
+    return self();
+  }
+
+  // TODO: Add update, upsert, delete and purge
+  // TODO: For some we need the uuid or only id (for delete and purge).
+  // TODO: Add mass methods that use specific well-known features, for example in WriteFeatures we can support
+  //       addAll(List<XyzFeature>) and we could read the UUID from the feature and add more logical handling
+  //       to reduce the burden, when the caller simply has a list of features coming from a client!
 }

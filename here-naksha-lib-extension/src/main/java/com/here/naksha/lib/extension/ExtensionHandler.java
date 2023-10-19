@@ -20,7 +20,7 @@ package com.here.naksha.lib.extension;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.cause;
 
-import com.here.naksha.lib.core.IEventContext;
+import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaBound;
@@ -28,7 +28,7 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.PluginCache;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
@@ -55,27 +55,27 @@ public class ExtensionHandler extends NakshaBound implements IEventHandler {
   // className: com.here.dcu.ValidationHandler <-- IEventHandler
 
   /**
-   * Internally used by Naksha-Hub as replacement for {@link Connector#newInstance()}, because this will return an internal proxy handler,
+   * Internally used by Naksha-Hub as replacement for {@link EventHandler#newInstance()}, because this will return an internal proxy handler,
    * when this is an extension connector.
    *
    * @return the event-handler.
    */
   public static @NotNull IEventHandler newInstanceOrExtensionHandler(
-      @NotNull INaksha naksha, @NotNull Connector connector) {
-    if (connector.getExtension() > 0) {
-      return new ExtensionHandler(naksha, connector);
+      @NotNull INaksha naksha, @NotNull EventHandler eventHandler) {
+    if (eventHandler.getExtension() > 0) {
+      return new ExtensionHandler(naksha, eventHandler);
     }
-    return PluginCache.newInstance(connector.getClassName(), IEventHandler.class, connector);
+    return PluginCache.newInstance(eventHandler.getClassName(), IEventHandler.class, eventHandler);
   }
 
   /**
    * Creates a new extension handler.
    *
    * @param naksha    The naksha host.
-   * @param connector the connector that must have a valid extension number.
+   * @param eventHandler the connector that must have a valid extension number.
    */
   @AvailableSince(NakshaVersion.v2_0_3)
-  public ExtensionHandler(@NotNull INaksha naksha, @NotNull Connector connector) {
+  public ExtensionHandler(@NotNull INaksha naksha, @NotNull EventHandler eventHandler) {
     super(naksha);
     Extension config = null;
     try (final IReadTransaction tx = naksha.storage().openReplicationTransaction(naksha.settings())) {
@@ -83,10 +83,10 @@ public class ExtensionHandler extends NakshaBound implements IEventHandler {
       /*config = tx.readFeatures(Extension.class, NakshaAdminCollection.EXTENSIONS)
       .getFeatureById(connector.getId());*/
       if (config == null) {
-        throw new IllegalArgumentException("No such extension exists: " + connector.getId());
+        throw new IllegalArgumentException("No such extension exists: " + eventHandler.getId());
       }
     }
-    this.connector = connector;
+    this.eventHandler = eventHandler;
     this.config = config;
   }
 
@@ -94,25 +94,25 @@ public class ExtensionHandler extends NakshaBound implements IEventHandler {
    * Creates a new extension handler.
    *
    * @param naksha    The naksha host.
-   * @param connector the connector that must have a valid extension number.
+   * @param eventHandler the connector that must have a valid extension number.
    * @param config    the configuration to use.
    */
   @AvailableSince(NakshaVersion.v2_0_3)
-  public ExtensionHandler(@NotNull INaksha naksha, @NotNull Connector connector, @NotNull Extension config) {
+  public ExtensionHandler(@NotNull INaksha naksha, @NotNull EventHandler eventHandler, @NotNull Extension config) {
     super(naksha);
-    this.connector = connector;
+    this.eventHandler = eventHandler;
     this.config = config;
   }
 
   private final @NotNull Extension config;
-  private final @NotNull Connector connector;
+  private final @NotNull EventHandler eventHandler;
 
   @AvailableSince(NakshaVersion.v2_0_3)
   @Override
-  public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
-    final Event event = eventContext.getEvent();
+  public @NotNull XyzResponse processEvent(@NotNull IEvent eventContext) {
+    final Event event = eventContext.getRequest();
     try (final NakshaExtSocket nakshaExtSocket = NakshaExtSocket.connect(config)) {
-      nakshaExtSocket.sendMessage(new ProcessEventMsg(connector, event));
+      nakshaExtSocket.sendMessage(new ProcessEventMsg(eventHandler, event));
       while (true) {
         final ExtensionMessage message = nakshaExtSocket.readMessage();
         if (message instanceof ResponseMsg extResponse) {
@@ -125,7 +125,7 @@ public class ExtensionHandler extends NakshaBound implements IEventHandler {
         } else {
           log.atInfo()
               .setMessage("Received invalid response from Naksha extension '{}': {}")
-              .addArgument(connector.getId())
+              .addArgument(eventHandler.getId())
               .addArgument(message)
               .log();
           throw new XyzErrorException(XyzError.EXCEPTION, "Received invalid response from Naksha extension");
@@ -138,7 +138,7 @@ public class ExtensionHandler extends NakshaBound implements IEventHandler {
       }
       log.atError()
           .setMessage("Uncaught exception in extension handler '{}'")
-          .addArgument(connector.getId())
+          .addArgument(eventHandler.getId())
           .setCause(t)
           .log();
       return new ErrorResponse()

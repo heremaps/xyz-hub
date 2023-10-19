@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.SuccessResponse;
@@ -61,10 +61,10 @@ class ExtensionHandlerTest {
     public void run() {
       try {
         // Simulate what Naksha-Hub would do:
-        final Connector testConnector = new Connector("test", CLASS_NAME);
-        testConnector.setExtension(EXTENSION_ID);
+        final EventHandler testEventHandler = new EventHandler("test", CLASS_NAME);
+        testEventHandler.setExtension(EXTENSION_ID);
         final Extension config = new Extension("localhost", EXTENSION_ID);
-        final IEventHandler eventHandler = new ExtensionHandler(this, testConnector, config);
+        final IEventHandler eventHandler = new ExtensionHandler(this, testEventHandler, config);
         final EventPipeline eventPipeline = new EventPipeline(this);
         eventPipeline.addEventHandler(eventHandler);
         final GetFeaturesByIdEvent event = new GetFeaturesByIdEvent();
@@ -102,8 +102,8 @@ class ExtensionHandlerTest {
         assertNotNull(processEvent.event);
         assertInstanceOf(GetFeaturesByIdEvent.class, processEvent.event);
         // The connector being part of the envelope should have the expected class-name and extension ID.
-        assertEquals(EXTENSION_ID, processEvent.connector.getExtension());
-        assertEquals(CLASS_NAME, processEvent.connector.getClassName());
+        assertEquals(EXTENSION_ID, processEvent.eventHandler.getExtension());
+        assertEquals(CLASS_NAME, processEvent.eventHandler.getClassName());
 
         // Simulate a SuccessResponse.
         final SuccessResponse response = new SuccessResponse();

@@ -18,8 +18,6 @@
  */
 package com.here.naksha.lib.core;
 
-import static com.here.naksha.lib.core.NakshaContext.currentContext;
-
 import com.here.naksha.lib.core.util.NanoTime;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
@@ -51,7 +49,7 @@ public final class NakshaLogger implements Logger {
     // ...
     // log.atInfo().setMessage("Hello {}").addArgument("World!").log();
     // This is not what we hopped for, but when we not directly access the logger, the stack-trace does not fit!
-    return currentContext().logger;
+    return null;
   }
 
   /**
@@ -85,7 +83,7 @@ public final class NakshaLogger implements Logger {
     final StringBuilder sb = this.sb;
     sb.setLength(0);
     sb.append("[");
-    sb.append(context.getStreamId());
+    sb.append(context.streamId());
     sb.append("] ");
     long micros = NanoTime.timeSinceStart(TimeUnit.MICROSECONDS);
     assert micros >= 0;
@@ -128,7 +126,7 @@ public final class NakshaLogger implements Logger {
 
   @Override
   public String getName() {
-    return context.getStreamId();
+    return context.streamId();
   }
 
   @Override

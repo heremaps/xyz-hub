@@ -20,7 +20,7 @@ package com.here.naksha.lib.extension;
 
 import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.features.Extension;
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
@@ -50,10 +50,10 @@ public class RemoteScenarioTest {
     public void run() {
       try {
         // Simulate what Naksha-Hub would do:
-        final Connector testConnector = new Connector("test", TestRemoteCustomerHandler.class);
-        testConnector.setExtension(EXTENSION_ID);
+        final EventHandler testEventHandler = new EventHandler("test", TestRemoteCustomerHandler.class);
+        testEventHandler.setExtension(EXTENSION_ID);
         final Extension config = new Extension("localhost", EXTENSION_ID);
-        final IEventHandler eventHandler = new ExtensionHandler(this, testConnector, config);
+        final IEventHandler eventHandler = new ExtensionHandler(this, testEventHandler, config);
         final EventPipeline eventPipeline = new EventPipeline(this);
         eventPipeline.addEventHandler(eventHandler);
         final HealthCheckEvent event = new HealthCheckEvent();

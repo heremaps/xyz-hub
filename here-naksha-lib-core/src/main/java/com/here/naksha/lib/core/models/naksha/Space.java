@@ -16,17 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.models.features;
+package com.here.naksha.lib.core.models.naksha;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.Copyright;
-import com.here.naksha.lib.core.models.EventFeature;
 import com.here.naksha.lib.core.models.License;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
@@ -45,21 +43,19 @@ import org.jetbrains.annotations.Nullable;
  */
 @SuppressWarnings("unused")
 @JsonTypeName(value = "Space")
-public final class Space extends EventFeature implements Typed {
+public final class Space extends EventTarget<Space> implements Typed {
 
   /**
    * Create new space initialized with the given identifier.
    *
    * @param id            the identifier.
    * @param eventHandlers the list of event handler identifiers to form the event-pipeline.
-   * @param packages      the packages this feature is part of.
    */
   @JsonCreator
   public Space(
       @JsonProperty(ID) @NotNull String id,
-      @JsonProperty(CONNECTOR_IDS) @NotNull List<@NotNull String> eventHandlers,
-      @JsonProperty(PACKAGES) @Nullable List<@NotNull String> packages) {
-    super(id, eventHandlers, packages);
+      @JsonProperty("eventHandlers") @NotNull List<@NotNull String> eventHandlers) {
+    super(id, eventHandlers);
   }
 
   /**
@@ -68,58 +64,7 @@ public final class Space extends EventFeature implements Typed {
    * @param id the identifier of the space.
    */
   public Space(@NotNull String id) {
-    super(id, new ArrayList<>(), null);
-  }
-
-  /**
-   * Create new space initialized with the given identifier.
-   *
-   * @param catalogId the catalog identifier.
-   * @param name      the name of the space, unique within the catalog.
-   */
-  public Space(@Nullable String catalogId, @NotNull String name) {
-    super(catalogId != null ? (catalogId + ":" + name) : name, new ArrayList<>(), null);
-  }
-
-  /**
-   * Create new space initialized with the given identifier.
-   *
-   * @param catalogId     the catalog identifier.
-   * @param name          the name of the space, unique within the catalog.
-   * @param eventHandlers the list of event handler identifiers to form the event-pipeline.
-   */
-  public Space(@Nullable String catalogId, @NotNull String name, @NotNull List<@NotNull String> eventHandlers) {
-    super(catalogId + ":" + name, eventHandlers, null);
-  }
-
-  /**
-   * Set the full qualified space identifier.
-   *
-   * @param catalogId the catalog-identifier (being the prefix of the ID).
-   * @param name      the name of the space.
-   */
-  public void setId(@Nullable String catalogId, @NotNull String name) {
-    this.catalogId = catalogId;
-    this.name = name;
-    if (catalogId == null) {
-      this.id = name;
-    } else {
-      this.id = catalogId + ":" + name;
-    }
-  }
-
-  @Override
-  @JsonSetter
-  public void setId(@NotNull String id) {
-    final int catEnd = id.lastIndexOf(':');
-    if (catEnd > 0) {
-      this.catalogId = id.substring(0, catEnd);
-      this.name = id.substring(catEnd + 1);
-    } else {
-      this.catalogId = null;
-      this.name = id;
-    }
-    this.id = id;
+    super(id);
   }
 
   /**
@@ -241,15 +186,6 @@ public final class Space extends EventFeature implements Typed {
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
   private String forceOwner;
-
-  /**
-   * Returns the catalog identifier to which this space belongs.
-   *
-   * @return the catalog identifier to which this space belongs; if any.
-   */
-  public @Nullable String getCatalogId() {
-    return catalogId;
-  }
 
   /**
    * Returns the name of the space.

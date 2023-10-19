@@ -46,11 +46,11 @@ public class WriteFeatures<T> extends WriteRequest<T, WriteFeatures<T>> {
    * Creates a new feature write request.
    *
    * @param collectionId the identifier of the collection to write into.
-   * @param writeOps     the operations to execute.
+   * @param modifies     the operations to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteFeatures(@NotNull String collectionId, @NotNull List<@NotNull WriteOp<T>> writeOps) {
-    super(writeOps);
+  public WriteFeatures(@NotNull String collectionId, @NotNull List<@NotNull ModifyQuery<T>> modifies) {
+    super(modifies);
     this.collectionId = collectionId;
   }
 

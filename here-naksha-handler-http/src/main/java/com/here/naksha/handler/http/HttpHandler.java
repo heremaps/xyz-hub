@@ -18,12 +18,12 @@
  */
 package com.here.naksha.handler.http;
 
-import com.here.naksha.lib.core.IEventContext;
+import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
@@ -48,12 +48,12 @@ public class HttpHandler implements IEventHandler {
   /**
    * Creates a new HTTP handler.
    *
-   * @param connector The connector configuration.
+   * @param eventHandler The connector configuration.
    * @throws XyzErrorException If any error occurred.
    */
-  public HttpHandler(@NotNull Connector connector) throws XyzErrorException {
+  public HttpHandler(@NotNull EventHandler eventHandler) throws XyzErrorException {
     try {
-      this.params = new HttpHandlerParams(connector.getProperties());
+      this.params = new HttpHandlerParams(eventHandler.getProperties());
     } catch (Exception e) {
       throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, e.getMessage());
     }
@@ -62,8 +62,8 @@ public class HttpHandler implements IEventHandler {
   final @NotNull HttpHandlerParams params;
 
   @Override
-  public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
-    final Event event = eventContext.getEvent();
+  public @NotNull XyzResponse processEvent(@NotNull IEvent eventContext) throws XyzErrorException {
+    final Event event = eventContext.getRequest();
     try {
       byte @NotNull [] bytes = event.toByteArray(ViewSerialize.Internal.class);
       final HttpURLConnection conn = (HttpURLConnection) params.getUrl().openConnection();

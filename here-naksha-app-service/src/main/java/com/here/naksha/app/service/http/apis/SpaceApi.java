@@ -23,9 +23,9 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.EventPipeline;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Space;
-import com.here.naksha.lib.core.models.features.Storage;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Space;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
@@ -111,14 +111,14 @@ public class SpaceApi extends Api {
         final IResultSet<Connector> rsc = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
         .getFeaturesById(space.getConnectorIds());
         */
-        final IResultSet<Connector> rsc = null;
-        final List<Connector> connectorList = rsc.toList(0, Integer.MAX_VALUE);
+        final IResultSet<EventHandler> rsc = null;
+        final List<EventHandler> eventHandlerList = rsc.toList(0, Integer.MAX_VALUE);
         rsc.close();
         final EventPipeline eventPipeline = new EventPipeline(naksha());
-        for (final Connector connector : connectorList) {
+        for (final EventHandler eventHandler : eventHandlerList) {
           // fetch storage associated with this connector
           Storage storage = null;
-          if (connector.getStorageId() != null) {
+          if (eventHandler.getStorageId() != null) {
             // TODO HP : Fix fetching storages
             /*
             final IResultSet<Storage> rss = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
@@ -130,8 +130,8 @@ public class SpaceApi extends Api {
             }
             rss.close();
           }
-          connector.setStorage(storage);
-          eventPipeline.addEventHandler(connector);
+          eventHandler.setStorage(storage);
+          eventPipeline.addEventHandler(eventHandler);
         }
         // Send ModifySpaceEvent through all connectors, one of which, will create backend table(s)
         final ModifySpaceEvent event = new ModifySpaceEvent()

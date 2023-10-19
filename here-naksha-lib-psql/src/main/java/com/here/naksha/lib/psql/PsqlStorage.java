@@ -25,8 +25,8 @@ import static com.here.naksha.lib.psql.SQL.escapeId;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Storage;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.ITransactionSettings;
@@ -82,10 +82,10 @@ public class PsqlStorage implements IStorage {
    * Constructor to manually create a new PostgresQL storage client. This is useful when class is
    * instantiated using connector configuration passed as argument.
    *
-   * @param connector The connector associated with this storage
+   * @param eventHandler The connector associated with this storage
    */
-  public PsqlStorage(@NotNull Connector connector) {
-    final PsqlConfig dbConfig = JsonSerializable.fromAnyMap(connector.getProperties(), ConnectorProperties.class)
+  public PsqlStorage(@NotNull EventHandler eventHandler) {
+    final PsqlConfig dbConfig = JsonSerializable.fromAnyMap(eventHandler.getProperties(), ConnectorProperties.class)
         .getDbConfig();
     if (dbConfig == null) {
       throw new IllegalArgumentException("dbConfig missing in connector properties");

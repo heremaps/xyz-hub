@@ -22,11 +22,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flipkart.zjsonpatch.JsonDiff;
-import com.here.naksha.lib.core.IEventContext;
+import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
@@ -49,7 +49,7 @@ public class ActivityLogHandler implements IEventHandler {
    * @param eventHandler the event-handler configuration.
    * @throws XyzErrorException If any error occurred.
    */
-  public ActivityLogHandler(@NotNull Connector eventHandler) throws XyzErrorException {
+  public ActivityLogHandler(@NotNull EventHandler eventHandler) throws XyzErrorException {
     try {
       this.params = new ActivityLogHandlerParams(eventHandler.getProperties());
     } catch (Exception e) {
@@ -127,8 +127,8 @@ public class ActivityLogHandler implements IEventHandler {
   }
 
   @Override
-  public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) throws XyzErrorException {
-    final Event event = eventContext.getEvent();
+  public @NotNull XyzResponse processEvent(@NotNull IEvent eventContext) throws XyzErrorException {
+    final Event event = eventContext.getRequest();
     final Map<@NotNull String, Object> spaceParams = event.getParams();
     // TODO: Maybe allow overriding of some parameters per space?
     // TODO: If necessary, perform pre-processing.

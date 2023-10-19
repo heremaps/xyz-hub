@@ -27,6 +27,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.EventFeature;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.view.ViewMember.Manager;
 import java.util.List;
 import java.util.Map;

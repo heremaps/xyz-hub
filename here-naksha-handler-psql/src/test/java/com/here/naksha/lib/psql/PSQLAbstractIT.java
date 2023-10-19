@@ -25,8 +25,8 @@ import com.amazonaws.util.IOUtils;
 import com.here.naksha.handler.psql.PsqlHandler;
 import com.here.naksha.handler.psql.PsqlHandlerParams;
 import com.here.naksha.lib.core.IoEventPipeline;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
@@ -140,7 +140,7 @@ public abstract class PSQLAbstractIT extends Helper {
     // TODO: We need to create a pre-configured connector for the test, because the connector is the
     // PSQL storage for a specific db!
     pipeline.addEventHandler(
-        new PsqlHandler(new Connector(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class.getName())));
+        new PsqlHandler(new EventHandler(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class.getName())));
     assert jsonStream != null;
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
@@ -157,7 +157,7 @@ public abstract class PSQLAbstractIT extends Helper {
     // TODO: We need to create a pre-configured connector for the test, because the connector is the
     // PSQL storage for a specific db!
     pipeline.addEventHandler(
-        new PsqlHandler(new Connector(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class)));
+        new PsqlHandler(new EventHandler(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class)));
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     currentLogger().info("Response from lambda - {}", response);

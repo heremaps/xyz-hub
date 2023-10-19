@@ -20,11 +20,12 @@ package com.here.naksha.lib.psql;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
-/** A Connector properties holding database configuration as used by the {@link com.here.naksha.lib.core.models.features.Connector}. */
+/** A Connector properties holding database configuration as used by the {@link EventHandler}. */
 @AvailableSince(NakshaVersion.v2_0_6)
 public class ConnectorProperties extends XyzProperties {
 

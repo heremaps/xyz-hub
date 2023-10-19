@@ -18,8 +18,8 @@
  */
 package com.here.naksha.app.service.models;
 
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Storage;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IStorage;
 import java.util.List;
@@ -27,7 +27,7 @@ import org.jetbrains.annotations.NotNull;
 
 public record MaintenanceTrigger(
     @NotNull String key,
-    Connector connector,
+    EventHandler eventHandler,
     @NotNull Storage storage,
     IStorage storageImpl,
     @NotNull List<CollectionInfo> collectionInfoList) {}

@@ -22,7 +22,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
@@ -64,8 +64,8 @@ public class ConnectorApi extends Api {
         final IResultSet<Connector> rs = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
         .getAll(0, Integer.MAX_VALUE);
          */
-        final IResultSet<Connector> rs = null;
-        final List<@NotNull Connector> featureList = rs.toList(0, Integer.MAX_VALUE);
+        final IResultSet<EventHandler> rs = null;
+        final List<@NotNull EventHandler> featureList = rs.toList(0, Integer.MAX_VALUE);
         // TODO HP_QUERY : Is this right place to close resource? (change in StorageApi accordingly)
         rs.close();
         final XyzFeatureCollection response = new XyzFeatureCollection();
@@ -78,12 +78,12 @@ public class ConnectorApi extends Api {
 
   private void createConnector(final @NotNull RoutingContext routingContext) {
     naksha().executeTask(() -> {
-      Connector connector = null;
+      EventHandler eventHandler = null;
       // Read request JSON
       try (final Json json = Json.get()) {
         final String bodyJson = routingContext.body().asString();
-        connector = json.reader(ViewDeserialize.User.class)
-            .forType(Connector.class)
+        eventHandler = json.reader(ViewDeserialize.User.class)
+            .forType(EventHandler.class)
             .readValue(bodyJson);
       } catch (Exception e) {
         throw unchecked(e);

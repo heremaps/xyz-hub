@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.Typed;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
@@ -37,7 +38,7 @@ import org.jetbrains.annotations.NotNull;
   @JsonSubTypes.Type(value = Notification.class)
 })
 @AvailableSince(NakshaVersion.v2_0_7)
-public abstract class Request<SELF extends Request<SELF>> {
+public abstract class Request<SELF extends Request<SELF>> implements Typed {
 
   /**
    * Helper to return this.

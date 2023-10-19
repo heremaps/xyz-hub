@@ -18,16 +18,15 @@
  */
 package com.here.naksha.lib.core;
 
-import static com.here.naksha.lib.core.NakshaContext.currentContext;
-
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.Payload;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.BinaryResponse;
-import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.payload.responses.NotModifiedResponse;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.Request;
+import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.view.ViewSerialize;
@@ -45,7 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Base implementation for an event pipeline that read the event from an {@link InputStream} and write the response to an
+ * Base implementation for an event pipeline that read the request from an {@link InputStream} and write the result to an
  * {@link OutputStream}; using JSON representation.
  */
 public class IoEventPipeline extends EventPipeline {
@@ -72,88 +71,81 @@ public class IoEventPipeline extends EventPipeline {
     super(naksha);
   }
 
-  private final AtomicBoolean sendEvent = new AtomicBoolean();
+  private final AtomicBoolean sendingEvent = new AtomicBoolean();
 
   /**
    * To be invoked to process the event. Start reading the event form the given input stream, invoke the
-   * {@link EventPipeline#sendEvent(Event)} method and then encode the response and write it to the output.
+   * {@link EventPipeline#sendEvent(Request)} method and then encode the response and write it to the output.
    *
    * @param input  the input stream to read the event from.
    * @param output the output stream to write the response to.
    * @return the response that was encoded to the output stream.
    * @throws IllegalStateException if this method has already been called.
    */
-  public XyzResponse sendEvent(@NotNull InputStream input, @Nullable OutputStream output) {
-    if (!sendEvent.compareAndSet(false, true)) {
+  public Result sendEvent(@NotNull InputStream input, @Nullable OutputStream output) {
+    if (!sendingEvent.compareAndSet(false, true)) {
       throw new IllegalStateException("process must not be called multiple times");
     }
-    XyzResponse response;
-    final Typed typed;
-    final Event event;
+    Result response;
+    final Request<?> request;
     try {
-      String rawEvent;
+      String requestString;
       final long START = NanoTime.now();
       input = Payload.prepareInputStream(input);
       try (final Scanner scanner = new Scanner(new InputStreamReader(input, StandardCharsets.UTF_8))) {
-        rawEvent = scanner.useDelimiter("\\A").next();
+        requestString = scanner.useDelimiter("\\A").next();
       }
-      typed = JsonSerializable.deserialize(rawEvent);
-      if (typed == null) {
+      final Object rawRequest = JsonSerializable.deserialize(requestString);
+      if (rawRequest == null) {
         throw new NullPointerException();
       }
       final long parsedInMillis = NanoTime.timeSince(START, TimeUnit.MILLISECONDS);
-      if (!(typed instanceof Event)) {
+      if (rawRequest instanceof Request<?> req) {
+        request = req;
+        log.atInfo()
+            .setMessage("Event parsed in {}ms")
+            .addArgument(parsedInMillis)
+            .log();
+        log.atDebug()
+            .setMessage("Event raw string: {}")
+            .addArgument(requestString)
+            .log();
+        //noinspection UnusedAssignment
+        requestString = null;
+        // Note: We explicitly set the rawEvent to null to ensure that the garbage collector can
+        // collect the variables.
+        //       Not doing so, could theoretically allow the compiler to keep a reference to the
+        // memory until the method left.
+        response = sendEvent(request);
+        if (output != null) {
+          writeDataOut(output, response, null);
+        }
+      } else {
         final String expected = Event.class.getSimpleName();
-        final String deserialized = typed.getClass().getSimpleName();
+        final String deserialized = rawRequest.getClass().getSimpleName();
         log.atInfo()
             .setMessage("Event parsed in {}ms, but expected {}, deserialized {}")
             .addArgument(parsedInMillis)
             .addArgument(expected)
             .addArgument(deserialized)
             .log();
-        response = new ErrorResponse()
-            .withStreamId(currentContext().getStreamId())
-            .withError(XyzError.EXCEPTION)
-            .withErrorMessage("Invalid event, expected " + expected + ", but found " + deserialized);
+        response = new ErrorResult(
+            XyzError.EXCEPTION, "Invalid event, expected " + expected + ", but found " + deserialized);
         if (output != null) {
           writeDataOut(output, response, null);
         }
-        return response;
-      }
-      event = (Event) typed;
-      event.setStartNanos(START);
-      log.atInfo()
-          .setMessage("Event parsed in {}ms")
-          .addArgument(parsedInMillis)
-          .log();
-      log.atDebug()
-          .setMessage("Event raw string: {}")
-          .addArgument(rawEvent)
-          .log();
-      //noinspection UnusedAssignment
-      rawEvent = null;
-      // Note: We explicitly set the rawEvent to null to ensure that the garbage collector can
-      // collect the variables.
-      //       Not doing so, could theoretically allow the compiler to keep a reference to the
-      // memory until the method left.
-      response = sendEvent(event);
-      if (output != null) {
-        writeDataOut(output, response, event.getIfNoneMatch());
       }
     } catch (Throwable e) {
       log.atWarn()
           .setMessage("Exception while processing the event")
           .setCause(e)
           .log();
-      response = new ErrorResponse()
-          .withStreamId(currentContext().getStreamId())
-          .withError(XyzError.EXCEPTION)
-          .withErrorMessage(e.getMessage());
+      response = new ErrorResult(XyzError.EXCEPTION, e.getMessage());
       if (output != null) {
         writeDataOut(output, response, null);
       }
     } finally {
-      sendEvent.set(false);
+      sendingEvent.set(false);
     }
     return response;
   }

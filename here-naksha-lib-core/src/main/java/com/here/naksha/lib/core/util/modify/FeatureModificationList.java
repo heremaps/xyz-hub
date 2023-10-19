@@ -18,12 +18,14 @@
  */
 package com.here.naksha.lib.core.util.modify;
 
-import static com.here.naksha.lib.core.util.modify.IfExists.MERGE;
-import static com.here.naksha.lib.core.util.modify.IfNotExists.CREATE;
+import static com.here.naksha.lib.core.models.storage.IfExists.MERGE;
+import static com.here.naksha.lib.core.models.storage.IfNotExists.CREATE;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.payload.events.feature.LoadFeaturesEvent;
+import com.here.naksha.lib.core.models.storage.IfExists;
+import com.here.naksha.lib.core.models.storage.IfNotExists;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;

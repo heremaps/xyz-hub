@@ -20,7 +20,7 @@ package com.here.naksha.lib.extension;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 
-import com.here.naksha.lib.core.IEventContext;
+import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.payload.Event;
@@ -34,7 +34,7 @@ import java.net.Socket;
 import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 
-class ExtensionServerConnection extends Thread implements IEventContext {
+class ExtensionServerConnection extends Thread implements IEvent {
   private final NakshaExtSocket nakshaExtSocket;
 
   ExtensionServerConnection(Socket socket) {
@@ -54,7 +54,7 @@ class ExtensionServerConnection extends Thread implements IEventContext {
             .add(event.getStreamId())
             .log();
         final IEventHandler handler =
-            Objects.requireNonNull(processEvent.connector).newInstance();
+            Objects.requireNonNull(processEvent.eventHandler).newInstance();
         final XyzResponse response = handler.processEvent(this);
         nakshaExtSocket.sendMessage(new ResponseMsg(response));
       }
@@ -74,7 +74,7 @@ class ExtensionServerConnection extends Thread implements IEventContext {
    * @return the current event of the underlying pipeline.
    */
   @Override
-  public @NotNull Event getEvent() {
+  public @NotNull Event getRequest() {
     return event;
   }
 
@@ -85,7 +85,7 @@ class ExtensionServerConnection extends Thread implements IEventContext {
    * @return The previous event.
    */
   @Override
-  public @NotNull Event setEvent(@NotNull Event event) {
+  public @NotNull Event setRequest(@NotNull Event event) {
     var oldEvent = this.event;
     this.event = event;
     return oldEvent;

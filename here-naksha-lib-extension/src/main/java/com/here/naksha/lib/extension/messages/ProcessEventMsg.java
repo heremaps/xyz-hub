@@ -22,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.Event;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -43,14 +43,14 @@ public class ProcessEventMsg extends ExtensionMessage {
   @JsonCreator
   @AvailableSince(NakshaVersion.v2_0_3)
   public ProcessEventMsg(
-      @JsonProperty(CONNECTOR) @NotNull Connector connector, @JsonProperty(EVENT) @NotNull Event event) {
-    this.connector = connector;
+      @JsonProperty(CONNECTOR) @NotNull EventHandler eventHandler, @JsonProperty(EVENT) @NotNull Event event) {
+    this.eventHandler = eventHandler;
     this.event = event;
   }
 
   @AvailableSince(NakshaVersion.v2_0_3)
   @JsonProperty(CONNECTOR)
-  public final @NotNull Connector connector;
+  public final @NotNull EventHandler eventHandler;
 
   @AvailableSince(NakshaVersion.v2_0_3)
   @JsonProperty(EVENT)

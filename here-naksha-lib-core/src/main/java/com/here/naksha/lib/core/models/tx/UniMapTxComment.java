@@ -16,22 +16,23 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.models;
+package com.here.naksha.lib.core.models.tx;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-/**
- * A plugin is some code that implements an API and can be instantiated.
- *
- * @param <API> the api-type to create by the configuration.
- */
-public interface IPlugin<API> {
+public class UniMapTxComment {
 
-  /**
-   * Create a new instance of the plugin.
-   *
-   * @return the API.
-   */
-  @NotNull
-  API newInstance();
+  public UniMapTxComment(
+      @NotNull String id, @Nullable String message, @Nullable Object object, byte @Nullable [] attachment) {
+    this.id = id;
+    this.message = message;
+    this.object = object;
+    this.attachment = attachment;
+  }
+
+  public final @NotNull String id;
+  public final @Nullable String message;
+  public final @Nullable Object object;
+  public final byte @Nullable [] attachment;
 }

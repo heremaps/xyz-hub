@@ -18,7 +18,6 @@
  */
 package com.here.naksha.lib.core.models.payload;
 
-import static com.here.naksha.lib.core.AbstractTask.currentTask;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -26,13 +25,12 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.EventPipeline;
-import com.here.naksha.lib.core.IEventContext;
+import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.payload.events.admin.ModifySubscriptionEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.DeleteFeaturesByTagEvent;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByBBoxEvent;
@@ -55,7 +53,6 @@ import com.here.naksha.lib.core.view.ViewMember;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -65,7 +62,7 @@ import org.jetbrains.annotations.Nullable;
  * {@link XyzResponse} class.
  *
  * <p>An event can be serialized and send to another instance to be processed there, this is decided
- * by the {@link EventPipeline}. When a handler sends an event {@link IEventContext#sendUpstream() upstream}, the handler itself does not
+ * by the {@link EventPipeline}. When a handler sends an event {@link IEvent#sendUpstream() upstream}, the handler itself does not
  * know if this event is processed in the current host or on a foreign host. Basically the event model just describes what events exist and
  * what the event should produce.
  *
@@ -179,17 +176,17 @@ public class Event extends Payload {
    *
    * @return the connector attached; if any.
    */
-  public @Nullable Connector getConnector() {
-    return connector;
+  public @Nullable EventHandler getConnector() {
+    return eventHandler;
   }
 
   /**
    * Attach the connector. This is only used for internal processing in the event pipeline.
    *
-   * @param connector the connector.
+   * @param eventHandler the connector.
    */
-  public void setConnector(@Nullable Connector connector) {
-    this.connector = connector;
+  public void setConnector(@Nullable EventHandler eventHandler) {
+    this.eventHandler = eventHandler;
   }
 
   /**
@@ -198,7 +195,7 @@ public class Event extends Payload {
    */
   @JsonView({ViewMember.Export.Internal.class, ViewMember.Import.Internal.class})
   @JsonProperty
-  private @Nullable Connector connector;
+  private @Nullable EventHandler eventHandler;
 
   /**
    * The collection; if any.
@@ -294,14 +291,6 @@ public class Event extends Payload {
    */
   @JsonIgnore
   public @NotNull String getStreamId() {
-    if (streamId == null) {
-      final AbstractTask<?> task = currentTask();
-      if (task != null) {
-        streamId = task.getStreamId();
-      } else {
-        streamId = RandomStringUtils.randomAlphanumeric(12);
-      }
-    }
     return streamId;
   }
 

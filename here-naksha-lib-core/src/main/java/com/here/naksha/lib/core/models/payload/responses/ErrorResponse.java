@@ -18,13 +18,11 @@
  */
 package com.here.naksha.lib.core.models.payload.responses;
 
-import static com.here.naksha.lib.core.AbstractTask.currentTask;
 import static com.here.naksha.lib.core.NakshaContext.currentContext;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.exceptions.TooManyTasks;
@@ -45,17 +43,12 @@ import org.jetbrains.annotations.Nullable;
 public class ErrorResponse extends XyzResponse {
 
   /**
-   * Create a new empty error-response, the stream-id is set calling {@link NakshaContext#getStreamId()} of the current context.
+   * Create a new empty error-response, the stream-id is set calling {@link NakshaContext#streamId()} of the current context.
    */
   public ErrorResponse() {
     setError(XyzError.EXCEPTION);
-    final AbstractTask<?> task = currentTask();
-    if (task != null) {
-      setErrorMessage("Error in task " + task.getClass().getName());
-    } else {
-      setErrorMessage("Internal Naksha-Hub error");
-    }
-    setStreamId(currentContext().getStreamId());
+    setErrorMessage("Internal Naksha-Hub error");
+    setStreamId(currentContext().streamId());
   }
 
   /**
@@ -63,7 +56,7 @@ public class ErrorResponse extends XyzResponse {
    *
    * @param error    The XYZ error to return.
    * @param message  The message to return.
-   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#getStreamId()} of the current context.
+   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#streamId()} of the current context.
    */
   public ErrorResponse(@NotNull XyzError error, @NotNull String message, @Nullable String streamId) {
     super(streamId);
@@ -75,7 +68,7 @@ public class ErrorResponse extends XyzResponse {
    * Create an error-response for the given exception.
    *
    * @param t        The exception for which to create an error response.
-   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#getStreamId()} of the current context.
+   * @param streamId The stream-id; if {@code null} is given, then calling {@link NakshaContext#streamId()} of the current context.
    */
   public ErrorResponse(@NotNull Throwable t, @Nullable String streamId) {
     super(streamId);
@@ -94,12 +87,7 @@ public class ErrorResponse extends XyzResponse {
       setErrorMessage(t.getMessage());
     } else {
       setError(XyzError.EXCEPTION);
-      final AbstractTask<?> task = currentTask();
-      if (task != null) {
-        setErrorMessage("Exception in task " + task.getClass().getName() + ": " + t.getMessage());
-      } else {
-        setErrorMessage("Exception in service: " + t.getMessage());
-      }
+      setErrorMessage("Exception in service: " + t.getMessage());
     }
   }
 
@@ -205,6 +193,7 @@ public class ErrorResponse extends XyzResponse {
 
   /**
    * Set the stream-id and return this object again.
+   *
    * @param streamId The stream-id to set.
    * @return this.
    */

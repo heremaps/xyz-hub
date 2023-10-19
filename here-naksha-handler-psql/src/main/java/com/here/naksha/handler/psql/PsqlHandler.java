@@ -44,11 +44,11 @@ import com.here.naksha.handler.psql.query.SearchForFeatures;
 import com.here.naksha.handler.psql.query.helpers.FetchExistingIds;
 import com.here.naksha.handler.psql.query.helpers.FetchExistingIds.FetchIdsInput;
 import com.here.naksha.lib.core.ExtendedEventHandler;
-import com.here.naksha.lib.core.IEventContext;
+import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.geojson.HQuad;
 import com.here.naksha.lib.core.models.geojson.WebMercatorTile;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
@@ -129,9 +129,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("NotNullFieldNotInitialized")
-public class PsqlHandler extends ExtendedEventHandler<Connector> {
+public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
 
-  public PsqlHandler(@NotNull Connector eventHandler) throws XyzErrorException {
+  public PsqlHandler(@NotNull EventHandler eventHandler) throws XyzErrorException {
     super(eventHandler);
     connectorParams = new PsqlHandlerParams(eventHandler.getProperties());
   }
@@ -148,8 +148,8 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
   private @NotNull String table;
 
   @Override
-  public void initialize(@NotNull IEventContext ctx) {
-    this.event = ctx.getEvent();
+  public void initialize(@NotNull IEvent ctx) {
+    this.event = ctx.getRequest();
     this.retryAttempted = false;
     applicationName = eventHandler.getId() + ":" + event.getStreamId();
     assert event.getSpaceId() != null;
@@ -189,7 +189,7 @@ public class PsqlHandler extends ExtendedEventHandler<Connector> {
   }
 
   public final @NotNull String streamId() {
-    return currentContext().getStreamId();
+    return currentContext().streamId();
   }
 
   public final @NotNull DataSource masterDataSource() {

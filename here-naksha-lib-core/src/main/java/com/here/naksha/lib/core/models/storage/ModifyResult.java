@@ -18,34 +18,22 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.here.naksha.lib.core.NakshaVersion;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
- * The result of a modification.
- *
- * @param <T> the type of the object returned.
+ * The result of a write-operation.
  */
-public class WriteResult<T> extends SuccessResult {
+@AvailableSince(NakshaVersion.v2_0_7)
+public class ModifyResult<T> {
 
-  /**
-   * Create an empty result-set.
-   */
-  public WriteResult() {
-    this(new ArrayList<>());
+  public ModifyResult(@NotNull ModifyOp op, @Nullable T object) {
+    this.op = op;
+    this.object = object;
   }
 
-  /**
-   * Create a result-set from the given modification result list.
-   * @param results the list to use.
-   */
-  public WriteResult(@NotNull List<ModifyResult<T>> results) {
-    this.results = results;
-  }
-
-  /**
-   * The results.
-   */
-  public @NotNull List<ModifyResult<T>> results;
+  public final @NotNull ModifyOp op;
+  public final @Nullable T object;
 }

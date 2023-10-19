@@ -25,8 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.events.info.HealthCheckEvent;
@@ -47,13 +47,13 @@ import org.junit.jupiter.api.Test;
 
 class HttpHandlerTest {
 
-  static Connector eventHandler;
+  static EventHandler eventHandler;
   static IoEventPipeline eventPipeline;
   static HttpHandler httpHandler;
 
   @BeforeAll
   static void setup() throws XyzErrorException, IOException {
-    eventHandler = new Connector("test:http", HttpHandler.class);
+    eventHandler = new EventHandler("test:http", HttpHandler.class);
     String url = "http://localhost:9999/";
     try {
       // Set the env var below if you want to run the test against a specific endpoint

@@ -19,7 +19,7 @@
 package com.here.naksha.lib.core;
 
 import com.here.naksha.lib.core.models.EventFeature;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
@@ -81,7 +81,7 @@ public interface INaksha {
 
   /**
    * Ask the Naksha host to send the given event to the given event-feature. Note that the event-feature is just the configuration a logical
-   * component, the business logic of the event-feature is constructed out of the {@link Connector}'s configured and added into an
+   * component, the business logic of the event-feature is constructed out of the {@link EventHandler}'s configured and added into an
    * event-pipeline.
    *
    * @param event        The event to be sent.

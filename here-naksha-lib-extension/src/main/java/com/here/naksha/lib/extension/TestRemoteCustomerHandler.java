@@ -18,9 +18,9 @@
  */
 package com.here.naksha.lib.extension;
 
-import com.here.naksha.lib.core.IEventContext;
+import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.HealthStatus;
 import org.jetbrains.annotations.NotNull;
@@ -32,10 +32,10 @@ import org.jetbrains.annotations.NotNull;
  */
 public class TestRemoteCustomerHandler implements IEventHandler {
 
-  public TestRemoteCustomerHandler(Connector connector) {}
+  public TestRemoteCustomerHandler(EventHandler eventHandler) {}
 
   @Override
-  public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
+  public @NotNull XyzResponse processEvent(@NotNull IEvent event) {
     return new HealthStatus();
   }
 }

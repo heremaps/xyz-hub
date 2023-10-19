@@ -19,8 +19,8 @@
 package com.here.naksha.app.service.http.auth;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Space;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
@@ -174,22 +174,22 @@ public class XyzHubActionMatrix extends ActionMatrix {
   /**
    * Used when the client tries to read a connector specification.
    *
-   * @param connector the connector being the target of the action.
+   * @param eventHandler the connector being the target of the action.
    */
-  public void readConnector(@NotNull Connector connector) {
-    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(connector));
+  public void readConnector(@NotNull EventHandler eventHandler) {
+    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(eventHandler));
   }
 
   /**
    * Used when the client tries to create a connector.
    *
-   * @param connector the connector being the target of the action.
+   * @param eventHandler the connector being the target of the action.
    */
-  public void createConnector(@NotNull Connector connector) {
-    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(connector));
+  public void createConnector(@NotNull EventHandler eventHandler) {
+    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(eventHandler));
 
     // MANAGE_PACKAGES right is needed to add the connector to a packages.
-    for (final @NotNull String packageId : connector.getPackages()) {
+    for (final @NotNull String packageId : eventHandler.getPackages()) {
       addAction(MANAGE_PACKAGES, XyzHubAttributeMap.ofPackage(packageId));
     }
   }
@@ -200,7 +200,7 @@ public class XyzHubActionMatrix extends ActionMatrix {
    * @param _old the previous connector state.
    * @param _new the connector being the target of the action.
    */
-  public void updateConnector(@NotNull Connector _old, @NotNull Connector _new) {
+  public void updateConnector(@NotNull EventHandler _old, @NotNull EventHandler _new) {
     addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(_old));
     addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(_new));
 
@@ -218,10 +218,10 @@ public class XyzHubActionMatrix extends ActionMatrix {
   /**
    * Used when the client tries to delete a connector.
    *
-   * @param connector the connector being the target of the action.
+   * @param eventHandler the connector being the target of the action.
    */
-  public void deleteConnector(@NotNull Connector connector) {
-    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(connector));
+  public void deleteConnector(@NotNull EventHandler eventHandler) {
+    addAction(MANAGE_CONNECTORS, XyzHubAttributeMap.ofConnector(eventHandler));
   }
 
   // --------------------------------------------------------------------------------------------------------------------------------

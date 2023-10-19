@@ -16,19 +16,18 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.util.modify;
+package com.here.naksha.lib.core.models.storage;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonFormat.Shape;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.naksha.lib.core.models.storage.WriteOp;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * If the feature exists, but the state (represented via {@link XyzNamespace#uuid}) differs from the requested one ({@link WriteOp#uuid}).
+ * If the feature exists, but the state (represented via {@link XyzNamespace#uuid}) differs from the requested one ({@link ModifyQuery#uuid}).
  */
 @AvailableSince(NakshaVersion.v2_0_7)
 @JsonFormat(shape = Shape.STRING)
@@ -43,7 +42,7 @@ public enum IfConflict {
    * The transaction should be aborted.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  ERROR,
+  FAIL,
 
   /**
    * The existing state should be deleted.
@@ -58,13 +57,13 @@ public enum IfConflict {
   PURGE,
 
   /**
-   * The existing state should be replaced with the given one in {@link WriteOp#feature}, overriding foreign changes.
+   * The existing state should be replaced with the given one in {@link ModifyQuery#object}, overriding foreign changes.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   REPLACE,
 
   /**
-   * The given {@link WriteOp#patch} should be applied, overriding foreign changes.
+   * The given {@link ModifyQuery#patch} should be applied, overriding foreign changes.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   PATCH,
@@ -73,27 +72,20 @@ public enum IfConflict {
    * The changes should be merged on-top of the foreign changes. If that fails, the result will be an error and the transaction is aborted.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  MERGE_ERROR,
+  MERGE_OR_FAIL,
 
   /**
    * The changes should be merged on-top of the foreign changes, properties that conflict will be overridden with the value from
-   * {@link WriteOp#feature}.
+   * {@link ModifyQuery#object} (foreign changes loose).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  MERGE_OVERRIDE,
-
-  /**
-   * The changes should be merged on-top of the foreign changes, if a conflict is found, the merge should be aborted and the given
-   * {@link WriteOp#patch} should be applied.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  MERGE_PATCH,
+  MERGE_OR_OVERRIDE,
 
   /**
    * The changes should be merged on-top of the foreign changes, properties that conflict will be retained (the foreign changes win).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  MERGE_RETAIN;
+  MERGE_OR_RETAIN;
 
   @AvailableSince(NakshaVersion.v2_0_7)
   @JsonCreator

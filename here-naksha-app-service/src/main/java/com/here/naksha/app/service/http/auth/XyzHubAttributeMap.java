@@ -19,8 +19,8 @@
 package com.here.naksha.app.service.http.auth;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
-import com.here.naksha.lib.core.models.features.Connector;
-import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
@@ -106,17 +106,17 @@ public class XyzHubAttributeMap extends AttributeMap {
   /**
    * Returns the attribute map of the given connector.
    *
-   * @param connector The connector for which to return the attribute map.
+   * @param eventHandler The connector for which to return the attribute map.
    * @return The attribute map of the given connector.
    */
-  public static @NotNull AttributeMap ofConnector(@NotNull Connector connector) {
+  public static @NotNull AttributeMap ofConnector(@NotNull EventHandler eventHandler) {
     final AttributeMap attributeMap = new AttributeMap();
-    attributeMap.withValue(XyzHubAttributeMap.CONNECTOR, connector.getId());
+    attributeMap.withValue(XyzHubAttributeMap.CONNECTOR, eventHandler.getId());
     attributeMap.withValue(
         XyzHubAttributeMap.AUTHOR,
-        connector.getProperties().getXyzNamespace().getAuthor());
-    if (connector.getPackages() != null) {
-      attributeMap.withValue(XyzHubAttributeMap.PACKAGES, connector.getPackages()); // oneOf
+        eventHandler.getProperties().getXyzNamespace().getAuthor());
+    if (eventHandler.getPackages() != null) {
+      attributeMap.withValue(XyzHubAttributeMap.PACKAGES, eventHandler.getPackages()); // oneOf
     }
     return attributeMap;
   }

@@ -20,46 +20,43 @@ package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
-import com.here.naksha.lib.core.util.modify.IfConflict;
-import com.here.naksha.lib.core.util.modify.IfExists;
-import com.here.naksha.lib.core.util.modify.IfNotExists;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A write operation wrapper.
+ * A modification to be applied to an object, being either a feature or a collection.
  *
- * @param <T> The type of the feature to write.
+ * @param <T> The type of the object to modify.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
-public class WriteOp<T> {
+public class ModifyQuery<T> {
 
   @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteOp(
-      @Nullable T feature,
+  public ModifyQuery(
+      @Nullable T object,
       @Nullable Object patch,
       @Nullable String id,
       @Nullable String uuid,
-      boolean doNotReturnFeature,
+      boolean noResult,
       @NotNull IfExists onExists,
       @NotNull IfConflict onConflict,
       @NotNull IfNotExists onNotExists) {
-    this.feature = feature;
+    this.object = object;
     this.patch = patch;
     this.id = id;
     this.uuid = uuid;
-    this.doNotReturnFeature = doNotReturnFeature;
+    this.noResult = noResult;
     this.onExists = onExists;
     this.onConflict = onConflict;
     this.onNotExists = onNotExists;
   }
 
   /**
-   * The feature to write, if a full feature is available.
+   * The object to modify, if a full state of the object is available.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public final @Nullable T feature;
+  public final @Nullable T object;
 
   /**
    * The patch to apply; if any.
@@ -74,36 +71,36 @@ public class WriteOp<T> {
   public final @Nullable String id;
 
   /**
-   * The unique state identifier to expect when performing the action. If the feature does not exist in exactly this state a conflict is
+   * The unique state identifier to expect when performing the action. If the object does not exist in exactly this state a conflict is
    * raised. If {@code null}, then the operation is not concurrency save.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @Nullable String uuid;
 
   /**
-   * If the write operation should return the new feature state in the result-set. Note that after writing the {@link XyzNamespace} will
-   * have been changed with new {@link XyzNamespace#getUuid() uuid} and others. It is recommended and the default behavior to return the new
-   * state after the operation succeeded.
+   * If the modification should return the new object state in the result-set. Note that after the modification the {@link XyzNamespace}
+   * will have been changed with new {@link XyzNamespace#getUuid() uuid} and other changes. It is recommended, and the default behavior, to
+   * return the new state after the modification succeeded.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public final boolean doNotReturnFeature;
+  public final boolean noResult;
 
   /**
-   * The action to be performed if the features does exist already, with either not state requirement given ({@link WriteOp#uuid} being
+   * The action to be performed if the object does exist already, with either not state requirement given ({@link ModifyQuery#uuid} being
    * {@code null}) or the state matches the required one.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @NotNull IfExists onExists;
 
   /**
-   * The action to be performed if the features does exist already, but the state does not match the given (required) one
-   * ({@link WriteOp#uuid}).
+   * The action to be performed if the object does exist already, but the state does not match the given (required) one
+   * ({@link ModifyQuery#uuid}).
    */
   public final @NotNull IfConflict onConflict;
 
   /**
-   * The action to be performed if the feature does not exist. This action is executed even when a specific state was required
-   * ({@link WriteOp#uuid}).
+   * The action to be performed if the object does not exist. This action is executed even when a specific state was required
+   * ({@link ModifyQuery#uuid}).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @NotNull IfNotExists onNotExists;

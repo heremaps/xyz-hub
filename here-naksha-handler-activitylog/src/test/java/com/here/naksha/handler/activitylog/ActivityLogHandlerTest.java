@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
@@ -50,12 +50,12 @@ class ActivityLogHandlerTest {
   private static final String CONFIG_FILENAME_LOCALHOST = "activity_log_localhost_db_config.json";
   private static final String CONFIG_FILENAME_ACTIVITY_LOG = "activity_log_DB_config.json";
 
-  static Connector eventHandler;
+  static EventHandler eventHandler;
   static IoEventPipeline eventPipeline;
 
   @BeforeAll
   static void setup() {
-    eventHandler = new Connector("test:activity-log", ActivityLogHandler.class);
+    eventHandler = new EventHandler("test:activity-log", ActivityLogHandler.class);
     //noinspection ConstantConditions
     eventPipeline = new IoEventPipeline(null);
     eventPipeline.addEventHandler(eventHandler.newInstance());

@@ -36,15 +36,18 @@ import org.jetbrains.annotations.Nullable;
  * {@link ModifyFeaturesEvent}. Other combinations are possible.
  */
 @SuppressWarnings("unused")
-public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTask<XyzResponse> {
+@Deprecated
+public abstract class AbstractEventTask<EVENT extends Event>
+    extends AbstractTask<XyzResponse, AbstractEventTask<EVENT>> {
 
   /**
    * Creates a new even-task.
    *
    * @param naksha The reference to the Naksha host.
    */
+  @Deprecated
   protected AbstractEventTask(@NotNull INaksha naksha) {
-    super(naksha);
+    super(naksha, new NakshaContext());
     pipeline = new EventPipeline(naksha());
   }
 
@@ -55,23 +58,27 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    * @return The error-response.
    */
   @Override
+  @Deprecated
   protected @NotNull XyzResponse errorResponse(@NotNull Throwable throwable) {
-    return new ErrorResponse(throwable, getStreamId());
+    return new ErrorResponse(throwable, context().streamId());
   }
 
   /**
    * The main event to be processed by the task.
    */
+  @Deprecated
   private EVENT event;
 
   /**
    * The response types.
    */
+  @Deprecated
   private @NotNull List<@NotNull XyzResponseType> responseTypes = new ArrayList<>();
 
   /**
    * The event pipeline of this task.
    */
+  @Deprecated
   private final @NotNull EventPipeline pipeline;
 
   /**
@@ -79,6 +86,7 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    *
    * @return The event-pipeline.
    */
+  @Deprecated
   public @NotNull EventPipeline pipeline() {
     return pipeline;
   }
@@ -91,6 +99,7 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    * @return the main event of this task.
    * @throws IllegalStateException If the event is {@code null}.
    */
+  @Deprecated
   public final @NotNull EVENT getEvent() {
     if (event == null) {
       throw new IllegalStateException();
@@ -105,10 +114,11 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    * @return the previously set event.
    * @throws IllegalStateException If the task has been started already.
    */
+  @Deprecated
   public final @Nullable EVENT setEvent(@NotNull EVENT event) {
     final EVENT old = this.event;
     final Thread thread = Thread.currentThread();
-    if (this.thread == thread) {
+    if (getThread() == thread) {
       this.event = event;
       return old;
     }
@@ -123,6 +133,7 @@ public abstract class AbstractEventTask<EVENT extends Event> extends AbstractTas
    *
    * @return The preferred response types.
    */
+  @Deprecated
   public @NotNull List<? extends XyzResponseType> responseTypes() {
     return responseTypes;
   }

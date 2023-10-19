@@ -19,12 +19,14 @@
 package com.here.naksha.lib.core.util.modify;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.models.storage.IfExists.REPLACE;
 import static com.here.naksha.lib.core.util.diff.Patcher.calculateDifferenceOfPartialUpdate;
-import static com.here.naksha.lib.core.util.modify.IfExists.REPLACE;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
+import com.here.naksha.lib.core.models.storage.IfExists;
+import com.here.naksha.lib.core.models.storage.IfNotExists;
 import com.here.naksha.lib.core.util.diff.ConflictResolution;
 import com.here.naksha.lib.core.util.diff.Difference;
 import com.here.naksha.lib.core.util.diff.MergeConflictException;
@@ -200,7 +202,7 @@ public class FeatureModificationEntry<FEATURE extends XyzFeature> {
           result = input;
           return action = XyzAction.CREATE;
         }
-        case ERROR -> {
+        case FAIL -> {
           result = null;
           action = null;
           throw new ModificationException("The feature {" + input.getId() + "} does not exist.");
@@ -228,7 +230,7 @@ public class FeatureModificationEntry<FEATURE extends XyzFeature> {
           result = merge();
           return action = result == null ? null : XyzAction.UPDATE;
         }
-        case ERROR -> {
+        case FAIL -> {
           result = null;
           action = null;
           throw new ModificationException("The feature {" + input.getId() + "} exists.");

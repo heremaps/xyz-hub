@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.handler.psql.PsqlHandlerParams;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.features.Space;
+import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.payload.events.feature.ModifyFeaturesEvent;
 import com.here.naksha.lib.core.models.payload.events.info.GetStatisticsEvent;
 import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;

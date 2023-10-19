@@ -47,10 +47,11 @@ import org.jetbrains.annotations.NotNull;
 /**
  * An extended version of the standard {@link IEventHandler} interface that simplifies the
  * implementation of processors. This comes with a default implementation of the {@link
- * #processEvent(IEventContext)} method and distributes to dedicated handlers, and it has has a
+ * #processEvent(IEvent)} method and distributes to dedicated handlers, and it has has a
  * basic exception handling.
  */
-public interface IExtendedEventHandler extends IEventHandler {
+@Deprecated
+public interface IExtendedEventHandler {
 
   /**
    * The method invoked by the XYZ-Hub directly (embedded) or indirectly, when running in an HTTP vertx or as AWS lambda.
@@ -58,8 +59,9 @@ public interface IExtendedEventHandler extends IEventHandler {
    * @param eventContext the event context to process.
    * @return the response to send.
    */
-  default @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
-    final Event event = eventContext.getEvent();
+  @Deprecated
+  default @NotNull XyzResponse processEvent(@NotNull IEvent eventContext) {
+    final Event event = null;
     try {
       if (event instanceof ModifySpaceEvent) {
         initialize(eventContext);
@@ -144,11 +146,12 @@ public interface IExtendedEventHandler extends IEventHandler {
   }
 
   /**
-   * Called from {@link #processEvent(IEventContext)} before the real process method.
+   * Called from {@link #processEvent(IEvent)} before the real process method.
    *
    * @param ctx the context.
    */
-  void initialize(@NotNull IEventContext ctx);
+  @Deprecated
+  void initialize(@NotNull IEvent ctx);
 
   /**
    * Processes a HealthCheckEvent event.
@@ -158,64 +161,80 @@ public interface IExtendedEventHandler extends IEventHandler {
    * partitions of tables with history exist.
    */
   @NotNull
+  @Deprecated
   XyzResponse processHealthCheckEvent(@NotNull HealthCheckEvent event);
 
   /** Processes a GetStatistics event. */
   @NotNull
+  @Deprecated
   XyzResponse processGetStatistics(@NotNull GetStatisticsEvent event) throws Exception;
 
   /** Processes a GetStatistics event. */
   @NotNull
+  @Deprecated
   XyzResponse processGetHistoryStatisticsEvent(@NotNull GetHistoryStatisticsEvent event) throws Exception;
 
   /** Processes a GetFeaturesById event. */
   @NotNull
+  @Deprecated
   XyzResponse processGetFeaturesByIdEvent(@NotNull GetFeaturesByIdEvent event) throws Exception;
 
   /** Processes a GetFeaturesByGeometryEvent event. */
   @NotNull
+  @Deprecated
   XyzResponse processGetFeaturesByGeometryEvent(@NotNull GetFeaturesByGeometryEvent event) throws Exception;
 
   /** Processes a GetFeaturesByBBox event. */
   @NotNull
+  @Deprecated
   XyzResponse processGetFeaturesByBBoxEvent(@Nonnull GetFeaturesByBBoxEvent event) throws Exception;
 
   /** Processes a GetFeaturesByTile event. */
   @NotNull
+  @Deprecated
   XyzResponse processGetFeaturesByTileEvent(@NotNull GetFeaturesByTileEvent event) throws Exception;
 
   /** Processes a IterateFeatures event. */
   @NotNull
+  @Deprecated
   XyzResponse processIterateFeaturesEvent(@NotNull IterateFeaturesEvent event) throws Exception;
 
   /** Processes a SearchForFeatures event. */
   @NotNull
+  @Deprecated
   XyzResponse processSearchForFeaturesEvent(@NotNull SearchForFeaturesEvent event) throws Exception;
 
   /** Processes a DeleteFeaturesEvent event. */
   @NotNull
+  @Deprecated
   XyzResponse processDeleteFeaturesByTagEvent(@NotNull DeleteFeaturesByTagEvent event) throws Exception;
 
   /** Processes a LoadFeaturesEvent event. */
   @NotNull
+  @Deprecated
   XyzResponse processLoadFeaturesEvent(@NotNull LoadFeaturesEvent event) throws Exception;
 
   /** Processes a ModifyFeaturesEvent event. */
   @NotNull
+  @Deprecated
   XyzResponse processModifyFeaturesEvent(@NotNull ModifyFeaturesEvent event) throws Exception;
 
   /** Processes a DeleteSpaceEvent event. */
   @NotNull
+  @Deprecated
   XyzResponse processModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception;
 
   /** Processes a ModifySubscriptionEvent event. */
   @NotNull
+  @Deprecated
   XyzResponse processModifySubscriptionEvent(@NotNull ModifySubscriptionEvent event) throws Exception;
 
   /** Processes a IterateFeatures event. */
   @NotNull
+  @Deprecated
   XyzResponse processIterateHistoryEvent(@NotNull IterateHistoryEvent event) throws Exception;
 
   @NotNull
+  @Deprecated
   XyzResponse processGetStorageStatisticsEvent(@NotNull GetStorageStatisticsEvent event) throws Exception;
 }

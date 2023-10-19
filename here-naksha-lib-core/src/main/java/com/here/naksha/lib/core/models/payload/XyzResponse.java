@@ -75,7 +75,7 @@ public abstract class XyzResponse extends Payload {
    * Empty response creator.
    */
   protected XyzResponse() {
-    this.streamId = currentContext().getStreamId();
+    this.streamId = currentContext().streamId();
   }
 
   /**
@@ -85,7 +85,7 @@ public abstract class XyzResponse extends Payload {
    */
   @JsonCreator
   protected XyzResponse(@JsonProperty(STREAM_ID) @Nullable String streamId) {
-    this.streamId = streamId != null ? streamId : currentContext().getStreamId();
+    this.streamId = streamId != null ? streamId : currentContext().streamId();
   }
 
   public static final String STREAM_ID = "streamId";

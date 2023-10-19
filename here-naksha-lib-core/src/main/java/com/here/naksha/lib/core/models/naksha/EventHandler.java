@@ -16,25 +16,23 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.models.features;
+package com.here.naksha.lib.core.models.naksha;
 
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.naksha.lib.core.IEventHandler;
+import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.IPlugin;
 import com.here.naksha.lib.core.models.PluginCache;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.storage.IStorage;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A configured event handler. The code selected via {@link #className} will use the given properties as configuration parameters.
+ * A configured event handler.
  */
 @AvailableSince(NakshaVersion.v2_0_3)
 @JsonTypeName(value = "Connector")
-public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
+public class EventHandler extends Plugin<IEventHandler, EventHandler> {
 
   @AvailableSince(NakshaVersion.v2_0_3)
   public static final String CLASS_NAME = "className";
@@ -58,11 +56,10 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
    * @param cla$$ the class, that implements this event handler.
    */
   @AvailableSince(NakshaVersion.v2_0_3)
-  public Connector(
-      @JsonProperty(ID) @NotNull String id,
-      @JsonProperty(CLASS_NAME) @NotNull Class<? extends IEventHandler> cla$$) {
-    super(id);
-    this.className = cla$$.getName();
+  public EventHandler(
+      @JsonProperty(CLASS_NAME) @NotNull Class<? extends IEventHandler> cla$$,
+      @JsonProperty(ID) @NotNull String id) {
+    super(cla$$.getName(), id);
   }
 
   /**
@@ -73,18 +70,9 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
    */
   @AvailableSince(NakshaVersion.v2_0_3)
   @JsonCreator
-  public Connector(@JsonProperty(ID) @NotNull String id, @JsonProperty(CLASS_NAME) @NotNull String className) {
-    super(id);
-    this.className = className;
+  public EventHandler(@JsonProperty(CLASS_NAME) @NotNull String className, @JsonProperty(ID) @NotNull String id) {
+    super(className, id);
   }
-
-  /**
-   * The classname to load, the class must implement the {@link IEventHandler} interface, and the constructor must accept exactly one
-   * parameter of the type {@link Connector}. It may throw any exception.
-   */
-  @AvailableSince(NakshaVersion.v2_0_3)
-  @JsonProperty(CLASS_NAME)
-  private @NotNull String className;
 
   /**
    * If this connector is an extension, then this holds the extension identification number; a 16-bit unsigned integer.
@@ -104,42 +92,16 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
   private boolean active = true;
 
   /**
-   * The connectivity details required by this connector to perform feature operations.
-   * If connector is attached to a Storage (using storageId), then this is storage credentials.
+   * The connectivity details required by this connector to perform feature operations. If connector is attached to a Storage (using
+   * storageId), then this is storage credentials.
    */
   @AvailableSince(NakshaVersion.v2_0_6)
   @JsonProperty(URL)
   private String url;
 
-  /**
-   * (Optional) storageId indicates its attachment with storage for performing feature operations.
-   */
-  @AvailableSince(NakshaVersion.v2_0_6)
-  @JsonProperty(STORAGE_ID)
-  private String storageId;
-
-  /**
-   * (Optional) Storage object if this connector is associated with storageId
-   */
-  @AvailableSince(NakshaVersion.v2_0_6)
-  @JsonIgnore
-  private Storage storage;
-
   @Override
-  public @NotNull IEventHandler newInstance() {
-    return PluginCache.newInstance(className, IEventHandler.class, this);
-  }
-
-  public @NotNull IStorage newStorageImpl(@NotNull Storage storage) {
-    return PluginCache.newInstance(storage.getClassName(), IStorage.class, this);
-  }
-
-  public @NotNull String getClassName() {
-    return className;
-  }
-
-  public void setClassName(@NotNull String className) {
-    this.className = className;
+  public @NotNull IEventHandler newInstance(@NotNull INaksha naksha) {
+    return PluginCache.newInstance(getClassName(), IEventHandler.class, this);
   }
 
   public boolean isActive() {
@@ -164,21 +126,5 @@ public class Connector extends XyzFeature implements IPlugin<IEventHandler> {
 
   public void setUrl(@NotNull String url) {
     this.url = url;
-  }
-
-  public String getStorageId() {
-    return storageId;
-  }
-
-  public void setStorageId(@NotNull String storageId) {
-    this.storageId = storageId;
-  }
-
-  public Storage getStorage() {
-    return storage;
-  }
-
-  public void setStorage(Storage storage) {
-    this.storage = storage;
   }
 }

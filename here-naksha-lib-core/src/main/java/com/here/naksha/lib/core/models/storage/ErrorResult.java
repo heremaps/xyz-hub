@@ -28,7 +28,7 @@ import org.jetbrains.annotations.Nullable;
  * When a request failed, this returns the error details.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
-public class ErrorResult {
+public class ErrorResult extends Result {
 
   @AvailableSince(NakshaVersion.v2_0_7)
   public ErrorResult(@NotNull XyzError reason, @NotNull String message) {

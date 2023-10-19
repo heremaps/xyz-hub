@@ -20,7 +20,7 @@ package com.here.naksha.lib.core;
 
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.features.Connector;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.admin.ModifySubscriptionEvent;
@@ -47,27 +47,36 @@ import org.jetbrains.annotations.NotNull;
  * Default implementation of an extended event handler that allows to only implement handling for
  * supported events, and optionally of some post-processing.
  */
-public class ExtendedEventHandler<HANDLER extends Connector> implements IExtendedEventHandler {
+@Deprecated
+public class ExtendedEventHandler<HANDLER extends EventHandler> implements IExtendedEventHandler {
 
+  @Deprecated
   public ExtendedEventHandler(@NotNull HANDLER eventHandler) throws XyzErrorException {
     this.eventHandler = eventHandler;
   }
 
   // TODO HP_QUERY : Purpose of overriding this function?
+  @Deprecated
   @Override
-  public @NotNull XyzResponse processEvent(@NotNull IEventContext eventContext) {
-    return postProcess(IExtendedEventHandler.super.processEvent(eventContext));
+  public @NotNull XyzResponse processEvent(@NotNull IEvent event) {
+    return postProcess(IExtendedEventHandler.super.processEvent(event));
   }
 
+  @Deprecated
   @Override
-  public void initialize(@NotNull IEventContext ctx) {
+  public void initialize(@NotNull IEvent ctx) {
     this.ctx = ctx;
-    this.event = ctx.getEvent();
+    this.event = null;
   }
 
+  @Deprecated
   protected final @NotNull HANDLER eventHandler;
+
+  @Deprecated
   protected Event event;
-  protected IEventContext ctx;
+
+  @Deprecated
+  protected IEvent ctx;
 
   /**
    * Creates an error response to return.
@@ -76,6 +85,7 @@ public class ExtendedEventHandler<HANDLER extends Connector> implements IExtende
    * @param message the error message.
    * @return the generated error response.
    */
+  @Deprecated
   protected @NotNull XyzResponse errorResponse(@NotNull XyzError error, @NotNull CharSequence message) {
     return new ErrorResponse()
         .withStreamId(event.getStreamId())
@@ -89,6 +99,7 @@ public class ExtendedEventHandler<HANDLER extends Connector> implements IExtende
    * @param response the response.
    * @return the post-processed response.
    */
+  @Deprecated
   protected @NotNull XyzResponse postProcess(@NotNull XyzResponse response) {
     return response;
   }
@@ -99,57 +110,68 @@ public class ExtendedEventHandler<HANDLER extends Connector> implements IExtende
    * @param event the event to send upstream.
    * @return the response returned by the storage and before post-processing.
    */
+  @Deprecated
   protected @NotNull XyzResponse sendUpstream(@NotNull Event event) {
-    return ctx.sendUpstream(event);
+    return null;
   }
 
+  @Deprecated
   @Override
   public @NotNull XyzResponse processHealthCheckEvent(@NotNull HealthCheckEvent event) {
     return sendUpstream(event);
   }
 
+  @Deprecated
   @Override
   public @NotNull XyzResponse processGetStatistics(@NotNull GetStatisticsEvent event) throws Exception {
     return sendUpstream(event);
   }
 
   @Override
+  @Deprecated
   public @NotNull XyzResponse processGetHistoryStatisticsEvent(@NotNull GetHistoryStatisticsEvent event)
       throws Exception {
     return sendUpstream(event);
   }
 
+  @Deprecated
   @Override
   public @NotNull XyzResponse processGetFeaturesByIdEvent(@NotNull GetFeaturesByIdEvent event) throws Exception {
     return sendUpstream(event);
   }
 
+  @Deprecated
   @Override
   public @NotNull XyzResponse processGetFeaturesByGeometryEvent(@NotNull GetFeaturesByGeometryEvent event)
       throws Exception {
     return sendUpstream(event);
   }
 
+  @Deprecated
   @Override
   public @NotNull XyzResponse processGetFeaturesByBBoxEvent(@Nonnull GetFeaturesByBBoxEvent event) throws Exception {
     return sendUpstream(event);
   }
 
+  @Deprecated
   @Override
   public @NotNull XyzResponse processGetFeaturesByTileEvent(@NotNull GetFeaturesByTileEvent event) throws Exception {
     return sendUpstream(event);
   }
 
+  @Deprecated
   @Override
   public @NotNull XyzResponse processIterateFeaturesEvent(@NotNull IterateFeaturesEvent event) throws Exception {
     return sendUpstream(event);
   }
 
+  @Deprecated
   @Override
   public @NotNull XyzResponse processSearchForFeaturesEvent(@NotNull SearchForFeaturesEvent event) throws Exception {
     return sendUpstream(event);
   }
 
+  @Deprecated
   @Override
   public @NotNull XyzResponse processDeleteFeaturesByTagEvent(@NotNull DeleteFeaturesByTagEvent event)
       throws Exception {
@@ -157,32 +179,38 @@ public class ExtendedEventHandler<HANDLER extends Connector> implements IExtende
   }
 
   @Override
+  @Deprecated
   public @NotNull XyzResponse processLoadFeaturesEvent(@NotNull LoadFeaturesEvent event) throws Exception {
     return sendUpstream(event);
   }
 
   @Override
+  @Deprecated
   public @NotNull XyzResponse processModifyFeaturesEvent(@NotNull ModifyFeaturesEvent event) throws Exception {
     return sendUpstream(event);
   }
 
   @Override
+  @Deprecated
   public @NotNull XyzResponse processModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception {
     return sendUpstream(event);
   }
 
   @Override
+  @Deprecated
   public @NotNull XyzResponse processModifySubscriptionEvent(@NotNull ModifySubscriptionEvent event)
       throws Exception {
     return sendUpstream(event);
   }
 
   @Override
+  @Deprecated
   public @NotNull XyzResponse processIterateHistoryEvent(@NotNull IterateHistoryEvent event) throws Exception {
     return sendUpstream(event);
   }
 
   @Override
+  @Deprecated
   public @NotNull XyzResponse processGetStorageStatisticsEvent(@NotNull GetStorageStatisticsEvent event)
       throws Exception {
     return sendUpstream(event);

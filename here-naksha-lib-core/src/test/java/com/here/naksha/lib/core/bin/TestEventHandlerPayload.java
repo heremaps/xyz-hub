@@ -26,7 +26,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
-public class TestConnectorPayload {
+public class TestEventHandlerPayload {
 
   private static final byte[] SAMPLE_BYTES = {
     16, 0, 0, 0, 0, 0, 10, 0, 16, 0, 4, 0, 8, 0, 12, 0, 10, 0, 0, 0, 52, 0, 0, 0, 32, 0, 0, 0, 4, 0, 0, 0, 18, 0, 0,

@@ -18,7 +18,9 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import com.here.naksha.lib.core.models.Typed;
+
 /**
  * All results must extend this abstract base class.
  */
-public abstract class Result {}
+public abstract class Result implements Typed {}

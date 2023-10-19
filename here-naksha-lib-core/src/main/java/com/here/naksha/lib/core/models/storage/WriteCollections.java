@@ -43,10 +43,10 @@ public class WriteCollections<T> extends WriteRequest<T, WriteCollections<T>> {
   /**
    * Creates a new write collections request.
    *
-   * @param writeOps the operations to execute.
+   * @param modifies the operations to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteCollections(@NotNull List<@NotNull WriteOp<T>> writeOps) {
-    super(writeOps);
+  public WriteCollections(@NotNull List<@NotNull ModifyQuery<T>> modifies) {
+    super(modifies);
   }
 }

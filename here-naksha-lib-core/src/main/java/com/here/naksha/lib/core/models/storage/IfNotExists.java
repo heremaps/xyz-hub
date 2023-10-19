@@ -16,26 +16,21 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.util.modify;
+package com.here.naksha.lib.core.models.storage;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonFormat.Shape;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.storage.WriteOp;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * If the feature that should be modified does exist (optionally in the requested state, so having the provided {@link WriteOp#uuid}). If
- * the feature exists, but not in the requested state ({@link WriteOp#uuid} given, but does not match), then an {@link IfConflict} action is
- * execute instead of the {@link IfExists}.
- */
-@AvailableSince(NakshaVersion.v2_0_7)
+/** The action to perform if a feature does not exist. */
 @JsonFormat(shape = Shape.STRING)
-public enum IfExists {
+@AvailableSince(NakshaVersion.v2_0_7)
+public enum IfNotExists {
   /**
-   * The existing state should be retained.
+   * The existing state should be retained, so the feature continues to not exist.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   RETAIN,
@@ -44,39 +39,25 @@ public enum IfExists {
    * The transaction should be aborted.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  ERROR,
+  FAIL,
 
   /**
-   * The existing state should be deleted.
+   * The {@link ModifyQuery#object} should be created.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  DELETE,
+  CREATE,
 
   /**
-   * The feature should be deleted and purged (finally removed, so that there is no further trace in the HEAD).
+   * The feature should be purged (finally removed, so that there is no further trace in the HEAD).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  PURGE,
+  PURGE;
 
-  /**
-   * The existing state should be replaced with the given one in {@link WriteOp#feature}.
-   */
   @AvailableSince(NakshaVersion.v2_0_7)
-  REPLACE,
-
-  /**
-   * The given {@link WriteOp#patch} should be applied.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  PATCH,
-
-  @Deprecated
-  MERGE;
-
   @JsonCreator
-  public static @Nullable IfExists of(@Nullable String value) {
+  public static @Nullable IfNotExists of(@Nullable String value) {
     if (value != null) {
-      for (final IfExists e : IfExists.values()) {
+      for (final IfNotExists e : IfNotExists.values()) {
         if (e.name().equalsIgnoreCase(value)) {
           return e;
         }
