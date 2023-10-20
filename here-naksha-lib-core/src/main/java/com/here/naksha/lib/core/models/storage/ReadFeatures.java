@@ -101,5 +101,4 @@ public class ReadFeatures extends ReadRequest<ReadFeatures> {
 
   @AvailableSince(NakshaVersion.v2_0_7)
   private @Nullable Object orderOp;
-
 }

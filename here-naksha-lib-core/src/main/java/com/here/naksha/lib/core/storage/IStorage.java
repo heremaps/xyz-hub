@@ -34,6 +34,26 @@ import org.jetbrains.annotations.Nullable;
 public interface IStorage {
 
   /**
+   * Initializes the storage, create the transaction table, install needed scripts and extensions.
+   */
+  void initStorage();
+
+  /**
+   * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.
+   */
+  void startMaintainer();
+
+  /**
+   * Blocking call to perform maintenance tasks right now. One-time maintenance.
+   */
+  void maintainNow();
+
+  /**
+   * Stops the maintainer thread.
+   */
+  void stopMaintainer();
+
+  /**
    * Open a new write-session, optionally to a master-node (when being in a multi-writer cluster).
    *
    * @param context   the {@link NakshaContext} to which to link the session.

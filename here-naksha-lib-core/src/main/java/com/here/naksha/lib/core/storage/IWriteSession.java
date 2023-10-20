@@ -33,26 +33,6 @@ import org.jetbrains.annotations.NotNull;
 public interface IWriteSession extends IReadSession {
 
   /**
-   * Initializes the storage, create the transaction table, install needed scripts and extensions.
-   */
-  void initStorage();
-
-  /**
-   * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.
-   */
-  void startMaintainer();
-
-  /**
-   * Blocking call to perform maintenance tasks right now. One-time maintenance.
-   */
-  void maintainNow();
-
-  /**
-   * Stops the maintainer thread.
-   */
-  void stopMaintainer();
-
-  /**
    * Execute the given write-request.
    *
    * @param writeRequest the write-request to execute.
