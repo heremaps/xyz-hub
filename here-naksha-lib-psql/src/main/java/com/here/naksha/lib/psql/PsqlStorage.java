@@ -19,6 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.util.IoHelp.readResource;
 import static com.here.naksha.lib.psql.SQL.escapeId;
 
 import com.here.naksha.lib.core.NakshaVersion;
@@ -29,7 +30,6 @@ import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.ITransactionSettings;
-import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.IOException;
 import java.sql.Connection;
@@ -43,8 +43,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The Naksha PostgresQL storage client. This client does implement low level access to manage
- * collections and the features within these collections. It as well grants access to transactions.
+ * The Naksha PostgresQL storage client. This client does implement low level access to manage collections and the features within these
+ * collections. It as well grants access to transactions.
  */
 @SuppressWarnings({"unused", "SqlResolve"})
 public class PsqlStorage implements IStorage {
@@ -56,7 +56,7 @@ public class PsqlStorage implements IStorage {
    *
    * @param storage the storage configuration to use for this client.
    * @throws SQLException if any error occurred while accessing the database.
-   * @throws IOException if reading the SQL extensions from the resources fail.
+   * @throws IOException  if reading the SQL extensions from the resources fail.
    */
   public PsqlStorage(@NotNull Storage storage) throws SQLException, IOException {
     final PsqlStorageProperties properties =
@@ -69,12 +69,11 @@ public class PsqlStorage implements IStorage {
   /**
    * Constructor to manually create a new PostgresQL storage client.
    *
-   * @param config The PSQL configuration to use for this client.
-   * @param storageNumber The unique 40-bit unsigned integer storage number to use. Except for the
-   *     main database (which always has the number 0), normally this number is given by the
-   *     Naksha-Hub, when creating a storage.
+   * @param config        The PSQL configuration to use for this client.
+   * @param storageNumber The unique 40-bit unsigned integer storage number to use. Except for the main database (which always has the
+   *                      number 0), normally this number is given by the Naksha-Hub, when creating a storage.
    * @throws SQLException If any error occurred while accessing the database.
-   * @throws IOException If reading the SQL extensions from the resources fail.
+   * @throws IOException  If reading the SQL extensions from the resources fail.
    */
   public PsqlStorage(@NotNull PsqlConfig config, long storageNumber) {
     this.dataSource = new PsqlDataSource(config);
@@ -82,8 +81,8 @@ public class PsqlStorage implements IStorage {
   }
 
   /**
-   * Constructor to manually create a new PostgresQL storage client. This is useful when class is
-   * instantiated using connector configuration passed as argument.
+   * Constructor to manually create a new PostgresQL storage client. This is useful when class is instantiated using connector configuration
+   * passed as argument.
    *
    * @param eventHandler The connector associated with this storage
    */
@@ -106,7 +105,9 @@ public class PsqlStorage implements IStorage {
     return dataSource.pool;
   }
 
-  /** The data source. */
+  /**
+   * The data source.
+   */
   protected final @NotNull PsqlDataSource dataSource;
 
   /**
@@ -128,8 +129,8 @@ public class PsqlStorage implements IStorage {
   }
 
   /**
-   * The connector identification number to use. Except for the main database (which always has the
-   * number 0), normally this number is given by the Naksha-Hub, when creating a connector.
+   * The connector identification number to use. Except for the main database (which always has the number 0), normally this number is given
+   * by the Naksha-Hub, when creating a connector.
    */
   protected final long storageNumber;
 
@@ -166,11 +167,10 @@ public class PsqlStorage implements IStorage {
   public void stopMaintainer() {}
 
   /**
-   * Ensure that the administration tables exists, and the Naksha extension script installed in the
-   * latest version.
+   * Ensure that the administration tables exists, and the Naksha extension script installed in the latest version.
    *
    * @throws SQLException If any error occurred while accessing the database.
-   * @throws IOException If reading the SQL extensions from the resources fail.
+   * @throws IOException  If reading the SQL extensions from the resources fail.
    */
   @Override
   public void init() {
@@ -213,12 +213,12 @@ public class PsqlStorage implements IStorage {
                 .addArgument(latest)
                 .log();
           }
-          SQL = IoHelp.readResource("naksha_plpgsql.sql")
-              .replaceAll("\\$\\{NAKSHA_PLV8_CODE}", IoHelp.readResource("naksha_plv8.js"))
-              .replaceAll("\\$\\{naksha_plv8_alweber}", IoHelp.readResource("naksha_plv8_alweber.js"))
-              .replaceAll("\\$\\{naksha_plv8_pawel}", IoHelp.readResource("naksha_plv8_pawel.js"))
-              .replaceAll("\\$\\{schema}", getSchema())
-              .replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()));
+          SQL = readResource("naksha_plpgsql.sql");
+          SQL = SQL.replace("${NAKSHA_PLV8_CODE}", readResource("naksha_plv8.js"));
+          SQL = SQL.replace("${naksha_plv8_alweber}", readResource("naksha_plv8_alweber.js"));
+          SQL = SQL.replace("${naksha_plv8_pawel}", readResource("naksha_plv8_pawel.js"));
+          SQL = SQL.replaceAll("\\$\\{schema}", getSchema());
+          SQL = SQL.replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()));
           stmt.execute(SQL);
           conn.commit();
 
@@ -242,9 +242,8 @@ public class PsqlStorage implements IStorage {
   public static int maxHistoryAgeInDays = 30; // TODO this or Space.maxHistoryAge
 
   /**
-   * Review all collections and ensure that the history does have the needed partitions created. The
-   * method will as well garbage collect the history; if the history of a collection holds data that
-   * is too old (exceeds the maximum age), it deletes it.
+   * Review all collections and ensure that the history does have the needed partitions created. The method will as well garbage collect the
+   * history; if the history of a collection holds data that is too old (exceeds the maximum age), it deletes it.
    *
    * @throws SQLException If any error occurred.
    */
