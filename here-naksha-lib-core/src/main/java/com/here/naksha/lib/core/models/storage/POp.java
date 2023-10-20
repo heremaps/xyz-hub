@@ -79,15 +79,15 @@ public class POp extends Op<POp> {
     return new POp(OP_STARTS_WITH, propertyRef, prefix);
   }
 
-  public static @NotNull POp equals(@NotNull PRef propertyRef, @NotNull String value) {
+  public static @NotNull POp eq(@NotNull PRef propertyRef, @NotNull String value) {
     return new POp(OP_EQUALS, propertyRef, value);
   }
 
-  public static @NotNull POp equals(@NotNull PRef propertyRef, @NotNull Number value) {
+  public static @NotNull POp eq(@NotNull PRef propertyRef, @NotNull Number value) {
     return new POp(OP_EQUALS, propertyRef, value);
   }
 
-  public static @NotNull POp equals(@NotNull PRef propertyRef, @NotNull Boolean value) {
+  public static @NotNull POp eq(@NotNull PRef propertyRef, @NotNull Boolean value) {
     return new POp(OP_EQUALS, propertyRef, value);
   }
 
