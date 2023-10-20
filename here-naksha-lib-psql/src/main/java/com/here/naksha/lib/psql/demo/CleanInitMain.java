@@ -30,12 +30,16 @@ import org.postgresql.util.PSQLException;
 public class CleanInitMain {
 
   /**
-   * To run add argument with url to your DB i.e.
-   *  "jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=plv_test"
-   *
-   * @param args
+   * To run add argument with url to your DB i.e. "jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=plv_test"
    */
   public static void main(String[] args) {
+    if (args.length == 0) {
+      System.err.println("Missing argument, please call with JDBC connect string, example: ");
+      System.err.println(
+          "    jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=plv_test");
+      System.exit(1);
+      return;
+    }
     final PsqlConfig config = new PsqlConfigBuilder()
         .withAppName("Naksha-Psql-Init")
         .parseUrl(args[0])

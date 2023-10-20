@@ -39,14 +39,6 @@
 CREATE SCHEMA IF NOT EXISTS "${schema}";
 SET SESSION search_path TO "${schema}", public, topology;
 
-CREATE OR REPLACE FUNCTION test_init() RETURNS jsonb AS $$
-  ${NAKSHA_PLV8_CODE}
-$$ LANGUAGE plv8 VOLATILE STRICT;
-
-CREATE OR REPLACE FUNCTION test_log(t text) RETURNS void AS $$
-  plv8.naksha.log(t);
-$$ LANGUAGE plv8 VOLATILE STRICT;
-
 -- Returns the packed Naksha extension version: 16 bit reserved, 16 bit major, 16 bit minor, 16 bit revision.
 CREATE OR REPLACE FUNCTION naksha_version() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
@@ -55,9 +47,9 @@ BEGIN
 END $BODY$;
 
 -- Returns the storage-id of this storage, this is created when the Naksha extension is installed and never changes.
-CREATE OR REPLACE FUNCTION naksha_storage_id() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+CREATE OR REPLACE FUNCTION naksha_storage_id() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
-    return ${storage_id};
+    return '${storage_id}';
 END $BODY$;
 
 -- Returns the storage-id of this storage, this is created when the Naksha extension is installed and never changes.
@@ -65,6 +57,65 @@ CREATE OR REPLACE FUNCTION naksha_schema() RETURNS text LANGUAGE 'plpgsql' IMMUT
 BEGIN
     return '${schema}';
 END $BODY$;
+
+-- init()
+-- Storage is totally empty (install script and call some function to create transaction table and more)
+-- Storage is outdated (install script and call the init function as well)
+--   install the script
+--   call naksha_init_plv8(); <-- install ${NAKSHA_PLV8_CODE}
+--   call naksha_init_storage(); <-- use plv8
+-- Storage is okay
+--
+-- startSession()
+-- We assume, storage is okay
+--   call naksha_init_plv8(); <-- install ${NAKSHA_PLV8_CODE} (plv8.naksha)
+--   client (sql) calls naksha_start_session(app_id, author) <-- use plv8
+--
+
+-- Every SQL client connecting to the storage, must call this function first.
+CREATE OR REPLACE FUNCTION naksha_init_plv8() RETURNS jsonb AS $$
+    ${NAKSHA_PLV8_CODE}
+$$ LANGUAGE plv8 VOLATILE STRICT;
+
+-- Called by PSQLStorage to initialize a storage for Naksha, creates the transaction table and other needed stuff.
+CREATE OR REPLACE FUNCTION naksha_init() RETURNS jsonb AS $$
+    plv8.naksha.init();
+$$ LANGUAGE plv8 VOLATILE STRICT;
+
+-- All clients must invoke this method after connecting to initialize the session and get the audit-log up and running.
+CREATE OR REPLACE FUNCTION naksha_start_session(app_id text, author text) RETURNS jsonb AS $$
+    plv8.naksha.startSession(app_id, author);
+$$ LANGUAGE plv8 VOLATILE STRICT;
+
+-- Start the transaction by setting the application-identifier, the current author (which may be null)
+-- and the returns the transaction number.
+-- See: https://www.postgresql.org/docs/current/runtime-config-query.html
+CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool)
+    RETURNS uuid
+    LANGUAGE 'plpgsql' VOLATILE
+AS $$
+BEGIN
+    EXECUTE format('SELECT '
+                       || 'SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', true)'
+                       || ',SET_CONFIG(''cursor_tuple_fraction'', ''1.0'', true)'
+                       || ',SET_CONFIG(''geqo'', ''false'', true)'
+                       || ',SET_CONFIG(''work_mem'', ''128 MB'', true)'
+                       || ',SET_CONFIG(''maintenance_work_mem'', ''1024 MB'', true)'
+                       || ',SET_CONFIG(''enable_seqscan'', ''OFF'', true)'
+                       || ',SET_CONFIG(''enable_bitmapscan'', ''OFF'', true)'
+                       || ',SET_CONFIG(''enable_sort'', ''OFF'', true)'
+                       || ',SET_CONFIG(''enable_partitionwise_join'', ''ON'', true)'
+                       || ',SET_CONFIG(''enable_partitionwise_aggregate'', ''ON'', true)'
+                       || ',SET_CONFIG(''jit'', ''OFF'', true)'
+                       || ',SET_CONFIG(''naksha.appid'', %L::text, true)' -- same as naksha_tx_set_app_id
+                       || ',SET_CONFIG(''naksha.author'', %L::text, true)' -- same as naksha_tx_set_author
+        , app_id, author);
+    IF create_tx THEN
+        RETURN naksha_tx_current();
+    END IF;
+    RETURN NULL;
+END
+$$;
 
 -- Returns a packed Naksha extension version from the given parameters (major, minor, revision).
 CREATE OR REPLACE FUNCTION naksha_version_of(major int, minor int, revision int) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
@@ -1447,36 +1498,6 @@ BEGIN
 END
 $BODY$;
 
-
--- Start the transaction by setting the application-identifier, the current author (which may be null)
--- and the returns the transaction number.
--- See: https://www.postgresql.org/docs/current/runtime-config-query.html
-CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool)
-    RETURNS uuid
-    LANGUAGE 'plpgsql' VOLATILE
-AS $$
-BEGIN
-    EXECUTE format('SELECT '
-         || 'SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', true)'
-         || ',SET_CONFIG(''cursor_tuple_fraction'', ''1.0'', true)'
-         || ',SET_CONFIG(''geqo'', ''false'', true)'
-         || ',SET_CONFIG(''work_mem'', ''128 MB'', true)'
-         || ',SET_CONFIG(''maintenance_work_mem'', ''1024 MB'', true)'
-         || ',SET_CONFIG(''enable_seqscan'', ''OFF'', true)'
-         || ',SET_CONFIG(''enable_bitmapscan'', ''OFF'', true)'
-         || ',SET_CONFIG(''enable_sort'', ''OFF'', true)'
-         || ',SET_CONFIG(''enable_partitionwise_join'', ''ON'', true)'
-         || ',SET_CONFIG(''enable_partitionwise_aggregate'', ''ON'', true)'
-         || ',SET_CONFIG(''jit'', ''OFF'', true)'
-         || ',SET_CONFIG(''naksha.appid'', %L::text, true)' -- same as naksha_tx_set_app_id
-         || ',SET_CONFIG(''naksha.author'', %L::text, true)' -- same as naksha_tx_set_author
-         , app_id, author);
-    IF create_tx THEN
-        RETURN naksha_tx_current();
-    END IF;
-    RETURN NULL;
-END
-$$;
 
 -- Return the application-id to be added into the XYZ namespace (transaction local variable).
 -- Returns NULL if no app_id is set.

@@ -144,7 +144,7 @@ public class PsqlStorage implements IStorage {
 
   static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()"; // TODO: Why to we need this?
   static final String[] extensionList = new String[] {"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
-  static final String[] localScripts = new String[] {"/xyz_ext.sql", "/h3Core.sql", "/naksha_ext.sql"};
+  static final String[] localScripts = new String[] {"/naksha_plpgsql.sql"};
 
   // We can store meta-information at tables using
   // COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
@@ -152,6 +152,18 @@ public class PsqlStorage implements IStorage {
   // We should simply store the NakshaCollection information in serialized form.
 
   NakshaVersion latest = NakshaVersion.latest;
+
+  @Override
+  public void initStorage() {}
+
+  @Override
+  public void startMaintainer() {}
+
+  @Override
+  public void maintainNow() {}
+
+  @Override
+  public void stopMaintainer() {}
 
   /**
    * Ensure that the administration tables exists, and the Naksha extension script installed in the
@@ -201,10 +213,12 @@ public class PsqlStorage implements IStorage {
                 .addArgument(latest)
                 .log();
           }
-          SQL = IoHelp.readResource("naksha_ext.sql")
+          SQL = IoHelp.readResource("naksha_plpgsql.sql")
+              .replaceAll("\\$\\{NAKSHA_PLV8_CODE}", IoHelp.readResource("naksha_plv8.js"))
+              .replaceAll("\\$\\{naksha_plv8_alweber}", IoHelp.readResource("naksha_plv8_alweber.js"))
+              .replaceAll("\\$\\{naksha_plv8_pawel}", IoHelp.readResource("naksha_plv8_pawel.js"))
               .replaceAll("\\$\\{schema}", getSchema())
-              .replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()))
-              .replaceAll("\\$\\{NAKSHA_PLV8_CODE}", IoHelp.readResource("plv8_naksha.js"));
+              .replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()));
           stmt.execute(SQL);
           conn.commit();
 

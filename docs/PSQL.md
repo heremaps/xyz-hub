@@ -210,21 +210,21 @@ Therefore, the union of all the query returns only exactly one feature, the sear
 
 The transaction logs are stored in the `naksha_tx` table. Each transaction persists out of **signals**, grouped by the transaction-number (`tnx`). The table layout is:
 
-| Column     | Type         | Modifiers            | Description                                                                                                        |
-|------------|--------------|----------------------|--------------------------------------------------------------------------------------------------------------------|
-| i          | bigserial    | PRIMARY KEY NOT NULL | Primary unique signal identifier.                                                                                  |
-| ts         | timestamptz  |                      | The time when the transaction started. The year, month and day are encoded as well in the `txn`.                   |
-| psql_id    | int8         |                      | The PostgresQL transaction id. Can be used to detect consistency.                                                  |
-| publish_id | int8         |                      | The publication identifier, set by the sequencer of `lib-naksha-psql`, as soon as the transaction becomes visible. |
-| publish_ts | timestamptz  |                      | The publication time, set by the sequencer of `lib-naksha-psql`, as soon as the transaction becomes visible.       |
-| txn        | int8         | NOT NULL             | The transaction-number to which this signal belongs.                                                               |
-| action     | text         |                      | The action that this signal represents.                                                                            |
-| id         | text         |                      | The unique transaction local identifier of this signal.                                                            |
-| app_id     | text         |                      | The application identifier used for the transaction.                                                               |
-| author     | text         |                      | The author used for the transaction.                                                                               |
-| msg_text   | text         |                      | If this signal is a message, the text of the message.                                                              |
-| msg_json   | jsonb        |                      | If this signal is a message, the JSON attachment.                                                                  |
-| msg_binary | bytea        |                      | If this signal is a message, the binary attachment.                                                                |
+| Column     | Type         | Modifiers            | Description                                                                                                  |
+|------------|--------------|----------------------|--------------------------------------------------------------------------------------------------------------|
+| i          | bigserial    | PRIMARY KEY NOT NULL | Primary unique signal identifier.                                                                            |
+| ts         | timestamptz  |                      | The time when the transaction started. The year, month and day are encoded as well in the `txn`.             |
+| psql_id    | int8         |                      | The PostgresQL transaction id. Can be used to detect consistency.                                            |
+| seq_number | int8         |                      | The sequence number, set by the sequencer of `lib-naksha-psql`, as soon as the transaction becomes visible.  |
+| seq_ts     | timestamptz  |                      | The sequencing time, set by the sequencer of `lib-naksha-psql`, as soon as the transaction becomes visible.  |
+| txn        | int8         | NOT NULL             | The transaction-number to which this signal belongs.                                                         |
+| action     | text         |                      | The action that this signal represents.                                                                      |
+| id         | text         |                      | The unique transaction local identifier of this signal.                                                      |
+| app_id     | text         |                      | The application identifier used for the transaction.                                                         |
+| author     | text         |                      | The author used for the transaction.                                                                         |
+| msg_text   | text         |                      | If this signal is a message, the text of the message.                                                        |
+| msg_json   | jsonb        |                      | If this signal is a message, the JSON attachment.                                                            |
+| msg_binary | bytea        |                      | If this signal is a message, the binary attachment.                                                          |
 
 The transaction-log should have a combined unique index on (**txn**, **action**, **id**).
 
