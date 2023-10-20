@@ -1,5 +1,5 @@
 // create transaction table ... (called only ones per storage)
-plv8.naksha.init = function () {
+plv8.naksha.init_storage = function () {
   // TODO:
 };
 plv8.naksha.naksha_txn = function () {

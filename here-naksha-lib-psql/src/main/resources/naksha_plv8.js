@@ -38,17 +38,17 @@ if (!plv8.naksha) {
     plv8.elog(INFO, msg);
   };
   // Should create, update, delete and so on collections
-  plv8.naksha.writeCollections = function () {
+  plv8.naksha.write_collections = function () {
   };
   // Should create, update, delete and so on features in collections.
-  plv8.naksha.writeFeatures = function () {
+  plv8.naksha.write_features = function () {
   };
   // Called from the BEFORE trigger to fix the XYZ-namespace.
-  plv8.naksha.fixXyzNamespace = function () {
+  plv8.naksha.fix_xyz_namespace = function () {
   };
   // Called from the AFTER trigger, to write the history records, delete table and more
   // Needs to check if the history partition exists
-  plv8.naksha.writeHistory = function () {
+  plv8.naksha.write_history = function () {
   };
   ${naksha_plv8_alweber}
   ${naksha_plv8_pawel}

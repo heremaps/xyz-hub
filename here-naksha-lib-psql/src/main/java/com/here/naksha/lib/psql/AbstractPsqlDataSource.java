@@ -327,5 +327,7 @@ public abstract class AbstractPsqlDataSource<SELF extends AbstractPsqlDataSource
       sb.append("RESET ROLE");
     }
     sb.append(";\n");
+    // sb.append("SELECT naksha_init_plv8();");
+    // sb.append("SELECT naksha_start_session();");
   }
 }

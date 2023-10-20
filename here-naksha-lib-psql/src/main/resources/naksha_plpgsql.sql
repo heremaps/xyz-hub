@@ -58,33 +58,19 @@ BEGIN
     return '${schema}';
 END $BODY$;
 
--- init()
--- Storage is totally empty (install script and call some function to create transaction table and more)
--- Storage is outdated (install script and call the init function as well)
---   install the script
---   call naksha_init_plv8(); <-- install ${NAKSHA_PLV8_CODE}
---   call naksha_init_storage(); <-- use plv8
--- Storage is okay
---
--- startSession()
--- We assume, storage is okay
---   call naksha_init_plv8(); <-- install ${NAKSHA_PLV8_CODE} (plv8.naksha)
---   client (sql) calls naksha_start_session(app_id, author) <-- use plv8
---
-
 -- Every SQL client connecting to the storage, must call this function first.
 CREATE OR REPLACE FUNCTION naksha_init_plv8() RETURNS jsonb AS $$
     ${NAKSHA_PLV8_CODE}
 $$ LANGUAGE plv8 VOLATILE STRICT;
 
 -- Called by PSQLStorage to initialize a storage for Naksha, creates the transaction table and other needed stuff.
-CREATE OR REPLACE FUNCTION naksha_init() RETURNS jsonb AS $$
-    plv8.naksha.init();
+CREATE OR REPLACE FUNCTION naksha_init_storage() RETURNS jsonb AS $$
+    plv8.naksha.init_storage();
 $$ LANGUAGE plv8 VOLATILE STRICT;
 
 -- All clients must invoke this method after connecting to initialize the session and get the audit-log up and running.
 CREATE OR REPLACE FUNCTION naksha_start_session(app_id text, author text) RETURNS jsonb AS $$
-    plv8.naksha.startSession(app_id, author);
+    plv8.naksha.start_session(app_id, author);
 $$ LANGUAGE plv8 VOLATILE STRICT;
 
 -- Start the transaction by setting the application-identifier, the current author (which may be null)
