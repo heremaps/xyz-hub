@@ -18,11 +18,12 @@
  */
 package com.here.naksha.lib.core.models.tx;
 
+import com.here.naksha.lib.core.models.Typed;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class UniMapTx {
+public class UniMapTx implements Typed {
 
   public UniMapTx(
       long ts,
