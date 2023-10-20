@@ -91,8 +91,11 @@ public abstract class JobConfigClient implements Initializable {
         return Future.succeededFuture(job); //TODO: Replace that hack once the scheduler flow was refactored
 
       return storeJob(marker, job, true)
-          .onSuccess(v -> {
-              logger.info(marker, "job[{}] / status[{}]: successfully updated!", job.getId(), job.getStatus());
+          .onSuccess(j -> {
+              if(j.getErrorType() != null && j.getErrorType().equals(Job.ERROR_TYPE_FAILED_DUE_RESTART))
+                  System.out.println("job["+job.getId()+"] / status["+job.getStatus()+"]: successfully updated!");
+              else
+                  logger.info(marker, "job[{}] / status[{}]: successfully updated!", job.getId(), job.getStatus());
           })
           .onFailure(e -> {
               logger.error(marker, "job[{}]: failed to update! ", job.getId(), e);

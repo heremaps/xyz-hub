@@ -109,7 +109,7 @@ public abstract class JobQueue implements Runnable {
 
     public synchronized static void abortAllJobs() {
         for (Job job :JobQueue.getQueue()) {
-            setJobFailed(job , Job.ERROR_TYPE_FAILED_DUE_RESTART , null);
+            setJobFailed(job, null, Job.ERROR_TYPE_FAILED_DUE_RESTART);
         }
     }
 
@@ -135,6 +135,11 @@ public abstract class JobQueue implements Runnable {
 
     protected static int queueSize() {
         return JOB_QUEUE.size();
+    }
+
+    public static Future<Job> setJobFailed(Job job, String errorDescription){
+        System.out.println("job["+job.getId()+"] has failed!");
+        return updateJobStatus(job, failed, errorDescription, null);
     }
 
     public static Future<Job> setJobFailed(Job job, String errorDescription, String errorType){
