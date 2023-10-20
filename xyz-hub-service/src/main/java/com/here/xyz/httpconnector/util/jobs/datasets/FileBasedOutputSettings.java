@@ -1,11 +1,11 @@
 package com.here.xyz.httpconnector.util.jobs.datasets;
 
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 
 public class FileBasedOutputSettings {
-  private CSVFormat format = TILEID_FC_B64;
+  private CSVFormat format = JSON_WKB;
   private String partitionKey = "id";
   private int tileLevel = 12;
   private boolean clipped = false;
