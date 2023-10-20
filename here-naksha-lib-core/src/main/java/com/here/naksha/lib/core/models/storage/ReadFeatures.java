@@ -18,31 +18,88 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import com.here.naksha.lib.core.NakshaVersion;
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+@AvailableSince(NakshaVersion.v2_0_7)
 public class ReadFeatures extends ReadRequest<ReadFeatures> {
+
+  @AvailableSince(NakshaVersion.v2_0_7)
   public ReadFeatures() {
     collections = new ArrayList<>();
   }
 
-  protected boolean returnDeleted;
-  protected boolean returnAllVersions;
-  protected @NotNull List<@NotNull String> collections;
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public ReadFeatures(@NotNull String... collectionIds) {
+    collections = new ArrayList<>(collectionIds.length);
+    //noinspection ManualArrayToCollectionCopy
+    for (final String collectionId : collectionIds) {
+      //noinspection UseBulkOperation
+      collections.add(collectionId);
+    }
+  }
 
-  // TODO: Review if txnOp is really needed and give us any advantage?
-  // TODO: Implement spatial op!
-  protected @Nullable Object spatialOp;
-  protected @Nullable POp propertyOp;
-  // TODO: Implement ordering!
-  protected @Nullable Object orderOp;
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public ReadFeatures(@Nullable List<@NotNull String> collections) {
+    this.collections = collections != null ? collections : new ArrayList<>();
+  }
 
-  public @NotNull ReadFeatures withProperties(@NotNull POp propertyOp) {
+  @AvailableSince(NakshaVersion.v2_0_7)
+  private boolean returnDeleted;
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  private boolean returnAllVersions;
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull List<@NotNull String> getCollections() {
+    return collections;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public void setCollections(@NotNull List<@NotNull String> collections) {
+    this.collections = collections;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull ReadFeatures withCollections(@NotNull List<@NotNull String> collections) {
+    this.collections = collections;
+    return this;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull ReadFeatures addCollection(@NotNull String collectionId) {
+    collections.add(collectionId);
+    return this;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  private @NotNull List<@NotNull String> collections;
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  private @Nullable Object spatialOp;
+
+  public @Nullable POp getPropertyOp() {
+    return propertyOp;
+  }
+
+  public void setPropertyOp(@Nullable POp propertyOp) {
+    this.propertyOp = propertyOp;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  private @Nullable POp propertyOp;
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull ReadFeatures withPropertyOp(@NotNull POp propertyOp) {
     this.propertyOp = propertyOp;
     return this;
   }
 
-  // TODO: Add more setter and getter!
+  @AvailableSince(NakshaVersion.v2_0_7)
+  private @Nullable Object orderOp;
+
 }
