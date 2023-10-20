@@ -284,12 +284,14 @@ project(":here-naksha-lib-psql") {
     }
 }
 
+/*
 project(":here-naksha-lib-extension") {
     description = "Naksha Extension Library"
     dependencies {
         api(project(":here-naksha-lib-core"))
     }
 }
+*/
 
 project(":here-naksha-handler-activitylog") {
     description = "Naksha Activity Log Handler"
@@ -302,6 +304,7 @@ project(":here-naksha-handler-activitylog") {
     }
 }
 
+/*
 project(":here-naksha-handler-http") {
     description = "Naksha Http Handler"
     apply(plugin = "kotlin")
@@ -322,6 +325,7 @@ project(":here-naksha-handler-http") {
         testImplementation(jayway_jsonpath)
     }
 }
+*/
 
 project(":here-naksha-handler-psql") {
     description = "Naksha PostgresQL Handler"
