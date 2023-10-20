@@ -35,16 +35,46 @@ public class NHSpaceStorage implements IStorage {
     this.nakshaHub = hub;
   }
 
+  /**
+   * Initializes the storage, create the transaction table, install needed scripts and extensions.
+   */
+  @Override
+  public void initStorage() {
+    nakshaHub.getAdminStorage().initStorage();
+  }
+
+  /**
+   * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.
+   */
+  @Override
+  public void startMaintainer() {
+    nakshaHub.getAdminStorage().startMaintainer();
+  }
+
+  /**
+   * Blocking call to perform maintenance tasks right now. One-time maintenance.
+   */
+  @Override
+  public void maintainNow() {
+    nakshaHub.getAdminStorage().maintainNow();
+  }
+
+  /**
+   * Stops the maintainer thread.
+   */
+  @Override
+  public void stopMaintainer() {
+    nakshaHub.getAdminStorage().stopMaintainer();
+  }
+
   @Override
   public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
-    // TODO HP : Add logic
-    return null;
+    return new NHSpaceStorageWriter(this.nakshaHub, context, useMaster);
   }
 
   @Override
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
-    // TODO HP : Add logic
-    return null;
+    return new NHSpaceStorageReader(this.nakshaHub, context, useMaster);
   }
 
   // TODO HP : remove all below deprecated methods at the end

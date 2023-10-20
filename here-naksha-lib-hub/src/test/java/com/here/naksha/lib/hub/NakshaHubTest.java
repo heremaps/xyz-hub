@@ -16,38 +16,37 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.app.service;
+package com.here.naksha.lib.hub;
 
-import static com.here.naksha.app.service.NakshaApp.newHub;
-
+import com.here.naksha.lib.psql.PsqlConfig;
+import com.here.naksha.lib.psql.PsqlConfigBuilder;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 class NakshaHubTest {
 
-  // TODO HP : Re-enable test after fixing the Naksha service
+  // TODO HP : Re-enable after NakshaHub initialization code starts working (dependency on psql module)
   // @BeforeAll
   static void prepare() {
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
     if (password == null) password = "password";
-    hub = newHub(
-        "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password,
-        "default-config"); // this string concat only happens once, its ok ;)
-    hub.start();
+    final PsqlConfig psqlCfg = new PsqlConfigBuilder()
+        .withAppName(NakshaHubConfig.defaultAppName())
+        .parseUrl("jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
+            + "&schema=naksha_test_hub")
+        .build();
+    hub = new NakshaHub(psqlCfg, null);
   }
 
-  static NakshaApp hub;
+  static NakshaHub hub;
 
   @Test
   void startup() throws InterruptedException {
-    // curl http://localhost:8080/
-    // TODO: Send some test request!
+    // TODO: test hub methods
   }
 
   @AfterAll
   static void close() throws InterruptedException {
-    // TODO: Find a way to gracefully shutdown the server.
-    //       To do some manual testing with the running service, uncomment this:
-    // hub.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(60));
+    // TODO: Find a way to gracefully shutdown the hub
   }
 }

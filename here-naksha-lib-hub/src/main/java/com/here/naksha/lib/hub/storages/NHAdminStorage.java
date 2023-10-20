@@ -31,20 +31,50 @@ public class NHAdminStorage implements IStorage {
   /** Singleton instance of physical admin storage implementation */
   protected final @NotNull IStorage psqlStorage;
 
-  public NHAdminStorage(final @NotNull IStorage psqlStorag) {
-    this.psqlStorage = psqlStorag;
+  public NHAdminStorage(final @NotNull IStorage psqlStorage) {
+    this.psqlStorage = psqlStorage;
   }
 
   @Override
   public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
-    // TODO HP : Add logic
-    return null;
+    return new NHAdminStorageWriter(psqlStorage, context, useMaster);
   }
 
   @Override
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
-    // TODO HP : Add logic
-    return null;
+    return new NHAdminStorageReader(psqlStorage, context, useMaster);
+  }
+
+  /**
+   * Initializes the storage, create the transaction table, install needed scripts and extensions.
+   */
+  @Override
+  public void initStorage() {
+    this.psqlStorage.initStorage();
+  }
+
+  /**
+   * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.
+   */
+  @Override
+  public void startMaintainer() {
+    this.psqlStorage.startMaintainer();
+  }
+
+  /**
+   * Blocking call to perform maintenance tasks right now. One-time maintenance.
+   */
+  @Override
+  public void maintainNow() {
+    this.psqlStorage.maintainNow();
+  }
+
+  /**
+   * Stops the maintainer thread.
+   */
+  @Override
+  public void stopMaintainer() {
+    this.psqlStorage.stopMaintainer();
   }
 
   // TODO HP : remove all below deprecated methods at the end
