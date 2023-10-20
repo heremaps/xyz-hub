@@ -149,7 +149,6 @@ public class Export extends JDBCBasedJob<Export> {
     private static String PARAM_SCOPE = "scope";
     private static String PARAM_EXTENDS = "extends";
     private static String PARAM_CONTEXT = "context";
-    private static String PARAM_SUPER_EXPORT_PATH = "superExportPath";
     private static String PARAM_SKIP_TRIGGER = "skipTrigger";
 
     public Export() {
@@ -159,13 +158,6 @@ public class Export extends JDBCBasedJob<Export> {
     @Override
     public Future<Export> init() {
         return setDefaults();
-    }
-
-    private void addSuperExportPathToJob(String superSpaceId){
-      String superExportPath = CService.jobS3Client.getPersistentS3ExportOfSuperLayer(superSpaceId, this);
-
-      //Add path to params to be able to find and load already exported data
-      addParam(PARAM_SUPER_EXPORT_PATH, superExportPath);
     }
 
     @Override
@@ -283,9 +275,6 @@ public class Export extends JDBCBasedJob<Export> {
 
             if(!superIsReadOnly)
                 throw new HttpException(BAD_REQUEST, "CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer!");
-
-            /** Add persistent path of super layer */
-            addSuperExportPathToJob(extractSuperSpaceId());
         }
 
         ContextAwareEvent.SpaceContext context = readParamContext();
@@ -553,27 +542,23 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public Boolean readParamSkipTrigger() {
-        return this.params.containsKey(PARAM_SKIP_TRIGGER) ? (boolean) this.getParam(PARAM_SKIP_TRIGGER) : false;
-    }
-
-    public String readParamSuperExportPath() {
-        return this.params.containsKey(PARAM_SUPER_EXPORT_PATH) ? (String) this.getParam(PARAM_SUPER_EXPORT_PATH) : null;
+        return this.params != null && this.params.containsKey(PARAM_SKIP_TRIGGER) ? (boolean) this.getParam(PARAM_SKIP_TRIGGER) : false;
     }
 
     public boolean readPersistExport(){
-        return this.params.containsKey(PARAM_PERSIST_EXPORT) ? (boolean) this.getParam(PARAM_PERSIST_EXPORT) : false;
+        return  this.params != null && this.params.containsKey(PARAM_PERSIST_EXPORT) ? (boolean) this.getParam(PARAM_PERSIST_EXPORT) : false;
     }
 
     public Map readParamExtends(){
-        return this.params.containsKey(PARAM_EXTENDS) ? (Map) this.getParam(PARAM_EXTENDS) : null;
+        return this.params != null && this.params.containsKey(PARAM_EXTENDS) ? (Map) this.getParam(PARAM_EXTENDS) : null;
     }
 
     public ContextAwareEvent.SpaceContext readParamContext(){
-        return this.params.containsKey(PARAM_CONTEXT) ? ContextAwareEvent.SpaceContext.valueOf((String) this.params.get(PARAM_CONTEXT)) : null;
+        return this.params != null &&  this.params.containsKey(PARAM_CONTEXT) ? ContextAwareEvent.SpaceContext.valueOf((String) this.params.get(PARAM_CONTEXT)) : null;
     }
 
     public CompositeMode readParamCompositeMode() {
-        return this.params.containsKey(PARAM_COMPOSITE_MODE)
+        return this.params != null && this.params.containsKey(PARAM_COMPOSITE_MODE)
                 ? CompositeMode.valueOf((String) this.params.get(PARAM_COMPOSITE_MODE))
                 : CompositeMode.DEACTIVATED;
     }
@@ -588,6 +573,18 @@ public class Export extends JDBCBasedJob<Export> {
             return (String) recursiveExtension.get("spaceId");
         }
         return (String) extension.get("spaceId");
+    }
+
+    public boolean isSuperSpacePersist() {
+        Map extension = readParamExtends();
+        if(extension == null)
+            return false;
+
+        Map recursiveExtension = (Map) extension.get(PARAM_EXTENDS);
+        if(recursiveExtension != null) {
+            return recursiveExtension.get("readOnly") != null ? (Boolean) recursiveExtension.get("readOnly") : false;
+        }
+        return extension.get("readOnly") != null ? (Boolean) extension.get("readOnly") : false;
     }
 
     public void resetToPreviousState() throws Exception {
@@ -816,7 +813,7 @@ public class Export extends JDBCBasedJob<Export> {
         //Check if we already have persistent exports. May trigger one.
         if(readPersistExport())
             return checkPersistentExport();
-        else if(readParamSuperExportPath() != null)
+        else if(isSuperSpacePersist() && readParamCompositeMode().equals(CompositeMode.FULL_OPTIMIZED))
             return checkPersistentSuperExport();
         //No indication for persistent exports are given - proceed normal
         return updateJobStatus(this, prepared);
@@ -831,7 +828,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //exp=-1 => persistent
                         //hash must fit
                         if( jobCandidate.getExp() == -1 && ((Export)jobCandidate).getHashForPersistentStorage().equals(getHashForPersistentStorage())){
-                            logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} "+getId(), jobCandidate.getId()+" "+jobCandidate.getStatus());
+                            logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
                             existingJob = (Export) jobCandidate;
                             //try to find a finalized one - doesn't matter if its the origin export
                             if(existingJob.getStatus().equals(finalized) || existingJob.getStatus().equals(trigger_executed))
@@ -881,12 +878,14 @@ public class Export extends JDBCBasedJob<Export> {
 
     public Future<Job> checkPersistentSuperExport() {
         /** Check if we can find a persistent export and check status. If no persistent export is available we are starting one. */
-        return searchPersistentJobOnTarget(extractSuperSpaceId())
+        String superSpaceId = extractSuperSpaceId();
+
+        return searchPersistentJobOnTarget(superSpaceId)
                 .compose(existingJob -> {
 
                     //TODO: if status is failed no retry is implemented/possible
                     if(existingJob == null){
-                        logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), readParamSuperExportPath());
+                        logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), superSpaceId);
 
                         Export baseExport = new Export()
                                 .withId(getId()+"_missing_base")
@@ -898,9 +897,10 @@ public class Export extends JDBCBasedJob<Export> {
 
                         //We only need reusable data on S3
                         baseExport.addParam(PARAM_SKIP_TRIGGER, true);
+                        baseExport.addParam(PARAM_PERSIST_EXPORT, true);
 
-                        logger.info("job[{}] Trigger Persist Export {} of Super-Layer!", getId(), readParamSuperExportPath());
-                        return HubWebClient.performBaseLayerExport(extractSuperSpaceId(), baseExport)
+                        logger.info("job[{}] Trigger Persist Export {} of Super-Layer!", getId(), superSpaceId);
+                        return HubWebClient.performBaseLayerExport(superSpaceId, baseExport)
                                 .compose(newBaseExport -> {
                                     logger.info("job[{}] Need to wait for finalization of persist Export {} of base-layer!", getId(), newBaseExport.getId());
                                     setSuperId(newBaseExport.getId());
@@ -909,17 +909,17 @@ public class Export extends JDBCBasedJob<Export> {
                                 })
                                 .onFailure(f -> setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED));
                     }else if(existingJob.getStatus().equals(failed)){
-                        logger.info("job[{}] Persist Export {} of Super-Layer has failed!", getId(), readParamSuperExportPath());
+                        logger.info("job[{}] Persist Export {} of Super-Layer has failed!", getId(), superSpaceId);
                         return setJobFailed(this,ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED);
                     }else if(existingJob.getStatus().equals(finalized)){
-                        logger.info("job[{}] Persist Export {} of Super-Layer is available!", getId(), readParamSuperExportPath());
+                        logger.info("job[{}] Persist Export {} of Super-Layer is available!", getId(), superSpaceId);
                         if(superId == null)
                             setSuperId(existingJob.getId());
 
                         setSuperStatistic(existingJob.getStatistic());
                         return updateJobStatus(this, prepared);
                     }else{
-                        logger.info("job[{}] Persist Export {} - need to wait for finalization of persist Export of base-layer!", getId(), readParamSuperExportPath());
+                        logger.info("job[{}] Persist Export {} - need to wait for finalization of persist Export of base-layer!", getId(), superSpaceId);
                         return updateJobStatus(this, queued);
                     }
                 });

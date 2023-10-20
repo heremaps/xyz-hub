@@ -248,7 +248,7 @@ public class JobS3Client extends AwsS3Client{
 
     public Map<String, ExportObject> scanExportPath(Export job, boolean readSuper, boolean createDownloadUrl){
         Map<String, ExportObject> exportObjectMap = new HashMap<>();
-        exportObjectMap.putAll(scanExportPath( getS3PathNew(job,readSuper), CService.configuration.JOBS_S3_BUCKET, createDownloadUrl));
+        exportObjectMap.putAll(scanExportPath( getS3Path(job,readSuper), CService.configuration.JOBS_S3_BUCKET, createDownloadUrl));
         return exportObjectMap;
     }
 
@@ -284,14 +284,14 @@ public class JobS3Client extends AwsS3Client{
     }
 
     public String getPersistentS3ExportOfSuperLayer(String superLayer, Export sourceJob) {
-        return getS3PathNew(sourceJob, true);
+        return getS3Path(sourceJob, true);
     }
 
     public String getS3Path(Job job){
-        return getS3PathNew(job, false);
+        return getS3Path(job, false);
     }
 
-    public String getS3PathNew(Job job, boolean readSuper) {
+    public String getS3Path(Job job, boolean readSuper) {
         if (job instanceof Import)
             return IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
 
