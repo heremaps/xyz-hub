@@ -150,4 +150,11 @@ public enum XyzError {
     }
     return defaultValue;
   }
+
+  @Override
+  public String toString() {
+    return "XyzError{" +
+            "value='" + value + '\'' +
+            '}';
+  }
 }

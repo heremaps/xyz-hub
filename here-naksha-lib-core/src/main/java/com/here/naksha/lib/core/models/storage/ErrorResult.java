@@ -50,4 +50,14 @@ public class ErrorResult extends Result {
 
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @Nullable Throwable exception;
+
+  @Override
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public String toString() {
+    return "ErrorResult{" +
+            "reason=" + reason +
+            ", message='" + message + '\'' +
+            ", exception=" + exception +
+            '}';
+  }
 }
