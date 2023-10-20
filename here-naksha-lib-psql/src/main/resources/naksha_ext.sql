@@ -1636,6 +1636,11 @@ EXCEPTION WHEN OTHERS then PERFORM pg_advisory_unlock(LOCK_NAME);
 END
 $$;
 
+CREATE OR REPLACE FUNCTION naksha_txn_plv() RETURNS int8 AS $$
+   return plv8.naksha.naksha_txn();
+$$ LANGUAGE plv8 VOLATILE STRICT;
+
+
 CREATE OR REPLACE FUNCTION naksha_txn(tstamp timestamp, num int8)
     RETURNS int8
     LANGUAGE 'plpgsql' STABLE

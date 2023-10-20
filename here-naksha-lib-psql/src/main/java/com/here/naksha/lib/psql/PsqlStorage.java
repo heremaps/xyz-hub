@@ -18,7 +18,6 @@
  */
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.psql.SQL.escapeId;
 
@@ -40,6 +39,8 @@ import java.sql.Statement;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The Naksha PostgresQL storage client. This client does implement low level access to manage
@@ -47,6 +48,8 @@ import org.postgresql.util.PSQLException;
  */
 @SuppressWarnings({"unused", "SqlResolve"})
 public class PsqlStorage implements IStorage {
+
+  private static final Logger log = LoggerFactory.getLogger(PsqlStorage.class);
 
   /**
    * The constructor to create a new PostgresQL storage client using a storage configuration.
@@ -181,24 +184,27 @@ public class PsqlStorage implements IStorage {
             throw e;
           }
           conn.rollback();
-          currentLogger().info("Naksha schema and/or extension missing");
+          log.atInfo()
+              .setMessage("Naksha schema and/or extension missing")
+              .log();
         }
         if (latest.toLong() != version) {
           if (version == 0L) {
-            currentLogger()
-                .atInfo("Install and initialize Naksha extension v{}")
-                .add(latest)
+            log.atInfo()
+                .setMessage("Install and initialize Naksha extension v{}")
+                .addArgument(latest)
                 .log();
           } else {
-            currentLogger()
-                .atInfo("Upgrade Naksha extension from v{} to v{}")
-                .add(new NakshaVersion(version))
-                .add(latest)
+            log.atInfo()
+                .setMessage("Upgrade Naksha extension from v{} to v{}")
+                .addArgument(new NakshaVersion(version))
+                .addArgument(latest)
                 .log();
           }
           SQL = IoHelp.readResource("naksha_ext.sql")
               .replaceAll("\\$\\{schema}", getSchema())
-              .replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()));
+              .replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()))
+              .replaceAll("\\$\\{NAKSHA_PLV8_CODE}", IoHelp.readResource("plv8_naksha.js"));
           stmt.execute(SQL);
           conn.commit();
 

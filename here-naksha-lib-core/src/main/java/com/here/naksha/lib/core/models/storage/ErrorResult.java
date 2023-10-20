@@ -54,10 +54,6 @@ public class ErrorResult extends Result {
   @Override
   @AvailableSince(NakshaVersion.v2_0_7)
   public String toString() {
-    return "ErrorResult{" +
-            "reason=" + reason +
-            ", message='" + message + '\'' +
-            ", exception=" + exception +
-            '}';
+    return "ErrorResult{" + "reason=" + reason + ", message='" + message + '\'' + ", exception=" + exception + '}';
   }
 }

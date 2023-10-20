@@ -153,8 +153,6 @@ public enum XyzError {
 
   @Override
   public String toString() {
-    return "XyzError{" +
-            "value='" + value + '\'' +
-            '}';
+    return "XyzError{" + "value='" + value + '\'' + '}';
   }
 }
