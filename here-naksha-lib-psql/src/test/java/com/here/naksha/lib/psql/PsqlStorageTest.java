@@ -203,7 +203,7 @@ public class PsqlStorageTest {
     try (final var conn = storage.dataSource.getConnection()) {
       conn.createStatement()
           .execute(new SQL("DROP SCHEMA IF EXISTS ")
-              .escape(storage.getSchema())
+              .add_ident(storage.getSchema())
               .append(" CASCADE;")
               .toString());
       conn.commit();

@@ -87,7 +87,9 @@ public interface IStorage {
    * Perform storage initialization, especially useful when invoked for the first time storage is to be accessed.
    */
   @Deprecated
-  void init();
+  default void init() {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Perform maintenance tasks, for example garbage collect features that are older than the set {@link CollectionInfo#getMaxAge()}. This
@@ -95,7 +97,9 @@ public interface IStorage {
    * there is no concurrent execution.
    */
   @Deprecated
-  void maintain(@NotNull List<CollectionInfo> collectionInfoList);
+  default void maintain(@NotNull List<CollectionInfo> collectionInfoList) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Create default transaction settings.
@@ -103,8 +107,9 @@ public interface IStorage {
    * @return New transaction settings.
    */
   @Deprecated
-  @NotNull
-  ITransactionSettings createSettings();
+  default @NotNull ITransactionSettings createSettings() {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Opens a read-only transaction, preferably from a replication node; if no replication node is available, then returns a transaction to
@@ -114,8 +119,9 @@ public interface IStorage {
    * @return the read transaction.
    */
   @Deprecated
-  @NotNull
-  IReadTransaction openReplicationTransaction(@NotNull ITransactionSettings settings);
+  default @NotNull IReadTransaction openReplicationTransaction(@NotNull ITransactionSettings settings) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Opens a read/write transaction to the master node, all writes require at least a valid
@@ -125,8 +131,9 @@ public interface IStorage {
    * @return The mutator transaction.
    */
   @Deprecated
-  @NotNull
-  IMasterTransaction openMasterTransaction(@NotNull ITransactionSettings settings);
+  default @NotNull IMasterTransaction openMasterTransaction(@NotNull ITransactionSettings settings) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Add a listener to be called, when something changes in the storage.
@@ -134,7 +141,9 @@ public interface IStorage {
    * @param listener The change listener to invoke, receiving the transaction set.
    */
   @Deprecated
-  void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener);
+  default void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Remove the given listener.
@@ -143,11 +152,15 @@ public interface IStorage {
    * @return {@code true} if the listener was removed; {@code false} otherwise.
    */
   @Deprecated
-  boolean removeListener(@NotNull Pe1<@NotNull TxSignalSet> listener);
+  default boolean removeListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Closes the storage, may block for cleanup work.
    */
   @Deprecated
-  void close();
+  default void close() {
+    throw new UnsupportedOperationException();
+  }
 }

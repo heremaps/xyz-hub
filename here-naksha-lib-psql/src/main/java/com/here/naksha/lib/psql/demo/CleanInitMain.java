@@ -20,7 +20,6 @@ package com.here.naksha.lib.psql.demo;
 
 import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-import static com.here.naksha.lib.psql.SQL.escapeId;
 
 import com.here.naksha.lib.psql.*;
 import java.sql.Connection;
@@ -44,21 +43,18 @@ public class CleanInitMain {
         .withAppName("Naksha-Psql-Init")
         .parseUrl(args[0])
         .build();
-    final PsqlStorage storage = new PsqlStorage(config, 0L);
-    try {
-      // Connect and initialize the database.
-      dropSchema(storage);
-      storage.init();
-    } finally {
-      storage.close();
-    }
+    final PsqlStorage storage = new PsqlStorage(config, config.schema);
+    // Connect and initialize the database.
+    dropSchema(storage);
+    storage.initStorage();
   }
 
   private static void dropSchema(PsqlStorage storage) {
-    try (final Connection conn = storage.getDataSource().getConnection()) {
+    try (final Connection conn =
+        storage.getDataSource().getPool().dataSource.getConnection()) {
       try (final Statement stmt = conn.createStatement()) {
         try {
-          final String sql = "DROP SCHEMA IF EXISTS " + escapeId(storage.getSchema()) + " CASCADE";
+          final String sql = "DROP SCHEMA IF EXISTS " + SQL.quote_ident(storage.getSchema()) + " CASCADE";
           stmt.execute(sql);
           stmt.close();
         } catch (PSQLException e) {

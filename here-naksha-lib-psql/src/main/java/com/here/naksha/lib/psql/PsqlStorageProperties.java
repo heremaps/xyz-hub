@@ -19,17 +19,24 @@
 package com.here.naksha.lib.psql;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-/** A PostgresQL database configuration as used by the {@link PsqlStorage}. */
+/**
+ * A PostgresQL database configuration as used by the {@link PsqlStorage}.
+ */
 @AvailableSince(NakshaVersion.v2_0_0)
 public class PsqlStorageProperties extends XyzProperties {
 
   @AvailableSince(NakshaVersion.v2_0_0)
   public static final String CONFIG = "config";
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final String URL = "url";
 
   /**
    * Create new PostgresQL storage configuration properties.
@@ -38,11 +45,54 @@ public class PsqlStorageProperties extends XyzProperties {
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @JsonCreator
-  public PsqlStorageProperties(@NotNull PsqlConfig config) {
+  protected PsqlStorageProperties(@JsonProperty(CONFIG) PsqlConfig config, @JsonProperty(URL) String url) {
+    if (url != null && config == null) {
+      config = new PsqlConfigBuilder().parseUrl(url).build();
+    }
     this.config = config;
   }
 
-  /** The configuration of the PostgresQL database. */
+  /**
+   * Create new PostgresQL storage configuration properties.
+   *
+   * @param config the database configuration to use.
+   */
   @AvailableSince(NakshaVersion.v2_0_0)
-  public @NotNull PsqlConfig config;
+  public PsqlStorageProperties(@NotNull PsqlConfig config) {
+    this(config, null);
+  }
+
+  /**
+   * Create new PostgresQL storage configuration properties.
+   *
+   * @param jdbcUrl the JDBC URL of the configuration to use.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public PsqlStorageProperties(@NotNull String jdbcUrl) {
+    this(null, jdbcUrl);
+  }
+
+  public @NotNull PsqlConfig getConfig() {
+    return config;
+  }
+
+  public void setConfig(@NotNull PsqlConfig config) {
+    this.config = config;
+  }
+
+  /**
+   * The configuration of the PostgresQL database.
+   */
+  @AvailableSince(NakshaVersion.v2_0_0)
+  @JsonProperty(CONFIG)
+  private @NotNull PsqlConfig config;
+
+  /**
+   * The JDBC URL of the PostgresQL database, for example
+   * <pre>{@code jdbc:postgresql://HOST/DB?user=USER&password=PASSWORD&schema=SCHEMA}</pre>. Beware that when the {@code url} is provided,
+   * the {@link #config} is generated from it, but only if no {@link #config} is given (so being {@code null} or {@code undefined}).
+   */
+  @AvailableSince(NakshaVersion.v2_0_0)
+  @JsonProperty(CONFIG)
+  private @Nullable String url;
 }

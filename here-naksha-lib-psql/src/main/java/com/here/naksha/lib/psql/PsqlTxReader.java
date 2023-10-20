@@ -56,7 +56,7 @@ public class PsqlTxReader implements IReadTransaction {
     try {
       this.psqlClient = psqlClient;
       this.settings = PsqlTransactionSettings.of(settings, this);
-      this.connection = psqlClient.dataSource.getConnection(this.settings);
+      this.connection = psqlClient.dataSource.getConnection();
       naksha_tx_start();
     } catch (final Throwable t) {
       throw unchecked(t);

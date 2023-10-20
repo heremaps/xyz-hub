@@ -5,8 +5,10 @@ let plv8 = {
   version: "3.1.6",
   elog: function (level, msg) {
   },
+  // Quote literal in single quotes.
   quote_literal: function (str) {
   },
+  // Quote identifiers in double quotes.
   quote_ident: function (str) {
   },
   nullable: function (str) {

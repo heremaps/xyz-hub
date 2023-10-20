@@ -64,7 +64,7 @@ public class SQL implements CharSequence {
     return false;
   }
 
-  static void escapeWrite(@NotNull CharSequence chars, @NotNull StringBuilder sb) {
+  static void write_ident(@NotNull CharSequence chars, @NotNull StringBuilder sb) {
     // See: https://www.asciitable.com/
     // We only allows characters between 32 (space) and 126 (~).
     for (int i = 0; i < chars.length(); i++) {
@@ -87,8 +87,8 @@ public class SQL implements CharSequence {
    * @return The given string builder.
    * @throws SQLException If the identifier contains illegal characters, for example the ASCII-0.
    */
-  public static @NotNull String escapeId(@NotNull CharSequence id) {
-    return escapeId(new StringBuilder(), id).toString();
+  public static @NotNull String quote_ident(@NotNull CharSequence id) {
+    return quote_ident(new StringBuilder(), id).toString();
   }
 
   /**
@@ -99,9 +99,9 @@ public class SQL implements CharSequence {
    * @return The given string builder.
    * @throws SQLException If the identifier contains illegal characters, for example the ASCII-0.
    */
-  public static @NotNull StringBuilder escapeId(@NotNull StringBuilder sb, @NotNull CharSequence id) {
+  public static @NotNull StringBuilder quote_ident(@NotNull StringBuilder sb, @NotNull CharSequence id) {
     sb.append('"');
-    escapeWrite(id, sb);
+    write_ident(id, sb);
     sb.append('"');
     return sb;
   }
@@ -121,8 +121,8 @@ public class SQL implements CharSequence {
    * @return The given string builder.
    * @throws SQLException If any identifier contains illegal characters, for example the ASCII-0.
    */
-  public static @NotNull String escapeId(@NotNull CharSequence... ids) {
-    return escapeId(new StringBuilder(), ids).toString();
+  public static @NotNull String quote_ident(@NotNull CharSequence... ids) {
+    return quote_ident(new StringBuilder(), ids).toString();
   }
 
   /**
@@ -141,10 +141,10 @@ public class SQL implements CharSequence {
    * @return The given string builder.
    * @throws SQLException If any identifier contains illegal characters, for example the ASCII-0.
    */
-  public static @NotNull StringBuilder escapeId(@NotNull StringBuilder sb, @NotNull CharSequence... ids) {
+  public static @NotNull StringBuilder quote_ident(@NotNull StringBuilder sb, @NotNull CharSequence... ids) {
     sb.append('"');
     for (final CharSequence id : ids) {
-      escapeWrite(id, sb);
+      write_ident(id, sb);
     }
     sb.append('"');
     return sb;
@@ -191,8 +191,8 @@ public class SQL implements CharSequence {
    * @return The given string builder.
    * @throws SQLException If the identifier contains illegal characters, for example the ASCII-0.
    */
-  public @NotNull SQL escape(@NotNull CharSequence id) {
-    escapeId(sb, id);
+  public @NotNull SQL add_ident(@NotNull CharSequence id) {
+    quote_ident(sb, id);
     return this;
   }
 
@@ -211,8 +211,8 @@ public class SQL implements CharSequence {
    * @return The given string builder.
    * @throws SQLException If any identifier contains illegal characters, for example the ASCII-0.
    */
-  public @NotNull SQL escape(@NotNull CharSequence... ids) {
-    escapeId(sb, ids);
+  public @NotNull SQL add_ident(@NotNull CharSequence... ids) {
+    quote_ident(sb, ids);
     return this;
   }
 

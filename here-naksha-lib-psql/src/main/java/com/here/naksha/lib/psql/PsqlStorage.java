@@ -20,12 +20,8 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.IoHelp.readResource;
-import static com.here.naksha.lib.psql.SQL.escapeId;
 
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.lambdas.Pe1;
-import com.here.naksha.lib.core.models.TxSignalSet;
-import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IStorage;
@@ -37,6 +33,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
@@ -61,9 +58,8 @@ public class PsqlStorage implements IStorage {
   public PsqlStorage(@NotNull Storage storage) throws SQLException, IOException {
     final PsqlStorageProperties properties =
         JsonSerializable.convert(storage.getProperties(), PsqlStorageProperties.class);
-    this.dataSource = new PsqlDataSource(properties.config);
-    this.storageNumber = storage.getNumber();
-    init();
+    this.dataSource = new PsqlDataSource(properties.getConfig());
+    this.storageId = storage.getId();
   }
 
   /**
@@ -75,25 +71,22 @@ public class PsqlStorage implements IStorage {
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
+  @Deprecated
   public PsqlStorage(@NotNull PsqlConfig config, long storageNumber) {
-    this.dataSource = new PsqlDataSource(config);
-    this.storageNumber = storageNumber;
+    this(config, Long.toString(storageNumber, 10));
   }
 
   /**
-   * Constructor to manually create a new PostgresQL storage client. This is useful when class is instantiated using connector configuration
-   * passed as argument.
+   * Constructor to manually create a new PostgresQL storage client.
    *
-   * @param eventHandler The connector associated with this storage
+   * @param config    The PSQL configuration to use for this client; can be created using the {@link PsqlConfigBuilder}.
+   * @param storageId The storage identifier.
+   * @throws SQLException If any error occurred while accessing the database.
+   * @throws IOException  If reading the SQL extensions from the resources fail.
    */
-  public PsqlStorage(@NotNull EventHandler eventHandler) {
-    final PsqlConfig dbConfig = JsonSerializable.fromAnyMap(eventHandler.getProperties(), ConnectorProperties.class)
-        .getDbConfig();
-    if (dbConfig == null) {
-      throw new IllegalArgumentException("dbConfig missing in connector properties");
-    }
-    this.dataSource = new PsqlDataSource(dbConfig);
-    this.storageNumber = 0;
+  public PsqlStorage(@NotNull PsqlConfig config, @NotNull String storageId) {
+    this.dataSource = new PsqlDataSource(config);
+    this.storageId = storageId;
   }
 
   /**
@@ -102,7 +95,7 @@ public class PsqlStorage implements IStorage {
    * @return the PostgresQL connection pool.
    */
   public final @NotNull PsqlPool getPsqlPool() {
-    return dataSource.pool;
+    return dataSource.getPool();
   }
 
   /**
@@ -125,37 +118,36 @@ public class PsqlStorage implements IStorage {
    * @return the main schema to operate on.
    */
   public final @NotNull String getSchema() {
-    return dataSource.schema;
+    return dataSource.getSchema();
   }
 
   /**
-   * The connector identification number to use. Except for the main database (which always has the number 0), normally this number is given
-   * by the Naksha-Hub, when creating a connector.
+   * Returns the storage identifier.
+   *
+   * @return the storage identifier.
    */
-  protected final long storageNumber;
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull String getStorageId() {
+    return storageId;
+  }
+
+  /**
+   * The storage identification.
+   */
+  protected final @NotNull String storageId;
 
   /**
    * Returns the connector identification number.
    *
    * @return the connector identification number.
    */
+  @Deprecated
   public final long getStorageNumber() {
-    return storageNumber;
+    return 0L;
   }
 
-  static final String C3P0EXT_CONFIG_SCHEMA = "config.schema()"; // TODO: Why to we need this?
-  static final String[] extensionList = new String[] {"postgis", "postgis_topology", "tsm_system_rows", "dblink"};
-  static final String[] localScripts = new String[] {"/naksha_plpgsql.sql"};
-
-  // We can store meta-information at tables using
-  // COMMENT ON TABLE "xyz_config"."transactions" IS '{"id":"transactions"}';
-  // SELECT pg_catalog.obj_description('xyz_config.transactions'::regclass, 'pg_class');
-  // We should simply store the NakshaCollection information in serialized form.
-
+  @Deprecated
   NakshaVersion latest = NakshaVersion.latest;
-
-  @Override
-  public void initStorage() {}
 
   @Override
   public void startMaintainer() {}
@@ -166,6 +158,12 @@ public class PsqlStorage implements IStorage {
   @Override
   public void stopMaintainer() {}
 
+  @Deprecated
+  @Override
+  public void init() {
+    initStorage();
+  }
+
   /**
    * Ensure that the administration tables exists, and the Naksha extension script installed in the latest version.
    *
@@ -173,15 +171,15 @@ public class PsqlStorage implements IStorage {
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
   @Override
-  public void init() {
+  public void initStorage() {
     String SQL;
-    try (final Connection conn = dataSource.getConnection()) {
+    try (final Connection conn = dataSource.getPool().dataSource.getConnection()) {
       try (final Statement stmt = conn.createStatement()) {
         long version = 0L;
         try {
           final StringBuilder sb = new StringBuilder();
           sb.append("SELECT ");
-          escapeId(sb, getSchema());
+          com.here.naksha.lib.psql.SQL.quote_ident(sb, getSchema());
           sb.append(".naksha_version();");
           final ResultSet rs = stmt.executeQuery(sb.toString());
           if (rs.next()) {
@@ -218,7 +216,7 @@ public class PsqlStorage implements IStorage {
           SQL = SQL.replace("${naksha_plv8_alweber}", readResource("naksha_plv8_alweber.js"));
           SQL = SQL.replace("${naksha_plv8_pawel}", readResource("naksha_plv8_pawel.js"));
           SQL = SQL.replaceAll("\\$\\{schema}", getSchema());
-          SQL = SQL.replaceAll("\\$\\{storage_id}", Long.toString(getStorageNumber()));
+          SQL = SQL.replaceAll("\\$\\{storage_id}", getStorageId());
           stmt.execute(SQL);
           conn.commit();
 
@@ -230,7 +228,6 @@ public class PsqlStorage implements IStorage {
           dataSource.initConnection(conn);
           stmt.execute("SELECT naksha_init();");
           conn.commit();
-          // setupH3();
         }
       }
     } catch (Throwable t) {
@@ -247,6 +244,7 @@ public class PsqlStorage implements IStorage {
    *
    * @throws SQLException If any error occurred.
    */
+  @Deprecated
   @Override
   public void maintain(@NotNull List<CollectionInfo> collectionInfoList) {
     for (CollectionInfo collectionInfo : collectionInfoList) {
@@ -283,6 +281,7 @@ public class PsqlStorage implements IStorage {
     }
   }
 
+  @Deprecated
   private String createHstPartitionOfOneDay(int dayPlus, CollectionInfo collectionInfo) {
     return new StringBuilder()
         .append("SELECT ")
@@ -295,6 +294,7 @@ public class PsqlStorage implements IStorage {
         .toString();
   }
 
+  @Deprecated
   private String createTxPartitionOfOneDay(int dayPlus) {
     return new StringBuilder()
         .append("SELECT ")
@@ -305,6 +305,7 @@ public class PsqlStorage implements IStorage {
         .toString();
   }
 
+  @Deprecated
   private String deleteHstPartitionOfOneDay(int dayOld, CollectionInfo collectionInfo) {
     return new StringBuilder()
         .append("SELECT ")
@@ -317,6 +318,7 @@ public class PsqlStorage implements IStorage {
         .toString();
   }
 
+  @Deprecated
   private String deleteTxPartitionOfOneDay(int dayOld) {
     return new StringBuilder()
         .append("SELECT ")
@@ -332,70 +334,21 @@ public class PsqlStorage implements IStorage {
    *
    * @return New transaction settings.
    */
+  @Deprecated
   public @NotNull ITransactionSettings createSettings() {
-    return new PsqlTransactionSettings(dataSource.pool.config.stmtTimeout, dataSource.pool.config.lockTimeout);
+    return new PsqlTransactionSettings(
+        dataSource.getPool().config.stmtTimeout, dataSource.getPool().config.lockTimeout);
   }
 
+  @Deprecated
   @Override
   public @NotNull PsqlTxReader openReplicationTransaction(@NotNull ITransactionSettings settings) {
     return new PsqlTxReader(this, settings);
   }
 
+  @Deprecated
   @Override
   public @NotNull PsqlTxWriter openMasterTransaction(@NotNull ITransactionSettings settings) {
     return new PsqlTxWriter(this, settings);
-  }
-
-  @Override
-  public void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
-    throw new UnsupportedOperationException("addListener");
-  }
-
-  @Override
-  public boolean removeListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
-    throw new UnsupportedOperationException("removeListener");
-  }
-
-  @Override
-  public void close() {}
-
-  // Add listener for change events like create/update/delete collection and for the features in it.
-  // Basically, listen to transaction log!
-  // https://www.postgresql.org/docs/current/sql-notify.html
-  // https://access.crunchydata.com/documentation/pgjdbc/42.1.0/listennotify.html
-
-  /**
-   * Setup H3?
-   *
-   * @throws SQLException if any error occurred.
-   */
-  private void setupH3() throws SQLException {
-    final PsqlPoolConfig config = dataSource.getConfig();
-    try (final Connection connection = dataSource.getConnection();
-        final Statement stmt = connection.createStatement()) {
-      boolean needUpdate = false;
-      ResultSet rs;
-      if ((rs = stmt.executeQuery("select count(1)::integer from pg_catalog.pg_proc r inner join"
-              + " pg_catalog.pg_namespace l  on ( r.pronamespace = l.oid ) where "
-              + "l.nspname = 'h3' and r.proname = 'h3_version'"))
-          .next()) {
-        needUpdate = (0 == rs.getInt(1));
-      }
-
-      //      if (!needUpdate && (rs = stmt.executeQuery("select h3.h3_version()")).next()) {
-      //        needUpdate = (H3_CORE_VERSION > rs.getInt(1));
-      //      }
-
-      //      if (needUpdate) {
-      //        stmt.execute(readResource("/h3Core.sql"));
-      //        stmt.execute(MaintenanceSQL.generateSearchPathSQL(XYZ_CONFIG));
-      //        logger.info("{} - Successfully created H3 SQL-Functions on database {}@{}",
-      // clientName, config.user, config.url);
-      //      }
-    } catch (Exception e) { // IOException
-      //      logger.error("{} - Failed run h3 init on database: {}@{}", clientName, config.user,
-      // config.url, e);
-      throw new SQLException("Failed to setup H3: " + e.getMessage());
-    }
   }
 }

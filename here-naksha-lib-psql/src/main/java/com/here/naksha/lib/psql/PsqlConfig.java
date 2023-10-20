@@ -25,8 +25,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * An extension to the {@link PsqlPoolConfig} that adds information, which are not needed for the
- * PostgresQL connection pool, but generally are required by applications.
+ * An extension to the {@link PsqlPoolConfig} that adds information, which are not needed for the PostgresQL connection pool, but generally
+ * are required by applications.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
@@ -87,8 +87,8 @@ public class PsqlConfig extends PsqlPoolConfig {
    * Create a new PostgresQL configuration from a pool configuration.
    *
    * @param poolConfig The pool configuration upon which this PostgresQL configuration is based.
-   * @param schema The database schema to use.
-   * @param appName The application name to set, when connecting to the database.
+   * @param schema     The database schema to use.
+   * @param appName    The application name to set, when connecting to the database.
    */
   public PsqlConfig(@NotNull PsqlPoolConfig poolConfig, @NotNull String schema, @NotNull String appName) {
     this(poolConfig, schema, appName, null, null);
@@ -98,9 +98,9 @@ public class PsqlConfig extends PsqlPoolConfig {
    * Create a new PostgresQL configuration from a pool configuration.
    *
    * @param poolConfig The pool configuration upon which this PostgresQL configuration is based.
-   * @param schema The database schema to use.
-   * @param appName The application name to set, when connecting to the database.
-   * @param role The role to use after connection; if {@code null}, then the {@link #user} is used.
+   * @param schema     The database schema to use.
+   * @param appName    The application name to set, when connecting to the database.
+   * @param role       The role to use after connection; if {@code null}, then the {@link #user} is used.
    */
   public PsqlConfig(
       @NotNull PsqlPoolConfig poolConfig,
@@ -114,9 +114,9 @@ public class PsqlConfig extends PsqlPoolConfig {
    * Create a new PostgresQL configuration from a pool configuration.
    *
    * @param poolConfig The pool configuration upon which this PostgresQL configuration is based.
-   * @param schema The database schema to use.
-   * @param appName The application name to set, when connecting to the database.
-   * @param role The role to use after connection; if {@code null}, then the {@link #user} is used.
+   * @param schema     The database schema to use.
+   * @param appName    The application name to set, when connecting to the database.
+   * @param role       The role to use after connection; if {@code null}, then the {@link #user} is used.
    * @param searchPath The search path to set; if {@code null}, automatically set.
    */
   public PsqlConfig(
@@ -143,15 +143,25 @@ public class PsqlConfig extends PsqlPoolConfig {
     this.searchPath = searchPath;
   }
 
-  /** The database schema to use. */
+  /**
+   * The database schema to use.
+   */
   public final @NotNull String schema;
 
-  /** The application name to set, when connecting to the database. */
+  /**
+   * The application name to set, when connecting to the database.
+   */
   public final @NotNull String appName;
 
-  /** The role to use after connection; if {@code null}, then the {@link #user} is used. */
+  /**
+   * The role to use after connecting; if {@code null}, then the {@link #user} is used. This is no longer supported, because role switching
+   * comes with major side effects. The current PostgresQL implementation will ignore the role.
+   */
+  @Deprecated
   public final @Nullable String role;
 
-  /** The search path to set; if {@code null}, automatically set. */
+  /**
+   * The search path to set; if {@code null}, automatically set.
+   */
   public final @Nullable String searchPath;
 }
