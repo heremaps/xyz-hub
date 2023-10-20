@@ -35,17 +35,9 @@ import org.jetbrains.annotations.NotNull;
 @JsonTypeName(value = "Storage")
 public class Storage extends Plugin<IStorage, Storage> {
 
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   public static final String NUMBER = "number";
-
-  @AvailableSince(NakshaVersion.v2_0_0)
-  public static final String CLASS_NAME = "className";
-
-  @AvailableSince(NakshaVersion.v2_0_6)
-  public static final String TITLE = "title";
-
-  @AvailableSince(NakshaVersion.v2_0_6)
-  public static final String DESCRIPTION = "description";
 
   /**
    * Create a new storage.
@@ -73,6 +65,7 @@ public class Storage extends Plugin<IStorage, Storage> {
   /**
    * The unique storage number, being a 40-bit unsigned integer.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)
   @JsonProperty(NUMBER)
   private long number;

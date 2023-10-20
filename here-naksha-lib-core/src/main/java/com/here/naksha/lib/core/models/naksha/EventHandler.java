@@ -26,6 +26,7 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.PluginCache;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A configured event handler.
@@ -34,20 +35,16 @@ import org.jetbrains.annotations.NotNull;
 @JsonTypeName(value = "Connector")
 public class EventHandler extends Plugin<IEventHandler, EventHandler> {
 
-  @AvailableSince(NakshaVersion.v2_0_3)
-  public static final String CLASS_NAME = "className";
-
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_3)
   public static final String EXTENSION = "extension";
 
   @AvailableSince(NakshaVersion.v2_0_3)
   public static final String ACTIVE = "active";
 
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_6)
   public static final String URL = "url";
-
-  @AvailableSince(NakshaVersion.v2_0_6)
-  public static final String STORAGE_ID = "storageId";
 
   /**
    * Create a new connector.
@@ -77,6 +74,7 @@ public class EventHandler extends Plugin<IEventHandler, EventHandler> {
   /**
    * If this connector is an extension, then this holds the extension identification number; a 16-bit unsigned integer.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_3)
   @JsonProperty(EXTENSION)
   @JsonInclude(Include.NON_DEFAULT)
@@ -91,14 +89,30 @@ public class EventHandler extends Plugin<IEventHandler, EventHandler> {
   @JsonProperty(ACTIVE)
   private boolean active = true;
 
+  public @Nullable String getExtensionId() {
+    return extensionId;
+  }
+
+  public void setExtensionId(@Nullable String extensionId) {
+    this.extensionId = extensionId;
+  }
+
+  /**
+   * The unique identifier of the extension that hosts the handler, referred by the {@link #getClassName() className}.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  private @Nullable String extensionId;
+
   /**
    * The connectivity details required by this connector to perform feature operations. If connector is attached to a Storage (using
    * storageId), then this is storage credentials.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_6)
   @JsonProperty(URL)
   private String url;
 
+  @AvailableSince(NakshaVersion.v2_0_7)
   @Override
   public @NotNull IEventHandler newInstance(@NotNull INaksha naksha) {
     return PluginCache.newInstance(getClassName(), IEventHandler.class, this);
@@ -112,18 +126,22 @@ public class EventHandler extends Plugin<IEventHandler, EventHandler> {
     this.active = active;
   }
 
+  @Deprecated
   public int getExtension() {
     return extension;
   }
 
+  @Deprecated
   public void setExtension(int extension) {
     this.extension = extension;
   }
 
+  @Deprecated
   public @NotNull String getUrl() {
     return url;
   }
 
+  @Deprecated
   public void setUrl(@NotNull String url) {
     this.url = url;
   }

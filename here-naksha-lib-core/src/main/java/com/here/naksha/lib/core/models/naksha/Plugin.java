@@ -22,10 +22,15 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaVersion;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public abstract class Plugin<API, SELF extends Plugin<API, SELF>> extends NakshaFeature {
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final String CLASS_NAME = "className";
 
   /**
    * Create a new empty feature.
@@ -33,7 +38,7 @@ public abstract class Plugin<API, SELF extends Plugin<API, SELF>> extends Naksha
    * @param className the name of the class to instantiate.
    * @param id The ID; if {@code null}, then a random one is generated.
    */
-  protected Plugin(@NotNull String className, @Nullable String id) {
+  protected Plugin(@JsonProperty(CLASS_NAME) @NotNull String className, @JsonProperty(ID) @Nullable String id) {
     super(id);
   }
 
@@ -45,7 +50,7 @@ public abstract class Plugin<API, SELF extends Plugin<API, SELF>> extends Naksha
     this.className = className;
   }
 
-  @JsonProperty
+  @JsonProperty(CLASS_NAME)
   @JsonInclude(Include.ALWAYS)
   private @NotNull String className;
 

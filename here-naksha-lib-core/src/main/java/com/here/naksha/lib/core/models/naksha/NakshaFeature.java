@@ -18,20 +18,30 @@
  */
 package com.here.naksha.lib.core.models.naksha;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Nullable;
 
 public class NakshaFeature extends XyzFeature {
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final String TITLE = "title";
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final String DESCRIPTION = "description";
 
   /**
    * Create a new empty feature.
    *
    * @param id The ID; if {@code null}, then a random one is generated.
    */
-  public NakshaFeature(@Nullable String id) {
+  @JsonCreator
+  public NakshaFeature(@JsonProperty(ID) @Nullable String id) {
     super(id);
   }
 
@@ -51,11 +61,11 @@ public class NakshaFeature extends XyzFeature {
     this.description = description;
   }
 
-  @JsonProperty
+  @JsonProperty(TITLE)
   @JsonInclude(Include.NON_EMPTY)
   private @Nullable String title;
 
-  @JsonProperty
+  @JsonProperty(DESCRIPTION)
   @JsonInclude(Include.NON_EMPTY)
   private @Nullable String description;
 }
