@@ -39,7 +39,7 @@ public final class NakshaContext {
   /**
    * The thread local instance.
    */
-  private static final ThreadLocal<NakshaContext> instance = withInitial(NakshaContext::new);
+  static final ThreadLocal<NakshaContext> instance = withInitial(NakshaContext::new);
 
   /**
    * Returns the {@link NakshaContext} of the current thread. If the thread does not have a context yet, create a new context, attach it to
@@ -48,7 +48,8 @@ public final class NakshaContext {
    * @return The {@link NakshaContext} of the current thread.
    */
   public static @NotNull NakshaContext currentContext() {
-    return instance.get();
+    final AbstractTask<?, ?> task = AbstractTask.currentTask();
+    return task != null ? task.context() : instance.get();
   }
 
   /**
