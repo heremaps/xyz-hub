@@ -112,11 +112,8 @@ public class XyzHubActionMatrix extends ActionMatrix {
     addAction(MANAGE_SPACES, XyzHubAttributeMap.ofSpace(space));
 
     // ACCESS_CONNECTORS right is needed to add a connector to the space.
-    final List<@NotNull String> connectorIds = space.getConnectorIds();
-    if (connectorIds != null) {
-      for (final @NotNull String connectorId : connectorIds) {
-        addAction(ACCESS_CONNECTORS, XyzHubAttributeMap.ofConnectorById(connectorId));
-      }
+    for (final @NotNull String connectorId : space.getEventHandlerIds()) {
+      addAction(ACCESS_CONNECTORS, XyzHubAttributeMap.ofConnectorById(connectorId));
     }
 
     // MANAGE_PACKAGES right is needed to add the space to a packages.
@@ -141,13 +138,9 @@ public class XyzHubActionMatrix extends ActionMatrix {
 
     // ACCESS_CONNECTORS right is needed to add a connector to the space.
     // MANAGE_SPACES includes the right to remove a connector.
-    final List<@NotNull String> newConnectorIds = _new.getConnectorIds();
-    final List<@NotNull String> oldConnectorIds = _old.getConnectorIds();
-    if (newConnectorIds != null) {
-      for (final @NotNull String new_connectorId : newConnectorIds) {
-        if (oldConnectorIds == null || !oldConnectorIds.contains(new_connectorId)) {
-          addAction(ACCESS_CONNECTORS, XyzHubAttributeMap.ofConnectorById(new_connectorId));
-        }
+    for (final @NotNull String new_connectorId : _new.getEventHandlerIds()) {
+      if (!_old.getEventHandlerIds().contains(new_connectorId)) {
+        addAction(ACCESS_CONNECTORS, XyzHubAttributeMap.ofConnectorById(new_connectorId));
       }
     }
 

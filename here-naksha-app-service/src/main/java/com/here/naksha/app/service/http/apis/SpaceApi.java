@@ -18,26 +18,15 @@
  */
 package com.here.naksha.app.service.http.apis;
 
-import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.CREATE_SPACE;
+import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.GET_ALL_SPACES;
 
-import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
-import com.here.naksha.lib.core.EventPipeline;
-import com.here.naksha.lib.core.models.naksha.EventHandler;
-import com.here.naksha.lib.core.models.naksha.Space;
-import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
-import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.payload.events.space.ModifySpaceEvent;
-import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
+import com.here.naksha.app.service.http.tasks.SpaceApiTask;
 import com.here.naksha.lib.core.storage.*;
-import com.here.naksha.lib.core.util.json.Json;
-import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
-import java.sql.SQLException;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,106 +49,18 @@ public class SpaceApi extends Api {
   public void addManualRoutes(final @NotNull Router router) {}
 
   private void getSpaces(final @NotNull RoutingContext routingContext) {
-    app().executeTask(() -> {
-      try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
-        // TODO HP : Fix reading of all spaces
-        /*
-        final IResultSet<Space> rs = tx.readFeatures(Space.class, NakshaAdminCollection.SPACES)
-        .getAll(0, Integer.MAX_VALUE);
-        */
-        final IResultSet<Space> rs = null;
-        final List<@NotNull Space> featureList = rs.toList(0, Integer.MAX_VALUE);
-        rs.close();
-        final XyzFeatureCollection response = new XyzFeatureCollection();
-        response.setFeatures(featureList);
-        verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
-        return response;
-      }
-    });
+    new SpaceApiTask<>(
+            GET_ALL_SPACES,
+            verticle,
+            naksha(),
+            routingContext,
+            verticle.createNakshaContext(routingContext))
+        .start();
   }
 
   private void createSpace(final @NotNull RoutingContext routingContext) {
-    // TODO HP_QUERY : How to ensure streamId is logged correctly throughout code?
-    app().executeTask(() -> {
-      Space space = null;
-      // Read request JSON
-      try (final Json json = Json.get()) {
-        final String bodyJson = routingContext.body().asString();
-        space = json.reader(ViewDeserialize.User.class)
-            .forType(Space.class)
-            .readValue(bodyJson);
-      } catch (Exception e) {
-        throw unchecked(e);
-      }
-      // Validate and Insert space in Admin database
-      try (final IMasterTransaction tx = naksha().storage().openMasterTransaction(naksha().settings())) {
-        // TODO : Validate if spaceId already exist
-        // TODO : Validate if connectorIds exist
-        // Insert space details in Admin database
-        // TODO HP : Fix adding new space
-        /*
-        final ModifyFeaturesResp modifyResponse = tx.writeFeatures(Space.class, NakshaAdminCollection.SPACES)
-        .modifyFeatures(new ModifyFeaturesReq<Space>(true).insert(space));
-        */
-        final ModifyFeaturesResp modifyResponse = null;
-        tx.commit();
-
-        // TODO HP_QUERY : How to trigger feature task pipeline and create table as part of pipeline?
-        // With connectorId (attached to a storage) ensure backend tables are created successfully
-        // TODO HP : Fix fetching connectors
-        /*
-        final IResultSet<Connector> rsc = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
-        .getFeaturesById(space.getConnectorIds());
-        */
-        final IResultSet<EventHandler> rsc = null;
-        final List<EventHandler> eventHandlerList = rsc.toList(0, Integer.MAX_VALUE);
-        rsc.close();
-        final EventPipeline eventPipeline = new EventPipeline(naksha());
-        for (final EventHandler eventHandler : eventHandlerList) {
-          // fetch storage associated with this connector
-          Storage storage = null;
-          if (eventHandler.getStorageId() != null) {
-            // TODO HP : Fix fetching storages
-            /*
-            final IResultSet<Storage> rss = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
-            .getFeaturesById(connector.getStorageId());
-            */
-            final IResultSet<Storage> rss = null;
-            if (rss.next()) {
-              storage = rss.getFeature();
-            }
-            rss.close();
-          }
-          eventHandler.setStorage(storage);
-          eventPipeline.addEventHandler(eventHandler);
-        }
-        // Send ModifySpaceEvent through all connectors, one of which, will create backend table(s)
-        final ModifySpaceEvent event = new ModifySpaceEvent()
-            .withOperation(ModifySpaceEvent.Operation.CREATE)
-            .withSpaceDefinition(space);
-        event.setSpace(space);
-        final XyzResponse pipelineResponse = eventPipeline.sendEvent(event);
-        if (pipelineResponse instanceof ErrorResponse errorResponse) {
-          verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, errorResponse);
-          return errorResponse;
-        }
-
-        // return success response (if we reach to this stage)
-        final XyzFeatureCollection response = verticle.transformModifyResponse(modifyResponse);
-        verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, response);
-        return response;
-      } catch (final Throwable t) {
-        if (t.getCause() instanceof SQLException se) {
-          // TODO HP_QUERY : Correct way to access streamId?
-          logger.warn("Error processing request. ", se);
-          final XyzResponse errResponse = new ErrorResponse(se, verticle.streamId(routingContext));
-          verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, errResponse);
-          return errResponse;
-        }
-        // TODO HP_QUERY : Is there a common recommended way to handle other errors? (and return appropriate
-        // error response)
-        throw t;
-      }
-    });
+    new SpaceApiTask<>(
+            CREATE_SPACE, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
+        .start();
   }
 }

@@ -46,6 +46,7 @@ import com.here.naksha.app.service.http.apis.*;
 import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
 import com.here.naksha.lib.core.AbstractTask;
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -342,7 +343,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       new HttpResponseStatus(499, "Client closed request");
 
   private void onRequestCancelled(@NotNull RoutingContext routingContext) {
-    final AbstractTask<?> task = AbstractTask.currentTask();
+    final AbstractTask<?, ?> task = AbstractTask.currentTask();
     if (task != null) {
       if (task.cancel()) {
         log.info("Successfully cancelled task for client side closed connection");
@@ -389,7 +390,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     routingContext.next();
   }
 
-  private static final Pattern FATAL_ERROR_MSG_PATTERN = Pattern.compile("^[0-9a-zA-Z .-_]+$");
+  private static final Pattern FATAL_ERROR_MSG_PATTERN = Pattern.compile("^[0-9a-zA-Z.-_\\-]+$");
 
   /**
    * Returns the stream-identifier for this routing context.
@@ -403,8 +404,6 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     }
     final MultiMap headers = routingContext.request().headers();
     String streamId = headers.get(STREAM_ID);
-    // TODO HP_QUERY : Reason to restrict streamId pattern? (it can reject UUID format, which can be most common
-    // case)
     if (streamId != null && !FATAL_ERROR_MSG_PATTERN.matcher(streamId).matches()) {
       log.atInfo()
           .setMessage("Received invalid HTTP header 'Stream-Id', the provided value '{}' is not allowed")
@@ -640,5 +639,13 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       }
       httpResponse.end(content);
     }
+  }
+
+  public @NotNull NakshaContext createNakshaContext(final @NotNull RoutingContext routingContext) {
+    final NakshaContext ctx = new NakshaContext(streamId(routingContext));
+    ctx.setAppId(naksha().getConfig().appId);
+    // TODO : Author to be set based on JWT token.
+    // ctx.setAuthor();
+    return ctx;
   }
 }

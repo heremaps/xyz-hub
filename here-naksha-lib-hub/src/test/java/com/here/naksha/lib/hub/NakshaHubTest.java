@@ -35,7 +35,7 @@ class NakshaHubTest {
         .parseUrl("jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
             + "&schema=naksha_test_hub")
         .build();
-    hub = new NakshaHub(psqlCfg, null);
+    hub = new NakshaHub(psqlCfg, null, null);
   }
 
   static NakshaHub hub;

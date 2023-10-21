@@ -293,6 +293,7 @@ project(":here-naksha-lib-extension") {
 }
 */
 
+/*
 project(":here-naksha-handler-activitylog") {
     description = "Naksha Activity Log Handler"
     dependencies {
@@ -303,6 +304,7 @@ project(":here-naksha-handler-activitylog") {
         testImplementation(jayway_jsonpath)
     }
 }
+*/
 
 /*
 project(":here-naksha-handler-http") {
@@ -378,7 +380,7 @@ try {
         dependencies {
             implementation(project(":here-naksha-lib-core"))
             implementation(project(":here-naksha-lib-psql"))
-            implementation(project(":here-naksha-lib-extension"))
+            //implementation(project(":here-naksha-lib-extension"))
             implementation(project(":here-naksha-handler-psql"))
             implementation(project(":here-naksha-lib-hub"))
 

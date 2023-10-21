@@ -26,10 +26,7 @@ import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.lambdas.F0;
-import com.here.naksha.lib.core.models.EventFeature;
-import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.Event;
-import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.IoHelp;
@@ -182,7 +179,7 @@ public final class NakshaApp extends Thread {
     this.instanceId = instanceId;
 
     NakshaHubConfig config = null;
-    // Read the default configuration from file
+    // Read the custom configuration from file
     try (final Json json = Json.get()) {
       // TODO HP_QUERY : Reason for not supporting custom config path?
       final LoadedBytes loaded =
@@ -199,7 +196,7 @@ public final class NakshaApp extends Thread {
     // TODO HP : OLD code to be removed
     // adminStorage = new PsqlStorage(adminDbConfig, 1L);
     // adminStorage.init();
-    hub = new NakshaHub(adminDbConfig, config);
+    hub = new NakshaHub(adminDbConfig, config, configId);
 
     // final ITransactionSettings tempSettings = adminStorage.createSettings().withAppId(adminDbConfig.appName);
     // try (final PsqlTxWriter tx = adminStorage.openMasterTransaction(tempSettings)) {
@@ -378,11 +375,6 @@ public final class NakshaApp extends Thread {
 
   public @NotNull <RESPONSE> Future<@Nullable RESPONSE> executeTask(@NotNull Supplier<RESPONSE> execute) {
     return new InternalTask<>(hub, execute).start();
-  }
-
-  public @NotNull Future<@NotNull XyzResponse> executeEvent(
-      @NotNull Event event, @NotNull EventFeature eventFeature) {
-    return new InternalEventTask(hub, event, eventFeature).start();
   }
 
   /**

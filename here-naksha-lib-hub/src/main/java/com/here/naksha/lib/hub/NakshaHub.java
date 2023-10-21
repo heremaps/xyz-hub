@@ -21,6 +21,7 @@ package com.here.naksha.lib.hub;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.models.storage.POp.*;
 import static com.here.naksha.lib.core.models.storage.PRef.*;
+import static com.here.naksha.lib.core.models.storage.RequestHelper.*;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
@@ -53,6 +54,8 @@ public class NakshaHub implements INaksha {
 
   /** The data source. */
   // protected final @NotNull PsqlDataSource dataSource;
+  /** The id of default NakshaHub Config feature object */
+  public static final @NotNull String DEF_CFG_ID = "default-config";
   /** The NakshaHub config. */
   protected final @NotNull NakshaHubConfig nakshaHubConfig;
   /** Singleton instance of physical admin storage implementation */
@@ -63,21 +66,25 @@ public class NakshaHub implements INaksha {
    * and support respective read/write operations on spaces */
   protected final @NotNull IStorage spaceStorageInstance;
 
-  public NakshaHub(final @NotNull PsqlConfig config, final @Nullable NakshaHubConfig customCfg) {
+  public NakshaHub(
+      final @NotNull PsqlConfig config,
+      final @Nullable NakshaHubConfig customCfg,
+      final @Nullable String configId) {
     // this.dataSource = new PsqlDataSource(config);
     // create storage instance upfront
-    this.psqlStorage = new PsqlStorage(config, 0);
+    this.psqlStorage = new PsqlStorage(config, "naksha-admin-db");
     this.adminStorageInstance = new NHAdminStorage(this.psqlStorage);
     this.spaceStorageInstance = new NHSpaceStorage(this);
-    // set default config
-    this.nakshaHubConfig = this.storageSetup(customCfg);
-    if (this.nakshaHubConfig == null) {
+    // setup backend storage DB and Hub config
+    final NakshaHubConfig finalCfg = this.storageSetup(customCfg, configId);
+    if (finalCfg == null) {
       throw new RuntimeException("Server configuration not found! Neither in Admin storage nor a default file.");
     }
+    this.nakshaHubConfig = finalCfg;
   }
 
-  private NakshaHubConfig storageSetup(final @Nullable NakshaHubConfig customCfg) {
-    NakshaHubConfig crtCfg = customCfg;
+  private @Nullable NakshaHubConfig storageSetup(
+      final @Nullable NakshaHubConfig customCfg, final @Nullable String configId) {
     /**
      * 1. Init Admin Storage
      * 2. Create all Admin collections
@@ -88,129 +95,129 @@ public class NakshaHub implements INaksha {
     // 1. Init Admin Storage
     getAdminStorage().initStorage();
 
+    // 2. Create all Admin collections in Admin DB
+    // TODO HP : Pass appropriate values to NakshaContext
     try (final IWriteSession admin = getAdminStorage().newWriteSession(new NakshaContext(), true)) {
-      // 2. Create all Admin collections in Admin DB
-      {
-        final List<WriteOp<StorageCollection>> collectionList = new ArrayList<>();
-        for (final String name : NakshaAdminCollection.ALL) {
-          final StorageCollection collection =
-              new StorageCollection(name); // TODO HP : Need to specify history flag and maxAge
-          final WriteOp<StorageCollection> writeOp = new WriteOp<>(
-              collection,
-              null,
-              name,
-              null,
-              false,
-              IfExists.RETAIN,
-              IfConflict.RETAIN,
-              IfNotExists.CREATE);
-          collectionList.add(writeOp);
-        }
-        final Result wrResult = admin.execute(new WriteCollections<>(collectionList));
-        if (wrResult instanceof ErrorResult er) {
-          admin.rollback();
-          throw unchecked(new Exception(
-              "Unable to create Admin collections in Admin DB. " + er.toString(), er.exception));
-        }
-        admin.commit();
+      final List<WriteOp<StorageCollection>> collectionList = new ArrayList<>();
+      for (final String name : NakshaAdminCollection.ALL) {
+        final StorageCollection collection =
+            new StorageCollection(name); // TODO HP : Need to specify history flag and maxAge
+        final WriteOp<StorageCollection> writeOp = new WriteOp<>(
+            collection, null, name, null, false, IfExists.RETAIN, IfConflict.RETAIN, IfNotExists.CREATE);
+        collectionList.add(writeOp);
       }
+      final Result wrResult = admin.execute(new WriteCollections<>(collectionList));
+      if (wrResult instanceof ErrorResult er) {
+        admin.rollback();
+        throw unchecked(new Exception(
+            "Unable to create Admin collections in Admin DB. " + er.toString(), er.exception));
+      }
+      admin.commit();
     } // close Admin DB connection
 
     // 3. run one-time maintenance on Admin DB to ensure history partitions are available
     getAdminStorage().maintainNow();
 
+    // TODO HP : This step to be removed later (once we have ability to add custom storages)
+    // fetch / add default storage implementation
+    // TODO HP : Pass appropriate values to NakshaContext
     try (final IWriteSession admin = getAdminStorage().newWriteSession(new NakshaContext(), true)) {
-      // TODO HP : This step to be removed later (once we have ability to add custom storages)
-      // fetch / add default storage implementation
-      {
-        Storage defStorage = null;
-        try (final Json json = Json.get()) {
-          final String storageJson = IoHelp.readResource("config/default-storage.json");
-          defStorage = json.reader(ViewDeserialize.Storage.class)
-              .forType(Storage.class)
-              .readValue(storageJson);
-        } catch (Exception e) {
-          throw unchecked(new Exception("Unable to read default Storage file. " + e.getMessage(), e));
-        }
-        // persist in Admin DB (if not already exists)
-        final WriteOp<Storage> writeOp = new WriteOp<>(
-            defStorage,
-            null,
-            defStorage.getId(),
-            null,
-            false,
-            IfExists.RETAIN,
-            IfConflict.RETAIN,
-            IfNotExists.CREATE);
-        final List<WriteOp<Storage>> featureList = new ArrayList<>();
-        featureList.add(writeOp);
-        final Result wrResult = admin.execute(new WriteFeatures<>(NakshaAdminCollection.STORAGES, featureList));
+      Storage defStorage = null;
+      try (final Json json = Json.get()) {
+        final String storageJson = IoHelp.readResource("config/default-storage.json");
+        defStorage = json.reader(ViewDeserialize.Storage.class)
+            .forType(Storage.class)
+            .readValue(storageJson);
+      } catch (Exception e) {
+        throw unchecked(new Exception("Unable to read default Storage file. " + e.getMessage(), e));
+      }
+      // persist in Admin DB (if not already exists)
+      final Result wrResult =
+          admin.execute(createFeatureRequest(NakshaAdminCollection.STORAGES, defStorage, true));
+      if (wrResult instanceof ErrorResult er) {
+        admin.rollback();
+        throw unchecked(
+            new Exception("Unable to add default storage in Admin DB. " + er.toString(), er.exception));
+      }
+      admin.commit();
+    } // close Admin DB connection
+
+    // 4. fetch / add latest config
+    return configSetup(customCfg, configId);
+  }
+
+  private @Nullable NakshaHubConfig configSetup(
+      final @Nullable NakshaHubConfig customCfg, final @Nullable String configId) {
+    /*
+     * Config preference, for a given configId (e.g. "custom-config"):
+     * 1. Custom config - If provided, persist the same in DB, and use the same for NakshaHub
+     * 2. DB custom config - If Database already has custom config (e.g. "custom-config"), use the same
+     * 3. DB default config - If Database has default config - "default-config", use the same
+     * 3. Default config - Fallback to default config from file - "default-config"
+     */
+
+    // TODO HP : Pass appropriate values to NakshaContext
+    try (final IWriteSession admin = getAdminStorage().newWriteSession(new NakshaContext(), true)) {
+      if (customCfg != null) {
+        // Custom config provided. Persist in AdminDB.
+        final Result wrResult = admin.execute(createFeatureRequest(
+            NakshaAdminCollection.CONFIGS, customCfg, IfExists.REPLACE, IfConflict.REPLACE));
         if (wrResult instanceof ErrorResult er) {
           admin.rollback();
           throw unchecked(
-              new Exception("Unable to add default storage in Admin DB. " + er.toString(), er.exception));
+              new Exception("Unable to add default config in Admin DB. " + er.toString(), er.exception));
         }
         admin.commit();
+        return customCfg;
       }
 
-      // 4. fetch / add latest config (ordered preference DB,Custom,Default)
-      {
-        // load default config from file, if custom config is not provided
-        if (crtCfg == null) {
-          try (final Json json = Json.get()) {
-            final String configJson = IoHelp.readResource("config/default-local.json");
-            crtCfg = json.reader(ViewDeserialize.Storage.class)
-                .forType(NakshaHubConfig.class)
-                .readValue(configJson);
-          } catch (Exception e) {
-            throw unchecked(new Exception("Unable to read default Config file. " + e.getMessage(), e));
-          }
-        }
-        // Read config from Admin DB (if available)
-        NakshaHubConfig dbCfg = null;
-        final ReadFeatures featureRequest = new ReadFeatures()
-            .addCollection(NakshaAdminCollection.CONFIGS)
-            .withPropertyOp(eq(id(), "default-config"));
-        final Result rdResult = admin.execute(featureRequest);
-        if (rdResult instanceof ErrorResult er) {
-          throw unchecked(new Exception(
-              "Unable to read default config from Admin DB. " + er.toString(), er.exception));
-        }
-        if (rdResult instanceof ReadResult<?> rr) {
-          if (rr.hasMore()) {
-            dbCfg = rr.getFeature(NakshaHubConfig.class);
-          }
-          rr.close();
-        }
-        // Persist new config in Admin DB (if DB didn't have one)
-        if (dbCfg == null && crtCfg != null) {
-          final WriteOp<NakshaHubConfig> writeOp = new WriteOp<>(
-              crtCfg,
-              null,
-              crtCfg.getId(),
-              null,
-              false,
-              IfExists.RETAIN,
-              IfConflict.RETAIN,
-              IfNotExists.CREATE);
-          final List<WriteOp<NakshaHubConfig>> featureList = new ArrayList<>();
-          featureList.add(writeOp);
-          final Result wrResult =
-              admin.execute(new WriteFeatures<>(NakshaAdminCollection.CONFIGS, featureList));
-          if (wrResult instanceof ErrorResult er) {
-            admin.rollback();
-            throw unchecked(new Exception(
-                "Unable to add default config in Admin DB. " + er.toString(), er.exception));
-          }
-          admin.commit();
-        } else {
-          // return DB config
-          crtCfg = dbCfg;
-        }
+      // load custom + default config from DB (if available)
+      NakshaHubConfig customDbCfg = null, defDbCfg = null;
+      final List<String> cfgIdList = (configId != null) ? List.of(configId, DEF_CFG_ID) : List.of(DEF_CFG_ID);
+      final Result rdResult = admin.execute(readFeaturesByIdsRequest(NakshaAdminCollection.CONFIGS, cfgIdList));
+      if (rdResult instanceof ErrorResult er) {
+        throw unchecked(new Exception(
+            "Unable to read custom/default config from Admin DB. " + er.toString(), er.exception));
       }
-    } // close Admin DB connection
+      if (rdResult instanceof ReadResult<?> rr) {
+        while (rr.hasMore()) {
+          final NakshaHubConfig cfg = rr.getFeature(NakshaHubConfig.class);
+          if (cfg.getId().equals(configId)) {
+            customDbCfg = cfg;
+          }
+          if (cfg.getId().equals(DEF_CFG_ID)) {
+            defDbCfg = cfg;
+          }
+        }
+        rr.close();
+      }
+      if (customDbCfg != null) {
+        return customDbCfg; // return custom config from DB
+      } else if (defDbCfg != null) {
+        return defDbCfg; // return default config from DB
+      }
 
-    return crtCfg;
+      // load default config from file (as DB didn't have custom/default config)
+      NakshaHubConfig defCfg = null;
+      try (final Json json = Json.get()) {
+        final String configJson = IoHelp.readResource("config/" + DEF_CFG_ID + ".json");
+        defCfg = json.reader(ViewDeserialize.Storage.class)
+            .forType(NakshaHubConfig.class)
+            .readValue(configJson);
+        defCfg.setId(DEF_CFG_ID); // overwrite Id to desired value
+      } catch (Exception e) {
+        throw unchecked(new Exception("Unable to read default Config file. " + e.getMessage(), e));
+      }
+      // Persist default config in Admin DB
+      final Result wrResult = admin.execute(createFeatureRequest(NakshaAdminCollection.CONFIGS, defCfg, true));
+      if (wrResult instanceof ErrorResult er) {
+        admin.rollback();
+        throw unchecked(
+            new Exception("Unable to add default config in Admin DB. " + er.toString(), er.exception));
+      }
+      admin.commit();
+      return defCfg; // return default config obtained from file
+    }
   }
 
   public @NotNull NakshaHubConfig getConfig() {

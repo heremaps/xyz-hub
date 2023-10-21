@@ -24,11 +24,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.here.naksha.lib.core.IoEventPipeline;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.feature.GetFeaturesByIdEvent;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
@@ -55,10 +55,10 @@ class ActivityLogHandlerTest {
 
   @BeforeAll
   static void setup() {
-    eventHandler = new EventHandler("test:activity-log", ActivityLogHandler.class);
+    eventHandler = new EventHandler(ActivityLogHandler.class, "test:activity-log");
     //noinspection ConstantConditions
     eventPipeline = new IoEventPipeline(null);
-    eventPipeline.addEventHandler(eventHandler.newInstance());
+    eventPipeline.addEventHandler(eventHandler);
   }
 
   @Test

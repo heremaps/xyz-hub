@@ -171,16 +171,19 @@ public class StorageMaintainer {
       final Map<String, MaintenanceTrigger> triggerMap = new HashMap<>();
       // iterate through all existing spaces
       for (final Space space : spaces) {
-        for (final String connectorId : space.getConnectorIds()) {
+        for (final String connectorId : space.getEventHandlerIds()) {
           // find associated Connector by Id
           final EventHandler eventHandler = connectorMap.get(connectorId);
-          if (eventHandler == null || !eventHandler.isActive() || eventHandler.getStorageId() == null) {
+          if (eventHandler == null
+              || !eventHandler.isActive()
+              || eventHandler.getProperties().get("storageId") == null) {
             // this connector is removed/disabled or not associated with storageId (so, no need to run
             // maintenance)
             continue;
           }
           // find associated Storage by Id
-          final Storage storage = storageMap.get(eventHandler.getStorageId());
+          final Storage storage = storageMap.get(
+              eventHandler.getProperties().get("storageId").toString());
           if (storage == null) {
             // this storage is removed (for some reason). so, can't run maintenance
             continue;
@@ -288,16 +291,19 @@ public class StorageMaintainer {
 
       // Invoke maintenance() using appropriate storage implementation class, by passing list of collections
       IStorage storageImpl = null;
+      // TODO HP : This logic needs fix to instantiate IStorage instance based on storageId
+      /*
       if (trigger.eventHandler() != null) {
-        // applicable when connector provided DBConfig is required for IStorage instantiation
-        storageImpl = trigger.eventHandler().newStorageImpl(trigger.storage());
+      // applicable when connector provided DBConfig is required for IStorage instantiation
+      storageImpl = trigger.eventHandler().newStorageImpl(trigger.storage());
       } else if (trigger.storageImpl() != null) {
-        // applicable when IStorage implementation is already available (e.g. AdminDB)
-        storageImpl = trigger.storageImpl();
+      // applicable when IStorage implementation is already available (e.g. AdminDB)
+      storageImpl = trigger.storageImpl();
       } else {
-        // fallback to default instantiation (may be applicable for custom storages)
-        storageImpl = trigger.storage().newInstance();
+      // fallback to default instantiation (may be applicable for custom storages)
+      storageImpl = trigger.storage().newInstance();
       }
+      */
       // TODO HP_QUERY : How do we mention where is naksha_tx table, while triggering maintenance?
       storageImpl.maintain(trigger.collectionInfoList());
 

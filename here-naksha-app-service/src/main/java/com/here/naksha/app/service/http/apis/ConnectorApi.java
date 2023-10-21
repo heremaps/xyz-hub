@@ -22,8 +22,8 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
-import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.storage.*;

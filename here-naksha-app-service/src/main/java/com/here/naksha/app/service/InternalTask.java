@@ -20,6 +20,7 @@ package com.here.naksha.app.service;
 
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaContext;
 import java.util.function.Supplier;
 import org.jetbrains.annotations.NotNull;
 
@@ -28,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
  *
  * @param <RESPONSE> The response-type.
  */
-public class InternalTask<RESPONSE> extends AbstractTask<RESPONSE> {
+public class InternalTask<RESPONSE> extends AbstractTask<RESPONSE, InternalTask<RESPONSE>> {
 
   /**
    * Creates a new task.
@@ -37,7 +38,7 @@ public class InternalTask<RESPONSE> extends AbstractTask<RESPONSE> {
    * @param supplier The supplier of the response.
    */
   protected InternalTask(@NotNull INaksha naksha, @NotNull Supplier<RESPONSE> supplier) {
-    super(naksha);
+    super(naksha, new NakshaContext());
     this.supplier = supplier;
   }
 

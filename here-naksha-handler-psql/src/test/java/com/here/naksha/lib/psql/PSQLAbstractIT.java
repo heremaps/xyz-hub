@@ -139,8 +139,7 @@ public abstract class PSQLAbstractIT extends Helper {
     final IoEventPipeline pipeline = new IoEventPipeline(null);
     // TODO: We need to create a pre-configured connector for the test, because the connector is the
     // PSQL storage for a specific db!
-    pipeline.addEventHandler(
-        new PsqlHandler(new EventHandler(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class.getName())));
+    pipeline.addEventHandler(new EventHandler(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class.getName()));
     assert jsonStream != null;
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
@@ -156,8 +155,10 @@ public abstract class PSQLAbstractIT extends Helper {
     final IoEventPipeline pipeline = new IoEventPipeline(null);
     // TODO: We need to create a pre-configured connector for the test, because the connector is the
     // PSQL storage for a specific db!
+    /*
     pipeline.addEventHandler(
-        new PsqlHandler(new EventHandler(RandomStringUtils.randomAlphabetic(12), PsqlHandler.class)));
+    new PsqlHandler(new EventHandler(PsqlHandler.class, RandomStringUtils.randomAlphabetic(12))));
+     */
     pipeline.sendEvent(jsonStream, os);
     String response = IOUtils.toString(Payload.prepareInputStream(new ByteArrayInputStream(os.toByteArray())));
     currentLogger().info("Response from lambda - {}", response);

@@ -26,14 +26,16 @@ import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.Original;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.Event;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.util.List;
 import java.util.Map;
@@ -127,13 +129,14 @@ public class ActivityLogHandler implements IEventHandler {
   }
 
   @Override
-  public @NotNull XyzResponse processEvent(@NotNull IEvent eventContext) throws XyzErrorException {
-    final Event event = eventContext.getRequest();
-    final Map<@NotNull String, Object> spaceParams = event.getParams();
+  public @NotNull Result processEvent(@NotNull IEvent eventContext) throws XyzErrorException {
+    //final Map<@NotNull String, Object> spaceParams = event.getParams();
     // TODO: Maybe allow overriding of some parameters per space?
     // TODO: If necessary, perform pre-processing.
     // event.addOldFeatures() <-- we need to see
-    XyzResponse response = eventContext.sendUpstream(event);
+    Result response = eventContext.sendUpstream(eventContext.getRequest());
+    // TODO: Post-process the features so that they match the new stuff.
+    /*
     if (response instanceof XyzFeatureCollection collection) {
       // TODO: Post-process the features so that they match the new stuff.
       final List<XyzFeature> oldFeatures = collection.getOldFeatures();
@@ -144,7 +147,7 @@ public class ActivityLogHandler implements IEventHandler {
         final XyzFeature oldFeature = oldFeatures.get(i);
         toActivityLogFormat(feature, oldFeature);
       }
-    }
+    }*/
     return response;
   }
 }

@@ -20,8 +20,8 @@ package com.here.naksha.handler.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
-import com.here.naksha.lib.psql.AbstractPsqlDataSource;
 import com.here.naksha.lib.psql.PsqlConfig;
+import com.here.naksha.lib.psql.PsqlDataSource;
 import com.here.naksha.lib.psql.PsqlPool;
 import com.here.naksha.lib.psql.PsqlPoolConfig;
 import java.sql.Connection;
@@ -33,7 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** The data-source used by the {@link PsqlHandler}. */
-public class PsqlHandlerDataSource extends AbstractPsqlDataSource<PsqlHandlerDataSource> {
+public class PsqlHandlerDataSource extends PsqlDataSource {
 
   private static @NotNull PsqlPool readOnlyPool(@NotNull PsqlHandlerParams params) {
     final List<@NotNull PsqlConfig> dbReplicas = params.getDbReplicas();
@@ -47,10 +47,20 @@ public class PsqlHandlerDataSource extends AbstractPsqlDataSource<PsqlHandlerDat
     return PsqlPool.get(dbConfig);
   }
 
-  @Override
-  protected @NotNull String defaultSchema() {
-    return "postgres";
+  private static @NotNull PsqlConfig readOnlyPsqlConfig(@NotNull PsqlHandlerParams params) {
+    final List<@NotNull PsqlConfig> dbReplicas = params.getDbReplicas();
+    final int SIZE = dbReplicas.size();
+    if (SIZE == 0) {
+      return params.getDbConfig();
+    }
+    final int replicaIndex = RandomUtils.nextInt(0, SIZE);
+    return dbReplicas.get(replicaIndex);
   }
+
+  /*@Override
+  protected @NotNull String defaultSchema() {
+  return "postgres";
+  }*/
 
   /**
    * Create a new data source for the given connection pool and application.
@@ -63,11 +73,11 @@ public class PsqlHandlerDataSource extends AbstractPsqlDataSource<PsqlHandlerDat
    */
   public PsqlHandlerDataSource(
       @NotNull PsqlHandlerParams params, @NotNull String spaceId, @Nullable String collection, boolean readOnly) {
-    super(readOnly ? readOnlyPool(params) : PsqlPool.get(params.getDbConfig()), spaceId);
+    super(readOnly ? readOnlyPsqlConfig(params) : params.getDbConfig());
     this.readOnly = readOnly;
     this.connectorParams = params;
-    setSchema(params.getDbConfig().schema);
-    setRole(params.getDbConfig().role);
+    // setSchema(params.getDbConfig().schema);
+    // setRole(params.getDbConfig().role);
     this.spaceId = spaceId;
     this.table = collection != null ? collection : spaceId;
     this.historyTable = collection + "_hst";

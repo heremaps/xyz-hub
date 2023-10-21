@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.heapcache;
 
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -27,6 +28,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class HeapCache implements IStorage {
 
@@ -135,4 +137,52 @@ public class HeapCache implements IStorage {
 
   @Override
   public void close() {}
+
+  /**
+   * Initializes the storage, create the transaction table, install needed scripts and extensions.
+   */
+  @Override
+  public void initStorage() {}
+
+  /**
+   * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.
+   */
+  @Override
+  public void startMaintainer() {}
+
+  /**
+   * Blocking call to perform maintenance tasks right now. One-time maintenance.
+   */
+  @Override
+  public void maintainNow() {}
+
+  /**
+   * Stops the maintainer thread.
+   */
+  @Override
+  public void stopMaintainer() {}
+
+  /**
+   * Open a new write-session, optionally to a master-node (when being in a multi-writer cluster).
+   *
+   * @param context   the {@link NakshaContext} to which to link the session.
+   * @param useMaster {@code true} if the master-node should be connected to; false if any writer is okay.
+   * @return the write-session.
+   */
+  @Override
+  public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
+    return IStorage.super.newWriteSession(context, useMaster);
+  }
+
+  /**
+   * Open a new read-session, optionally to a master-node to prevent replication lags.
+   *
+   * @param context   the {@link NakshaContext} to which to link the session.
+   * @param useMaster {@code true} if the master-node should be connected to, to avoid replication lag; false if any reader is okay.
+   * @return the read-session.
+   */
+  @Override
+  public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
+    return IStorage.super.newReadSession(context, useMaster);
+  }
 }
