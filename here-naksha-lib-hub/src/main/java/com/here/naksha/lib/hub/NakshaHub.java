@@ -19,9 +19,7 @@
 package com.here.naksha.lib.hub;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-import static com.here.naksha.lib.core.models.storage.POp.*;
-import static com.here.naksha.lib.core.models.storage.PRef.*;
-import static com.here.naksha.lib.core.models.storage.RequestHelper.*;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.*;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;

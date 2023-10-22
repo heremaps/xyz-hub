@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.models.storage;
+package com.here.naksha.lib.core.util.storage;
 
 import static com.here.naksha.lib.core.models.storage.POp.eq;
 import static com.here.naksha.lib.core.models.storage.POp.or;
@@ -24,6 +24,7 @@ import static com.here.naksha.lib.core.models.storage.PRef.id;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.storage.*;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
