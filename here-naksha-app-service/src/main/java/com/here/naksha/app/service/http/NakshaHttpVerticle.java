@@ -468,7 +468,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         response = new ErrorResponse(ILLEGAL_ARGUMENT, msg, streamId);
         log.atInfo().setMessage(msg).setCause(e).log();
       } else {
-        response = naksha().toErrorResponse(throwable);
+        response = toErrorResponse(throwable);
         response.setStreamId(streamId);
         log.atInfo()
             .setMessage("Send error response based upon unhandled exception: {}")
@@ -493,6 +493,10 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       final String msg = throwable != null ? throwable.getMessage() : "sendErrorResponse(ctx,null)";
       sendFatalErrorResponse(routingContext, msg);
     }
+  }
+
+  public @NotNull ErrorResponse toErrorResponse(@NotNull Throwable throwable) {
+    return new ErrorResponse(throwable, null);
   }
 
   /**

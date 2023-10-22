@@ -27,21 +27,21 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SpaceApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> {
+public class StorageApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> {
 
-  private static final Logger logger = LoggerFactory.getLogger(SpaceApiTask.class);
-  private final @NotNull SpaceApiReqType reqType;
+  private static final Logger logger = LoggerFactory.getLogger(StorageApiTask.class);
+  private final @NotNull StorageApiReqType reqType;
 
-  public enum SpaceApiReqType {
-    GET_ALL_SPACES,
-    GET_SPACE_BY_ID,
-    CREATE_SPACE,
-    UPDATE_SPACE,
-    DELETE_SPACE
+  public enum StorageApiReqType {
+    GET_ALL_STORAGES,
+    GET_STORAGE_BY_ID,
+    CREATE_STORAGE,
+    UPDATE_STORAGE,
+    DELETE_STORAGE
   }
 
-  public SpaceApiTask(
-      final @NotNull SpaceApiReqType reqType,
+  public StorageApiTask(
+      final @NotNull StorageApiReqType reqType,
       final @NotNull NakshaHttpVerticle verticle,
       final @NotNull INaksha nakshaHub,
       final @NotNull RoutingContext routingContext,
@@ -64,14 +64,22 @@ public class SpaceApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> {
   @Override
   protected @NotNull XyzResponse execute() {
     switch (this.reqType) {
-      case GET_ALL_SPACES:
-        return executeGetSpaces();
+      case GET_ALL_STORAGES:
+        return executeGetStorages();
+      case CREATE_STORAGE:
+        return executeCreateStorage();
       default:
         return executeUnsupported();
     }
   }
 
-  private @NotNull XyzResponse executeGetSpaces() {
+  // TODO HP : Entire method to be rewritten
+  private @NotNull XyzResponse executeGetStorages() {
+    return executeUnsupported();
+  }
+
+  // TODO HP : Entire method to be rewritten
+  private @NotNull XyzResponse executeCreateStorage() {
     return executeUnsupported();
   }
 }

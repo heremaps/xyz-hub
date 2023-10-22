@@ -18,7 +18,7 @@
  */
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.service.NakshaApp.newHub;
+import static com.here.naksha.app.service.NakshaApp.newInstance;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -30,13 +30,13 @@ class NakshaAppTest {
   static void prepare() {
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
     if (password == null) password = "password";
-    hub = newHub(
+    app = newInstance(
         "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password,
         "default-config"); // this string concat only happens once, its ok ;)
-    hub.start();
+    app.start();
   }
 
-  static NakshaApp hub;
+  static NakshaApp app;
 
   @Test
   void startup() throws InterruptedException {

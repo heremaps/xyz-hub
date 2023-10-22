@@ -27,21 +27,22 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SpaceApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> {
+public class ConnectorApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> {
 
-  private static final Logger logger = LoggerFactory.getLogger(SpaceApiTask.class);
-  private final @NotNull SpaceApiReqType reqType;
+  private static final Logger logger = LoggerFactory.getLogger(ConnectorApiTask.class);
 
-  public enum SpaceApiReqType {
-    GET_ALL_SPACES,
-    GET_SPACE_BY_ID,
-    CREATE_SPACE,
-    UPDATE_SPACE,
-    DELETE_SPACE
+  private final @NotNull ConnectorApiReqType reqType;
+
+  public enum ConnectorApiReqType {
+    GET_ALL_CONNECTORS,
+    GET_CONNECTOR_BY_ID,
+    CREATE_CONNECTOR,
+    UPDATE_CONNECTOR,
+    DELETE_CONNECTOR
   }
 
-  public SpaceApiTask(
-      final @NotNull SpaceApiReqType reqType,
+  public ConnectorApiTask(
+      final @NotNull ConnectorApiReqType reqType,
       final @NotNull NakshaHttpVerticle verticle,
       final @NotNull INaksha nakshaHub,
       final @NotNull RoutingContext routingContext,
@@ -64,14 +65,22 @@ public class SpaceApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> {
   @Override
   protected @NotNull XyzResponse execute() {
     switch (this.reqType) {
-      case GET_ALL_SPACES:
-        return executeGetSpaces();
+      case GET_ALL_CONNECTORS:
+        return executeGetConnectors();
+      case CREATE_CONNECTOR:
+        return executeCreateConnector();
       default:
         return executeUnsupported();
     }
   }
 
-  private @NotNull XyzResponse executeGetSpaces() {
+  // TODO HP : Entire method to be rewritten
+  private @NotNull XyzResponse executeGetConnectors() {
+    return executeUnsupported();
+  }
+
+  // TODO HP : Entire method to be rewritten
+  private @NotNull XyzResponse executeCreateConnector() {
     return executeUnsupported();
   }
 }
