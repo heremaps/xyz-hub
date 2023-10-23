@@ -27,6 +27,7 @@ import static com.here.xyz.psql.DatabaseWriter.ModificationType.UPDATE_HIDE_COMP
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.events.SelectiveEvent;
 import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.DatabaseWriter.ModificationType;
@@ -175,10 +176,14 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
 
   private SQLQuery build1LevelBaseQuery(E event) {
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
+    
+    boolean useInnerLimit = true;
+    if( event instanceof IterateFeaturesEvent )
+     useInnerLimit = false;
 
     return new SQLQuery("SELECT id, version, operation, jsondata, geo${{iColumnBase}}"
         + "    FROM ${schema}.${extendedTable} m"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}} ${{limit}}")
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetBase}} " + (useInnerLimit ? "${{limit}}" : ""))
         .withVariable("extendedTable", getExtendedTable(event))
         .withQueryFragment("deletedCheck", buildDeletionCheckFragment(versionsToKeep, false)) //NOTE: We know that the base space is not an extended one
         .withQueryFragment("versionCheck", buildBaseVersionCheckFragment());
@@ -187,9 +192,13 @@ public abstract class GetFeatures<E extends ContextAwareEvent, R extends XyzResp
   private SQLQuery build2LevelBaseQuery(E event) {
     int versionsToKeep = DatabaseHandler.readVersionsToKeep(event);
 
+    boolean useInnerLimit = true;
+    if( event instanceof IterateFeaturesEvent )
+     useInnerLimit = false;
+
     return new SQLQuery("(SELECT id, version, operation, jsondata, geo${{iColumnIntermediate}}"
         + "    FROM ${schema}.${intermediateExtensionTable}"
-        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetIntermediate}} ${{limit}})"
+        + "    WHERE ${{filterWhereClause}} ${{deletedCheck}} ${{versionCheck}} ${{iOffsetIntermediate}} " + (useInnerLimit ? "${{limit}}" : "") +") "
         + "UNION ALL"
         + "    SELECT id, version, operation, jsondata, geo${{iColumn}} FROM"
         + "        ("
