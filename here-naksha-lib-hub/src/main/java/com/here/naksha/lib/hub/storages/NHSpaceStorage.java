@@ -18,12 +18,19 @@
  */
 package com.here.naksha.lib.hub.storages;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
+import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.storage.*;
+import com.here.naksha.lib.handlers.*;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,8 +38,35 @@ public class NHSpaceStorage implements IStorage {
 
   protected final @NotNull INaksha nakshaHub;
 
+  /** List of Admin virtual spaces with relevant event handlers required to support event processing */
+  protected final @NotNull Map<String, List<IEventHandler>> virtualSpaces;
+
   public NHSpaceStorage(final @NotNull INaksha hub) {
     this.nakshaHub = hub;
+    this.virtualSpaces = configureVirtualSpaces(hub);
+  }
+
+  private @NotNull Map<String, List<IEventHandler>> configureVirtualSpaces(final @NotNull INaksha hub) {
+    final Map<String, List<IEventHandler>> adminSpaces = new HashMap<>();
+    // common auth handler
+    final IEventHandler authHandler = new AuthorizationEventHandler(hub);
+    // add event handlers for each admin space
+    for (final String spaceId : NakshaAdminCollection.ALL) {
+      adminSpaces.put(
+          spaceId,
+          switch (spaceId) {
+            case NakshaAdminCollection.CONFIGS -> List.of(authHandler, new IntHandlerForConfigs(hub));
+            case NakshaAdminCollection.SPACES -> List.of(authHandler, new IntHandlerForSpaces(hub));
+            case NakshaAdminCollection.SUBSCRIPTIONS -> List.of(
+                authHandler, new IntHandlerForSubscriptions(hub));
+            case NakshaAdminCollection.EVENT_HANDLERS -> List.of(
+                authHandler, new IntHandlerForEventHandlers(hub));
+            case NakshaAdminCollection.STORAGES -> List.of(authHandler, new IntHandlerForStorages(hub));
+            case NakshaAdminCollection.EXTENSIONS -> List.of(authHandler, new IntHandlerForExtensions(hub));
+            default -> throw unchecked(new Exception("Unsupported virtual space " + spaceId));
+          });
+    }
+    return adminSpaces;
   }
 
   /**
@@ -69,12 +103,12 @@ public class NHSpaceStorage implements IStorage {
 
   @Override
   public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
-    return new NHSpaceStorageWriter(this.nakshaHub, context, useMaster);
+    return new NHSpaceStorageWriter(this.nakshaHub, virtualSpaces, context, useMaster);
   }
 
   @Override
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
-    return new NHSpaceStorageReader(this.nakshaHub, context, useMaster);
+    return new NHSpaceStorageReader(this.nakshaHub, virtualSpaces, context, useMaster);
   }
 
   // TODO HP : remove all below deprecated methods at the end

@@ -18,21 +18,31 @@
  */
 package com.here.naksha.lib.hub.storages;
 
+import com.here.naksha.lib.core.EventPipeline;
+import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteCollections;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWriteSession {
 
-  public NHSpaceStorageWriter(final @NotNull INaksha hub, @Nullable NakshaContext context, boolean useMaster) {
-    super(hub, context, useMaster);
+  public NHSpaceStorageWriter(
+      final @NotNull INaksha hub,
+      final @NotNull Map<String, List<IEventHandler>> virtualSpaces,
+      final @Nullable NakshaContext context,
+      boolean useMaster) {
+    super(hub, virtualSpaces, context, useMaster);
   }
 
   /**
@@ -43,7 +53,44 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
    */
   @Override
   public @NotNull Result execute(@NotNull WriteRequest writeRequest) {
-    return null;
+    if (writeRequest instanceof WriteCollections wc) {
+      return executeWriteCollections(wc);
+    } else if (writeRequest instanceof WriteFeatures wf) {
+      return executeWriteFeatures(wf);
+    }
+    throw new UnsupportedOperationException(
+        "WriteRequest with unsupported type " + writeRequest.getClass().getName());
+  }
+
+  private @NotNull Result executeWriteCollections(final @NotNull WriteCollections wc) {
+    try (final IWriteSession admin = nakshaHub.getAdminStorage().newWriteSession(context, useMaster)) {
+      return admin.execute(wc);
+    }
+  }
+
+  private @NotNull Result executeWriteFeatures(final @NotNull WriteFeatures wf) {
+    if (virtualSpaces.containsKey(wf.collectionId)) {
+      // Request is to write to Naksha Admin space
+      return executeWriteFeaturesToAdminSpaces(wf);
+    } else {
+      // Request is to write to Custom space
+      return executeWriteFeaturesToCustomSpaces(wf);
+    }
+  }
+
+  private @NotNull Result executeWriteFeaturesToAdminSpaces(final @NotNull WriteFeatures wf) {
+    // Run pipeline against virtual space
+    final EventPipeline pipeline = new EventPipeline(nakshaHub);
+    // add internal Admin resource specific event handlers
+    for (final IEventHandler handler : virtualSpaces.get(wf.collectionId)) {
+      pipeline.addEventHandler(handler);
+    }
+    return pipeline.sendEvent(wf);
+  }
+
+  private @NotNull Result executeWriteFeaturesToCustomSpaces(final @NotNull WriteFeatures rf) {
+    // TODO : Add logic to support running pipeline for custom space
+    throw new UnsupportedOperationException("WriteFeatures to custom space not supported as of now");
   }
 
   /**
@@ -60,7 +107,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
   public @NotNull IStorageLock lockFeature(
       @NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
-    return null;
+    throw new UnsupportedOperationException("Locking not supported by this storage instance!");
   }
 
   /**
@@ -75,7 +122,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
   @Override
   public @NotNull IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
-    return null;
+    throw new UnsupportedOperationException("Locking not supported by this storage instance!");
   }
 
   /**

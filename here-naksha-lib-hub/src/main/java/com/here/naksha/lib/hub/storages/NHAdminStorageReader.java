@@ -23,25 +23,16 @@ import com.here.naksha.lib.core.models.storage.Notification;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.storage.IReadSession;
-import com.here.naksha.lib.core.storage.IStorage;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 public class NHAdminStorageReader implements IReadSession {
 
-  /** Singleton instance of physical admin storage implementation */
-  protected final @NotNull IStorage psqlStorage;
-  /** Runtime NakshaContext which is to be associated with read operations */
-  protected final @NotNull NakshaContext context;
-  /** Flag to indicate whether it has to connect to master storage instance or not */
-  protected final boolean useMaster;
+  /** Current session, all read storage operations should be executed against */
+  final @NotNull IReadSession session;
 
-  public NHAdminStorageReader(
-      final @NotNull IStorage psqlStorage, @Nullable NakshaContext context, boolean useMaster) {
-    this.psqlStorage = psqlStorage;
-    this.context = (context != null) ? context : NakshaContext.currentContext();
-    this.useMaster = useMaster;
+  protected NHAdminStorageReader(final @NotNull IReadSession reader) {
+    this.session = reader;
   }
 
   /**
@@ -51,7 +42,7 @@ public class NHAdminStorageReader implements IReadSession {
    */
   @Override
   public boolean isMasterConnect() {
-    return useMaster;
+    return session.isMasterConnect();
   }
 
   /**
@@ -61,7 +52,7 @@ public class NHAdminStorageReader implements IReadSession {
    */
   @Override
   public @NotNull NakshaContext getNakshaContext() {
-    return this.context;
+    return session.getNakshaContext();
   }
 
   /**
@@ -72,7 +63,7 @@ public class NHAdminStorageReader implements IReadSession {
    */
   @Override
   public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
-    return 0;
+    return session.getStatementTimeout(timeUnit);
   }
 
   /**
@@ -82,7 +73,9 @@ public class NHAdminStorageReader implements IReadSession {
    * @param timeUnit The unit of the timeout.
    */
   @Override
-  public void setStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) {}
+  public void setStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) {
+    session.setStatementTimeout(timeout, timeUnit);
+  }
 
   /**
    * Returns the lock timeout.
@@ -92,7 +85,7 @@ public class NHAdminStorageReader implements IReadSession {
    */
   @Override
   public long getLockTimeout(@NotNull TimeUnit timeUnit) {
-    return 0;
+    return session.getLockTimeout(timeUnit);
   }
 
   /**
@@ -102,28 +95,30 @@ public class NHAdminStorageReader implements IReadSession {
    * @param timeUnit The unit of the timeout.
    */
   @Override
-  public void setLockTimeout(long timeout, @NotNull TimeUnit timeUnit) {}
+  public void setLockTimeout(long timeout, @NotNull TimeUnit timeUnit) {
+    session.setLockTimeout(timeout, timeUnit);
+  }
 
   /**
    * Execute the given read-request.
    *
-   * @param readRequest
+   * @param readRequest input request
    * @return the result.
    */
   @Override
   public @NotNull Result execute(@NotNull ReadRequest<?> readRequest) {
-    return null;
+    return session.execute(readRequest);
   }
 
   /**
    * Process the given notification.
    *
-   * @param notification
+   * @param notification input notification
    * @return the result.
    */
   @Override
   public @NotNull Result process(@NotNull Notification<?> notification) {
-    return null;
+    return session.process(notification);
   }
 
   /**
@@ -131,5 +126,7 @@ public class NHAdminStorageReader implements IReadSession {
    * {@link IllegalStateException}.
    */
   @Override
-  public void close() {}
+  public void close() {
+    session.close();
+  }
 }

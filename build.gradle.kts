@@ -98,6 +98,7 @@ val awaitility = "org.awaitility:awaitility:4.2.0"
 val junit_jupiter = "org.junit.jupiter:junit-jupiter:5.9.2"
 
 val flipkart_zjsonpatch = "com.flipkart.zjsonpatch:zjsonpatch:0.4.13"
+val json_assert = "org.skyscreamer:jsonassert:1.5.1"
 
 val mavenUrl = rootProject.properties["mavenUrl"] as String
 val mavenUser = rootProject.properties["mavenUser"] as String
@@ -357,22 +358,35 @@ project(":here-naksha-handler-psql") {
     }
 }
 
-try {
+project(":here-naksha-lib-handlers") {
+    description = "Naksha Handlers library"
+    dependencies {
+        implementation(project(":here-naksha-lib-core"))
+        implementation(project(":here-naksha-lib-psql"))
+
+        implementation(commons_lang3)
+        implementation(commons_dbutils)
+    }
+}
+
+//try {
     project(":here-naksha-lib-hub") {
         description = "NakshaHub library"
         dependencies {
             implementation(project(":here-naksha-lib-core"))
             implementation(project(":here-naksha-lib-psql"))
-            implementation(project(":here-naksha-lib-extension"))
-            implementation(project(":here-naksha-handler-psql"))
+            //implementation(project(":here-naksha-lib-extension"))
+            implementation(project(":here-naksha-lib-handlers"))
 
             implementation(commons_lang3)
             implementation(vividsolutions_jts_core)
             implementation(postgres)
+
+            testImplementation(json_assert)
         }
     }
-} catch (ignore: UnknownProjectException) {
-}
+//} catch (ignore: UnknownProjectException) {
+//}
 
 try {
     project(":here-naksha-app-service") {

@@ -37,12 +37,12 @@ public class NHAdminStorage implements IStorage {
 
   @Override
   public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
-    return new NHAdminStorageWriter(psqlStorage, context, useMaster);
+    return new NHAdminStorageWriter(this.psqlStorage.newWriteSession(context, useMaster));
   }
 
   @Override
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
-    return new NHAdminStorageReader(psqlStorage, context, useMaster);
+    return new NHAdminStorageReader(this.psqlStorage.newReadSession(context, useMaster));
   }
 
   /**

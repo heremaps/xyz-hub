@@ -18,22 +18,22 @@
  */
 package com.here.naksha.lib.hub.storages;
 
-import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
-import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 public class NHAdminStorageWriter extends NHAdminStorageReader implements IWriteSession {
 
-  public NHAdminStorageWriter(
-      final @NotNull IStorage psqlStorage, @Nullable NakshaContext context, boolean useMaster) {
-    super(psqlStorage, context, useMaster);
+  /** Current session, all write storage operations should be executed against */
+  final @NotNull IWriteSession session;
+
+  public NHAdminStorageWriter(final @NotNull IWriteSession writer) {
+    super(writer);
+    this.session = writer;
   }
 
   /**
@@ -44,7 +44,7 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
    */
   @Override
   public @NotNull Result execute(@NotNull WriteRequest writeRequest) {
-    return null;
+    return session.execute(writeRequest);
   }
 
   /**
@@ -61,7 +61,7 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
   public @NotNull IStorageLock lockFeature(
       @NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
-    return null;
+    return session.lockFeature(collectionId, featureId, timeout, timeUnit);
   }
 
   /**
@@ -76,18 +76,22 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
   @Override
   public @NotNull IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
-    return null;
+    return session.lockStorage(lockId, timeout, timeUnit);
   }
 
   /**
    * Commit all changes.
    */
   @Override
-  public void commit() {}
+  public void commit() {
+    session.commit();
+  }
 
   /**
    * Abort the transaction, revert all pending changes.
    */
   @Override
-  public void rollback() {}
+  public void rollback() {
+    session.rollback();
+  }
 }

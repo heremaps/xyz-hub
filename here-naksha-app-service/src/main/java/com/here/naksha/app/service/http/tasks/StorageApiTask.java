@@ -75,6 +75,10 @@ public class StorageApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> 
 
   // TODO HP : Entire method to be rewritten
   private @NotNull XyzResponse executeGetStorages() {
+    // Create ReadFeatures Request to read all storages from Admin DB
+    // Submit request to NH Space Storage
+    // Convert ReadResult to XyzResponse
+    // In case of error, return XyzErrorResponse
     return executeUnsupported();
   }
 

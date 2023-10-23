@@ -18,12 +18,14 @@
  */
 package com.here.naksha.lib.hub.storages;
 
+import com.here.naksha.lib.core.EventPipeline;
+import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.models.storage.Notification;
-import com.here.naksha.lib.core.models.storage.ReadRequest;
-import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -36,11 +38,18 @@ public class NHSpaceStorageReader implements IReadSession {
   protected final @NotNull NakshaContext context;
   /** Flag to indicate whether it has to connect to master storage instance or not */
   protected final boolean useMaster;
+  /** List of Admin virtual spaces with relevant event handlers required to support event processing */
+  protected final @NotNull Map<String, List<IEventHandler>> virtualSpaces;
 
-  public NHSpaceStorageReader(final @NotNull INaksha hub, @Nullable NakshaContext context, boolean useMaster) {
+  public NHSpaceStorageReader(
+      final @NotNull INaksha hub,
+      final @NotNull Map<String, List<IEventHandler>> virtualSpaces,
+      final @Nullable NakshaContext context,
+      boolean useMaster) {
     this.nakshaHub = hub;
     this.context = (context != null) ? context : NakshaContext.currentContext();
     this.useMaster = useMaster;
+    this.virtualSpaces = virtualSpaces;
   }
 
   /**
@@ -106,23 +115,63 @@ public class NHSpaceStorageReader implements IReadSession {
   /**
    * Execute the given read-request.
    *
-   * @param readRequest
+   * @param readRequest input read request
    * @return the result.
    */
   @Override
-  public @NotNull Result execute(@NotNull ReadRequest<?> readRequest) {
-    return null;
+  public @NotNull Result execute(final @NotNull ReadRequest<?> readRequest) {
+    if (readRequest instanceof ReadCollections rc) {
+      return executeReadCollections(rc);
+    } else if (readRequest instanceof ReadFeatures rf) {
+      return executeReadFeatures(rf);
+    }
+    throw new UnsupportedOperationException(
+        "ReadRequest with unsupported type " + readRequest.getClass().getName());
+  }
+
+  private @NotNull Result executeReadCollections(final @NotNull ReadCollections rc) {
+    try (final IReadSession admin = nakshaHub.getAdminStorage().newReadSession(context, useMaster)) {
+      return admin.execute(rc);
+    }
+  }
+
+  private @NotNull Result executeReadFeatures(final @NotNull ReadFeatures rf) {
+    if (rf.getCollections().size() > 1) {
+      throw new UnsupportedOperationException("Reading from multiple spaces not supported!");
+    }
+    if (virtualSpaces.containsKey(rf.getCollections().get(0))) {
+      // Request is to read from Naksha Admin space
+      return executeReadFeaturesFromAdminSpaces(rf);
+    } else {
+      // Request is to read from Custom space
+      return executeReadFeaturesFromCustomSpaces(rf);
+    }
+  }
+
+  private @NotNull Result executeReadFeaturesFromAdminSpaces(final @NotNull ReadFeatures rf) {
+    // Run pipeline against virtual space
+    final EventPipeline pipeline = new EventPipeline(nakshaHub);
+    // add internal Admin resource specific event handlers
+    for (final IEventHandler handler : virtualSpaces.get(rf.getCollections().get(0))) {
+      pipeline.addEventHandler(handler);
+    }
+    return pipeline.sendEvent(rf);
+  }
+
+  private @NotNull Result executeReadFeaturesFromCustomSpaces(final @NotNull ReadFeatures rf) {
+    // TODO : Add logic to support running pipeline for custom space
+    throw new UnsupportedOperationException("ReadFeatures from custom space not supported as of now");
   }
 
   /**
    * Process the given notification.
    *
-   * @param notification
+   * @param notification notification event
    * @return the result.
    */
   @Override
   public @NotNull Result process(@NotNull Notification<?> notification) {
-    return null;
+    throw new UnsupportedOperationException("Notification processing not supported!");
   }
 
   /**
