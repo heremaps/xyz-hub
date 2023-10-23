@@ -78,7 +78,8 @@ public class ExportQueue extends JobQueue {
                                 .onSuccess(f -> {
                                     if (currentJob instanceof Export && ((Export) currentJob).getExportTarget().getType() == VML
                                         && ((Export) currentJob).getStatistic() != null
-                                        && ((Export) currentJob).getStatistic().getFilesUploaded() > 0)
+                                        && ((Export) currentJob).getStatistic().getFilesUploaded() > 0
+                                        && ((Export) currentJob).getStatistic().getBytesUploaded() > 0 )
                                         //Only here we need a trigger
                                         postTrigger(currentJob);
                                     else
