@@ -24,10 +24,7 @@ END $BODY$;
 -- Start the transaction by setting the application-identifier, the current author (which may be null)
 -- and the returns the transaction number.
 -- See: https://www.postgresql.org/docs/current/runtime-config-query.html
-CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool)
-    RETURNS uuid
-    LANGUAGE 'plpgsql' VOLATILE
-AS $$
+CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool) RETURNS uuid LANGUAGE 'plpgsql' VOLATILE AS $$
 BEGIN
     EXECUTE format('SELECT '
                        || 'SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', true)'
@@ -47,6 +44,24 @@ BEGIN
     IF create_tx THEN
         RETURN naksha_tx_current();
     END IF;
+    RETURN NULL;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION naksha_read_collections( ids text[], read_deleted bool) RETURNS jsonb[] LANGUAGE 'plpgsql' VOLATILE AS $$
+BEGIN
+    RETURN NULL;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION naksha_write_collections( write_ops jsonb[] ) RETURNS jsonb[] LANGUAGE 'plpgsql' VOLATILE AS $$
+BEGIN
+    RETURN NULL;
+END
+$$;
+
+CREATE OR REPLACE FUNCTION naksha_write_features( collection text, write_ops jsonb[] ) RETURNS jsonb[] LANGUAGE 'plpgsql' VOLATILE AS $$
+BEGIN
     RETURN NULL;
 END
 $$;
