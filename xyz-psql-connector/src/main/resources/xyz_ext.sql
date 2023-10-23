@@ -3963,9 +3963,9 @@ begin
                     tile_id := tile;
                     if base64enc then
                         --empty b64_fc
-                        tile_content := 'eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0=';
+                        tile_content := null; --'eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0=';
                     else
-                        tile_content := '{"type": "FeatureCollection", "features":[]}';
+                        tile_content := null; --'{"type": "FeatureCollection", "features":[]}';
                     end if;
                     return next;
                 end if;

@@ -115,13 +115,13 @@ public class JobApiIT extends TestSpaceWithFeature {
         createSpaceWithCustomStorage(getScopedSpaceId(testSpaceId3, scope), "psql", null);
         postFeature(getScopedSpaceId(testSpaceId3,scope), newFeature()
                         .withId("id000")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093)))
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.61,50.020093)))  // base  - htile 122001322003 , 23600771
                         .withProperties(new Properties().with("group", "shouldBeEmpty")),
                 AuthProfile.ACCESS_OWNER_1_ADMIN
         );
         postFeature(getScopedSpaceId(testSpaceId3,scope), newFeature()
                         .withId("id001")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093)))
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
                         .withProperties(new Properties().with("group", "baseonly")),
                 AuthProfile.ACCESS_OWNER_1_ADMIN
         );
@@ -129,13 +129,13 @@ public class JobApiIT extends TestSpaceWithFeature {
         createSpaceWithExtension(getScopedSpaceId(testSpaceId3, scope));
         postFeature(getScopedSpaceId(testSpaceId3Ext,scope), newFeature()
                         .withId("id000")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093)))
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.71,50.020093))) // delta - htile 122001322013 , 23600775
                         .withProperties(new Properties().with("group", "movedFromEmpty")),
                 AuthProfile.ACCESS_OWNER_1_ADMIN
         );
         postFeature(getScopedSpaceId(testSpaceId3Ext,scope), newFeature()
                         .withId("id002")
-                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093)))
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
                         .withProperties(new Properties().with("group", "deltaonly")),
                 AuthProfile.ACCESS_OWNER_1_ADMIN
         );
