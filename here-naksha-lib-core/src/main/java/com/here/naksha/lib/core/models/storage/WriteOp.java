@@ -59,13 +59,15 @@ public class WriteOp<T> {
   public final @Nullable T object;
 
   /**
-   * The patch to apply; if any.
+   * The patch to apply.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @Nullable Object patch;
 
   /**
-   * The feature identifier; if any.
+   * The feature identifier.
+   *
+   * <b>Note</b>: This value is only used when {@link #object} is {@code null}, otherwise the {@code id} property of the object is used.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @Nullable String id;
@@ -73,6 +75,9 @@ public class WriteOp<T> {
   /**
    * The unique state identifier to expect when performing the action. If the object does not exist in exactly this state a conflict is
    * raised. If {@code null}, then the operation is not concurrency save.
+   *
+   * <b>Note</b>: This value is only used when {@link #object} is {@code null}, otherwise the {@code properties->@ns:com:here:xyz->uuid} is
+   * used.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @Nullable String uuid;

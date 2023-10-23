@@ -1,41 +1,4 @@
----------------------------------------------------------------------------------------------------
--- NEW Naksha extensions
----------------------------------------------------------------------------------------------------
---
--- TODO: Disable IntelliJ Auto-Formatter, it sucks unbelievable:
---       Open File->Settings->Editor->Code Style->SQL->General and check "Disable formatting"
---
--- Links about error handling:
--- https://www.postgresql.org/docs/current/plpgsql-errors-and-messages.html
--- https://www.postgresql.org/docs/current/errcodes-appendix.html
--- https://www.postgresql.org/docs/9.6/plpgsql-control-structures.html#PLPGSQL-ERROR-TRAPPING
---
--- Links about type/string handling:
--- https://www.postgresql.org/docs/current/functions-formatting.html
---
--- Concurrency information:
--- https://www.postgresql.org/docs/current/explicit-locking.html
---
--- Other useful information about PostgesQL
--- https://www.postgresql.org/docs/current/catalog-pg-class.html
--- https://www.postgresql.org/docs/current/catalog-pg-trigger.html
---
--- NOTE: Debugging in DBeaver can be done by adding notices:
---     RAISE NOTICE 'Hello';
--- and then switch to Output tab (Ctrl+Shift+O)
---
--- The effects of SET LOCAL last only till the end of the current transaction.
---
--- To create a test collection:
--- SELECT naksha_tx_start('foo', NULL);
--- SELECT naksha_collection_upsert('foo');
---
--- To insert random data into a column do this:
--- SELECT naksha_tx_start('foo', NULL);
--- EXPLAIN (ANALYZE, BUFFERS)
--- WITH rnd AS (select md5(random()::text) as id, ST_Force3D(ST_GeneratePoints('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))', 10)) as g from generate_Series(1,5000))
--- INSERT INTO foo (jsondata,geo) SELECT ('{"id":"'||id||'"}')::jsonb as jsondata, g FROM rnd;
---
+-- This script is executed whenever IStorage::initStorage() is invoked.
 CREATE SCHEMA IF NOT EXISTS "${schema}";
 SET SESSION search_path TO "${schema}", public, topology;
 
@@ -57,21 +20,6 @@ CREATE OR REPLACE FUNCTION naksha_schema() RETURNS text LANGUAGE 'plpgsql' IMMUT
 BEGIN
     return '${schema}';
 END $BODY$;
-
--- Every SQL client connecting to the storage, must call this function first.
-CREATE OR REPLACE FUNCTION naksha_init_plv8() RETURNS jsonb AS $$
-    ${NAKSHA_PLV8_CODE}
-$$ LANGUAGE plv8 VOLATILE STRICT;
-
--- Called by PSQLStorage to initialize a storage for Naksha, creates the transaction table and other needed stuff.
-CREATE OR REPLACE FUNCTION naksha_init_storage() RETURNS jsonb AS $$
-    plv8.naksha.init_storage();
-$$ LANGUAGE plv8 VOLATILE STRICT;
-
--- All clients must invoke this method after connecting to initialize the session and get the audit-log up and running.
-CREATE OR REPLACE FUNCTION naksha_start_session(app_id text, author text) RETURNS jsonb AS $$
-    plv8.naksha.start_session(app_id, author);
-$$ LANGUAGE plv8 VOLATILE STRICT;
 
 -- Start the transaction by setting the application-identifier, the current author (which may be null)
 -- and the returns the transaction number.
@@ -1587,10 +1535,7 @@ END
 $$;
 
 -- returns current transaction i.e. 2023100600000000010, which is build as yyyyMMddXXXXXXXXXXX.
-CREATE OR REPLACE FUNCTION naksha_txn()
-    RETURNS int8
-    LANGUAGE 'plpgsql' STABLE
-AS $$
+CREATE OR REPLACE FUNCTION naksha_txn() RETURNS int8 LANGUAGE 'plpgsql' STABLE AS $$
 declare
     -- 20230101 is just a magic number for naming lock, it looks like date without special reason, just to associate it with what we are doing here.
     LOCK_NAME constant int4 := 20230101;
@@ -1643,15 +1588,7 @@ EXCEPTION WHEN OTHERS then PERFORM pg_advisory_unlock(LOCK_NAME);
 END
 $$;
 
-CREATE OR REPLACE FUNCTION naksha_txn_plv() RETURNS int8 AS $$
-   return plv8.naksha.naksha_txn();
-$$ LANGUAGE plv8 VOLATILE STRICT;
-
-
-CREATE OR REPLACE FUNCTION naksha_txn(tstamp timestamp, num int8)
-    RETURNS int8
-    LANGUAGE 'plpgsql' STABLE
-AS $$
+CREATE OR REPLACE FUNCTION naksha_txn(tstamp timestamp, num int8) RETURNS int8 LANGUAGE 'plpgsql' STABLE AS $$
 BEGIN
     return (extract('year' from tstamp) * 10000 + extract('month' from tstamp) * 100 + extract('day' from tstamp)) * 100000000000 + num;
 END

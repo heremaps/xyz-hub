@@ -24,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** An exception, which will cause the connector to respond with an ErrorResponse object. */
+@Deprecated
 public class XyzErrorException extends RuntimeException {
 
   private ErrorResponse errorResponse;

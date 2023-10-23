@@ -20,12 +20,17 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.IoHelp.readResource;
+import static com.here.naksha.lib.psql.SQL.quote_ident;
+import static com.here.naksha.lib.psql.SQL.shouldEscape;
 
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.storage.CollectionInfo;
+import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.ITransactionSettings;
+import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.IOException;
 import java.sql.Connection;
@@ -35,6 +40,8 @@ import java.sql.Statement;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.postgresql.PGConnection;
 import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,7 +51,7 @@ import org.slf4j.LoggerFactory;
  * collections. It as well grants access to transactions.
  */
 @SuppressWarnings({"unused", "SqlResolve"})
-public class PsqlStorage implements IStorage {
+public final class PsqlStorage implements IStorage {
 
   private static final Logger log = LoggerFactory.getLogger(PsqlStorage.class);
 
@@ -134,7 +141,7 @@ public class PsqlStorage implements IStorage {
   /**
    * The storage identification.
    */
-  protected final @NotNull String storageId;
+  final @NotNull String storageId;
 
   /**
    * Returns the connector identification number.
@@ -170,16 +177,25 @@ public class PsqlStorage implements IStorage {
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
+  @SuppressWarnings("SqlSourceToSinkFlow")
   @Override
   public void initStorage() {
     String SQL;
+    // Note: We need to open a "raw connection", so one, that is not initialized!
+    //       The reason is, that the normal initialization would invoke naksha_init_plv8(),
+    //       but init-storage is called to install exactly this method.
     try (final Connection conn = dataSource.getPool().dataSource.getConnection()) {
       try (final Statement stmt = conn.createStatement()) {
         long version = 0L;
         try {
           final StringBuilder sb = new StringBuilder();
           sb.append("SELECT ");
-          com.here.naksha.lib.psql.SQL.quote_ident(sb, getSchema());
+          final String schema = getSchema();
+          if (shouldEscape(schema)) {
+            quote_ident(sb, getSchema());
+          } else {
+            sb.append(schema);
+          }
           sb.append(".naksha_version();");
           final ResultSet rs = stmt.executeQuery(sb.toString());
           if (rs.next()) {
@@ -198,7 +214,7 @@ public class PsqlStorage implements IStorage {
               .setMessage("Naksha schema and/or extension missing")
               .log();
         }
-        if (latest.toLong() != version) {
+        if (true || latest.toLong() != version) {
           if (version == 0L) {
             log.atInfo()
                 .setMessage("Install and initialize Naksha extension v{}")
@@ -212,20 +228,16 @@ public class PsqlStorage implements IStorage {
                 .log();
           }
           SQL = readResource("naksha_plpgsql.sql");
-          SQL = SQL.replace("${NAKSHA_PLV8_CODE}", readResource("naksha_plv8.js"));
-          SQL = SQL.replace("${naksha_plv8_alweber}", readResource("naksha_plv8_alweber.js"));
-          SQL = SQL.replace("${naksha_plv8_pawel}", readResource("naksha_plv8_pawel.js"));
           SQL = SQL.replaceAll("\\$\\{schema}", getSchema());
           SQL = SQL.replaceAll("\\$\\{storage_id}", getStorageId());
+          System.out.println(SQL);
+          //noinspection SqlSourceToSinkFlow
           stmt.execute(SQL);
           conn.commit();
 
-          // Re-Initialize the connection.
-          // This ensures that we really have the schema at the end of the search path and therefore
-          // selected.
-          // TODO HP_QUERY : Looks like a duplicate call, as initialization already happens during
-          // earlier call to getConnection()?
-          dataSource.initConnection(conn);
+          // Now, we can be sure that the code exists, and we can invoke it.
+          // Note: We do not want to naksha_start_session to be invoked, therefore pass null!
+          dataSource.initConnection(conn, null);
           stmt.execute("SELECT naksha_init();");
           conn.commit();
         }
@@ -235,8 +247,32 @@ public class PsqlStorage implements IStorage {
     }
   }
 
-  // TODO HP_QUERY : History for admin collections?
-  public static int maxHistoryAgeInDays = 30; // TODO this or Space.maxHistoryAge
+  @Override
+  public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
+    if (context == null) {
+      context = NakshaContext.currentContext();
+    }
+    try {
+      return new PsqlWriteSession(this, (PGConnection) dataSource.getConnection(context));
+    } catch (Exception e) {
+      throw unchecked(e);
+    }
+  }
+
+  @Override
+  public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
+    if (context == null) {
+      context = NakshaContext.currentContext();
+    }
+    try {
+      return new PsqlReadSession(this, (PGConnection) dataSource.getConnection(context));
+    } catch (Exception e) {
+      throw unchecked(e);
+    }
+  }
+
+  @Deprecated
+  public static int maxHistoryAgeInDays = 30;
 
   /**
    * Review all collections and ensure that the history does have the needed partitions created. The method will as well garbage collect the

@@ -20,9 +20,11 @@ package com.here.naksha.lib.core;
 
 import static java.lang.ThreadLocal.withInitial;
 
+import com.here.naksha.lib.core.exceptions.Unauthorized;
 import com.here.naksha.lib.core.util.NanoTime;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -32,6 +34,7 @@ import org.slf4j.LoggerFactory;
  * A context that is virtually attached to all threads in the JVM.
  */
 @SuppressWarnings({"unchecked", "ConstantValue", "unused"})
+@AvailableSince(NakshaVersion.v2_0_5)
 public final class NakshaContext {
 
   private static final Logger logger = LoggerFactory.getLogger(NakshaContext.class);
@@ -47,6 +50,7 @@ public final class NakshaContext {
    *
    * @return The {@link NakshaContext} of the current thread.
    */
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static @NotNull NakshaContext currentContext() {
     final AbstractTask<?, ?> task = AbstractTask.currentTask();
     return task != null ? task.context() : instance.get();
@@ -55,6 +59,7 @@ public final class NakshaContext {
   /**
    * Create a new context with random stream-id.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public NakshaContext() {
     this(null);
   }
@@ -64,6 +69,7 @@ public final class NakshaContext {
    *
    * @param streamId the stream-id to use; if {@code null}, then a random one is generated.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public NakshaContext(@Nullable String streamId) {
     this(streamId, false);
   }
@@ -75,6 +81,7 @@ public final class NakshaContext {
    * @param trustStreamId if the stream-id is coming from a trusted source; otherwise it is verified against a regular expression and when
    *                      not matching, it is replaced with a random one and a corresponding log entry is produced.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public NakshaContext(@Nullable String streamId, boolean trustStreamId) {
     this.startNanos = NanoTime.now();
     if (streamId != null) {
@@ -99,6 +106,7 @@ public final class NakshaContext {
    *
    * @return The stream-id.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull String streamId() {
     return streamId;
   }
@@ -106,6 +114,7 @@ public final class NakshaContext {
   /**
    * The steam-id of this task.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   private final @NotNull String streamId;
 
   /**
@@ -117,6 +126,7 @@ public final class NakshaContext {
    *
    * @return The start nanoseconds.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public long startNanos() {
     return startNanos;
   }
@@ -128,6 +138,7 @@ public final class NakshaContext {
    *
    * @return The attachments.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments() {
     return attachments;
   }
@@ -139,6 +150,7 @@ public final class NakshaContext {
    * @param <T>        the value type.
    * @return the value or {@code null}.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public <T> @Nullable T getAttachment(@NotNull Class<T> valueClass) {
     final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments = attachments();
     final Object value = attachments.get(valueClass);
@@ -155,6 +167,7 @@ public final class NakshaContext {
    * @return the value.
    * @throws NullPointerException if creating a new value instance failed.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public <T> @NotNull T getOrCreateAttachment(@NotNull Class<T> valueClass) {
     final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments = attachments();
     while (true) {
@@ -190,6 +203,7 @@ public final class NakshaContext {
    * @return the key.
    * @throws NullPointerException if the given value is null.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public <T> @NotNull Class<T> setAttachment(@NotNull T value) {
     if (value == null) {
       throw new NullPointerException();
@@ -203,22 +217,61 @@ public final class NakshaContext {
    */
   private final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments;
 
-  public @Nullable String getAppId() {
+  /**
+   * Returns the application-identifier or throws an {@link Unauthorized} exception.
+   *
+   * @return the application-identifier.
+   * @throws Unauthorized if the application-identifier is {@code null.}
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull String getAppId() {
+    final String appId = this.app_id;
+    if (appId == null) {
+      throw new Unauthorized();
+    }
+    return appId;
+  }
+
+  /**
+   * Returns the raw application identifier.
+   *
+   * @return the raw application identifier.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @Nullable String rawAppId() {
     return app_id;
   }
 
+  @AvailableSince(NakshaVersion.v2_0_7)
   public void setAppId(@Nullable String app_id) {
     this.app_id = app_id;
   }
 
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull NakshaContext withAppId(@Nullable String app_id) {
+    this.app_id = app_id;
+    return this;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
   public @Nullable String getAuthor() {
     return author;
   }
 
+  @AvailableSince(NakshaVersion.v2_0_7)
   public void setAuthor(@Nullable String author) {
     this.author = author;
   }
 
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull NakshaContext withAuthor(@Nullable String author) {
+    this.author = author;
+    return this;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
   private @Nullable String app_id;
+
+  @AvailableSince(NakshaVersion.v2_0_7)
   private @Nullable String author;
 }

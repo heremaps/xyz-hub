@@ -20,8 +20,10 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
+import com.here.naksha.lib.core.util.Hex;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.PrimitiveIterator.OfInt;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -66,18 +68,93 @@ public class SQL implements CharSequence {
 
   static void write_ident(@NotNull CharSequence chars, @NotNull StringBuilder sb) {
     // See: https://www.asciitable.com/
+    // See: https://www.postgresql.org/docs/16/sql-syntax-lexical.html
     // We only allows characters between 32 (space) and 126 (~).
     for (int i = 0; i < chars.length(); i++) {
       final char c = chars.charAt(i);
       if (c < 32 || c > 126) {
         throw unchecked(new SQLException("Illegal character in identifier: " + chars));
       }
-      if (c == '"') {
-        sb.append('"').append('"');
+      if (c == '"' || c == '\\') {
+        sb.append(c).append(c);
       } else {
         sb.append(c);
       }
     }
+  }
+
+  public static void open_literal(@NotNull StringBuilder sb) {
+    sb.append('E').append('\'');
+  }
+
+  // Requires an opening with E'
+  @SuppressWarnings("DuplicatedCode")
+  public static void write_literal(@NotNull CharSequence chars, @NotNull StringBuilder sb) {
+    // See: https://www.asciitable.com/
+    // See: https://www.postgresql.org/docs/16/sql-syntax-lexical.html
+    // We do not escape normal ASCII characters (32 (space) to 126 (~)).
+    final OfInt it = chars.codePoints().iterator();
+    while (it.hasNext()) {
+      final int codePoint = it.next();
+      if (codePoint == 0) {
+        throw new IllegalArgumentException("ASCII zero is not allowed in a literal");
+      }
+      if (codePoint < 128 && !ESCAPE[codePoint]) {
+        sb.append(codePoint);
+        continue;
+      }
+      if (codePoint == '\\' || codePoint == '\'') {
+        sb.append(codePoint).append(codePoint);
+        continue;
+      }
+      if (codePoint == '\t') {
+        sb.append('\\').append('t');
+        continue;
+      }
+      if (codePoint == '\r') {
+        sb.append('\\').append('r');
+        continue;
+      }
+      if (codePoint == '\n') {
+        sb.append('\\').append('n');
+        continue;
+      }
+      if (codePoint == '\b') {
+        sb.append('\\').append('b');
+        continue;
+      }
+      if (codePoint == '\f') {
+        sb.append('\\').append('f');
+        continue;
+      }
+      if (codePoint < 256) {
+        sb.append('\\').append('x');
+        sb.append(Hex.valueToChar[(codePoint >>> 4) & 15]);
+        sb.append(Hex.valueToChar[codePoint & 15]);
+        continue;
+      }
+      if (codePoint < 65536) {
+        sb.append('\\').append('u');
+        sb.append(Hex.valueToChar[(codePoint >>> 12) & 15]);
+        sb.append(Hex.valueToChar[(codePoint >>> 8) & 15]);
+        sb.append(Hex.valueToChar[(codePoint >>> 4) & 15]);
+        sb.append(Hex.valueToChar[codePoint & 15]);
+        continue;
+      }
+      sb.append('\\').append('U');
+      sb.append(Hex.valueToChar[(codePoint >>> 28) & 15]);
+      sb.append(Hex.valueToChar[(codePoint >>> 24) & 15]);
+      sb.append(Hex.valueToChar[(codePoint >>> 20) & 15]);
+      sb.append(Hex.valueToChar[(codePoint >>> 16) & 15]);
+      sb.append(Hex.valueToChar[(codePoint >>> 12) & 15]);
+      sb.append(Hex.valueToChar[(codePoint >>> 8) & 15]);
+      sb.append(Hex.valueToChar[(codePoint >>> 4) & 15]);
+      sb.append(Hex.valueToChar[codePoint & 15]);
+    }
+  }
+
+  public static void close_literal(@NotNull StringBuilder sb) {
+    sb.append('\'');
   }
 
   /**
@@ -152,6 +229,7 @@ public class SQL implements CharSequence {
 
   /**
    * Create a new SQL builder.
+   *
    * @param q The query with which to start the builder.
    */
   public SQL(@NotNull String q) {
@@ -161,6 +239,7 @@ public class SQL implements CharSequence {
 
   /**
    * Create a new SQL builder.
+   *
    * @param sb the string builder to use.
    */
   public SQL(@NotNull StringBuilder sb) {
@@ -176,6 +255,7 @@ public class SQL implements CharSequence {
 
   /**
    * Append some raw SQL statement part.
+   *
    * @param cs The characters sequence to append.
    * @return this.
    */

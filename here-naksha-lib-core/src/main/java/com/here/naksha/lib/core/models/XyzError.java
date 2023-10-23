@@ -19,6 +19,7 @@
 package com.here.naksha.lib.core.models;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonFormat.Shape;
 import com.fasterxml.jackson.annotation.JsonValue;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -26,7 +27,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * An enumeration of all possible error codes that can happen while processing a request.
  */
-@JsonFormat(shape = JsonFormat.Shape.OBJECT) // TODO: Why not shape STRING?
+@JsonFormat(shape = Shape.STRING)
 public enum XyzError {
 
   /**
