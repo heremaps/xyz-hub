@@ -18,7 +18,7 @@ plugins {
     // gradle spotlessApply
     id("com.diffplug.spotless").version("6.11.0")
     // https://github.com/johnrengelman/shadow
-    id("com.github.johnrengelman.shadow") version "7.1.2"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
     // Don't apply for all projects, we individually only apply where Kotlin is used.
     kotlin("jvm") version "1.8.21" apply false
 }
@@ -418,7 +418,7 @@ project(":here-naksha-lib-handlers") {
 
 // Ensure that libraries published to artifactory, while the application generates a shadow-jar.
 subprojects {
-    if (project.name != "here-naksha-hub") {
+    if (project.name.contains("here-naksha-lib-")) {
         // This is library, publish to maven artifactory
         apply(plugin = "maven-publish")
         publishing {
@@ -445,20 +445,20 @@ subprojects {
                 }
             }
         }
-    } else {
-        // This is the Naksha-Hub, an application, only create the shadow-jar.
-        apply(plugin = "com.github.johnrengelman.shadow")
+    }
+}
 
-        tasks {
-            shadowJar {
-                archiveClassifier.set("all")
-                mergeServiceFiles()
-                isZip64 = true
-                manifest {
-                    attributes["Implementation-Title"] = "Naksha Service"
-                    attributes["Main-Class"] = "com.here.naksha.hub.Main"
-                }
-            }
-        }
+// Create the fat jar for the whole Naksha.
+rootProject.dependencies {
+    //This is needed, otherwise the blank root project will include nothing in the fat jar
+    implementation(project(":here-naksha-app-service"))
+}
+rootProject.tasks.shadowJar {
+    archiveClassifier.set("all")
+    mergeServiceFiles()
+    isZip64 = true
+    manifest {
+        attributes["Implementation-Title"] = "Naksha Service"
+        attributes["Main-Class"] = "com.here.naksha.app.service.NakshaHub"
     }
 }
