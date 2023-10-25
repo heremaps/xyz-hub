@@ -265,7 +265,8 @@ public abstract class Job<T extends Job> extends Payload {
         //A newly created Job waits for an execution
         if (getStatus() == null)
             setStatus(Job.Status.waiting);
-        return Future.succeededFuture((T) this);
+
+        return injectSpaceParameter();
     }
 
     public Future<T> validate() {
@@ -274,7 +275,7 @@ public abstract class Job<T extends Job> extends Payload {
         return Future.succeededFuture((T) this);
     }
 
-    public Future<T> injectSpaceParameter() {
+    private Future<T> injectSpaceParameter() {
         if (getTargetSpaceId() == null)
             return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!"));
 
