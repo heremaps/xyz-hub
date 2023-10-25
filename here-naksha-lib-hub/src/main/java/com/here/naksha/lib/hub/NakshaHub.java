@@ -24,15 +24,10 @@ import static com.here.naksha.lib.core.util.storage.RequestHelper.*;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.models.EventFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.payload.Event;
-import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.models.storage.StorageCollection;
 import com.here.naksha.lib.core.storage.IStorage;
-import com.here.naksha.lib.core.storage.ITransactionSettings;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.Json;
@@ -43,8 +38,6 @@ import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Future;
-import java.util.function.Supplier;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -235,37 +228,6 @@ public class NakshaHub implements INaksha {
   @Override
   public @NotNull IStorage getStorageById(final @NotNull String storageId) {
     // TODO HP : Add logic
-    return null;
-  }
-
-  // TODO HP : remove at the end
-  @Override
-  public @NotNull ErrorResponse toErrorResponse(@NotNull Throwable throwable) {
-    return null;
-  }
-
-  // TODO HP : remove at the end
-  @Override
-  public @NotNull <RESPONSE> Future<@NotNull RESPONSE> executeTask(@NotNull Supplier<@NotNull RESPONSE> execute) {
-    return null;
-  }
-
-  // TODO HP : remove at the end
-  @Override
-  public @NotNull Future<@NotNull XyzResponse> executeEvent(
-      @NotNull Event event, @NotNull EventFeature eventFeature) {
-    return null;
-  }
-
-  // TODO HP : remove at the end
-  @Override
-  public @NotNull IStorage storage() {
-    return null;
-  }
-
-  // TODO HP : remove at the end
-  @Override
-  public @NotNull ITransactionSettings settings() {
     return null;
   }
 }

@@ -18,16 +18,12 @@
  */
 package com.here.naksha.lib.core;
 
-import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
-import com.here.naksha.lib.core.models.naksha.EventTarget;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.Request;
 import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.storage.IReadTransaction;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -234,60 +230,63 @@ public class EventPipeline extends NakshaBound {
    * @return This.
    * @throws XyzErrorException If any error occurred.
    */
+  // Commenting out this function as EventHandlers should be added explicitly for pipeline creation
+  /*
   public @NotNull EventPipeline addEventHandler(@NotNull EventTarget<?> target) {
-    lock();
-    try {
-      final @Nullable List<@NotNull String> eventHandlerIds = target.getEventHandlerIds();
-      final int SIZE;
-      //noinspection ConstantConditions
-      if (eventHandlerIds == null || (SIZE = eventHandlerIds.size()) == 0) {
-        throw new XyzErrorException(
-            XyzError.ILLEGAL_ARGUMENT,
-            "The configuration of space " + target.getId() + " is missing the 'connectors'");
-      }
-      final @NotNull IEventHandler @NotNull [] handlers = new IEventHandler[SIZE];
-      try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
-        for (int i = 0; i < SIZE; i++) {
-          final String connectorId = eventHandlerIds.get(i);
-          //noinspection ConstantConditions
-          if (connectorId == null) {
-            throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
-          }
-          final EventHandler eventHandler;
-          try {
-            // TODO: Fix me!
-            eventHandler = tx.readFeatures(EventHandler.class, null).getFeatureById(connectorId);
-          } catch (Exception e) {
-            throw new XyzErrorException(
-                XyzError.EXCEPTION,
-                "The connector[" + i + "] with id " + connectorId + " failed to read handler",
-                e);
-          }
-          if (eventHandler == null) {
-            throw new XyzErrorException(
-                XyzError.EXCEPTION,
-                "The connector[" + i + "] with id " + connectorId + " does not exists");
-          }
-          try {
-            handlers[i] = eventHandler.newInstance(naksha());
-          } catch (Exception e) {
-            throw new XyzErrorException(
-                XyzError.EXCEPTION,
-                "Failed to create an instance of the connector[" + i + "]: " + eventHandlerIds,
-                e);
-          }
-        }
-      }
-
-      // Add the handlers and done.
-      for (final IEventHandler handler : handlers) {
-        addEventHandler(handler);
-      }
-      return this;
-    } finally {
-      mutex.unlock();
-    }
+  lock();
+  try {
+  final @Nullable List<@NotNull String> eventHandlerIds = target.getEventHandlerIds();
+  final int SIZE;
+  //noinspection ConstantConditions
+  if (eventHandlerIds == null || (SIZE = eventHandlerIds.size()) == 0) {
+  throw new XyzErrorException(
+  XyzError.ILLEGAL_ARGUMENT,
+  "The configuration of space " + target.getId() + " is missing the 'connectors'");
   }
+  final @NotNull IEventHandler @NotNull [] handlers = new IEventHandler[SIZE];
+  try (final IReadTransaction tx = naksha().storage().openReplicationTransaction(naksha().settings())) {
+  for (int i = 0; i < SIZE; i++) {
+  final String connectorId = eventHandlerIds.get(i);
+  //noinspection ConstantConditions
+  if (connectorId == null) {
+  throw new XyzErrorException(XyzError.EXCEPTION, "The connector[" + i + "] is null");
+  }
+  final EventHandler eventHandler;
+  try {
+  // TODO: Fix me!
+  eventHandler = tx.readFeatures(EventHandler.class, null).getFeatureById(connectorId);
+  } catch (Exception e) {
+  throw new XyzErrorException(
+  XyzError.EXCEPTION,
+  "The connector[" + i + "] with id " + connectorId + " failed to read handler",
+  e);
+  }
+  if (eventHandler == null) {
+  throw new XyzErrorException(
+  XyzError.EXCEPTION,
+  "The connector[" + i + "] with id " + connectorId + " does not exists");
+  }
+  try {
+  handlers[i] = eventHandler.newInstance(naksha());
+  } catch (Exception e) {
+  throw new XyzErrorException(
+  XyzError.EXCEPTION,
+  "Failed to create an instance of the connector[" + i + "]: " + eventHandlerIds,
+  e);
+  }
+  }
+  }
+
+  // Add the handlers and done.
+  for (final IEventHandler handler : handlers) {
+  addEventHandler(handler);
+  }
+  return this;
+  } finally {
+  mutex.unlock();
+  }
+  }
+  */
 
   /**
    * Send a new event through the pipeline.
