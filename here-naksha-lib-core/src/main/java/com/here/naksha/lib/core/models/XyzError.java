@@ -94,11 +94,11 @@ public enum XyzError {
   TIMEOUT("Timeout"),
 
   /**
-   * The request was aborted due to PayloadToLarge.
+   * The request was aborted due to PayloadTooLarge.
    *
    * <p>This will result in a HTTP 513 response.
    */
-  PAYLOAD_TO_LARGE("PayloadToLarge");
+  PAYLOAD_TOO_LARGE("PayloadTooLarge");
 
   /**
    * The error code.

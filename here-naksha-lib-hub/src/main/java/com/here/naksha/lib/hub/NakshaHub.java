@@ -94,8 +94,8 @@ public class NakshaHub implements INaksha {
     getAdminStorage().initStorage();
 
     // 2. Create all Admin collections in Admin DB
-    // TODO HP : Pass appropriate values to NakshaContext
-    try (final IWriteSession admin = getAdminStorage().newWriteSession(new NakshaContext(), true)) {
+    try (final IWriteSession admin = getAdminStorage()
+        .newWriteSession(new NakshaContext().withAppId(NakshaHubConfig.defaultAppName()), true)) {
       final List<WriteOp<StorageCollection>> collectionList = new ArrayList<>();
       for (final String name : NakshaAdminCollection.ALL) {
         final StorageCollection collection =
@@ -118,8 +118,8 @@ public class NakshaHub implements INaksha {
 
     // TODO HP : This step to be removed later (once we have ability to add custom storages)
     // fetch / add default storage implementation
-    // TODO HP : Pass appropriate values to NakshaContext
-    try (final IWriteSession admin = getAdminStorage().newWriteSession(new NakshaContext(), true)) {
+    try (final IWriteSession admin = getAdminStorage()
+        .newWriteSession(new NakshaContext().withAppId(NakshaHubConfig.defaultAppName()), true)) {
       Storage defStorage = null;
       try (final Json json = Json.get()) {
         final String storageJson = IoHelp.readResource("config/default-storage.json");
@@ -154,8 +154,8 @@ public class NakshaHub implements INaksha {
      * 3. Default config - Fallback to default config from file - "default-config"
      */
 
-    // TODO HP : Pass appropriate values to NakshaContext
-    try (final IWriteSession admin = getAdminStorage().newWriteSession(new NakshaContext(), true)) {
+    try (final IWriteSession admin = getAdminStorage()
+        .newWriteSession(new NakshaContext().withAppId(NakshaHubConfig.defaultAppName()), true)) {
       if (customCfg != null) {
         // Custom config provided. Persist in AdminDB.
         final Result wrResult = admin.execute(createFeatureRequest(

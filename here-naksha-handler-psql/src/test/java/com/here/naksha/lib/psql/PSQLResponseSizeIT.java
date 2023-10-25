@@ -69,12 +69,12 @@ public class PSQLResponseSizeIT extends PSQLAbstractIT {
     // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 512);
     result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
     assertTrue(result instanceof ErrorResponse);
-    assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
+    assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TOO_LARGE);
 
     // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 1);
     result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));
     assertTrue(result instanceof ErrorResponse);
-    assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TO_LARGE);
+    assertEquals(((ErrorResponse) result).getError(), XyzError.PAYLOAD_TOO_LARGE);
 
     // connectorParams.put(AbstractConnectorHandler.MAX_UNCOMPRESSED_RESPONSE_SIZE, 0);
     result = JsonSerializable.deserialize(invokeLambda(iter.serialize()));

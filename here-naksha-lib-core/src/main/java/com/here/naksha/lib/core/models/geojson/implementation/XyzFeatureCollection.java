@@ -162,7 +162,7 @@ public class XyzFeatureCollection extends XyzResponse {
   }
 
   @SuppressWarnings("unused")
-  public @NotNull XyzFeatureCollection withFeatures(final @NotNull List<@NotNull XyzFeature> features) {
+  public @NotNull XyzFeatureCollection withFeatures(final @NotNull List<? extends @NotNull XyzFeature> features) {
     setFeatures(features);
     return this;
   }

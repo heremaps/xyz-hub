@@ -34,8 +34,9 @@ import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlConfigBuilder;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
@@ -45,14 +46,14 @@ class NakshaHubTest {
   static NakshaHub hub;
 
   // TODO HP : Re-enable after NakshaHub initialization code starts working (dependency on psql module)
-  @BeforeAll
+  // @BeforeAll
   static void prepare() {
-    String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
+    String dbUrl = null; // System.getenv("TEST_NAKSHA_PSQL_URL");
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
     if (password == null) password = "password";
     if (dbUrl == null)
       dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
-          + "&schema=naksha_test_hub";
+          + "&schema=naksha_test_maint";
     final PsqlConfig psqlCfg = new PsqlConfigBuilder()
         .withAppName(NakshaHubConfig.defaultAppName())
         .parseUrl(dbUrl)
@@ -70,7 +71,8 @@ class NakshaHubTest {
     // 1. Load test data
     final String expectedBodyPart = readTestFile("TC0001_getStorages/body_part.json");
     // Create new NakshaContext
-    final NakshaContext ctx = new NakshaContext();
+    final NakshaContext ctx = new NakshaContext().withAppId(NakshaHubConfig.defaultAppName());
+    ctx.attachToCurrentThread();
     // Create ReadFeatures Request to read all storages from Admin DB
     final ReadFeatures readFeaturesReq = new ReadFeatures(NakshaAdminCollection.STORAGES);
     // Submit request to NH Space Storage
@@ -81,7 +83,18 @@ class NakshaHubTest {
       } else if (result instanceof ErrorResult er) {
         fail("Exception reading storages " + er);
       } else if (result instanceof ReadResult<?> rr) {
-        final ReadResult<Storage> storages = rr.withFeatureType(Storage.class);
+        // Read all available storages (upto a max limit, e.g. 10)
+        final ReadResult<Storage> storageRR = rr.withFeatureType(Storage.class);
+        final List<Storage> storages = new ArrayList<>();
+        int cnt = 0;
+        while (storageRR.hasMore()) {
+          storages.add(storageRR.next());
+          if (++cnt >= 10) {
+            break;
+          }
+        }
+        storageRR.close();
+        // convert storage list to JSON string before comparison
         String storagesJson = null;
         try (final Json json = Json.get()) {
           storagesJson = json.writer(ViewSerialize.Storage.class)

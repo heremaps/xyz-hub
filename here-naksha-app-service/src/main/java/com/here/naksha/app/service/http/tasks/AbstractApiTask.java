@@ -34,7 +34,8 @@ import org.jetbrains.annotations.NotNull;
  * An abstract class that can be used for all Http API specific custom Task implementations.
  *
  */
-public abstract class ApiTask<T extends XyzResponse> extends AbstractTask<XyzResponse, ApiTask<XyzResponse>> {
+public abstract class AbstractApiTask<T extends XyzResponse>
+    extends AbstractTask<XyzResponse, AbstractApiTask<XyzResponse>> {
 
   protected final @NotNull RoutingContext routingContext;
   protected final @NotNull NakshaHttpVerticle verticle;
@@ -45,7 +46,7 @@ public abstract class ApiTask<T extends XyzResponse> extends AbstractTask<XyzRes
    * @param nakshaHub     The reference to the NakshaHub.
    * @param nakshaContext The reference to the NakshContext
    */
-  protected ApiTask(
+  protected AbstractApiTask(
       final @NotNull NakshaHttpVerticle verticle,
       final @NotNull INaksha nakshaHub,
       final @NotNull RoutingContext routingContext,
@@ -59,7 +60,6 @@ public abstract class ApiTask<T extends XyzResponse> extends AbstractTask<XyzRes
     final ErrorResponse er = new ErrorResponse(
         new XyzErrorException(XyzError.NOT_IMPLEMENTED, "Unsupported operation"),
         context().streamId());
-    verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, er);
-    return er;
+    return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, er);
   }
 }

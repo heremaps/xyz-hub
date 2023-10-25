@@ -419,6 +419,27 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   }
 
   /**
+   * Send an error response for the given XyzError.
+   *
+   * @param routingContext The routing context for which to send the response.
+   * @param xyzError       The XyzError indicating the cause of error
+   * @param message        the brief message of the error
+   * @return xyzResponse object representing error
+   */
+  public @NotNull XyzResponse sendErrorResponse(
+      final @NotNull RoutingContext routingContext,
+      final @NotNull XyzError xyzError,
+      final @NotNull String message) {
+    final ErrorResponse response = new ErrorResponse(xyzError, message, streamId(routingContext));
+    sendRawResponse(
+        routingContext,
+        mapErrorToHttpStatus(response.getError()),
+        APPLICATION_JSON,
+        Buffer.buffer(response.serialize()));
+    return response;
+  }
+
+  /**
    * Send an error response for the given exception.
    *
    * @param routingContext The routing context for which to send the response.
@@ -428,6 +449,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     final String streamId = streamId(routingContext);
     try {
       final ErrorResponse response;
+      final HttpResponseStatus httpStatus;
       if (throwable instanceof HttpException e) {
         log.atInfo()
             .setMessage("Uncaught HTTP exception: {}")
@@ -468,8 +490,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         response = new ErrorResponse(ILLEGAL_ARGUMENT, msg, streamId);
         log.atInfo().setMessage(msg).setCause(e).log();
       } else {
-        response = toErrorResponse(throwable);
-        response.setStreamId(streamId);
+        response = new ErrorResponse(throwable, streamId);
         log.atInfo()
             .setMessage("Send error response based upon unhandled exception: {}")
             .addArgument(throwable.getMessage())
@@ -479,7 +500,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       assert streamId.equals(response.getStreamId());
       assert response.getError() != null;
       assert response.getErrorMessage() != null;
-      sendRawResponse(routingContext, OK, APPLICATION_JSON, Buffer.buffer(response.serialize()));
+      httpStatus = mapErrorToHttpStatus(response.getError());
+      sendRawResponse(routingContext, httpStatus, APPLICATION_JSON, Buffer.buffer(response.serialize()));
     } catch (Throwable t) {
       log.atError()
           .setMessage("Unexpected error while generating error response")
@@ -495,19 +517,31 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     }
   }
 
-  public @NotNull ErrorResponse toErrorResponse(@NotNull Throwable throwable) {
-    return new ErrorResponse(throwable, null);
+  private @NotNull HttpResponseStatus mapErrorToHttpStatus(final @NotNull XyzError xyzError) {
+    return switch (xyzError) {
+      case EXCEPTION -> HttpResponseStatus.INTERNAL_SERVER_ERROR;
+      case NOT_IMPLEMENTED -> HttpResponseStatus.NOT_IMPLEMENTED;
+      case ILLEGAL_ARGUMENT -> HttpResponseStatus.BAD_REQUEST;
+      case PAYLOAD_TOO_LARGE -> HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
+      case BAD_GATEWAY -> HttpResponseStatus.BAD_GATEWAY;
+      case CONFLICT -> HttpResponseStatus.CONFLICT;
+      case UNAUTHORIZED -> HttpResponseStatus.UNAUTHORIZED;
+      case FORBIDDEN -> HttpResponseStatus.FORBIDDEN;
+      case TOO_MANY_REQUESTS -> HttpResponseStatus.TOO_MANY_REQUESTS;
+      case TIMEOUT -> HttpResponseStatus.GATEWAY_TIMEOUT;
+    };
   }
 
+  // TODO HP : Remove if not used
   /**
    * Send an error response for the given exception.
    *
    * @param routingContext The routing context for which to send the response.
    * @param response       The error response to send.
    */
-  public void sendErrorResponse(@NotNull RoutingContext routingContext, @NotNull ErrorResponse response) {
-    sendXyzResponse(routingContext, HttpResponseType.ERROR, response);
-  }
+  /*public void sendErrorResponse(@NotNull RoutingContext routingContext, @NotNull ErrorResponse response) {
+  sendXyzResponse(routingContext, HttpResponseType.ERROR, response);
+  }*/
 
   /**
    * Prepare XyzFeatureCollection response by extracting feature results from ModifyFeaturesResp object
@@ -541,8 +575,9 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
    * @param routingContext The routing context for which to send the response.
    * @param responseType   The response type to return.
    * @param response       The response to send.
+   * @return XyzResponse object representing actual response content
    */
-  public void sendXyzResponse(
+  public XyzResponse sendXyzResponse(
       @NotNull RoutingContext routingContext,
       @Nullable HttpResponseType responseType,
       @NotNull XyzResponse response) {
@@ -551,34 +586,37 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       if (etag != null) {
         routingContext.response().putHeader(ETAG, etag);
       }
-      if (response instanceof ErrorResponse) {
-        // TODO HP_QUERY : Is it intended to suppress Http Error codes here?
-        sendRawResponse(routingContext, OK, APPLICATION_JSON, Buffer.buffer(response.serialize()));
-        return;
+      if (response instanceof ErrorResponse er) {
+        sendRawResponse(
+            routingContext,
+            mapErrorToHttpStatus(er.getError()),
+            APPLICATION_JSON,
+            Buffer.buffer(er.serialize()));
+        return response;
       }
       if (response instanceof BinaryResponse br) {
         sendRawResponse(routingContext, OK, br.getMimeType(), Buffer.buffer(br.getBytes()));
-        return;
+        return response;
       }
       if (response instanceof NotModifiedResponse) {
         sendEmptyResponse(routingContext, NOT_MODIFIED);
-        return;
+        return response;
       }
       if (response instanceof XyzFeatureCollection fc && responseType == HttpResponseType.FEATURE) {
         // If we should only send back a single feature.
         final List<? extends XyzFeature> features = fc.getFeatures();
         if (features.size() == 0) {
           sendEmptyResponse(routingContext, OK);
-          return;
+          return response;
         } else {
           final String content = features.get(0).serialize();
           sendRawResponse(routingContext, OK, responseType, Buffer.buffer(content));
-          return;
+          return response;
         }
       }
       if (responseType == HttpResponseType.EMPTY) {
         sendEmptyResponse(routingContext, OK);
-        return;
+        return response;
       }
       sendRawResponse(routingContext, OK, responseType, Buffer.buffer(response.serialize()));
     } catch (Throwable t) {
@@ -588,6 +626,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
           .log();
       sendFatalErrorResponse(routingContext, "Unexpected failure while serializing response");
     }
+    return response;
   }
 
   /**
@@ -614,7 +653,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         + "\"errorMessage\": \"" + errorMessage + "\",\n"
         + "\"streamId\": \"" + streamId(routingContext) + "\"\n"
         + "}";
-    sendRawResponse(routingContext, OK, APPLICATION_JSON, Buffer.buffer(content));
+    sendRawResponse(
+        routingContext, HttpResponseStatus.INTERNAL_SERVER_ERROR, APPLICATION_JSON, Buffer.buffer(content));
   }
 
   /**

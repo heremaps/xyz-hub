@@ -925,7 +925,7 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
         if (message.contains("Maxchar limit")) {
           return new ErrorResponse()
               .withStreamId(streamId())
-              .withError(XyzError.PAYLOAD_TO_LARGE)
+              .withError(XyzError.PAYLOAD_TOO_LARGE)
               .withErrorMessage("Database result - Maxchar limit exceed");
         }
 

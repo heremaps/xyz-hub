@@ -166,7 +166,7 @@ public class RequestHelper {
             null,
             feature.getId(),
             feature.getProperties().getXyzNamespace().getUuid(),
-            true,
+            false,
             ifExistsAction,
             ifConflictAction,
             IfNotExists.CREATE))

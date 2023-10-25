@@ -21,13 +21,14 @@ package com.here.naksha.app.service.http.tasks;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SpaceApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> {
+public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResponse> {
 
   private static final Logger logger = LoggerFactory.getLogger(SpaceApiTask.class);
   private final @NotNull SpaceApiReqType reqType;
@@ -63,11 +64,17 @@ public class SpaceApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> {
    */
   @Override
   protected @NotNull XyzResponse execute() {
-    switch (this.reqType) {
-      case GET_ALL_SPACES:
-        return executeGetSpaces();
-      default:
-        return executeUnsupported();
+    try {
+      switch (this.reqType) {
+        case GET_ALL_SPACES:
+          return executeGetSpaces();
+        default:
+          return executeUnsupported();
+      }
+    } catch (Exception ex) {
+      // unexpected exception
+      return verticle.sendErrorResponse(
+          routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
     }
   }
 

@@ -18,16 +18,29 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.util.storage.RequestHelper;
+import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.RoutingContext;
+import java.util.ArrayList;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class StorageApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> {
+public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResponse> {
 
   private static final Logger logger = LoggerFactory.getLogger(StorageApiTask.class);
   private final @NotNull StorageApiReqType reqType;
@@ -63,27 +76,87 @@ public class StorageApiTask<T extends XyzResponse> extends ApiTask<XyzResponse> 
    */
   @Override
   protected @NotNull XyzResponse execute() {
-    switch (this.reqType) {
-      case GET_ALL_STORAGES:
-        return executeGetStorages();
-      case CREATE_STORAGE:
-        return executeCreateStorage();
-      default:
-        return executeUnsupported();
+    try {
+      switch (this.reqType) {
+        case GET_ALL_STORAGES:
+          return executeGetStorages();
+        case CREATE_STORAGE:
+          return executeCreateStorage();
+        default:
+          return executeUnsupported();
+      }
+    } catch (Exception ex) {
+      // unexpected exception
+      return verticle.sendErrorResponse(
+          routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
     }
   }
 
-  // TODO HP : Entire method to be rewritten
   private @NotNull XyzResponse executeGetStorages() {
     // Create ReadFeatures Request to read all storages from Admin DB
+    final ReadFeatures request = new ReadFeatures(NakshaAdminCollection.STORAGES);
     // Submit request to NH Space Storage
-    // Convert ReadResult to XyzResponse
-    // In case of error, return XyzErrorResponse
-    return executeUnsupported();
+    try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
+      final Result rdResult = reader.execute(request);
+      // In case of error, convert result to ErrorResponse
+      if (rdResult instanceof ErrorResult er) {
+        return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+      }
+      // In case of success, convert result to success XyzResponse
+      else if (rdResult instanceof ReadResult<?> rr) {
+        final ReadResult<Storage> storageRR = rr.withFeatureType(Storage.class);
+        final List<Storage> storages = new ArrayList<>();
+        int cnt = 0;
+        while (storageRR.hasMore()) {
+          storages.add(storageRR.next());
+          if (++cnt >= 1000) {
+            break; // TODO : can be improved later (perhaps by accepting limit as an input)
+          }
+        }
+        storageRR.close();
+        final XyzFeatureCollection response = new XyzFeatureCollection().withFeatures(storages);
+        return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
+      }
+      // unexpected result type
+      return verticle.sendErrorResponse(
+          routingContext,
+          XyzError.EXCEPTION,
+          "Unsupported result type : " + rdResult.getClass().getSimpleName());
+    }
   }
 
-  // TODO HP : Entire method to be rewritten
-  private @NotNull XyzResponse executeCreateStorage() {
-    return executeUnsupported();
+  private @NotNull XyzResponse executeCreateStorage() throws Exception {
+    // Read request JSON
+    Storage newStorage = null;
+    try (final Json json = Json.get()) {
+      final String bodyJson = routingContext.body().asString();
+      newStorage = json.reader(ViewDeserialize.User.class)
+          .forType(Storage.class)
+          .readValue(bodyJson);
+    }
+    // persist new storage in Admin DB (if doesn't exist already)
+    try (final IWriteSession writer = naksha().getSpaceStorage().newWriteSession(context(), true)) {
+      final WriteFeatures<Storage> wrRequest =
+          RequestHelper.createFeatureRequest(NakshaAdminCollection.STORAGES, newStorage, false);
+      final Result wrResult = writer.execute(wrRequest);
+      // In case of error, convert result to ErrorResponse
+      if (wrResult instanceof ErrorResult er) {
+        return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+      }
+      // In case of success, convert result to success XyzResponse
+      else if (wrResult instanceof WriteResult<?> wr) {
+        //noinspection unchecked
+        final WriteResult<Storage> storageWR = (WriteResult<Storage>) wr;
+        final List<Storage> storages =
+            storageWR.results.stream().map(op -> op.object).toList();
+        final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(storages);
+        return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, featureResponse);
+      }
+      // unexpected result type
+      return verticle.sendErrorResponse(
+          routingContext,
+          XyzError.EXCEPTION,
+          "Unsupported result type : " + wrResult.getClass().getSimpleName());
+    }
   }
 }
