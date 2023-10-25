@@ -103,7 +103,6 @@ public class JobStatusApi {
                         JDBCImporter.addClientsIfRequired(job.getTargetConnector())
                                 .onSuccess(f -> {
                                     try{
-                                        job.resetToPreviousState();
                                         JobQueue.addJob(job);
                                         logger.info("JOB[{}] got added manually to queue! Host-id: {}", job.getId(), CService.HOST_ID);
                                         resp.put("STATUS", "job_added");
