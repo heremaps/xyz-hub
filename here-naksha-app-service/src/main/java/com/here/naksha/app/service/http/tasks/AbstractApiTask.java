@@ -23,12 +23,19 @@ import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.payload.responses.ErrorResponse;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.ReadResult;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteResult;
 import io.vertx.ext.web.RoutingContext;
+import java.util.ArrayList;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * An abstract class that can be used for all Http API specific custom Task implementations.
@@ -57,9 +64,61 @@ public abstract class AbstractApiTask<T extends XyzResponse>
   }
 
   public @NotNull XyzResponse executeUnsupported() {
-    final ErrorResponse er = new ErrorResponse(
-        new XyzErrorException(XyzError.NOT_IMPLEMENTED, "Unsupported operation"),
-        context().streamId());
-    return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, er);
+    return verticle.sendErrorResponse(routingContext, XyzError.NOT_IMPLEMENTED, "Unsupported operation!");
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
+      final @Nullable Result rdResult, final @NotNull Class<R> type) {
+    if (rdResult == null) {
+      // return empty collection
+      return verticle.sendXyzResponse(
+          routingContext, HttpResponseType.FEATURE_COLLECTION, new XyzFeatureCollection());
+    } else if (rdResult instanceof ErrorResult er) {
+      // In case of error, convert result to ErrorResponse
+      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+    } else if (rdResult instanceof ReadResult<?> rr) {
+      // In case of success, convert result to success XyzResponse
+      final ReadResult<R> featureRR = rr.withFeatureType(type);
+      final List<R> features = new ArrayList<>();
+      int cnt = 0;
+      while (featureRR.hasMore()) {
+        features.add(featureRR.next());
+        if (++cnt >= 1000) {
+          break; // TODO : can be improved later (perhaps by accepting limit as an input)
+        }
+      }
+      featureRR.close();
+      final XyzFeatureCollection response = new XyzFeatureCollection().withFeatures(features);
+      return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
+    }
+    // unexpected result type
+    return verticle.sendErrorResponse(
+        routingContext,
+        XyzError.EXCEPTION,
+        "Unsupported result type : " + rdResult.getClass().getSimpleName());
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzFeatureResponse(
+      final @Nullable Result wrResult, final @NotNull Class<R> type) {
+    if (wrResult == null) {
+      // unexpected null response
+      return verticle.sendErrorResponse(routingContext, XyzError.EXCEPTION, "Unexpected null result!");
+    } else if (wrResult instanceof ErrorResult er) {
+      // In case of error, convert result to ErrorResponse
+      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+    } else if (wrResult instanceof WriteResult<?> wr) {
+      // In case of success, convert result to success XyzResponse
+      //noinspection unchecked
+      final WriteResult<R> featureWR = (WriteResult<R>) wr;
+      final List<R> features =
+          featureWR.results.stream().map(op -> op.object).toList();
+      final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(features);
+      return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, featureResponse);
+    }
+    // unexpected result type
+    return verticle.sendErrorResponse(
+        routingContext,
+        XyzError.EXCEPTION,
+        "Unsupported result type : " + wrResult.getClass().getSimpleName());
   }
 }

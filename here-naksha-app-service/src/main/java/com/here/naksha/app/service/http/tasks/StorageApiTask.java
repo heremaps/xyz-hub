@@ -18,13 +18,11 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
-import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.storage.*;
@@ -34,8 +32,6 @@ import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.RoutingContext;
-import java.util.ArrayList;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,30 +94,8 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     // Submit request to NH Space Storage
     try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
       final Result rdResult = reader.execute(request);
-      // In case of error, convert result to ErrorResponse
-      if (rdResult instanceof ErrorResult er) {
-        return verticle.sendErrorResponse(routingContext, er.reason, er.message);
-      }
-      // In case of success, convert result to success XyzResponse
-      else if (rdResult instanceof ReadResult<?> rr) {
-        final ReadResult<Storage> storageRR = rr.withFeatureType(Storage.class);
-        final List<Storage> storages = new ArrayList<>();
-        int cnt = 0;
-        while (storageRR.hasMore()) {
-          storages.add(storageRR.next());
-          if (++cnt >= 1000) {
-            break; // TODO : can be improved later (perhaps by accepting limit as an input)
-          }
-        }
-        storageRR.close();
-        final XyzFeatureCollection response = new XyzFeatureCollection().withFeatures(storages);
-        return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
-      }
-      // unexpected result type
-      return verticle.sendErrorResponse(
-          routingContext,
-          XyzError.EXCEPTION,
-          "Unsupported result type : " + rdResult.getClass().getSimpleName());
+      // transform ReadResult to Http FeatureCollection response
+      return transformReadResultToXyzCollectionResponse(rdResult, Storage.class);
     }
   }
 
@@ -139,24 +113,8 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
       final WriteFeatures<Storage> wrRequest =
           RequestHelper.createFeatureRequest(NakshaAdminCollection.STORAGES, newStorage, false);
       final Result wrResult = writer.execute(wrRequest);
-      // In case of error, convert result to ErrorResponse
-      if (wrResult instanceof ErrorResult er) {
-        return verticle.sendErrorResponse(routingContext, er.reason, er.message);
-      }
-      // In case of success, convert result to success XyzResponse
-      else if (wrResult instanceof WriteResult<?> wr) {
-        //noinspection unchecked
-        final WriteResult<Storage> storageWR = (WriteResult<Storage>) wr;
-        final List<Storage> storages =
-            storageWR.results.stream().map(op -> op.object).toList();
-        final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(storages);
-        return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, featureResponse);
-      }
-      // unexpected result type
-      return verticle.sendErrorResponse(
-          routingContext,
-          XyzError.EXCEPTION,
-          "Unsupported result type : " + wrResult.getClass().getSimpleName());
+      // transform WriteResult to Http Feature response
+      return transformWriteResultToXyzFeatureResponse(wrResult, Storage.class);
     }
   }
 }
