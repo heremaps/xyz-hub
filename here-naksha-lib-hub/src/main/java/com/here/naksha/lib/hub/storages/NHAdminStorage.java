@@ -19,10 +19,7 @@
 package com.here.naksha.lib.hub.storages;
 
 import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.lambdas.Pe1;
-import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.storage.*;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -76,38 +73,4 @@ public class NHAdminStorage implements IStorage {
   public void stopMaintainer() {
     this.psqlStorage.stopMaintainer();
   }
-
-  // TODO HP : remove all below deprecated methods at the end
-
-  @Override
-  public void init() {}
-
-  @Override
-  public void maintain(@NotNull List<CollectionInfo> collectionInfoList) {}
-
-  @Override
-  public @NotNull ITransactionSettings createSettings() {
-    return null;
-  }
-
-  @Override
-  public @NotNull IReadTransaction openReplicationTransaction(@NotNull ITransactionSettings settings) {
-    return null;
-  }
-
-  @Override
-  public @NotNull IMasterTransaction openMasterTransaction(@NotNull ITransactionSettings settings) {
-    return null;
-  }
-
-  @Override
-  public void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {}
-
-  @Override
-  public boolean removeListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
-    return false;
-  }
-
-  @Override
-  public void close() {}
 }

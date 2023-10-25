@@ -532,17 +532,6 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     };
   }
 
-  // TODO HP : Remove if not used
-  /**
-   * Send an error response for the given exception.
-   *
-   * @param routingContext The routing context for which to send the response.
-   * @param response       The error response to send.
-   */
-  /*public void sendErrorResponse(@NotNull RoutingContext routingContext, @NotNull ErrorResponse response) {
-  sendXyzResponse(routingContext, HttpResponseType.ERROR, response);
-  }*/
-
   /**
    * Prepare XyzFeatureCollection response by extracting feature results from ModifyFeaturesResp object
    *

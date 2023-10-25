@@ -130,7 +130,7 @@ public class StorageMaintainer {
       }
 
       // Fetch all Spaces
-      // TODO HP : Fix reading all spaces
+      // TODO : Fix reading all spaces
       /*
       final IResultSet<Space> rsp =
       tx.readFeatures(Space.class, NakshaAdminCollection.SPACES).getAll(0, Integer.MAX_VALUE);
@@ -140,7 +140,7 @@ public class StorageMaintainer {
       rsp.close();
 
       // Fetch all Connectors
-      // TODO HP : Fix reading all connectors
+      // TODO : Fix reading all connectors
       /*
       final IResultSet<Connector> rc = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
       .getAll(0, Integer.MAX_VALUE);
@@ -152,7 +152,7 @@ public class StorageMaintainer {
       rc.close();
 
       // Fetch all Storages
-      // TODO HP : Fix reading all storages
+      // TODO : Fix reading all storages
       /*
       final IResultSet<Storage> rst = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
       .getAll(0, Integer.MAX_VALUE);
@@ -203,7 +203,7 @@ public class StorageMaintainer {
         }
       }
       // add Admin DB collections also for maintenance
-      // TODO HP : Fix running maintenance for admin resources as well
+      // TODO : Fix running maintenance for admin resources as well
       /*
       final MaintenanceTrigger trigger = new MaintenanceTrigger(
       "naksha-admin-db", null, defStorage, adminStorageImpl, NakshaAdminCollection.COLLECTION_INFO_LIST);
@@ -291,7 +291,7 @@ public class StorageMaintainer {
 
       // Invoke maintenance() using appropriate storage implementation class, by passing list of collections
       IStorage storageImpl = null;
-      // TODO HP : This logic needs fix to instantiate IStorage instance based on storageId
+      // TODO : This logic needs fix to instantiate IStorage instance based on storageId
       /*
       if (trigger.eventHandler() != null) {
       // applicable when connector provided DBConfig is required for IStorage instantiation

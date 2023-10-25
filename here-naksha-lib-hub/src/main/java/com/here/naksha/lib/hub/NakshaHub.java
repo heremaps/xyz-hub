@@ -91,8 +91,7 @@ public class NakshaHub implements INaksha {
         .newWriteSession(new NakshaContext().withAppId(NakshaHubConfig.defaultAppName()), true)) {
       final List<WriteOp<StorageCollection>> collectionList = new ArrayList<>();
       for (final String name : NakshaAdminCollection.ALL) {
-        final StorageCollection collection =
-            new StorageCollection(name); // TODO HP : Need to specify history flag and maxAge
+        final StorageCollection collection = new StorageCollection(name);
         final WriteOp<StorageCollection> writeOp = new WriteOp<>(
             collection, null, name, null, false, IfExists.RETAIN, IfConflict.RETAIN, IfNotExists.CREATE);
         collectionList.add(writeOp);
@@ -227,7 +226,7 @@ public class NakshaHub implements INaksha {
 
   @Override
   public @NotNull IStorage getStorageById(final @NotNull String storageId) {
-    // TODO HP : Add logic
+    // TODO : Add logic to retrieve Storage from Admin DB and then instantiate respective IStorage implementation
     return null;
   }
 }

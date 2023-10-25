@@ -45,7 +45,6 @@ class NakshaHubTest {
   static final String TEST_DATA_FOLDER = "src/test/resources/unit_test_data/";
   static NakshaHub hub;
 
-  // TODO HP : Re-enable after NakshaHub initialization code starts working (dependency on psql module)
   // @BeforeAll
   static void prepare() {
     String dbUrl = null; // System.getenv("TEST_NAKSHA_PSQL_URL");

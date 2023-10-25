@@ -81,12 +81,10 @@ public class ConnectorApiTask<T extends XyzResponse> extends AbstractApiTask<Xyz
     }
   }
 
-  // TODO HP : Entire method to be rewritten
   private @NotNull XyzResponse executeGetConnectors() {
     return executeUnsupported();
   }
 
-  // TODO HP : Entire method to be rewritten
   private @NotNull XyzResponse executeCreateConnector() {
     return executeUnsupported();
   }

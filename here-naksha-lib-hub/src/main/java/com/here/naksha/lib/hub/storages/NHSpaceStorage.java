@@ -24,8 +24,6 @@ import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.lambdas.Pe1;
-import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.handlers.*;
 import java.util.HashMap;
@@ -110,38 +108,4 @@ public class NHSpaceStorage implements IStorage {
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
     return new NHSpaceStorageReader(this.nakshaHub, virtualSpaces, context, useMaster);
   }
-
-  // TODO HP : remove all below deprecated methods at the end
-
-  @Override
-  public void init() {}
-
-  @Override
-  public void maintain(@NotNull List<CollectionInfo> collectionInfoList) {}
-
-  @Override
-  public @NotNull ITransactionSettings createSettings() {
-    return null;
-  }
-
-  @Override
-  public @NotNull IReadTransaction openReplicationTransaction(@NotNull ITransactionSettings settings) {
-    return null;
-  }
-
-  @Override
-  public @NotNull IMasterTransaction openMasterTransaction(@NotNull ITransactionSettings settings) {
-    return null;
-  }
-
-  @Override
-  public void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {}
-
-  @Override
-  public boolean removeListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
-    return false;
-  }
-
-  @Override
-  public void close() {}
 }

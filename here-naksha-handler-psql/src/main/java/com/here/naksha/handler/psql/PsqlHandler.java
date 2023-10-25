@@ -1133,24 +1133,20 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
   }
 
   private void createTables(@NotNull Space space) {
-    // TODO HP : This is commented to ensure code compiles
+    // TODO : This is commented to ensure code compiles
     /*if (eventHandler.getStorage() == null) {
     // No associated storage, so nothing to be created
     return;
     }*/
     // Initialize storage before creating new table(s)
     // TODO : Optimize this to run init only when there is appropriate SQL exception
-    // TODO HP : This is commented to ensure code compiles
+    // TODO : This is commented to ensure code compiles
     // final IStorage psqlStorage = eventHandler.newStorageImpl(eventHandler.getStorage());
     final IStorage psqlStorage = null;
-    // TODO HP_QUERY : What storage number to be stored here? (as this could be same across storages using same PSQL
-    // implementation)
     psqlStorage.init();
     psqlStorage.close();
     // Now create desired tables
     final CollectionInfo collection = new CollectionInfo(space.getCollectionId(), 0);
-    // TODO HP_QUERY : Which logger instance to be used? (both currentLogger() and currentContext().logger are
-    // deprecated)
     currentLogger().info("Creating table collection \"{}\" with appId \"{}\"", collection.getId(), applicationName);
     try (final Connection conn = masterDataSource.openConnection(applicationName, "");
         final PreparedStatement stmt = conn.prepareStatement("SELECT naksha_collection_upsert(?, ?, ?);")) {

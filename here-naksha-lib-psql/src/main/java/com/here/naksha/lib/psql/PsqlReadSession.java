@@ -26,7 +26,6 @@ import com.here.naksha.lib.core.storage.IReadSession;
 import java.sql.Connection;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
-import org.postgresql.PGConnection;
 
 public class PsqlReadSession implements IReadSession {
 

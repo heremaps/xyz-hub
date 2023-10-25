@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Test;
 
 class NakshaAppTest {
 
-  // TODO HP : Re-enable test after fixing the Naksha service
+  // TODO HP : Re-enable after validating the NakshaHub module
   // @BeforeAll
   static void prepare() {
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
