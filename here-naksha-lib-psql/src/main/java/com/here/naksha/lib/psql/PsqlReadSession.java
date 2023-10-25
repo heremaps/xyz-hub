@@ -23,19 +23,20 @@ import com.here.naksha.lib.core.models.storage.Notification;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.storage.IReadSession;
+import java.sql.Connection;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.PGConnection;
 
 public class PsqlReadSession implements IReadSession {
 
-  PsqlReadSession(@NotNull PsqlStorage storage, @NotNull PGConnection connection) {
+  PsqlReadSession(@NotNull PsqlStorage storage, @NotNull Connection connection) {
     this.storage = storage;
     this.connection = connection;
   }
 
   final @NotNull PsqlStorage storage;
-  final @NotNull PGConnection connection;
+  final @NotNull Connection connection;
 
   @Override
   public boolean isMasterConnect() {

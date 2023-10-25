@@ -23,13 +23,14 @@ import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import java.sql.Connection;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.PGConnection;
 
 public class PsqlWriteSession extends PsqlReadSession implements IWriteSession {
 
-  PsqlWriteSession(@NotNull PsqlStorage storage, @NotNull PGConnection connection) {
+  PsqlWriteSession(@NotNull PsqlStorage storage, @NotNull Connection connection) {
     super(storage, connection);
   }
 

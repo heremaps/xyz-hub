@@ -41,7 +41,6 @@ import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.postgresql.PGConnection;
 import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -253,7 +252,7 @@ public final class PsqlStorage implements IStorage {
       context = NakshaContext.currentContext();
     }
     try {
-      return new PsqlWriteSession(this, (PGConnection) dataSource.getConnection(context));
+      return new PsqlWriteSession(this, dataSource.getConnection(context));
     } catch (Exception e) {
       throw unchecked(e);
     }
@@ -265,7 +264,7 @@ public final class PsqlStorage implements IStorage {
       context = NakshaContext.currentContext();
     }
     try {
-      return new PsqlReadSession(this, (PGConnection) dataSource.getConnection(context));
+      return new PsqlReadSession(this, dataSource.getConnection(context));
     } catch (Exception e) {
       throw unchecked(e);
     }
