@@ -43,8 +43,6 @@ import org.jetbrains.annotations.Nullable;
 
 public class NakshaHub implements INaksha {
 
-  /** The data source. */
-  // protected final @NotNull PsqlDataSource dataSource;
   /** The id of default NakshaHub Config feature object */
   public static final @NotNull String DEF_CFG_ID = "default-config";
   /** The NakshaHub config. */
@@ -97,7 +95,10 @@ public class NakshaHub implements INaksha {
         collectionList.add(writeOp);
       }
       final Result wrResult = admin.execute(new WriteCollections<>(collectionList));
-      if (wrResult instanceof ErrorResult er) {
+      if (wrResult == null) {
+        admin.rollback();
+        throw unchecked(new Exception("Unable to create Admin collections in Admin DB. Null result!"));
+      } else if (wrResult instanceof ErrorResult er) {
         admin.rollback();
         throw unchecked(new Exception(
             "Unable to create Admin collections in Admin DB. " + er.toString(), er.exception));
@@ -124,7 +125,10 @@ public class NakshaHub implements INaksha {
       // persist in Admin DB (if not already exists)
       final Result wrResult =
           admin.execute(createFeatureRequest(NakshaAdminCollection.STORAGES, defStorage, true));
-      if (wrResult instanceof ErrorResult er) {
+      if (wrResult == null) {
+        admin.rollback();
+        throw unchecked(new Exception("Unable to add default storage in Admin DB. Null result!"));
+      } else if (wrResult instanceof ErrorResult er) {
         admin.rollback();
         throw unchecked(
             new Exception("Unable to add default storage in Admin DB. " + er.toString(), er.exception));
@@ -152,10 +156,13 @@ public class NakshaHub implements INaksha {
         // Custom config provided. Persist in AdminDB.
         final Result wrResult = admin.execute(createFeatureRequest(
             NakshaAdminCollection.CONFIGS, customCfg, IfExists.REPLACE, IfConflict.REPLACE));
-        if (wrResult instanceof ErrorResult er) {
+        if (wrResult == null) {
+          admin.rollback();
+          throw unchecked(new Exception("Unable to add custom config in Admin DB. Null result!"));
+        } else if (wrResult instanceof ErrorResult er) {
           admin.rollback();
           throw unchecked(
-              new Exception("Unable to add default config in Admin DB. " + er.toString(), er.exception));
+              new Exception("Unable to add custom config in Admin DB. " + er.toString(), er.exception));
         }
         admin.commit();
         return customCfg;
@@ -168,8 +175,7 @@ public class NakshaHub implements INaksha {
       if (rdResult instanceof ErrorResult er) {
         throw unchecked(new Exception(
             "Unable to read custom/default config from Admin DB. " + er.toString(), er.exception));
-      }
-      if (rdResult instanceof ReadResult<?> rr) {
+      } else if (rdResult instanceof ReadResult<?> rr) {
         while (rr.hasMore()) {
           final NakshaHubConfig cfg = rr.getFeature(NakshaHubConfig.class);
           if (cfg.getId().equals(configId)) {
@@ -200,7 +206,10 @@ public class NakshaHub implements INaksha {
       }
       // Persist default config in Admin DB
       final Result wrResult = admin.execute(createFeatureRequest(NakshaAdminCollection.CONFIGS, defCfg, true));
-      if (wrResult instanceof ErrorResult er) {
+      if (wrResult == null) {
+        admin.rollback();
+        throw unchecked(new Exception("Unable to add default config in Admin DB. Null result!"));
+      } else if (wrResult instanceof ErrorResult er) {
         admin.rollback();
         throw unchecked(
             new Exception("Unable to add default config in Admin DB. " + er.toString(), er.exception));
