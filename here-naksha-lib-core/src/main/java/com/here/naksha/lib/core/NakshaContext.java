@@ -57,6 +57,20 @@ public final class NakshaContext {
   }
 
   /**
+   * Attaches this context to the current thread and returns the context that was previously attached.
+   *
+   * <b>Warning</b>: This method will not override the context of the current task. Should this thread be attached to an
+   * {@link AbstractTask}, then the {@link AbstractTask#context()} takes precedence.
+   *
+   * @return The previously attached context.
+   */
+  public @NotNull NakshaContext attachToCurrentThread() {
+    final NakshaContext old = instance.get();
+    instance.set(this);
+    return old;
+  }
+
+  /**
    * Create a new context with random stream-id.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
