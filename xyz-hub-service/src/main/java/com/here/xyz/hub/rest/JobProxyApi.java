@@ -23,7 +23,6 @@ import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 
-import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -33,7 +32,6 @@ import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
@@ -42,8 +40,6 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.HttpResponse;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.nio.charset.Charset;
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -74,51 +70,8 @@ public class JobProxyApi extends Api{
                                     if (job instanceof Import && headSpace.getVersionsToKeep() > 1)
                                         return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
 
-                                    return Future.succeededFuture(headSpace);
-                                })
-                                .compose(headSpace -> {
                                     job.setTargetSpaceId(spaceId);
-                                    job.setTargetConnector(headSpace.getStorage().getId());
-                                    job.addParam("versionsToKeep",headSpace.getVersionsToKeep());
-                                    job.addParam("persistExport", headSpace.isReadOnly());
-
-                                    Promise<Map> p = Promise.promise();
-
-                                    if (headSpace.getExtension() != null) {
-                                        /** Resolve Extension */
-                                        Service.spaceConfigClient.get(Api.Context.getMarker(context), headSpace.getExtension().getSpaceId())
-                                                .onSuccess(baseSpace -> {
-                                                    p.complete(headSpace.resolveCompositeParams(baseSpace));
-                                                })
-                                                .onFailure(e -> p.fail(e));
-                                    }else
-                                        p.complete(null);
-                                    return p.future();
-                                })
-                                .compose(extension -> {
-                                    Promise<Map> p = Promise.promise();
-                                    if (extension != null && extension.get("extends") != null  && ((Map)extension.get("extends")).get("extends") != null) {
-                                        /** Resolve 2nd Level Extension */
-                                        Service.spaceConfigClient.get(Api.Context.getMarker(context), (String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
-                                                .onSuccess(baseSpace -> {
-                                                    /** Add readOnly flag to Parameters */
-                                                    Map<String, Object> ext = new HashMap<>();
-                                                    ext.putAll(extension);
-                                                    ((Map)((Map)ext.get("extends")).get("extends")).put("readOnly", baseSpace.isReadOnly());
-
-                                                    p.complete(ext);
-                                                })
-                                                .onFailure(e -> p.fail(e));
-                                    }else
-                                        p.complete(extension);
-                                    return p.future();
-                                })
-                                .compose(extension -> {
-                                    if(extension != null) {
-                                        /** Add extends to jobConfig params  */
-                                        job.addParam("extends",extension.get("extends"));
-                                    }
-                                    return Future.succeededFuture();
+                                    return Future.succeededFuture(headSpace);
                                 })
                                 .onSuccess(f -> {
                                     Future.succeededFuture(Service.webClient
