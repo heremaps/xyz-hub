@@ -286,7 +286,7 @@ public abstract class Job<T extends Job> extends Payload {
                     setTargetSpaceId(space.getId());
                     setTargetConnector(space.getStorage().getId());
                     addParam("versionsToKeep",space.getVersionsToKeep());
-                    addParam("persistExport", space.isPersistExport());
+                    addParam("persistExport", space.isReadOnly());
 
                     Promise<Map> p = Promise.promise();
 
@@ -309,7 +309,7 @@ public abstract class Job<T extends Job> extends Payload {
                                     /** Add persistExport flag to Parameters */
                                     Map<String, Object> ext = new HashMap<>();
                                     ext.putAll(extension);
-                                    ((Map)((Map)ext.get("extends")).get("extends")).put("persistExport", baseSpace.isPersistExport());
+                                    ((Map)((Map)ext.get("extends")).get("extends")).put("persistExport", baseSpace.isReadOnly());
                                     p.complete(ext);
                                 })
                                 .onFailure(e -> p.fail(e));
