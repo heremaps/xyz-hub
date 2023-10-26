@@ -19,7 +19,6 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
-import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -40,7 +39,7 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   protected WriteRequest(@NotNull List<@NotNull WriteOp<T>> queries) {
-    this.queries = new ArrayList<>();
+    this.queries = queries;
   }
 
   /**
