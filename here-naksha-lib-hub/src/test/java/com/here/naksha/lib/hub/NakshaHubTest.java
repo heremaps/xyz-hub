@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
@@ -67,7 +66,7 @@ class NakshaHubTest {
   }
 
   // TODO HP : Re-enable with necessary mocking (or after lib-psql is fixed)
-  //@Test
+  // @Test
   void tc0001_testGetStorages() throws Exception {
     // 1. Load test data
     final String expectedBodyPart = readTestFile("TC0001_getStorages/body_part.json");

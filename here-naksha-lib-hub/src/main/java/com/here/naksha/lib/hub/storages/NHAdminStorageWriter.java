@@ -18,12 +18,14 @@
  */
 package com.here.naksha.lib.hub.storages;
 
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import java.util.concurrent.TimeUnit;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 public class NHAdminStorageWriter extends NHAdminStorageReader implements IWriteSession {
@@ -31,6 +33,7 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
   /** Current session, all write storage operations should be executed against */
   final @NotNull IWriteSession session;
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NHAdminStorageWriter(final @NotNull IWriteSession writer) {
     super(writer);
     this.session = writer;
@@ -43,6 +46,7 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
    * @return the result.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull Result execute(@NotNull WriteRequest writeRequest) {
     return session.execute(writeRequest);
   }
@@ -58,6 +62,7 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
    * @throws StorageLockException if the locking failed.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorageLock lockFeature(
       @NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
@@ -74,6 +79,7 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
    * @throws StorageLockException if the locking failed.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
     return session.lockStorage(lockId, timeout, timeUnit);
@@ -83,6 +89,7 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
    * Commit all changes.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void commit() {
     session.commit();
   }
@@ -91,6 +98,7 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
    * Abort the transaction, revert all pending changes.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void rollback() {
     session.rollback();
   }

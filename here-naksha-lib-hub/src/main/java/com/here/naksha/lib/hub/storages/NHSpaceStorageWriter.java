@@ -18,10 +18,7 @@
  */
 package com.here.naksha.lib.hub.storages;
 
-import com.here.naksha.lib.core.EventPipeline;
-import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.*;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteCollections;
@@ -32,11 +29,13 @@ import com.here.naksha.lib.core.storage.IWriteSession;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWriteSession {
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NHSpaceStorageWriter(
       final @NotNull INaksha hub,
       final @NotNull Map<String, List<IEventHandler>> virtualSpaces,
@@ -52,6 +51,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
    * @return the result.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull Result execute(@NotNull WriteRequest writeRequest) {
     if (writeRequest instanceof WriteCollections wc) {
       return executeWriteCollections(wc);
@@ -104,6 +104,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
    * @throws StorageLockException if the locking failed.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorageLock lockFeature(
       @NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
@@ -120,6 +121,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
    * @throws StorageLockException if the locking failed.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
     throw new UnsupportedOperationException("Locking not supported by this storage instance!");
@@ -129,11 +131,13 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
    * Commit all changes.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void commit() {}
 
   /**
    * Abort the transaction, revert all pending changes.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void rollback() {}
 }

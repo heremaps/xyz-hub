@@ -19,7 +19,9 @@
 package com.here.naksha.lib.hub.storages;
 
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.storage.*;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -28,16 +30,19 @@ public class NHAdminStorage implements IStorage {
   /** Singleton instance of physical admin storage implementation */
   protected final @NotNull IStorage psqlStorage;
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NHAdminStorage(final @NotNull IStorage psqlStorage) {
     this.psqlStorage = psqlStorage;
   }
 
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
     return new NHAdminStorageWriter(this.psqlStorage.newWriteSession(context, useMaster));
   }
 
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
     return new NHAdminStorageReader(this.psqlStorage.newReadSession(context, useMaster));
   }
@@ -46,6 +51,7 @@ public class NHAdminStorage implements IStorage {
    * Initializes the storage, create the transaction table, install needed scripts and extensions.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void initStorage() {
     this.psqlStorage.initStorage();
   }
@@ -54,6 +60,7 @@ public class NHAdminStorage implements IStorage {
    * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void startMaintainer() {
     this.psqlStorage.startMaintainer();
   }
@@ -62,6 +69,7 @@ public class NHAdminStorage implements IStorage {
    * Blocking call to perform maintenance tasks right now. One-time maintenance.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void maintainNow() {
     this.psqlStorage.maintainNow();
   }
@@ -70,6 +78,7 @@ public class NHAdminStorage implements IStorage {
    * Stops the maintainer thread.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void stopMaintainer() {
     this.psqlStorage.stopMaintainer();
   }

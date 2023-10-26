@@ -19,11 +19,13 @@
 package com.here.naksha.lib.hub.storages;
 
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.storage.Notification;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.storage.IReadSession;
 import java.util.concurrent.TimeUnit;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 public class NHAdminStorageReader implements IReadSession {
@@ -31,6 +33,7 @@ public class NHAdminStorageReader implements IReadSession {
   /** Current session, all read storage operations should be executed against */
   final @NotNull IReadSession session;
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   protected NHAdminStorageReader(final @NotNull IReadSession reader) {
     this.session = reader;
   }
@@ -41,6 +44,7 @@ public class NHAdminStorageReader implements IReadSession {
    * @return {@code true}, if this session is connected to the master-node; {@code false} otherwise.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public boolean isMasterConnect() {
     return session.isMasterConnect();
   }
@@ -51,6 +55,7 @@ public class NHAdminStorageReader implements IReadSession {
    * @return the Naksha context bound to this read-connection.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull NakshaContext getNakshaContext() {
     return session.getNakshaContext();
   }
@@ -62,6 +67,7 @@ public class NHAdminStorageReader implements IReadSession {
    * @return The timeout.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
     return session.getStatementTimeout(timeUnit);
   }
@@ -73,6 +79,7 @@ public class NHAdminStorageReader implements IReadSession {
    * @param timeUnit The unit of the timeout.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void setStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) {
     session.setStatementTimeout(timeout, timeUnit);
   }
@@ -84,6 +91,7 @@ public class NHAdminStorageReader implements IReadSession {
    * @return The timeout.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public long getLockTimeout(@NotNull TimeUnit timeUnit) {
     return session.getLockTimeout(timeUnit);
   }
@@ -95,6 +103,7 @@ public class NHAdminStorageReader implements IReadSession {
    * @param timeUnit The unit of the timeout.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void setLockTimeout(long timeout, @NotNull TimeUnit timeUnit) {
     session.setLockTimeout(timeout, timeUnit);
   }
@@ -106,6 +115,7 @@ public class NHAdminStorageReader implements IReadSession {
    * @return the result.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull Result execute(@NotNull ReadRequest<?> readRequest) {
     return session.execute(readRequest);
   }
@@ -117,6 +127,7 @@ public class NHAdminStorageReader implements IReadSession {
    * @return the result.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull Result process(@NotNull Notification<?> notification) {
     return session.process(notification);
   }
@@ -126,6 +137,7 @@ public class NHAdminStorageReader implements IReadSession {
    * {@link IllegalStateException}.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void close() {
     session.close();
   }

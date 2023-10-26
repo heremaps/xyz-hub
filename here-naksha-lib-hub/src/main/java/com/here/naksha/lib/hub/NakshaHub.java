@@ -24,6 +24,7 @@ import static com.here.naksha.lib.core.util.storage.RequestHelper.*;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.models.storage.StorageCollection;
@@ -38,6 +39,7 @@ import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -55,6 +57,7 @@ public class NakshaHub implements INaksha {
    * and support respective read/write operations on spaces */
   protected final @NotNull IStorage spaceStorageInstance;
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NakshaHub(
       final @NotNull PsqlConfig config,
       final @Nullable NakshaHubConfig customCfg,
@@ -219,21 +222,25 @@ public class NakshaHub implements INaksha {
     }
   }
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull NakshaHubConfig getConfig() {
     return this.nakshaHubConfig;
   }
 
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorage getAdminStorage() {
     return this.adminStorageInstance;
   }
 
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorage getSpaceStorage() {
     return this.spaceStorageInstance;
   }
 
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorage getStorageById(final @NotNull String storageId) {
     // TODO : Add logic to retrieve Storage from Admin DB and then instantiate respective IStorage implementation
     return null;

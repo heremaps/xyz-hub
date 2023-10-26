@@ -18,15 +18,13 @@
  */
 package com.here.naksha.lib.hub.storages;
 
-import com.here.naksha.lib.core.EventPipeline;
-import com.here.naksha.lib.core.IEventHandler;
-import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.*;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -41,6 +39,7 @@ public class NHSpaceStorageReader implements IReadSession {
   /** List of Admin virtual spaces with relevant event handlers required to support event processing */
   protected final @NotNull Map<String, List<IEventHandler>> virtualSpaces;
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NHSpaceStorageReader(
       final @NotNull INaksha hub,
       final @NotNull Map<String, List<IEventHandler>> virtualSpaces,
@@ -58,6 +57,7 @@ public class NHSpaceStorageReader implements IReadSession {
    * @return {@code true}, if this session is connected to the master-node; {@code false} otherwise.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public boolean isMasterConnect() {
     return useMaster;
   }
@@ -68,6 +68,7 @@ public class NHSpaceStorageReader implements IReadSession {
    * @return the Naksha context bound to this read-connection.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull NakshaContext getNakshaContext() {
     return this.context;
   }
@@ -79,6 +80,7 @@ public class NHSpaceStorageReader implements IReadSession {
    * @return The timeout.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
     return 0;
   }
@@ -90,6 +92,7 @@ public class NHSpaceStorageReader implements IReadSession {
    * @param timeUnit The unit of the timeout.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void setStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) {}
 
   /**
@@ -99,6 +102,7 @@ public class NHSpaceStorageReader implements IReadSession {
    * @return The timeout.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public long getLockTimeout(@NotNull TimeUnit timeUnit) {
     return 0;
   }
@@ -110,6 +114,7 @@ public class NHSpaceStorageReader implements IReadSession {
    * @param timeUnit The unit of the timeout.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void setLockTimeout(long timeout, @NotNull TimeUnit timeUnit) {}
 
   /**
@@ -119,6 +124,7 @@ public class NHSpaceStorageReader implements IReadSession {
    * @return the result.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull Result execute(final @NotNull ReadRequest<?> readRequest) {
     if (readRequest instanceof ReadCollections rc) {
       return executeReadCollections(rc);
@@ -170,6 +176,7 @@ public class NHSpaceStorageReader implements IReadSession {
    * @return the result.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull Result process(@NotNull Notification<?> notification) {
     throw new UnsupportedOperationException("Notification processing not supported!");
   }
@@ -179,5 +186,6 @@ public class NHSpaceStorageReader implements IReadSession {
    * {@link IllegalStateException}.
    */
   @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void close() {}
 }
