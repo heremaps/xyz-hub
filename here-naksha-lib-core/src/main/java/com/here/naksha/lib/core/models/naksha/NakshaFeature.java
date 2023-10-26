@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Nullable;
 
@@ -61,10 +62,12 @@ public class NakshaFeature extends XyzFeature {
     this.description = description;
   }
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   @JsonProperty(TITLE)
   @JsonInclude(Include.NON_EMPTY)
   private @Nullable String title;
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   @JsonProperty(DESCRIPTION)
   @JsonInclude(Include.NON_EMPTY)
   private @Nullable String description;

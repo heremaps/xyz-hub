@@ -18,8 +18,10 @@
  */
 package com.here.naksha.lib.core.models.naksha;
 
+import com.here.naksha.lib.core.NakshaVersion;
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -64,5 +66,6 @@ public abstract class EventTarget<SELF extends EventTarget<SELF>> extends Naksha
     return self();
   }
 
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   private final @NotNull List<@NotNull String> eventHandlerIds;
 }

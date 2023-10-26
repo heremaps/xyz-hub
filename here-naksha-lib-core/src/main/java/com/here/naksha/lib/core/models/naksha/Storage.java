@@ -71,27 +71,6 @@ public class Storage extends Plugin<IStorage, Storage> {
   private long number;
 
   /**
-   * The classname to load.
-   */
-  @AvailableSince(NakshaVersion.v2_0_0)
-  @JsonProperty(CLASS_NAME)
-  private @NotNull String className;
-
-  /**
-   * A human-readable title of the storage.
-   */
-  @AvailableSince(NakshaVersion.v2_0_6)
-  @JsonProperty(TITLE)
-  private String title;
-
-  /**
-   * A human-readable description of the storage, like its purpose.
-   */
-  @AvailableSince(NakshaVersion.v2_0_6)
-  @JsonProperty(DESCRIPTION)
-  private String description;
-
-  /**
    * Initialize the storage engine, invoked from the Naksha-Hub when creating a new instance of the storage. This should ensure that the
    * storage is accessible and in a good state. If the method fails, it is invoked again after a couple of minutes. This method is invoked
    * at least ones for every service start and therefore must be concurrency safe, because it may be called in parallel by multiple

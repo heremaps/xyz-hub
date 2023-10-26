@@ -40,6 +40,7 @@ public abstract class Plugin<API, SELF extends Plugin<API, SELF>> extends Naksha
    */
   protected Plugin(@JsonProperty(CLASS_NAME) @NotNull String className, @JsonProperty(ID) @Nullable String id) {
     super(id);
+    this.className = className;
   }
 
   public @NotNull String getClassName() {
@@ -52,7 +53,7 @@ public abstract class Plugin<API, SELF extends Plugin<API, SELF>> extends Naksha
 
   @JsonProperty(CLASS_NAME)
   @JsonInclude(Include.ALWAYS)
-  private @NotNull String className;
+  protected @NotNull String className;
 
   /**
    * Create a new instance of the plugin.

@@ -87,13 +87,6 @@ public final class Space extends EventTarget<Space> implements Typed {
   private @NotNull String name;
 
   /**
-   * A human-readable title of the space.
-   */
-  @JsonProperty
-  @JsonInclude(Include.NON_NULL)
-  private String title;
-
-  /**
    * The collection into which to place the features. The {@link #getId() id} reflects the unique identifier under which the space is
    * referred externally, the collection refers to the storage internally and is only understood by the storage connector. If the client
    * does not explicitly set the collection name, then it will be set to the same as the space identifier.
@@ -101,13 +94,6 @@ public final class Space extends EventTarget<Space> implements Typed {
   @JsonProperty
   @JsonInclude(Include.NON_NULL)
   private String collectionId;
-
-  /**
-   * A human-readable description of the space, and its content.
-   */
-  @JsonProperty
-  @JsonInclude(Include.NON_NULL)
-  private String description;
 
   /**
    * If set to true, every authenticated user can read the features in the space.
@@ -129,19 +115,6 @@ public final class Space extends EventTarget<Space> implements Typed {
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
   private License license;
-
-  /**
-   * Allows to temporary or permanently disable history.
-   */
-  @JsonProperty
-  private boolean history = true;
-
-  /**
-   * The maximum days of history to keep; {@code null} means forever.
-   */
-  @JsonProperty
-  @JsonInclude(Include.NON_NULL)
-  private Integer maxHistoryAge;
 
   /**
    * List of packages that this space belongs to.
@@ -214,32 +187,6 @@ public final class Space extends EventTarget<Space> implements Typed {
     return this;
   }
 
-  public String getTitle() {
-    return title;
-  }
-
-  public void setTitle(final String title) {
-    this.title = title;
-  }
-
-  public @NotNull Space withTitle(final String title) {
-    setTitle(title);
-    return this;
-  }
-
-  public String getDescription() {
-    return description;
-  }
-
-  public void setDescription(final String description) {
-    this.description = description;
-  }
-
-  public @NotNull Space withDescription(final String description) {
-    setDescription(description);
-    return this;
-  }
-
   public boolean isShared() {
     return shared;
   }
@@ -277,22 +224,6 @@ public final class Space extends EventTarget<Space> implements Typed {
   public @NotNull Space withLicense(final License license) {
     setLicense(license);
     return this;
-  }
-
-  public boolean hasHistory() {
-    return history;
-  }
-
-  public void setHistory(final boolean enableHistory) {
-    this.history = enableHistory;
-  }
-
-  public @Nullable Integer getMaxHistoryAge() {
-    return maxHistoryAge;
-  }
-
-  public void setMaxHistoryAge(@Nullable Integer days) {
-    this.maxHistoryAge = days;
   }
 
   public List<@NotNull String> getPackages() {
