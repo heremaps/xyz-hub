@@ -38,8 +38,9 @@ public class PsqlCollectionWriter extends StatementCreator {
   }
 
   public @NotNull WriteResult writeCollections(@NotNull WriteCollections writeCollections) {
-    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_collection_upsert(?::jsonb[]);")) {
+    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_write_collections(?::jsonb[],?);")) {
       stmt.setObject(1, toJsonb(writeCollections.queries));
+      stmt.setBoolean(2, writeCollections.noResults);
       final ResultSet rs = stmt.executeQuery();
       List<WriteOpResult<StorageCollection>> writeOps = toWriteOps(rs);
       return new WriteResult(writeOps);
