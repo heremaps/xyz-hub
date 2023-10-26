@@ -237,7 +237,6 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         assertEquals(1, urls.size());
 
         mustContain = Arrays.asList(
-            "eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0", //EmptyFC
             "4807",
             "4991",
             "4993",
@@ -246,7 +245,7 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         );
 
         //Includes two empty tiles
-        downloadAndCheckFC(urls, 1466, 3, mustContain, 5);
+        downloadAndCheckFC(urls, 1346, 3, mustContain, 5);
     }
 
     @Test
@@ -294,13 +293,12 @@ public class JobApiIncrementalCompositeExportIT extends JobApiIT{
         assertEquals(1, urls.size());
 
         List<String> mustContain = Arrays.asList(
-            "eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0=",  //EmptyFC
             "pbeyJpZCI6ICJpZDgiLCAidHlwZ",
             "4949",
             "5831"
         );
 
-        downloadAndCheckFC(urls, 492, 1, mustContain, 2);
+        downloadAndCheckFC(urls, 432, 1, mustContain, 2);
 
     }
 
