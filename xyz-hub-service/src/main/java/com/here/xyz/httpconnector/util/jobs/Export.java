@@ -125,7 +125,6 @@ public class Export extends JDBCBasedJob<Export> {
     @JsonView({Public.class})
     public enum CompositeMode {
         FULL_OPTIMIZED, //Load persistent Base + (Changes)
-        FULL, //Composite Export
         CHANGES, //Only changes
         DEACTIVATED;
 
@@ -259,7 +258,8 @@ public class Export extends JDBCBasedJob<Export> {
                 throw new HttpException(BAD_REQUEST, "CompositeMode does not support the provided CSV format!");
 
             if(ext == null) {
-                throw new HttpException(BAD_REQUEST, "CompositeMode only allowed on composite spaces!");
+                // No extension present - so we remove the composite mode
+                params.remove(PARAM_COMPOSITE_MODE);
             }
         }
 

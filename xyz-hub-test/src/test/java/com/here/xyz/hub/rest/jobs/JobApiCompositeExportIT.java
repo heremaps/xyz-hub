@@ -292,7 +292,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         Export job =  generateExportJob(testExportJobId, 6);
 
         /** Initial Base Export */
-        List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL);
+        List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed);
         checkUrls(urls, false);
 
         List<String> mustContain = Arrays.asList(

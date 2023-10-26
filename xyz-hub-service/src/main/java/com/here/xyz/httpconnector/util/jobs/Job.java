@@ -309,7 +309,7 @@ public abstract class Job<T extends Job> extends Payload {
                                     /** Add persistExport flag to Parameters */
                                     Map<String, Object> ext = new HashMap<>();
                                     ext.putAll(extension);
-                                    ((Map)((Map)ext.get("extends")).get("extends")).put("persistExport", baseSpace.isReadOnly());
+                                    ((Map)((Map)ext.get("extends")).get("extends")).put("readOnly", baseSpace.isReadOnly());
                                     p.complete(ext);
                                 })
                                 .onFailure(e -> p.fail(e));
