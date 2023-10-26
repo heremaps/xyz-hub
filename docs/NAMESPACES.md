@@ -6,26 +6,27 @@ The XYZ-Hub supports namespaces within the `properties` of features. The most na
 
 The XYZ namespace was originally introduced by the XYZ-Hub to store state related information, exclusively managed by the XYZ-Hub. Certain changes have been applied meanwhile to this namespace. Naksha tries to stay compatible with the last version of the namespace that was  used by Map-Creator application (aka UniMap-Editor):
 
-| Property  | Type            | RO   | Meaning                                                                                                                              |
-|-----------|-----------------|------|--------------------------------------------------------------------------------------------------------------------------------------|
-| createdAt | Long            | yes  | The epoch-timestamp in milliseconds when the transaction started, that created the feature originally.                               |
-| updatedAt | Long            | yes  | The epoch-timestamp in milliseconds when the transaction started, that created this state.                                           |
-| rtuts     | Long            | yes  | The real-time epoch-timestamp in milliseconds when this state was created.                                                           |
-| txn       | Long            | yes  | The transaction-number of the transaction in which this state was created.                                                           |
-| txn_next  | Long            | yes  | The transaction-number of the next state, being `0` if this is the HEAD (latest) state.                                              |
-| txuuid    | GUID            | yes  | The transaction-number as GUID.                                                                                                      |
-| uuid      | GUID            | yes  | The state identifier.                                                                                                                |
-| puuid     | GUID?           | yes  | The previous state identifier.                                                                                                       |
-| muuid     | GUID?           | yes  | The merge state identifier.                                                                                                          |
-| action    | String          | yes  | The action that lead to this state: CREATE, UPDATE, DELETE.                                                                          |
-| version   | Long            | yes  | The version of this feature (change counter).                                                                                        |
-| app_id    | String          | yes  | The UPM identifier of the application that created this state.                                                                       |
-| author    | String          | yes  | The UPM identifier of the author of this state.                                                                                      |
-| tags      | List\<String\>? | no   | The tags.                                                                                                                            |
-| crid      | String?         | no   | An arbitrary custom-ref-id.                                                                                                          |
-| qrid      | String          | yes  | The 31 character long quad-ref-id, based upon the center of the geometry, calculated as `ST_Centroid(coalesc(geo, ST_Point(0,0)))`.  |
-| mrid      | String          | yes  | The merged reference-id, calculated as `coalesc(crid,qrid)`.                                                                         |
-| ~~space~~ | -               | yes  | Set to the space that was used to modify the feature. This property is no longer supported.                                          |
+| Property  | Type            | RO   | Meaning                                                                                                                                                  |
+|-----------|-----------------|------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| createdAt | Long            | yes  | The epoch-timestamp in milliseconds when the transaction started, that created the feature originally.                                                   |
+| updatedAt | Long            | yes  | The epoch-timestamp in milliseconds when the transaction started, that created this state.                                                               |
+| rtuts     | Long            | yes  | The real-time epoch-timestamp in milliseconds when this state was created.                                                                               |
+| txn       | Long            | yes  | The transaction-number of the transaction in which this state was created.                                                                               |
+| txn_next  | Long            | yes  | The transaction-number of the next state, being `0` if this is the HEAD (latest) state.                                                                  |
+| txuuid    | GUID            | yes  | The transaction-number as GUID.                                                                                                                          |
+| uuid      | GUID            | yes  | The state identifier.                                                                                                                                    |
+| puuid     | GUID?           | yes  | The previous state identifier.                                                                                                                           |
+| muuid     | GUID?           | yes  | The merge state identifier.                                                                                                                              |
+| action    | String          | yes  | The action that lead to this state: CREATE, UPDATE, DELETE.                                                                                              |
+| version   | Long            | yes  | The version of this feature (change counter).                                                                                                            |
+| app_id    | String          | yes  | The UPM identifier of the application that created this state.                                                                                           |
+| author    | String          | yes  | The UPM identifier of the author of this state.                                                                                                          |
+| tags      | List\<String\>? | no   | The tags.                                                                                                                                                |
+| crid      | String?         | no   | An arbitrary custom-ref-id.                                                                                                                              |
+| qrid      | String          | yes  | The 31 character long quad-ref-id, based upon the center of the geometry, calculated as `ST_Centroid(coalesc(geo, ST_Point(0,0)))`.                      |
+| mrid      | String          | yes  | The merged reference-id, calculated as `coalesc(crid,qrid)`.                                                                                             |
+| streamId  | String          | yes  | The stream-identifier of the request that created this state. Can be used to search the logs to find the request that eventually produced this state.    |
+| ~~space~~ | -               | yes  | Set to the space that was used to modify the feature. This property is no longer supported.                                                              |
 
 * The **author** must not be `null` in the namespace, but the client does not need to set an author. In this case, the author of features being updated will stay unchanged. For created features, the author defined in the collection-information will be used, if this is as well `null`, then the **app_id** is used (all features **must** eventually have an author).
 
