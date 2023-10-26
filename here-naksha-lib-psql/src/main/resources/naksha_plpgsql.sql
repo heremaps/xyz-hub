@@ -719,7 +719,7 @@ BEGIN
     || ',SET_CONFIG(''enable_seqscan'', ''off'', false)'
     || ',SET_CONFIG(''enable_partitionwise_join'', ''on'', false)'
     || ',SET_CONFIG(''enable_partitionwise_aggregate'', ''on'', false)'
-    || ',SET_CONFIG(''enable_presorted_aggregate'', ''on'', false)'
+--    || ',SET_CONFIG(''enable_presorted_aggregate'', ''on'', false)'
     || ',SET_CONFIG(''jit'', ''OFF'', false)'
     || ',SET_CONFIG(''naksha.appid'', %L::text, false)'
     || ',SET_CONFIG(''naksha.author'', %L::text, false)'
