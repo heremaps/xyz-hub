@@ -47,7 +47,7 @@ public class PsqlFeatureWriter extends StatementCreator {
   }
 
   public @NotNull WriteResult writeFeatures(@NotNull WriteFeatures writeFeatures) {
-    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_write_features(?,?::jsonb,?,?);")) {
+    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_write_features(?,?::jsonb[],?,?);")) {
       PsqlFeatureWriterMapper parametersMapper = new PsqlFeatureWriterMapper();
       FeatureWriteInputParameters psqlParameters =
           parametersMapper.prepareFeatureWriteInputParameters(writeFeatures.queries);
