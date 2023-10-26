@@ -388,7 +388,7 @@ project(":here-naksha-lib-handlers") {
 //} catch (ignore: UnknownProjectException) {
 //}
 
-try {
+//try {
     project(":here-naksha-app-service") {
         description = "Naksha Service"
         dependencies {
@@ -406,10 +406,12 @@ try {
             implementation(vertx_web)
             implementation(vertx_web_client)
             implementation(vertx_web_openapi)
+
+            testImplementation(json_assert)
         }
     }
-} catch (ignore: UnknownProjectException) {
-}
+//} catch (ignore: UnknownProjectException) {
+//}
 
 // Ensure that libraries published to artifactory, while the application generates a shadow-jar.
 subprojects {

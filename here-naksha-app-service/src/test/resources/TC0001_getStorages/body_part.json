@@ -1,0 +1,10 @@
+{
+    "type": "FeatureCollection",
+    "features": [
+        {
+            "type": "Storage",
+            "id": "psql",
+            "className": "com.here.naksha.lib.psql.PsqlStorage"
+        }
+    ]
+}
