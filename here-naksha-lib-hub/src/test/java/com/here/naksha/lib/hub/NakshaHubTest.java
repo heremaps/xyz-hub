@@ -38,13 +38,14 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
 class NakshaHubTest {
 
   static final String TEST_DATA_FOLDER = "src/test/resources/unit_test_data/";
-  static NakshaHub hub;
+  static NakshaHub hub = null;
 
   @BeforeAll
   static void prepare() {
@@ -53,7 +54,7 @@ class NakshaHubTest {
     if (password == null) password = "password";
     if (dbUrl == null)
       dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
-          + "&schema=naksha_test_maint";
+          + "&schema=naksha_test_maint_hub";
     final PsqlConfig psqlCfg = new PsqlConfigBuilder()
         .withAppName(NakshaHubConfig.defaultAppName())
         .parseUrl(dbUrl)
@@ -66,7 +67,7 @@ class NakshaHubTest {
   }
 
   // TODO HP : Re-enable with necessary mocking (or after lib-psql is fixed)
-  // @Test
+  @Test
   void tc0001_testGetStorages() throws Exception {
     // 1. Load test data
     final String expectedBodyPart = readTestFile("TC0001_getStorages/body_part.json");
@@ -111,6 +112,9 @@ class NakshaHubTest {
 
   @AfterAll
   static void close() throws InterruptedException {
-    // TODO: Find a way to gracefully shutdown the hub
+    if (hub != null) {
+      // TODO : Drop all collections after finishing tests
+      // TODO: Find a way to gracefully shutdown the hub
+    }
   }
 }

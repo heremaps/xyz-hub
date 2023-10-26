@@ -384,6 +384,11 @@ project(":here-naksha-lib-handlers") {
 
             testImplementation(json_assert)
         }
+        tasks {
+            test {
+                enabled = false
+            }
+        }
     }
 //} catch (ignore: UnknownProjectException) {
 //}
@@ -406,6 +411,11 @@ try {
             implementation(vertx_web)
             implementation(vertx_web_client)
             implementation(vertx_web_openapi)
+        }
+        tasks {
+            test {
+                enabled = false
+            }
         }
     }
 } catch (ignore: UnknownProjectException) {

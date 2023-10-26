@@ -21,22 +21,24 @@ package com.here.naksha.app.service;
 import static com.here.naksha.app.service.NakshaApp.newInstance;
 
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 class NakshaAppTest {
 
+  static NakshaApp app = null;
+
   // TODO HP : Re-enable after validating the NakshaHub module
-  // @BeforeAll
+  @BeforeAll
   static void prepare() {
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
     if (password == null) password = "password";
     app = newInstance(
-        "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password,
+        "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
+            + "&schema=naksha_test_maint_app",
         "default-config"); // this string concat only happens once, its ok ;)
     app.start();
   }
-
-  static NakshaApp app;
 
   @Test
   void startup() throws InterruptedException {
@@ -48,6 +50,9 @@ class NakshaAppTest {
   static void close() throws InterruptedException {
     // TODO: Find a way to gracefully shutdown the server.
     //       To do some manual testing with the running service, uncomment this:
-    // hub.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(60));
+    if (app != null) {
+      // TODO : Drop all collections after finishing tests
+      app.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(3600));
+    }
   }
 }
