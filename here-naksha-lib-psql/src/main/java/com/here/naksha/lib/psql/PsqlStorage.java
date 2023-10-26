@@ -223,6 +223,7 @@ public final class PsqlStorage implements IStorage {
                 .log();
           }
           SQL = readResource("naksha_plpgsql.sql");
+          SQL = SQL.replaceAll("\n--#", "\n");
           SQL = SQL.replaceAll("\\$\\{schema}", getSchema());
           SQL = SQL.replaceAll("\\$\\{storage_id}", getStorageId());
           System.out.println(SQL);

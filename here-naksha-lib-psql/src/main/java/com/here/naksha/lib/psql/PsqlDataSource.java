@@ -282,7 +282,7 @@ public class PsqlDataSource implements DataSource {
     sb.append("SET SESSION search_path TO ").append(searchPath).append(";\n");
     // sb.append("SELECT naksha_init_plv8();");
     if (context != null) {
-      sb.append("SELECT naksha_tx_start(");
+      sb.append("SELECT naksha_start_session(");
       open_literal(sb);
       write_literal(context.getAppId(), sb);
       close_literal(sb);
@@ -295,7 +295,7 @@ public class PsqlDataSource implements DataSource {
       } else {
         sb.append("null");
       }
-      sb.append(",false);");
+      sb.append(");");
     }
   }
 }

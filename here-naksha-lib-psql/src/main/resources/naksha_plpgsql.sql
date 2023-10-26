@@ -1,6 +1,11 @@
 -- This script is executed whenever IStorage::initStorage() is invoked.
+-- Note: schema and storage_id must not persist out of special characters, only: [0-9a-z_]
 CREATE SCHEMA IF NOT EXISTS "${schema}";
 SET SESSION search_path TO "${schema}", public, topology;
+
+-------------------------------------------------------------------------------------------------------------------------------------------
+-- CONSTANTS
+-------------------------------------------------------------------------------------------------------------------------------------------
 
 -- Returns the packed Naksha extension version: 16 bit reserved, 16 bit major, 16 bit minor, 16 bit revision.
 CREATE OR REPLACE FUNCTION naksha_version() RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
@@ -12,94 +17,869 @@ END $BODY$;
 -- Returns the storage-id of this storage, this is created when the Naksha extension is installed and never changes.
 CREATE OR REPLACE FUNCTION naksha_storage_id() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
-    return '${storage_id}';
+    RETURN '${storage_id}';
 END $BODY$;
 
--- Returns the storage-id of this storage, this is created when the Naksha extension is installed and never changes.
+-- Returns the schema of this storage, this is created when the Naksha extension is installed and never changes.
 CREATE OR REPLACE FUNCTION naksha_schema() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
-    return '${schema}';
+    RETURN '${schema}';
 END $BODY$;
 
--- Start the transaction by setting the application-identifier, the current author (which may be null)
--- and the returns the transaction number.
--- See: https://www.postgresql.org/docs/current/runtime-config-query.html
-CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool) RETURNS uuid LANGUAGE 'plpgsql' VOLATILE AS $$
+-- Returns the OID of the schema of the storage.
+CREATE OR REPLACE FUNCTION naksha_schema_oid() RETURNS oid LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
 BEGIN
-    EXECUTE format('SELECT '
-                       || 'SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', true)'
-                       || ',SET_CONFIG(''cursor_tuple_fraction'', ''1.0'', true)'
-                       || ',SET_CONFIG(''geqo'', ''false'', true)'
-                       || ',SET_CONFIG(''work_mem'', ''128 MB'', true)'
-                       || ',SET_CONFIG(''maintenance_work_mem'', ''1024 MB'', true)'
-                       || ',SET_CONFIG(''enable_seqscan'', ''OFF'', true)'
-                       || ',SET_CONFIG(''enable_bitmapscan'', ''OFF'', true)'
-                       || ',SET_CONFIG(''enable_sort'', ''OFF'', true)'
-                       || ',SET_CONFIG(''enable_partitionwise_join'', ''ON'', true)'
-                       || ',SET_CONFIG(''enable_partitionwise_aggregate'', ''ON'', true)'
-                       || ',SET_CONFIG(''jit'', ''OFF'', true)'
-                       || ',SET_CONFIG(''naksha.appid'', %L::text, true)' -- same as naksha_tx_set_app_id
-                       || ',SET_CONFIG(''naksha.author'', %L::text, true)' -- same as naksha_tx_set_author
-        , app_id, author);
-    IF create_tx THEN
-        RETURN naksha_tx_current();
+    RETURN (SELECT oid FROM pg_namespace WHERE nspname = '${schema}');
+END $BODY$;
+
+-- The default type for collections.
+CREATE OR REPLACE FUNCTION naksha_collection_type() RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+BEGIN
+    RETURN 'StorageCollection';
+END $BODY$;
+
+-------------------------------------------------------------------------------------------------------------------------------------------
+-- ERRORS
+-------------------------------------------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE PROCEDURE nk_raise_collection_exists(in _collection text) LANGUAGE 'plpgsql' AS $$ BEGIN
+  RAISE EXCEPTION 'Collection % exists', _collection USING ERRCODE='N0001';
+END $$;
+
+CREATE OR REPLACE PROCEDURE nk_raise_collection_not_exists(in _collection text) LANGUAGE 'plpgsql' AS $$ BEGIN
+  RAISE EXCEPTION 'Collection % not exists', _collection USING ERRCODE='N0002';
+END $$;
+
+CREATE OR REPLACE PROCEDURE nk_raise_conflict(in _msg text) LANGUAGE 'plpgsql' AS $$ BEGIN
+  RAISE EXCEPTION '%', _msg USING ERRCODE='N0003';
+END $$;
+
+CREATE OR REPLACE PROCEDURE nk_raise_illegal_argument(in _msg text) LANGUAGE 'plpgsql' AS $$ BEGIN
+  RAISE EXCEPTION '%', _msg USING ERRCODE='N0004';
+END $$;
+
+-------------------------------------------------------------------------------------------------------------------------------------------
+-- INTERNAL
+-------------------------------------------------------------------------------------------------------------------------------------------
+
+--#DO $$ BEGIN
+  CREATE TYPE nk_txn_struct AS (year int, month int, day int, id int8, ts timestamptz);
+--#EXCEPTION WHEN duplicate_object THEN NULL; END; $$;
+
+-- Create a nk_txn_struct row.
+-- Example: SELECT nk_txn(2023,12,31,98765432101::int8);
+CREATE OR REPLACE FUNCTION nk_txn_struct(_year int, _month int, _day int, _id int8) RETURNS nk_txn_struct LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+DECLARE
+  r nk_txn_struct;
+BEGIN
+  r.year = _year;
+  r.month = _month;
+  r.day = _day;
+  r.id = _id;
+  r.ts = make_timestamptz(r.year, r.month, r.day, 0, 0, 0.0, 'UTC');
+  RETURN r;
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_head_partition_id(_id text) RETURNS text LANGUAGE 'plpgsql' STRICT IMMUTABLE AS $$ BEGIN
+  RETURN substr(md5(_id),1,1);
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_lock_id(_name text) RETURNS int8 LANGUAGE 'plpgsql' STRICT IMMUTABLE AS $$ BEGIN
+  RETURN ('x'||substr(md5('sda'),1,16))::bit(64)::int8;
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_key(_key text) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
+  RETURN format('naksha.%I', _key);
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_key(_collection text, _key text) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
+  RETURN format('naksha.%I', '_'||md5(_collection)||'_'||_key||'_');
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_get_config(_key text) RETURNS text LANGUAGE 'plpgsql' AS $$
+DECLARE
+  value text = NULL;
+BEGIN
+  IF _key IS NOT NULL THEN
+    value = current_setting(_key, true);
+    IF value = '' THEN
+      value = NULL;
     END IF;
-    RETURN NULL;
+  END IF;
+  RETURN value;
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_set_config(_key text, _value text, _is_local bool) RETURNS void LANGUAGE 'plpgsql' AS $$
+BEGIN
+  IF _key IS NOT NULL THEN
+    PERFORM set_config(_key, _value, coalesce(_is_local,false));
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_txn(_year int, _month int, _day int, _id int8) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+DECLARE
+  SEQ_DIVIDER constant int8 := 100000000000;
+BEGIN
+  RETURN (_year * 10000 + _month * 100 + _day)::int8 * SEQ_DIVIDER + _id;
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_txn_from_ts(_ts timestamptz, _id int8) RETURNS int8 LANGUAGE 'plpgsql' STRICT AS $$
+DECLARE
+  year int;
+  month int;
+  day int;
+BEGIN
+  year = extract('year' FROM _ts);
+  month = extract('month' FROM _ts);
+  day = extract('day' FROM _ts);
+  RAISE NOTICE 'nk_txn(%,%,%,%)',year,month,day,_id;
+  RETURN nk_txn(year, month, day, _id);
+END $$;
+
+-- Extracts the different values from a transaction number, so year, month, day and id.
+-- Example: SELECT nk_unpack_txn(2023123198765432101);
+CREATE OR REPLACE FUNCTION nk_unpack_txn(_txn int8) RETURNS nk_txn_struct LANGUAGE 'plpgsql' STABLE STRICT AS $$
+DECLARE
+  SEQ_DIVIDER constant int8 := 100000000000;
+  r nk_txn_struct;
+  v int8;
+BEGIN
+  r.id = _txn % SEQ_DIVIDER;
+  v = _txn / SEQ_DIVIDER;
+  r.day = v % 100;
+  v = v / 100;
+  r.month = v % 100;
+  r.year = v / 100;
+  r.ts = make_timestamptz(r.year, r.month, r.day, 0, 0, 0.0, 'UTC');
+  RETURN r;
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_pack_txn(_txn nk_txn_struct) RETURNS int8 LANGUAGE 'plpgsql' STRICT AS $$
+BEGIN
+  RETURN nk_txn(_txn.year, _txn.month, _txn.day, _txn.id);
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_partition_name_for_ts(_ts timestamptz) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
+  RETURN to_char(_ts, 'YYYY_MM_DD');
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_partition_name_for_date(_year int, _month int, _day int) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
+  RETURN nk_partition_name_for_ts(make_timestamptz(_year, _month, _day, 0, 0, 0.0, 'UTC'));
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_partition_name_for_txn(_txn int8) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+DECLARE
+  t nk_txn_struct;
+BEGIN
+  t = nk_unpack_txn(_txn);
+  RETURN nk_partition_name_for_ts(t.ts);
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_get_collection(_id text) RETURNS jsonb LANGUAGE 'plpgsql' STABLE AS $$
+DECLARE
+  feature jsonb;
+BEGIN
+  SELECT obj_description(oid)::jsonb
+  FROM pg_class
+  WHERE relkind='r' AND relnamespace = naksha_schema_oid() AND relname::text = _id INTO feature;
+  IF naksha_feature_type(feature) = naksha_collection_type() AND naksha_feature_id(feature) = _id THEN
+    RETURN feature;
+  END IF;
+  RETURN NULL;
+EXCEPTION
+  WHEN OTHERS THEN RETURN NULL;
+END $$;
+
+-- A trigger attached to all HEAD tables of all collections to fix the XYZ namespace.
+-- In a nutshell, fix: jsondata->'properties'->'@ns:com:here:xyz'
+CREATE OR REPLACE FUNCTION nk_trigger_fix_xyz_namespace() RETURNS trigger LANGUAGE 'plpgsql' STABLE AS $BODY$
+DECLARE
+    author text;
+    app_id text;
+    new_uuid uuid;
+    txn uuid;
+    ts_millis int8;
+    rts_millis int8;
+    i int8;
+    xyz jsonb;
+BEGIN
+    rts_millis := naksha_current_millis(clock_timestamp());
+    ts_millis := naksha_current_millis(current_timestamp);
+    txn := naksha_tx_current();
+    i = nextval('"'||TG_TABLE_SCHEMA||'"."'||TG_TABLE_NAME||'_i_seq"');
+    new_uuid := naksha_feature_uuid_from_object_id_and_ts(i, current_timestamp);
+    app_id := naksha_tx_get_app_id();
+
+    IF TG_OP = 'INSERT' THEN
+        -- RAISE NOTICE '__naksha_trigger_fix_ns_xyz % %', TG_OP, NEW.jsondata;
+        author := naksha_tx_get_author(null);
+        xyz := jsonb_build_object(
+            'action', 'CREATE',
+            'version', 1::int8,
+            'collection', TG_TABLE_NAME,
+            'author', author,
+            'appId', app_id,
+            'puuid', null,
+            'uuid', new_uuid::text,
+            'txn', txn::text,
+            'createdAt', ts_millis,
+            'updatedAt', ts_millis,
+            'rtcts', rts_millis,
+            'rtuts', rts_millis
+        );
+        --RAISE NOTICE '__naksha_trigger_fix_ns_xyz %', xyz;
+        IF NEW.jsondata->'properties' IS NULl THEN
+            NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties"}', '{}'::jsonb, true);
+        ELSEIF NEW.jsondata->'properties'->'@ns:com:here:xyz' IS NOT NULL
+            AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags' IS NOT NULL THEN
+            xyz := jsonb_set(xyz, '{"tags"}', NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags', true);
+        END IF;
+        --RAISE NOTICE '__naksha_trigger_fix_ns_xyz %', xyz;
+        NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
+        NEW.i = i;
+        --RAISE NOTICE '__naksha_trigger_fix_ns_xyz return %', NEW.jsondata;
+        return NEW;
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+        --RAISE NOTICE '__naksha_trigger_fix_ns_xyz % %', TG_OP, NEW.jsondata;
+        author := naksha_tx_get_author(OLD.jsondata);
+        xyz := jsonb_build_object(
+            'action', 'UPDATE',
+            'version', (OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'version')::int8 + 1::int8,
+            'collection', TG_TABLE_NAME,
+            'author', author,
+            'appId', app_id,
+            'puuid', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid',
+            'uuid', new_uuid::text,
+            'txn', txn::text,
+            'createdAt', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt',
+            'updatedAt', ts_millis,
+            'rtcts', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts',
+            'rtuts', rts_millis
+        );
+        IF NEW.jsondata->'properties' IS NULl THEN
+            NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties"}', '{}'::jsonb, true);
+        ELSEIF NEW.jsondata->'properties'->'@ns:com:here:xyz' IS NOT NULL
+            AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags' IS NOT NULL THEN
+            xyz := jsonb_set(xyz, '{"tags"}', NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags', true);
+        END IF;
+        NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
+        NEW.i = i;
+        -- RAISE NOTICE '__naksha_trigger_fix_ns_xyz return %', NEW.jsondata;
+        return NEW;
+    END IF;
+
+    -- DELETE
+    -- RAISE NOTICE '__naksha_trigger_fix_ns_xyz % return %', TG_OP, OLD.jsondata;
+    RETURN OLD;
+END
+$BODY$;
+
+-- Trigger that writes into the transaction table.
+CREATE OR REPLACE FUNCTION nk_trigger_write_tx() RETURNS trigger LANGUAGE 'plpgsql' STABLE AS $BODY$
+BEGIN
+    PERFORM __naksha_tx_action_modify_features(TG_TABLE_NAME);
+    IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+        RETURN NEW;
+    END IF;
+    RETURN OLD;
+END
+$BODY$;
+
+-- Trigger that writes into the history table.
+CREATE OR REPLACE FUNCTION nk_trigger_write_hst() RETURNS trigger LANGUAGE 'plpgsql' VOLATILE AS $BODY$
+DECLARE
+    stmt text;
+    author text;
+    app_id text;
+    new_uuid uuid;
+    txn uuid;
+    ts_millis int8;
+    rts_millis int8;
+    i int8;
+    xyz jsonb;
+BEGIN
+    IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+        -- purge feature from deletion table and write history.
+        stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);'
+                    || 'DELETE FROM %I WHERE jsondata->>''id'' = $4;',
+                        format('%s_hst', tg_table_name),
+                        format('%s_del', tg_table_name)
+        );
+        --RAISE NOTICE '%', stmt;
+        EXECUTE stmt USING NEW.jsondata, NEW.geo, NEW.i, NEW.jsondata->>'id';
+        RETURN NEW;
+    END IF;
+
+    --RAISE NOTICE '__naksha_trigger_write_hst % %', TG_OP, OLD.jsondata;
+    rts_millis := naksha_current_millis(clock_timestamp());
+    ts_millis := naksha_current_millis(current_timestamp);
+    txn := naksha_tx_current();
+    i = nextval('"'||TG_TABLE_SCHEMA||'"."'||TG_TABLE_NAME||'_i_seq"');
+    new_uuid := naksha_feature_uuid_from_object_id_and_ts(i, current_timestamp);
+    author := naksha_tx_get_author(OLD.jsondata);
+    app_id := naksha_tx_get_app_id();
+
+    -- We do these updates, because in the "after-trigger" we only write into history.
+    xyz := jsonb_build_object(
+        'action', 'DELETE',
+        'version', (OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'version')::int8 + 1::int8,
+        'collection', TG_TABLE_NAME,
+        'author', author,
+        'appId', app_id,
+        'puuid', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid',
+        'uuid', new_uuid::text,
+        'txn', txn::text,
+        'createdAt', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt',
+        'updatedAt', ts_millis,
+        'rtcts', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts',
+        'rtuts', rts_millis
+    );
+    IF OLD.jsondata->'properties'->'@ns:com:here:xyz'->'tags' IS NOT NULL THEN
+        xyz := jsonb_set(xyz, '{"tags"}', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'tags', true);
+    END IF;
+    OLD.jsondata = jsonb_set(OLD.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
+    OLD.i = i;
+
+    -- write delete.
+    stmt := format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);'
+                || 'INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);',
+                    format('%s_hst', tg_table_name),
+                    format('%s_del', tg_table_name)
+    );
+    -- RAISE NOTICE '%', stmt;
+    EXECUTE stmt USING OLD.jsondata, OLD.geo, OLD.i;
+
+    -- Note: PostgresQL does not support returning modified old records.
+    --       Therefore, the next trigger will see the unmodified OLD.jsondata again!
+    RETURN OLD;
+END
+$BODY$;
+
+CREATE OR REPLACE FUNCTION nk_optimize_table(_table text, _history bool) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $BODY$
+DECLARE
+  sql text;
+BEGIN
+  sql := format('ALTER TABLE %I ALTER COLUMN "jsondata" SET STORAGE MAIN;'
+             || 'ALTER TABLE %I ALTER COLUMN "jsondata" SET COMPRESSION lz4;'
+             || 'ALTER TABLE %I ALTER COLUMN "geo" SET STORAGE MAIN;'
+             || 'ALTER TABLE %I ALTER COLUMN "geo" SET COMPRESSION lz4;',
+             _table, _table, _table, _table);
+  -- RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  IF _history THEN
+    sql := format('ALTER TABLE %I SET ('
+               || 'toast_tuple_target=8160'
+               || ',fillfactor=100'
+               || ',autovacuum_enabled=OFF, toast.autovacuum_enabled=OFF'
+               || ');', _table);
+  ELSE
+    sql := format('ALTER TABLE %I SET ('
+             || 'toast_tuple_target=8160'
+             || ',fillfactor=50'
+             -- Specifies the minimum number of updated or deleted tuples needed to trigger a VACUUM in any one table.
+             || ',autovacuum_vacuum_threshold=10000, toast.autovacuum_vacuum_threshold=10000'
+             -- Specifies the number of inserted tuples needed to trigger a VACUUM in any one table.
+             || ',autovacuum_vacuum_insert_threshold=10000, toast.autovacuum_vacuum_insert_threshold=10000'
+             -- Specifies a fraction of the table size to add to autovacuum_vacuum_threshold when deciding whether to trigger a VACUUM.
+             || ',autovacuum_vacuum_scale_factor=0.1, toast.autovacuum_vacuum_scale_factor=0.1'
+             -- Specifies a fraction of the table size to add to autovacuum_analyze_threshold when deciding whether to trigger an ANALYZE.
+             || ',autovacuum_analyze_threshold=10000, autovacuum_analyze_scale_factor=0.1'
+             || ');', _table);
+  END IF;
+  -- RAISE NOTICE '%', sql;
+  EXECUTE sql;
+END $BODY$;
+
+CREATE OR REPLACE FUNCTION nk_create_hst_indices(_table text) RETURNS void LANGUAGE 'plpgsql' AS $$
+DECLARE
+  sql text;
+BEGIN
+  -- Note: The history table is updated only for one day and then never touched again, therefore
+  --       we want to fill the indices as much as we can, even while this may have a bad effect
+  --       when doing bulk loads, because we may have more page splits.
+  sql := format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I '
+             || 'USING btree ('
+             || '  (jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'') DESC '
+             || ') WITH (fillfactor=100) ',
+                format('%s_uuid_idx', _table), _table);
+  --RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+             || 'USING btree ('
+             || '  (jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') DESC '
+             || '  ,(jsondata->''id'') DESC '
+             || ') WITH (fillfactor=100) ',
+                format('%s_txn_id_idx', _table), _table);
+  --RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+             || 'USING btree ('
+             || '  (jsondata->''id'') DESC '
+             || '  ,(jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') DESC'
+             || ') WITH (fillfactor=100) ',
+                format('%s_id_txn_idx', _table), _table);
+  --RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+             || 'USING gist ('
+             || '  geo '
+             || '  ,(jsondata->>''id'')'
+             || '  ,(jsondata->''properties''->''@ns:com:here:xyz''->>''txn'')'
+             || ') WITH (buffering=ON,fillfactor=100) ',
+                format('%s_geo_id_txn_idx', _table), _table);
+  --RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+             || 'USING btree ('
+             || '  ((jsondata->''properties''->''@ns:com:here:xyz''->>''updatedAt'')::int8) DESC'
+             || ') WITH (fillfactor=100) ',
+                format('%s_updatedAt_idx', _table), _table);
+  --RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
+             || 'USING btree ('
+             || '  (jsondata->''properties''->''@ns:com:here:xyz''->>''lastUpdatedBy'') DESC'
+             || '  ,(jsondata->''id'') DESC'
+             || '  ,(jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') DESC '
+             || ') WITH (fillfactor=100) ',
+                format('%s_lastUpdatedBy_id_txn_idx', _table), _table);
+  --RAISE NOTICE '%', sql;
+  EXECUTE sql;
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_create_head_indices(_table text, _use_sp_gist bool) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $BODY$
+DECLARE
+  indices constant text[] = ARRAY['mrid', 'qrid', 'app_id', 'author'];
+  geo_index_type text;
+  idx_name text;
+  sql text;
+BEGIN
+  -- "id"
+  sql = format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I USING btree ('
+            || '(jsondata->>''id'') COLLATE "C" text_pattern_ops DESC'
+            || ') WITH (fillfactor=50)',
+               format('%s_id_idx', _table), _table);
+  RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  -- "txn"
+  sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
+            || '((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8) DESC'
+            || ') WITH (fillfactor=50)',
+               format('%s_txn_idx', _table), _table);
+  RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  -- "geo"
+  IF _use_sp_gist THEN
+    geo_index_type = 'sp-gist';
+  ELSE
+    geo_index_type = 'gist';
+  END IF;
+  sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING %s ('
+            || ' geo '
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8)'
+            || ') WITH (buffering=ON,fillfactor=50)',
+               format('%s_geo_idx', _table), _table, geo_index_type);
+  RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  -- gin: https://www.postgresql.org/docs/current/gin-tips.html
+  -- "tags"
+  sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING gin ('
+            || ' (jsondata->''properties''->''@ns:com:here:xyz''->''tags'')'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8)'
+            || ') WITH (fastupdate=ON,gin_pending_list_limit=32768)', --KiB, default is 4096
+               format('%s_tags_idx', _table), _table);
+  RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  FOREACH idx_name IN ARRAY indices LOOP
+    sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
+              || ' (jsondata->''properties''->''@ns:com:here:xyz''->''%s'')'
+              || ',(jsondata->''properties''->''@ns:com:here:xyz''->''tags'')'
+              || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8)'
+              || ') WITH (fillfactor=50)',
+                 format('%s_%s_idx', _table, idx_name), _table, idx_name);
+    RAISE NOTICE '%', sql;
+    EXECUTE sql;
+  END LOOP;
+END; $BODY$;
+
+CREATE OR REPLACE FUNCTION nk_create_hst_partition_by_ts(_collection text, _from_ts timestamptz) RETURNS void LANGUAGE 'plpgsql' STRICT VOLATILE AS $$
+DECLARE
+  sql text;
+  from_day text;
+  from_part_id int8;
+  to_day text;
+  to_ts timestamptz;
+  to_part_id int8;
+  hst_table_name text;
+  hst_partition_table_name text;
+BEGIN
+  RAISE NOTICE 'Prepare partition creation';
+  from_day := nk_partition_name_for_ts(_from_ts);
+  from_part_id := nk_txn_from_ts(_from_ts, 0::int8);
+  to_ts := _from_ts + '1 day'::interval;
+  to_day := nk_partition_name_for_ts(to_ts);
+  to_part_id := nk_txn_from_ts(to_ts, 0::int8);
+  hst_table_name := format('%s_hst', _collection);
+  hst_partition_table_name := format('%s_hst_%s', _collection, from_day); -- example: foo_hst_2023_03_01
+
+  sql := format('CREATE TABLE IF NOT EXISTS %I PARTITION OF %I FOR VALUES FROM (%s) TO (%s);',
+                hst_partition_table_name, hst_table_name, from_part_id, to_part_id);
+  RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  -- TODO: We need to detect if we should use sp-gist or gist
+  --       We do this by reading the description of the table and check for "pointsOnly" being explicitly true!
+  PERFORM nk_optimize_table(hst_partition_table_name, true);
+  --PERFORM nk_create_hst_indices(hst_partition_table_name);
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_create_hst_partition(_collection text, _txn_next int8) RETURNS void LANGUAGE 'plpgsql' STRICT IMMUTABLE AS $$
+DECLARE
+  part_name text;
+  cache_key text;
+  txn_next nk_txn_struct;
+BEGIN
+  txn_next = nk_unpack_txn(_txn_next);
+  part_name = nk_partition_name_for_ts(txn_next.ts);
+  cache_key = nk_key(_collection, part_name);
+  IF nk_get_config(cache_key) IS NULL THEN
+    RAISE NOTICE 'No cache entry';
+    PERFORM nk_create_hst_partition_by_ts(_collection, txn_next.ts);
+    PERFORM nk_set_config(cache_key, 'true', false);
+  END IF;
+END $$;
+
+-- Create all tables and indices, but not triggers.
+CREATE OR REPLACE FUNCTION nk_create_collection_tables(_name text, _partition bool, _sp_gist bool) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $BODY$
+DECLARE
+  part_id constant text[] = ARRAY['0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'];
+  part_name text;
+  del_name text;
+  meta_name text;
+  hst_name text;
+  sql text;
+BEGIN
+  IF _partition THEN
+    sql = format('CREATE TABLE IF NOT EXISTS %I ('
+              || ' i int8'
+              || ',jsondata jsonb CHECK (((jsondata->''properties''->''@ns:com:here:xyz''->''txn_next'')::int8) = 0)'
+              || ',geo geometry(GeometryZ, 4326)'
+              || ') PARTITION BY LIST (nk_head_partition_id(jsondata->>''id''))', _name);
+    RAISE NOTICE '%', sql;
+    EXECUTE sql;
+
+    FOR i IN 1..16 LOOP
+      part_name = format('%s_%s', _name, part_id[i]);
+      sql = format('CREATE TABLE IF NOT EXISTS %I PARTITION OF %I FOR VALUES IN (%L);', part_name, _name, part_id[i]);
+      EXECUTE sql;
+      PERFORM nk_optimize_table(part_name, false);
+      PERFORM nk_create_head_indices(part_name, _sp_gist);
+    END LOOP;
+  ELSE
+    sql = format('CREATE TABLE IF NOT EXISTS %I ('
+              || ' i int8 PRIMARY KEY'
+              || ',jsondata jsonb CHECK (((jsondata->''properties''->''@ns:com:here:xyz''->''txn_next'')::int8) = 0)'
+              || ',geo geometry(GeometryZ, 4326)'
+              || ')', _name);
+    EXECUTE sql;
+    PERFORM nk_optimize_table(_name, false);
+    PERFORM nk_create_head_indices(_name, _sp_gist);
+  END IF;
+
+  del_name = format('%s_del', _name);
+  sql = format('CREATE TABLE IF NOT EXISTS %I ('
+            || ' i int8 PRIMARY KEY'
+            || ',jsondata jsonb CHECK (((jsondata->''properties''->''@ns:com:here:xyz''->''txn_next'')::int8) = 0)'
+            || ',geo geometry(GeometryZ, 4326)'
+            || ')', del_name);
+  EXECUTE sql;
+  PERFORM nk_optimize_table(del_name, false);
+  PERFORM nk_create_head_indices(del_name, _sp_gist);
+
+  meta_name = format('%s_meta', _name);
+  sql = format('CREATE TABLE IF NOT EXISTS %I (jsondata jsonb, geo geometry(GeometryZ, 4326), i int8 PRIMARY KEY)', meta_name);
+  EXECUTE sql;
+  PERFORM nk_optimize_table(meta_name, false);
+  PERFORM nk_create_head_indices(meta_name, _sp_gist);
+
+  hst_name = format('%s_hst', _name);
+  sql = format('CREATE TABLE IF NOT EXISTS %I ('
+            || ' i int8'
+            || ',jsondata jsonb CHECK (((jsondata->''properties''->''@ns:com:here:xyz''->''txn_next'')::int8) > 0)'
+            || ',geo geometry(GeometryZ, 4326)'
+            || ') PARTITION BY RANGE (((jsondata->''properties''->''@ns:com:here:xyz''->''txn_next'')::int8))', hst_name);
+  RAISE NOTICE '%', sql;
+  EXECUTE sql;
+END
+$BODY$;
+
+-------------------------------------------------------------------------------------------------------------------------------------------
+-- PUBLIC
+-------------------------------------------------------------------------------------------------------------------------------------------
+
+-- Returns current transaction number, i.e. 2023100600000000010, which is build as yyyyMMddXXXXXXXXXXX.
+CREATE OR REPLACE FUNCTION naksha_txn() RETURNS int8 LANGUAGE 'plpgsql' STABLE AS $$
+DECLARE
+  LOCK_ID constant int8 := nk_lock_id('naksha_tx_object_id_seq');
+  SEQ_DIVIDER constant int8 := 100000000000;
+  value    text;
+  txi      int8;
+  txn      int8;
+  tx_date  int4;
+  seq_date int4;
+BEGIN
+  value := current_setting('naksha.txn', true);
+  IF coalesce(value, '') <> '' THEN
+    -- RAISE NOTICE 'found value = %', value;
+    return value::int8;
+  END IF;
+
+  -- prepare current yyyyMMdd as number i.e. 20231006
+  tx_date := extract('year' from current_timestamp) * 10000 + extract('month' from current_timestamp) * 100 + extract('day' from current_timestamp);
+
+  txi := nextval('naksha_tx_object_id_seq');
+  -- txi should start with current date  20231006 with seq number "at the end"
+  -- example: 2023100600000000007
+  seq_date := txi / SEQ_DIVIDER; -- returns as number seq prefix which is yyyyMMdd  i.e. 20231006
+
+  -- verification, if current day is not same as day in txi we have to reset sequence to new date and counting from start.
+  IF seq_date <> tx_date then
+    -- not sure if this lock it's enough, 'cause this is session lock that might be acquired multiple times within same session
+    -- it has to be discussed if there is a chance of calling this function multiple times in parallel in same session.
+    PERFORM pg_advisory_lock(LOCK_ID);
+    BEGIN
+      txi := nextval('naksha_tx_object_id_seq');
+      seq_date := txi / SEQ_DIVIDER ;
+
+      IF seq_date <> tx_date then
+          txn := tx_date * SEQ_DIVIDER;
+          -- is_called set to true guarantee that next val will be +1
+          PERFORM setval('naksha_tx_object_id_seq', txn, true);
+      ELSE
+          txn := txi;
+      END IF;
+      PERFORM pg_advisory_unlock(LOCK_ID);
+    EXCEPTION WHEN OTHERS THEN
+      PERFORM pg_advisory_unlock(LOCK_ID);
+      RAISE;
+    END;
+  ELSE
+    txn := txi;
+  END IF;
+  PERFORM SET_CONFIG('naksha.txn', txn::text, true);
+  RETURN txn::int8;
+END $$;
+
+-- Create a transaction number from the given timestamp and id.
+-- Example: SELECT naksha_txn(current_timestamp, 98765432101);
+CREATE OR REPLACE FUNCTION naksha_txn(ts timestamptz, id int8) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $$
+BEGIN
+  RETURN (extract('year' FROM ts) * 10000 + extract('month' FROM ts) * 100 + extract('day' FROM ts)) * 100000000000 + id;
+END $$;
+
+-- Extracts the different values from a transaction number, so year, month, day and id.
+-- Example: SELECT * FROM naksha_txn(2023123198765432101);
+CREATE OR REPLACE FUNCTION naksha_txn(txn int8) RETURNS TABLE (year int, month int, day int, id int8) LANGUAGE 'plpgsql' IMMUTABLE AS $$
+DECLARE
+  SEQ_DIVIDER constant int8 := 100000000000;
+  v int8;
+BEGIN
+  id = txn % SEQ_DIVIDER;
+  v = txn / SEQ_DIVIDER;
+  day = v % 100;
+  v = v / 100;
+  month = v % 100;
+  year = v / 100;
+  RETURN NEXT;
+END $$;
+
+-- Start the session, automatically called by lib-psql whenever a new session is started.
+CREATE OR REPLACE FUNCTION naksha_start_session(app_id text, author text) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $$
+BEGIN
+    -- See: https://www.postgresql.org/docs/current/runtime-config-query.html
+    EXECUTE format('SELECT'
+    || ' SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', false)'
+    || ',SET_CONFIG(''cursor_tuple_fraction'', ''1.0'', false)'
+    || ',SET_CONFIG(''geqo'', ''false'', false)'
+    || ',SET_CONFIG(''work_mem'', ''256 MB'', false)'
+    || ',SET_CONFIG(''maintenance_work_mem'', ''1024 MB'', false)'
+    || ',SET_CONFIG(''constraint_exclusion'', ''on'', false)'
+    || ',SET_CONFIG(''enable_seqscan'', ''off'', false)'
+    || ',SET_CONFIG(''enable_partitionwise_join'', ''on'', false)'
+    || ',SET_CONFIG(''enable_partitionwise_aggregate'', ''on'', false)'
+    || ',SET_CONFIG(''enable_presorted_aggregate'', ''on'', false)'
+    || ',SET_CONFIG(''jit'', ''OFF'', false)'
+    || ',SET_CONFIG(''naksha.appid'', %L::text, false)'
+    || ',SET_CONFIG(''naksha.author'', %L::text, false)'
+      , app_id, author);
+END $$;
+
+CREATE OR REPLACE FUNCTION naksha_read_collections(ids text[], read_deleted bool)
+  RETURNS TABLE (r_feature jsonb, r_id text, r_type text, r_ptype text)
+  LANGUAGE 'plpgsql' STABLE AS $$
+BEGIN
+  IF ids IS NOT NULL THEN
+    RETURN QUERY
+    WITH table_info AS (
+      SELECT relname::text AS "id",
+             reltuples::int8 AS "feature_count",
+             obj_description(oid) AS "jsontext"
+      FROM pg_class WHERE relkind='r' AND relnamespace = naksha_schema_oid() AND relname::text = ANY(ids)
+    )
+    SELECT jsonb_set(jsontext::jsonb, '{"estimatedFeatureCount"}', to_jsonb(feature_count), true) AS "r_feature",
+           naksha_feature_id(r_feature) as "r_id",
+           naksha_feature_type(r_feature) as "r_type",
+           naksha_feature_ptype(r_feature) as "r_ptype"
+    FROM table_info
+    WHERE naksha_feature_type(r_feature) = naksha_collection_type() AND naksha_feature_id(r_feature) = id;
+  ELSE
+    RETURN QUERY
+    WITH table_info AS (
+      SELECT relname::text AS "id",
+             reltuples::int8 AS "feature_count",
+             obj_description(oid) AS "jsontext"
+      FROM pg_class WHERE relkind='r' AND relnamespace = naksha_schema_oid()
+    )
+    SELECT jsonb_set(jsontext::jsonb, '{"estimatedFeatureCount"}', to_jsonb(feature_count), true) AS "r_feature",
+           naksha_feature_id(r_feature) as "r_id",
+           naksha_feature_type(r_feature) as "r_type",
+           naksha_feature_ptype(r_feature) as "r_ptype"
+    FROM table_info
+    WHERE naksha_feature_type(r_feature) = naksha_collection_type() AND naksha_feature_id(r_feature) = id;
+  END IF;
 END
 $$;
 
-CREATE OR REPLACE FUNCTION naksha_read_collections( ids text[], read_deleted bool) RETURNS jsonb[] LANGUAGE 'plpgsql' VOLATILE AS $$
+-- array['{"op":"INSERT","uuid":null,"feature":{...}}'::jsonb]
+CREATE OR REPLACE FUNCTION naksha_write_collections( write_ops jsonb[], no_result bool )
+  RETURNS TABLE (r_feature jsonb, r_id text, r_type text, r_ptype text, r_op text)
+  LANGUAGE 'plpgsql' VOLATILE STRICT AS $$
+DECLARE
+  write_op jsonb;
+  w_op text;
+  w_no_result bool;
+  w_id text;
+  w_uuid text;
+  w_feature jsonb;
+  sql text;
+  lock_id int8;
+  e_feature jsonb;
+  e_uuid text;
 BEGIN
-    RETURN NULL;
-END
-$$;
+  FOREACH write_op IN ARRAY write_ops
+  LOOP
+    w_op = write_op->>'op';
+    IF jsonb_typeof(write_op->'noResult') = 'boolean' THEN
+      w_no_result = (write_op->'noResult')::bool;
+    ELSE
+      w_no_result = no_result;
+    END IF;
+    w_feature = write_op->'feature';
+    IF w_op = 'INSERT' THEN
+      IF jsonb_typeof(w_feature) <> 'object' THEN
+        CALL nk_raise_illegal_argument('Invalid or missing feature');
+      END IF;
+      w_id = w_feature->>'id';
+      IF w_id IS NULL OR w_id = '' THEN
+        CALL nk_raise_illegal_argument('Missing or empty ''id'' in feature');
+      END IF;
+      lock_id = nk_lock_id(w_id);
+      PERFORM pg_advisory_lock(lock_id);
+      BEGIN
+        e_feature = nk_get_collection(w_id);
+        IF e_feature IS NOT NULL THEN
+          CALL nk_raise_collection_exists(w_id);
+        END IF;
+        -- TODO: Check for partitionHead and pointsOnly!
+        PERFORM nk_create_collection_tables(w_id, true, false);
+        -- TODO: We need to create the correct XYZ namespace!
+        w_feature = jsonb_set_lax(w_feature, array['type'], to_jsonb(naksha_collection_type()), true, 'raise_exception');
+        sql = format('COMMENT ON TABLE %I IS %L;', w_id, w_feature);
+        RAISE NOTICE '%', sql;
+        EXECUTE sql;
+        r_op = 'INSERTED';
+        r_id = w_id;
+        r_type = naksha_collection_type();
+        -- TODO: Fix that we return the correct property type.
+        r_ptype = NULL;
+        IF w_no_result THEN
+          r_feature = NULL;
+        ELSE
+          r_feature = w_feature;
+        END IF;
+        RETURN NEXT;
+        PERFORM pg_advisory_unlock(lock_id);
+      EXCEPTION WHEN OTHERS THEN
+        PERFORM pg_advisory_unlock(lock_id);
+        RAISE;
+      END;
+    ELSIF w_op = 'UPSERT' THEN
+      IF jsonb_typeof(w_feature) <> 'object' THEN
+        RAISE EXCEPTION 'Invalid or missing feature';
+      END IF;
 
-CREATE OR REPLACE FUNCTION naksha_write_collections( write_ops jsonb[] ) RETURNS jsonb[] LANGUAGE 'plpgsql' VOLATILE AS $$
-BEGIN
-    RETURN NULL;
-END
-$$;
+    ELSIF w_op = 'UPDATE' THEN
+      IF jsonb_typeof(w_feature) <> 'object' THEN
+        RAISE EXCEPTION 'Invalid or missing feature';
+      END IF;
 
-CREATE OR REPLACE FUNCTION naksha_write_features( collection text, write_ops jsonb[] ) RETURNS jsonb[] LANGUAGE 'plpgsql' VOLATILE AS $$
+    ELSIF w_op = 'DELETE' THEN
+      w_id = write_op->>'id';
+      w_uuid = write_op->>'uuid';
+    ELSIF w_op = 'PURGE' THEN
+      w_id = write_op->>'id';
+      w_uuid = write_op->>'uuid';
+    ELSE
+      RAISE EXCEPTION 'Unknown write operation: %', w_op;
+    END IF;
+  END LOOP;
+END $$;
+
+CREATE OR REPLACE FUNCTION naksha_write_features( collection text, write_ops jsonb[], geometries geometry[], no_result bool )
+  RETURNS TABLE (r_feature jsonb, r_geo geometry, r_id text, r_type text, r_ptype text, r_op text)
+  LANGUAGE 'plpgsql' VOLATILE STRICT AS $$
 BEGIN
-    RETURN NULL;
-END
-$$;
+  RAISE EXCEPTION 'Not implemented';
+END $$;
 
 -- Returns a packed Naksha extension version from the given parameters (major, minor, revision).
-CREATE OR REPLACE FUNCTION naksha_version_of(major int, minor int, revision int) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+CREATE OR REPLACE FUNCTION naksha_version_of(major int, minor int, revision int) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $$
 BEGIN
-    return ((major::int8 & x'ffff'::int8) << 32)
-        | ((minor::int8 & x'ffff'::int8) << 16)
-        | (revision::int8 & x'ffff'::int8);
-END $BODY$;
+  return ((major::int8 & x'ffff'::int8) << 32)
+    | ((minor::int8 & x'ffff'::int8) << 16)
+    | (revision::int8 & x'ffff'::int8);
+END $$;
 
 -- Unpacks the given packed Naksha version into its parts (major, minor, revision).
 CREATE OR REPLACE FUNCTION naksha_version_extract(version int8)
-    RETURNS TABLE
-            (
-                major    int,
-                minor    int,
-                revision int
-            )
-    LANGUAGE 'plpgsql' IMMUTABLE
-AS
-$$
+    RETURNS TABLE (major int, minor int, revision int)
+    LANGUAGE 'plpgsql' STRICT IMMUTABLE AS $$
 BEGIN
     RETURN QUERY SELECT ((version >> 32) & x'ffff'::int8)::int  as "major",
                         ((version >> 16) & x'ffff'::int8)::int  as "minor",
                         (version & x'ffff'::int8)::int          as "revision";
-END;
-$$;
+END; $$;
 
 -- Unpacks the given Naksha extension version into a human readable text.
-CREATE OR REPLACE FUNCTION naksha_version_to_text(version int8) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+CREATE OR REPLACE FUNCTION naksha_version_to_text(version int8) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $$
 BEGIN
     return format('%s.%s.%s',
                   (version >> 32) & x'ffff'::int8,
                   (version >> 16) & x'ffff'::int8,
                   (version & x'ffff'::int8));
-END $BODY$;
+END $$;
 
 -- Parses a human readable Naksha extension version and returns a packed version.
 CREATE OR REPLACE FUNCTION naksha_version_parse(version text) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
@@ -116,21 +896,6 @@ BEGIN
   RETURN (t::json IS NOT NULL);
 EXCEPTION
   WHEN OTHERS THEN RETURN FALSE;
-END;
-$BODY$;
-
--- Helper to test if a text is a valid JSON.
-CREATE OR REPLACE FUNCTION naksha_json_id(t TEXT) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
-DECLARE
-  j jsonb;
-BEGIN
-  j = t::json;
-  IF j->>'id' IS NOT NULL THEN
-    RETURN j->>'id';
-  END IF;
-  RETURN NULL;
-EXCEPTION
-  WHEN OTHERS THEN RETURN NULL;
 END;
 $BODY$;
 
@@ -406,6 +1171,69 @@ BEGIN
 END;
 $$;
 
+-- Returns the id of the given JSON feature or null, if the given element is no valid JSON feature.
+CREATE OR REPLACE FUNCTION naksha_feature_id(t anyelement) RETURNS text LANGUAGE 'plpgsql' STABLE AS $BODY$
+DECLARE
+  j jsonb;
+BEGIN
+  j = t::json;
+  IF jsonb_typeof(j->'id') = 'string' THEN
+    RETURN j->>'id';
+  END IF;
+  RETURN NULL;
+EXCEPTION
+  WHEN OTHERS THEN RETURN NULL;
+END;
+$BODY$;
+
+-- Returns the type of the given JSON or null, if the given text is no valid JSON feature.
+CREATE OR REPLACE FUNCTION naksha_feature_type(t anyelement) RETURNS text LANGUAGE 'plpgsql' STABLE AS $BODY$
+DECLARE
+  f jsonb;
+BEGIN
+  f = t::jsonb;
+  IF jsonb_typeof(f->'type') = 'string' THEN
+    RETURN f->>'type';
+  END IF;
+  RETURN NULL;
+EXCEPTION
+  WHEN OTHERS THEN RETURN NULL;
+END;
+$BODY$;
+
+-- Returns the properties-type of the given JSON or null,
+-- if the given text is no valid JSON feature
+-- or does not have properties
+-- or the properties do not have a type.
+CREATE OR REPLACE FUNCTION naksha_feature_ptype(t anyelement) RETURNS text LANGUAGE 'plpgsql' STABLE AS $BODY$
+DECLARE
+  f jsonb;
+BEGIN
+  f = t::jsonb;
+  IF jsonb_typeof(f->'properties'->'type') = 'string' THEN
+    RETURN f->'properties'->>'type';
+  END IF;
+  RETURN NULL;
+EXCEPTION
+  WHEN OTHERS THEN RETURN NULL;
+END;
+$BODY$;
+
+-- Returns the XYZ namespace of the given feature or null, if no valid JSON feature given or it has no XYZ namespace.
+CREATE OR REPLACE FUNCTION naksha_feature_xyz(t anyelement) RETURNS jsonb LANGUAGE 'plpgsql' STABLE AS $BODY$
+DECLARE
+  f jsonb;
+BEGIN
+  f = t::jsonb;
+  IF jsonb_typeof(f->'properties'->'@ns:com:here:xyz') = 'object' THEN
+    RETURN f->'properties'->'@ns:com:here:xyz';
+  END IF;
+  RETURN NULL;
+EXCEPTION
+  WHEN OTHERS THEN RETURN NULL;
+END;
+$BODY$;
+
 -- Returns the "version" from the given feature.
 CREATE OR REPLACE FUNCTION naksha_feature_get_version(f jsonb)
     RETURNS int8
@@ -548,6 +1376,22 @@ BEGIN
     return (EXTRACT(epoch from ts) * 1000)::int8;
 END
 $BODY$;
+
+CREATE OR REPLACE FUNCTION naksha_part_id_from_ts(ts timestamptz)
+    RETURNS int
+    LANGUAGE 'plpgsql' IMMUTABLE
+AS $$
+DECLARE
+    year int;
+    month int;
+    day int;
+BEGIN
+    year := EXTRACT(year FROM ts)::int;
+    month := EXTRACT(month FROM ts)::int;
+    day := EXTRACT(day FROM ts)::int;
+    RETURN (year << 9) | (month << 5) | day;
+END;
+$$;
 
 -- Returns the current microseconds (epoch time) form the given timestamp.
 CREATE OR REPLACE FUNCTION naksha_current_micros(ts timestamptz)
@@ -969,8 +1813,7 @@ BEGIN
     hst_name := format('%s_hst', collection);
     hst_part_name := format('%s_hst_%s', collection, from_day); -- example: foo_hst_2023_03_01
 
-    sql := format('CREATE TABLE IF NOT EXISTS %I PARTITION OF %I '
-               || 'FOR VALUES FROM (%L) TO (%L);',
+    sql := format('CREATE TABLE IF NOT EXISTS %I PARTITION OF %I FOR VALUES FROM (%L) TO (%L);',
                   hst_part_name, hst_name, from_part_id, to_part_id);
     --RAISE NOTICE '%', sql;
     EXECUTE sql;
@@ -1447,13 +2290,36 @@ BEGIN
 END
 $BODY$;
 
+-- Start the transaction by setting the application-identifier, the current author (which may be null)
+-- and the returns the transaction number.
+-- See: https://www.postgresql.org/docs/current/runtime-config-query.html
+CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool) RETURNS uuid LANGUAGE 'plpgsql' VOLATILE AS $$
+BEGIN
+    EXECUTE format('SELECT '
+                       || 'SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', true)'
+                       || ',SET_CONFIG(''cursor_tuple_fraction'', ''1.0'', true)'
+                       || ',SET_CONFIG(''geqo'', ''false'', true)'
+                       || ',SET_CONFIG(''work_mem'', ''128 MB'', true)'
+                       || ',SET_CONFIG(''maintenance_work_mem'', ''1024 MB'', true)'
+                       || ',SET_CONFIG(''enable_seqscan'', ''OFF'', true)'
+                       || ',SET_CONFIG(''enable_bitmapscan'', ''OFF'', true)'
+                       || ',SET_CONFIG(''enable_sort'', ''OFF'', true)'
+                       || ',SET_CONFIG(''enable_partitionwise_join'', ''ON'', true)'
+                       || ',SET_CONFIG(''enable_partitionwise_aggregate'', ''ON'', true)'
+                       || ',SET_CONFIG(''jit'', ''OFF'', true)'
+                       || ',SET_CONFIG(''naksha.appid'', %L::text, true)' -- same as naksha_tx_set_app_id
+                       || ',SET_CONFIG(''naksha.author'', %L::text, true)' -- same as naksha_tx_set_author
+        , app_id, author);
+    IF create_tx THEN
+        RETURN naksha_tx_current();
+    END IF;
+    RETURN NULL;
+END
+$$;
 
 -- Return the application-id to be added into the XYZ namespace (transaction local variable).
 -- Returns NULL if no app_id is set.
-CREATE OR REPLACE FUNCTION naksha_tx_get_app_id()
-    RETURNS text
-    LANGUAGE 'plpgsql' STABLE
-AS $$
+CREATE OR REPLACE FUNCTION naksha_tx_get_app_id() RETURNS text LANGUAGE 'plpgsql' STABLE AS $$
 DECLARE
     value  text;
 BEGIN
@@ -1467,10 +2333,7 @@ $$;
 
 -- Set the application-id to be added into the XYZ namespace, can be set to null.
 -- Returns the previously set value that was replaced or NULL, if no value was set.
-CREATE OR REPLACE FUNCTION naksha_tx_set_app_id(app_id text)
-    RETURNS text
-    LANGUAGE 'plpgsql' STABLE
-AS $$
+CREATE OR REPLACE FUNCTION naksha_tx_set_app_id(app_id text) RETURNS text LANGUAGE 'plpgsql' STABLE AS $$
 DECLARE
     old text;
     sql text;
@@ -1546,66 +2409,6 @@ BEGIN
         RETURN NULL;
     END IF;
     RETURN old;
-END
-$$;
-
--- returns current transaction i.e. 2023100600000000010, which is build as yyyyMMddXXXXXXXXXXX.
-CREATE OR REPLACE FUNCTION naksha_txn() RETURNS int8 LANGUAGE 'plpgsql' STABLE AS $$
-declare
-    -- 20230101 is just a magic number for naming lock, it looks like date without special reason, just to associate it with what we are doing here.
-    LOCK_NAME constant int4 := 20230101;
-    SEQ_DIVIDER constant int8 := 100000000000;
-    value    text;
-    txi      int8;
-    txn      int8;
-    tx_date  int4;
-    seq_date int4;
-BEGIN
-    value := current_setting('naksha.txn', true);
-    IF coalesce(value, '') <> '' THEN
-        -- RAISE NOTICE 'found value = %', value;
-        return value::int8;
-    END IF;
-
-    -- prepare current yyyyMMdd as number i.e. 20231006
-    tx_date := extract('year' from current_timestamp) * 10000 + extract('month' from current_timestamp) * 100 + extract('day' from current_timestamp);
-
-    txi := nextval('naksha_tx_object_id_seq');
-    -- txi should start with current date  20231006 with seq number "at the end"
-    -- example: 2023100600000000007
-    seq_date := txi / SEQ_DIVIDER; -- returns as number seq prefix which is yyyyMMdd  i.e. 20231006
-
-    -- verification, if current day is not same as day in txi we have to reset sequence to new date and counting from start.
-    IF seq_date <> tx_date then
-        -- not sure if this lock it's enough, 'cause this is session lock that might be acquired multiple times within same session
-        -- it has to be discussed if there is a chance of calling this function multiple times in parallel in same session.
-        PERFORM pg_advisory_lock(LOCK_NAME);
-        txi := nextval('naksha_tx_object_id_seq');
-        seq_date := txi / SEQ_DIVIDER ;
-
-        IF seq_date <> tx_date then
-            txn := tx_date * SEQ_DIVIDER;
-            -- is_called set to true guarantee that next val will be +1
-            PERFORM setval('naksha_tx_object_id_seq', txn, true);
-        ELSE
-            txn := txi;
-        END if;
-
-        PERFORM pg_advisory_unlock(LOCK_NAME);
-    else
-        txn := txi;
-    END IF;
-
-    PERFORM SET_CONFIG('naksha.txn', txn::text, true);
-    RETURN txn::int8;
-
-EXCEPTION WHEN OTHERS then PERFORM pg_advisory_unlock(LOCK_NAME);
-END
-$$;
-
-CREATE OR REPLACE FUNCTION naksha_txn(tstamp timestamp, num int8) RETURNS int8 LANGUAGE 'plpgsql' STABLE AS $$
-BEGIN
-    return (extract('year' from tstamp) * 10000 + extract('month' from tstamp) * 100 + extract('day' from tstamp)) * 100000000000 + num;
 END
 $$;
 
@@ -1859,14 +2662,19 @@ BEGIN
     EXECUTE 'SHOW search_path' INTO orig_search_path;
     CREATE SCHEMA IF NOT EXISTS public;
     CREATE SCHEMA IF NOT EXISTS topology;
+
+    -- Install extensions
     CREATE EXTENSION IF NOT EXISTS btree_gist SCHEMA public;
+    CREATE EXTENSION IF NOT EXISTS btree_gin SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS postgis_topology SCHEMA topology;
     -- revert search_path to original value (as postgis_topology installation modifies it)
     EXECUTE format('SET SESSION search_path TO %s', orig_search_path);
-    CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
-    CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
-    CREATE EXTENSION IF NOT EXISTS "hstore" SCHEMA public;
+    --CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
+    --CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
+    --CREATE EXTENSION IF NOT EXISTS "hstore" SCHEMA public;
+    CREATE EXTENSION IF NOT EXISTS pg_hint_plan SCHEMA public;
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA public;
 
     IF __naksha_pg_version() < 14 THEN
         -- feature_not_supported

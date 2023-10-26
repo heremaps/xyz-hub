@@ -10,13 +10,28 @@ Please, disable IntelliJ Auto-Formatter, it sucks unbelievable:
 - General
 - Check "Disable formatting"
 
+# Things we need to remember
+
+Due to partitioning of the big tables, we need to change **cluster** and **group** parameters:
+
+- `show max_parallel_workers = 16`
+- `show max_parallel_workers_per_gather = 16`
+  - We split HEAD table into 16 partitions for big data collections, therefore we should be able to query them in parallel.
+- `show max_worker_processes = 1024`
+  - We should be able to at least execute 64 parallel big table queries.
+
 # Links
 
-## Links about error handling:
+## Locking
+- https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
 
+## Index optimization
+- https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-STORAGE-PARAMETERS
+
+## Links about error handling:
 - https://www.postgresql.org/docs/current/plpgsql-errors-and-messages.html
 - https://www.postgresql.org/docs/current/errcodes-appendix.html
-- https://www.postgresql.org/docs/9.6/plpgsql-control-structures.html#PLPGSQL-ERROR-TRAPPING
+- https://www.postgresql.org/docs/current/plpgsql-control-structures.html#PLPGSQL-ERROR-TRAPPING
 
 ## Links about type/string handling:
 - https://www.postgresql.org/docs/current/functions-formatting.html
