@@ -19,45 +19,23 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonFormat.Shape;
 import com.here.naksha.lib.core.NakshaVersion;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Nullable;
 
-/** The action to perform if a feature does not exist. */
-@JsonFormat(shape = Shape.STRING)
-@AvailableSince(NakshaVersion.v2_0_7)
-public enum IfNotExists {
-  /**
-   * The existing state should be retained, so the feature continues to not exist.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  RETAIN,
-
-  /**
-   * The transaction should be aborted.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  FAIL,
-
-  /**
-   * The {@link WriteOp#feature} should be created.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  CREATE,
-
-  /**
-   * The feature should be purged (finally removed, so that there is no further trace in the HEAD).
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  PURGE;
+public enum EWriteOp {
+  INSERT,
+  UPDATE,
+  UPSERT,
+  DELETE,
+  PURGE,
+  ADVANCED;
 
   @AvailableSince(NakshaVersion.v2_0_7)
   @JsonCreator
-  public static @Nullable IfNotExists of(@Nullable String value) {
+  public static @Nullable EWriteOp of(@Nullable String value) {
     if (value != null) {
-      for (final IfNotExists e : IfNotExists.values()) {
+      for (final EWriteOp e : EWriteOp.values()) {
         if (e.name().equalsIgnoreCase(value)) {
           return e;
         }

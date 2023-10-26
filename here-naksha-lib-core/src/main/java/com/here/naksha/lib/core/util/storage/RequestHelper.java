@@ -34,8 +34,9 @@ public class RequestHelper {
 
   /**
    * Helper method to create ReadFeatures request for reading feature by given Id from given storage collection name.
-   * @param collectionName  name of the storage collection
-   * @param featureId       id to fetch matching feature
+   *
+   * @param collectionName name of the storage collection
+   * @param featureId      id to fetch matching feature
    * @return ReadFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
@@ -46,8 +47,9 @@ public class RequestHelper {
 
   /**
    * Helper method to create ReadFeatures request for reading feature by given Ids from given storage collection name.
-   * @param collectionName  name of the storage collection
-   * @param featureIds      list of ids to fetch matching features
+   *
+   * @param collectionName name of the storage collection
+   * @param featureIds     list of ids to fetch matching features
    * @return ReadFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
@@ -58,14 +60,15 @@ public class RequestHelper {
   }
 
   /**
-   * Helper method to create WriteFeatures request with given feature.
-   * If silentIfExists is true, function internally sets IfExists.RETAIN and IfConflict.RETAIN (to silently ignoring create operation, if feature already exists).
-   * If set to false, both flags will be set to FAIL, which will ensure that feature doesn't get overwritten in storage, if already exists.
-   * @param collectionName  name of the storage collection
-   * @param feature         feature object to be created
-   * @param silentIfExists  flag to turn on/off silent create operation
+   * Helper method to create WriteFeatures request with given feature. If silentIfExists is true, function internally sets IfExists.RETAIN
+   * and IfConflict.RETAIN (to silently ignoring create operation, if feature already exists). If set to false, both flags will be set to
+   * FAIL, which will ensure that feature doesn't get overwritten in storage, if already exists.
+   *
+   * @param collectionName name of the storage collection
+   * @param feature        feature object to be created
+   * @param silentIfExists flag to turn on/off silent create operation
+   * @param <T>            any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
-   * @param <T> any object extending XyzFeature
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeatureRequest(
@@ -78,12 +81,13 @@ public class RequestHelper {
   }
 
   /**
-   * Helper method to create WriteFeatures request with given feature.
-   * Function internally sets flags IfExists.FAIL and IfConflict.FAIL, which will ensure that feature doesn't get overwritten in storage, if already exists.
-   * @param collectionName  name of the storage collection
-   * @param feature         feature object to be created
+   * Helper method to create WriteFeatures request with given feature. Function internally sets flags IfExists.FAIL and IfConflict.FAIL,
+   * which will ensure that feature doesn't get overwritten in storage, if already exists.
+   *
+   * @param collectionName name of the storage collection
+   * @param feature        feature object to be created
+   * @param <T>            any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
-   * @param <T> any object extending XyzFeature
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeatureRequest(
@@ -92,14 +96,15 @@ public class RequestHelper {
   }
 
   /**
-   * Helper method to create WriteFeatures request with given list of features.
-   * If silentIfExists is true, function internally sets IfExists.RETAIN and IfConflict.RETAIN (to silently ignoring create operation, if feature already exists).
-   * If set to false, both flags will be set to FAIL, which will ensure that feature doesn't get overwritten in storage, if already exists.
-   * @param collectionName  name of the storage collection
-   * @param featureList     list of features to be created
-   * @param silentIfExists  flag to turn on/off silent create operation
+   * Helper method to create WriteFeatures request with given list of features. If silentIfExists is true, function internally sets
+   * IfExists.RETAIN and IfConflict.RETAIN (to silently ignoring create operation, if feature already exists). If set to false, both flags
+   * will be set to FAIL, which will ensure that feature doesn't get overwritten in storage, if already exists.
+   *
+   * @param collectionName name of the storage collection
+   * @param featureList    list of features to be created
+   * @param silentIfExists flag to turn on/off silent create operation
+   * @param <T>            any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
-   * @param <T> any object extending XyzFeature
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeatureRequest(
@@ -114,12 +119,13 @@ public class RequestHelper {
   }
 
   /**
-   * Helper method to create WriteFeatures request with given list of features.
-   * Function internally sets flags IfExists.FAIL and IfConflict.FAIL, which will ensure that feature doesn't get overwritten in storage, if already exists.
-   * @param collectionName  name of the storage collection
+   * Helper method to create WriteFeatures request with given list of features. Function internally sets flags IfExists.FAIL and
+   * IfConflict.FAIL, which will ensure that feature doesn't get overwritten in storage, if already exists.
+   *
+   * @param collectionName name of the storage collection
    * @param featureList    list of feature objects to be created
+   * @param <T>            any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
-   * @param <T> any object extending XyzFeature
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeaturesRequest(
@@ -129,12 +135,13 @@ public class RequestHelper {
 
   /**
    * Helper method to create WriteFeatures request with given feature.
-   * @param collectionName  name of the storage collection
-   * @param feature         feature object to be created
-   * @param ifExistsAction  flag to indicate what to do if feature already found existing in database
+   *
+   * @param collectionName   name of the storage collection
+   * @param feature          feature object to be created
+   * @param ifExistsAction   flag to indicate what to do if feature already found existing in database
    * @param ifConflictAction flag to indicate what to do if feature version in database conflicts with given feature version
+   * @param <T>              any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
-   * @param <T> any object extending XyzFeature
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeatureRequest(
@@ -147,12 +154,13 @@ public class RequestHelper {
 
   /**
    * Helper method to create WriteFeatures request with given list of features.
-   * @param collectionName  name of the storage collection
-   * @param featureList     list of feature objects to be created
-   * @param ifExistsAction  flag to indicate what to do if feature already found existing in database
+   *
+   * @param collectionName   name of the storage collection
+   * @param featureList      list of feature objects to be created
+   * @param ifExistsAction   flag to indicate what to do if feature already found existing in database
    * @param ifConflictAction flag to indicate what to do if feature version in database conflicts with given feature version
+   * @param <T>              any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
-   * @param <T> any object extending XyzFeature
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeaturesRequest(
@@ -160,16 +168,9 @@ public class RequestHelper {
       final @NotNull List<@NotNull T> featureList,
       final @NotNull IfExists ifExistsAction,
       final @NotNull IfConflict ifConflictAction) {
+    // TODO: Due to simplification and not yet supported advanced write ops, please adjust!
     final List<WriteOp<T>> opList = featureList.stream()
-        .map(feature -> new WriteOp<>(
-            feature,
-            null,
-            feature.getId(),
-            feature.getProperties().getXyzNamespace().getUuid(),
-            false,
-            ifExistsAction,
-            ifConflictAction,
-            IfNotExists.CREATE))
+        .map(feature -> new WriteOp<>(EWriteOp.INSERT, feature))
         .toList();
     return new WriteFeatures<>(collectionName, opList);
   }
