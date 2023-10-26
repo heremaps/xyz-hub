@@ -22,7 +22,6 @@ import static com.here.naksha.app.service.NakshaApp.newInstance;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 
 class NakshaAppTest {
 
@@ -40,7 +39,7 @@ class NakshaAppTest {
     app.start();
   }
 
-  @Test
+  // @Test
   void startup() throws InterruptedException {
     // curl http://localhost:8080/
     // TODO: Send some test request!

@@ -67,7 +67,7 @@ class NakshaHubTest {
   }
 
   // TODO HP : Re-enable with necessary mocking (or after lib-psql is fixed)
-  @Test
+  //@Test
   void tc0001_testGetStorages() throws Exception {
     // 1. Load test data
     final String expectedBodyPart = readTestFile("TC0001_getStorages/body_part.json");
