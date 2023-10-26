@@ -18,12 +18,16 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.core.exceptions.StorageLockException;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
-import java.sql.Connection;
+import com.here.naksha.lib.psql.statement.PsqlCollectionWriter;
+import com.here.naksha.lib.psql.statement.PsqlFeatureWriter;
+import java.sql.*;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 
@@ -40,14 +44,23 @@ public class PsqlWriteSession extends PsqlReadSession implements IWriteSession {
 
   @Override
   public @NotNull Result execute(@NotNull WriteRequest writeRequest) {
-    return null;
+    Result result = null;
+    if (writeRequest instanceof WriteCollections writeCollections) {
+      result = new PsqlCollectionWriter(connection, statementTimeout).writeCollections(writeCollections);
+    } else if (writeRequest instanceof WriteFeatures<?> writeFeatures) {
+      result = new PsqlFeatureWriter(connection, statementTimeout).writeFeatures(writeFeatures);
+    }
+    if (result == null) {
+      throw new UnsupportedOperationException("WriteRequest not yet supported: " + writeRequest.getClass());
+    }
+    return result;
   }
 
   @Override
   public @NotNull IStorageLock lockFeature(
       @NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -57,8 +70,31 @@ public class PsqlWriteSession extends PsqlReadSession implements IWriteSession {
   }
 
   @Override
-  public void commit() {}
+  public void commit() {
+    try {
+      connection.commit();
+    } catch (final Throwable t) {
+      throw unchecked(t);
+    } finally {
+      // start a new transaction, this ensures that the app_id and author are set.
+      naksha_tx_start();
+    }
+  }
 
   @Override
-  public void rollback() {}
+  public void rollback() {
+    try {
+      connection.rollback();
+    } catch (final Throwable t) {
+      currentLogger().atWarn("Automatic rollback failed").setCause(t).log();
+    } finally {
+      // start a new transaction, this ensures that the app_id and author are set.
+      naksha_tx_start();
+    }
+  }
+
+  @Override
+  protected boolean naksha_tx_start_write() {
+    return true;
+  }
 }

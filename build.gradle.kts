@@ -96,6 +96,7 @@ val jayway_restassured = "com.jayway.restassured:rest-assured:2.9.0"
 val assertj_core = "org.assertj:assertj-core:3.24.2"
 val awaitility = "org.awaitility:awaitility:4.2.0"
 val junit_jupiter = "org.junit.jupiter:junit-jupiter:5.9.2"
+val mockito = "org.mockito:mockito-core:3.12.4"
 
 val flipkart_zjsonpatch = "com.flipkart.zjsonpatch:zjsonpatch:0.4.13"
 val json_assert = "org.skyscreamer:jsonassert:1.5.1"
@@ -263,7 +264,7 @@ project(":here-naksha-lib-heapcache") {
     }
     dependencies {
         api(project(":here-naksha-lib-core"))
-        testImplementation("org.mockito:mockito-core:3.12.4")
+        testImplementation(mockito)
         implementation(vividsolutions_jts_core)
     }
 }
@@ -282,6 +283,8 @@ project(":here-naksha-lib-psql") {
         implementation(zaxxer_hikari)
         implementation(commons_dbutils)
         implementation(vividsolutions_jts_core)
+
+        testImplementation(mockito)
     }
 }
 

@@ -18,20 +18,32 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.storage.Notification;
+import com.here.naksha.lib.core.models.storage.ReadCollections;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.psql.statement.PsqlCollectionReader;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 
 public class PsqlReadSession implements IReadSession {
 
+  protected Duration statementTimeout = Duration.of(1000L, ChronoUnit.MILLIS);
+  protected Duration lockTimeout = Duration.of(1000L, ChronoUnit.MILLIS);
+
   PsqlReadSession(@NotNull PsqlStorage storage, @NotNull Connection connection) {
     this.storage = storage;
     this.connection = connection;
+    naksha_tx_start();
   }
 
   final @NotNull PsqlStorage storage;
@@ -44,28 +56,40 @@ public class PsqlReadSession implements IReadSession {
 
   @Override
   public @NotNull NakshaContext getNakshaContext() {
-    return null;
+    return NakshaContext.currentContext();
   }
 
   @Override
   public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
-    return 0;
+    return timeUnit.convert(statementTimeout);
   }
 
   @Override
-  public void setStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) {}
+  public void setStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) {
+    statementTimeout = Duration.of(timeout, timeUnit.toChronoUnit());
+  }
 
   @Override
   public long getLockTimeout(@NotNull TimeUnit timeUnit) {
-    return 0;
+    return timeUnit.convert(lockTimeout);
   }
 
   @Override
-  public void setLockTimeout(long timeout, @NotNull TimeUnit timeUnit) {}
+  public void setLockTimeout(long timeout, @NotNull TimeUnit timeUnit) {
+    lockTimeout = Duration.of(timeout, timeUnit.toChronoUnit());
+  }
 
   @Override
   public @NotNull Result execute(@NotNull ReadRequest<?> readRequest) {
-    return null;
+    Result result = null;
+    if (readRequest instanceof ReadCollections readCollections) {
+      result = new PsqlCollectionReader(connection, statementTimeout).readCollections(readCollections);
+    }
+
+    if (result == null) {
+      throw new UnsupportedOperationException("Read request type not supported: " + readRequest.getClass());
+    }
+    return result;
   }
 
   @Override
@@ -74,5 +98,28 @@ public class PsqlReadSession implements IReadSession {
   }
 
   @Override
-  public void close() {}
+  public void close() {
+    try {
+      connection.close();
+    } catch (SQLException e) {
+      throw unchecked(e);
+    }
+  }
+
+  protected boolean naksha_tx_start_write() {
+    return false;
+  }
+
+  protected void naksha_tx_start() {
+    try (final PreparedStatement stmt = connection.prepareStatement("SELECT naksha_tx_start(?, ?, ?);")) {
+      // This guarantees, that the search-path is okay.
+      storage.dataSource.initConnection(connection, null);
+      stmt.setString(1, getNakshaContext().getAppId());
+      stmt.setString(2, getNakshaContext().getAuthor());
+      stmt.setBoolean(3, naksha_tx_start_write());
+      stmt.execute();
+    } catch (final Exception e) {
+      throw unchecked(e);
+    }
+  }
 }

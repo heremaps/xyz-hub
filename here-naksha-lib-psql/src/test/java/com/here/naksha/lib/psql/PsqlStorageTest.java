@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
@@ -179,6 +180,8 @@ public class PsqlStorageTest {
 
   @BeforeAll
   static void beforeTest() {
+    NakshaContext.currentContext().setAuthor("PsqlStorageTest");
+    NakshaContext.currentContext().setAppId("naksha-lib-psql-unit-tests");
     initStatics(DROP_INITIALLY);
   }
 

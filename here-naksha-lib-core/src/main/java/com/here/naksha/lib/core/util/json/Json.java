@@ -168,6 +168,8 @@ public final class Json implements AutoCloseable {
         .build();
     this.wkbReader = new WKBReader(new GeometryFactory(new PrecisionModel(), 4326));
     this.wkbWriter = new WKBWriter(3);
+    this.simpleReader = mapper.reader();
+    this.simpleWriter = mapper.writer();
   }
 
   /**
@@ -194,6 +196,16 @@ public final class Json implements AutoCloseable {
    * The Jackson mapper.
    */
   final @NotNull ObjectMapper mapper;
+
+  /**
+   * Simple reader without any View.
+   */
+  final @NotNull ObjectReader simpleReader;
+
+  /**
+   * Simple writer without any view.
+   */
+  final @NotNull ObjectWriter simpleWriter;
 
   /**
    * Return a new dedicated thread local Json parser instance. Can be used recursive.
@@ -268,6 +280,17 @@ public final class Json implements AutoCloseable {
       readers.put(view, reader);
     }
     return reader;
+  }
+
+  /**
+   * @return Reader without any view applied.
+   */
+  public @NotNull ObjectReader reader() {
+    return simpleReader;
+  }
+
+  public @NotNull ObjectWriter writer() {
+    return simpleWriter;
   }
 
   /**

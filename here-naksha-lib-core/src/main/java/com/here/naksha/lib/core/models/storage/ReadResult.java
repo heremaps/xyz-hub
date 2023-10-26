@@ -18,37 +18,53 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import java.util.List;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.naksha.lib.core.util.json.Json;
 import org.jetbrains.annotations.NotNull;
 
-public abstract class ReadResult<T> extends SuccessResult implements AutoCloseable {
+public abstract class ReadResult<T> extends SuccessResult implements AutoCloseable, Iterable<T> {
+
+  protected @NotNull Json json = Json.get();
+
   public ReadResult(@NotNull Class<T> featureType) {
     this.featureType = featureType;
   }
 
   public <NT> @NotNull ReadResult<NT> withFeatureType(@NotNull Class<NT> featureClass) {
     this.featureType = featureClass;
+    onFeatureTypeChange();
     //noinspection unchecked
     return (ReadResult<NT>) this;
   }
 
-  public abstract boolean hasMore();
+  public abstract IAdvancedReadResult<T> advanced();
 
-  public abstract boolean loadNext();
-
-  public abstract @NotNull T next();
-
-  public abstract @NotNull List<@NotNull T> next(int limit);
-
-  public abstract @NotNull String getFeatureType();
-
-  public abstract @NotNull String getPropertyType();
-
-  public abstract @NotNull T getFeature();
-
-  public abstract <NT> @NotNull NT getFeature(@NotNull Class<NT> featureClass);
+  protected abstract void onFeatureTypeChange();
 
   protected @NotNull Class<?> featureType;
+
+  /**
+   * Convert the JSON and geometry into a real feature.
+   *
+   * @param jsondata The JSON-string of the feature.
+   * @return The feature.
+   * @throws IllegalArgumentException If parsing the JSON does not return the expected value.
+   * @throws JsonProcessingException  If some error happened while parsing the JSON.
+   */
+  @SuppressWarnings("JavadocDeclaration")
+  protected @NotNull <FEATURE> FEATURE featureOf(@NotNull String jsondata, Class<FEATURE> featureType) {
+    try {
+      final FEATURE feature = json.reader().forType(featureType).readValue(jsondata);
+      if (feature == null) {
+        throw new IllegalArgumentException("Parsing the jsondata returned null");
+      }
+      return feature;
+    } catch (JsonProcessingException e) {
+      throw unchecked(e);
+    }
+  }
 
   @Override
   public void close() {}

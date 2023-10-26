@@ -50,6 +50,12 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
   public @NotNull List<@NotNull WriteOp<T>> queries;
 
   /**
+   * The queries to execute.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull boolean noResults;
+
+  /**
    * Add a modification and return this.
    *
    * @param writeOp the modification to add.
