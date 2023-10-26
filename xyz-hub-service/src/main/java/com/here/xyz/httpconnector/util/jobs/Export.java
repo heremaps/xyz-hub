@@ -41,6 +41,7 @@ import io.vertx.core.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -352,11 +353,11 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public ExportStatistic getStatistic(){
-        return this.statistic;
+        return getTotalStatistic();
     }
 
     @JsonIgnore
-    public ExportStatistic getTotalStatistic(){
+    private ExportStatistic getTotalStatistic(){
         if(this.statistic == null)
             return null;
 
@@ -397,6 +398,17 @@ public class Export extends JDBCBasedJob<Export> {
 
     public void setSuperExportObjects(Map<String, ExportObject> superExportObjects) {
         this.superExportObjects = superExportObjects;
+    }
+
+    public List<ExportObject> getExportObjectsAsList() {
+        List<ExportObject> exportObjectList = new ArrayList<>();
+
+        if(superExportObjects == null)
+            exportObjectList.addAll(superExportObjects.values());
+        if(exportObjects == null)
+            exportObjectList.addAll(exportObjects.values());
+
+        return exportObjectList;
     }
 
     public Map<String,ExportObject> getExportObjects() {
