@@ -396,7 +396,7 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     postFeature("x-psql-test-ext", f1.withProperties(new Properties().with("name", "b")));
 
     // modify x-psql-test-ext-ext to point to x-psql-test
-    modifyComposite("x-psql-test-ext-ext", "x-psql-test");
+    makeComposite("x-psql-test-ext-ext", "x-psql-test");
 
     // get F1 from x-psql-test-ext-ext -> assert F1(p.name="a")
     getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "a");
@@ -416,13 +416,13 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     deleteFeature("x-psql-test-ext", f1.getId());
 
     // modify x-psql-test-ext-ext to point to x-psql-test
-    modifyComposite("x-psql-test-ext-ext", "x-psql-test");
+    makeComposite("x-psql-test-ext-ext", "x-psql-test");
 
     // get F1 from x-psql-test-ext-ext -> assert F1(p.name="a")
     getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "a");
 
     // modify x-psql-test-ext-ext to point to x-psql-test-ext
-    modifyComposite("x-psql-test-ext-ext", "x-psql-test-ext");
+    makeComposite("x-psql-test-ext-ext", "x-psql-test-ext");
 
     // get F1 from x-psql-test-ext-ext -> assert 404
     getFeature("x-psql-test-ext-ext", f1.getId(), NOT_FOUND.code());
@@ -439,13 +439,13 @@ public class ModifyFeatureCompositeSpaceIT extends TestCompositeSpace {
     postFeature("x-psql-test-2", f1.withProperties(new Properties().with("name", "b")));
 
     // modify x-psql-test-ext to point to x-psql-test-2
-    modifyComposite("x-psql-test-ext", "x-psql-test-2");
+    makeComposite("x-psql-test-ext", "x-psql-test-2");
 
     // get F1 from x-psql-test-ext-ext -> assert F1(p.name="b")
     getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "b");
 
     // modify x-psql-test-ext to point to x-psql-test
-    modifyComposite("x-psql-test-ext", "x-psql-test");
+    makeComposite("x-psql-test-ext", "x-psql-test");
 
     // get F1 from x-psql-test-ext-ext -> assert F1(p.name="a")
     getFeature("x-psql-test-ext-ext", f1.getId(), OK.code(), "properties.name", "a");

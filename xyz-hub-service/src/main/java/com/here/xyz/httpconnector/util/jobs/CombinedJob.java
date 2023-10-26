@@ -122,8 +122,7 @@ public class CombinedJob extends Job<CombinedJob> {
                 .withId(getId() + "-" + childNo)
                 .withSource(childSpace)
                 .withTarget(getTarget());
-            setChildJobParams(job, space);
-            return Future.succeededFuture(job);
+            return setChildJobParams(job, space);
           }));
     }
 
@@ -133,12 +132,11 @@ public class CombinedJob extends Job<CombinedJob> {
     });
   }
 
-  protected void setChildJobParams(Job childJob, Space space) {
+  protected Future<Job> setChildJobParams(Job childJob, Space space) {
     childJob.setChildJob(true); //TODO: Replace that hack once the scheduler flow was refactored
     childJob.init(); //TODO: Do field initialization at instance initialization time
     childJob.withTargetConnector(space.getStorage().getId());
-    childJob.addParam("versionsToKeep", space.getVersionsToKeep());
-    childJob.addParam("persistExport", space.isReadOnly());
+    return childJob.init();
   }
 
   @Override
