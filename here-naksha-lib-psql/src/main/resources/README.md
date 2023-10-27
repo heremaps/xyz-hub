@@ -22,24 +22,24 @@ Due to partitioning of the big tables, we need to change **cluster** and **group
 
 # Links
 
-## Locking
-- https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
+## Functions
+- [Locking](https://www.postgresql.org/docs/current/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS)
+- [Date/Time](https://www.postgresql.org/docs/current/functions-datetime.html#FUNCTIONS-DATETIME-CURRENT)
+- [String Formatting](https://www.postgresql.org/docs/current/functions-formatting.html)
 
-## Index optimization
-- https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-STORAGE-PARAMETERS
+## PostGIS Functions
+- https://postgis.net/docs/ST_Centroid.html
 
-## Links about error handling:
+## Details about error handling:
 - https://www.postgresql.org/docs/current/plpgsql-errors-and-messages.html
 - https://www.postgresql.org/docs/current/errcodes-appendix.html
 - https://www.postgresql.org/docs/current/plpgsql-control-structures.html#PLPGSQL-ERROR-TRAPPING
 
-## Links about type/string handling:
-- https://www.postgresql.org/docs/current/functions-formatting.html
+## Index optimization
+- https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-STORAGE-PARAMETERS
 
-## Concurrency information:
+## Concurrency & Function Volatility Categories
 - https://www.postgresql.org/docs/current/explicit-locking.html
-
-## Function Volatility Categories
 - https://www.postgresql.org/docs/current/xfunc-volatility.html
 
 In a nutshell:

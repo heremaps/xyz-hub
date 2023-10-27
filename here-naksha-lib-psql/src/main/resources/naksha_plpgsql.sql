@@ -42,6 +42,10 @@ END $BODY$;
 -- ERRORS
 -------------------------------------------------------------------------------------------------------------------------------------------
 
+CREATE OR REPLACE PROCEDURE nk_raise_uninitialized() LANGUAGE 'plpgsql' AS $$ BEGIN
+  RAISE EXCEPTION 'Session not initialized, please invoke naksha_start_session first' USING ERRCODE='N0000';
+END $$;
+
 CREATE OR REPLACE PROCEDURE nk_raise_collection_exists(in _collection text) LANGUAGE 'plpgsql' AS $$ BEGIN
   RAISE EXCEPTION 'Collection % exists', _collection USING ERRCODE='N0001';
 END $$;
@@ -62,6 +66,8 @@ END $$;
 -- INTERNAL
 -------------------------------------------------------------------------------------------------------------------------------------------
 
+CREATE SEQUENCE IF NOT EXISTS naksha_tx_id_seq AS int8;
+
 --#DO $$ BEGIN
   CREATE TYPE nk_txn_struct AS (year int, month int, day int, id int8, ts timestamptz);
 --#EXCEPTION WHEN duplicate_object THEN NULL; END; $$;
@@ -72,6 +78,26 @@ CREATE OR REPLACE FUNCTION nk_txn_struct(_year int, _month int, _day int, _id in
 DECLARE
   r nk_txn_struct;
 BEGIN
+  r.year = _year;
+  r.month = _month;
+  r.day = _day;
+  r.id = _id;
+  r.ts = make_timestamptz(r.year, r.month, r.day, 0, 0, 0.0, 'UTC');
+  RETURN r;
+END $$;
+
+--#DO $$ BEGIN
+  CREATE TYPE nk_guid_struct AS (storage_id text, collection_id text, year int, month int, day int, id int8, ts timestamptz);
+--#EXCEPTION WHEN duplicate_object THEN NULL; END; $$;
+
+-- Create a nk_txn_struct row.
+-- Example: SELECT nk_txn(2023,12,31,98765432101::int8);
+CREATE OR REPLACE FUNCTION nk_guid_struct(collection_id text, _year int, _month int, _day int, _id int8) RETURNS nk_guid_struct LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+DECLARE
+  r nk_guid_struct;
+BEGIN
+  r.storage_id = naksha_storage_id();
+  r.collection_id = collection_id;
   r.year = _year;
   r.month = _month;
   r.day = _day;
@@ -116,6 +142,33 @@ BEGIN
   END IF;
 END $$;
 
+CREATE OR REPLACE FUNCTION nk_guid(_collection_id text, _ts timestamptz, _id int8) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
+  RETURN naksha_storage_id()||':'||_collection_id||':'||to_char(_ts, 'YYYY:MM:DD')||':'||_id;
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_guid_pack(_guid nk_guid_struct) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
+  RETURN _guid.storage_id||':'||_guid.collection_id||':'||to_char(_guid.ts, 'YYYY:MM:DD')||':'||_guid.id;
+END; $$;
+
+CREATE OR REPLACE FUNCTION nk_guid_unpack(_guid text) RETURNS nk_guid_struct LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+DECLARE
+  parts text[];
+  r nk_guid_struct;
+BEGIN
+  parts = string_to_array(_guid, ':');
+  IF array_length(parts, 1) <> 6 THEN
+    PERFORM nk_raise_illegal_argument('Invalid GUID given: '||_guid);
+  END IF;
+  r.storage_id = parts[1];
+  r.collection_id = parts[2];
+  r.year = (parts[3])::int;
+  r.month = (parts[4])::int;
+  r.day = (parts[5])::int;
+  r.id = (parts[6])::int8;
+  r.ts = make_timestamptz(r.year, r.month, r.day, 0, 0, 0.0, 'UTC');
+  RETURN r;
+END $$;
+
 CREATE OR REPLACE FUNCTION nk_txn(_year int, _month int, _day int, _id int8) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
 DECLARE
   SEQ_DIVIDER constant int8 := 100000000000;
@@ -123,7 +176,7 @@ BEGIN
   RETURN (_year * 10000 + _month * 100 + _day)::int8 * SEQ_DIVIDER + _id;
 END $$;
 
-CREATE OR REPLACE FUNCTION nk_txn_from_ts(_ts timestamptz, _id int8) RETURNS int8 LANGUAGE 'plpgsql' STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_txn(_ts timestamptz, _id int8) RETURNS int8 LANGUAGE 'plpgsql' STRICT AS $$
 DECLARE
   year int;
   month int;
@@ -138,7 +191,7 @@ END $$;
 
 -- Extracts the different values from a transaction number, so year, month, day and id.
 -- Example: SELECT nk_unpack_txn(2023123198765432101);
-CREATE OR REPLACE FUNCTION nk_unpack_txn(_txn int8) RETURNS nk_txn_struct LANGUAGE 'plpgsql' STABLE STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_txn_unpack(_txn int8) RETURNS nk_txn_struct LANGUAGE 'plpgsql' STABLE STRICT AS $$
 DECLARE
   SEQ_DIVIDER constant int8 := 100000000000;
   r nk_txn_struct;
@@ -154,13 +207,21 @@ BEGIN
   RETURN r;
 END $$;
 
-CREATE OR REPLACE FUNCTION nk_pack_txn(_txn nk_txn_struct) RETURNS int8 LANGUAGE 'plpgsql' STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_txn_pack(_txn nk_txn_struct) RETURNS int8 LANGUAGE 'plpgsql' STRICT AS $$
 BEGIN
   RETURN nk_txn(_txn.year, _txn.month, _txn.day, _txn.id);
 END $$;
 
 CREATE OR REPLACE FUNCTION nk_partition_name_for_ts(_ts timestamptz) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
   RETURN to_char(_ts, 'YYYY_MM_DD');
+END $$;
+
+CREATE OR REPLACE FUNCTION nk_mrid(_geo geometry) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+DECLARE
+  mrid text;
+BEGIN
+  -- ST_Centroid(coalesce(_new_geo, ST_Point(0,0)));
+  -- RETURN nk_partition_name_for_ts(make_timestamptz(_year, _month, _day, 0, 0, 0.0, 'UTC'));
 END $$;
 
 CREATE OR REPLACE FUNCTION nk_partition_name_for_date(_year int, _month int, _day int) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
@@ -171,7 +232,7 @@ CREATE OR REPLACE FUNCTION nk_partition_name_for_txn(_txn int8) RETURNS text LAN
 DECLARE
   t nk_txn_struct;
 BEGIN
-  t = nk_unpack_txn(_txn);
+  t = nk_txn_unpack(_txn);
   RETURN nk_partition_name_for_ts(t.ts);
 END $$;
 
@@ -179,29 +240,116 @@ CREATE OR REPLACE FUNCTION nk_get_collection(_id text) RETURNS jsonb LANGUAGE 'p
 DECLARE
   feature jsonb;
 BEGIN
-  SELECT obj_description(oid)::jsonb
-  FROM pg_class
+  SELECT obj_description(oid)::jsonb FROM pg_class
   WHERE relkind='r' AND relnamespace = naksha_schema_oid() AND relname::text = _id INTO feature;
   IF naksha_feature_type(feature) = naksha_collection_type() AND naksha_feature_id(feature) = _id THEN
     RETURN feature;
   END IF;
   RETURN NULL;
-EXCEPTION
-  WHEN OTHERS THEN RETURN NULL;
+EXCEPTION WHEN OTHERS THEN RETURN NULL;
 END $$;
+
+-- Create a new XYZ namespace for HEAD.
+-- If this should be written to history, set txn_next!
+CREATE OR REPLACE FUNCTION nk_xyz_namespace(
+  _collection text,
+  _id int8,
+  _action text,
+  _new jsonb,
+  _new_geo geometry,
+  _old jsonb
+) RETURNS jsonb LANGUAGE 'plpgsql' STABLE AS $$
+DECLARE
+  ts_millis int8;
+  rts_millis int8;
+  txn int8;
+  xyz jsonb;
+  app_id text = naksha_app_id();
+  author text;
+  mrid text;
+BEGIN
+  mrid = nk_mrid(_new_geo);
+  txn = naksha_txn();
+  rts_millis := naksha_current_millis(clock_timestamp());
+  ts_millis := naksha_current_millis(current_timestamp);
+    /*
+  IF _action = 'INSERT' THEN
+    author := naksha_author(app_id);
+    xyz := jsonb_build_object(
+        'action', 'CREATE',
+        'version', 1::int8,
+        'author', author,
+        'appId', app_id,
+        'puuid', null,
+        'uuid', nk_guid(_collection, current_timestamp, _id),
+        'txn', txn,
+        'createdAt', ts_millis,
+        'updatedAt', ts_millis,
+        'rtuts', rts_millis,
+        'streamId', naksha_stream_id()
+    );
+    IF jsonb_typeof(_old->'tags') = 'array' THEN
+      xyz = jsonb_set_lax(_old, array['tags'], );
+    END IF;
+        NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties"}', '{}'::jsonb, true);
+    ELSEIF NEW.jsondata->'properties'->'@ns:com:here:xyz' IS NOT NULL
+        AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags' IS NOT NULL THEN
+        xyz := jsonb_set(xyz, '{"tags"}', NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags', true);
+    END IF;
+    --RAISE NOTICE '__naksha_trigger_fix_ns_xyz %', xyz;
+    NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
+    NEW.i = i;
+    --RAISE NOTICE '__naksha_trigger_fix_ns_xyz return %', NEW.jsondata;
+    return NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+      --RAISE NOTICE '__naksha_trigger_fix_ns_xyz % %', TG_OP, NEW.jsondata;
+      author := naksha_tx_get_author(OLD.jsondata);
+      xyz := jsonb_build_object(
+          'action', 'UPDATE',
+          'version', (OLD.jsondata->'properties'->'@ns:com:here:xyz'->>'version')::int8 + 1::int8,
+          'collection', TG_TABLE_NAME,
+          'author', author,
+          'appId', app_id,
+          'puuid', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'uuid',
+          'uuid', new_uuid::text,
+          'txn', txn::text,
+          'createdAt', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'createdAt',
+          'updatedAt', ts_millis,
+          'rtcts', OLD.jsondata->'properties'->'@ns:com:here:xyz'->'rtcts',
+          'rtuts', rts_millis
+      );
+      IF NEW.jsondata->'properties' IS NULl THEN
+          NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties"}', '{}'::jsonb, true);
+      ELSEIF NEW.jsondata->'properties'->'@ns:com:here:xyz' IS NOT NULL
+          AND NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags' IS NOT NULL THEN
+          xyz := jsonb_set(xyz, '{"tags"}', NEW.jsondata->'properties'->'@ns:com:here:xyz'->'tags', true);
+      END IF;
+      NEW.jsondata = jsonb_set(NEW.jsondata, '{"properties","@ns:com:here:xyz"}', xyz, true);
+      NEW.i = i;
+      -- RAISE NOTICE '__naksha_trigger_fix_ns_xyz return %', NEW.jsondata;
+      return NEW;
+  END IF;
+
+  -- DELETE
+  -- RAISE NOTICE '__naksha_trigger_fix_ns_xyz % return %', TG_OP, OLD.jsondata;
+  RETURN OLD;
+  */
+END; $$;
 
 -- A trigger attached to all HEAD tables of all collections to fix the XYZ namespace.
 -- In a nutshell, fix: jsondata->'properties'->'@ns:com:here:xyz'
 CREATE OR REPLACE FUNCTION nk_trigger_fix_xyz_namespace() RETURNS trigger LANGUAGE 'plpgsql' STABLE AS $BODY$
 DECLARE
-    author text;
-    app_id text;
-    new_uuid uuid;
-    txn uuid;
-    ts_millis int8;
-    rts_millis int8;
-    i int8;
-    xyz jsonb;
+  author text;
+  app_id text;
+  new_uuid uuid;
+  txn uuid;
+  ts_millis int8;
+  rts_millis int8;
+  i int8;
+  xyz jsonb;
 BEGIN
     rts_millis := naksha_current_millis(clock_timestamp());
     ts_millis := naksha_current_millis(current_timestamp);
@@ -527,10 +675,10 @@ DECLARE
 BEGIN
   RAISE NOTICE 'Prepare partition creation';
   from_day := nk_partition_name_for_ts(_from_ts);
-  from_part_id := nk_txn_from_ts(_from_ts, 0::int8);
+  from_part_id := nk_txn(_from_ts, 0::int8);
   to_ts := _from_ts + '1 day'::interval;
   to_day := nk_partition_name_for_ts(to_ts);
-  to_part_id := nk_txn_from_ts(to_ts, 0::int8);
+  to_part_id := nk_txn(to_ts, 0::int8);
   hst_table_name := format('%s_hst', _collection);
   hst_partition_table_name := format('%s_hst_%s', _collection, from_day); -- example: foo_hst_2023_03_01
 
@@ -551,7 +699,7 @@ DECLARE
   cache_key text;
   txn_next nk_txn_struct;
 BEGIN
-  txn_next = nk_unpack_txn(_txn_next);
+  txn_next = nk_txn_unpack(_txn_next);
   part_name = nk_partition_name_for_ts(txn_next.ts);
   cache_key = nk_key(_collection, part_name);
   IF nk_get_config(cache_key) IS NULL THEN
@@ -649,7 +797,7 @@ BEGIN
   -- prepare current yyyyMMdd as number i.e. 20231006
   tx_date := extract('year' from current_timestamp) * 10000 + extract('month' from current_timestamp) * 100 + extract('day' from current_timestamp);
 
-  txi := nextval('naksha_tx_object_id_seq');
+  txi := nextval('naksha_tx_id_seq');
   -- txi should start with current date  20231006 with seq number "at the end"
   -- example: 2023100600000000007
   seq_date := txi / SEQ_DIVIDER; -- returns as number seq prefix which is yyyyMMdd  i.e. 20231006
@@ -660,13 +808,13 @@ BEGIN
     -- it has to be discussed if there is a chance of calling this function multiple times in parallel in same session.
     PERFORM pg_advisory_lock(LOCK_ID);
     BEGIN
-      txi := nextval('naksha_tx_object_id_seq');
+      txi := nextval('naksha_tx_id_seq');
       seq_date := txi / SEQ_DIVIDER ;
 
       IF seq_date <> tx_date then
           txn := tx_date * SEQ_DIVIDER;
           -- is_called set to true guarantee that next val will be +1
-          PERFORM setval('naksha_tx_object_id_seq', txn, true);
+          PERFORM setval('naksha_tx_id_seq', txn, true);
       ELSE
           txn := txi;
       END IF;
@@ -706,7 +854,7 @@ BEGIN
 END $$;
 
 -- Start the session, automatically called by lib-psql whenever a new session is started.
-CREATE OR REPLACE FUNCTION naksha_start_session(app_id text, author text) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $$
+CREATE OR REPLACE FUNCTION naksha_start_session(app_id text, author text, stream_id text) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $$
 BEGIN
     -- See: https://www.postgresql.org/docs/current/runtime-config-query.html
     EXECUTE format('SELECT'
@@ -723,7 +871,41 @@ BEGIN
     || ',SET_CONFIG(''jit'', ''OFF'', false)'
     || ',SET_CONFIG(''naksha.appid'', %L::text, false)'
     || ',SET_CONFIG(''naksha.author'', %L::text, false)'
-      , app_id, author);
+    || ',SET_CONFIG(''naksha.stream_id'', %L::text, false)'
+      , app_id, author, stream_id);
+END $$;
+
+CREATE OR REPLACE FUNCTION naksha_app_id() RETURNS text LANGUAGE 'plpgsql' STABLE AS $$
+DECLARE
+  value text;
+BEGIN
+  value := current_setting('naksha.appid', true);
+  IF value = '' THEN
+      RETURN NULL;
+  END IF;
+  RETURN value;
+END $$;
+
+CREATE OR REPLACE FUNCTION naksha_author(_old text) RETURNS text LANGUAGE 'plpgsql' STABLE AS $$
+DECLARE
+  value text;
+BEGIN
+  value := current_setting('naksha.author', true);
+  IF value IS NULL OR value = '' THEN
+      RETURN _old;
+  END IF;
+  RETURN value;
+END $$;
+
+CREATE OR REPLACE FUNCTION naksha_stream_id() RETURNS text LANGUAGE 'plpgsql' STABLE AS $$
+DECLARE
+  value text;
+BEGIN
+  value := current_setting('naksha.stream_id', true);
+  IF value = '' THEN
+      RETURN NULL;
+  END IF;
+  RETURN value;
 END $$;
 
 CREATE OR REPLACE FUNCTION naksha_read_collections(ids text[], read_deleted bool)
@@ -2429,7 +2611,7 @@ BEGIN
         return value::uuid;
     END IF;
 
-    txi := nextval('naksha_tx_object_id_seq');
+    txi := nextval('naksha_tx_id_seq');
     txn := naksha_txn_from_object_id_and_ts(txi, current_timestamp);
     PERFORM SET_CONFIG('naksha.txn', txn::text, true);
     RETURN txn;

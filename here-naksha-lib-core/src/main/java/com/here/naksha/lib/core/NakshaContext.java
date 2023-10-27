@@ -119,9 +119,21 @@ public final class NakshaContext {
    * Returns the stream-id.
    *
    * @return The stream-id.
+   * @deprecated Please use {@link #getStreamId()}.
    */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull String streamId() {
+    return streamId;
+  }
+
+  /**
+   * Returns the stream-id.
+   *
+   * @return The stream-id.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull String getStreamId() {
     return streamId;
   }
 

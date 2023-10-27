@@ -18,13 +18,7 @@
  */
 package com.here.naksha.lib.psql.demo;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
-import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-
 import com.here.naksha.lib.psql.*;
-import java.sql.Connection;
-import java.sql.Statement;
-import org.postgresql.util.PSQLException;
 
 public class CleanInitMain {
 
@@ -45,30 +39,7 @@ public class CleanInitMain {
         .build();
     final PsqlStorage storage = new PsqlStorage(config, config.schema);
     // Connect and initialize the database.
-    dropSchema(storage);
+    storage.dropSchema();
     storage.initStorage();
-  }
-
-  private static void dropSchema(PsqlStorage storage) {
-    try (final Connection conn =
-        storage.getDataSource().getPool().dataSource.getConnection()) {
-      try (final Statement stmt = conn.createStatement()) {
-        try {
-          final String sql = "DROP SCHEMA IF EXISTS " + SQL.quote_ident(storage.getSchema()) + " CASCADE";
-          stmt.execute(sql);
-          stmt.close();
-        } catch (PSQLException e) {
-          final EPsqlState state = EPsqlState.of(e);
-          if (state != EPsqlState.INVALID_SCHEMA_DEFINITION && state != EPsqlState.INVALID_SCHEMA_NAME) {
-            throw e;
-          }
-          conn.rollback();
-          currentLogger().info("Naksha schema missing");
-        }
-        conn.commit();
-      }
-    } catch (Throwable t) {
-      throw unchecked(t);
-    }
   }
 }

@@ -262,6 +262,33 @@ public final class PsqlStorage implements IStorage {
     }
   }
 
+  /**
+   * Drop the schema to which the storage is configured.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public void dropSchema() {
+    try (final Connection conn = getDataSource().getPool().dataSource.getConnection()) {
+      try (final Statement stmt = conn.createStatement()) {
+        try {
+          final String sql = "DROP SCHEMA IF EXISTS " + SQL.quote_ident(getSchema()) + " CASCADE";
+          stmt.execute(sql);
+          conn.commit();
+        } catch (PSQLException e) {
+          final EPsqlState state = EPsqlState.of(e);
+          if (state != EPsqlState.INVALID_SCHEMA_DEFINITION && state != EPsqlState.INVALID_SCHEMA_NAME) {
+            throw e;
+          }
+          log.atInfo()
+              .setMessage("Schema {} does not exist")
+              .addArgument(getSchema())
+              .log();
+        }
+      }
+    } catch (Throwable t) {
+      throw unchecked(t);
+    }
+  }
+
   @Override
   public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
     if (context == null) {

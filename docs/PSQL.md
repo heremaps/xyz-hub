@@ -69,9 +69,9 @@ The transaction-number is a 64-bit integers, split into four parts:
 * _Year_: The year in which the transactions started (e.g. 2023).
 * _Month_: The month of the year in which the transaction started (e.g. 9 for September).
 * _Day_: The day of the month in which the transaction started (1 to 31).
-* _Sequence_: The local sequence-number in this day.
+* _Id_: The local **sequence-number** in this day.
 
-The local sequence-number is stored in a sequence named `naksha_tx_object_id_seq`. Every day starts with the sequence-number reset to zero. The final value is calculated by **year** x _1,000,000,000,000,000_ + **month** x _10,000,000,000,000_ **day** x _100,000,000,000_ + **sequence-number**.
+The local **sequence-number** (_id_) is stored in a sequence named `naksha_tx_id_seq`. Every day starts with the sequence-number reset to zero. The final value is calculated by **year** x _1,000,000,000,000,000_ + **month** x _10,000,000,000,000_ **day** x _100,000,000,000_ + **sequence-number**.
 
 This concept allows up to 100 billion transactions per day. It will work up until the year 9222, where it will overflow. Should there be more than 100 billion transaction in a single day, this will overflow into the next day and potentially into an invalid day, should it happen at the last day of a given month. We ignore this situation, it seems currently impossible.
 
@@ -88,7 +88,7 @@ Human-Readable:                  2023,01,30,0
 uuid:                            "{storageId}:{collectionId}:2023:1:30:0"
 ```
 
-Normally, when a new unique identifier is requested, the method `naksha_txn()` will read the sequence (`naksha_tx_object_id_seq`) and verify it, so, if the year, month and day of the current transaction start-time (`now()`) matches the one stored in the sequence-number. If this is not the case, it will enter an advisory lock and retry the operation, if the sequence-number is still invalid, it will reset the sequence-number to the correct date, with the _sequence_ part being set to `1`, so that the next `naksha_uid(collection)` method that enters the lock or queries the _sequence_, receives a correct number, starting at _sequence_ `1`. The method itself will use the _sequence_ value `0` in the rollover case.
+Normally, when a new unique identifier is requested, the method `naksha_txn()` will read the sequence (`naksha_tx_id_seq`) and verify it, so, if the year, month and day of the current transaction start-time (`now()`) matches the one stored in the sequence-number. If this is not the case, it will enter an advisory lock and retry the operation, if the sequence-number is still invalid, it will reset the sequence-number to the correct date, with the _sequence_ part being set to `1`, so that the next `naksha_uid(collection)` method that enters the lock or queries the _sequence_, receives a correct number, starting at _sequence_ `1`. The method itself will use the _sequence_ value `0` in the rollover case.
 
 **Note**: We store the current transaction-number for the current transaction in a transaction local config value, so that we only need to read it ones, when needed the first time in a transaction. Additionally, there is a helper methods to be used to create arbitrary bounds for a unique identifier being `naksha_txn(timestamptz, bigint)`.
 
@@ -101,6 +101,8 @@ The new format is called GUID (global unique identifier), returning to the roots
 `{storageId}:{collectionId}:{year}:{month}:{day}:{id}`
 
 **Note**: This format holds all information needed for Naksha to know in which storage a feature is located, of which it only has the _GUID_. The PSQL storage knows from this _GUID_ exactly in which database table the features is located, even taking partitioning into account. The reason is, that partitioning is done by transaction start date, which is contained in the _GUID_. Therefore, providing a _GUID_, directly identifies the storage location of a feature, which in itself holds the information to which transaction it belongs to (`txn`). Beware that the transaction-number as well encodes the transaction start time and therefore allows as well to know exactly where the features of a transaction are located (including finding the transaction details itself).
+
+For the PostgresQL implementation the **id** is either the row number (`i`) for features in collections or the **sequence-number** of the transaction.
 
 ## Table layout
 

@@ -287,7 +287,7 @@ public class PsqlDataSource implements DataSource {
       write_literal(context.getAppId(), sb);
       close_literal(sb);
       sb.append(',');
-      String author = context.getAuthor();
+      final String author = context.getAuthor();
       if (author != null) {
         open_literal(sb);
         write_literal(author, sb);
@@ -295,6 +295,10 @@ public class PsqlDataSource implements DataSource {
       } else {
         sb.append("null");
       }
+      sb.append(',');
+      open_literal(sb);
+      write_literal(context.getStreamId(), sb);
+      close_literal(sb);
       sb.append(");");
     }
   }
