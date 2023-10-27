@@ -20,9 +20,8 @@ package com.here.naksha.lib.psql.statement;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
+import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import com.here.naksha.lib.core.models.storage.ReadCollections;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.StorageCollection;
 import com.here.naksha.lib.psql.model.XyzFeatureReadResult;
 import java.sql.Array;
 import java.sql.Connection;
@@ -36,7 +35,7 @@ public class PsqlCollectionReader extends StatementCreator {
     super(connection, timeout);
   }
 
-  public Result readCollections(@NotNull ReadCollections readCollections) {
+  public XyzFeatureReadResult readCollections(@NotNull ReadCollections readCollections) {
     final String SQL = "SELECT naksha_read_collections(?,?);";
     try {
       final var stmt = preparedStatement(SQL);
@@ -45,7 +44,7 @@ public class PsqlCollectionReader extends StatementCreator {
         stmt.setArray(1, paramIds);
         stmt.setBoolean(2, readCollections.readDeleted());
         final ResultSet rs = stmt.executeQuery();
-        return new XyzFeatureReadResult<>(rs, StorageCollection.class);
+        return new XyzFeatureReadResult<>(rs, NakshaFeature.class);
       } catch (Throwable t) {
         stmt.close();
         throw t;

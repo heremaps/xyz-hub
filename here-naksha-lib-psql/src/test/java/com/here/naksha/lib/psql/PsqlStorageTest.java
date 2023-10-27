@@ -31,6 +31,7 @@ import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.util.Hex;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.psql.model.XyzFeatureReadResult;
+
 import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.*;
@@ -55,7 +57,7 @@ public class PsqlStorageTest {
    */
   @SuppressWarnings("unused")
   public static final String TEST_ADMIN_DB = (System.getenv("TEST_ADMIN_DB") != null
-          && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length())
+      && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length())
       ? System.getenv("TEST_ADMIN_DB")
       : null;
 
@@ -104,10 +106,11 @@ public class PsqlStorageTest {
    */
   public static final boolean DO_UPDATE = true;
 
-  record UpdateKey(String key, String[] values) {}
+  record UpdateKey(String key, String[] values) {
+  }
 
-  public static final UpdateKey[] UPDATE_KEYS = new UpdateKey[] {
-    new UpdateKey("name", new String[] {null, "Michael Schmidt", "Thomas Bar", "Alexander Foo"})
+  public static final UpdateKey[] UPDATE_KEYS = new UpdateKey[]{
+      new UpdateKey("name", new String[]{null, "Michael Schmidt", "Thomas Bar", "Alexander Foo"})
   };
 
   /**
@@ -175,7 +178,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(1)
+  @Order(10)
   @EnabledIf("isEnabled")
   void createStorage() throws Exception {
     final PsqlConfig config = new PsqlConfigBuilder()
@@ -188,7 +191,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(2)
+  @Order(20)
   @EnabledIf("dropInitially")
   void dropSchemaIfExists() throws Exception {
     assertNotNull(storage);
@@ -203,7 +206,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(3)
+  @Order(30)
   @EnabledIf("isEnabled")
   void initStorage() throws Exception {
     assertNotNull(storage);
@@ -211,7 +214,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(4)
+  @Order(40)
   @EnabledIf("isEnabled")
   void startTransaction() throws SQLException {
     assertNotNull(storage);
@@ -220,7 +223,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(5)
+  @Order(50)
   @EnabledIf("dropInitially")
   void createCollection() {
     assertNotNull(storage);
@@ -241,7 +244,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(6)
+  @Order(60)
   @EnabledIf("isEnabled")
   void writeSingleFeature() {
     assertNotNull(storage);
@@ -269,7 +272,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(7)
+  @Order(70)
   @EnabledIf("isEnabled")
   void deleteSingleFeature() {
     assertNotNull(storage);
@@ -310,7 +313,7 @@ public class PsqlStorageTest {
         final ThreadLocalRandom rand = ThreadLocalRandom.current();
         assertNotNull(storage);
         try (final var tx =
-            storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
+                 storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
 
           final List<NakshaFeature> featuresToWrite = new ArrayList<>(MANY_FEATURES_COUNT);
           for (int i = 0; i < MANY_FEATURES_COUNT; i++) {
@@ -389,7 +392,7 @@ public class PsqlStorageTest {
         assertNotNull(featuresById);
         assertEquals(MANY_FEATURES_COUNT, featuresById.size());
         try (final var tx =
-            storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
+                 storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
           final List<NakshaFeature> featuresToUpdate = new ArrayList<>(MANY_FEATURES_COUNT);
 
           final ArrayList<String> updateIds = new ArrayList<>();
@@ -499,7 +502,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(8)
+  @Order(80)
   @EnabledIf("isEnabled")
   void writeManyFeatures() throws Exception {
     assertNotNull(storage);
@@ -557,7 +560,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(9)
+  @Order(90)
   @EnabledIf("isEnabled")
   void readFeatures() throws Exception {
     assertNotNull(session);
@@ -582,7 +585,7 @@ public class PsqlStorageTest {
   }
 
   @Test
-  @Order(10)
+  @Order(100)
   @EnabledIf("doUpdate")
   void updateManyFeatures() throws Exception {
     assertNotNull(storage);
@@ -628,27 +631,28 @@ public class PsqlStorageTest {
     System.out.flush();
   }
 
-  /*
   @Test
-  @Order(11)
+  @Order(110)
   @EnabledIf("isEnabled")
-  void listAllCollections() {
-  assertNotNull(storage);
-  assertNotNull(session);
-  final Iterator<@NotNull CollectionInfo> it = session.iterateCollections();
-  assertTrue(it.hasNext());
-  final CollectionInfo collection = it.next();
-  assertNotNull(collection);
-  assertEquals(COLLECTION_ID, collection.getId());
-  assertTrue(collection.getHistory());
-  assertEquals(Long.MAX_VALUE, collection.getMaxAge());
-  assertEquals(0L, collection.getDeletedAt());
-  assertFalse(it.hasNext());
+  void listAllCollections() throws SQLException {
+    assertNotNull(storage);
+    assertNotNull(session);
+    ReadCollections readCollections =
+        new ReadCollections().withReadDeleted(true).withIds(COLLECTION_ID);
+    XyzFeatureReadResult<StorageCollection> readResult =
+        (XyzFeatureReadResult<StorageCollection>) session.execute(readCollections);
+    assertTrue(readResult.hasNext());
+    final StorageCollection collection = readResult.next();
+    assertNotNull(collection);
+    assertEquals(COLLECTION_ID, collection.getId());
+    //    assertTrue(collection.getHistory());
+    assertEquals(Long.MAX_VALUE, collection.getMaxAge());
+    assertEquals(0L, collection.getDeletedAt());
+    assertFalse(readResult.hasNext());
   }
-  */
 
   @Test
-  @Order(12)
+  @Order(120)
   @EnabledIf("isEnabled")
   void dropFooCollection() {
     assertNotNull(storage);

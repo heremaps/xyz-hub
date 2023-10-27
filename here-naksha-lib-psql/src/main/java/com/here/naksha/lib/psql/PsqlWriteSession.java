@@ -45,6 +45,7 @@ public class PsqlWriteSession extends PsqlReadSession implements IWriteSession {
     return true;
   }
 
+  @SuppressWarnings({"rawtypes", "unchecked"})
   @Override
   public @NotNull Result execute(@NotNull WriteRequest writeRequest) {
     Result result = null;

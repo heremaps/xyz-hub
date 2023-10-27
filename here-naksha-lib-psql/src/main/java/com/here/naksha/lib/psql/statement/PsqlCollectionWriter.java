@@ -22,6 +22,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.util.json.Json;
 import java.sql.*;
@@ -37,28 +38,30 @@ public class PsqlCollectionWriter extends StatementCreator {
     super(connection, timeout);
   }
 
-  public @NotNull WriteResult writeCollections(@NotNull WriteCollections writeCollections) {
+  public <T extends NakshaFeature> @NotNull WriteResult<T> writeCollections(
+      @NotNull WriteCollections<T> writeCollections) {
     try (final PreparedStatement stmt =
         preparedStatement("SELECT * FROM naksha_write_collections(?::jsonb[],?);")) {
       stmt.setObject(1, toJsonb(writeCollections.queries));
       stmt.setBoolean(2, writeCollections.noResults);
       final ResultSet rs = stmt.executeQuery();
-      List<WriteOpResult<StorageCollection>> writeOps = toWriteOps(rs);
+      List<WriteOpResult<T>> writeOps = toWriteOps(rs);
       return new WriteResult(writeOps);
     } catch (final Throwable t) {
       throw unchecked(t);
     }
   }
 
-  private List<WriteOpResult<StorageCollection>> toWriteOps(ResultSet rs) throws SQLException {
-    List<WriteOpResult<StorageCollection>> operations = new LinkedList<>();
+  @SuppressWarnings("unchecked")
+  private <T extends NakshaFeature> List<WriteOpResult<T>> toWriteOps(ResultSet rs) throws SQLException {
+    List<WriteOpResult<T>> operations = new LinkedList<>();
     while (rs.next()) {
       String featureJson = rs.getString("r_feature");
       String operation = rs.getString("r_op");
       try (final Json json = Json.get()) {
         ObjectReader reader = json.reader();
-        operations.add(new WriteOpResult<>(
-            EExecutedOp.valueOf(operation), reader.readValue(featureJson, StorageCollection.class)));
+        T feature = (T) reader.readValue(featureJson, NakshaFeature.class);
+        operations.add(new WriteOpResult<>(EExecutedOp.valueOf(operation), feature));
       } catch (final Throwable t) {
         throw unchecked(t);
       }
