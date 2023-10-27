@@ -2293,7 +2293,7 @@ $BODY$;
 -- Start the transaction by setting the application-identifier, the current author (which may be null)
 -- and the returns the transaction number.
 -- See: https://www.postgresql.org/docs/current/runtime-config-query.html
-CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool) RETURNS text LANGUAGE 'plpgsql' VOLATILE AS $$
+CREATE OR REPLACE FUNCTION naksha_tx_start(app_id text, author text, create_tx bool) RETURNS uuid LANGUAGE 'plpgsql' VOLATILE AS $$
 BEGIN
     EXECUTE format('SELECT '
                        || 'SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', true)'
@@ -2311,7 +2311,7 @@ BEGIN
                        || ',SET_CONFIG(''naksha.author'', %L::text, true)' -- same as naksha_tx_set_author
         , app_id, author);
     IF create_tx THEN
-        RETURN naksha_txn();
+        RETURN naksha_tx_current();
     END IF;
     RETURN NULL;
 END
@@ -2673,7 +2673,7 @@ BEGIN
     --CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
     --CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
     --CREATE EXTENSION IF NOT EXISTS "hstore" SCHEMA public;
-    --CREATE EXTENSION IF NOT EXISTS pg_hint_plan SCHEMA public;
+    CREATE EXTENSION IF NOT EXISTS pg_hint_plan SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA public;
 
     IF __naksha_pg_version() < 14 THEN

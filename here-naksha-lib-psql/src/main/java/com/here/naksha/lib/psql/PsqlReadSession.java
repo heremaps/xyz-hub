@@ -28,7 +28,6 @@ import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.psql.statement.PsqlCollectionReader;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -43,7 +42,6 @@ public class PsqlReadSession implements IReadSession {
   PsqlReadSession(@NotNull PsqlStorage storage, @NotNull Connection connection) {
     this.storage = storage;
     this.connection = connection;
-    naksha_tx_start();
   }
 
   final @NotNull PsqlStorage storage;
@@ -102,23 +100,6 @@ public class PsqlReadSession implements IReadSession {
     try {
       connection.close();
     } catch (SQLException e) {
-      throw unchecked(e);
-    }
-  }
-
-  protected boolean naksha_tx_start_write() {
-    return false;
-  }
-
-  protected void naksha_tx_start() {
-    try (final PreparedStatement stmt = connection.prepareStatement("SELECT naksha_tx_start(?, ?, ?);")) {
-      // This guarantees, that the search-path is okay.
-      storage.dataSource.initConnection(connection, null);
-      stmt.setString(1, getNakshaContext().getAppId());
-      stmt.setString(2, getNakshaContext().getAuthor());
-      stmt.setBoolean(3, naksha_tx_start_write());
-      stmt.execute();
-    } catch (final Exception e) {
       throw unchecked(e);
     }
   }

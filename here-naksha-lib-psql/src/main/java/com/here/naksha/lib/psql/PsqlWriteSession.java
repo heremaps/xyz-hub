@@ -33,8 +33,11 @@ import org.jetbrains.annotations.NotNull;
 
 public class PsqlWriteSession extends PsqlReadSession implements IWriteSession {
 
+  private Long txn;
+
   PsqlWriteSession(@NotNull PsqlStorage storage, @NotNull Connection connection) {
     super(storage, connection);
+    nakshaTxStart();
   }
 
   @Override
@@ -77,7 +80,7 @@ public class PsqlWriteSession extends PsqlReadSession implements IWriteSession {
       throw unchecked(t);
     } finally {
       // start a new transaction, this ensures that the app_id and author are set.
-      naksha_tx_start();
+      nakshaTxStart();
     }
   }
 
@@ -89,12 +92,19 @@ public class PsqlWriteSession extends PsqlReadSession implements IWriteSession {
       currentLogger().atWarn("Automatic rollback failed").setCause(t).log();
     } finally {
       // start a new transaction, this ensures that the app_id and author are set.
-      naksha_tx_start();
+      nakshaTxStart();
     }
   }
 
-  @Override
-  protected boolean naksha_tx_start_write() {
-    return true;
+  protected void nakshaTxStart() {
+    if (isMasterConnect()) {
+      try (final PreparedStatement stmt = connection.prepareStatement("SELECT naksha_txn();")) {
+        ResultSet rs = stmt.executeQuery();
+        rs.next();
+        txn = rs.getLong(1);
+      } catch (final Exception e) {
+        throw unchecked(e);
+      }
+    }
   }
 }
