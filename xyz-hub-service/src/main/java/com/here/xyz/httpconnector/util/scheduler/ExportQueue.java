@@ -47,9 +47,7 @@ public class ExportQueue extends JobQueue {
 
     protected void process() throws InterruptedException, CannotDecodeException {
 
-        for (Job job : getQueue()) {
-            if (!(job instanceof Export || job instanceof CombinedJob))
-                return;
+        getQueue().stream().filter(job -> (job instanceof Export || job instanceof CombinedJob)).forEach(job -> {
 
             //Check Capacity
             ((Future<Job>) job.isProcessingPossible())
@@ -94,7 +92,7 @@ public class ExportQueue extends JobQueue {
                     return Future.succeededFuture();
                 })
                 .onFailure(e -> logError(e, job.getId()));
-            }
+            });
     }
 
     @Override
