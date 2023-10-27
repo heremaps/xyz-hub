@@ -22,6 +22,7 @@ package com.here.xyz.httpconnector.util.scheduler;
 import static com.here.xyz.httpconnector.util.jobs.Export.ERROR_DESCRIPTION_HTTP_TRIGGER_FAILED;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
 import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_FINALIZATION_FAILED;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.prepared;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.CombinedJob;
@@ -105,7 +106,10 @@ public class ExportQueue extends JobQueue {
 
     @Override
     protected void prepareJob(Job job) {
-        ((Export)job).checkPersistentExports();
+        if(job instanceof Export)
+            ((Export)job).checkPersistentExports();
+        else
+            updateJobStatus(job, prepared);
     }
 
     protected Future<String> postTrigger(Job job) {

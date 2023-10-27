@@ -368,7 +368,6 @@ public class JDBCClients {
                     }
                     else {
                         /** collect cloudwatch metrics for db */
-                        CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier);
                         rdsStatus.addCloudWatchDBWriterMetrics(CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier, AwsCWClient.Role.WRITER));
                         if(getDBSettings(connectorId).getReplicaHost() != null)
                             rdsStatus.addCloudWatchDBReaderMetrics(CService.jobCWClient.getAvg5MinRDSMetrics(dbClusterIdentifier, AwsCWClient.Role.READER));
