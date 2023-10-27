@@ -48,12 +48,13 @@ class NakshaHubTest {
 
   @BeforeAll
   static void prepare() {
-    String dbUrl = null; // System.getenv("TEST_NAKSHA_PSQL_URL");
+    String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
     if (password == null) password = "password";
     if (dbUrl == null)
       dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
           + "&schema=naksha_test_maint_hub";
+
     final PsqlConfig psqlCfg = new PsqlConfigBuilder()
         .withAppName(NakshaHubConfig.defaultAppName())
         .parseUrl(dbUrl)
@@ -84,16 +85,15 @@ class NakshaHubTest {
         fail("Exception reading storages " + er);
       } else if (result instanceof ReadResult<?> rr) {
         // Read all available storages (upto a max limit, e.g. 10)
-        final ReadResult<Storage> storageRR = rr.withFeatureType(Storage.class);
         final List<Storage> storages = new ArrayList<>();
         int cnt = 0;
-        while (storageRR.hasMore()) {
-          storages.add(storageRR.next());
+        for (final Storage storage : rr.withFeatureType(Storage.class)) {
+          storages.add(storage);
           if (++cnt >= 10) {
             break;
           }
         }
-        storageRR.close();
+        rr.close();
         // convert storage list to JSON string before comparison
         String storagesJson = null;
         try (final Json json = Json.get()) {

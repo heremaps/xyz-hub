@@ -80,7 +80,7 @@ public class NakshaHub implements INaksha {
     /**
      * 1. Init Admin Storage
      * 2. Create all Admin collections
-     * 3. run maintenance during to ensure history partitions are available
+     * 3. run maintenance during startup to ensure history partitions are available
      * 4. fetch / add latest config (ordered preference DB,Custom,Default)
      */
 
@@ -88,13 +88,13 @@ public class NakshaHub implements INaksha {
     getAdminStorage().initStorage();
 
     // 2. Create all Admin collections in Admin DB
-    try (final IWriteSession admin = getAdminStorage()
-        .newWriteSession(new NakshaContext().withAppId(NakshaHubConfig.defaultAppName()), true)) {
+    final NakshaContext nakshaContext = new NakshaContext().withAppId(NakshaHubConfig.defaultAppName());
+    nakshaContext.attachToCurrentThread();
+    try (final IWriteSession admin = getAdminStorage().newWriteSession(nakshaContext, true)) {
       final List<WriteOp<StorageCollection>> collectionList = new ArrayList<>();
       for (final String name : NakshaAdminCollection.ALL) {
         final StorageCollection collection = new StorageCollection(name);
-        final WriteOp<StorageCollection> writeOp = new WriteOp<>(
-            collection, null, name, null, false, IfExists.RETAIN, IfConflict.RETAIN, IfNotExists.CREATE);
+        final WriteOp<StorageCollection> writeOp = new WriteOp<>(EWriteOp.INSERT, collection, false);
         collectionList.add(writeOp);
       }
       final Result wrResult = admin.execute(new WriteCollections<>(collectionList));
@@ -114,8 +114,7 @@ public class NakshaHub implements INaksha {
 
     // TODO HP : This step to be removed later (once we have ability to add custom storages)
     // fetch / add default storage implementation
-    try (final IWriteSession admin = getAdminStorage()
-        .newWriteSession(new NakshaContext().withAppId(NakshaHubConfig.defaultAppName()), true)) {
+    try (final IWriteSession admin = getAdminStorage().newWriteSession(nakshaContext, true)) {
       Storage defStorage = null;
       try (final Json json = Json.get()) {
         final String storageJson = IoHelp.readResource("config/default-storage.json");
@@ -140,11 +139,13 @@ public class NakshaHub implements INaksha {
     } // close Admin DB connection
 
     // 4. fetch / add latest config
-    return configSetup(customCfg, configId);
+    return configSetup(nakshaContext, customCfg, configId);
   }
 
   private @Nullable NakshaHubConfig configSetup(
-      final @Nullable NakshaHubConfig customCfg, final @Nullable String configId) {
+      final @NotNull NakshaContext nakshaContext,
+      final @Nullable NakshaHubConfig customCfg,
+      final @Nullable String configId) {
     /*
      * Config preference, for a given configId (e.g. "custom-config"):
      * 1. Custom config - If provided, persist the same in DB, and use the same for NakshaHub
@@ -153,8 +154,7 @@ public class NakshaHub implements INaksha {
      * 3. Default config - Fallback to default config from file - "default-config"
      */
 
-    try (final IWriteSession admin = getAdminStorage()
-        .newWriteSession(new NakshaContext().withAppId(NakshaHubConfig.defaultAppName()), true)) {
+    try (final IWriteSession admin = getAdminStorage().newWriteSession(nakshaContext, true)) {
       if (customCfg != null) {
         // Custom config provided. Persist in AdminDB.
         final Result wrResult = admin.execute(createFeatureRequest(
@@ -179,8 +179,7 @@ public class NakshaHub implements INaksha {
         throw unchecked(new Exception(
             "Unable to read custom/default config from Admin DB. " + er.toString(), er.exception));
       } else if (rdResult instanceof ReadResult<?> rr) {
-        while (rr.hasMore()) {
-          final NakshaHubConfig cfg = rr.getFeature(NakshaHubConfig.class);
+        for (final NakshaHubConfig cfg : rr.withFeatureType(NakshaHubConfig.class)) {
           if (cfg.getId().equals(configId)) {
             customDbCfg = cfg;
           }

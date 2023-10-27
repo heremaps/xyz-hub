@@ -42,7 +42,7 @@ public class PsqlFeatureWriterMapper {
     ArrayList<String> operationsJson = new ArrayList<>(writeOpsReq.size());
 
     for (WriteOp<FEATURE> writeOp : writeOpsReq) {
-      FEATURE feature = writeOp.object;
+      FEATURE feature = writeOp.feature;
       final XyzGeometry nkGeometry = feature.getGeometry();
       feature.setGeometry(null);
       try (final Json json = Json.get()) {

@@ -58,7 +58,7 @@ public enum IfExists {
   PURGE,
 
   /**
-   * The existing state should be replaced with the given one in {@link WriteOp#object}.
+   * The existing state should be replaced with the given one in {@link WriteOp#feature}.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   REPLACE,

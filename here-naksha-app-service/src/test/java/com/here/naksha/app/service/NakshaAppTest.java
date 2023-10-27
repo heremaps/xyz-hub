@@ -50,12 +50,14 @@ class NakshaAppTest {
   // TODO HP : Re-enable after validating the NakshaHub module
   @BeforeAll
   static void prepare() throws Exception {
+    String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
     if (password == null) password = "password";
-    app = newInstance(
-        "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
-            + "&schema=naksha_test_maint_app",
-        "default-config"); // this string concat only happens once, its ok ;)
+    if (dbUrl == null)
+      dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
+          + "&schema=naksha_test_maint_app";
+
+    app = newInstance(dbUrl, "default-config");
     app.start();
     Thread.sleep(5000); // wait for server to come up
     // create standard Http client and request which will be used across tests

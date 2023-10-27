@@ -57,7 +57,7 @@ public enum IfConflict {
   PURGE,
 
   /**
-   * The existing state should be replaced with the given one in {@link WriteOp#object}, overriding foreign changes.
+   * The existing state should be replaced with the given one in {@link WriteOp#feature}, overriding foreign changes.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   REPLACE,
@@ -76,7 +76,7 @@ public enum IfConflict {
 
   /**
    * The changes should be merged on-top of the foreign changes, properties that conflict will be overridden with the value from
-   * {@link WriteOp#object} (foreign changes loose).
+   * {@link WriteOp#feature} (foreign changes loose).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   MERGE_OR_OVERRIDE,

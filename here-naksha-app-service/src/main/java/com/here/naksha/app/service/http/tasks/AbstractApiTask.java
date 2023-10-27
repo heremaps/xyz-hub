@@ -78,16 +78,15 @@ public abstract class AbstractApiTask<T extends XyzResponse>
       return verticle.sendErrorResponse(routingContext, er.reason, er.message);
     } else if (rdResult instanceof ReadResult<?> rr) {
       // In case of success, convert result to success XyzResponse
-      final ReadResult<R> featureRR = rr.withFeatureType(type);
       final List<R> features = new ArrayList<>();
       int cnt = 0;
-      while (featureRR.hasMore()) {
-        features.add(featureRR.next());
+      for (final R feature : rr.withFeatureType(type)) {
+        features.add(feature);
         if (++cnt >= 1000) {
           break; // TODO : can be improved later (perhaps by accepting limit as an input)
         }
       }
-      featureRR.close();
+      rr.close();
       final XyzFeatureCollection response = new XyzFeatureCollection().withFeatures(features);
       return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
     }

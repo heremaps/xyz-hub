@@ -33,41 +33,61 @@ import org.jetbrains.annotations.Nullable;
 public class WriteOp<T> {
 
   @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteOp(
-      @Nullable T object,
-      @Nullable Object patch,
-      @Nullable String id,
-      @Nullable String uuid,
-      boolean noResult,
-      @NotNull IfExists onExists,
-      @NotNull IfConflict onConflict,
-      @NotNull IfNotExists onNotExists) {
-    this.object = object;
-    this.patch = patch;
+  public WriteOp(@NotNull EWriteOp op, T feature, String id, String uuid, boolean noResult) {
+    // TODO: Verify the parameter combinations!
+    this.op = op;
+    this.feature = feature;
     this.id = id;
     this.uuid = uuid;
     this.noResult = noResult;
-    this.onExists = onExists;
-    this.onConflict = onConflict;
-    this.onNotExists = onNotExists;
   }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public WriteOp(@NotNull EWriteOp op, @NotNull T feature) {
+    // TODO: Verify the parameter combinations!
+    this.op = op;
+    this.feature = feature;
+    this.id = null;
+    this.uuid = null;
+    this.noResult = false;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public WriteOp(@NotNull EWriteOp op, @NotNull T feature, boolean noResult) {
+    // TODO: Verify the parameter combinations!
+    this.op = op;
+    this.feature = feature;
+    this.id = null;
+    this.uuid = null;
+    this.noResult = noResult;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public WriteOp(@NotNull EWriteOp op, @NotNull String id, @NotNull String uuid, boolean noResult) {
+    // TODO: Verify the parameter combinations!
+    this.op = op;
+    this.feature = null;
+    this.id = id;
+    this.uuid = uuid;
+    this.noResult = noResult;
+  }
+
+  /**
+   * The operation to perform.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public final @NotNull EWriteOp op;
 
   /**
    * The object to modify, if a full state of the object is available.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public final @Nullable T object;
-
-  /**
-   * The patch to apply.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public final @Nullable Object patch;
+  public final @Nullable T feature;
 
   /**
    * The feature identifier.
    *
-   * <b>Note</b>: This value is only used when {@link #object} is {@code null}, otherwise the {@code id} property of the object is used.
+   * <b>Note</b>: This value is only used when {@link #feature} is {@code null}, otherwise the {@code id} property of the object is used.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @Nullable String id;
@@ -76,7 +96,7 @@ public class WriteOp<T> {
    * The unique state identifier to expect when performing the action. If the object does not exist in exactly this state a conflict is
    * raised. If {@code null}, then the operation is not concurrency save.
    *
-   * <b>Note</b>: This value is only used when {@link #object} is {@code null}, otherwise the {@code properties->@ns:com:here:xyz->uuid} is
+   * <b>Note</b>: This value is only used when {@link #feature} is {@code null}, otherwise the {@code properties->@ns:com:here:xyz->uuid} is
    * used.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
@@ -89,24 +109,4 @@ public class WriteOp<T> {
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public final boolean noResult;
-
-  /**
-   * The action to be performed if the object does exist already, with either not state requirement given ({@link WriteOp#uuid} being
-   * {@code null}) or the state matches the required one.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public final @NotNull IfExists onExists;
-
-  /**
-   * The action to be performed if the object does exist already, but the state does not match the given (required) one
-   * ({@link WriteOp#uuid}).
-   */
-  public final @NotNull IfConflict onConflict;
-
-  /**
-   * The action to be performed if the object does not exist. This action is executed even when a specific state was required
-   * ({@link WriteOp#uuid}).
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public final @NotNull IfNotExists onNotExists;
 }

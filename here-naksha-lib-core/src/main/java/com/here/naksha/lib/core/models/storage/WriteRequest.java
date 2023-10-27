@@ -71,7 +71,7 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
    * @return this.
    */
   public final @NotNull SELF insert(@NotNull T object) {
-    queries.add(new WriteOp<>(object, null, null, null, false, IfExists.FAIL, IfConflict.FAIL, IfNotExists.CREATE));
+    queries.add(new WriteOp<>(EWriteOp.INSERT, object, false));
     return self();
   }
 
