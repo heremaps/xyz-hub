@@ -985,7 +985,7 @@ public class Export extends JDBCBasedJob<Export> {
             );
     }
 
-    private void addDownloadLinks(Job j) {
+    protected void addDownloadLinks(Job j) {
         //Add file statistics and downloadLinks
         Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
         ((Export) j).setExportObjects(exportObjects);
