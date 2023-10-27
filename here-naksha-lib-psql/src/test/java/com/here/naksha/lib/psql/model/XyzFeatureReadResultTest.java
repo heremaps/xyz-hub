@@ -131,7 +131,7 @@ public class XyzFeatureReadResultTest {
   }
 
   @Test
-  void shouldBeAbleToReadFeatureUsingDifferentTypeThanSpecifiedAtBegining() throws SQLException {
+  void shouldBeAbleToReadFeatureUsingDifferentTypeThanSpecifiedAtBeginning() throws SQLException {
     // given
     ResultSet rsMock = createResultSet(dbResult(SAMPLE_CATALOG_JSON));
 
@@ -185,15 +185,14 @@ public class XyzFeatureReadResultTest {
     ResultSet rs = mock(ResultSet.class);
     Boolean isEmpty = results.length == 0;
 
-    Boolean[] falseArrEndedWithTrue = new Boolean[results.length];
-    Arrays.fill(falseArrEndedWithTrue, false);
+    Boolean[] trueArrEndedWithFalse = new Boolean[results.length];
+    Arrays.fill(trueArrEndedWithFalse, true);
     if (!isEmpty) {
-      falseArrEndedWithTrue[falseArrEndedWithTrue.length - 1] = true;
+      trueArrEndedWithFalse[trueArrEndedWithFalse.length - 1] = false;
     }
 
-    when(rs.next()).thenReturn(!isEmpty);
-    when(rs.isAfterLast()).thenReturn(isEmpty, falseArrEndedWithTrue);
-    when(rs.isClosed()).thenReturn(isEmpty);
+    when(rs.next()).thenReturn(!isEmpty, trueArrEndedWithFalse);
+    when(rs.isClosed()).thenReturn(false);
 
     if (!isEmpty) {
       when(rs.getString("jsondata"))

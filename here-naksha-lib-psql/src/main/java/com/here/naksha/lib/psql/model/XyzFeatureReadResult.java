@@ -38,6 +38,7 @@ public class XyzFeatureReadResult<BASIC_FEATURE_TYPE extends XyzFeature> extends
 
   private static final Logger log = LoggerFactory.getLogger(XyzFeatureReadResult.class);
 
+  private boolean hasNext = true;
   private final ResultSet rs;
   private String jsonData;
   private String propertiesType;
@@ -46,12 +47,13 @@ public class XyzFeatureReadResult<BASIC_FEATURE_TYPE extends XyzFeature> extends
   public XyzFeatureReadResult(@NotNull ResultSet resultSet, @NotNull Class<BASIC_FEATURE_TYPE> featureType) {
     super(featureType);
     this.rs = resultSet;
+    movePointerToNext();
   }
 
   @Override
   public boolean hasNext() {
     try {
-      return !(rs.isAfterLast() || rs.isClosed());
+      return hasNext && !rs.isClosed();
     } catch (SQLException e) {
       log.atWarn()
           .setMessage("Unexpected exception while checking if next row is available")
@@ -66,7 +68,7 @@ public class XyzFeatureReadResult<BASIC_FEATURE_TYPE extends XyzFeature> extends
     jsonData = null;
     feature = null;
     try {
-      if (rs.next()) {
+      if (hasNext()) {
         try {
           final String jdata = rs.getString("jsondata");
           final String ptype = rs.getString("ptype");
@@ -74,8 +76,10 @@ public class XyzFeatureReadResult<BASIC_FEATURE_TYPE extends XyzFeature> extends
             this.jsonData = jdata;
             this.propertiesType = ptype;
           } else {
+            hasNext = false;
             return false;
           }
+          movePointerToNext();
           return true;
         } catch (Throwable t) {
           log.atWarn()
@@ -167,5 +171,19 @@ public class XyzFeatureReadResult<BASIC_FEATURE_TYPE extends XyzFeature> extends
   @Override
   protected void onFeatureTypeChange() {
     feature = null;
+  }
+
+  private void movePointerToNext() {
+    try {
+      if (hasNext) {
+        this.hasNext = rs.next();
+      }
+    } catch (SQLException e) {
+      log.atWarn()
+          .setMessage("Unexpected exception while checking if next row is available")
+          .setCause(e)
+          .log();
+      unchecked(e);
+    }
   }
 }

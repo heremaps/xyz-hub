@@ -31,7 +31,6 @@ import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.util.Hex;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.psql.model.XyzFeatureReadResult;
-
 import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -41,7 +40,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.*;
@@ -57,7 +55,7 @@ public class PsqlStorageTest {
    */
   @SuppressWarnings("unused")
   public static final String TEST_ADMIN_DB = (System.getenv("TEST_ADMIN_DB") != null
-      && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length())
+          && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length())
       ? System.getenv("TEST_ADMIN_DB")
       : null;
 
@@ -106,11 +104,10 @@ public class PsqlStorageTest {
    */
   public static final boolean DO_UPDATE = true;
 
-  record UpdateKey(String key, String[] values) {
-  }
+  record UpdateKey(String key, String[] values) {}
 
-  public static final UpdateKey[] UPDATE_KEYS = new UpdateKey[]{
-      new UpdateKey("name", new String[]{null, "Michael Schmidt", "Thomas Bar", "Alexander Foo"})
+  public static final UpdateKey[] UPDATE_KEYS = new UpdateKey[] {
+    new UpdateKey("name", new String[] {null, "Michael Schmidt", "Thomas Bar", "Alexander Foo"})
   };
 
   /**
@@ -313,7 +310,7 @@ public class PsqlStorageTest {
         final ThreadLocalRandom rand = ThreadLocalRandom.current();
         assertNotNull(storage);
         try (final var tx =
-                 storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
+            storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
 
           final List<NakshaFeature> featuresToWrite = new ArrayList<>(MANY_FEATURES_COUNT);
           for (int i = 0; i < MANY_FEATURES_COUNT; i++) {
@@ -392,7 +389,7 @@ public class PsqlStorageTest {
         assertNotNull(featuresById);
         assertEquals(MANY_FEATURES_COUNT, featuresById.size());
         try (final var tx =
-                 storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
+            storage.openMasterTransaction(storage.createSettings().withAppId("naksha_test"))) {
           final List<NakshaFeature> featuresToUpdate = new ArrayList<>(MANY_FEATURES_COUNT);
 
           final ArrayList<String> updateIds = new ArrayList<>();
