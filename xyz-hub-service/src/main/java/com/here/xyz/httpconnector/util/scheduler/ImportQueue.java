@@ -41,31 +41,19 @@ public class ImportQueue extends JobQueue {
 
     protected void process() throws InterruptedException, CannotDecodeException {
 
-        for (Job job : getQueue()){
-            if (!(job instanceof Import))
-                return;
-
+        getQueue().stream().filter(job -> job instanceof Import).forEach( job -> {
             ((Future<Job>) job.isProcessingPossible())
                     .compose(j -> loadCurrentConfig(job))
-                    .compose(currentJobConfig -> {
+                    .compose(currentJob -> {
                         /**
                          * Job-Life-Cycle:
                          * waiting -> (validating) -> validated ->  queued -> (preparing) -> prepared -> (executing) -> executed -> (finalizing) -> finalized
                          * all stages can end up in failed
                          **/
 
-                        if(currentJobConfig == null)
-                            return Future.succeededFuture();
-
-                        switch (currentJobConfig.getStatus()){
-                            case finalized:
-                                logger.info("job[{}] is finalized!", currentJobConfig.getId());
-                                break;
-                            case failed:
-                                logger.info("job[{}] has failed!", currentJobConfig.getId());
-                                break;
+                        switch (currentJob.getStatus()){
                             case waiting:
-                                updateJobStatus(currentJobConfig,Job.Status.validating)
+                                updateJobStatus(currentJob,Job.Status.validating)
                                         .compose(j -> {
                                             Import validatedJob = validateJob(j);
                                             //Set status of validation
@@ -74,10 +62,10 @@ public class ImportQueue extends JobQueue {
                                 break;
                             case validated:
                                 //Reflect that the Job is loaded into job-queue
-                                updateJobStatus(currentJobConfig,Job.Status.queued);
+                                updateJobStatus(currentJob,Job.Status.queued);
                                 break;
                             case queued:
-                                updateJobStatus(currentJobConfig, Job.Status.preparing)
+                                updateJobStatus(currentJob, Job.Status.preparing)
                                         .onSuccess(j ->
                                                  addReadOnlyLockToSpace(j)
                                                         .onSuccess(f2 -> prepareJob(j))
@@ -85,11 +73,11 @@ public class ImportQueue extends JobQueue {
                                         );
                                 break;
                             case prepared:
-                                updateJobStatus(currentJobConfig,Job.Status.executing)
+                                updateJobStatus(currentJob,Job.Status.executing)
                                         .onSuccess(j -> j.execute());
                                 break;
                             case executed:
-                                updateJobStatus(currentJobConfig,Job.Status.finalizing)
+                                updateJobStatus(currentJob,Job.Status.finalizing)
                                         .onSuccess(j -> j.finalizeJob());
                                 break;
                         }
@@ -97,7 +85,7 @@ public class ImportQueue extends JobQueue {
                         return Future.succeededFuture();
                     })
                     .onFailure(e -> logError(e, job.getId()));
-        }
+        });
     }
 
     @Override
@@ -119,7 +107,6 @@ public class ImportQueue extends JobQueue {
                         if (((PgException) f).getCode().equalsIgnoreCase("42P01")) {
                             logger.info("job[{}] TargetTable '{}' does not exist!", j.getId(), j.getTargetTable());
                             setJobFailed(j, Import.ERROR_DESCRIPTION_TARGET_TABLE_DOES_NOT_EXISTS, Job.ERROR_TYPE_PREPARATION_FAILED);
-                            return;
                         }
                     }else if (f.getMessage() != null && f.getMessage().equalsIgnoreCase("SequenceNot0"))
                         setJobFailed(j, Import.ERROR_DESCRIPTION_SEQUENCE_NOT_0, Job.ERROR_TYPE_PREPARATION_FAILED);
