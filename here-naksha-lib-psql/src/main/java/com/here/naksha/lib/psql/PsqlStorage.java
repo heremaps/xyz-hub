@@ -23,6 +23,7 @@ import static com.here.naksha.lib.core.util.IoHelp.readResource;
 import static com.here.naksha.lib.psql.SQL.quote_ident;
 import static com.here.naksha.lib.psql.SQL.shouldEscape;
 
+import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.naksha.Storage;
@@ -58,10 +59,28 @@ public final class PsqlStorage implements IStorage {
    * @throws IOException  if reading the SQL extensions from the resources fail.
    */
   public PsqlStorage(@NotNull Storage storage) throws SQLException, IOException {
+    this.dataSource = dataSourceFromStorage(storage);
+    this.storageId = storage.getId();
+  }
+
+  private @NotNull PsqlDataSource dataSourceFromStorage(final @NotNull Storage storage) {
     final PsqlStorageProperties properties =
         JsonSerializable.convert(storage.getProperties(), PsqlStorageProperties.class);
-    this.dataSource = new PsqlDataSource(properties.getConfig());
-    this.storageId = storage.getId();
+    PsqlDataSource ds = null;
+    if (properties.getDbConfig() != null) {
+      ds = new PsqlDataSource(properties.getDbConfig());
+    } else if (properties.getUrl() != null) {
+      final PsqlConfig psqlConfig = new PsqlConfigBuilder()
+          .withAppName("naksha")
+          .parseUrl(properties.getUrl())
+          .withDefaultSchema(NakshaAdminCollection.SCHEMA)
+          .build();
+      ds = new PsqlDataSource(psqlConfig);
+    } else {
+      throw new UnsupportedOperationException(
+          "Psql DB configuration not available for storage id " + storage.getId());
+    }
+    return ds;
   }
 
   /**
