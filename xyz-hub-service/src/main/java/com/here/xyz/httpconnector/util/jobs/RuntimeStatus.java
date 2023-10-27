@@ -11,6 +11,8 @@ public class RuntimeStatus {
 
   private long startedAt;
 
+  private State state;
+
   public float getEstimatedProgress() {
     return 0.5f; //TODO: Deduct from statistics, start time & e.g. estimated row count
   }
@@ -58,9 +60,36 @@ public class RuntimeStatus {
     this.startedAt = startedAt;
   }
 
+  public State getState() {
+    return state;
+  }
+
+  public void setState(State state) {
+    this.state = state;
+  }
+
+  public RuntimeStatus withState(State state) {
+    setState(state);
+    return this;
+  }
+
   public enum Action {
     START,
-    ABORT,
+    /*PAUSE,*/
+    CANCEL,
     RESUME
+  }
+
+  public enum State {
+    NOT_READY,
+    SUBMITTED,
+    PENDING,
+    RESUMING,
+    RUNNING,
+    /*PAUSED,*/
+    CANCELLING,
+    CANCELLED,
+    FAILED,
+    SUCCEEDED
   }
 }

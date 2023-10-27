@@ -2,7 +2,7 @@ package com.here.xyz.httpconnector.util.jobs.datasets;
 
 public class Files<T extends Files> extends DatasetDescription implements FileBasedTarget<T> {
 
-  FileBasedOutputSettings outputSettings;
+  FileBasedOutputSettings outputSettings = new FileBasedOutputSettings();
 
   public FileBasedOutputSettings getOutputSettings() {
     return outputSettings;

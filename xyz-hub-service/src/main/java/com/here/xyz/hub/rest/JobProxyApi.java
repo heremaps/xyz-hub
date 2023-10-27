@@ -74,51 +74,8 @@ public class JobProxyApi extends Api{
                                     if (job instanceof Import && headSpace.getVersionsToKeep() > 1)
                                         return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
 
-                                    return Future.succeededFuture(headSpace);
-                                })
-                                .compose(headSpace -> {
                                     job.setTargetSpaceId(spaceId);
-                                    job.setTargetConnector(headSpace.getStorage().getId());
-                                    job.addParam("versionsToKeep",headSpace.getVersionsToKeep());
-                                    job.addParam("persistExport", headSpace.isPersistExport());
-
-                                    Promise<Map> p = Promise.promise();
-
-                                    if (headSpace.getExtension() != null) {
-                                        /** Resolve Extension */
-                                        Service.spaceConfigClient.get(Api.Context.getMarker(context), headSpace.getExtension().getSpaceId())
-                                                .onSuccess(baseSpace -> {
-                                                    p.complete(headSpace.resolveCompositeParams(baseSpace));
-                                                })
-                                                .onFailure(e -> p.fail(e));
-                                    }else
-                                        p.complete(null);
-                                    return p.future();
-                                })
-                                .compose(extension -> {
-                                    Promise<Map> p = Promise.promise();
-                                    if (extension != null && extension.get("extends") != null  && ((Map)extension.get("extends")).get("extends") != null) {
-                                        /** Resolve 2nd Level Extension */
-                                        Service.spaceConfigClient.get(Api.Context.getMarker(context), (String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
-                                                .onSuccess(baseSpace -> {
-                                                    /** Add persistExport flag to Parameters */
-                                                    Map<String, Object> ext = new HashMap<>();
-                                                    ext.putAll(extension);
-                                                    ((Map)((Map)ext.get("extends")).get("extends")).put("persistExport", baseSpace.isPersistExport());
-
-                                                    p.complete(ext);
-                                                })
-                                                .onFailure(e -> p.fail(e));
-                                    }else
-                                        p.complete(extension);
-                                    return p.future();
-                                })
-                                .compose(extension -> {
-                                    if(extension != null) {
-                                        /** Add extends to jobConfig params  */
-                                        job.addParam("extends",extension.get("extends"));
-                                    }
-                                    return Future.succeededFuture();
+                                    return Future.succeededFuture(headSpace);
                                 })
                                 .onSuccess(f -> {
                                     Future.succeededFuture(Service.webClient

@@ -257,7 +257,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         }
     }
 
-    protected static Job getJob(String spaceId, String jobId) {
+    protected static Job loadJob(String spaceId, String jobId) {
         /** Get all jobs */
         Response response = given()
                 .accept(APPLICATION_JSON)
@@ -268,9 +268,11 @@ public class JobApiIT extends TestSpaceWithFeature {
         assertEquals(OK.code(),response.getStatusCode());
         String body = response.getBody().asString();
         try {
+            //TODO: Use XyzSerializable here!!
             Job job = DatabindCodec.mapper().readValue(body, new TypeReference<Job>() {});
             return job;
-        }catch (Exception e){
+        }
+        catch (Exception e) {
             return null;
         }
     }
@@ -290,7 +292,7 @@ public class JobApiIT extends TestSpaceWithFeature {
                 OR
              failed
             */
-            job = getJob(spaceId, jobId);
+            job = loadJob(spaceId, jobId);
             status = job.getStatus();
             assertNotEquals(status, failStatus);
 
@@ -312,7 +314,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         Job job = null;
 
         while(!status.equals(Job.Status.executing)){
-            job = getJob(spaceId, jobId);
+            job = loadJob(spaceId, jobId);
             status = job.getStatus();
             System.out.println("Current Status of Job["+jobId+"]: "+status);
             Thread.sleep(150);
@@ -321,7 +323,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         abortJob(job, spaceId);
 
         while(!status.equals(Job.Status.failed)){
-            job = getJob(spaceId, jobId);
+            job = loadJob(spaceId, jobId);
             status = job.getStatus();
             System.out.println("Current Status of Job["+jobId+"]: "+status);
             Thread.sleep(150);
@@ -461,18 +463,18 @@ public class JobApiIT extends TestSpaceWithFeature {
 
         //Poll status
         pollStatus(spaceId, job.getId(), expectedStatus, failStatus);
-        job = (Export) getJob(spaceId, job.getId());
+        Export responseJob = (Export) loadJob(spaceId, job.getId());
 
         List<URL> urlList = new ArrayList<>();
-        if (job.getExportObjects() != null) {
-            for (String key : job.getExportObjects().keySet()) {
-                urlList.add(job.getExportObjects().get(key).getDownloadUrl());
+        if (responseJob.getExportObjects() != null) {
+            for (String key : responseJob.getExportObjects().keySet()) {
+                urlList.add(responseJob.getExportObjects().get(key).getDownloadUrl());
             }
         }
 
-        if(job.getSuperExportObjects() != null) {
-            for (String key : job.getSuperExportObjects().keySet()) {
-                urlList.add(job.getSuperExportObjects().get(key).getDownloadUrl());
+        if(responseJob.getSuperExportObjects() != null) {
+            for (String key : responseJob.getSuperExportObjects().keySet()) {
+                urlList.add(responseJob.getSuperExportObjects().get(key).getDownloadUrl());
             }
         }
         return urlList;

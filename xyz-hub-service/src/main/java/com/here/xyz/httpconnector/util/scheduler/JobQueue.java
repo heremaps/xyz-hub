@@ -20,6 +20,7 @@ package com.here.xyz.httpconnector.util.scheduler;
 
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
@@ -154,6 +155,11 @@ public abstract class JobQueue implements Runnable {
     }
 
     protected static Future<Job> updateJobStatus(Job job, Job.Status status, String errorDescription, String errorType) {
+        if(hasJob(job) == null) {
+            logger.warn("[{}] Job is already removed from queue, dont update status {}!", job.getId(), job.getStatus());
+            return Future.failedFuture("Job " + job.getId() + " is not in queue anymore!");
+        }
+
         if (status != null)
             job.setStatus(status);
         if (errorType != null)
@@ -162,7 +168,7 @@ public abstract class JobQueue implements Runnable {
             job.setErrorDescription(errorDescription);
 
         //All end-states
-        if (status == failed || status == finalized) {
+        if (status.equals(failed) || status.equals(finalized) || status.equals(aborted)) {
             //FIXME: Shouldn't that be done also for status == aborted? If yes, we can simply use status.isFinal()
             if (job instanceof Import)
                 releaseReadOnlyLockFromSpace(job)

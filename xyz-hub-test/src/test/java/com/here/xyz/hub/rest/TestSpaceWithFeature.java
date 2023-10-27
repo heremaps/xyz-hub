@@ -40,6 +40,7 @@ import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -352,8 +353,22 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
   }
 
   protected void getFeature(String spaceId, String featureId, Integer statusCode, String path, String value) {
-    ValidatableResponse response = getFeature(spaceId, featureId);
+    validateGetFeatureResponse(statusCode, path, value, getFeature(spaceId, featureId));
+  }
 
+  protected void getFeature(String spaceId, String featureId, long version, int statusCode) {
+    getFeature(spaceId, featureId, version, null, statusCode);
+  }
+
+  protected void getFeature(String spaceId, String featureId, String context, int statusCode) {
+    getFeature(spaceId, featureId, -1, context, statusCode);
+  }
+
+  protected void getFeature(String spaceId, String featureId, long version, String context, int statusCode) {
+    validateGetFeatureResponse(statusCode, null, null, getFeature(spaceId, featureId, version, context));
+  }
+
+  private static void validateGetFeatureResponse(Integer statusCode, String path, String value, ValidatableResponse response) {
     if (statusCode != null)
       response.statusCode(statusCode);
 
@@ -365,19 +380,46 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     return getFeature(spaceId, featureId, -1);
   }
 
+  private String queryStringFromMap(Map<String, Object> queryParams) {
+    List<String> queryStringParts = queryParams.entrySet()
+        .stream()
+        .filter(entry -> entry.getValue() != null)
+        .map(entry -> entry.getKey() + "=" + entry.getValue())
+        .collect(Collectors.toList());
+    if (queryStringParts.isEmpty())
+      return "";
+    return "?" + String.join("&", queryStringParts);
+  }
+
   protected ValidatableResponse getFeature(String spaceId, String featureId, long version) {
+    return getFeature(spaceId, featureId, version, null);
+  }
+
+  protected ValidatableResponse getFeature(String spaceId, String featureId, String context) {
+    return getFeature(spaceId, featureId, -1, context);
+  }
+
+  protected ValidatableResponse getFeature(String spaceId, String featureId, long version, String context) {
+    Map<String, Object> queryParams = new HashMap<>() {{
+      put("version", version != -1 ? version : null);
+      put("context", context);
+    }};
     return given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .get("/spaces/" + spaceId + "/features/" + featureId + (version != -1 ? "?version=" + version : ""))
+        .get("/spaces/" + spaceId + "/features/" + featureId + queryStringFromMap(queryParams))
         .then();
   }
 
   protected void deleteFeature(String spaceId, String featureId) {
+    deleteFeature(spaceId, featureId, null);
+  }
+
+  protected void deleteFeature(String spaceId, String featureId, String context) {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/" + spaceId + "/features/" + featureId)
+        .delete("/spaces/" + spaceId + "/features/" + featureId + (context != null ? "?context=" + context : ""))
         .then()
         .statusCode(NO_CONTENT.code());
   }
@@ -413,7 +455,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .post(getSpacesPath() + "/"+ spaceId +"/features");
   }
 
-  protected static void modifyComposite(String spaceId, String newExtendingId) {
+  protected static void makeComposite(String spaceId, String newExtendingId) {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))

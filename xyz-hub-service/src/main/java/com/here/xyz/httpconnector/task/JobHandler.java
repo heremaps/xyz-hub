@@ -78,8 +78,8 @@ public class JobHandler {
                     return Future.failedFuture(new HttpException(BAD_REQUEST, "Job with id '" + job.getId() + "' already exists!"));
                 else
                   return job.init()
-                      .compose(j -> job.validate())
-                      .compose(j -> CService.jobConfigClient.store(marker, job));
+                          .compose(j -> job.validate())
+                          .compose(j3 -> CService.jobConfigClient.store(marker, job));
             });
     }
 
