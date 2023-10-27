@@ -245,8 +245,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     @Override
     protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
-        if (!isUpdate && this.expiration != null)
+        //if exp is set we take it
+        if (!isUpdate && this.expiration != null && job.getExp() == null) {
             job.setExp(System.currentTimeMillis() / 1000L + expiration * 24 * 60 * 60);
+        }
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 

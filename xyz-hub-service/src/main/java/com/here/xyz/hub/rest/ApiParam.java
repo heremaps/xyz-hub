@@ -656,21 +656,6 @@ public class ApiParam {
       return ContextAwareEvent.SpaceContext.of(Query.getString(context, CONTEXT, DEFAULT.toString()).toUpperCase());
     }
 
-    public enum Incremental {
-      DEACTIVATED, FULL, CHANGES;
-
-      public static Incremental of(String value) {
-        if (value == null) {
-          return null;
-        }
-        try {
-          return valueOf(value);
-        } catch (IllegalArgumentException e) {
-          return null;
-        }
-      }
-    }
-
     public static Integer getRadius(RoutingContext context) {
       return getInteger(context, RADIUS, 0);
     }

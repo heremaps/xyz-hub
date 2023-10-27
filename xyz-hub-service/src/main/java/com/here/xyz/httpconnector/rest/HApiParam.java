@@ -39,9 +39,9 @@ public class HApiParam extends ApiParam {
     public static class HQuery extends Query{
         static final String TARGET_SPACEID = "targetSpaceId";
         public static final String FORCE = "force";
+        public static final String DELETE_DATA = "deleteData";
         public static final String H_COMMAND = "command";
         public static final String URL_COUNT = "urlCount";
-        public static final String INCREMENTAL = "incremental";
 
         public enum Command {
             START,RETRY,ABORT,CREATEUPLOADURL;
@@ -116,25 +116,6 @@ public class HApiParam extends ApiParam {
             catch (DecodeException e) {
                 throw new HttpException(BAD_REQUEST, e.getMessage(), e);
             }
-        }
-
-        protected static String[] parseMainParams(RoutingContext context) {
-            String connectorId = Query.getString(context, "connectorId", null);
-            addStreamInfo(context, "SID", connectorId);
-
-            return new String[]{
-                    connectorId,
-                    Query.getString(context, "ecps", null),
-                    Query.getString(context, "passphrase", CService.configuration.ECPS_PHRASE)
-            };
-        }
-
-        protected static void addStreamInfo(final RoutingContext context, String key, Object value){
-            context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>(){{put(key, value);}});
-        }
-
-        public static Incremental getIncremental(RoutingContext context){
-            return Incremental.of(Query.getString(context, INCREMENTAL, Incremental.DEACTIVATED.toString()).toUpperCase());
         }
     }
 }

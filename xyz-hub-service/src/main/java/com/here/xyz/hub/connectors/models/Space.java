@@ -91,10 +91,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   private String region;
 
-  @Deprecated
-  //TODO: Remove this once Job-API was fixed to configure that on job-level
-  private boolean persistExport;
-
   public static Future<Space> resolveSpace(Marker marker, String spaceId) {
     return Service.spaceConfigClient.get(marker, spaceId);
   }
@@ -141,8 +137,8 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
     final Map<String, Object> extendsMap = getExtension().toMap();
 
     //TODO: Remove this once Job-API was fixed to configure that on job-level
-    if (extendedSpace.isPersistExport())
-      extendsMap.put("persistExport", true);
+    if (extendedSpace != null && extendedSpace.isReadOnly())
+      extendsMap.put("readOnly", true);
 
     //Check if the extended space itself is extending some other space (2-level extension)
     if (extendedSpace != null && extendedSpace.getExtension() != null)
@@ -295,25 +291,6 @@ public class Space extends com.here.xyz.models.hub.Space implements Cloneable {
 
   public Space withRegion(String region) {
     setRegion(region);
-    return this;
-  }
-
-  @Deprecated
-  //TODO: Remove this once Job-API was fixed to configure that on job-level
-  public boolean isPersistExport() {
-    return persistExport;
-  }
-
-  @Deprecated
-  //TODO: Remove this once Job-API was fixed to configure that on job-level
-  public void setPersistExport(boolean persistExport) {
-    this.persistExport = persistExport;
-  }
-
-  @Deprecated
-  //TODO: Remove this once Job-API was fixed to configure that on job-level
-  public Space withPersistExport(boolean persistExport) {
-    setPersistExport(persistExport);
     return this;
   }
 

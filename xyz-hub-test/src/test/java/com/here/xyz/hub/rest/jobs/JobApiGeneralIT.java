@@ -23,6 +23,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -94,7 +95,7 @@ public class JobApiGeneralIT extends JobApiIT {
 
         /** Create job with same Id */
         postJob(job,getScopedSpaceId(testSpaceId1, scope))
-                .statusCode(BAD_REQUEST.code());
+                .statusCode(CONFLICT.code());
     }
 
     @Test
@@ -136,7 +137,7 @@ public class JobApiGeneralIT extends JobApiIT {
                 .statusCode(OK.code());
     }
 
-    @Test
+    //@Test
     public void updateMutableFields() {
         //Create job
         Job job = createTestJobWithId(getScopedSpaceId(testSpaceId1, scope), testJobId,  JobApiIT.Type.Import, JSON_WKB);

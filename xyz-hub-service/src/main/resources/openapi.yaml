@@ -1191,6 +1191,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
   '/spaces/{spaceId}/jobs':
     post:
       tags:
@@ -1281,7 +1283,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/Force'
+        - $ref: '#/components/parameters/DeleteData'
       responses:
         '200':
           $ref: '#/components/responses/JobResponse'
@@ -1303,8 +1305,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Incremental'
         - $ref: '#/components/parameters/Command'
         - $ref: '#/components/parameters/UrlCount'
       responses:
@@ -2073,26 +2073,11 @@ components:
         default: 1
         minimum: 1
         maximum: 1000
-    Incremental:
-      name: incremental
+    DeleteData:
+      name: deleteData
       in: query
       description: >-
-        Available for composite spaces where the super space has a "persistExport" configuration.
-        Full: reuse existing super export and add changed tiles of composite compound on top.
-        Changes: changed tiles of composite compound.
-      required: false
-      schema:
-        type: string
-        enum:
-          - deactivated
-          - full
-          - changes
-        default: deactivated
-    Force:
-      name: force
-      in: query
-      description: >-
-        With force also persistent job data gets deleted.
+        By setting deleteData=true also immediate deletion of import and export files is getting performed.
       required: false
       schema:
         type: boolean

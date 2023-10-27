@@ -55,7 +55,7 @@ public abstract class JobQueue implements Runnable {
 
 
 
-    protected Future<Job> loadCurrentConfig(Job job) {
+    protected synchronized Future<Job> loadCurrentConfig(Job job) {
         return CService.jobConfigClient.get(null, job.getId())
             .compose(currentJobConfig -> {
                 if (currentJobConfig == null) {
@@ -76,7 +76,7 @@ public abstract class JobQueue implements Runnable {
             logger.warn("job[{}] ", jobId, e);
     }
 
-    public static Job hasJob(Job job) {
+    public synchronized static Job hasJob(Job job) {
         return JOB_QUEUE.stream()
                 .filter(j -> j.getId().equalsIgnoreCase(job.getId()))
                 .findAny()
@@ -109,7 +109,7 @@ public abstract class JobQueue implements Runnable {
 
     public synchronized static void abortAllJobs() {
         for (Job job :JobQueue.getQueue()) {
-            setJobFailed(job , Job.ERROR_TYPE_FAILED_DUE_RESTART , null);
+            setJobFailed(job, null, Job.ERROR_TYPE_FAILED_DUE_RESTART);
         }
     }
 
@@ -125,7 +125,7 @@ public abstract class JobQueue implements Runnable {
         return null;
     }
 
-    public static ArrayList<Job> getQueue() {
+    public synchronized static ArrayList<Job> getQueue() {
         return JOB_QUEUE;
     }
 
@@ -137,12 +137,17 @@ public abstract class JobQueue implements Runnable {
         return JOB_QUEUE.size();
     }
 
-    public static Future<Job> setJobFailed(Job j, String errorDescription, String errorType){
-        return updateJobStatus(j, failed, errorDescription, errorType);
+    public static Future<Job> setJobFailed(Job job, String errorDescription){
+        System.out.println("job["+job.getId()+"] has failed!");
+        return updateJobStatus(job, failed, errorDescription, null);
+    }
+
+    public static Future<Job> setJobFailed(Job job, String errorDescription, String errorType){
+        logger.info("job[{}] has failed!", job.getId());
+        return updateJobStatus(job, failed, errorDescription, errorType);
     }
 
     public static Future<Job> setJobAborted(Job j) {
-        removeJob(j);
         return updateJobStatus(j, Job.Status.aborted);
     }
 
@@ -170,12 +175,13 @@ public abstract class JobQueue implements Runnable {
         //All end-states
         if (status.equals(failed) || status.equals(finalized) || status.equals(aborted)) {
             //FIXME: Shouldn't that be done also for status == aborted? If yes, we can simply use status.isFinal()
-            if (job instanceof Import)
+            if (job instanceof Import) {
                 releaseReadOnlyLockFromSpace(job)
-                    .onFailure(f -> {
-                        //Currently we are only logging this issue
-                        logger.warn("[{}] READONLY_RELEASE_FAILED!", job.getId());
-                    });
+                        .onFailure(f -> {
+                            //Currently we are only logging this issue
+                            logger.warn("[{}] READONLY_RELEASE_FAILED!", job.getId());
+                        });
+            }
             //Remove job from queue
             removeJob(job);
         }
