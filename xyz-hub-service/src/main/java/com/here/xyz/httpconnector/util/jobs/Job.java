@@ -47,11 +47,10 @@ import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import io.vertx.core.Promise;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -309,7 +308,7 @@ public abstract class Job<T extends Job> extends Payload {
                                     /** Add persistExport flag to Parameters */
                                     Map<String, Object> ext = new HashMap<>();
                                     ext.putAll(extension);
-                                    ((Map)((Map)ext.get("extends")).get("extends")).put("readOnly", baseSpace.isReadOnly());
+                                    ((Map) ((Map) ext.get("extends")).get("extends")).put("readOnly", baseSpace.isReadOnly());
                                     p.complete(ext);
                                 })
                                 .onFailure(e -> p.fail(e));
@@ -354,9 +353,7 @@ public abstract class Job<T extends Job> extends Payload {
 
     @JsonIgnore
     public boolean isValidForDelete() {
-        if(getStatus().isFinal() || getStatus().equals(waiting))
-            return true;
-        return false;
+        return getStatus().isFinal() || getStatus() == waiting;
     }
 
 

@@ -120,7 +120,7 @@ public class JobApi extends Api {
 
     JobHandler.executeCommand(jobId, command, urlCount, Api.Context.getMarker(context))
             .onFailure(t -> {
-              logger.info(Api.Context.getMarker(context),"[{}] can't execute command",jobId, t);
+              logger.info(Api.Context.getMarker(context),"[{}] can't execute command", jobId, t);
               this.sendErrorResponse(context, t);
             })
             .onSuccess(job -> {

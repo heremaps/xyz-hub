@@ -69,22 +69,21 @@ public class ExportQueue extends JobQueue {
                                 .onSuccess(f -> prepareJob(currentJob));
                             break;
                         case prepared:
-                            updateJobStatus(currentJob,Job.Status.executing)
+                            updateJobStatus(currentJob, Job.Status.executing)
                                     .onSuccess(f -> currentJob.execute());
                             break;
                         case executed:
                             updateJobStatus(currentJob, Job.Status.executing_trigger)
                                 .onSuccess(f -> {
-                                    if (currentJob instanceof Export && ((Export) currentJob).getExportTarget().getType() == VML
-                                            && ((Export) currentJob).getStatistic() != null
-                                            && ((Export) currentJob).getStatistic().getFilesUploaded() > 0
-                                            && ((Export) currentJob).getStatistic().getBytesUploaded() > 0
-                                            && !((Export) currentJob).readParamSkipTrigger())
+                                    if (currentJob instanceof Export export && export.getExportTarget().getType() == VML
+                                            && export.getStatistic() != null
+                                            && export.getStatistic().getFilesUploaded() > 0
+                                            && export.getStatistic().getBytesUploaded() > 0
+                                            && !export.readParamSkipTrigger())
                                         //Only here we need a trigger
                                         postTrigger(currentJob);
-                                    else {
+                                    else
                                         currentJob.finalizeJob();
-                                    }
                                 });
                             break;
                         case trigger_executed:
@@ -106,8 +105,8 @@ public class ExportQueue extends JobQueue {
 
     @Override
     protected void prepareJob(Job job) {
-        if(job instanceof Export)
-            ((Export)job).checkPersistentExports();
+        if (job instanceof Export export)
+            export.checkPersistentExports();
         else
             updateJobStatus(job, prepared);
     }

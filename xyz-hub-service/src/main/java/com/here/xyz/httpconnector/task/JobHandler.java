@@ -21,8 +21,8 @@ package com.here.xyz.httpconnector.task;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 
 import com.google.common.collect.ImmutableMap;
 import com.here.xyz.XyzSerializable;
@@ -111,17 +111,19 @@ public class JobHandler {
 
     public static Future<Job> deleteJob(String jobId, boolean deleteData, boolean force, Marker marker) {
         return loadJob(jobId, marker)
-                .compose(job -> {
-                    if (job.isValidForDelete() || force)
-                        return Future.succeededFuture(job);
-                    return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Job is not in end state - current status: "+ job.getStatus()) );
-                }).compose(job -> {
-                    if (deleteData || force) {
-                        //In force mode we are cleaning data on s3.
-                        return CService.jobS3Client.cleanJobData(job);
-                    }
+            .compose(job -> {
+                if (job.isValidForDelete() || force)
                     return Future.succeededFuture(job);
-                }).compose(job -> CService.jobConfigClient.delete(marker, job.getId()));
+                return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Job is not in end state - current status: "+ job.getStatus()) );
+            })
+            .compose(job -> {
+                if (deleteData || force) {
+                    //In force mode we are cleaning data on s3.
+                    return CService.jobS3Client.cleanJobData(job);
+                }
+                return Future.succeededFuture(job);
+            })
+            .compose(job -> CService.jobConfigClient.delete(marker, job.getId()));
     }
 
     public static Future<Job> executeCommand(String jobId, Command command, int urlCount, Marker marker) {
