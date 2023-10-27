@@ -251,6 +251,10 @@ public final class NakshaApp extends Thread {
 
   private final @NotNull NakshaHub hub;
 
+  public @NotNull NakshaHub getHub() {
+    return hub;
+  }
+
   /**
    * A web client to access XYZ Hub nodes and other web resources.
    */

@@ -22,6 +22,7 @@ import static com.here.naksha.app.service.NakshaApp.newInstance;
 import static java.time.temporal.ChronoUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.here.naksha.lib.psql.PsqlStorage;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
@@ -79,7 +81,7 @@ class NakshaAppTest {
     return (values == null) ? null : (values.size() > 1 ? values.toString() : values.get(0));
   }
 
-  // @Test
+  //@Test
   void tc0001_testGetStorages() throws Exception {
     // Test API : GET /hub/storages
     // 1. Load test data
@@ -106,7 +108,9 @@ class NakshaAppTest {
     // TODO: Find a way to gracefully shutdown the server.
     //       To do some manual testing with the running service, uncomment this:
     if (app != null) {
-      // TODO : Drop all collections after finishing tests
+      // drop schema after test execution
+      final PsqlStorage psqlStorage = (PsqlStorage) app.getHub().getAdminStorage();
+      psqlStorage.dropSchema();
       // app.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(3600));
     }
   }

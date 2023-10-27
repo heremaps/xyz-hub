@@ -32,6 +32,7 @@ import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewSerialize;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlConfigBuilder;
+import com.here.naksha.lib.psql.PsqlStorage;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -113,7 +114,9 @@ class NakshaHubTest {
   @AfterAll
   static void close() throws InterruptedException {
     if (hub != null) {
-      // TODO : Drop all collections after finishing tests
+      // drop schema after test execution
+      final PsqlStorage psqlStorage = (PsqlStorage) hub.getAdminStorage();
+      psqlStorage.dropSchema();
       // TODO: Find a way to gracefully shutdown the hub
     }
   }
