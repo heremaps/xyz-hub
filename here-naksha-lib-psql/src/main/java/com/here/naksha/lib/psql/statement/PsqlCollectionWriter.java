@@ -38,7 +38,8 @@ public class PsqlCollectionWriter extends StatementCreator {
   }
 
   public @NotNull WriteResult writeCollections(@NotNull WriteCollections writeCollections) {
-    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_write_collections(?::jsonb[],?);")) {
+    try (final PreparedStatement stmt =
+        preparedStatement("SELECT * FROM naksha_write_collections(?::jsonb[],?);")) {
       stmt.setObject(1, toJsonb(writeCollections.queries));
       stmt.setBoolean(2, writeCollections.noResults);
       final ResultSet rs = stmt.executeQuery();
@@ -57,7 +58,7 @@ public class PsqlCollectionWriter extends StatementCreator {
       try (final Json json = Json.get()) {
         ObjectReader reader = json.reader();
         operations.add(new WriteOpResult<>(
-            ExecutedOp.valueOf(operation), reader.readValue(featureJson, StorageCollection.class)));
+            EExecutedOp.valueOf(operation), reader.readValue(featureJson, StorageCollection.class)));
       } catch (final Throwable t) {
         throw unchecked(t);
       }

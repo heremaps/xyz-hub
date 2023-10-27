@@ -30,12 +30,12 @@ import org.jetbrains.annotations.Nullable;
  */
 @JsonFormat(shape = Shape.STRING)
 @AvailableSince(NakshaVersion.v2_0_7)
-public enum ExecutedOp {
+public enum EExecutedOp {
   /**
    * A new feature was created.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  CREATED,
+  INSERTED,
 
   /**
    * The existing state was retained.
@@ -56,40 +56,16 @@ public enum ExecutedOp {
   PURGED,
 
   /**
-   * The existing state was replaced with the given one in {@link WriteOp#feature}.
+   * The changes were updated with foreign changes.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  REPLACED,
-
-  /**
-   * The given {@link WriteOp#patch} was applied.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  PATCHED,
-
-  /**
-   * The changes were merged with foreign changes.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  MERGED,
-
-  /**
-   * The changes were merged, with some conflicting properties being overridden (the faster client lost).
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  MERGED_AND_OVERRIDDEN,
-
-  /**
-   * The changes were merged, with some conflicting properties being retained (changed done are ignored and the faster client has won).
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  MERGED_AND_RETAIN;
+  UPDATED;
 
   @AvailableSince(NakshaVersion.v2_0_7)
   @JsonCreator
-  public static @Nullable ExecutedOp of(@Nullable String value) {
+  public static @Nullable EExecutedOp of(@Nullable String value) {
     if (value != null) {
-      for (final ExecutedOp e : ExecutedOp.values()) {
+      for (final EExecutedOp e : EExecutedOp.values()) {
         if (e.name().equalsIgnoreCase(value)) {
           return e;
         }

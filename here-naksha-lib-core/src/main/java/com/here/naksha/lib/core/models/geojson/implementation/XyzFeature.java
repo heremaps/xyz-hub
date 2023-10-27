@@ -40,6 +40,7 @@ import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.IfExists;
 import com.here.naksha.lib.core.models.storage.IfNotExists;
+import com.here.naksha.lib.core.models.storage.StorageCollection;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.util.diff.ConflictResolution;
 import com.here.naksha.lib.core.util.json.JsonObject;
@@ -66,6 +67,7 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = EventHandler.class),
   @JsonSubTypes.Type(value = Storage.class),
   @JsonSubTypes.Type(value = CollectionInfo.class),
+  @JsonSubTypes.Type(value = StorageCollection.class),
   @JsonSubTypes.Type(value = TxSignal.class)
 })
 public class XyzFeature extends JsonObject implements Typed {

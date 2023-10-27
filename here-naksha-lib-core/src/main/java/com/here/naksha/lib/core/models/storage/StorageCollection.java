@@ -36,7 +36,7 @@ import org.jetbrains.annotations.NotNull;
  * A collection is a virtual container for features, managed by a {@link Storage}. All collections optionally have a history and transaction
  * log.
  */
-@JsonTypeName(value = "CollectionList")
+@JsonTypeName(value = "StorageCollection")
 @AvailableSince(NakshaVersion.v2_0_3)
 public class StorageCollection extends NakshaFeature {
 

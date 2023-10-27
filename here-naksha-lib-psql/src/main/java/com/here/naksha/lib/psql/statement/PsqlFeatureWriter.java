@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
 import com.here.naksha.lib.core.models.naksha.NakshaFeature;
-import com.here.naksha.lib.core.models.storage.ExecutedOp;
+import com.here.naksha.lib.core.models.storage.EExecutedOp;
 import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.models.storage.WriteOpResult;
 import com.here.naksha.lib.core.models.storage.WriteResult;
@@ -47,7 +47,8 @@ public class PsqlFeatureWriter extends StatementCreator {
   }
 
   public @NotNull WriteResult writeFeatures(@NotNull WriteFeatures writeFeatures) {
-    try (final PreparedStatement stmt = preparedStatement("SELECT naksha_write_features(?,?::jsonb[],?,?);")) {
+    try (final PreparedStatement stmt =
+        preparedStatement("SELECT * FROM naksha_write_features(?,?::jsonb[],?,?);")) {
       PsqlFeatureWriterMapper parametersMapper = new PsqlFeatureWriterMapper();
       FeatureWriteInputParameters psqlParameters =
           parametersMapper.prepareFeatureWriteInputParameters(writeFeatures.queries);
@@ -77,7 +78,7 @@ public class PsqlFeatureWriter extends StatementCreator {
         XyzGeometry xyzGeometry = JTSHelper.fromGeometry(json.wkbReader.read(geometry));
         feature.setGeometry(xyzGeometry);
 
-        operations.add(new WriteOpResult<>(ExecutedOp.valueOf(operation), feature));
+        operations.add(new WriteOpResult<>(EExecutedOp.valueOf(operation), feature));
       } catch (final Throwable t) {
         throw unchecked(t);
       }

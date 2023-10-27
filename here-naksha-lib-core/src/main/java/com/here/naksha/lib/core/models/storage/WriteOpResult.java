@@ -29,11 +29,11 @@ import org.jetbrains.annotations.Nullable;
 @AvailableSince(NakshaVersion.v2_0_7)
 public class WriteOpResult<T> {
 
-  public WriteOpResult(@NotNull ExecutedOp op, @Nullable T object) {
+  public WriteOpResult(@NotNull EExecutedOp op, @Nullable T object) {
     this.op = op;
     this.object = object;
   }
 
-  public final @NotNull ExecutedOp op;
+  public final @NotNull EExecutedOp op;
   public final @Nullable T object;
 }
