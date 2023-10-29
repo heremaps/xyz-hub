@@ -43,7 +43,6 @@ import static io.vertx.core.http.HttpMethod.PUT;
 import com.here.naksha.app.service.AbstractNakshaHubVerticle;
 import com.here.naksha.app.service.NakshaApp;
 import com.here.naksha.app.service.http.apis.*;
-import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.NakshaContext;
@@ -168,12 +167,16 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         //                .setPreallocateBodyBuffer(true));
 
         // TODO: Port the JWT authentication handler.
-        final AuthenticationHandler jwtHandler =
-            new NakshaJwtAuthHandler(new NakshaAuthProvider(vertx, app().authOptions), null);
+        final AuthenticationHandler jwtHandler = new NakshaJwtAuthHandler(app().authProvider, null);
         rb.securityHandler("Bearer", jwtHandler);
 
-        final List<@NotNull Api> apiControllers =
-            List.of(new HealthApi(this), new ConnectorApi(this), new StorageApi(this), new SpaceApi(this));
+        final List<@NotNull Api> apiControllers = List.of(
+            new HealthApi(this),
+            new ConnectorApi(this),
+            new StorageApi(this),
+            new SpaceApi(this),
+            new ReadFeatureApi(this),
+            new WriteFeatureApi(this));
 
         // Add automatic routes.
         for (final Api api : apiControllers) {
