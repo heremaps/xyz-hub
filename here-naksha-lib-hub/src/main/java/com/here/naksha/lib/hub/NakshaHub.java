@@ -25,6 +25,7 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.models.storage.StorageCollection;
@@ -221,9 +222,10 @@ public class NakshaHub implements INaksha {
     }
   }
 
+  @Override
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull NakshaHubConfig getConfig() {
-    return this.nakshaHubConfig;
+  public @NotNull <T extends XyzFeature> T getConfig() {
+    return (T) this.nakshaHubConfig;
   }
 
   @Override

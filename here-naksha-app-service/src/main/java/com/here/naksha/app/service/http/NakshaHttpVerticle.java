@@ -45,6 +45,7 @@ import com.here.naksha.app.service.NakshaApp;
 import com.here.naksha.app.service.http.apis.*;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
 import com.here.naksha.lib.core.AbstractTask;
+import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
@@ -57,7 +58,7 @@ import com.here.naksha.lib.core.models.payload.responses.NotModifiedResponse;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.MIMEType;
-import com.here.naksha.lib.hub.NakshaHub;
+import com.here.naksha.lib.hub.NakshaHubConfig;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
@@ -100,6 +101,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
   private static final Logger log = LoggerFactory.getLogger(NakshaHttpVerticle.class);
 
+  private final NakshaHubConfig hubConfig;
+
   private static final HttpServerOptions SERVER_OPTIONS = new HttpServerOptions()
       .setCompressionSupported(true)
       .setDecompressionSupported(true)
@@ -115,7 +118,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
    * @param naksha The Naksha-Hub.
    * @param index  The verticle index.
    */
-  public NakshaHttpVerticle(@NotNull NakshaHub naksha, int index, @NotNull NakshaApp app) {
+  public NakshaHttpVerticle(@NotNull INaksha naksha, int index, @NotNull NakshaApp app) {
     super(naksha, index, app);
 
     corsHandler = CorsHandler.create().allowCredentials(true); // .addRelativeOrigin(".*") <-- Not needed, default
@@ -130,8 +133,9 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     final List<CharSequence> exposeHeaders = Arrays.asList(STREAM_ID, STREAM_INFO, ETAG);
     exposeHeaders.stream().map(String::valueOf).forEach(corsHandler::exposedHeader);
 
-    if (naksha.getConfig().webRoot != null) {
-      staticHandler = StaticHandler.create(FileSystemAccess.ROOT, naksha.getConfig().webRoot)
+    hubConfig = naksha.getConfig();
+    if (hubConfig.webRoot != null) {
+      staticHandler = StaticHandler.create(FileSystemAccess.ROOT, hubConfig.webRoot)
           .setIndexPage("index.html")
           .setDirectoryListing(true)
           .setIncludeHidden(false);
@@ -196,7 +200,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         if (staticHandler != null) {
           log.atInfo()
               .setMessage("Serving extra web-root folder in file-system with location: {}")
-              .addArgument(naksha().getConfig().webRoot)
+              .addArgument(hubConfig.webRoot)
               .log();
           router.route("/hub/web/*").handler(staticHandler);
         }
@@ -212,21 +216,19 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         // round-robin strategy.
         //
         // https://vertx.io/docs/vertx-core/java/#_server_sharing
-        vertx.createHttpServer(SERVER_OPTIONS)
-            .requestHandler(router)
-            .listen(naksha().getConfig().httpPort, result -> {
-              if (result.succeeded()) {
-                log.atInfo()
-                    .setMessage("HTTP Server started on port {}")
-                    .addArgument(naksha().getConfig().httpPort)
-                    .log();
-              } else {
-                log.atError()
-                    .setMessage("An error occurred, during the initialization of the server.")
-                    .setCause(result.cause())
-                    .log();
-              }
-            });
+        vertx.createHttpServer(SERVER_OPTIONS).requestHandler(router).listen(hubConfig.httpPort, result -> {
+          if (result.succeeded()) {
+            log.atInfo()
+                .setMessage("HTTP Server started on port {}")
+                .addArgument(hubConfig.httpPort)
+                .log();
+          } else {
+            log.atError()
+                .setMessage("An error occurred, during the initialization of the server.")
+                .setCause(result.cause())
+                .log();
+          }
+        });
         startPromise.complete();
       } catch (Throwable t) {
         log.atError()
@@ -679,7 +681,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
   public @NotNull NakshaContext createNakshaContext(final @NotNull RoutingContext routingContext) {
     final NakshaContext ctx = new NakshaContext(streamId(routingContext));
-    ctx.setAppId(naksha().getConfig().appId);
+    ctx.setAppId(hubConfig.appId);
     // TODO : Author to be set based on JWT token.
     // ctx.setAuthor();
     return ctx;

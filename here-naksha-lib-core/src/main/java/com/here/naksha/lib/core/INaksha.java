@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.core;
 
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.IStorage;
 import org.jetbrains.annotations.NotNull;
 
@@ -50,4 +51,11 @@ public interface INaksha {
    */
   @NotNull
   IStorage getStorageById(final @NotNull String storageId);
+
+  /**
+   * Returns the configuration in use by NakshaHub
+   * @return the config
+   */
+  @NotNull
+  <T extends XyzFeature> T getConfig();
 }

@@ -20,8 +20,8 @@ package com.here.naksha.app.service.http.apis;
 
 import com.here.naksha.app.service.NakshaApp;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
+import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.INakshaBound;
-import com.here.naksha.lib.hub.NakshaHub;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.jetbrains.annotations.NotNull;
@@ -35,7 +35,7 @@ public abstract class Api implements INakshaBound {
   protected final @NotNull NakshaHttpVerticle verticle;
 
   @Override
-  public @NotNull NakshaHub naksha() {
+  public @NotNull INaksha naksha() {
     return verticle.naksha();
   }
 
