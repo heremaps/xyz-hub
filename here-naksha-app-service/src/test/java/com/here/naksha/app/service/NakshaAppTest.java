@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
@@ -81,7 +80,7 @@ class NakshaAppTest {
     return (values == null) ? null : (values.size() > 1 ? values.toString() : values.get(0));
   }
 
-  //@Test
+  // @Test
   void tc0001_testGetStorages() throws Exception {
     // Test API : GET /hub/storages
     // 1. Load test data

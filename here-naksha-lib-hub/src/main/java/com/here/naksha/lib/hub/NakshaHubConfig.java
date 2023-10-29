@@ -56,9 +56,18 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
     return APP_NAME + "/v" + NakshaVersion.latest;
   }
 
+  /**
+   * Returns a className of default NakshaHub instance
+   * @return The default NakshaHub className
+   */
+  public static @NotNull String defaultHubClassName() {
+    return NakshaHub.class.getName();
+  }
+
   @JsonCreator
   NakshaHubConfig(
       @JsonProperty("id") @NotNull String id,
+      @JsonProperty("hubClassName") @Nullable String hubClassName,
       @JsonProperty("userAgent") @Nullable String userAgent,
       @JsonProperty("appId") @Nullable String appId,
       @JsonProperty("author") @Nullable String author,
@@ -129,6 +138,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       env = "local";
     }
 
+    this.hubClassName = (hubClassName != null && !hubClassName.isEmpty()) ? hubClassName : defaultHubClassName();
     this.appId = appId != null && appId.length() > 0 ? appId : "naksha";
     this.author = author;
     this.httpPort = httpPort;
@@ -230,6 +240,14 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
   @JsonProperty(DEBUG)
   @JsonInclude(Include.NON_DEFAULT)
   public boolean debug;
+
+  public static final String HUB_CLASS_NAME = "hubClassName";
+
+  /**
+   * The fully qualified class name to be used to initiate NakshaHub instance
+   */
+  @JsonProperty(HUB_CLASS_NAME)
+  public final @NotNull String hubClassName;
 
   /**
    * The initial delay (in minutes) after the service start up, when the Storage Maintenance job should perform first execution

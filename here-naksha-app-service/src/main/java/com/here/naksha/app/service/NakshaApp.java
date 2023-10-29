@@ -29,8 +29,8 @@ import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.IoHelp.LoadedBytes;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
-import com.here.naksha.lib.hub.NakshaHub;
 import com.here.naksha.lib.hub.NakshaHubConfig;
+import com.here.naksha.lib.hub.NakshaHubFactory;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlConfigBuilder;
 import io.vertx.core.Vertx;
@@ -151,7 +151,7 @@ public final class NakshaApp extends Thread {
     // Read the custom configuration from file (if available)
     NakshaHubConfig config = readCustomCfgFile(adminDbConfig, configId);
     // Instantiate NakshaHub instance
-    this.hub = new NakshaHub(adminDbConfig, config, configId);
+    this.hub = NakshaHubFactory.getInstance(adminDbConfig, config, configId);
     config = hub.getConfig(); // use the config finally set by NakshaHub instance
     log.info("Using server config : {}", config);
 

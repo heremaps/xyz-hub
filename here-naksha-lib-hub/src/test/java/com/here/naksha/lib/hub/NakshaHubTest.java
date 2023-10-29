@@ -20,6 +20,7 @@ package com.here.naksha.lib.hub;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.naksha.Storage;
@@ -39,14 +40,13 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
 class NakshaHubTest {
 
   static final String TEST_DATA_FOLDER = "src/test/resources/unit_test_data/";
-  static NakshaHub hub = null;
+  static INaksha hub = null;
 
   @BeforeAll
   static void prepare() {
@@ -61,7 +61,7 @@ class NakshaHubTest {
         .withAppName(NakshaHubConfig.defaultAppName())
         .parseUrl(dbUrl)
         .build();
-    hub = new NakshaHub(psqlCfg, null, null);
+    hub = NakshaHubFactory.getInstance(psqlCfg, null, null);
   }
 
   private String readTestFile(final String filePath) throws Exception {
@@ -69,7 +69,7 @@ class NakshaHubTest {
   }
 
   // TODO HP : Re-enable with necessary mocking (or after lib-psql is fixed)
-  //@Test
+  // @Test
   void tc0001_testGetStorages() throws Exception {
     // 1. Load test data
     final String expectedBodyPart = readTestFile("TC0001_getStorages/body_part.json");
