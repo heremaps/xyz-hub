@@ -30,13 +30,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.config.dynamo.DynamoClient;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.DecodeException;
-import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -244,8 +245,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     @Override
     protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
-        if (!isUpdate && this.expiration != null)
+        //if exp is set we take it
+        if (!isUpdate && this.expiration != null && job.getExp() == null) {
             job.setExp(System.currentTimeMillis() / 1000L + expiration * 24 * 60 * 60);
+        }
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
@@ -262,11 +265,32 @@ public class DynamoJobConfigClient extends JobConfigClient {
         if(job.getTarget() != null)
             json.put("_targetKey", job.getTarget().getKey());
         //TODO: Remove the following hacks from the persistence layer!
-        if( json.containsKey(IO_IMPORT_ATTR_NAME) )
+        if (json.containsKey(IO_IMPORT_ATTR_NAME))
             return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
-        if( json.containsKey(IO_EXPORT_ATTR_NAME) )
-            return convertJobToItem(json, IO_EXPORT_ATTR_NAME);
+        else if (job instanceof CombinedJob && ((CombinedJob) job).getChildren().size() > 0)
+            sanitizeChildren(json);
+        else if (json.containsKey(IO_EXPORT_ATTR_NAME))
+            sanitizeJob(json);
         return Item.fromJSON(json.toString());
+    }
+
+    private static void sanitizeJob(JsonObject json) {
+        Map<String, Object> exportObjects = json.getJsonObject(IO_EXPORT_ATTR_NAME).getMap();
+        sanitizeUrls(exportObjects);
+        json.put(IO_EXPORT_ATTR_NAME, exportObjects);
+    }
+
+    private static void sanitizeChildren(JsonObject combinedJob) {
+        JsonArray children = combinedJob.getJsonArray("children");
+        for (int i = 0; i < children.size(); i++) {
+            JsonObject childJob = children.getJsonObject(i);
+            if (childJob.containsKey(IO_EXPORT_ATTR_NAME))
+                sanitizeJob(childJob);
+        }
+    }
+
+    private static void sanitizeUrls(Map<String, Object> exportObjects) {
+        exportObjects.forEach((fileName, exportObject) -> ((Map<String, Object>) exportObject).remove("downloadUrl"));
     }
 
     private static Job convertItemToJob(Item item){
@@ -282,7 +306,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         return item.withBinary(attrName, compressString(str));
     }
 
-    private static Job convertItemToJob(Item item, String attrName){
+    private static Job convertItemToJob(Item item, String attrName) {
         JsonObject ioObjects = null;
         if(item.isPresent(attrName)) {
             try{
@@ -296,8 +320,9 @@ public class DynamoJobConfigClient extends JobConfigClient {
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
                 .put(attrName, ioObjects);
         try {
-            return XyzSerializable.deserialize(json.toString());
-        } catch (JsonProcessingException e) {
+            return XyzSerializable.deserialize(json.toString(), Job.class);
+        }
+        catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
     }

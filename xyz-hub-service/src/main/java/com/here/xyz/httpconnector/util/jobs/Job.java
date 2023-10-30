@@ -25,6 +25,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.addJob;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_IMPLEMENTED;
@@ -38,7 +39,7 @@ import com.fasterxml.jackson.annotation.JsonView;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
@@ -49,6 +50,8 @@ import io.vertx.core.Future;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
+import io.vertx.core.Promise;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -237,8 +240,9 @@ public abstract class Job<T extends Job> extends Payload {
       catch (Exception e) {
         return Future.failedFuture(new HttpException(BAD_REQUEST, "Job has no lastStatus - can't retry!"));
       }
+      //Add job directly to queue instead executing Start to skip validations.
       return CService.jobConfigClient.update(getMarker(), this)
-          .compose(job -> executeStart());
+          .onSuccess(job -> addJob(this));
     }
 
     /**
@@ -263,15 +267,63 @@ public abstract class Job<T extends Job> extends Payload {
         //A newly created Job waits for an execution
         if (getStatus() == null)
             setStatus(Job.Status.waiting);
-        return Future.succeededFuture((T) this);
+
+        return injectSpaceParameter();
     }
 
     public Future<T> validate() {
-        if (getTargetSpaceId() == null)
-            return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!"));
         if (getCsvFormat() == null)
             return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'csvFormat'!"));
         return Future.succeededFuture((T) this);
+    }
+
+    private Future<T> injectSpaceParameter() {
+        if (getTargetSpaceId() == null)
+            return Future.failedFuture(new HttpException(BAD_REQUEST, "Please specify 'targetSpaceId'!"));
+
+        return HubWebClient.getSpace(getTargetSpaceId())
+                .compose(space -> {
+                    setTargetSpaceId(space.getId());
+                    setTargetConnector(space.getStorage().getId());
+                    addParam("versionsToKeep",space.getVersionsToKeep());
+                    addParam("persistExport", space.isReadOnly());
+
+                    Promise<Map> p = Promise.promise();
+
+                    if (space.getExtension() != null) {
+                        /** Resolve Extension */
+                        HubWebClient.getSpace(space.getExtension().getSpaceId())
+                                .onSuccess(baseSpace -> {
+                                    p.complete(space.resolveCompositeParams(baseSpace));
+                                })
+                                .onFailure(e -> p.fail(e));
+                    }else
+                        p.complete(null);
+                    return p.future();
+                }) .compose(extension -> {
+                    Promise<Map> p = Promise.promise();
+                    if (extension != null && extension.get("extends") != null  && ((Map)extension.get("extends")).get("extends") != null) {
+                        /** Resolve 2nd Level Extension */
+                        HubWebClient.getSpace((String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
+                                .onSuccess(baseSpace -> {
+                                    /** Add persistExport flag to Parameters */
+                                    Map<String, Object> ext = new HashMap<>();
+                                    ext.putAll(extension);
+                                    ((Map)((Map)ext.get("extends")).get("extends")).put("readOnly", baseSpace.isReadOnly());
+                                    p.complete(ext);
+                                })
+                                .onFailure(e -> p.fail(e));
+                    }else
+                        p.complete(extension);
+                    return p.future();
+                })
+                .compose(extension -> {
+                    if(extension != null) {
+                        /** Add extends to jobConfig params  */
+                        addParam("extends",extension.get("extends"));
+                    }
+                    return Future.succeededFuture((T) this);
+                });
     }
 
     @JsonIgnore
@@ -301,13 +353,10 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     @JsonIgnore
-    public static boolean isValidForDelete(Job job, boolean force) {
-        if (force)
+    public boolean isValidForDelete() {
+        if(getStatus().isFinal() || getStatus().equals(waiting))
             return true;
-        switch (job.getStatus()) {
-            case waiting: case finalized: case aborted: case failed: return true;
-            default: return false;
-        }
+        return false;
     }
 
 
@@ -574,6 +623,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     public void finalizeJob() {
+        logger.info("job[{}] is finalized!", id);
         updateJobStatus(this, finalized);
     }
 
@@ -790,7 +840,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     protected Future<Job> isProcessingOnRDSPossible() {
-        return JDBCImporter.getRDSStatus(getTargetConnector())
+        return JDBCClients.getRDSStatus(getTargetConnector())
             .compose(rdsStatus -> {
 
                 if (rdsStatus.getCloudWatchDBClusterMetric(this).getAcuUtilization() > CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION) {
@@ -831,7 +881,7 @@ public abstract class Job<T extends Job> extends Payload {
 
     public static class Public {}
 
-    public static class Static {}
+    public static class Static implements SerializationView {}
 
     public static class Internal extends Space.Internal {}
 

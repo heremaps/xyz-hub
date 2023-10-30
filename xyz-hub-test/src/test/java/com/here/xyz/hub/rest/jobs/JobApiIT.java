@@ -36,7 +36,6 @@ import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
-import com.here.xyz.hub.rest.ApiParam.Query.Incremental;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.rest.TestSpaceWithFeature;
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
@@ -298,7 +297,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         }
     }
 
-    protected static Job getJob(String spaceId, String jobId) {
+    protected static Job loadJob(String spaceId, String jobId) {
         /** Get all jobs */
         Response response = given()
                 .accept(APPLICATION_JSON)
@@ -306,12 +305,14 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
                 .get("/spaces/" + spaceId + "/job/"+jobId);
 
-        assertEquals(OK.code(),response.getStatusCode());
         String body = response.getBody().asString();
         try {
+            //TODO: Use XyzSerializable here!!
             Job job = DatabindCodec.mapper().readValue(body, new TypeReference<Job>() {});
+            assertEquals(OK.code(),response.getStatusCode());
             return job;
-        }catch (Exception e){
+        }
+        catch (Exception e) {
             return null;
         }
     }
@@ -331,7 +332,7 @@ public class JobApiIT extends TestSpaceWithFeature {
                 OR
              failed
             */
-            job = getJob(spaceId, jobId);
+            job = loadJob(spaceId, jobId);
             status = job.getStatus();
             assertNotEquals(status, failStatus);
 
@@ -343,6 +344,8 @@ public class JobApiIT extends TestSpaceWithFeature {
             if(i++ == 400)
                 fail("Unexpected loop!");
         }
+        Thread.sleep(200);
+
         return job;
     }
 
@@ -353,7 +356,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         Job job = null;
 
         while(!status.equals(Job.Status.executing)){
-            job = getJob(spaceId, jobId);
+            job = loadJob(spaceId, jobId);
             status = job.getStatus();
             System.out.println("Current Status of Job["+jobId+"]: "+status);
             Thread.sleep(150);
@@ -362,7 +365,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         abortJob(job, spaceId);
 
         while(!status.equals(Job.Status.failed)){
-            job = getJob(spaceId, jobId);
+            job = loadJob(spaceId, jobId);
             status = job.getStatus();
             System.out.println("Current Status of Job["+jobId+"]: "+status);
             Thread.sleep(150);
@@ -449,9 +452,9 @@ public class JobApiIT extends TestSpaceWithFeature {
         return performExport(job, spaceId, expectedStatus, failStatus, null, null);
     }
 
-    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, Incremental incremental)
+    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, Export.CompositeMode compositeMode)
         throws Exception {
-        return performExport(job, spaceId, expectedStatus, failStatus, null, incremental);
+        return performExport(job, spaceId, expectedStatus, failStatus, null, compositeMode);
     }
 
     protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, SpaceContext context)
@@ -460,9 +463,9 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, SpaceContext context,
-        Incremental incremental) throws Exception {
-        if (incremental != null)
-            job.addParam("incremental", incremental.toString());
+                                      Export.CompositeMode compositeMode) throws Exception {
+        if (compositeMode != null)
+            job.addParam("compositeMode", compositeMode.toString());
         if (context != null)
             job.addParam("context", context.toString());
 
@@ -481,11 +484,9 @@ public class JobApiIT extends TestSpaceWithFeature {
         }
 
 
-        String postUrl = "/spaces/{spaceId}/job/{jobId}/execute?command=start&{context}&{incremental}"
+        String postUrl = "/spaces/{spaceId}/job/{jobId}/execute?command=start"
                 .replace("{spaceId}", spaceId)
-                .replace("{jobId}", job.getId())
-                .replace("{context}", "")
-                .replace("{incremental}", "");
+                .replace("{jobId}", job.getId());
 
         /** start import */
         resp = given()
@@ -502,18 +503,18 @@ public class JobApiIT extends TestSpaceWithFeature {
 
         //Poll status
         pollStatus(spaceId, job.getId(), expectedStatus, failStatus);
-        job = (Export) getJob(spaceId, job.getId());
+        Export responseJob = (Export) loadJob(spaceId, job.getId());
 
         List<URL> urlList = new ArrayList<>();
-        if (job.getExportObjects() != null) {
-            for (String key : job.getExportObjects().keySet()) {
-                urlList.add(job.getExportObjects().get(key).getDownloadUrl());
+        if (responseJob.getExportObjects() != null) {
+            for (String key : responseJob.getExportObjects().keySet()) {
+                urlList.add(responseJob.getExportObjects().get(key).getDownloadUrl());
             }
         }
 
-        if(job.getSuperExportObjects() != null) {
-            for (String key : job.getSuperExportObjects().keySet()) {
-                urlList.add(job.getSuperExportObjects().get(key).getDownloadUrl());
+        if(responseJob.getSuperExportObjects() != null) {
+            for (String key : responseJob.getSuperExportObjects().keySet()) {
+                urlList.add(responseJob.getSuperExportObjects().get(key).getDownloadUrl());
             }
         }
         return urlList;
@@ -584,8 +585,11 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     protected Export buildVMTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format, int targetLevel, int maxTilesPerFile){
-        return buildTestJob(id, filters, target, format)
+        Export export = buildTestJob(id, filters, target, format)
                 .withMaxTilesPerFile(maxTilesPerFile)
                 .withTargetLevel(targetLevel);
+        //TODO introduce new field instead of using a parameter
+        export.addParam("skipTrigger", true);
+        return export;
     }
 }

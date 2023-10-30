@@ -165,7 +165,7 @@ public class CService extends Core {
           exportQueue.commence();
 
           Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            logger.warn("HTTP Service is going down at " + new Date());
+            System.out.println("HTTP Service is going down at " + new Date());
             JobQueue.abortAllJobs();
           }));
 
