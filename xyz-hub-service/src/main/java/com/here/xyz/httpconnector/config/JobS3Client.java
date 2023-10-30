@@ -244,13 +244,8 @@ public class JobS3Client extends AwsS3Client{
             throw new UnsupportedEncodingException("Not able to find EOL!");
     }
 
-    public Map<String, ExportObject> scanExportPath(Export job, boolean readSuper, boolean createDownloadUrl) {
-        Map<String, ExportObject> exportObjectMap = new HashMap<>();
-        exportObjectMap.putAll(scanExportPath(getS3Path(job, readSuper), CService.configuration.JOBS_S3_BUCKET, createDownloadUrl));
-        return exportObjectMap;
-    }
-
-    public Map<String,ExportObject> scanExportPath(String prefix, String bucketName, boolean createDownloadUrl) {
+    public Map<String,ExportObject> scanExportPath(String prefix) {
+        String bucketName = CService.configuration.JOBS_S3_BUCKET;
         Map<String, ExportObject> exportObjectList = new HashMap<>();
         ListObjectsRequest listObjects = new ListObjectsRequest()
                 .withPrefix(prefix)
@@ -283,7 +278,7 @@ public class JobS3Client extends AwsS3Client{
 
     public String getS3Path(Job job, boolean readSuper) {
         if (job instanceof Import)
-            return IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
+            return IMPORT_UPLOAD_FOLDER + "/" + job.getId();
 
         //Decide if persistent or not.
         String subFolder = job instanceof Export export && export.readPersistExport() || readSuper

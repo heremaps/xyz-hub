@@ -29,6 +29,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.prepared;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.preparing;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.queued;
@@ -39,6 +40,7 @@ import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
+import com.amazonaws.services.emrserverless.model.JobRunState;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -47,6 +49,7 @@ import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.util.emr.EMRManager;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
@@ -132,22 +135,13 @@ public class Export extends JDBCBasedJob<Export> {
     @JsonView({Public.class})
     private String triggerId;
 
-    public enum CompositeMode {
-        FULL_OPTIMIZED, //Load persistent Base + (Changes)
-        CHANGES, //Only changes
-        DEACTIVATED;
-
-        public static CompositeMode of(String value) {
-            if (value == null) {
-                return null;
-            }
-            try {
-                return valueOf(value.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }
-    }
+    @JsonIgnore
+    private AtomicBoolean emrJobExecuting = new AtomicBoolean();
+    public String emrJobId;
+    @JsonIgnore
+    private EMRManager emrManager;
+    private boolean emrTransformation;
+    private String emrType;
 
     private static String PARAM_COMPOSITE_MODE = "compositeMode";
     private static String PARAM_PERSIST_EXPORT = "persistExport";
@@ -911,11 +905,16 @@ public class Export extends JDBCBasedJob<Export> {
 
                     Export baseExport = new Export()
                         .withId(getId() + "_missing_base")
-                        .withDescription("Persistent Base Export for "+getId())
+                        .withDescription("Persistent Base Export for " + getId())
                         .withExportTarget(getExportTarget())
                         .withFilters(getFilters())
                         .withMaxTilesPerFile(getMaxTilesPerFile())
-                        .withTargetLevel(getTargetLevel());
+                        .withTargetLevel(getTargetLevel())
+                        .withPartitionKey(getPartitionKey())
+                        .withCsvFormat(getCsvFormat())
+                        .withEmrTransformation(isEmrTransformation())
+                        .withEmrType(getEmrType());
+
 
                     //We only need reusable data on S3
                     baseExport.addParam(PARAM_SKIP_TRIGGER, true);
@@ -986,14 +985,159 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     protected void addDownloadLinks(Job j) {
-        //Add file statistics and downloadLinks
-        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
-        ((Export) j).setExportObjects(exportObjects);
+        Export export = ((Export) j); //TODO: Use this instance once scheduler is fixed
+        String emrSuffix = isEmrTransformation() ? EMRConfig.S3_PATH_SUFFIX : "";
 
-        if (((Export)j).getSuperId() != null) {
+        //Add file statistics and downloadLinks
+        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath(
+            CService.jobS3Client.getS3Path(j, false) + emrSuffix);
+        export.setExportObjects(exportObjects);
+
+        if (export.getSuperId() != null) {
             //Add exportObjects including fresh download links for persistent base exports
-            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath((Export) j, true, true);
-            ((Export) j).setSuperExportObjects(superExportObjects);
+            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath(
+                CService.jobS3Client.getS3Path(j, true) + emrSuffix);
+            export.setSuperExportObjects(superExportObjects);
+        }
+    }
+
+    private static class EMRConfig {
+        public static final String APPLICATION_ID = System.getenv("EMR_APPLICATION_ID");
+        public static final String EMR_RUNTIME_ROLE_ARN = System.getenv("EMR_RUNTIME_ROLE_ARN");
+        public static final String JAR_PATH = System.getenv("EMR_JAR_PATH");
+        public static final String SPARK_PARAMS = "--class com.here.xyz.FeatureAggregator " +
+            "--conf spark.hadoop.hive.metastore.client.factory.class=com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory";
+        public static final String S3_PATH_SUFFIX = "-transformed";
+    }
+
+    private EMRManager getEmrManager() {
+        if (emrManager == null)
+            emrManager = new EMRManager();
+        return emrManager;
+    }
+
+    @Deprecated
+    public boolean isEmrTransformation() {
+        return emrTransformation;
+    }
+
+    @Deprecated
+    public void setEmrTransformation(boolean emrTransformation) {
+        this.emrTransformation = emrTransformation;
+    }
+
+    @Deprecated
+    public Export withEmrTransformation(boolean emrTransformation) {
+        setEmrTransformation(emrTransformation);
+        return this;
+    }
+
+    @Deprecated
+    public String getEmrType() {
+        return emrType;
+    }
+
+    @Deprecated
+    public void setEmrType(String emrType) {
+        this.emrType = emrType;
+    }
+    @Deprecated
+    public Export withEmrType(String emrType) {
+        setEmrType(emrType);
+        return this;
+    }
+
+    @Deprecated
+    public String getEmrJobId() {
+        return emrJobId;
+    }
+
+    @Deprecated
+    public void setEmrJobId(String emrJobId) {
+        this.emrJobId = emrJobId;
+    }
+
+    @Override
+    public Future<Job> executeAbort() {
+        if (isEmrTransformation() && getStatus() == finalizing)
+            //Cancel EMR Job
+            getEmrManager().shutdown(EMRConfig.APPLICATION_ID, emrJobId);
+        return super.executeAbort();
+    }
+
+    @Override
+    public void finalizeJob() {
+        if (isEmrTransformation()) {
+            updateJobStatus(this, finalizing)
+                .compose(job -> {
+                    //Start EMR Job, return jobId
+                    String sourceS3Url = getS3UrlForPath(CService.jobS3Client.getS3Path(job));
+                    List<String> scriptParams = new ArrayList<>();
+                    scriptParams.add(sourceS3Url);
+                    scriptParams.add(sourceS3Url + EMRConfig.S3_PATH_SUFFIX);
+                    scriptParams.add("--type=" + getEmrType());
+
+                    String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
+                        EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
+                    this.emrJobId = emrJobId;
+                    return Future.succeededFuture(emrJobId);
+                })
+                .onSuccess(emrJobId -> startEmrJobStatePolling(EMRConfig.APPLICATION_ID, emrJobId))
+                .onFailure(err -> {
+                    logger.warn(getMarker(), "Failure starting finalization. (EMR Transformation)", err);
+                    setJobFailed(this, "Error trying to start finalization.", "START_EMR_JOB_FAILED");
+                });
+        }
+        else
+            super.finalizeJob();
+    }
+
+    private static String getS3UrlForPath(String path) {
+        return "s3://" + CService.configuration.JOBS_S3_BUCKET + "/" + path;
+    }
+
+    private void startEmrJobStatePolling(String applicationId, String emrJobId) {
+        if (emrJobExecuting.compareAndSet(false, true)) {
+            new Thread(() -> {
+                setUpdatedAt(Core.currentTimeMillis() / 1000l);
+                while (emrJobExecuting.get()) {
+                    JobRunState jobState = null;
+                    try {
+                        jobState = getEmrManager().getExecutionSummary(applicationId, emrJobId);
+                        setUpdatedAt(Core.currentTimeMillis() / 1000l);
+                    }
+                    catch (Exception e) {
+                        logger.warn("job[{}] Error fetching job state of EMR transformation with emr job id \"{}\"", getId(), emrJobId, e);
+                    }
+                    switch (jobState) {
+                        case SUCCESS:
+                            logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
+                            addDownloadLinks(this);
+                            //Update this job's state finally to "finalized"
+                            updateJobStatus(this, finalized);
+                            //Stop this thread
+                            emrJobExecuting.set(false);
+                            break;
+                        case FAILED:
+                        case CANCELLED:
+                            logger.warn("job[{}] EMR transformation {} ended with state \"{}\"", getId(), emrJobId, jobState);
+                            setJobFailed(this, "EMR job " + emrJobId + " ended with state \"" + jobState + "\"", "EMR_JOB_FAILED");
+                            //Stop this thread
+                            emrJobExecuting.set(false);
+                    }
+                    //Check if last state update is too long (>60s) ago (timeout or other issue with EMR job)
+                    if (getUpdatedAt() < Core.currentTimeMillis() / 1000l - 60) {
+                        setJobFailed(this, "No state update from EMR job " + emrJobId + " since more than 60 seconds", "EMR_JOB_TIMEOUT");
+                        //Stop this thread
+                        emrJobExecuting.set(false);
+                    }
+
+                    try {
+                        Thread.sleep(3_000);
+                    }
+                    catch (InterruptedException ignore) {}
+                }
+            }).start();
         }
     }
 
@@ -1008,5 +1152,22 @@ public class Export extends JDBCBasedJob<Export> {
                 + (filters != null && filters.getPropertyFilter() != null ? filters.getPropertyFilter().hashCode() : "")
                 + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().getRadius() : "")
                 + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().isClipped() : false));
+    }
+
+    public enum CompositeMode {
+        FULL_OPTIMIZED, //Load persistent Base + (Changes)
+        CHANGES, //Only changes
+        DEACTIVATED;
+
+        public static CompositeMode of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
     }
 }
