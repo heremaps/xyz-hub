@@ -676,6 +676,20 @@ public class JobApiExportIT extends JobApiIT {
         downloadAndCheckFC(urls, 1306, 3, mustContain, 3);
     }
 
+    @Test
+    public void testFullVMLCompositeL1ExportJsonWkbChanges() throws Exception {
+// export json_wkb only changes
+        Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
+
+        /** Create job */
+        Export job =  buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.JSON_WKB);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed, Export.CompositeMode.CHANGES );
+
+        List<String> mustContain = Arrays.asList("id000", "id002", "movedFromEmpty", "deltaonly");
+
+        downloadAndCheck(urls, 635, 2, mustContain);
+    }
+
 
     /** ------------------- only for local testing with big spaces  -------------------- */
 //    @Test

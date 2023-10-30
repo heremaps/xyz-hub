@@ -23,6 +23,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTEN
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -144,7 +145,7 @@ public class JDBCExporter extends JDBCClients {
                                         });
                             default:
                                 exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
-                                        job.getTargetVersion(), job.getParams(), job.getCsvFormat());
+                                        job.getTargetVersion(), job.getParams(), job.getCsvFormat(), compositeCalculation);
                                 return calculateThreadCountForDownload(job, schema, exportQuery)
                                         .compose(threads -> {
                                             try {
@@ -153,7 +154,7 @@ public class JDBCExporter extends JDBCClients {
 
                                                 for (int i = 0; i < threads; i++) {
                                                     String s3Prefix = i + "_";
-                                                    SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region,
+                                                    SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region, compositeCalculation,
                                                             (threads > 1 ? new SQLQuery("AND i%% " + threads + " = " + i) : null));
                                                     exportFutures.add(exportTypeDownload(job.getTargetConnector(), q2, job, s3Path));
                                                 }
@@ -313,14 +314,14 @@ public class JDBCExporter extends JDBCClients {
 
     public static SQLQuery buildS3ExportQuery(Export j, String schema,
                                               String s3Bucket, String s3Path, String s3FilePrefix, String s3Region,
-                                              SQLQuery customWhereCondition) throws SQLException {
+                                              boolean isForCompositeContentDetection, SQLQuery customWhereCondition) throws SQLException {
 
         String propertyFilter = (j.getFilters() == null ? null : j.getFilters().getPropertyFilter());
         Export.SpatialFilter spatialFilter= (j.getFilters() == null ? null : j.getFilters().getSpatialFilter());
 
         s3Path = s3Path+ "/" +(s3FilePrefix == null ? "" : s3FilePrefix)+"export.csv";
         SQLQuery exportSelectString = generateFilteredExportQuery(j.getId(), schema, j.getTargetSpaceId(), propertyFilter, spatialFilter,
-                j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, false,
+                j.getTargetVersion(), j.getParams(), j.getCsvFormat(), customWhereCondition, isForCompositeContentDetection,
                 j.getPartitionKey(), j.getOmitOnNull());
 
         SQLQuery q = new SQLQuery("SELECT * /* s3_export_hint m499#jobId(" + j.getId() + ") */ from aws_s3.query_export_to_s3( "+
@@ -409,6 +410,12 @@ public class JDBCExporter extends JDBCClients {
         return generateFilteredExportQuery(jobId, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, false, null, false);
     }
 
+    private static SQLQuery generateFilteredExportQuery(String jobId, String schema, String spaceId, String propertyFilter,
+                                                        Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, boolean isForCompositeContentDetection) throws SQLException {
+        return generateFilteredExportQuery(jobId, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, isForCompositeContentDetection, null, false);
+    }
+
+
     private static SQLQuery generateFilteredExportQueryForCompositeTileCalculation(String jobId, String schema, String spaceId, String propertyFilter,
                                                                                    Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat) throws SQLException {
         return generateFilteredExportQuery(jobId, schema, spaceId, propertyFilter, spatialFilter, targetVersion, params, csvFormat, null, true, null, false);
@@ -473,12 +480,13 @@ public class JDBCExporter extends JDBCClients {
         dbHandler.setConfig(new PSQLConfig(event, schema));
 
         boolean partitionByPropertyValue = ( csvFormat == PARTITIONID_FC_B64 && partitionKey != null && !"id".equalsIgnoreCase(partitionKey)),
-                partitionByFeatureId     = ( csvFormat == PARTITIONID_FC_B64 && !partitionByPropertyValue );
+                partitionByFeatureId     = ( csvFormat == PARTITIONID_FC_B64 && !partitionByPropertyValue ),
+                downloadAsJsonWkb        = ( csvFormat == JSON_WKB );
                 
         SpaceContext ctxStashed = event.getContext();        
 
         if (isForCompositeContentDetection)
-            event.setContext( partitionByFeatureId ? EXTENSION : COMPOSITE_EXTENSION);
+            event.setContext( (partitionByFeatureId || downloadAsJsonWkb) ? EXTENSION : COMPOSITE_EXTENSION);
 
         SQLQuery sqlQuery,
                  sqlQueryContentByPropertyValue = null;

@@ -160,17 +160,6 @@ public class JobApiCompositeExportIT extends JobApiIT{
         }
         deleteAllJobsOnSpace(testSpaceId1Ext);
 
-        job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), JSON_WKB);
-        try {
-            /** Invalid Type - creation fails */
-            performExport(job, testSpaceId1, finalized, failed, Export.CompositeMode.CHANGES);
-        }catch (HttpException e){
-            assertEquals(BAD_REQUEST, e.status);
-            exceptionCnt++;
-        }
-
-        deleteAllJobsOnSpace(testSpaceId1Ext);
-
         job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), GEOJSON);
         try {
             /** No extended layer - creation fails */
@@ -181,7 +170,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         }
 
         /** Check if we got the expected amount of failures */
-        assertEquals(3, exceptionCnt);
+        assertEquals(2, exceptionCnt);
     }
 
     @Test
