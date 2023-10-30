@@ -401,6 +401,13 @@
         <version>${aws-sdk-version}</version>
       </dependency>
 
+      <!-- For Job API only -->
+      <dependency>
+        <artifactId>aws-java-sdk-emrserverless</artifactId>
+        <groupId>com.amazonaws</groupId>
+        <version>1.12.230</version>
+      </dependency>
+
       <!-- AWS Lambda Core -->
       <dependency>
         <groupId>com.amazonaws</groupId>
