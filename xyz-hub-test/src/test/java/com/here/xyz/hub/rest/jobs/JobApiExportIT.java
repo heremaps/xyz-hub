@@ -651,9 +651,9 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONID_FC_B64).withPartitionKey("p.group");
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), failed, finalized, Export.CompositeMode.CHANGES );
 
-        List<String> mustContain = Arrays.asList("deltaonly","movedFromEmpty","shouldBeEmpty");
+        List<String> mustContain = Arrays.asList("deltaonly","movedFromEmpty","shouldBeEmpty","deletedInDelta");
 
-        downloadAndCheckFC(urls, 930, 2, mustContain, 3);
+        downloadAndCheckFC(urls, 946, 2, mustContain, 4);
     }
 
     @Test
@@ -685,9 +685,9 @@ public class JobApiExportIT extends JobApiIT {
         Export job =  buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.JSON_WKB);
         List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed, Export.CompositeMode.CHANGES );
 
-        List<String> mustContain = Arrays.asList("id000", "id002", "movedFromEmpty", "deltaonly");
+        List<String> mustContain = Arrays.asList("id000", "id002", "id003", "movedFromEmpty", "deltaonly", "'\"deleted'\": true");
 
-        downloadAndCheck(urls, 635, 2, mustContain);
+        downloadAndCheck(urls, 758, 3, mustContain);
     }
 
 

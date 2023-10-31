@@ -124,6 +124,12 @@ public class JobApiIT extends TestSpaceWithFeature {
                         .withProperties(new Properties().with("group", "baseonly")),
                 AuthProfile.ACCESS_OWNER_1_ADMIN
         );
+        postFeature(getScopedSpaceId(testSpaceId3,scope), newFeature()
+                        .withId("id003")
+                        .withGeometry(new Point().withCoordinates(new PointCoordinates( 8.6199615,50.020093))) // htile 122001322012 , 23600774
+                        .withProperties(new Properties().with("group", "deletedInDelta")),
+                AuthProfile.ACCESS_OWNER_1_ADMIN
+        );
 
         createSpaceWithExtension(getScopedSpaceId(testSpaceId3, scope));
         postFeature(getScopedSpaceId(testSpaceId3Ext,scope), newFeature()
@@ -138,6 +144,8 @@ public class JobApiIT extends TestSpaceWithFeature {
                         .withProperties(new Properties().with("group", "deltaonly")),
                 AuthProfile.ACCESS_OWNER_1_ADMIN
         );
+        
+        deleteFeature(getScopedSpaceId(testSpaceId3Ext,scope), "id003");  // feature in base got deleted in delta
 
 /* */
         deleteAllJobsOnSpace(getScopedSpaceId(testSpaceId1, scope));
