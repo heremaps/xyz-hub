@@ -108,6 +108,7 @@ components:
             $ref: '#/components/schemas/Storage'
           example:
             id: "um-mod-dev"
+            type: "Storage"
             title: "UniMap Moderation Dev Storage"
             description: "UniMap Moderation storage for Dev environment, holding collections managed by Naksha service"
             className: "com.here.naksha.lib.psql.PsqlStorage"
@@ -290,6 +291,9 @@ components:
         id:
           description: >-
             The unique identifier of the storage which is used to associate the event handlers with.
+          type: string
+        type:
+          description: The feature type fixed as "Storage".
           type: string
         title:
           description: The storage title.

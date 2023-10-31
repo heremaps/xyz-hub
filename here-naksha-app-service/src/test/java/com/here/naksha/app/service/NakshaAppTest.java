@@ -22,6 +22,7 @@ import static com.here.naksha.app.service.NakshaApp.newInstance;
 import static java.time.temporal.ChronoUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -34,12 +35,15 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
 class NakshaAppTest {
 
   static NakshaApp app = null;
+  static NakshaHubConfig config = null;
 
   static final String NAKSHA_HTTP_URI = "http://localhost:8080/";
   static HttpClient httpClient;
@@ -48,7 +52,6 @@ class NakshaAppTest {
   static final String TEST_DATA_FOLDER = "src/test/resources/unit_test_data/";
   static final String HDR_STREAM_ID = "Stream-Id";
 
-  // TODO HP : Re-enable after validating the NakshaHub module
   @BeforeAll
   static void prepare() throws Exception {
     String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
@@ -58,7 +61,8 @@ class NakshaAppTest {
       dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
           + "&schema=naksha_test_maint_app";
 
-    app = newInstance(dbUrl, "default-config");
+    app = newInstance(dbUrl, "mock-config");
+    config = app.getHub().getConfig();
     app.start();
     Thread.sleep(5000); // wait for server to come up
     // create standard Http client and request which will be used across tests
@@ -80,11 +84,60 @@ class NakshaAppTest {
     return (values == null) ? null : (values.size() > 1 ? values.toString() : values.get(0));
   }
 
-  // @Test
-  void tc0001_testGetStorages() throws Exception {
+  @Test
+  @Order(1)
+  void tc0001_testCreateStorages() throws Exception {
+    // Test API : POST /hub/storages
+    // 1. Load test data
+    final String bodyJson = readTestFile("TC0001_createStorage/create_storage.json");
+    final String expectedBodyPart = readTestFile("TC0001_createStorage/response_part.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages"))
+        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals(
+        "Expecting new storage in response", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(2)
+  void tc0002_testCreateDuplicateStorage() throws Exception {
+    // Test API : POST /hub/storages
+    // 1. Load test data
+    final String bodyJson = readTestFile("TC0002_createDupStorage/create_storage.json");
+    final String expectedBodyPart = readTestFile("TC0002_createDupStorage/response_part.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages"))
+        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(409, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals(
+        "Expecting conflict error message", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(3)
+  void tc0003_testGetStorages() throws Exception {
     // Test API : GET /hub/storages
     // 1. Load test data
-    final String expectedBodyPart = readTestFile("TC0001_getStorages/body_part.json");
+    final String expectedBodyPart = readTestFile("TC0003_getStorages/response_part.json");
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
@@ -98,8 +151,22 @@ class NakshaAppTest {
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
     JSONAssert.assertEquals(
-        "Expecting default psql Storage", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+        "Expecting previously created storage", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
     assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(4)
+  void tc0004_testInvalidUrlPath() throws Exception {
+    // Test API : GET /hub/invalid_storages
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/invalid_storages"))
+        .GET()
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Perform assertions
+    assertEquals(404, response.statusCode(), "ResCode mismatch");
   }
 
   @AfterAll
@@ -108,8 +175,9 @@ class NakshaAppTest {
     //       To do some manual testing with the running service, uncomment this:
     if (app != null) {
       // drop schema after test execution
-      final PsqlStorage psqlStorage = (PsqlStorage) app.getHub().getAdminStorage();
-      psqlStorage.dropSchema();
+      if (app.getHub().getAdminStorage() instanceof PsqlStorage psqlStorage) {
+        psqlStorage.dropSchema();
+      }
       // app.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(3600));
     }
   }

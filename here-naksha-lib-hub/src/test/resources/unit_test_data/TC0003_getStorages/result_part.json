@@ -1,0 +1,6 @@
+[
+    {
+        "id": "um-mod-dev",
+        "className": "com.here.naksha.lib.psql.PsqlStorage"
+    }
+]

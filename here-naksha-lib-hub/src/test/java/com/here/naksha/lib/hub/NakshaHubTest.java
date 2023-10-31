@@ -18,19 +18,22 @@
  */
 package com.here.naksha.lib.hub;
 
+import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
-import com.here.naksha.lib.core.models.storage.ReadFeatures;
-import com.here.naksha.lib.core.models.storage.ReadResult;
-import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.core.view.ViewSerialize;
+import com.here.naksha.lib.hub.util.ConfigUtil;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlConfigBuilder;
 import com.here.naksha.lib.psql.PsqlStorage;
@@ -38,8 +41,11 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
@@ -47,9 +53,10 @@ class NakshaHubTest {
 
   static final String TEST_DATA_FOLDER = "src/test/resources/unit_test_data/";
   static INaksha hub = null;
+  static NakshaHubConfig config = null;
 
   @BeforeAll
-  static void prepare() {
+  static void prepare() throws Exception {
     String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
     if (password == null) password = "password";
@@ -61,20 +68,97 @@ class NakshaHubTest {
         .withAppName(NakshaHubConfig.defaultAppName())
         .parseUrl(dbUrl)
         .build();
-    hub = NakshaHubFactory.getInstance(psqlCfg, null, null);
+    final NakshaHubConfig customCfg = ConfigUtil.readConfigFile("mock-config");
+    hub = NakshaHubFactory.getInstance(psqlCfg, customCfg, null);
+    config = hub.getConfig();
   }
 
   private String readTestFile(final String filePath) throws Exception {
     return new String(Files.readAllBytes(Paths.get(TEST_DATA_FOLDER + filePath)));
   }
 
-  // TODO HP : Re-enable with necessary mocking (or after lib-psql is fixed)
-  // @Test
-  void tc0001_testGetStorages() throws Exception {
+  private <T> T parseJson(final @NotNull String jsonStr, final @NotNull Class<T> type) throws Exception {
+    T obj = null;
+    try (final Json json = Json.get()) {
+      obj = json.reader(ViewDeserialize.Storage.class).forType(type).readValue(jsonStr);
+    }
+    return obj;
+  }
+
+  private String toJson(final @NotNull Object obj) throws Exception {
+    String jsonStr = null;
+    try (final Json json = Json.get()) {
+      jsonStr = json.writer(ViewSerialize.Storage.class).writeValueAsString(obj);
+    }
+    return jsonStr;
+  }
+
+  // TODO HP : Need to relook at tests just to validate wiring part
+  @Test
+  @Order(1)
+  void tc0001_testCreateStorage() throws Exception {
     // 1. Load test data
-    final String expectedBodyPart = readTestFile("TC0001_getStorages/body_part.json");
+    final String requestJson = readTestFile("TC0001_createStorage/create_storage.json");
+    final String expectedBodyPart = readTestFile("TC0001_createStorage/result_part.json");
+    final Storage storage = parseJson(requestJson, Storage.class);
     // Create new NakshaContext
-    final NakshaContext ctx = new NakshaContext().withAppId(NakshaHubConfig.defaultAppName());
+    final NakshaContext ctx = new NakshaContext().withAppId(config.appId);
+    ctx.attachToCurrentThread();
+    // Create WriteFeature Request to add new storage
+    try (final IWriteSession admin = hub.getSpaceStorage().newWriteSession(ctx, true)) {
+      final Result wrResult = admin.execute(createFeatureRequest(
+          NakshaAdminCollection.STORAGES, storage, IfExists.REPLACE, IfConflict.REPLACE));
+      // check result
+      if (wrResult instanceof WriteResult<?> wr) {
+        assertEquals(1, wr.results.size(), "Expected 1 storage in result");
+        final List<Storage> storageResultList = new ArrayList<>();
+        for (final WriteOpResult<?> wOpResult : wr.results) {
+          storageResultList.add((Storage) wOpResult.object);
+        }
+        JSONAssert.assertEquals(
+            "Mismatch in Storage WriteResult",
+            expectedBodyPart,
+            toJson(storageResultList),
+            JSONCompareMode.LENIENT);
+      } else {
+        admin.rollback();
+        fail("Unexpected result while creating storage!" + wrResult);
+      }
+      admin.commit();
+    }
+  }
+
+  @Test
+  @Order(2)
+  void tc0002_testCreateDuplicateStorage() throws Exception {
+    // 1. Load test data
+    final String requestJson = readTestFile("TC0001_createStorage/create_storage.json");
+    final Storage storage = parseJson(requestJson, Storage.class);
+    // Create new NakshaContext
+    final NakshaContext ctx = new NakshaContext().withAppId(config.appId);
+    ctx.attachToCurrentThread();
+    // Create WriteFeature Request to add new storage
+    try (final IWriteSession admin = hub.getSpaceStorage().newWriteSession(ctx, true)) {
+      final Result wrResult = admin.execute(createFeatureRequest(
+          NakshaAdminCollection.STORAGES, storage, IfExists.REPLACE, IfConflict.REPLACE));
+      // we expect exception
+      admin.rollback();
+      if (wrResult instanceof ErrorResult er) {
+        assertEquals(
+            XyzError.CONFLICT.value, er.reason.value, "Expecting conflict error on duplicate storage!");
+        return;
+      }
+      fail("Received different result while creating duplicate storage! " + wrResult);
+    }
+  }
+
+  @Test
+  @Order(3)
+  void tc0003_testGetStorages() throws Exception {
+    // 1. Load test data
+    final String expectedBodyPart = readTestFile("TC0003_getStorages/result_part.json");
+    // Create new NakshaContext
+    final NakshaContext ctx = new NakshaContext().withAppId(config.appId);
     ctx.attachToCurrentThread();
     // Create ReadFeatures Request to read all storages from Admin DB
     final ReadFeatures readFeaturesReq = new ReadFeatures(NakshaAdminCollection.STORAGES);
@@ -97,12 +181,7 @@ class NakshaHubTest {
         }
         rr.close();
         // convert storage list to JSON string before comparison
-        String storagesJson = null;
-        try (final Json json = Json.get()) {
-          storagesJson = json.writer(ViewSerialize.Storage.class)
-              .forType(Storage.class)
-              .writeValueAsString(storages);
-        }
+        final String storagesJson = toJson(storages);
         JSONAssert.assertEquals(
             "Expecting default psql Storage", expectedBodyPart, storagesJson, JSONCompareMode.LENIENT);
       } else {
@@ -115,8 +194,9 @@ class NakshaHubTest {
   static void close() throws InterruptedException {
     if (hub != null) {
       // drop schema after test execution
-      final PsqlStorage psqlStorage = (PsqlStorage) hub.getAdminStorage();
-      psqlStorage.dropSchema();
+      if (hub.getAdminStorage() instanceof PsqlStorage psqlStorage) {
+        psqlStorage.dropSchema();
+      }
       // TODO: Find a way to gracefully shutdown the hub
     }
   }

@@ -41,8 +41,8 @@ public class SpaceApi extends Api {
 
   @Override
   public void addOperations(final @NotNull RouterBuilder rb) {
-    rb.operation("getSpaces").handler(this::getSpaces);
-    rb.operation("postSpace").handler(this::createSpace);
+    // rb.operation("getSpaces").handler(this::getSpaces);
+    // rb.operation("postSpace").handler(this::createSpace);
   }
 
   @Override

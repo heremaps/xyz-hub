@@ -27,10 +27,9 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.IoHelp.LoadedBytes;
-import com.here.naksha.lib.core.util.json.Json;
-import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.hub.NakshaHubFactory;
+import com.here.naksha.lib.hub.util.ConfigUtil;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlConfigBuilder;
 import io.vertx.core.Vertx;
@@ -149,7 +148,12 @@ public final class NakshaApp extends Thread {
     this.instanceId = instanceId;
 
     // Read the custom configuration from file (if available)
-    NakshaHubConfig config = readCustomCfgFile(adminDbConfig, configId);
+    NakshaHubConfig config = null;
+    try {
+      config = ConfigUtil.readConfigFile(configId, adminDbConfig.appName);
+    } catch (Exception ex) {
+      log.warn("Error reading supplied custom config, will continue with default. ", ex);
+    }
     // Instantiate NakshaHub instance
     this.hub = NakshaHubFactory.getInstance(adminDbConfig, config, configId);
     config = hub.getConfig(); // use the config finally set by NakshaHub instance
@@ -200,23 +204,6 @@ public final class NakshaApp extends Thread {
     webClientOptions.setIdleTimeoutUnit(TimeUnit.MINUTES).setIdleTimeout(2);
     this.webClient = WebClient.create(this.vertx, webClientOptions);
     this.shutdownThread = new Thread(this::shutdownHook);
-  }
-
-  private static NakshaHubConfig readCustomCfgFile(
-      final @NotNull PsqlConfig adminDbConfig, final @NotNull String configId) {
-    NakshaHubConfig cfg = null;
-    try (final Json json = Json.get()) {
-      // TODO HP_QUERY : Reason for not supporting custom config path?
-      final LoadedBytes loaded =
-          IoHelp.readBytesFromHomeOrResource(configId + ".json", false, adminDbConfig.appName);
-      cfg = json.reader(ViewDeserialize.Storage.class)
-          .forType(NakshaHubConfig.class)
-          .readValue(loaded.bytes());
-      log.info("Fetched supplied server config from {}", loaded.path());
-    } catch (Exception ex) {
-      log.warn("Error reading supplied server config, will continue with default. ", ex);
-    }
-    return cfg;
   }
 
   /**

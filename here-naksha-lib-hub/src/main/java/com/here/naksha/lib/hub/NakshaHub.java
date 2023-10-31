@@ -63,7 +63,6 @@ public class NakshaHub implements INaksha {
       final @NotNull PsqlConfig config,
       final @Nullable NakshaHubConfig customCfg,
       final @Nullable String configId) {
-    // this.dataSource = new PsqlDataSource(config);
     // create storage instance upfront
     this.psqlStorage = new PsqlStorage(config, "naksha-admin-db");
     this.adminStorageInstance = new NHAdminStorage(this.psqlStorage);

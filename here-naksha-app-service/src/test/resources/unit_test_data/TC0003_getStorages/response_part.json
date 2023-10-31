@@ -2,8 +2,8 @@
     "type": "FeatureCollection",
     "features": [
         {
+            "id": "um-mod-dev",
             "type": "Storage",
-            "id": "psql",
             "className": "com.here.naksha.lib.psql.PsqlStorage"
         }
     ]

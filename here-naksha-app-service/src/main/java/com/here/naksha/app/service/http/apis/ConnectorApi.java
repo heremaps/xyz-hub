@@ -41,8 +41,8 @@ public class ConnectorApi extends Api {
 
   @Override
   public void addOperations(final @NotNull RouterBuilder rb) {
-    rb.operation("getConnectors").handler(this::getConnectors);
-    rb.operation("postConnector").handler(this::createConnector);
+    // rb.operation("getConnectors").handler(this::getConnectors);
+    // rb.operation("postConnector").handler(this::createConnector);
   }
 
   @Override
