@@ -19,14 +19,38 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.httpconnector.util.Futures.futurify;
+import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
+import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
+import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.prepared;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.preparing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.queued;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.trigger_executed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobAborted;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.setJobFailed;
+import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+
+import com.amazonaws.services.emrserverless.model.JobRunState;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
-import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
+import com.here.xyz.httpconnector.util.emr.EMRManager;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
@@ -38,25 +62,13 @@ import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.httpconnector.util.Futures.futurify;
-import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
-import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
-import static com.here.xyz.httpconnector.util.jobs.Job.Status.*;
-import static com.here.xyz.httpconnector.util.scheduler.JobQueue.*;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
@@ -124,23 +136,13 @@ public class Export extends JDBCBasedJob<Export> {
     @JsonView({Public.class})
     private String triggerId;
 
-    @JsonView({Public.class})
-    public enum CompositeMode {
-        FULL_OPTIMIZED, //Load persistent Base + (Changes)
-        CHANGES, //Only changes
-        DEACTIVATED;
-
-        public static CompositeMode of(String value) {
-            if (value == null) {
-                return null;
-            }
-            try {
-                return valueOf(value.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }
-    }
+    @JsonIgnore
+    private AtomicBoolean emrJobExecuting = new AtomicBoolean();
+    public String emrJobId;
+    @JsonIgnore
+    private EMRManager emrManager;
+    private boolean emrTransformation;
+    private String emrType;
 
     private static String PARAM_COMPOSITE_MODE = "compositeMode";
     private static String PARAM_PERSIST_EXPORT = "persistExport";
@@ -248,42 +250,38 @@ public class Export extends JDBCBasedJob<Export> {
         CompositeMode compositeMode = readParamCompositeMode();
         Map ext = readParamExtends();
 
-        if(readPersistExport()){
-            this.setExp(-1l);
-        }
+        if (readPersistExport())
+            setExp(-1l);
 
-        if(!compositeMode.equals(CompositeMode.DEACTIVATED)) {
+        if (compositeMode != DEACTIVATED) {
             if (getExportTarget().getType() == DOWNLOAD && getCsvFormat() != JSON_WKB)
-                throw new HttpException(HttpResponseStatus.BAD_REQUEST, "CompositeMode is not available for Type Download!");
+                throw new HttpException(BAD_REQUEST, "CompositeMode is not available for Type Download!");
 
             if (getCsvFormat() != TILEID_FC_B64 && getCsvFormat() != PARTITIONID_FC_B64 && getCsvFormat() != JSON_WKB)
                 throw new HttpException(BAD_REQUEST, "CompositeMode does not support the provided CSV format!");
 
-            if(ext == null) {
+            if (ext == null) {
                 // No extension present - so we remove the composite mode
                 params.remove(PARAM_COMPOSITE_MODE);
             }
         }
 
-        if (compositeMode.equals(CompositeMode.FULL_OPTIMIZED)){
-
+        if (compositeMode.equals(CompositeMode.FULL_OPTIMIZED)) {
             boolean superIsReadOnly = ext.get("readOnly") != null ? (boolean) ext.get("readOnly") : false;
             Map l2Ext = (Map) ext.get("extends");
 
-            if(l2Ext != null){
+            if (l2Ext != null)
                 //L2 Composite
                 superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
-            }
 
-            if(!superIsReadOnly)
+            if (!superIsReadOnly)
                 throw new HttpException(BAD_REQUEST, "CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer!");
         }
 
-        ContextAwareEvent.SpaceContext context = readParamContext();
+        SpaceContext context = readParamContext();
 
-        if (readParamExtends() != null && context == null) {
+        if (readParamExtends() != null && context == null)
             addParam("context", DEFAULT);
-        }
 
         if (getEstimatedFeatureCount() > 1000000 //searchable limit without index
             && getPartitionKey() != null && !"id".equals(getPartitionKey())
@@ -299,7 +297,7 @@ public class Export extends JDBCBasedJob<Export> {
             .compose(job -> {
                 CompositeMode compositeMode = readParamCompositeMode();
 
-                if (!compositeMode.equals(CompositeMode.DEACTIVATED)) {
+                if (compositeMode != DEACTIVATED ) {
                     switch( getCsvFormat() )
                     { case TILEID_FC_B64 : case PARTITIONID_FC_B64 : case JSON_WKB : break;  
                       default: return Future.failedFuture(new HttpException(BAD_REQUEST, "CSV format is not supported for CompositeMode!"));
@@ -352,40 +350,46 @@ public class Export extends JDBCBasedJob<Export> {
         return this;
     }
 
-    public ExportStatistic getSuperStatistic(){
+    public ExportStatistic getSuperStatistic() {
         return this.superStatistic;
     }
 
-    public ExportStatistic getStatistic(){
+    public ExportStatistic getStatistic() {
         return getTotalStatistic();
     }
 
     @JsonIgnore
-    private ExportStatistic getTotalStatistic(){
-        if(this.statistic == null)
+    private ExportStatistic getTotalStatistic() {
+        if (this.statistic == null)
             return null;
 
-        if(this.superStatistic == null)
+        if (this.superStatistic == null)
             return this.statistic;
 
         return new ExportStatistic()
-                .withBytesUploaded(this.statistic.bytesUploaded + this.superStatistic.bytesUploaded)
-                .withFilesUploaded(this.statistic.filesUploaded + this.superStatistic.filesUploaded)
-                .withRowsUploaded(this.statistic.rowsUploaded + this.superStatistic.rowsUploaded);
+            .withBytesUploaded(this.statistic.bytesUploaded + this.superStatistic.bytesUploaded)
+            .withFilesUploaded(this.statistic.filesUploaded + this.superStatistic.filesUploaded)
+            .withRowsUploaded(this.statistic.rowsUploaded + this.superStatistic.rowsUploaded);
     }
 
-    public void setSuperId(String superId){ this.superId = superId;}
+    public void setSuperId(String superId) {
+        this.superId = superId;
+    }
 
-    public String getSuperId(){ return this.superId; }
+    public String getSuperId() {
+        return this.superId;
+    }
 
     public void setStatistic(ExportStatistic statistic) {
         this.statistic = statistic;
     }
 
-    public void setSuperStatistic(ExportStatistic superStatistic){ this.superStatistic = superStatistic;}
+    public void setSuperStatistic(ExportStatistic superStatistic) {
+        this.superStatistic = superStatistic;
+    }
 
     public void addStatistic(ExportStatistic statistic) {
-        if(this.statistic == null)
+        if (this.statistic == null)
             this.statistic = statistic;
         else {
             this.statistic.setBytesUploaded(this.statistic.getBytesUploaded() + statistic.getBytesUploaded());
@@ -407,9 +411,9 @@ public class Export extends JDBCBasedJob<Export> {
     public List<ExportObject> getExportObjectsAsList() {
         List<ExportObject> exportObjectList = new ArrayList<>();
 
-        if(superExportObjects == null)
+        if (superExportObjects == null)
             exportObjectList.addAll(superExportObjects.values());
-        if(exportObjects == null)
+        if (exportObjects == null)
             exportObjectList.addAll(exportObjects.values());
 
         return exportObjectList;
@@ -557,50 +561,50 @@ public class Export extends JDBCBasedJob<Export> {
         return this;
     }
 
-    public Boolean readParamSkipTrigger() {
-        return this.params != null && this.params.containsKey(PARAM_SKIP_TRIGGER) ? (boolean) this.getParam(PARAM_SKIP_TRIGGER) : false;
+    public boolean readParamSkipTrigger() {
+        return params != null && params.containsKey(PARAM_SKIP_TRIGGER) ? (boolean) this.getParam(PARAM_SKIP_TRIGGER) : false;
     }
 
-    public boolean readPersistExport(){
-        return  this.params != null && this.params.containsKey(PARAM_PERSIST_EXPORT) ? (boolean) this.getParam(PARAM_PERSIST_EXPORT) : false;
+    public boolean readPersistExport() {
+        return  params != null && params.containsKey(PARAM_PERSIST_EXPORT) ? (boolean) this.getParam(PARAM_PERSIST_EXPORT) : false;
     }
 
-    public Map readParamExtends(){
-        return this.params != null && this.params.containsKey(PARAM_EXTENDS) ? (Map) this.getParam(PARAM_EXTENDS) : null;
+    public Map readParamExtends() {
+        return params != null && params.containsKey(PARAM_EXTENDS) ? (Map) this.getParam(PARAM_EXTENDS) : null;
     }
 
-    public ContextAwareEvent.SpaceContext readParamContext(){
-        return this.params != null &&  this.params.containsKey(PARAM_CONTEXT) ? ContextAwareEvent.SpaceContext.valueOf((String) this.params.get(PARAM_CONTEXT)) : null;
+    public SpaceContext readParamContext() {
+        return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf((String) this.params.get(PARAM_CONTEXT)) : null;
     }
 
     public CompositeMode readParamCompositeMode() {
-        return this.params != null && this.params.containsKey(PARAM_COMPOSITE_MODE)
-                ? CompositeMode.valueOf((String) this.params.get(PARAM_COMPOSITE_MODE))
-                : CompositeMode.DEACTIVATED;
+        return params != null && params.containsKey(PARAM_COMPOSITE_MODE)
+                ? CompositeMode.valueOf((String) params.get(PARAM_COMPOSITE_MODE))
+                : DEACTIVATED;
     }
 
     public String extractSuperSpaceId() {
         Map extension = readParamExtends();
-        if(extension == null)
+        if (extension == null)
             return null;
 
         Map recursiveExtension = (Map) extension.get(PARAM_EXTENDS);
-        if(recursiveExtension != null) {
+        if (recursiveExtension != null)
             return (String) recursiveExtension.get("spaceId");
-        }
+
         return (String) extension.get("spaceId");
     }
 
     public boolean isSuperSpacePersist() {
         Map extension = readParamExtends();
-        if(extension == null)
+        if (extension == null)
             return false;
 
         Map recursiveExtension = (Map) extension.get(PARAM_EXTENDS);
-        if(recursiveExtension != null) {
-            return recursiveExtension.get("readOnly") != null ? (Boolean) recursiveExtension.get("readOnly") : false;
-        }
-        return extension.get("readOnly") != null ? (Boolean) extension.get("readOnly") : false;
+        if (recursiveExtension != null)
+            return recursiveExtension.get("readOnly") != null ? (boolean) recursiveExtension.get("readOnly") : false;
+
+        return extension.get("readOnly") != null ? (boolean) extension.get("readOnly") : false;
     }
 
     public void resetToPreviousState() throws Exception {
@@ -856,96 +860,104 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public Future<Job> checkPersistentExport() {
-        /** Deliver result if Export is already available */
-
+        //Deliver result if Export is already available
         return searchPersistentJobOnTarget(targetSpaceId)
-                .compose(existingJob -> {
-
-                    if(existingJob != null) {
-                        /** metafile is present but Export is not started yet */
-                        if(existingJob.getId().equals(getId()) && existingJob.getStatus().equals(preparing)) {
-                            /** We need to start the export by ourselves */
-                            return updateJobStatus(this, prepared);
-                        }else if(existingJob.getStatus().equals(finalized) || existingJob.getStatus().equals(trigger_executed) ) {
-                            /** Export is available - use it and skip jdbc-export */
-                            logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
-                            setSuperId(existingJob.getId());
-                            addDownloadLinks(existingJob);
-                            setExportObjects(existingJob.getExportObjects());
-
-                            setStatistic(existingJob.getStatistic());
-                            return updateJobStatus(this, executed);
-                        }else if(existingJob.getStatus().equals(failed)){
-                            /** Export is available but is failed - abort also this export. */
-                            String message = String.format("Another related job "+existingJob.getId()+" has failed.",
-                                    existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
-                            logger.warn("job[{}] Export {}", getId(), message);
-                            setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
-                            return Future.failedFuture(Job.ERROR_TYPE_EXECUTION_FAILED);
-                        }else {
-                            /** Go back to queuing - we need to wait for the completion of an already running persist export. */
-                            return updateJobStatus(this, queued);
-                        }
-                    }
-                    else
+            .compose(existingJob -> {
+                if (existingJob != null) {
+                    //metafile is present but Export is not started yet
+                    if (existingJob.getId().equals(getId()) && existingJob.getStatus() == preparing) {
+                        //We need to start the export by ourselves
                         return updateJobStatus(this, prepared);
-                });
+                    }
+                    else if (existingJob.getStatus() == finalized || existingJob.getStatus() == trigger_executed) {
+                        //Export is available - use it and skip jdbc-export
+                        logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
+                        setSuperId(existingJob.getId());
+                        addDownloadLinks(existingJob);
+                        setExportObjects(existingJob.getExportObjects());
+
+                        setStatistic(existingJob.getStatistic());
+                        return updateJobStatus(this, executed);
+                    }
+                    else if(existingJob.getStatus() == failed) {
+                        //Export is available but is failed - abort also this export.
+                        String message = String.format("Another related job "+existingJob.getId()+" has failed.",
+                                existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
+                        logger.warn("job[{}] Export {}", getId(), message);
+                        setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
+                        return Future.failedFuture(Job.ERROR_TYPE_EXECUTION_FAILED);
+                    }
+                    else {
+                        //Go back to queuing - we need to wait for the completion of an already running persist export.
+                        return updateJobStatus(this, queued);
+                    }
+                }
+                else
+                    return updateJobStatus(this, prepared);
+            });
     }
 
     public Future<Job> checkPersistentSuperExport() {
-        /** Check if we can find a persistent export and check status. If no persistent export is available we are starting one. */
+        //Check if we can find a persistent export and check status. If no persistent export is available we are starting one.
         String superSpaceId = extractSuperSpaceId();
 
         return searchPersistentJobOnTarget(superSpaceId)
-                .compose(existingJob -> {
+            .compose(existingJob -> {
+                //TODO: if status is failed no retry is implemented/possible
+                if (existingJob == null) {
+                    logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), superSpaceId);
 
-                    //TODO: if status is failed no retry is implemented/possible
-                    if(existingJob == null){
-                        logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), superSpaceId);
+                    Export baseExport = new Export()
+                        .withId(getId() + "_missing_base")
+                        .withDescription("Persistent Base Export for " + getId())
+                        .withExportTarget(getExportTarget())
+                        .withFilters(getFilters())
+                        .withMaxTilesPerFile(getMaxTilesPerFile())
+                        .withTargetLevel(getTargetLevel())
+                        .withPartitionKey(getPartitionKey())
+                        .withCsvFormat(getCsvFormat())
+                        .withEmrTransformation(isEmrTransformation())
+                        .withEmrType(getEmrType());
 
-                        Export baseExport = new Export()
-                                .withId(getId()+"_missing_base")
-                                .withDescription("Persistent Base Export for "+getId())
-                                .withExportTarget(getExportTarget())
-                                .withFilters(getFilters())
-                                .withMaxTilesPerFile(getMaxTilesPerFile())
-                                .withTargetLevel(getTargetLevel());
 
-                        //We only need reusable data on S3
-                        baseExport.addParam(PARAM_SKIP_TRIGGER, true);
-                        baseExport.addParam(PARAM_PERSIST_EXPORT, true);
+                    //We only need reusable data on S3
+                    baseExport.addParam(PARAM_SKIP_TRIGGER, true);
+                    baseExport.addParam(PARAM_PERSIST_EXPORT, true);
 
-                        logger.info("job[{}] Trigger Persist Export {} of Super-Layer!", getId(), superSpaceId);
-                        return HubWebClient.performBaseLayerExport(superSpaceId, baseExport)
-                                .compose(newBaseExport -> {
-                                    logger.info("job[{}] Need to wait for finalization of persist Export {} of base-layer!", getId(), newBaseExport.getId());
-                                    setSuperId(newBaseExport.getId());
+                    logger.info("job[{}] Trigger Persist Export {} of Super-Layer!", getId(), superSpaceId);
+                    return HubWebClient.performBaseLayerExport(superSpaceId, baseExport)
+                        .compose(newBaseExport -> {
+                            logger.info("job[{}] Need to wait for finalization of persist Export {} of base-layer!", getId(), newBaseExport.getId());
+                            setSuperId(newBaseExport.getId());
 
-                                    return updateJobStatus(this,queued);
-                                })
-                                .onFailure(f -> setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED));
-                    }else if(existingJob.getStatus().equals(failed)){
-                        logger.info("job[{}] Persist Export {} of Super-Layer has failed!", getId(), superSpaceId);
-                        return setJobFailed(this,ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED);
-                    }else if(existingJob.getStatus().equals(finalized)){
-                        logger.info("job[{}] Persist Export {} of Super-Layer is available!", getId(), superSpaceId);
-                        if(superId == null)
-                            setSuperId(existingJob.getId());
+                            return updateJobStatus(this,queued);
+                        })
+                        .onFailure(f -> setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED));
+                }
+                else if (existingJob.getStatus() == failed) {
+                    logger.info("job[{}] Persist Export {} of Super-Layer has failed!", getId(), superSpaceId);
+                    return setJobFailed(this,ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED);
+                }
+                else if (existingJob.getStatus() == finalized) {
+                    logger.info("job[{}] Persist Export {} of Super-Layer is available!", getId(), superSpaceId);
+                    if (superId == null)
+                        setSuperId(existingJob.getId());
 
-                        setSuperStatistic(existingJob.getStatistic());
-                        return updateJobStatus(this, prepared);
-                    }else{
-                        logger.info("job[{}] Persist Export {} - need to wait for finalization of persist Export of base-layer!", getId(), superSpaceId);
-                        return updateJobStatus(this, queued);
-                    }
-                });
+                    setSuperStatistic(existingJob.getStatistic());
+                    return updateJobStatus(this, prepared);
+                }
+                else {
+                    logger.info("job[{}] Persist Export {} - need to wait for finalization of persist Export of base-layer!", getId(), superSpaceId);
+                    return updateJobStatus(this, queued);
+                }
+            });
     }
 
     @Override
     public Future<Job> executeStart() {
         return isValidForStart()
-                .compose(job -> prepareStart())
-                .onSuccess(job -> CService.exportQueue.addJob(job));
+            .compose(job -> prepareStart())
+            .onSuccess(job -> CService.exportQueue.addJob(job));
     }
 
     @Override
@@ -976,33 +988,190 @@ public class Export extends JDBCBasedJob<Export> {
             );
     }
 
-    protected void addDownloadLinks(Job j){
-        /** Add file statistics and downloadLinks */
-        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
-        ((Export) j).setExportObjects(exportObjects);
+    protected void addDownloadLinks(Job j) {
+        Export export = ((Export) j); //TODO: Use this instance once scheduler is fixed
+        String emrSuffix = isEmrTransformation() ? EMRConfig.S3_PATH_SUFFIX : "";
 
-        if(((Export)j).getSuperId() != null) {
-            /** Add exportObjects including fresh download links for persistent base exports */
-            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath((Export) j, true, true);
-            ((Export) j).setSuperExportObjects(superExportObjects);
+        //Add file statistics and downloadLinks
+        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath(
+            CService.jobS3Client.getS3Path(j, false) + emrSuffix);
+        export.setExportObjects(exportObjects);
+
+        if (export.getSuperId() != null) {
+            //Add exportObjects including fresh download links for persistent base exports
+            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath(
+                CService.jobS3Client.getS3Path(j, true) + emrSuffix);
+            export.setSuperExportObjects(superExportObjects);
         }
     }
 
-    @JsonIgnore
-    public String getHashForPersistentStorage(){
-        return Hasher.getHash(
-                ( targetLevel != null ? targetLevel.toString() : "")
-                + maxTilesPerFile
-                + partitionKey
-                + csvFormat
-                + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().geometry.getJTSGeometry().hashCode() :"")
-                + (filters != null && filters.getPropertyFilter() !=null ? filters.getPropertyFilter().hashCode() :"")
-                + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().getRadius() :"")
-                + (filters != null && filters.getSpatialFilter() !=null ? filters.getSpatialFilter().isClipped() : false));
+    private static class EMRConfig {
+        public static final String APPLICATION_ID = System.getenv("EMR_APPLICATION_ID");
+        public static final String EMR_RUNTIME_ROLE_ARN = System.getenv("EMR_RUNTIME_ROLE_ARN");
+        public static final String JAR_PATH = System.getenv("EMR_JAR_PATH");
+        public static final String SPARK_PARAMS = "--class com.here.xyz.FeatureAggregator " +
+            "--conf spark.hadoop.hive.metastore.client.factory.class=com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory";
+        public static final String S3_PATH_SUFFIX = "-transformed";
+    }
+
+    private EMRManager getEmrManager() {
+        if (emrManager == null)
+            emrManager = new EMRManager();
+        return emrManager;
+    }
+
+    @Deprecated
+    public boolean isEmrTransformation() {
+        return emrTransformation;
+    }
+
+    @Deprecated
+    public void setEmrTransformation(boolean emrTransformation) {
+        this.emrTransformation = emrTransformation;
+    }
+
+    @Deprecated
+    public Export withEmrTransformation(boolean emrTransformation) {
+        setEmrTransformation(emrTransformation);
+        return this;
+    }
+
+    @Deprecated
+    public String getEmrType() {
+        return emrType;
+    }
+
+    @Deprecated
+    public void setEmrType(String emrType) {
+        this.emrType = emrType;
+    }
+    @Deprecated
+    public Export withEmrType(String emrType) {
+        setEmrType(emrType);
+        return this;
+    }
+
+    @Deprecated
+    public String getEmrJobId() {
+        return emrJobId;
+    }
+
+    @Deprecated
+    public void setEmrJobId(String emrJobId) {
+        this.emrJobId = emrJobId;
+    }
+
+    @Override
+    public Future<Job> executeAbort() {
+        if (isEmrTransformation() && getStatus() == finalizing)
+            //Cancel EMR Job
+            getEmrManager().shutdown(EMRConfig.APPLICATION_ID, emrJobId);
+        return super.executeAbort();
     }
 
     @Override
     public void finalizeJob() {
-        updateJobStatus(this, finalized);
+        if (isEmrTransformation()) {
+            updateJobStatus(this, finalizing)
+                .compose(job -> {
+                    //Start EMR Job, return jobId
+                    String sourceS3Url = getS3UrlForPath(CService.jobS3Client.getS3Path(job));
+                    List<String> scriptParams = new ArrayList<>();
+                    scriptParams.add(sourceS3Url);
+                    scriptParams.add(sourceS3Url + EMRConfig.S3_PATH_SUFFIX);
+                    scriptParams.add("--type=" + getEmrType());
+
+                    String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
+                        EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
+                    this.emrJobId = emrJobId;
+                    return Future.succeededFuture(emrJobId);
+                })
+                .onSuccess(emrJobId -> startEmrJobStatePolling(EMRConfig.APPLICATION_ID, emrJobId))
+                .onFailure(err -> {
+                    logger.warn(getMarker(), "Failure starting finalization. (EMR Transformation)", err);
+                    setJobFailed(this, "Error trying to start finalization.", "START_EMR_JOB_FAILED");
+                });
+        }
+        else
+            super.finalizeJob();
+    }
+
+    private static String getS3UrlForPath(String path) {
+        return "s3://" + CService.configuration.JOBS_S3_BUCKET + "/" + path;
+    }
+
+    private void startEmrJobStatePolling(String applicationId, String emrJobId) {
+        if (emrJobExecuting.compareAndSet(false, true)) {
+            new Thread(() -> {
+                setUpdatedAt(Core.currentTimeMillis() / 1000l);
+                while (emrJobExecuting.get()) {
+                    JobRunState jobState = null;
+                    try {
+                        jobState = getEmrManager().getExecutionSummary(applicationId, emrJobId);
+                        setUpdatedAt(Core.currentTimeMillis() / 1000l);
+                    }
+                    catch (Exception e) {
+                        logger.warn("job[{}] Error fetching job state of EMR transformation with emr job id \"{}\"", getId(), emrJobId, e);
+                    }
+                    switch (jobState) {
+                        case SUCCESS:
+                            logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
+                            addDownloadLinks(this);
+                            //Update this job's state finally to "finalized"
+                            updateJobStatus(this, finalized);
+                            //Stop this thread
+                            emrJobExecuting.set(false);
+                            break;
+                        case FAILED:
+                        case CANCELLED:
+                            logger.warn("job[{}] EMR transformation {} ended with state \"{}\"", getId(), emrJobId, jobState);
+                            setJobFailed(this, "EMR job " + emrJobId + " ended with state \"" + jobState + "\"", "EMR_JOB_FAILED");
+                            //Stop this thread
+                            emrJobExecuting.set(false);
+                    }
+                    //Check if last state update is too long (>60s) ago (timeout or other issue with EMR job)
+                    if (getUpdatedAt() < Core.currentTimeMillis() / 1000l - 60) {
+                        setJobFailed(this, "No state update from EMR job " + emrJobId + " since more than 60 seconds", "EMR_JOB_TIMEOUT");
+                        //Stop this thread
+                        emrJobExecuting.set(false);
+                    }
+
+                    try {
+                        Thread.sleep(3_000);
+                    }
+                    catch (InterruptedException ignore) {}
+                }
+            }).start();
+        }
+    }
+
+    @JsonIgnore
+    public String getHashForPersistentStorage() {
+        return Hasher.getHash(
+                (targetLevel != null ? targetLevel.toString() : "")
+                + maxTilesPerFile
+                + partitionKey
+                + csvFormat
+                + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().geometry.getJTSGeometry().hashCode() : "")
+                + (filters != null && filters.getPropertyFilter() != null ? filters.getPropertyFilter().hashCode() : "")
+                + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().getRadius() : "")
+                + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().isClipped() : false));
+    }
+
+    public enum CompositeMode {
+        FULL_OPTIMIZED, //Load persistent Base + (Changes)
+        CHANGES, //Only changes
+        DEACTIVATED;
+
+        public static CompositeMode of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
     }
 }

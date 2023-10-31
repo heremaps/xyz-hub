@@ -107,6 +107,13 @@ public class HubWebClient {
                 });
     }
 
+  /**
+   * @deprecated Please do not use this method anymore and rather use the JobHandler directly to submit the job
+   * @param spaceId
+   * @param job
+   * @return
+   */
+    @Deprecated
     public static Future<Job> performBaseLayerExport(String spaceId, Export job) {
         String executeUrl = CService.configuration.HUB_ENDPOINT+"/spaces/"+spaceId+"/jobs";
 

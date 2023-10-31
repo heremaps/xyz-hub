@@ -317,7 +317,7 @@ public class JobApiIT extends TestSpaceWithFeature {
         try {
             //TODO: Use XyzSerializable here!!
             Job job = DatabindCodec.mapper().readValue(body, new TypeReference<Job>() {});
-            assertEquals(OK.code(),response.getStatusCode());
+            assertEquals(OK.code(), response.getStatusCode());
             return job;
         }
         catch (Exception e) {
@@ -460,7 +460,8 @@ public class JobApiIT extends TestSpaceWithFeature {
         return performExport(job, spaceId, expectedStatus, failStatus, null, null);
     }
 
-    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, Export.CompositeMode compositeMode)
+    protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus,
+        Export.CompositeMode compositeMode)
         throws Exception {
         return performExport(job, spaceId, expectedStatus, failStatus, null, compositeMode);
     }
@@ -471,7 +472,7 @@ public class JobApiIT extends TestSpaceWithFeature {
     }
 
     protected List<URL> performExport(Export job, String spaceId, Status expectedStatus, Status failStatus, SpaceContext context,
-                                      Export.CompositeMode compositeMode) throws Exception {
+        Export.CompositeMode compositeMode) throws Exception {
         if (compositeMode != null)
             job.addParam("compositeMode", compositeMode.toString());
         if (context != null)
@@ -563,7 +564,8 @@ public class JobApiIT extends TestSpaceWithFeature {
         return result;
     }
 
-    protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContain, Integer expectedTileCount) throws IOException, InterruptedException {
+    protected static void downloadAndCheckFC(List<URL> urls, int expectedByteSize, int expectedFeatureCount, List<String> csvMustContain,
+        Integer expectedTileCount) throws IOException, InterruptedException {
         List<String> tileIds = new ArrayList<>();
         int featureCount = 0;
 
@@ -592,11 +594,13 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .withCsvFormat(format);
     }
 
-    protected Export buildVMTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format, int targetLevel, int maxTilesPerFile){
+    protected Export buildVMTestJob(String id, Export.Filters filters, Export.ExportTarget target, Job.CSVFormat format, int targetLevel,
+        int maxTilesPerFile) {
         Export export = buildTestJob(id, filters, target, format)
                 .withMaxTilesPerFile(maxTilesPerFile)
                 .withTargetLevel(targetLevel);
         //TODO introduce new field instead of using a parameter
+        //TODO: Do not add any property on Domain-Object "job" just for testing purposes
         export.addParam("skipTrigger", true);
         return export;
     }

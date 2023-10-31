@@ -18,9 +18,8 @@
  */
 package com.here.xyz.httpconnector.util.scheduler;
 
-import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
-import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
@@ -108,9 +107,8 @@ public abstract class JobQueue implements Runnable {
     }
 
     public synchronized static void abortAllJobs() {
-        for (Job job :JobQueue.getQueue()) {
+        for (Job job : getQueue())
             setJobFailed(job, null, Job.ERROR_TYPE_FAILED_DUE_RESTART);
-        }
     }
 
     public static String checkRunningJobsOnSpace(String targetSpaceId) {
@@ -137,18 +135,18 @@ public abstract class JobQueue implements Runnable {
         return JOB_QUEUE.size();
     }
 
-    public static Future<Job> setJobFailed(Job job, String errorDescription){
+    public static Future<Job> setJobFailed(Job job, String errorDescription) {
         System.out.println("job["+job.getId()+"] has failed!");
         return updateJobStatus(job, failed, errorDescription, null);
     }
 
-    public static Future<Job> setJobFailed(Job job, String errorDescription, String errorType){
+    public static Future<Job> setJobFailed(Job job, String errorDescription, String errorType) {
         logger.info("job[{}] has failed!", job.getId());
         return updateJobStatus(job, failed, errorDescription, errorType);
     }
 
     public static Future<Job> setJobAborted(Job j) {
-        return updateJobStatus(j, Job.Status.aborted);
+        return updateJobStatus(j, aborted);
     }
 
     protected static Future<Job> updateJobStatus(Job j) {
@@ -173,15 +171,13 @@ public abstract class JobQueue implements Runnable {
             job.setErrorDescription(errorDescription);
 
         //All end-states
-        if (status.equals(failed) || status.equals(finalized) || status.equals(aborted)) {
-            //FIXME: Shouldn't that be done also for status == aborted? If yes, we can simply use status.isFinal()
-            if (job instanceof Import) {
+        if (status.isFinal()) {
+            if (job instanceof Import)
                 releaseReadOnlyLockFromSpace(job)
-                        .onFailure(f -> {
-                            //Currently we are only logging this issue
-                            logger.warn("[{}] READONLY_RELEASE_FAILED!", job.getId());
-                        });
-            }
+                    .onFailure(f -> {
+                        //Currently we are only logging this issue
+                        logger.warn("[{}] READONLY_RELEASE_FAILED!", job.getId());
+                    });
             //Remove job from queue
             removeJob(job);
         }

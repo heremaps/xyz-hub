@@ -183,7 +183,8 @@ public class JobProxyApi extends Api{
                                         this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
                                         return;
                                     }
-                                    Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId+"?deleteData="+deleteData+"&force="+force)
+                                    Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT + "/jobs/" + jobId
+                                            + "?deleteData=" + deleteData + "&force=" + force)
                                             .timeout(JOB_API_TIMEOUT)
                                             .send()
                                             .onSuccess(res2 -> jobAPIResultHandler(context,res2,spaceId))

@@ -33,7 +33,7 @@ import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.ImportObject;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.validate.Validator;
-
+import io.vertx.core.Future;
 import java.io.BufferedReader;
 import java.io.EOFException;
 import java.io.IOException;
@@ -45,8 +45,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
-
-import io.vertx.core.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -246,13 +244,8 @@ public class JobS3Client extends AwsS3Client{
             throw new UnsupportedEncodingException("Not able to find EOL!");
     }
 
-    public Map<String, ExportObject> scanExportPath(Export job, boolean readSuper, boolean createDownloadUrl){
-        Map<String, ExportObject> exportObjectMap = new HashMap<>();
-        exportObjectMap.putAll(scanExportPath( getS3Path(job,readSuper), CService.configuration.JOBS_S3_BUCKET, createDownloadUrl));
-        return exportObjectMap;
-    }
-
-    public Map<String,ExportObject> scanExportPath(String prefix, String bucketName, boolean createDownloadUrl) {
+    public Map<String,ExportObject> scanExportPath(String prefix) {
+        String bucketName = CService.configuration.JOBS_S3_BUCKET;
         Map<String, ExportObject> exportObjectList = new HashMap<>();
         ListObjectsRequest listObjects = new ListObjectsRequest()
                 .withPrefix(prefix)
@@ -270,14 +263,6 @@ public class JobS3Client extends AwsS3Client{
                 continue;;
 
             exportObjectList.put(eo.getFilename(prefix), eo);
-            //if (createDownloadUrl) {
-            //    try {
-            //        eo.setDownloadUrl(generateDownloadURL(bucketName, eo.getS3Key()));
-            //    }
-            //    catch (Exception e) {
-            //        logger.error("[{}] Cant create download-url! ", prefix, e);
-            //    }
-            //}
         }
 
         return exportObjectList;
@@ -287,17 +272,18 @@ public class JobS3Client extends AwsS3Client{
         return getS3Path(sourceJob, true);
     }
 
-    public String getS3Path(Job job){
+    public String getS3Path(Job job) {
         return getS3Path(job, false);
     }
 
     public String getS3Path(Job job, boolean readSuper) {
         if (job instanceof Import)
-            return IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
+            return IMPORT_UPLOAD_FOLDER + "/" + job.getId();
 
         //Decide if persistent or not.
-        String subFolder =  (job instanceof Export && ((Export) job).readPersistExport() || readSuper) ?
-                                CService.jobS3Client.EXPORT_PERSIST_FOLDER : CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER;
+        String subFolder = job instanceof Export export && export.readPersistExport() || readSuper
+            ? CService.jobS3Client.EXPORT_PERSIST_FOLDER
+            : CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER;
 
         String jobId = readSuper ? ((Export)job).getSuperId() : job.getId();
 
@@ -311,8 +297,8 @@ public class JobS3Client extends AwsS3Client{
     public Future<Job> cleanJobData(Job job){
         String path = getS3Path(job);
 
-        if(job instanceof Export && ((Export)job).getSuperId() != null)
-            logger.info("job[{}] data are got produced from {}! Data still present! ", job.getId(), ((Export) job).getSuperId());
+        if (job instanceof Export export && export.getSuperId() != null)
+            logger.info("job[{}] data are got produced from {}! Data still present! ", job.getId(), export.getSuperId());
 
         this.deleteS3Folder(CService.configuration.JOBS_S3_BUCKET, path + "/");
         return Future.succeededFuture(job);

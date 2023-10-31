@@ -92,6 +92,7 @@ public abstract class JobConfigClient implements Initializable {
 
       return storeJob(marker, job, true)
           .onSuccess(j -> {
+            //TODO: Replace that hack once the job API was refactored
               if(j.getErrorType() != null && j.getErrorType().equals(Job.ERROR_TYPE_FAILED_DUE_RESTART))
                   System.out.println("job["+job.getId()+"] / status["+job.getStatus()+"]: successfully updated!");
               else

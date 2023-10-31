@@ -294,6 +294,12 @@
       <artifactId>aws-java-sdk-secretsmanager</artifactId>
     </dependency>
 
+    <!-- For Job API only -->
+    <dependency>
+      <artifactId>aws-java-sdk-emrserverless</artifactId>
+      <groupId>com.amazonaws</groupId>
+    </dependency>
+
     <!--  GeoTools libraries -->
     <dependency>
       <artifactId>gt-api</artifactId>
