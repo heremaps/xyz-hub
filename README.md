@@ -68,9 +68,26 @@ mvn clean install -Pdocker
 
 The service could also be started directly as a fat jar. In this case Postgres and the other optional dependencies need to be started separately.
 
+To build the fat jar, at the root project directory, run one of the following:
+
 ```bash
-java -jar xyz-hub-service/target/xyz-hub-service.jar
+ #Using machine installed gradle (through apt, brew,... package managers)
+ gradle shadowJar
+ #Using gradle wrapper
+ ./gradlew shadowJar
 ```
+
+The jar can be found under `build/libs/`.
+
+To ramp up Naksha with the jar, run:
+
+```bash
+java -jar <jar file> <DB connection> <environment>
+#Example
+java -jar build/libs/naksha-2.0.6-all.jar 'jdbc:postgresql://localhost/postgres?user=postgres&password=postgres&schema=naksha' local
+```
+
+Then use a web browser to connect to `localhost:8080`, an OK message should be displayed if the service is up and running.
 
 ### Configuration
 
