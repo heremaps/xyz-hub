@@ -619,6 +619,78 @@ public class JobApiExportIT extends JobApiIT {
         downloadAndCheckFC(urls, 16757, 31, mustContain, 1);
     }
 
+    /**
+     *  EXPORT composite L1 & L2 space
+     *  TYPE: "VML"
+     *  CSVFormat: "PARTITIONID_FC_B64"
+     * */
+    @Test
+    public void testFullVMLCompositeL1ExportByID() throws Exception {
+// export by ID
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testSpaceId2Ext+":dummy");
+
+        /** Create job */
+        Export job =  buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONID_FC_B64);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId2Ext, scope), failed, finalized);
+
+        List<String> mustContain = Arrays.asList("Q3107495", "Q2907951", "foo_polygon", "IkZlYXR1cmV");
+
+        downloadAndCheckFC(urls, 161813, 263, mustContain, 263);
+    }
+
+    @Test
+    public void testFullVMLCompositeL1ExportByPropertyChanges() throws Exception {
+// export by propertie.group only changes
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testSpaceId3Ext+":dummy");
+
+        /** Create job */
+        Export job =  buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONID_FC_B64).withPartitionKey("p.group");
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), failed, finalized, Export.CompositeMode.CHANGES );
+
+        List<String> mustContain = Arrays.asList("deltaonly","movedFromEmpty","shouldBeEmpty","deletedInDelta");
+
+        downloadAndCheckFC(urls, 946, 2, mustContain, 4);
+    }
+
+    @Test
+    public void testFullVMLCompositeL1ExportByTileChanges() throws Exception {
+// export by tiles only changes
+        int targetLevel = 12;
+        int maxTilesPerFile= 300;
+
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testSpaceId3Ext+":dummy");
+
+        /** Create job */
+        Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.TILEID_FC_B64, targetLevel, maxTilesPerFile);
+        
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
+
+        List<String> mustContain = Arrays.asList("23600771","23600774","23600775", "fX19XX0","fX1dfQ");
+
+        downloadAndCheckFC(urls, 1306, 3, mustContain, 3);
+    }
+
+    @Test
+    public void testFullVMLCompositeL1ExportJsonWkbChanges() throws Exception {
+// export json_wkb only changes
+        Export.ExportTarget exportTarget = new Export.ExportTarget().withType(DOWNLOAD);
+
+        /** Create job */
+        Export job =  buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.JSON_WKB);
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed, Export.CompositeMode.CHANGES );
+
+        List<String> mustContain = Arrays.asList("id000", "id002", "id003", "movedFromEmpty", "deltaonly", "'\"deleted'\": true");
+
+        downloadAndCheck(urls, 758, 3, mustContain);
+    }
+
+
     /** ------------------- only for local testing with big spaces  -------------------- */
 //    @Test
     public void testParallelFullWKBExport() throws Exception {

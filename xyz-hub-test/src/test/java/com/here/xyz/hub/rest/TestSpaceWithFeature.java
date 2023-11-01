@@ -411,11 +411,11 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .then();
   }
 
-  protected void deleteFeature(String spaceId, String featureId) {
+  protected static void deleteFeature(String spaceId, String featureId) {
     deleteFeature(spaceId, featureId, null);
   }
 
-  protected void deleteFeature(String spaceId, String featureId, String context) {
+  protected static void deleteFeature(String spaceId, String featureId, String context) {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()

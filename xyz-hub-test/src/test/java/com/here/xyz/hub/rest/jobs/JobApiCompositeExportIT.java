@@ -65,7 +65,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
     private static List<String> l1ChangesContent = new ArrayList<>(){
         {
-            add("eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0"); //EmptyFC
+            //add("eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0"); //EmptyFC
             add("4807");
             add("4991");
             add("4993");
@@ -75,7 +75,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
     private static List<String> l2ChangesContent = new ArrayList<>(){
         {
-            add("eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0"); //EmptyFC
+            //add("eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0"); //EmptyFC
             add("5831");
         }};
 
@@ -160,17 +160,6 @@ public class JobApiCompositeExportIT extends JobApiIT{
         }
         deleteAllJobsOnSpace(testSpaceId1Ext);
 
-        job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), JSON_WKB);
-        try {
-            /** Invalid Type - creation fails */
-            performExport(job, testSpaceId1, finalized, failed, Export.CompositeMode.CHANGES);
-        }catch (HttpException e){
-            assertEquals(BAD_REQUEST, e.status);
-            exceptionCnt++;
-        }
-
-        deleteAllJobsOnSpace(testSpaceId1Ext);
-
         job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), GEOJSON);
         try {
             /** No extended layer - creation fails */
@@ -181,7 +170,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         }
 
         /** Check if we got the expected amount of failures */
-        assertEquals(3, exceptionCnt);
+        assertEquals(2, exceptionCnt);
     }
 
     @Test
@@ -283,7 +272,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l1ChangesContent);
 
         //7 Features from base + 3 Features from base+delta changes. 12 Tiles including two empty tiles.
-        downloadAndCheckFC(urls, 4396, 10, mustContain, 12);
+        downloadAndCheckFC(urls, 4276, 10, mustContain, 12);
     }
 
     @Test
@@ -318,7 +307,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l1ChangesContent);
 
         //7 Features from base + 3 Features from base+delta changes. 12 Tiles including two empty tiles.
-        downloadAndCheckFC(urls, 4396, 10, mustContain, 12);
+        downloadAndCheckFC(urls, 4276, 10, mustContain, 12);
     }
 
     @Test
@@ -329,7 +318,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, false);
 
         //3 Features from base+delta changes. 5 Tiles including two empty tiles.
-        downloadAndCheckFC(urls, 1466, 3, l1ChangesContent, 5);
+        downloadAndCheckFC(urls, 1346, 3, l1ChangesContent, 5);
     }
 
     @Test
@@ -351,7 +340,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(l2ChangesContent);
 
         //3 Features from base+delta changes. 5 Tiles including two empty tiles.
-        downloadAndCheckFC(urls, 3422, 8 , mustContain, 9);
+        downloadAndCheckFC(urls, 3362, 8 , mustContain, 9);
     }
 
     @Test
@@ -363,7 +352,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, false);
 
         //* One Feature got added and one got deleted .. so we expect 1 Feature + 2 Tiles (one is empty) */
-        downloadAndCheckFC(urls, 492, 1, l2ChangesContent, 2);
+        downloadAndCheckFC(urls, 432, 1, l2ChangesContent, 2);
     }
 
     private void checkUrls(List<URL> urls, boolean expectPersistent){

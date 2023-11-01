@@ -26,6 +26,7 @@ import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWN
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
@@ -253,10 +254,10 @@ public class Export extends JDBCBasedJob<Export> {
             setExp(-1l);
 
         if (compositeMode != DEACTIVATED) {
-            if (getExportTarget().getType() == DOWNLOAD)
+            if (getExportTarget().getType() == DOWNLOAD && getCsvFormat() != JSON_WKB)
                 throw new HttpException(BAD_REQUEST, "CompositeMode is not available for Type Download!");
 
-            if (getCsvFormat() != TILEID_FC_B64 && getCsvFormat() != PARTITIONID_FC_B64)
+            if (getCsvFormat() != TILEID_FC_B64 && getCsvFormat() != PARTITIONID_FC_B64 && getCsvFormat() != JSON_WKB)
                 throw new HttpException(BAD_REQUEST, "CompositeMode does not support the provided CSV format!");
 
             if (ext == null) {
@@ -296,10 +297,13 @@ public class Export extends JDBCBasedJob<Export> {
             .compose(job -> {
                 CompositeMode compositeMode = readParamCompositeMode();
 
-                if (compositeMode != DEACTIVATED) {
-                    if (getCsvFormat() != TILEID_FC_B64 && getCsvFormat() != PARTITIONID_FC_B64)
-                        return Future.failedFuture(new HttpException(BAD_REQUEST, "CSV format is not supported for CompositeMode!"));
-                    if (getExportTarget().getType() == DOWNLOAD)
+                if (compositeMode != DEACTIVATED ) {
+                    switch( getCsvFormat() )
+                    { case TILEID_FC_B64 : case PARTITIONID_FC_B64 : case JSON_WKB : break;  
+                      default: return Future.failedFuture(new HttpException(BAD_REQUEST, "CSV format is not supported for CompositeMode!"));
+                    }
+
+                    if (getExportTarget().getType() == DOWNLOAD && getCsvFormat() != JSON_WKB )
                         return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST,
                             "CompositeMode Export is not available for Type Download!"));
                 }
