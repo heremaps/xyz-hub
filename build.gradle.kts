@@ -454,11 +454,13 @@ rootProject.dependencies {
     implementation(project(":here-naksha-app-service"))
 }
 rootProject.tasks.shadowJar {
+    //Have all tests run before building the fat jar
+    dependsOn(allprojects.flatMap { it.tasks.withType(Test::class) })
     archiveClassifier.set("all")
     mergeServiceFiles()
     isZip64 = true
     manifest {
         attributes["Implementation-Title"] = "Naksha Service"
-        attributes["Main-Class"] = "com.here.naksha.app.service.NakshaHub"
+        attributes["Main-Class"] = "com.here.naksha.app.service.NakshaApp"
     }
 }
