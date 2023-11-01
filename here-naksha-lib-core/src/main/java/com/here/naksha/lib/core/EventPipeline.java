@@ -300,7 +300,8 @@ public class EventPipeline extends NakshaBound {
     try {
       Result response;
       this.event = new Event(request);
-      addEventHandler(this::pipelineEnd);
+      // addEventHandler(this::pipelineEnd);
+      addEventHandler(new EndPipelineHandler());
       this.next = 0;
       response = event.sendUpstream(request);
       try {
@@ -340,7 +341,9 @@ public class EventPipeline extends NakshaBound {
    *
    * @param event this.
    * @return an unimplemented error response.
+   * @deprecated use EndPipelineHandler instead, which is easier to test (than this lambda based IEventHandler function)
    */
+  @Deprecated
   @NotNull
   Result pipelineEnd(@NotNull IEvent event) {
     log.atInfo()

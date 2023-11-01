@@ -21,6 +21,7 @@ package com.here.naksha.lib.hub.mock;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.IStorage;
+import com.here.naksha.lib.hub.NakshaEventPipelineFactory;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
 import com.here.naksha.lib.psql.PsqlConfig;
@@ -69,7 +70,7 @@ public class NakshaHubMock implements INaksha {
     mockCollection = new ConcurrentHashMap<>();
     // create storage instances upfront
     this.adminStorageInstance = new NHAdminMock(mockCollection, customCfg);
-    this.spaceStorageInstance = new NHSpaceStorage(this);
+    this.spaceStorageInstance = new NHSpaceStorage(this, new NakshaEventPipelineFactory(this));
     this.nakshaHubConfig = customCfg;
   }
 

@@ -386,6 +386,7 @@ project(":here-naksha-lib-handlers") {
             implementation(postgres)
 
             testImplementation(json_assert)
+            testImplementation(mockito)
         }
     }
 //} catch (ignore: UnknownProjectException) {

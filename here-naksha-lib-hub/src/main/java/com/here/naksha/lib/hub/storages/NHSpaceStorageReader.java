@@ -21,6 +21,7 @@ package com.here.naksha.lib.hub.storages;
 import com.here.naksha.lib.core.*;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.hub.EventPipelineFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -39,16 +40,20 @@ public class NHSpaceStorageReader implements IReadSession {
   /** List of Admin virtual spaces with relevant event handlers required to support event processing */
   protected final @NotNull Map<String, List<IEventHandler>> virtualSpaces;
 
+  protected final @NotNull EventPipelineFactory pipelineFactory;
+
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NHSpaceStorageReader(
       final @NotNull INaksha hub,
       final @NotNull Map<String, List<IEventHandler>> virtualSpaces,
+      final @NotNull EventPipelineFactory pipelineFactory,
       final @Nullable NakshaContext context,
       boolean useMaster) {
     this.nakshaHub = hub;
+    this.virtualSpaces = virtualSpaces;
+    this.pipelineFactory = pipelineFactory;
     this.context = (context != null) ? context : NakshaContext.currentContext();
     this.useMaster = useMaster;
-    this.virtualSpaces = virtualSpaces;
   }
 
   /**
@@ -156,7 +161,7 @@ public class NHSpaceStorageReader implements IReadSession {
 
   private @NotNull Result executeReadFeaturesFromAdminSpaces(final @NotNull ReadFeatures rf) {
     // Run pipeline against virtual space
-    final EventPipeline pipeline = new EventPipeline(nakshaHub);
+    final EventPipeline pipeline = pipelineFactory.eventPipeline();
     // add internal Admin resource specific event handlers
     for (final IEventHandler handler : virtualSpaces.get(rf.getCollections().get(0))) {
       pipeline.addEventHandler(handler);

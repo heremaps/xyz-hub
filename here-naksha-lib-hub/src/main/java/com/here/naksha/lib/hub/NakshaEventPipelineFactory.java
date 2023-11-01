@@ -18,21 +18,19 @@
  */
 package com.here.naksha.lib.hub;
 
-import static com.here.naksha.lib.common.TestFileLoader.parseJsonFileOrFail;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
+import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.hub.mock.NakshaHubMock;
-import org.junit.jupiter.api.Test;
+import org.jetbrains.annotations.NotNull;
 
-public class NakshaHubFactoryTest {
+public class NakshaEventPipelineFactory implements EventPipelineFactory {
 
-  @Test
-  public void testNakshaHubMockInstantiation() throws Exception {
-    final NakshaHubConfig cfg = parseJsonFileOrFail("mock_config.json", NakshaHubConfig.class);
-    final INaksha hub = NakshaHubFactory.getInstance(null, cfg, null);
-    assertFalse((hub instanceof NakshaHub), "NakshaHub instance was not expected!");
-    assertTrue((hub instanceof NakshaHubMock), "Not a NakshaHubMock instance!");
+  final @NotNull INaksha naksha;
+
+  public NakshaEventPipelineFactory(@NotNull INaksha naksha) {
+    this.naksha = naksha;
+  }
+
+  public @NotNull EventPipeline eventPipeline() {
+    return new EventPipeline(naksha);
   }
 }

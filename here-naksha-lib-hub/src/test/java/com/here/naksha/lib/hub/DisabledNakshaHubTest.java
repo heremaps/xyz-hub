@@ -44,14 +44,15 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
-class NakshaHubTest {
+class DisabledNakshaHubTest {
 
-  static final String TEST_DATA_FOLDER = "src/test/resources/unit_test_data/";
+  // TODO : This test to be entirely removed once NakshaHubWiringTest matures sufficiently, as large part of this
+  // already gets tested using REST API tests
+
+  static final String TEST_DATA_FOLDER = "src/test/resources/unused_test_data/";
   static INaksha hub = null;
   static NakshaHubConfig config = null;
 
@@ -94,8 +95,8 @@ class NakshaHubTest {
   }
 
   // TODO HP : Need to relook at tests just to validate wiring part
-  @Test
-  @Order(1)
+  // @Test
+  // @Order(1)
   void tc0001_testCreateStorage() throws Exception {
     // 1. Load test data
     final String requestJson = readTestFile("TC0001_createStorage/create_storage.json");
@@ -128,8 +129,8 @@ class NakshaHubTest {
     }
   }
 
-  @Test
-  @Order(2)
+  // @Test
+  // @Order(2)
   void tc0002_testCreateDuplicateStorage() throws Exception {
     // 1. Load test data
     final String requestJson = readTestFile("TC0001_createStorage/create_storage.json");
@@ -152,8 +153,8 @@ class NakshaHubTest {
     }
   }
 
-  @Test
-  @Order(3)
+  // @Test
+  // @Order(3)
   void tc0003_testGetStorages() throws Exception {
     // 1. Load test data
     final String expectedBodyPart = readTestFile("TC0003_getStorages/result_part.json");

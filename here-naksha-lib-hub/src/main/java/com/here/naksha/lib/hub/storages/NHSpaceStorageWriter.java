@@ -26,6 +26,7 @@ import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.hub.EventPipelineFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -39,9 +40,10 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
   public NHSpaceStorageWriter(
       final @NotNull INaksha hub,
       final @NotNull Map<String, List<IEventHandler>> virtualSpaces,
+      final @NotNull EventPipelineFactory pipelineFactory,
       final @Nullable NakshaContext context,
       boolean useMaster) {
-    super(hub, virtualSpaces, context, useMaster);
+    super(hub, virtualSpaces, pipelineFactory, context, useMaster);
   }
 
   /**
@@ -80,7 +82,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
 
   private @NotNull Result executeWriteFeaturesToAdminSpaces(final @NotNull WriteFeatures wf) {
     // Run pipeline against virtual space
-    final EventPipeline pipeline = new EventPipeline(nakshaHub);
+    final EventPipeline pipeline = pipelineFactory.eventPipeline();
     // add internal Admin resource specific event handlers
     for (final IEventHandler handler : virtualSpaces.get(wf.collectionId)) {
       pipeline.addEventHandler(handler);

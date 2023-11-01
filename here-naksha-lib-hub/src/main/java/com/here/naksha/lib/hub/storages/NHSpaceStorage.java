@@ -23,6 +23,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import com.here.naksha.lib.core.*;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.handlers.*;
+import com.here.naksha.lib.hub.EventPipelineFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,9 +38,12 @@ public class NHSpaceStorage implements IStorage {
   /** List of Admin virtual spaces with relevant event handlers required to support event processing */
   protected final @NotNull Map<String, List<IEventHandler>> virtualSpaces;
 
+  protected final @NotNull EventPipelineFactory pipelineFactory;
+
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
-  public NHSpaceStorage(final @NotNull INaksha hub) {
+  public NHSpaceStorage(final @NotNull INaksha hub, final @NotNull EventPipelineFactory pipelineFactory) {
     this.nakshaHub = hub;
+    this.pipelineFactory = pipelineFactory;
     this.virtualSpaces = configureVirtualSpaces(hub);
   }
 
@@ -105,12 +109,12 @@ public class NHSpaceStorage implements IStorage {
   @Override
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
-    return new NHSpaceStorageWriter(this.nakshaHub, virtualSpaces, context, useMaster);
+    return new NHSpaceStorageWriter(this.nakshaHub, virtualSpaces, pipelineFactory, context, useMaster);
   }
 
   @Override
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
-    return new NHSpaceStorageReader(this.nakshaHub, virtualSpaces, context, useMaster);
+    return new NHSpaceStorageReader(this.nakshaHub, virtualSpaces, pipelineFactory, context, useMaster);
   }
 }
