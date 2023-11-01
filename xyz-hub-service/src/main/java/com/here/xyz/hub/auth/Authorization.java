@@ -19,15 +19,19 @@
 
 package com.here.xyz.hub.auth;
 
+import static com.here.xyz.hub.auth.XyzHubAttributeMap.OWNER;
+import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
+import com.here.xyz.hub.rest.Api.Context;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.spi.Modules;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
 import io.vertx.core.Future;
 import io.vertx.core.json.Json;
+import io.vertx.ext.web.RoutingContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -73,5 +77,23 @@ public abstract class Authorization {
 
   static String getForbiddenMessage(ActionMatrix requestRights, ActionMatrix tokenRights) {
     return "Insufficient rights. Token access: " + Json.encode(tokenRights) + "\nRequest access: " + Json.encode(requestRights);
+  }
+
+  public static Future<Void> authorizeManageSpacesRights(RoutingContext context, String spaceId) {
+    return authorizeManageSpacesRights(context, spaceId, null);
+  }
+
+  public static Future<Void> authorizeManageSpacesRights(RoutingContext context, String spaceId, String owner) {
+    AttributeMap attributeMap = new XyzHubAttributeMap().withValue(SPACE, spaceId);
+    if (owner != null)
+      attributeMap.put(OWNER, owner);
+
+    final XyzHubActionMatrix requestRights = new XyzHubActionMatrix().manageSpaces(attributeMap);
+    try {
+      evaluateRights(Context.getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());
+      return Future.succeededFuture();
+    } catch (HttpException e) {
+      return Future.failedFuture(e);
+    }
   }
 }

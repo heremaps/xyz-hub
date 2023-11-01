@@ -26,15 +26,14 @@ import com.here.xyz.hub.rest.admin.messages.RelayedMessage;
 import com.here.xyz.models.hub.Subscription;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 import net.jodah.expiringmap.ExpirationPolicy;
 import net.jodah.expiringmap.ExpiringMap;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 public abstract class SubscriptionConfigClient implements Initializable {
 
@@ -137,16 +136,14 @@ public abstract class SubscriptionConfigClient implements Initializable {
         }
 
         return storeSubscription(marker, subscription)
-                .onSuccess(ar -> {
-                    invalidateCache(subscription);
-                }).onFailure(t -> logger.error(marker, "subscriptionId[{}]: Failed to store subscription configuration, reason: ", subscription.getId(), t));
+            .onSuccess(ar -> invalidateCache(subscription))
+            .onFailure(t -> logger.error(marker, "subscriptionId[{}]: Failed to store subscription configuration, reason: ", subscription.getId(), t));
     }
 
     public Future<Subscription> delete(Marker marker, Subscription subscription) {
         return deleteSubscription(marker, subscription.getId())
-                .onSuccess(ar -> {
-                    invalidateCache(subscription);
-                }).onFailure(t -> logger.error(marker, "subscriptionId[{}]: Failed to delete subscription configuration, reason: ", subscription.getId(), t));
+            .onSuccess(ar -> invalidateCache(subscription))
+            .onFailure(t -> logger.error(marker, "subscriptionId[{}]: Failed to delete subscription configuration, reason: ", subscription.getId(), t));
     }
 
     protected abstract Future<Subscription> getSubscription(Marker marker, String subscriptionId);

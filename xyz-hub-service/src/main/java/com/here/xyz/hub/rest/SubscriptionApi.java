@@ -19,15 +19,14 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.task.SpaceConnectorBasedHandler.getAndValidateSpace;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CREATED;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+
 import com.here.xyz.hub.auth.Authorization;
-import com.here.xyz.hub.auth.XyzHubActionMatrix;
-import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import com.here.xyz.hub.task.SubscriptionHandler;
 import com.here.xyz.models.hub.Subscription;
-import io.vertx.core.AsyncResult;
-import io.vertx.core.Future;
-import io.vertx.core.Handler;
-import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
@@ -36,10 +35,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
-import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-
 public class SubscriptionApi extends Api {
+
   private static final Logger logger = LogManager.getLogger();
 
   public SubscriptionApi(RouterBuilder rb) {
@@ -51,82 +48,64 @@ public class SubscriptionApi extends Api {
   }
 
   private Subscription getSubscriptionInput(final RoutingContext context) throws HttpException {
-    JsonObject input = context.body().asJsonObject();
-    if (input == null)
-      throw new HttpException(BAD_REQUEST, "Invalid JSON string");
-
     try {
+      JsonObject input = context.body().asJsonObject();
+      if (input == null) {
+        throw new HttpException(BAD_REQUEST, "Invalid JSON string");
+      }
+
       return DatabindCodec.mapper().convertValue(input, Subscription.class);
-    }
-    catch (DecodeException e) {
+    } catch (Exception e) {
       throw new HttpException(BAD_REQUEST, "Invalid JSON string");
     }
   }
 
   private void getSubscription(final RoutingContext context) {
     try {
-      String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
-      String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
+      final Marker marker = Api.Context.getMarker(context);
+      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
 
-      SubscriptionApi.SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
-        if (arAuth.failed()) {
-          sendErrorResponse(context, arAuth.cause());
-        } else {
-          SubscriptionHandler.getSubscription(context, spaceId, subscriptionId, ar -> {
-            if(ar.failed()) {
-              sendErrorResponse(context, ar.cause());
-            } else {
-              sendResponse(context, OK, ar.result());
-            }
-          });
-        }
-      });
-    }
-    catch (Exception e) {
+      getAndValidateSpace(marker, spaceId)
+          .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
+          .compose(v -> SubscriptionHandler.getSubscription(context, spaceId, subscriptionId))
+          .onSuccess(subscription -> sendResponse(context, OK, subscription))
+          .onFailure(t -> sendErrorResponse(context, t));
+    } catch (Exception e) {
       sendErrorResponse(context, e);
     }
   }
 
   private void getSubscriptions(final RoutingContext context) {
-    String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
-    SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
-      if(arAuth.failed()) {
-        sendErrorResponse(context, arAuth.cause());
-      } else {
-        SubscriptionHandler.getSubscriptions(context, spaceId, ar -> {
-          if(ar.failed()) {
-            sendErrorResponse(context, ar.cause());
-          } else {
-            sendResponse(context, OK, ar.result());
-          }
-        });
-      }
-    });
+    try {
+      final Marker marker = Api.Context.getMarker(context);
+      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+
+      getAndValidateSpace(marker, spaceId)
+          .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
+          .compose(v -> SubscriptionHandler.getSubscriptions(context, spaceId))
+          .onSuccess(subscription -> sendResponse(context, OK, subscription))
+          .onFailure(t -> sendErrorResponse(context, t));
+    } catch (Exception e) {
+      sendErrorResponse(context, e);
+    }
   }
 
   private void postSubscription(final RoutingContext context) {
     try {
-      String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
-      Subscription subscription = getSubscriptionInput(context);
+      final Marker marker = Api.Context.getMarker(context);
+      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      final Subscription subscription = getSubscriptionInput(context);
       subscription.setSource(spaceId);
-      Marker marker = Api.Context.getMarker(context);
 
       logger.info(marker, "Registering subscription for space " + spaceId + ": " + JsonObject.mapFrom(subscription));
       validateSubscriptionRequest(subscription);
 
-      SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
-        if(arAuth.failed()) {
-          sendErrorResponse(context, arAuth.cause());
-        } else {
-          SubscriptionHandler.createSubscription(context, subscription, ar -> {
-            if(ar.failed()) {
-              sendErrorResponse(context, ar.cause());
-            } else {
-              sendResponse(context, CREATED, ar.result());
-            }
-          });
-        }
-      });
+      getAndValidateSpace(marker, spaceId)
+          .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
+          .compose(v -> SubscriptionHandler.createSubscription(context, subscription))
+          .onSuccess(s -> sendResponse(context, CREATED, s))
+          .onFailure(t -> sendErrorResponse(context, t));
     } catch (Exception e) {
       sendErrorResponse(context, e);
     }
@@ -134,26 +113,19 @@ public class SubscriptionApi extends Api {
 
   private void putSubscription(final RoutingContext context) {
     try {
-      String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
-      String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
-      Subscription subscription = getSubscriptionInput(context);
+      final Marker marker = Api.Context.getMarker(context);
+      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
+      final Subscription subscription = getSubscriptionInput(context);
       subscription.setId(subscriptionId);
       subscription.setSource(spaceId);
       validateSubscriptionRequest(subscription);
 
-      SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
-        if(arAuth.failed()) {
-          sendErrorResponse(context, arAuth.cause());
-        } else {
-          SubscriptionHandler.createOrReplaceSubscription(context, subscription, ar -> {
-            if(ar.failed()) {
-              sendErrorResponse(context, ar.cause());
-            } else {
-              sendResponse(context, OK, ar.result());
-            }
-          });
-        }
-      });
+      getAndValidateSpace(marker, spaceId)
+          .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
+          .compose(v -> SubscriptionHandler.createOrReplaceSubscription(context, subscription))
+          .onSuccess(s -> sendResponse(context, OK, s))
+          .onFailure(t -> sendErrorResponse(context, t));
     } catch (Exception e) {
       sendErrorResponse(context, e);
     }
@@ -161,63 +133,32 @@ public class SubscriptionApi extends Api {
 
   private void deleteSubscription(final RoutingContext context) {
     try {
-      String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
-      String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
+      final Marker marker = Api.Context.getMarker(context);
+      final String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
+      final String subscriptionId = context.pathParam(ApiParam.Path.SUBSCRIPTION_ID);
 
-      // Check authorization
-      SubscriptionApi.SubscriptionAuthorization.authorizeManageSpacesRights(context, spaceId, arAuth -> {
-        if (arAuth.failed()) {
-          sendErrorResponse(context, arAuth.cause());
-        } else {
-          // Check if subscription exists
-          SubscriptionHandler.getSubscription(context, spaceId, subscriptionId, arGet -> {
-            if(arGet.failed()) {
-              sendErrorResponse(context, arGet.cause());
-            } else {
-              Subscription subscription = arGet.result();
-              // Delete subscription
-              SubscriptionHandler.deleteSubscription(context, subscription, ar -> {
-                if(ar.failed()) {
-                  sendErrorResponse(context, ar.cause());
-                } else {
-                  sendResponse(context, OK, ar.result());
-                }
-              });
-            }
-          });
-        }
-      });
-
-    }
-    catch (Exception e) {
+      getAndValidateSpace(marker, spaceId)
+          .compose(space -> Authorization.authorizeManageSpacesRights(context, spaceId))
+          .compose(v -> SubscriptionHandler.getSubscription(context, spaceId, subscriptionId))
+          .compose(subscription -> SubscriptionHandler.deleteSubscription(context, subscription))
+          .onSuccess(s -> sendResponse(context, OK, s))
+          .onFailure(t -> sendErrorResponse(context, t));
+    } catch (Exception e) {
       sendErrorResponse(context, e);
     }
   }
 
   private void validateSubscriptionRequest(Subscription subscription) throws HttpException {
-    if(subscription.getId() == null)
+    if (subscription.getId() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'id' cannot be empty.");
-    if(subscription.getSource() == null)
+
+    if (subscription.getSource() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'source' cannot be empty.");
-    if(subscription.getDestination() == null)
+
+    if (subscription.getDestination() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property 'destination' cannot be empty.");
-    if(subscription.getConfig() == null || subscription.getConfig().getType() == null)
+
+    if (subscription.getConfig() == null || subscription.getConfig().getType() == null)
       throw new HttpException(BAD_REQUEST, "Validation failed. The property config 'type' cannot be empty.");
   }
-
-  public static class SubscriptionAuthorization extends Authorization {
-
-    public static void authorizeManageSpacesRights(RoutingContext context, String spaceId, Handler<AsyncResult<Void>> handler) {
-      final XyzHubActionMatrix requestRights = new XyzHubActionMatrix()
-              .manageSpaces(new XyzHubAttributeMap().withValue(SPACE, spaceId));
-      try {
-        evaluateRights(Context.getMarker(context), requestRights, Context.getJWT(context).getXyzHubMatrix());
-        handler.handle(Future.succeededFuture());
-      } catch (HttpException e) {
-        handler.handle(Future.failedFuture(e));
-      }
-    }
-
-  }
-
 }
