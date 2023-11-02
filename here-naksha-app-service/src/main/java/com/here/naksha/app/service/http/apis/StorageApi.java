@@ -18,14 +18,14 @@
  */
 package com.here.naksha.app.service.http.apis;
 
+import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.*;
+
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.StorageApiTask;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.jetbrains.annotations.NotNull;
-
-import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.*;
 
 public class StorageApi extends Api {
 
@@ -60,7 +60,7 @@ public class StorageApi extends Api {
             naksha(),
             routingContext,
             verticle.createNakshaContext(routingContext))
-            .start();
+        .start();
   }
 
   private void createStorage(final @NotNull RoutingContext routingContext) {

@@ -136,11 +136,12 @@ public class NHAdminReaderMock implements IReadSession {
         boolean found = false;
         if (mockCollection.get(collectionName) == null) {
           throw unchecked(new SQLException(
-                  "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
+              "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
         }
-        final Map<String, Object> values = ((Map<String, Object>) mockCollection.get(collectionName).values());
-        for (final Map.Entry<String,Object> entry : values.entrySet()) {
-          if (Objects.equals(entry.getKey(),pOp.value())) {
+        final Map<String, Object> values = ((Map<String, Object>)
+            mockCollection.get(collectionName).values());
+        for (final Map.Entry<String, Object> entry : values.entrySet()) {
+          if (Objects.equals(entry.getKey(), pOp.value())) {
             features.addAll(mockCollection.get(collectionName).values());
             found = true;
             break;
