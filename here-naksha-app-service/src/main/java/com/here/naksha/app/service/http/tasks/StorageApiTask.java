@@ -103,8 +103,8 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
 
   private @NotNull XyzResponse executeGetStorageById() {
     // Create ReadFeatures Request to read the storage with the specific ID from Admin DB
-    //TODO this is not correct yet
-    final ReadFeatures request = new ReadFeatures(routingContext.pathParam("storageId"));
+    final String storageId = routingContext.pathParam("storageId");
+    final ReadFeatures request = new ReadFeatures(NakshaAdminCollection.STORAGES).withPropertyOp(POp.eq(PRef.id(),storageId));
     // Submit request to NH Space Storage
     try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
       final Result rdResult = reader.execute(request);

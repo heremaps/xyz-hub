@@ -30,6 +30,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLState;
@@ -121,7 +122,7 @@ public class NHAdminReaderMock implements IReadSession {
     final POp pOp = rf.getPropertyOp();
     final List<Object> features = new ArrayList<>();
     if (pOp == null) {
-      // TODO : return all features from given collection names
+      // return all features from given collection names
       for (final String collectionName : rf.getCollections()) {
         if (mockCollection.get(collectionName) == null) {
           throw unchecked(new SQLException(
@@ -130,7 +131,23 @@ public class NHAdminReaderMock implements IReadSession {
         features.addAll(mockCollection.get(collectionName).values());
       }
     } else if (pOp.op() == OP_EQUALS && pOp.propertyRef() == PRef.id()) {
-      // TODO : return features by Id from the given collections names
+      // return features by Id from the given collections names
+      for (final String collectionName : rf.getCollections()) {
+        boolean found = false;
+        if (mockCollection.get(collectionName) == null) {
+          throw unchecked(new SQLException(
+                  "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
+        }
+        final Map<String, Object> values = ((Map<String, Object>) mockCollection.get(collectionName).values());
+        for (final Map.Entry<String,Object> entry : values.entrySet()) {
+          if (Objects.equals(entry.getKey(),pOp.value())) {
+            features.addAll(mockCollection.get(collectionName).values());
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
     } else if (pOp.op() == Op.OP_OR) {
       final List<POp> pOpList = pOp.children();
       final List<String> ids = new ArrayList<>();
