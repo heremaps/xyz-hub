@@ -89,6 +89,26 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+  '/hub/storages/{storageId}':
+    get:
+      tags:
+        - Manage Storages
+      summary: Get the storage with the specific ID
+      description: >-
+        Lists the desired storage if the current authenticated user has access to.
+      operationId: getStorageById
+      parameters:
+        - name: storageId
+          in: path
+          description: ID of pet to fetch
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/StoragesResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
 components:
   securitySchemes:
     AccessToken:
