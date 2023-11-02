@@ -82,9 +82,15 @@ The jar can be found under `build/libs/`.
 To ramp up Naksha with the jar, run:
 
 ```bash
-java -jar <jar file> <DB connection> <environment>
-#Example
-java -jar build/libs/naksha-2.0.6-all.jar 'jdbc:postgresql://localhost/postgres?user=postgres&password=postgres&schema=naksha' local
+java -jar <jar-file> <config-id> <database-url>
+
+# Example 1 : Start service with given config and default (local) database URL
+java -jar build/libs/naksha-2.0.6-all.jar default-config
+# Example 2 : Start service with given config and custom database URL
+java -jar build/libs/naksha-2.0.6-all.jar default-config 'jdbc:postgresql://localhost:5432/postgres?user=postgres&password=pswd&schema=naksha'
+# Example 3 : Start service with mock config (with in-memory hub)
+java -jar build/libs/naksha-2.0.6-all.jar mock-config
+
 ```
 
 Then use a web browser to connect to `localhost:8080`, an OK message should be displayed if the service is up and running.
