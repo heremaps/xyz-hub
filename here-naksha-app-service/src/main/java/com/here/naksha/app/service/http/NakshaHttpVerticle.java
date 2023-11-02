@@ -222,14 +222,15 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
                 .setMessage("HTTP Server started on port {}")
                 .addArgument(hubConfig.httpPort)
                 .log();
+            startPromise.complete();
           } else {
             log.atError()
                 .setMessage("An error occurred, during the initialization of the server.")
                 .setCause(result.cause())
                 .log();
+            startPromise.fail(result.cause());
           }
         });
-        startPromise.complete();
       } catch (Throwable t) {
         log.atError()
             .setMessage(

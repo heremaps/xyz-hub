@@ -88,10 +88,9 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
           .atError("Invalid port in Naksha configuration: {}")
           .add(httpPort)
           .log();
-      // TODO HP_QUERY : Is it (temporarily) intentional to keep port always as 7080?
-      httpPort = 7080;
+      httpPort = 8080;
     } else if (httpPort == null || httpPort == 0) {
-      httpPort = 7080;
+      httpPort = 8080;
     }
     if (hostname == null || hostname.length() == 0) {
       try {

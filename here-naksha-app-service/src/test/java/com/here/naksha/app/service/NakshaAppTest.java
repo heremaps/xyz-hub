@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -53,7 +54,7 @@ class NakshaAppTest {
   static final String HDR_STREAM_ID = "Stream-Id";
 
   @BeforeAll
-  static void prepare() throws Exception {
+  static void prepare() throws InterruptedException, URISyntaxException {
     String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
     if (password == null) password = "password";
@@ -61,7 +62,7 @@ class NakshaAppTest {
       dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
           + "&schema=naksha_test_maint_app";
 
-    app = newInstance(dbUrl, "mock-config");
+    app = newInstance("mock-config", dbUrl);
     config = app.getHub().getConfig();
     app.start();
     Thread.sleep(5000); // wait for server to come up
@@ -179,6 +180,7 @@ class NakshaAppTest {
         psqlStorage.dropSchema();
       }
       // app.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(3600));
+      app.stopInstance();
     }
   }
 }

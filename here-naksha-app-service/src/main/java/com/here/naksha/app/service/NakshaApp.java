@@ -32,6 +32,7 @@ import com.here.naksha.lib.hub.NakshaHubFactory;
 import com.here.naksha.lib.hub.util.ConfigUtil;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlConfigBuilder;
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.ext.auth.JWTOptions;
@@ -42,11 +43,14 @@ import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -59,6 +63,10 @@ import org.slf4j.LoggerFactory;
 public final class NakshaApp extends Thread {
 
   private static final Logger log = LoggerFactory.getLogger(NakshaApp.class);
+  private static final String DEFAULT_CONFIG_ID = "default-config";
+  private static final String DEFAULT_URL =
+      "jdbc:postgresql://localhost:5432/postgres?user=postgres&password=pswd&schema=naksha";
+  private final AtomicReference<Boolean> stopInstance = new AtomicReference<>(false);
 
   /**
    * Entry point when used in a JAR as bootstrap class.
@@ -66,17 +74,14 @@ public final class NakshaApp extends Thread {
    * @param args The console arguments given.
    */
   public static void main(@NotNull String... args) {
-    if (args.length < 2) {
-      err.println("Syntax : java -jar naksha.jar <url> <configId>");
-      err.println("Example: java -jar naksha.jar <url> <configId>");
+    if (args.length < 1) {
+      printUsage();
+      System.exit(1);
     }
     try {
       NakshaApp.newInstance(args).start();
     } catch (IllegalArgumentException e) {
-      err.println("Missing argument: <url> <configId>");
-      err.println(
-          "Example: jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=naksha local");
-      err.flush();
+      printUsage();
       System.exit(1);
     } catch (Throwable t) {
       final Throwable cause = cause(t);
@@ -86,6 +91,25 @@ public final class NakshaApp extends Thread {
     }
   }
 
+  private static void printUsage() {
+    err.println(" ");
+    err.println("Syntax :");
+    err.println("    java -jar naksha.jar <configId> [<url>]");
+    err.println(" ");
+    err.println("Examples:");
+    err.println(" ");
+    err.println("    Example 1 : Start service with given config and default (local) database URL");
+    err.println("        java -jar naksha.jar default-config");
+    err.println(" ");
+    err.println("    Example 2 : Start service with given config and custom database URL");
+    err.println("        java -jar naksha.jar default-config '" + DEFAULT_URL + "'");
+    err.println(" ");
+    err.println("    Example 3 : Start service with mock config (with in-memory hub)");
+    err.println("        java -jar naksha.jar mock-config");
+    err.println(" ");
+    err.flush();
+  }
+
   /**
    * Create a new Naksha-App instance by parsing the given console arguments.
    *
@@ -93,23 +117,37 @@ public final class NakshaApp extends Thread {
    * @return The created Naksha-App instance.
    */
   public static @NotNull NakshaApp newInstance(@NotNull String... args) {
+
+    final String cfgId;
     final String url;
-    if (args.length < 2 || !args[0].startsWith("jdbc:postgresql://")) {
-      throw new IllegalArgumentException(
-          "Missing or invalid argument <url>, must be a value like 'jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=naksha'");
-    }
-    if (args[1].length() == 0) {
-      throw new IllegalArgumentException("Missing argument <configId>, like 'default-config'");
+    switch (args.length) {
+      case 1 -> {
+        cfgId = args[0];
+        url = DEFAULT_URL;
+        log.info("Starting with config `{}` and default database...", cfgId);
+      }
+      case 2 -> {
+        cfgId = args[0];
+        url = args[1];
+        if (!url.startsWith("jdbc:postgresql://")) {
+          throw new IllegalArgumentException(
+              "Missing or invalid argument <url>, must be a value like '" + DEFAULT_URL + "'");
+        }
+        log.info("Starting with config `{}` and custom database URL...", cfgId);
+      }
+      default -> {
+        throw new IllegalArgumentException("Missing/Invalid argument. Check the usage.");
+      }
     }
 
     // Potentially we could override the app-name:
     // NakshaHubConfig.APP_NAME = ?
     final PsqlConfig config = new PsqlConfigBuilder()
         .withAppName(NakshaHubConfig.defaultAppName())
-        .parseUrl(args[0])
+        .parseUrl(url)
         .withDefaultSchema(NakshaAdminCollection.SCHEMA)
         .build();
-    return new NakshaApp(config, args[1], null);
+    return new NakshaApp(config, cfgId, null);
   }
 
   /**
@@ -159,7 +197,7 @@ public final class NakshaApp extends Thread {
     config = hub.getConfig(); // use the config finally set by NakshaHub instance
     log.info("Using server config : {}", config);
 
-    log.info("Naksha host/endpoint: {} / {}", config.hostname, config.endpoint);
+    log.info("Naksha host/endpoint: {}", config.endpoint);
 
     // vertxMetricsOptions = new MetricsOptions().setEnabled(true).setFactory(new NakshaHubMetricsFactory());
     this.vertxOptions = new VertxOptions();
@@ -316,28 +354,41 @@ public final class NakshaApp extends Thread {
       throw new UnsupportedOperationException(
           "Illegal invocation, the run method can only be invoked from the hub itself");
     }
+
+    final Thread appThread = this;
+
+    // Add verticles
     final int processors = Runtime.getRuntime().availableProcessors();
-    // TODO: Add verticles
     verticles = new NakshaHttpVerticle[processors];
+    List<Future<String>> futureList = new ArrayList<>();
     for (int i = 0; i < processors; i++) {
       verticles[i] = new NakshaHttpVerticle(hub, i, this);
-      vertx.deployVerticle(verticles[i]);
+      futureList.add(vertx.deployVerticle(verticles[i]));
     }
+    // check verticle deployment status (asynchronously)
+    for (final Future<String> future : futureList) {
+      future.onComplete(event -> {
+        if (event.failed()) {
+          log.error("Verticle deployment failed due to unexpected error. ", event.cause());
+          stopInstance.set(true);
+          appThread.interrupt();
+          vertx.close();
+        }
+      });
+    }
+
     Thread.setDefaultUncaughtExceptionHandler(NakshaApp::uncaughtExceptionHandler);
     Runtime.getRuntime().addShutdownHook(this.shutdownThread);
     // TODO HP : Schedule backend Storage maintenance job
 
-    // TODO: We need to add some way to stop the service gracefully!
-    //noinspection InfiniteLoopStatement
-    while (true) {
+    // Keep waiting until explicitly asked to stop (using interrupt + stopInstance flag)
+    while (!stopInstance.get()) {
       try {
         Thread.sleep(TimeUnit.DAYS.toMillis(365));
+      } catch (InterruptedException ie) {
+        log.warn("Interrupted with " + (stopInstance.get() ? "stop signal." : ie.getMessage()));
       } catch (Throwable t) {
-        final Throwable cause = cause(t);
-        log.atError()
-            .setMessage("Unexpected error while during Naksha service execution")
-            .setCause(cause)
-            .log();
+        log.error("Unexpected error during Naksha service execution. ", t);
       }
     }
   }
@@ -365,5 +416,12 @@ public final class NakshaApp extends Thread {
         .addArgument(new Date())
         .log();
     // stopMetricPublishers();
+  }
+
+  public void stopInstance() {
+    log.info("Stop instance trigger received.");
+    vertx.close();
+    stopInstance.set(true);
+    this.interrupt();
   }
 }
