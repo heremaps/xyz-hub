@@ -862,10 +862,7 @@ public abstract class Job<T extends Job> extends Payload {
                     logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES to high {} > {}", getId(), rdsStatus.getRdsMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
                     return Future.failedFuture(new ProcessingNotPossibleException());
                 }
-                if (this instanceof Export && rdsStatus.getRdsMetrics().getTotalRunningExportQueries() > CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES) {
-                    logger.info("job[{}] JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES to high {} > {}", getId(), rdsStatus.getRdsMetrics().getTotalRunningImportQueries(), CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
-                    return Future.failedFuture(new ProcessingNotPossibleException());
-                }
+
                 return Future.succeededFuture(this);
             });
     }
