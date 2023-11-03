@@ -34,13 +34,11 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class NakshaAppTest {
 
   static NakshaApp app = null;
@@ -157,7 +155,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(4)
+  @Order(3)
   void tc0004_testInvalidUrlPath() throws Exception {
     // Test API : GET /hub/invalid_storages
     final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
@@ -171,7 +169,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(5)
+  @Order(3)
   void tc0005_testGetStorageById() throws Exception {
     // Test API : GET /hub/storages/{storageId}
     // 1. Load test data
