@@ -107,24 +107,10 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/StoragesResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '409':
-          $ref: '#/components/responses/ErrorResponse409'
-        '429':
-          $ref: '#/components/responses/ErrorResponse429'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
         '500':
           $ref: '#/components/responses/ErrorResponse500'
-        '502':
-          $ref: '#/components/responses/ErrorResponse502'
-        '504':
-          $ref: '#/components/responses/ErrorResponse504'
-        '513':
-          $ref: '#/components/responses/ErrorResponse513'
 components:
   securitySchemes:
     AccessToken:
@@ -198,6 +184,17 @@ components:
             type: "ErrorResponse"
             error: "Forbidden"
             errorMessage: "Operation not authorized."
+            streamId: "d5b2edaa-2c6b-44e1-b794-feea6fa0e15b"
+    ErrorResponse404:
+      description: The requested content does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "ErrorResponse"
+            error: "NotFound"
+            errorMessage: "Does not exist."
             streamId: "d5b2edaa-2c6b-44e1-b794-feea6fa0e15b"
     ErrorResponse409:
       description: Indicates request state/version conflict.
