@@ -728,6 +728,24 @@ public class JobApiExportIT extends JobApiIT {
         downloadAndCheck(urls, 655, 2, mustContain);
     }
 
+    @Test
+    public void testFullVMLCompositeL1ExportByPropertyAsPartJsonWkbChanges() throws Exception {
+
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testSpaceId3Ext+":dummy");
+
+        /** Create job */
+        Export job = buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB).withPartitionKey("p.group");
+        job.addParam("skipTrigger", true);
+
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
+
+        List<String> mustContain = Arrays.asList("deletedInDelta,,","deltaonly,","movedFromEmpty,", "deltaonly","shouldBeEmpty,,");
+
+        downloadAndCheck(urls, 693, 2, mustContain);
+    }
+
 
     /** ------------------- only for local testing with big spaces  -------------------- */
 //    @Test
