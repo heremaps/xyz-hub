@@ -170,6 +170,29 @@ class NakshaAppTest {
     assertEquals(404, response.statusCode(), "ResCode mismatch");
   }
 
+  @Test
+  @Order(5)
+  void tc0005_testGetStorageById() throws Exception {
+    // Test API : GET /hub/storages/{storageId}
+    // 1. Load test data
+    final String expectedBodyPart = readTestFile("TC0003_getStorages/response_part.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/um-mod-dev"))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals(
+        "Expecting previously created storage", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
   @AfterAll
   static void close() throws InterruptedException {
     // TODO: Find a way to gracefully shutdown the server.
