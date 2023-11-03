@@ -411,9 +411,9 @@ public class Export extends JDBCBasedJob<Export> {
     public List<ExportObject> getExportObjectsAsList() {
         List<ExportObject> exportObjectList = new ArrayList<>();
 
-        if (superExportObjects == null)
+        if (superExportObjects != null)
             exportObjectList.addAll(superExportObjects.values());
-        if (exportObjects == null)
+        if (exportObjects != null)
             exportObjectList.addAll(exportObjects.values());
 
         return exportObjectList;
