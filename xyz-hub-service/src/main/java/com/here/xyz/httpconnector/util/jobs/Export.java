@@ -219,7 +219,7 @@ public class Export extends JDBCBasedJob<Export> {
             if (getExportTarget().getTargetId() == null)
                 throw new HttpException(BAD_REQUEST,("Please specify the targetId!"));
 
-            if (!getCsvFormat().equals(PARTITIONID_FC_B64)) {
+            if ( getCsvFormat().equals(TILEID_FC_B64) || ( getCsvFormat().equals(PARTITIONED_JSON_WKB) && (getPartitionKey() == null || "tileid".equalsIgnoreCase(getPartitionKey())))) {
                 if (getTargetLevel() == null)
                     throw new HttpException(BAD_REQUEST, "Please specify targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL + ":"
                         + VML_EXPORT_MAX_TARGET_LEVEL + "]");

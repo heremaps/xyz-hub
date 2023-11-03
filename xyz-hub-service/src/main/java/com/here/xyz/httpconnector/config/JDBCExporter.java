@@ -22,6 +22,7 @@ package com.here.xyz.httpconnector.config;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
@@ -70,12 +71,17 @@ public class JDBCExporter extends JDBCClients {
               String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
               Export.SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
               SQLQuery exportQuery;
+
               boolean compositeCalculation =   job.readParamCompositeMode() == Export.CompositeMode.CHANGES
                                             || job.readParamCompositeMode() == Export.CompositeMode.FULL_OPTIMIZED;
 
-              switch (job.getCsvFormat()) {
-                  case PARTITIONID_FC_B64:
-                      exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+              CSVFormat pseudoCsvFormat = (  job.getCsvFormat() != PARTITIONED_JSON_WKB 
+                                           ? job.getCsvFormat() 
+                                           : ( job.getPartitionKey() == null || "tileid".equalsIgnoreCase(job.getPartitionKey()) ? TILEID_FC_B64 : PARTITIONID_FC_B64 )
+                                          );
+
+              switch ( pseudoCsvFormat ) {
+                  case PARTITIONID_FC_B64:                      exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
                               job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
                               compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
                       return calculateThreadCountForDownload(job, schema, exportQuery)
@@ -105,7 +111,6 @@ public class JDBCExporter extends JDBCClients {
                                   }
                               });
 
-                  case PARTITIONED_JSON_WKB: /* current only per tileID */
                   case TILEID_FC_B64:
 
                            exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
@@ -430,6 +435,8 @@ public class JDBCExporter extends JDBCClients {
     private static SQLQuery generateFilteredExportQuery(String jobId, String schema, String spaceId, String propertyFilter,
         Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
         throws SQLException {
+        
+        csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );
         //TODO: Re-use existing QR rather than the following duplicated code
         SQLQuery geoFragment;
 
@@ -485,8 +492,8 @@ public class JDBCExporter extends JDBCClients {
         PSQLXyzConnector dbHandler = new PSQLXyzConnector(false);
         dbHandler.setConfig(new PSQLConfig(event, schema));
 
-        boolean partitionByPropertyValue = ( csvFormat == PARTITIONID_FC_B64 && partitionKey != null && !"id".equalsIgnoreCase(partitionKey)),
-                partitionByFeatureId     = ( csvFormat == PARTITIONID_FC_B64 && !partitionByPropertyValue ),
+        boolean partitionByPropertyValue = ((csvFormat == PARTITIONID_FC_B64 || csvFormat == PARTITIONED_JSON_WKB) && partitionKey != null && !"id".equalsIgnoreCase(partitionKey)),
+                partitionByFeatureId     = ((csvFormat == PARTITIONID_FC_B64 || csvFormat == PARTITIONED_JSON_WKB) && !partitionByPropertyValue ),
                 downloadAsJsonWkb        = ( csvFormat == JSON_WKB );
                 
         SpaceContext ctxStashed = event.getContext();        
@@ -541,19 +548,31 @@ public class JDBCExporter extends JDBCClients {
                 .substitute();
             return queryToText(geoJson);
           }
-
-         case PARTITIONID_FC_B64 :
+         
+         case PARTITIONED_JSON_WKB :
+         case PARTITIONID_FC_B64   :
          {
-            String partQry = isForCompositeContentDetection
-                             ? "select jsondata->>'id' as id, " 
+            String partQry = 
+                         csvFormat == PARTITIONID_FC_B64
+                            ? ( isForCompositeContentDetection
+                              ? "select jsondata->>'id' as id, " 
                               + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) "
                               + "  when true then replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') "
                               + "  else null::text "
                               + " end as data "
                               + "from ( ${{contentQuery}}) X"
-                             :  "select jsondata->>'id' as id, " 
+                              :  "select jsondata->>'id' as id, " 
                               + " replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
-                              + "from ( ${{contentQuery}}) X";
+                              + "from ( ${{contentQuery}}) X" )
+                       /* PARTITIONED_JSON_WKB */
+                            : ( isForCompositeContentDetection
+                              ? "select jsondata->>'id' as id, " 
+                              + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) when true then jsondata else null::jsonb end as jsondata," 
+                              + " geo "
+                              + "from ( ${{contentQuery}}) X"
+                              : "select jsondata->>'id' as id, jsondata, geo" 
+                              + " replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
+                              + "from ( ${{contentQuery}}) X" );
 
            if( partitionByPropertyValue )
            {  
