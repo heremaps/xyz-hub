@@ -97,7 +97,25 @@ public abstract class AbstractApiTask<T extends XyzResponse>
         "Unsupported result type : " + rdResult.getClass().getSimpleName());
   }
 
-  protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzFeatureResponse(
+  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzFeatureResponse(
+          final @NotNull Result rdResult, final @NotNull Class<R> type) {
+    if (rdResult instanceof ErrorResult er) {
+      // In case of error, convert result to ErrorResponse
+      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+    } else if (rdResult instanceof ReadResult<?> rr) {
+      // In case of success, convert result to success XyzResponse
+      return verticle.sendXyzResponse(
+              routingContext, HttpResponseType.FEATURE, rr.withFeatureType(type)
+      );
+    }
+    // unexpected result type
+    return verticle.sendErrorResponse(
+            routingContext,
+            XyzError.EXCEPTION,
+            "Unsupported result type : " + rdResult.getClass().getSimpleName());
+  }
+
+    protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzFeatureResponse(
       final @Nullable Result wrResult, final @NotNull Class<R> type) {
     if (wrResult == null) {
       // unexpected null response

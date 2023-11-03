@@ -191,6 +191,26 @@ class NakshaAppTest {
     assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
   }
 
+  @Test
+  @Order(3)
+  void tc0006_testGetStorageByWrongId() throws Exception {
+    // Test API : GET /hub/storages/{storageId}
+    // 1. Load test data
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/nothingness"))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(404, response.statusCode(), "ResCode mismatch");
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
   @AfterAll
   static void close() throws InterruptedException {
     // TODO: Find a way to gracefully shutdown the server.

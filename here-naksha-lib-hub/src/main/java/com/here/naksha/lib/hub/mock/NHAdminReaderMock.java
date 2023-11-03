@@ -136,7 +136,7 @@ public class NHAdminReaderMock implements IReadSession {
         }
         if (mockCollection.get(collectionName).get(pOp.value()) == null)
           return new ErrorResult(
-              XyzError.EXCEPTION,
+              XyzError.NOT_FOUND,
               "Feature not exist " + pOp.value(),
               new SQLException("Feature not exist " + pOp.value()));
         features.add(mockCollection.get(collectionName).get(pOp.value()));

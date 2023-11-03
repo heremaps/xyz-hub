@@ -110,7 +110,7 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
       final Result rdResult = reader.execute(request);
       // transform ReadResult to Http FeatureCollection response
-      return transformReadResultToXyzCollectionResponse(rdResult, Storage.class);
+      return transformReadResultToXyzFeatureResponse(rdResult, Storage.class);
     }
   }
 
