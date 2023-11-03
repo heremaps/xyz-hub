@@ -24,6 +24,7 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
 
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -69,8 +70,9 @@ public class JDBCExporter extends JDBCClients {
               String propertyFilter = (job.getFilters() == null ? null : job.getFilters().getPropertyFilter());
               Export.SpatialFilter spatialFilter = (job.getFilters() == null ? null : job.getFilters().getSpatialFilter());
               SQLQuery exportQuery;
-              boolean compositeCalculation = job.readParamCompositeMode() == Export.CompositeMode.CHANGES
-                  || job.readParamCompositeMode() == Export.CompositeMode.FULL_OPTIMIZED;
+              boolean compositeCalculation =   job.readParamCompositeMode() == Export.CompositeMode.CHANGES
+                                            || job.readParamCompositeMode() == Export.CompositeMode.FULL_OPTIMIZED;
+
               switch (job.getCsvFormat()) {
                   case PARTITIONID_FC_B64:
                       exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
@@ -102,7 +104,10 @@ public class JDBCExporter extends JDBCClients {
                                       return Future.failedFuture(e);
                                   }
                               });
+
+                  case PARTITIONED_JSON_WKB: /* current only per tileID */
                   case TILEID_FC_B64:
+
                            exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
                               job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
                               compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
@@ -118,23 +123,28 @@ public class JDBCExporter extends JDBCClients {
                       return calculateTileListForVMLExport(job, schema, exportQuery, qkQuery)
                               .compose(tileList -> {
                                   try {
-                                      Promise<Export.ExportStatistic> promise = Promise.promise();
-                                      List<Future> exportFutures = new ArrayList<>();
-                                      job.setProcessingList(tileList);
+                                       Promise<Export.ExportStatistic> promise = Promise.promise();
+                                       List<Future> exportFutures = new ArrayList<>();
+                                       job.setProcessingList(tileList);
 
-                                      for (int i = 0; i < tileList.size(); i++) {
+                                       for (int i = 0; i < tileList.size(); i++) {
                                           /** Build export for each tile of the weighted tile list */
                                           SQLQuery q2 = buildVMLExportQuery(job, schema, s3Bucket, s3Path, s3Region, tileList.get(i), qkQuery);
-                                          exportFutures.add(exportTypeVML(job.getTargetConnector(), q2, job, s3Path));
-                                      }
+                                          
+                                          exportFutures.add( job.getCsvFormat() != PARTITIONED_JSON_WKB 
+                                                             ? exportTypeVML(job.getTargetConnector(), q2, job, s3Path) 
+                                                             : exportTypeDownload(job.getTargetConnector(), q2, job, s3Path) );
 
-                                                return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
-                                            }
-                                            catch (SQLException e) {
-                                                logger.warn("job[{}] ", job.getId(), e);
-                                                return Future.failedFuture(e);
-                                            }
-                                        });
+                                       }
+
+                                       return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+                                      }
+                                      catch (SQLException e) {
+                                        logger.warn("job[{}] ", job.getId(), e);
+                                        return Future.failedFuture(e);
+                                      }
+                             });
+
                             default:
                                 exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
                                         job.getTargetVersion(), job.getParams(), job.getCsvFormat(), compositeCalculation);
@@ -368,7 +378,8 @@ public class JDBCExporter extends JDBCClients {
             j.getTargetVersion(), j.getParams(), j.getCsvFormat());
 
         /** QkTileQuery gets used if we are exporting in compositeMode. In this case we need to also include empty tiles to our export. */
-        boolean includeEmpty = qkTileQry != null;
+        boolean includeEmpty = qkTileQry != null,
+                bPartJsWkb   = ( j.getCsvFormat() == PARTITIONED_JSON_WKB );
 
         SQLQuery q = new SQLQuery(
                 "select ("+
@@ -376,11 +387,14 @@ public class JDBCExporter extends JDBCClients {
                         "   #{s3Bucket}, " +
                         "   format('%s/%s/%s-%s.csv',#{s3Path}::text, o.qk, o.bucket, o.nrbuckets) ," +
                         "   #{s3Region}," +
-                        "   options := 'format csv,delimiter '','' ')).* " +
+                        "   options := 'format csv,delimiter '','', encoding ''UTF8'', quote  ''\"'', escape '''''''' ')).* " +
                         "  /* vml_export_hint m499#jobId(" + j.getId() + ") */ " +
                         " from" +
-                        "    exp_build_sql_inhabited_txt(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, ${{qkTileQry}}, #{maxTilesPerFile}::int, true, #{isClipped}, #{includeEmpty}) o"
+                        "    ${{exp_build_fkt}}(true, #{parentQK}, #{targetLevel}, ${{exportSelectString}}, ${{qkTileQry}}, #{maxTilesPerFile}::int, ${{b64EncodeParam}} #{isClipped}, #{includeEmpty}) o"
         );
+
+        q.setQueryFragment("exp_build_fkt", !bPartJsWkb ? "exp_build_sql_inhabited_txt" : "exp2_build_sql_inhabited_txt" );
+        q.setQueryFragment("b64EncodeParam", !bPartJsWkb ? "true," : "" );
 
         q.setQueryFragment("exportSelectString", exportSelectString);
         q.setQueryFragment("qkTileQry", qkTileQry == null ? new SQLQuery("null::text") : qkTileQry );

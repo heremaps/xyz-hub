@@ -690,6 +690,27 @@ public class JobApiExportIT extends JobApiIT {
         downloadAndCheck(urls, 758, 3, mustContain);
     }
 
+    @Test
+    public void testFullVMLCompositeL1ExportByPartJsonWkbChanges() throws Exception {
+// export by tiles only changes
+        int targetLevel = 12;
+        int maxTilesPerFile= 300;
+
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testSpaceId3Ext+":dummy");
+
+        /** Create job */
+        Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile);
+        
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3Ext, scope), finalized, failed,  Export.CompositeMode.CHANGES );
+
+        List<String> mustContain = Arrays.asList("23600771,,","23600774","23600775", "deltaonly","baseonly","movedFromEmpty");
+
+        downloadAndCheck(urls, 983, 3, mustContain);
+    }
+
+
 
     /** ------------------- only for local testing with big spaces  -------------------- */
 //    @Test

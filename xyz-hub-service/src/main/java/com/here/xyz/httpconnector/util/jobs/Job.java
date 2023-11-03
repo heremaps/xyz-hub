@@ -397,7 +397,7 @@ public abstract class Job<T extends Job> extends Payload {
 
     @JsonView({Public.class})
     public enum CSVFormat {
-        GEOJSON, JSON_WKT, JSON_WKB, TILEID_FC_B64, PARTITIONID_FC_B64;
+        GEOJSON, JSON_WKT, JSON_WKB, TILEID_FC_B64, PARTITIONID_FC_B64, PARTITIONED_JSON_WKB; 
 
         public static CSVFormat of(String value) {
             if (value == null) {
