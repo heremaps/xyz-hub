@@ -98,7 +98,14 @@ public enum XyzError {
    *
    * <p>This will result in a HTTP 513 response.
    */
-  PAYLOAD_TOO_LARGE("PayloadTooLarge");
+  PAYLOAD_TOO_LARGE("PayloadTooLarge"),
+
+  /**
+   * The requested feature was not available.
+   *
+   * <p>This will result in a HTTP 404 response.
+   */
+  NOT_FOUND("NotFound");
 
   /**
    * The error code.
