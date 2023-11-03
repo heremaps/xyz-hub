@@ -49,6 +49,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.vertx.pgclient.PgException;
+import io.vertx.sqlclient.ClosedConnectionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -213,8 +216,10 @@ public class Import extends JDBCBasedJob<Import> {
     public void resetFailedImportObjects(){
         for (String id : this.importObjects.keySet()) {
             if(this.importObjects.get(id).getStatus() != null
-                    && this.importObjects.get(id).getStatus().equals(ImportObject.Status.failed))
+                    && this.importObjects.get(id).getStatus().equals(ImportObject.Status.failed)) {
                 this.importObjects.get(id).setStatus(ImportObject.Status.waiting);
+                this.importObjects.get(id).setRetryCount(0);
+            }
         }
     }
 
@@ -328,7 +333,6 @@ public class Import extends JDBCBasedJob<Import> {
 
             //TODO: Also view RDS METRICS?
             if (NODE_EXECUTED_IMPORT_MEMORY < CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES){
-                importObjects.get(key).setStatus(ImportObject.Status.processing);
                 NODE_EXECUTED_IMPORT_MEMORY += curFileSize;
                 logger.info("job[{}] start execution of {}! mem: {}", getId(), importObjects.get(key).getS3Key(getId(), key), NODE_EXECUTED_IMPORT_MEMORY);
 
@@ -337,7 +341,7 @@ public class Import extends JDBCBasedJob<Import> {
                             CService.configuration.JOBS_S3_BUCKET, importObjects.get(key).getS3Key(getId(), key), CService.configuration.JOBS_REGION, curFileSize, getCsvFormat() )
                         .onSuccess(result -> {
                                 NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-                                logger.info("job[{}] Import of '{}' succeeded!", getId(), importObjects.get(key));
+                                logger.info("job[{}] Import of '{}' - {} succeeded!", getId(), key, importObjects.get(key).getFilesize());
 
                                 importObjects.get(key).setStatus(ImportObject.Status.imported);
                                 if(result != null && result.indexOf("imported") !=1) {
@@ -348,7 +352,17 @@ public class Import extends JDBCBasedJob<Import> {
                         )
                         .onFailure(e -> {
                                 NODE_EXECUTED_IMPORT_MEMORY -= curFileSize;
-                                logger.warn("JOB[{}] Import of '{}' failed - mem: {}!", getId(), importObjects.get(key), NODE_EXECUTED_IMPORT_MEMORY, e);
+                                logger.warn("JOB[{}] Import of '{}' - {} failed - mem: {}!", getId(), key, importObjects.get(key).getFilesize(), NODE_EXECUTED_IMPORT_MEMORY, e);
+                                if(e instanceof PgException){
+                                    if(((PgException) e).getSqlState().equalsIgnoreCase("22P02") || ((PgException) e).getSqlState().equalsIgnoreCase("22P04")){
+                                        if(importObjects.get(key).isRetryPossible()) {
+                                            logger.info("JOB[{}] Mark '{}' for retry - {} attempt!", getId(), key, importObjects.get(key).getRetryCount());
+                                            importObjects.get(key).increaseRetryCount();
+                                            importObjects.get(key).setStatus(ImportObject.Status.waiting);
+                                            return;
+                                        }
+                                    }
+                                }
                                 importObjects.get(key).setStatus(ImportObject.Status.failed);
                             }
                         )
@@ -359,41 +373,67 @@ public class Import extends JDBCBasedJob<Import> {
         }
 
         CompositeFuture.join(importFutures)
-            .onComplete(
-                t -> {
-                    if (t.failed()){
-                        logger.warn("job[{}] Import of '{}' failed! ", getId(), getTargetSpaceId(), t);
+                .onComplete(
+                        t -> {
+                            if (t.failed()){
+                                String getErrorDescription = Import.ERROR_DESCRIPTION_UNEXPECTED;
+                                logger.warn("job[{}] Import into '{}' failed! ", getId(), getTargetSpaceId(), t);
 
-                        if (t.cause().getMessage() != null && t.cause().getMessage().equalsIgnoreCase("Fail to read any response from the server, the underlying connection might get lost unexpectedly."))
-                            setJobAborted(this);
-                        else if (t.cause().getMessage() != null && t.cause().getMessage().contains("duplicate key value violates unique constraint"))
-                            setJobFailed(this, Import.ERROR_DESCRIPTION_IDS_NOT_UNIQUE, Job.ERROR_TYPE_EXECUTION_FAILED);
-                        else
-                            setJobFailed(this, Import.ERROR_DESCRIPTION_UNEXPECTED, Job.ERROR_TYPE_EXECUTION_FAILED);
-                    }
-                    else {
-                        int failedImports = 0;
-                        boolean filesWaiting = false;
+                                if(t.cause() instanceof PgException){
+                                    if(((PgException) t.cause()).getSqlState().equalsIgnoreCase("23505") ){
+                                        //duplicate key value violates unique constraint
+                                        getErrorDescription = ERROR_DESCRIPTION_IDS_NOT_UNIQUE;
+                                    }else if(((PgException) t.cause()).getSqlState().equalsIgnoreCase("22P02")
+                                            || ((PgException) t.cause()).getSqlState().equalsIgnoreCase("22P04")){
+                                        //invalid input syntax for type json (22P02)
+                                        //extra data after last expected column (22P04)
+                                        /** Those errors we are getting sporadically - usually a retry helps */
+                                        boolean markFailed = false;
+                                        for (String key : importObjects.keySet()) {
+                                            if (!importObjects.get(key).isRetryPossible()) {
+                                                markFailed = true;
+                                                importObjects.get(key).setStatus(ImportObject.Status.failed);
+                                            }
+                                        }
 
-                        for (String key : importObjects.keySet()) {
-                            if (importObjects.get(key).getStatus() == ImportObject.Status.failed)
-                                failedImports++;
-                            if (importObjects.get(key).getStatus() == ImportObject.Status.waiting) {
-                                /** Some Imports are still queued - execute again */
-                                updateJobStatus(this, Job.Status.prepared);
-                                filesWaiting = true;
+                                        if(!markFailed){
+                                            /** process further */
+                                            updateJobStatus(this, Job.Status.prepared);
+                                            return;
+                                        }
+                                        getErrorDescription = Import.ERROR_DESCRIPTION_INVALID_FILE;
+                                    }
+                                }else if (t.cause() instanceof ClosedConnectionException) {
+                                    //Fail to read any response from the server, the underlying connection might get lost unexpectedly.
+                                    setJobAborted(this);
+                                    return;
+                                }
+                                setJobFailed(this, getErrorDescription, Job.ERROR_TYPE_EXECUTION_FAILED);
                             }
-                        }
+                            else {
+                                int failedImports = 0;
+                                boolean filesWaiting = false;
 
-                        if (!filesWaiting) {
-                            if (failedImports == importObjects.size())
-                                setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
-                            else if(failedImports > 0 && failedImports < importObjects.size())
-                                setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
-                            updateJobStatus(this, Job.Status.executed);
-                        }
-                    }
-                });
+                                for (String key : importObjects.keySet()) {
+                                    if (importObjects.get(key).getStatus() == ImportObject.Status.failed)
+                                        failedImports++;
+                                    if (importObjects.get(key).getStatus() == ImportObject.Status.waiting) {
+                                        filesWaiting = true;
+                                    }
+                                }
+
+                                if (!filesWaiting) {
+                                    if (failedImports == importObjects.size())
+                                        setErrorDescription(Import.ERROR_DESCRIPTION_ALL_IMPORTS_FAILED);
+                                    else if(failedImports > 0 && failedImports < importObjects.size())
+                                        setErrorDescription(Import.ERROR_DESCRIPTION_IMPORTS_PARTIALLY_FAILED);
+                                    updateJobStatus(this, Job.Status.executed);
+                                }else {
+                                    /** Some Imports are still queued - execute again */
+                                    updateJobStatus(this, Job.Status.prepared);
+                                }
+                            }
+                        });
     }
 
     @Override
