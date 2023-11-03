@@ -27,10 +27,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLState;
@@ -133,21 +130,16 @@ public class NHAdminReaderMock implements IReadSession {
     } else if (pOp.op() == OP_EQUALS && pOp.propertyRef() == PRef.id()) {
       // return features by Id from the given collections names
       for (final String collectionName : rf.getCollections()) {
-        boolean found = false;
         if (mockCollection.get(collectionName) == null) {
           throw unchecked(new SQLException(
               "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
         }
-        final Map<String, Object> values = ((Map<String, Object>)
-            mockCollection.get(collectionName).values());
-        for (final Map.Entry<String, Object> entry : values.entrySet()) {
-          if (Objects.equals(entry.getKey(), pOp.value())) {
-            features.addAll(mockCollection.get(collectionName).values());
-            found = true;
-            break;
-          }
-        }
-        if (found) break;
+        if (mockCollection.get(collectionName).get(pOp.value()) == null)
+          return new ErrorResult(
+              XyzError.EXCEPTION,
+              "Feature not exist " + pOp.value(),
+              new SQLException("Feature not exist " + pOp.value()));
+        features.add(mockCollection.get(collectionName).get(pOp.value()));
       }
     } else if (pOp.op() == Op.OP_OR) {
       final List<POp> pOpList = pOp.children();
