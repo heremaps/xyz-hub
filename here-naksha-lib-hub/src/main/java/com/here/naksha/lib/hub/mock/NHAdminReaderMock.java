@@ -134,11 +134,8 @@ public class NHAdminReaderMock implements IReadSession {
           throw unchecked(new SQLException(
               "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
         }
-        if (mockCollection.get(collectionName).get(pOp.value()) == null)
-          return new ErrorResult(
-              XyzError.NOT_FOUND,
-              "Feature not exist " + pOp.value(),
-              new SQLException("Feature not exist " + pOp.value()));
+        // if feature not found, return empty list
+        if (mockCollection.get(collectionName).get(pOp.value()) == null) break;
         features.add(mockCollection.get(collectionName).get(pOp.value()));
       }
     } else if (pOp.op() == Op.OP_OR) {

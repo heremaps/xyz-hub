@@ -29,6 +29,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.features.Catalog;
 import com.here.naksha.lib.core.models.features.Subscription;
 import com.here.naksha.lib.core.models.features.TxSignal;
@@ -37,12 +38,12 @@ import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryExcepti
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.storage.IfExists;
 import com.here.naksha.lib.core.models.storage.IfNotExists;
 import com.here.naksha.lib.core.models.storage.StorageCollection;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.util.diff.ConflictResolution;
+import com.here.naksha.lib.core.util.json.JsonObject;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import com.here.naksha.lib.core.view.ViewMember;
 import java.util.ArrayList;
@@ -69,7 +70,7 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = StorageCollection.class),
   @JsonSubTypes.Type(value = TxSignal.class)
 })
-public class XyzFeature extends XyzResponse {
+public class XyzFeature extends JsonObject implements Typed {
 
   @Deprecated
   @AvailableSince(NakshaVersion.v2_0_0)

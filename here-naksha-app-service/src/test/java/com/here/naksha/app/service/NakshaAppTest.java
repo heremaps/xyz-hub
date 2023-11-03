@@ -173,7 +173,7 @@ class NakshaAppTest {
   void tc0005_testGetStorageById() throws Exception {
     // Test API : GET /hub/storages/{storageId}
     // 1. Load test data
-    final String expectedBodyPart = readTestFile("TC0003_getStorages/response_part.json");
+    final String expectedBodyPart = readTestFile("TC0001_createStorage/response_part.json");
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
