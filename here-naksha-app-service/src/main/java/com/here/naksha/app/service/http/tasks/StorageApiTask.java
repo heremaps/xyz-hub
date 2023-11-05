@@ -76,6 +76,8 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
       switch (this.reqType) {
         case GET_ALL_STORAGES:
           return executeGetStorages();
+        case GET_STORAGE_BY_ID:
+          return executeGetStorageById();
         case CREATE_STORAGE:
           return executeCreateStorage();
         default:
@@ -96,6 +98,19 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
       final Result rdResult = reader.execute(request);
       // transform ReadResult to Http FeatureCollection response
       return transformReadResultToXyzCollectionResponse(rdResult, Storage.class);
+    }
+  }
+
+  private @NotNull XyzResponse executeGetStorageById() {
+    // Create ReadFeatures Request to read the storage with the specific ID from Admin DB
+    final String storageId = routingContext.pathParam("storageId");
+    final ReadFeatures request =
+        new ReadFeatures(NakshaAdminCollection.STORAGES).withPropertyOp(POp.eq(PRef.id(), storageId));
+    // Submit request to NH Space Storage
+    try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
+      final Result rdResult = reader.execute(request);
+      // transform ReadResult to Http FeatureCollection response
+      return transformReadResultToXyzFeatureResponse(rdResult, Storage.class);
     }
   }
 

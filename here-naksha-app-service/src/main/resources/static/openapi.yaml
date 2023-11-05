@@ -89,6 +89,28 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+  '/hub/storages/{storageId}':
+    get:
+      tags:
+        - Manage Storages
+      summary: Get the storage with the specific ID
+      description: >-
+        Lists the desired storage if the current authenticated user has access to.
+      operationId: getStorageById
+      parameters:
+        - name: storageId
+          in: path
+          description: ID of pet to fetch
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/StoragesResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
 components:
   securitySchemes:
     AccessToken:
@@ -162,6 +184,17 @@ components:
             type: "ErrorResponse"
             error: "Forbidden"
             errorMessage: "Operation not authorized."
+            streamId: "d5b2edaa-2c6b-44e1-b794-feea6fa0e15b"
+    ErrorResponse404:
+      description: The requested content does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            type: "ErrorResponse"
+            error: "NotFound"
+            errorMessage: "Does not exist."
             streamId: "d5b2edaa-2c6b-44e1-b794-feea6fa0e15b"
     ErrorResponse409:
       description: Indicates request state/version conflict.
