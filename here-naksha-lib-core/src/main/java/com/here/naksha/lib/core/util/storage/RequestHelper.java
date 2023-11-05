@@ -174,4 +174,12 @@ public class RequestHelper {
         .toList();
     return new WriteFeatures<>(collectionName, opList);
   }
+
+  public static @NotNull WriteCollections<StorageCollection> createWriteCollectionsRequest(
+      final @NotNull List<@NotNull String> collectionNames) {
+    final List<WriteOp<StorageCollection>> collectionList = collectionNames.stream()
+        .map(name -> new WriteOp<>(EWriteOp.INSERT, new StorageCollection(name), false))
+        .toList();
+    return new WriteCollections<>(collectionList);
+  }
 }
