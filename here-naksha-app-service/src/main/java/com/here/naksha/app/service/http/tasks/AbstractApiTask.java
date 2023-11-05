@@ -33,6 +33,7 @@ import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteResult;
 import io.vertx.ext.web.RoutingContext;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -89,6 +90,29 @@ public abstract class AbstractApiTask<T extends XyzResponse>
       rr.close();
       final XyzFeatureCollection response = new XyzFeatureCollection().withFeatures(features);
       return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
+    }
+    // unexpected result type
+    return verticle.sendErrorResponse(
+        routingContext,
+        XyzError.EXCEPTION,
+        "Unsupported result type : " + rdResult.getClass().getSimpleName());
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzFeatureResponse(
+      final @NotNull Result rdResult, final @NotNull Class<R> type) {
+    if (rdResult instanceof ErrorResult er) {
+      // In case of error, convert result to ErrorResponse
+      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+    } else if (rdResult instanceof ReadResult<?> rr) {
+      // In case of success, convert result to success XyzResponse
+      final Iterator<R> iterator = rr.withFeatureType(type).iterator();
+      if (!iterator.hasNext())
+        return verticle.sendErrorResponse(
+            routingContext, XyzError.NOT_FOUND, "The desired feature does not exist.");
+      final List<R> features = new ArrayList<>();
+      features.add(iterator.next());
+      final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(features);
+      return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, featureResponse);
     }
     // unexpected result type
     return verticle.sendErrorResponse(

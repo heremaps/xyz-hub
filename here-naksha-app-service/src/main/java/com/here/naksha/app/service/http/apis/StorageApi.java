@@ -18,8 +18,7 @@
  */
 package com.here.naksha.app.service.http.apis;
 
-import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.CREATE_STORAGE;
-import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.GET_ALL_STORAGES;
+import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.*;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.StorageApiTask;
@@ -37,6 +36,7 @@ public class StorageApi extends Api {
   @Override
   public void addOperations(final @NotNull RouterBuilder rb) {
     rb.operation("getStorages").handler(this::getStorages);
+    rb.operation("getStorageById").handler(this::getStorageById);
     rb.operation("postStorage").handler(this::createStorage);
   }
 
@@ -46,6 +46,16 @@ public class StorageApi extends Api {
   private void getStorages(final @NotNull RoutingContext routingContext) {
     new StorageApiTask<>(
             GET_ALL_STORAGES,
+            verticle,
+            naksha(),
+            routingContext,
+            verticle.createNakshaContext(routingContext))
+        .start();
+  }
+
+  private void getStorageById(final @NotNull RoutingContext routingContext) {
+    new StorageApiTask<>(
+            GET_STORAGE_BY_ID,
             verticle,
             naksha(),
             routingContext,
