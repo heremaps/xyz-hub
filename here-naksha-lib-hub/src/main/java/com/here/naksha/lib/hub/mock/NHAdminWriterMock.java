@@ -41,11 +41,8 @@ import org.postgresql.util.PSQLState;
 
 public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSession {
 
-  protected final @NotNull Map<String, Map<String, Object>> mockCollection;
-
   public NHAdminWriterMock(final @NotNull Map<String, Map<String, Object>> mockCollection) {
     super(mockCollection);
-    this.mockCollection = mockCollection;
   }
 
   /**

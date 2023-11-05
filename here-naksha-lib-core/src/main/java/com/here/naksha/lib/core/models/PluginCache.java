@@ -22,12 +22,13 @@ import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.lib.core.exceptions.UncheckedException;
-import com.here.naksha.lib.core.lambdas.F1;
+import com.here.naksha.lib.core.lambdas.*;
 import java.lang.reflect.Constructor;
 import java.util.Enumeration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Cache for plug-ins.
@@ -48,68 +49,100 @@ public final class PluginCache {
   private static final String API_NOT_SUPPORTED = new String("API_NOT_SUPPORTED");
   private final ConcurrentHashMap<@NotNull String, @NotNull Object> cache = new ConcurrentHashMap<>();
 
-  /**
-   * Returns the constructor for the given plugin class, implementing the given API.
-   *
-   * @param className  the full qualified name of the class.
-   * @param apiClass   the API that need to be implemented.
-   * @param paramClass the class of the parameter.
-   * @param <API>      the API-type.
-   * @param <PARAM>    the parameter-type.
-   * @return the constructor.
-   * @throws ClassNotFoundException if no such class exists.
-   * @throws NoSuchMethodException  if the class does not have the required constructor.
-   * @throws ClassCastException     if the class does not implement the API.
-   */
-  @SuppressWarnings({"unchecked", "JavadocDeclaration"})
-  public static <API, PARAM> @NotNull F1<API, PARAM> get(
+  private static @Nullable Constructor<?> getConstructorIfAssignable(
+      final @NotNull Constructor<?> constructor, final int noOfParams, final @Nullable Class<?>... paramClasses) {
+    // actual number of constructor params
+    final Class<?>[] cParamTypes = constructor.getParameterTypes();
+    int noOfCParams = cParamTypes.length;
+    if (noOfParams != noOfCParams) return null;
+    // check if all parameters are assignable
+    boolean allParamMatches = true;
+    for (int i = 0; i < noOfParams; i++) {
+      if (paramClasses[i] == null || !cParamTypes[i].isAssignableFrom(paramClasses[i])) {
+        allParamMatches = false;
+        break;
+      }
+    }
+    if (allParamMatches) return constructor; // we found matching constructor
+    return null;
+  }
+
+  private static Constructor<?> addConstructorToCache(
+      @NotNull String className, int noOfParams, @NotNull Constructor<?> constructor) {
+    instance.cache.putIfAbsent(className + ":" + noOfParams, constructor);
+    return constructor;
+  }
+
+  private static <API> @NotNull Constructor<?> getMatchingConstructor(
       final @NotNull String className,
       final @NotNull Class<API> apiClass,
-      final @NotNull Class<PARAM> paramClass) {
-    Object raw = instance.cache.get(className);
-    if (raw instanceof F1<?, ?> constructor) {
-      return (F1<API, PARAM>) constructor;
+      final int noOfParams,
+      final @Nullable Class<?>... paramClasses) {
+    // TODO : can be easily enhanced for additional arguments (when needed)
+    if (noOfParams > 4)
+      throw new UnsupportedOperationException("Unsupported value " + noOfParams + " for constructor arguments.");
+    // check if cache already has assignable constructor
+    Object raw = instance.cache.get(className + ":" + noOfParams);
+    if (raw instanceof Constructor<?> constructor) {
+      if (!apiClass.isAssignableFrom(constructor.getDeclaringClass())) {
+        raw = API_NOT_SUPPORTED;
+      } else {
+        constructor = getConstructorIfAssignable(constructor, noOfParams, paramClasses);
+        if (constructor != null) {
+          return addConstructorToCache(className, noOfParams, constructor);
+        }
+      }
     }
     if (raw == null) {
+      // not found in cache. need to search for valid constructor
       try {
         final Class<?> theClass = Class.forName(className);
         if (!apiClass.isAssignableFrom(theClass)) {
           raw = API_NOT_SUPPORTED;
         } else {
+          // first attempt finding direct parameter matching constructor (ignoring super interface/super class
+          // types)
           try {
-            final Constructor<?> constructor = theClass.getConstructor(paramClass);
-            final F1<API, PARAM> function = (param) -> {
-              try {
-                return (API) constructor.newInstance(param);
-              } catch (Throwable t) {
-                throw unchecked(t);
-              }
-            };
-            instance.cache.putIfAbsent(className, function);
-            return function;
-          } catch (NoSuchMethodException e) {
-            final Constructor<?> constructor = theClass.getConstructor();
-            final F1<API, PARAM> function = (param) -> {
-              try {
-                return (API) constructor.newInstance();
-              } catch (Throwable t) {
-                throw unchecked(t);
-              }
-            };
-            instance.cache.putIfAbsent(className, function);
-            return function;
+            final Constructor<?> c =
+                switch (noOfParams) {
+                  case 4 -> theClass.getConstructor(
+                      paramClasses[0], paramClasses[1], paramClasses[2], paramClasses[3]);
+                  case 3 -> theClass.getConstructor(
+                      paramClasses[0], paramClasses[1], paramClasses[2]);
+                  case 2 -> theClass.getConstructor(paramClasses[0], paramClasses[1]);
+                  case 1 -> theClass.getConstructor(paramClasses[0]);
+                  case 0 -> theClass.getConstructor();
+                  default -> throw new UnsupportedOperationException(
+                      "Unsupported value " + noOfParams + " for constructor arguments.");
+                };
+            // if we reach here, then we got direct match
+            return addConstructorToCache(className, noOfParams, c);
+          } catch (NoSuchMethodException ignored) {
           }
+
+          // now iterate through all other constructors for best suitable match for the given number of params
+          for (final Constructor<?> constructor : theClass.getConstructors()) {
+            if (noOfParams == constructor.getParameterCount()) {
+              final Constructor<?> c = getConstructorIfAssignable(constructor, noOfParams, paramClasses);
+              if (c != null) return addConstructorToCache(className, noOfParams, c);
+            }
+          }
+
+          // we reduce number of params to find next suitable constructor (in recursive manner)
+          if (noOfParams > 0) {
+            return getMatchingConstructor(className, apiClass, noOfParams - 1, paramClasses);
+          }
+
+          raw = NO_SUCH_METHOD;
         }
       } catch (ClassNotFoundException e) {
         raw = CLASS_NOT_FOUND;
-      } catch (NoSuchMethodException e) {
-        raw = NO_SUCH_METHOD;
       }
       assert raw != null;
       instance.cache.putIfAbsent(className, raw);
     }
     if (raw == NO_SUCH_METHOD) {
-      throw unchecked(new NoSuchMethodException(className + "(" + paramClass.getName() + ")"));
+      throw unchecked(new NoSuchMethodException(className + "(" + className + ")"));
     }
     if (raw == API_NOT_SUPPORTED) {
       throw new ClassCastException(className + " does not implement " + apiClass.getName());
@@ -122,9 +155,8 @@ public final class PluginCache {
    *
    * @param className the full qualified name of the class implementing the API.
    * @param apiClass  the API that need to be implemented.
-   * @param parameter the class of the parameter.
+   * @param parameter the first constructor parameter.
    * @param <API>     the API-type.
-   * @param <PARAM>   the parameter-type.
    * @return the instance.
    * @throws ClassNotFoundException If no such class exists.
    * @throws ClassCastException     If the class does not implement the requested API.
@@ -132,11 +164,120 @@ public final class PluginCache {
    * @throws UncheckedException     If the constructor has thrown an exception, use {@link UncheckedException#cause(Throwable)} to unpack.
    */
   @SuppressWarnings("JavadocDeclaration")
-  public static <API, PARAM> API newInstance(
-      @NotNull String className, @NotNull Class<API> apiClass, @NotNull PARAM parameter) {
-    //noinspection unchecked
-    final F1<API, PARAM> constructor = get(className, apiClass, (Class<PARAM>) parameter.getClass());
-    return constructor.call(parameter);
+  public static <API> API newInstance(
+      @NotNull String className, @NotNull Class<API> apiClass, @NotNull Object parameter) {
+    final Constructor<?> c = getMatchingConstructor(className, apiClass, 1, parameter.getClass());
+    return invokeConstructorWithParams(c, apiClass, parameter);
+  }
+
+  /**
+   * Create a new instance of the given plugin class, implementing the given API.
+   *
+   * @param className the full qualified name of the class implementing the API.
+   * @param apiClass  the API that need to be implemented.
+   * @param param     the first constructor parameter
+   * @param param2    the second constructor parameter
+   * @param <API>     the API-type.
+   * @return the instance.
+   * @throws ClassNotFoundException If no such class exists.
+   * @throws ClassCastException     If the class does not implement the requested API.
+   * @throws NoSuchMethodException  If the class does not have the required constructor.
+   * @throws UncheckedException     If the constructor has thrown an exception, use {@link UncheckedException#cause(Throwable)} to unpack.
+   */
+  @SuppressWarnings("JavadocDeclaration")
+  public static <API> API newInstance(
+      @NotNull String className, @NotNull Class<API> apiClass, @NotNull Object param, @NotNull Object param2) {
+    final Constructor<?> c = getMatchingConstructor(className, apiClass, 2, param.getClass(), param2.getClass());
+    return invokeConstructorWithParams(c, apiClass, param, param2);
+  }
+
+  /**
+   * Create a new instance of the given plugin class, implementing the given API.
+   *
+   * @param className the full qualified name of the class implementing the API.
+   * @param apiClass  the API that need to be implemented.
+   * @param param     the first constructor parameter
+   * @param param2    the second constructor parameter
+   * @param param3    the third constructor parameter
+   * @param <API>     the API-type.
+   * @return the instance.
+   * @throws ClassNotFoundException If no such class exists.
+   * @throws ClassCastException     If the class does not implement the requested API.
+   * @throws NoSuchMethodException  If the class does not have the required constructor.
+   * @throws UncheckedException     If the constructor has thrown an exception, use {@link UncheckedException#cause(Throwable)} to unpack.
+   */
+  @SuppressWarnings("JavadocDeclaration")
+  public static <API> API newInstance(
+      @NotNull String className,
+      @NotNull Class<API> apiClass,
+      @NotNull Object param,
+      @NotNull Object param2,
+      @NotNull Object param3) {
+    final Constructor<?> c =
+        getMatchingConstructor(className, apiClass, 3, param.getClass(), param2.getClass(), param3.getClass());
+    return invokeConstructorWithParams(c, apiClass, param, param2, param3);
+  }
+
+  /**
+   * Create a new instance of the given plugin class, implementing the given API.
+   *
+   * @param className the full qualified name of the class implementing the API.
+   * @param apiClass  the API that need to be implemented.
+   * @param param     the first constructor parameter
+   * @param param2    the second constructor parameter
+   * @param param3    the third constructor parameter
+   * @param param4    the forth constructor parameter
+   * @param <API>     the API-type.
+   * @return the instance.
+   * @throws ClassNotFoundException If no such class exists.
+   * @throws ClassCastException     If the class does not implement the requested API.
+   * @throws NoSuchMethodException  If the class does not have the required constructor.
+   * @throws UncheckedException     If the constructor has thrown an exception, use {@link UncheckedException#cause(Throwable)} to unpack.
+   */
+  @SuppressWarnings("JavadocDeclaration")
+  public static <API> API newInstance(
+      @NotNull String className,
+      @NotNull Class<API> apiClass,
+      @NotNull Object param,
+      @NotNull Object param2,
+      @NotNull Object param3,
+      @NotNull Object param4) {
+    final Constructor<?> c = getMatchingConstructor(
+        className, apiClass, 4, param.getClass(), param2.getClass(), param3.getClass(), param4.getClass());
+    return invokeConstructorWithParams(c, apiClass, param, param2, param3, param4);
+  }
+
+  private static <API> API invokeConstructorWithParams(
+      @NotNull Constructor<?> c, @NotNull Class<API> apiClass, @NotNull Object... params) {
+    final int noOfParams = c.getParameterCount();
+    try {
+      switch (noOfParams) {
+        case 4 -> {
+          //noinspection unchecked
+          return (API) c.newInstance(params[0], params[1], params[2], params[3]);
+        }
+        case 3 -> {
+          //noinspection unchecked
+          return (API) c.newInstance(params[0], params[1], params[2]);
+        }
+        case 2 -> {
+          //noinspection unchecked
+          return (API) c.newInstance(params[0], params[1]);
+        }
+        case 1 -> {
+          //noinspection unchecked
+          return (API) c.newInstance(params[0]);
+        }
+        case 0 -> {
+          //noinspection unchecked
+          return (API) c.newInstance();
+        }
+        default -> throw new UnsupportedOperationException(
+            "Unsupported value " + noOfParams + " for constructor arguments.");
+      }
+    } catch (Throwable t) {
+      throw unchecked(t);
+    }
   }
 
   private void cleanup() {

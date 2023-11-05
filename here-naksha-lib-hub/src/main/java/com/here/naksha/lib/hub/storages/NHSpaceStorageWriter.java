@@ -20,10 +20,7 @@ package com.here.naksha.lib.hub.storages;
 
 import com.here.naksha.lib.core.*;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteCollections;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
-import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.hub.EventPipelineFactory;
@@ -33,8 +30,12 @@ import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWriteSession {
+
+  private static final Logger logger = LoggerFactory.getLogger(NHSpaceStorageWriter.class);
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NHSpaceStorageWriter(
@@ -90,9 +91,12 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
     return pipeline.sendEvent(wf);
   }
 
-  private @NotNull Result executeWriteFeaturesToCustomSpaces(final @NotNull WriteFeatures rf) {
-    // TODO : Add logic to support running pipeline for custom space
-    throw new UnsupportedOperationException("WriteFeatures to custom space not supported as of now");
+  private @NotNull Result executeWriteFeaturesToCustomSpaces(final @NotNull WriteFeatures<?> wf) {
+    final String spaceId = wf.collectionId;
+    final EventPipeline eventPipeline = pipelineFactory.eventPipeline();
+    final Result result = setupEventPipelineForSpaceId(spaceId, eventPipeline);
+    if (!(result instanceof SuccessResult)) return result;
+    return eventPipeline.sendEvent(wf);
   }
 
   /**

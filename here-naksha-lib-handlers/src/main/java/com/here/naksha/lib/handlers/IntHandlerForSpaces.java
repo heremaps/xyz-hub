@@ -20,7 +20,10 @@ package com.here.naksha.lib.handlers;
 
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.core.storage.IWriteSession;
 import org.jetbrains.annotations.NotNull;
 
 public class IntHandlerForSpaces extends AbstractEventHandler {
@@ -37,6 +40,21 @@ public class IntHandlerForSpaces extends AbstractEventHandler {
    */
   @Override
   public @NotNull Result processEvent(@NotNull IEvent event) {
-    return notImplemented(event);
+    final NakshaContext ctx = NakshaContext.currentContext();
+    final Request<?> request = event.getRequest();
+    // process request using Naksha Admin Storage instance
+    if (request instanceof ReadRequest<?> rr) {
+      try (final IReadSession reader = nakshaHub().getAdminStorage().newReadSession(ctx, false)) {
+        return reader.execute(rr);
+      }
+    } else if (request instanceof WriteRequest<?, ?> wr) {
+      try (final IWriteSession writer = nakshaHub().getAdminStorage().newWriteSession(ctx, true)) {
+        final Result result = writer.execute(wr);
+        if (result instanceof SuccessResult) writer.commit();
+        return result;
+      }
+    } else {
+      return notImplemented(event);
+    }
   }
 }

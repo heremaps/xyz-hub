@@ -36,7 +36,7 @@ import org.postgresql.util.PSQLState;
 
 public class NHAdminReaderMock implements IReadSession {
 
-  protected final @NotNull Map<String, Map<String, Object>> mockCollection;
+  protected static @NotNull Map<String, Map<String, Object>> mockCollection;
 
   public NHAdminReaderMock(final @NotNull Map<String, Map<String, Object>> mockCollection) {
     this.mockCollection = mockCollection;
@@ -130,7 +130,14 @@ public class NHAdminReaderMock implements IReadSession {
         features.addAll(mockCollection.get(collectionName).values());
       }
     } else if (pOp.op() == OP_EQUALS && pOp.propertyRef() == PRef.id()) {
-      // TODO : return features by Id from the given collections names
+      for (final String collectionName : rf.getCollections()) {
+        if (mockCollection.get(collectionName) == null) {
+          throw unchecked(new SQLException(
+              "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
+        }
+        if (mockCollection.get(collectionName).get(pOp.value()) == null) break;
+        features.add(mockCollection.get(collectionName).get(pOp.value()));
+      }
     } else if (pOp.op() == Op.OP_OR) {
       final List<POp> pOpList = pOp.children();
       final List<String> ids = new ArrayList<>();
@@ -140,6 +147,16 @@ public class NHAdminReaderMock implements IReadSession {
         } else {
           // TODO : Operation Not supported
         }
+      }
+      // fetch features for all given ids
+      for (final String collectionName : rf.getCollections()) {
+        if (mockCollection.get(collectionName) == null) {
+          throw unchecked(new SQLException(
+              "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
+        }
+        features.addAll(ids.stream()
+            .map(id -> mockCollection.get(collectionName).get(id))
+            .toList());
       }
     } else {
       // TODO : Operation Not supported

@@ -20,6 +20,7 @@ package com.here.naksha.lib.hub;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.*;
+import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFromResult;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
@@ -28,7 +29,7 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.*;
-import com.here.naksha.lib.core.models.storage.StorageCollection;
+import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.IoHelp;
@@ -38,7 +39,6 @@ import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
-import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -91,13 +91,7 @@ public class NakshaHub implements INaksha {
     final NakshaContext nakshaContext = new NakshaContext().withAppId(NakshaHubConfig.defaultAppName());
     nakshaContext.attachToCurrentThread();
     try (final IWriteSession admin = getAdminStorage().newWriteSession(nakshaContext, true)) {
-      final List<WriteOp<StorageCollection>> collectionList = new ArrayList<>();
-      for (final String name : NakshaAdminCollection.ALL) {
-        final StorageCollection collection = new StorageCollection(name);
-        final WriteOp<StorageCollection> writeOp = new WriteOp<>(EWriteOp.INSERT, collection, false);
-        collectionList.add(writeOp);
-      }
-      final Result wrResult = admin.execute(new WriteCollections<>(collectionList));
+      final Result wrResult = admin.execute(createWriteCollectionsRequest(NakshaAdminCollection.ALL));
       if (wrResult == null) {
         admin.rollback();
         throw unchecked(new Exception("Unable to create Admin collections in Admin DB. Null result!"));
@@ -242,7 +236,22 @@ public class NakshaHub implements INaksha {
   @Override
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorage getStorageById(final @NotNull String storageId) {
-    // TODO : Add logic to retrieve Storage from Admin DB and then instantiate respective IStorage implementation
-    return null;
+    try (final IReadSession reader = getAdminStorage().newReadSession(NakshaContext.currentContext(), false)) {
+      final Result result = reader.execute(readFeaturesByIdRequest(NakshaAdminCollection.STORAGES, storageId));
+      if (result instanceof ErrorResult er) {
+        throw unchecked(new Exception(
+            "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
+      }
+      if (result instanceof ReadResult<?> rr) {
+        final Storage storage = readFeatureFromResult(rr, Storage.class);
+        rr.close();
+        if (storage == null) {
+          throw unchecked(new Exception("No storage found with id " + storageId));
+        }
+        return storage.newInstance(this);
+      }
+      throw unchecked(new Exception("Unexpected result type "
+          + result.getClass().getName() + " while fetching storage for id " + storageId));
+    }
   }
 }
