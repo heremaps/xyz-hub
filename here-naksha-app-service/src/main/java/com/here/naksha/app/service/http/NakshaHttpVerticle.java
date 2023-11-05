@@ -535,6 +535,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       case FORBIDDEN -> HttpResponseStatus.FORBIDDEN;
       case TOO_MANY_REQUESTS -> HttpResponseStatus.TOO_MANY_REQUESTS;
       case TIMEOUT -> HttpResponseStatus.GATEWAY_TIMEOUT;
+      case NOT_FOUND -> HttpResponseStatus.NOT_FOUND;
     };
   }
 
