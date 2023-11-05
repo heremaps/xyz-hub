@@ -96,7 +96,12 @@ public class EventHandler extends Plugin<IEventHandler, EventHandler> {
   @AvailableSince(NakshaVersion.v2_0_7)
   @Override
   public @NotNull IEventHandler newInstance(@NotNull INaksha naksha) {
-    return PluginCache.newInstance(getClassName(), IEventHandler.class, this);
+    return PluginCache.newInstance(getClassName(), IEventHandler.class, this, naksha);
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull IEventHandler newInstance(@NotNull INaksha naksha, @NotNull EventTarget<?> eventTarget) {
+    return PluginCache.newInstance(getClassName(), IEventHandler.class, this, naksha, eventTarget);
   }
 
   @AvailableSince(NakshaVersion.v2_0_7)

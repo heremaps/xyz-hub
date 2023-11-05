@@ -18,8 +18,19 @@
  */
 package com.here.naksha.lib.hub.mock;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdRequest;
+import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFromResult;
+
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.NakshaAdminCollection;
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.naksha.Storage;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.ReadResult;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.hub.NakshaEventPipelineFactory;
 import com.here.naksha.lib.hub.NakshaHubConfig;
@@ -102,7 +113,23 @@ public class NakshaHubMock implements INaksha {
    */
   @Override
   public @NotNull IStorage getStorageById(@NotNull String storageId) {
-    return null;
+    try (final IReadSession reader = getAdminStorage().newReadSession(NakshaContext.currentContext(), false)) {
+      final Result result = reader.execute(readFeaturesByIdRequest(NakshaAdminCollection.STORAGES, storageId));
+      if (result instanceof ErrorResult er) {
+        throw unchecked(new Exception(
+            "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
+      }
+      if (result instanceof ReadResult<?> rr) {
+        final Storage storage = readFeatureFromResult(rr, Storage.class);
+        rr.close();
+        if (storage == null) {
+          throw unchecked(new Exception("No storage found with id " + storageId));
+        }
+        return storage.newInstance(this);
+      }
+      throw unchecked(new Exception("Unexpected result type "
+          + result.getClass().getName() + " while fetching storage for id " + storageId));
+    }
   }
 
   /**

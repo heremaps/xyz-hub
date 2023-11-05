@@ -1,0 +1,7 @@
+{
+  "id": "feature-id-1",
+  "type": "Feature",
+  "properties": {
+    "speedLimit": "80"
+  }
+}

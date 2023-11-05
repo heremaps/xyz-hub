@@ -21,10 +21,7 @@ package com.here.naksha.lib.handlers;
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
-import com.here.naksha.lib.core.models.storage.ReadRequest;
-import com.here.naksha.lib.core.models.storage.Request;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import org.jetbrains.annotations.NotNull;
@@ -45,14 +42,16 @@ public class IntHandlerForStorages extends AbstractEventHandler {
   public @NotNull Result processEvent(@NotNull IEvent event) {
     final NakshaContext ctx = NakshaContext.currentContext();
     final Request<?> request = event.getRequest();
-    // process request it using Naksha Admin Storage instance
+    // process request using Naksha Admin Storage instance
     if (request instanceof ReadRequest<?> rr) {
       try (final IReadSession reader = nakshaHub().getAdminStorage().newReadSession(ctx, false)) {
         return reader.execute(rr);
       }
     } else if (request instanceof WriteRequest<?, ?> wr) {
       try (final IWriteSession writer = nakshaHub().getAdminStorage().newWriteSession(ctx, true)) {
-        return writer.execute(wr);
+        final Result result = writer.execute(wr);
+        if (result instanceof SuccessResult) writer.commit();
+        return result;
       }
     } else {
       return notImplemented(event);

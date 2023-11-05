@@ -79,7 +79,7 @@ public class Storage extends Plugin<IStorage, Storage> {
   @Override
   public @NotNull IStorage newInstance(@NotNull INaksha naksha) {
     // TODO: Keep storage engines in memory and only instantiate the same storage ones!
-    return PluginCache.newInstance(className, IStorage.class, this);
+    return PluginCache.newInstance(className, IStorage.class, this, naksha);
   }
 
   @Deprecated

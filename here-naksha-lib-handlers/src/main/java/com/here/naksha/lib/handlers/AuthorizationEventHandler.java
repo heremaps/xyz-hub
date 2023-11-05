@@ -20,13 +20,27 @@ package com.here.naksha.lib.handlers;
 
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.storage.Result;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 public class AuthorizationEventHandler extends AbstractEventHandler {
 
+  protected @Nullable Space space;
+  protected @Nullable List<EventHandler> eventHandlers;
+
   public AuthorizationEventHandler(final @NotNull INaksha hub) {
     super(hub);
+  }
+
+  public AuthorizationEventHandler(
+      final @NotNull INaksha hub, final @NotNull Space space, final @NotNull List<EventHandler> eventHandlers) {
+    super(hub);
+    this.space = space;
+    this.eventHandlers = eventHandlers;
   }
 
   /**

@@ -21,8 +21,10 @@ package com.here.naksha.lib.hub.mock;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
 
+import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
@@ -31,24 +33,34 @@ import com.here.naksha.lib.hub.NakshaHubConfig;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class NHAdminMock implements IStorage {
 
-  protected final @NotNull Map<String, Map<String, Object>> mockCollection;
-  protected final @NotNull NakshaHubConfig nakshaHubConfig;
+  protected static @NotNull Map<String, Map<String, Object>> mockCollection;
+  protected static @NotNull NakshaHubConfig nakshaHubConfig;
+
+  public NHAdminMock(final @NotNull Storage storage, final @NotNull INaksha naksha) {
+    // this constructor is only to support IStorage instantiation
+    if (this.mockCollection == null) {
+      this.mockCollection = new ConcurrentHashMap<>();
+      this.initStorage();
+    }
+  }
 
   public NHAdminMock(
       final @NotNull Map<String, Map<String, Object>> mockCollection, final @NotNull NakshaHubConfig customCfg) {
     this.mockCollection = mockCollection;
     this.nakshaHubConfig = customCfg;
     this.initStorage();
+    this.setupConfig();
   }
 
   @Override
   public void initStorage() {
-    final NakshaContext ctx = new NakshaContext().withAppId(nakshaHubConfig.appId);
+    final NakshaContext ctx = new NakshaContext().withAppId("naksha_mock");
     ctx.attachToCurrentThread();
 
     // Create all admin collections
@@ -70,8 +82,13 @@ public class NHAdminMock implements IStorage {
       }
       admin.commit();
     }
+  }
 
+  private void setupConfig() {
     // Add custom config in naksha:configs
+    final NakshaContext ctx = new NakshaContext().withAppId("naksha_mock");
+    ctx.attachToCurrentThread();
+
     try (final IWriteSession admin = newWriteSession(ctx, true)) {
       final Result wrResult = admin.execute(createFeatureRequest(
           NakshaAdminCollection.CONFIGS, nakshaHubConfig, IfExists.REPLACE, IfConflict.REPLACE));
