@@ -251,6 +251,49 @@ public class DynamoJobConfigClient extends JobConfigClient {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
+    @Override
+    protected Future<List<Job>> findStuckJobs(Marker marker, long lastUpdatedAt) {
+        return DynamoClient.dynamoWorkers.executeBlocking(p -> {
+            try {
+                final List<Job> result = new ArrayList<>();
+                Map<String, String> nameMap = new HashMap<>();
+                Map<String, Object> valueMap = new HashMap<>();
+
+                List<String> filterExpression = new ArrayList<>();
+
+                nameMap.put("#status", "status");
+                valueMap.put(":waiting", Status.waiting.toString());
+                filterExpression.add("#status <> :waiting");
+                valueMap.put(":finalized", Status.finalized.toString());
+                filterExpression.add("#status <> :finalized");
+                valueMap.put(":failed", Status.failed.toString());
+                filterExpression.add("#status <> :failed");
+                valueMap.put(":aborted", Status.aborted.toString());
+                filterExpression.add("#status <> :aborted");
+
+                valueMap.put(":updatedAt", lastUpdatedAt);
+                filterExpression.add("updatedAt < :updatedAt");
+
+                ScanSpec scanSpec = new ScanSpec()
+                        .withFilterExpression(String.join(" AND ", filterExpression))
+                        .withNameMap(nameMap)
+                        .withValueMap(valueMap);
+
+                jobs.scan(scanSpec).pages().forEach(j -> j.forEach(i -> {
+                    try{
+                        final Job job = convertItemToJob(i);
+                        result.add(job);
+                    }catch (Exception e){
+                        logger.warn("Cant decode Job-Item - skip!", i.toJSON());
+                    }
+                }));
+                p.complete(result);
+            } catch (Exception e) {
+                p.fail(e);
+            }
+        });
+    }
+
     private void storeJobSync(Job job, Promise<Job> p) {
         Item item = convertJobToItem(job);
         jobs.putItem(item);

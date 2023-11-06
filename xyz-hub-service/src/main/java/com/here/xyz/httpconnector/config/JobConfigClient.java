@@ -25,6 +25,7 @@ import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.config.Initializable;
 import io.vertx.core.Future;
+import java.text.SimpleDateFormat;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,6 +37,7 @@ import org.apache.logging.log4j.Marker;
 public abstract class JobConfigClient implements Initializable {
 
     private static final Logger logger = LogManager.getLogger();
+    private static SimpleDateFormat dateFormat = new SimpleDateFormat("dd-M-yyyy hh:mm:ss");
 
     public enum DatasetDirection {
       SOURCE,
@@ -125,9 +127,31 @@ public abstract class JobConfigClient implements Initializable {
             .onFailure(e -> logger.error(marker, "job[{}]: failed to delete! ", jobId, e));
     }
 
+    public Future<List<Job>> findStuckJobs(Marker marker) {
+        //find running jobs which got updated lastly more than 2 days ago
+        long t = (Core.currentTimeMillis() / 1000l) - (2 * 24 * 60 * 60);
+        return findStuckJobs(marker, t)
+                .onFailure(e -> logger.error(marker, "Failed to load stuck jobList! ", e ));
+    }
+
+    public Future<Void> failStuckJobs(Marker marker) {
+        return findStuckJobs(marker)
+                .onSuccess(jobList -> {
+                    for (Job job : jobList) {
+                        logger.info(marker, "Fail stuck job: "+job.getId()+" "+job.getClass().getSimpleName()+" "+job.getStatus()+" "+job.getUpdatedAt()+" "+dateFormat.format(job.getUpdatedAt() * 1000));
+                        job.setStatus(Status.failed);
+                        job.setErrorType(Job.ERROR_TYPE_FAILED_DUE_RESTART);
+                        update(marker, job);
+                    }
+                }).compose(f -> Future.succeededFuture());
+    }
+
     protected abstract Future<Job> getJob(Marker marker, String jobId);
 
+    protected abstract Future<List<Job>> findStuckJobs(Marker marker, long lastUpdatedAt);
+
     protected abstract Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId);
+
     protected abstract Future<List<Job>> getJobs(Marker marker, Status status, String key, DatasetDirection direction);
 
     protected abstract Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type);

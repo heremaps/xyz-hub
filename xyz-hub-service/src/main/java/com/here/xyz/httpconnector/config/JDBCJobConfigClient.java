@@ -133,7 +133,7 @@ public class JDBCJobConfigClient extends JobConfigClient {
 
     @Override
   protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type) {
-    String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 AND config->>'status' NOT IN ('waiting','failed','finalized')" +
+    String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 AND config->>'status' NOT IN ('waiting','failed','finalized','aborted')" +
         " AND config->>'targetSpaceId' = $1" +
         " AND jobtype = $2";
 
@@ -175,6 +175,23 @@ public class JDBCJobConfigClient extends JobConfigClient {
           }
           return job;
         });
+  }
+
+  @Override
+  protected Future<List<Job>> findStuckJobs(Marker marker, long lastUpdatedAt) {
+      final List<Job> result = new ArrayList<>();
+      String q = "SELECT * FROM " + JOB_TABLE + " WHERE 1 = 1 " +
+              " AND config->>'status' NOT IN ('waiting','failed','finalized','aborted')" +
+              " AND (config->'updatedAt')::numeric < $1";
+
+      return client.preparedQuery(q)
+              .execute(Tuple.of(lastUpdatedAt))
+              .map(rows -> {
+                  for (Row row : rows) {
+                      result.add(Json.decodeValue(row.getJsonObject("config").toString(), Job.class));
+                  }
+                  return result;
+              });
   }
 
   @Override
