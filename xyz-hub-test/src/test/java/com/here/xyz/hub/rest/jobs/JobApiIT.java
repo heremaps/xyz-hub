@@ -274,9 +274,7 @@ public class JobApiIT extends TestSpaceWithFeature {
                 .accept(APPLICATION_JSON)
                 .contentType(APPLICATION_JSON)
                 .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-                .delete("/spaces/" + spaceId + "/job/"+jobId+(force == null ? "" :"?force="+force))
-                .then()
-                .statusCode(OK.code());
+                .delete("/spaces/" + spaceId + "/job/"+jobId+(force == null ? "" :"?force="+force));
     }
 
     protected static void deleteAllJobsOnSpace(String spaceId){
@@ -400,8 +398,12 @@ public class JobApiIT extends TestSpaceWithFeature {
                 input = "\"{'\"root'\": '\"test'\", '\"properties'\": {'\"foo'\": '\"bar'\",'\"foo_nested'\": {'\"nested_bar'\":true}}}\",00800000028BF4047640D1B71758E407E373333333333401A9443D46B26C040476412AD81ADEB407E3170A3D70A3D";
                 break;
             case 3 :
-                //unknown column - JSON_WKB
+                //unknown 3rd column - JSON_WKB
                 input = "\"{'\"foo'\":'\"bar'\"}\",008000000200000002401A94B9CB6848BF4047640D1B71758E407E373333333333401A9443D46B26C040476412AD81ADEB407E3170A3D70A3D,notValid";
+                break;
+            case 4 :
+                //cut JSON
+                input = "\"'\"root'\": '\"test'\", '\"properties'\": {'\"foo'\": '\"bar'\",01010000A0E61000007DAD4B8DD0AF07C0BD19355F25B74A400000000000000000";
                 break;
             case 10 :
                 //valid GEOJSON

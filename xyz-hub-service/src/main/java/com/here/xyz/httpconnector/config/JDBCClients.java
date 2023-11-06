@@ -200,11 +200,7 @@ public class JDBCClients {
                         +"AND POSITION('!ignore!' in query) = 0"
         );
 
-        String applicationName = getApplicationName(clientID);
-        /** Cut suffix of different clients */
-        applicationName = applicationName.indexOf("_") == -1 ? applicationName :applicationName.substring(0,applicationName.lastIndexOf("_"));
-
-        q.setNamedParameter("applicationName", applicationName+"%");
+        q.setNamedParameter("applicationName", APPLICATION_NAME_PREFIX+"%");
         q.setNamedParameter("db", getStatusClientDatabaseSettings(clientID, false).getDb());
         q = q.substituteAndUseDollarSyntax(q);
 

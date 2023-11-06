@@ -413,12 +413,13 @@ public class Export extends JDBCBasedJob<Export> {
         this.superExportObjects = superExportObjects;
     }
 
+    @JsonIgnore
     public List<ExportObject> getExportObjectsAsList() {
         List<ExportObject> exportObjectList = new ArrayList<>();
 
-        if (superExportObjects == null)
+        if (superExportObjects != null)
             exportObjectList.addAll(superExportObjects.values());
-        if (exportObjects == null)
+        if (exportObjects != null)
             exportObjectList.addAll(exportObjects.values());
 
         return exportObjectList;
@@ -852,6 +853,7 @@ public class Export extends JDBCBasedJob<Export> {
                     for (Job jobCandidate :jobs) {
                         //exp=-1 => persistent
                         //hash must fit
+                        logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
                         if( jobCandidate.getExp() == -1 && ((Export)jobCandidate).getHashForPersistentStorage().equals(getHashForPersistentStorage())){
                             logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
                             existingJob = (Export) jobCandidate;

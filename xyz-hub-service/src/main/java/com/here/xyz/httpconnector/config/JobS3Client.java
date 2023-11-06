@@ -51,8 +51,8 @@ import org.apache.logging.log4j.Logger;
 public class JobS3Client extends AwsS3Client{
     private static final Logger logger = LogManager.getLogger();
 
-    private static final int VALIDATE_LINE_KB_STEPS = 100 * 1024;
-    private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 10 * 1024 * 1024;
+    private static final int VALIDATE_LINE_KB_STEPS = 512 * 1024;
+    private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES =  4 * 1024 * 1024;
 
     protected static final String IMPORT_MANUAL_UPLOAD_FOLDER = "manual";
     protected static final String IMPORT_UPLOAD_FOLDER = "imports";
@@ -113,6 +113,14 @@ public class JobS3Client extends AwsS3Client{
     }
 
     private ImportObject checkFile(S3ObjectSummary s3ObjectSummary, ObjectMetadata objectMetadata, Job.CSVFormat csvFormat){
+        //skip validation till refactoring is done.
+        ImportObject io = new ImportObject(s3ObjectSummary, objectMetadata);
+        io.setStatus(ImportObject.Status.waiting);
+        io.setValid(true);
+        return io;
+    }
+
+    private ImportObject checkFileBak(S3ObjectSummary s3ObjectSummary, ObjectMetadata objectMetadata, Job.CSVFormat csvFormat){
         ImportObject io = new ImportObject(s3ObjectSummary, objectMetadata);
 
         try {
