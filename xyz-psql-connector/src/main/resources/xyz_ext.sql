@@ -3915,6 +3915,65 @@ $BODY$;
 ------------------------------------------------
 ------------------------------------------------
 
+CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt_v5(
+	here_tile_qk boolean,
+	tile_list text[],
+	sql_with_jsondata_geo text,
+	base64enc boolean,
+	clipped boolean,
+    includeEmpty boolean)
+    RETURNS TABLE(tile_id text, tile_content text)
+    LANGUAGE 'plpgsql' stable
+AS $BODY$
+declare
+result record;
+    tile text;
+    fkt_qk2box text := 'xyz_qk_qk2bbox';
+	  plainjs text 	:= ' ''{"type": "FeatureCollection", "features":['' || xx.fc || '']}'' ';
+    plaingeo text   := 'geo';
+begin
+    if here_tile_qk then
+        fkt_qk2box = 'htile_bbox';
+    end if;
+    if clipped then
+         plaingeo = 'ST_Intersection(ST_MakeValid( geo ),' || fkt_qk2box || '((%2$L)))';
+    end if;
+    if base64enc then
+         plainjs = 'replace( encode( convert_to( ' || plainjs || ',''UTF-8'' ), ''base64'' ),chr(10),'''')';
+    end if;
+    foreach tile in array tile_list
+    loop
+        begin
+            execute format(
+                'SELECT %2$L,' || plainjs
+                ||' from( '
+                ||'   select string_agg(feature::text,'','') as fc '
+                ||'   from( '
+                ||'    select jsonb_set(jsondata,''{geometry}'',ST_AsGeojson(' || plaingeo ||', 8)::jsonb) as feature'
+                ||'	     from ( %1$s ) o '
+                ||'    where ST_Intersects(geo, ' || fkt_qk2box || '(%2$L))'
+                ||'   ) oo '
+                ||')xx ', sql_with_jsondata_geo, tile)
+             INTO tile_id, tile_content;
+            if tile_content IS NOT null then
+				return next;
+            else
+                if includeEmpty then
+                    tile_id := tile;
+                    if base64enc then
+                        --empty b64_fc
+                        tile_content := null; --'eyJ0eXBlIjogIkZlYXR1cmVDb2xsZWN0aW9uIiwgImZlYXR1cmVzIjpbXX0=';
+                    else
+                        tile_content := null; --'{"type": "FeatureCollection", "features":[]}';
+                    end if;
+                    return next;
+                end if;
+            end if;
+        end;
+    end loop;
+end
+$BODY$;
+
 CREATE OR REPLACE FUNCTION qk_s_get_fc_of_tiles_txt(here_tile_qk boolean, tile_list text[], sql_with_jsondata_geo text, base64enc boolean, clipped boolean, includeEmpty boolean) RETURNS TABLE(tile_id text, tile_content text)
 LANGUAGE sql stable
 AS $_$
