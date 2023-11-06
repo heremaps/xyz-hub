@@ -425,6 +425,7 @@ project(":here-naksha-lib-handlers") {
             testImplementation(json_assert)
             testImplementation(mockito)
         }
+        setOverallCoverage(0.3) // only increasing allowed!
     }
 //} catch (ignore: UnknownProjectException) {
 //}
