@@ -4161,7 +4161,7 @@ begin
             group by rr.bucket, rr.tiles_total
         )
         select r.iqk as qk, r.mlevel, r.sql_export_data, r.max_tiles, l.*,
-		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, jsondata, geo from qk_s_get_fc_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_clipped,v_includeEmpty) as s3sql
+		       format('select htiles_convert_qk_to_longk(tile_id)::text as tile_id, jsondata, geo from qk_s_get_featurelist_of_tiles_txt(true,%1$L::text[],%2$L,%3$s,%4$s)',l.tlist,r.sql_export_data,v_clipped,v_includeEmpty) as s3sql
         from ibuckets l, indata r
         order by bucket;
     end if;
