@@ -27,6 +27,7 @@ import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
@@ -168,8 +169,8 @@ public class Export extends JDBCBasedJob<Export> {
         //TODO: Do field initialization at instance initialization time
         return super.setDefaults()
             .compose(job -> {
-                if (getExportTarget() != null && getExportTarget().getType() == VML
-                    && (getCsvFormat() == null || getCsvFormat() != PARTITIONID_FC_B64)) {
+                if (   getExportTarget() != null && getExportTarget().getType() == VML
+                    && (getCsvFormat() == null || ( getCsvFormat() != PARTITIONID_FC_B64 && getCsvFormat() != PARTITIONED_JSON_WKB ))) {
                     setCsvFormat(TILEID_FC_B64);
                     if (getMaxTilesPerFile() == 0)
                         setMaxTilesPerFile(VML_EXPORT_MAX_TILES_PER_FILE);
@@ -208,16 +209,17 @@ public class Export extends JDBCBasedJob<Export> {
             switch (getCsvFormat()) {
                 case TILEID_FC_B64:
                 case PARTITIONID_FC_B64:
+                case PARTITIONED_JSON_WKB:
                     break;
                 default:
                     throw new HttpException(BAD_REQUEST, "Invalid Format! Allowed [" + TILEID_FC_B64 + ","
-                        + PARTITIONID_FC_B64 + "]");
+                        + PARTITIONID_FC_B64 + "," + PARTITIONED_JSON_WKB + "]");
             }
 
             if (getExportTarget().getTargetId() == null)
                 throw new HttpException(BAD_REQUEST,("Please specify the targetId!"));
 
-            if (!getCsvFormat().equals(PARTITIONID_FC_B64)) {
+            if ( getCsvFormat().equals(TILEID_FC_B64) || ( getCsvFormat().equals(PARTITIONED_JSON_WKB) && (getPartitionKey() == null || "tileid".equalsIgnoreCase(getPartitionKey())))) {
                 if (getTargetLevel() == null)
                     throw new HttpException(BAD_REQUEST, "Please specify targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL + ":"
                         + VML_EXPORT_MAX_TARGET_LEVEL + "]");
@@ -257,8 +259,11 @@ public class Export extends JDBCBasedJob<Export> {
             if (getExportTarget().getType() == DOWNLOAD && getCsvFormat() != JSON_WKB)
                 throw new HttpException(BAD_REQUEST, "CompositeMode is not available for Type Download!");
 
-            if (getCsvFormat() != TILEID_FC_B64 && getCsvFormat() != PARTITIONID_FC_B64 && getCsvFormat() != JSON_WKB)
-                throw new HttpException(BAD_REQUEST, "CompositeMode does not support the provided CSV format!");
+            switch(getCsvFormat())
+            { case TILEID_FC_B64: case PARTITIONID_FC_B64: case JSON_WKB: case PARTITIONED_JSON_WKB: break; 
+              default : 
+               throw new HttpException(BAD_REQUEST, "CompositeMode does not support the provided CSV format!"); 
+            }
 
             if (ext == null) {
                 // No extension present - so we remove the composite mode
@@ -299,7 +304,7 @@ public class Export extends JDBCBasedJob<Export> {
 
                 if (compositeMode != DEACTIVATED ) {
                     switch( getCsvFormat() )
-                    { case TILEID_FC_B64 : case PARTITIONID_FC_B64 : case JSON_WKB : break;  
+                    { case TILEID_FC_B64 : case PARTITIONID_FC_B64 : case JSON_WKB : case PARTITIONED_JSON_WKB : break;  
                       default: return Future.failedFuture(new HttpException(BAD_REQUEST, "CSV format is not supported for CompositeMode!"));
                     }
 
