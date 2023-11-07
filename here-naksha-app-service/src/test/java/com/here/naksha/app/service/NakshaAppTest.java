@@ -22,17 +22,13 @@ import static com.here.naksha.app.common.NakshaAppInitializer.mockedNakshaApp;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static com.here.naksha.app.common.TestUtil.getHeader;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
-import static java.time.temporal.ChronoUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.here.naksha.app.common.NakshaTestWebClient;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
-import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,12 +42,10 @@ import org.skyscreamer.jsonassert.JSONCompareMode;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class NakshaAppTest {
 
-  static NakshaApp app = null;
-  static NakshaHubConfig config = null;
+  static NakshaApp app;
+  static NakshaHubConfig config;
 
-  static final String NAKSHA_HTTP_URI = "http://localhost:8080/";
-  static HttpClient httpClient;
-  static HttpRequest stdHttpRequest;
+  static NakshaTestWebClient nakshaClient;
 
   static CreateFeatureTestHelper createFeatureTests;
   static ReadFeaturesByIdsTestHelper readFeaturesByIdsTests;
@@ -63,16 +57,11 @@ class NakshaAppTest {
     app.start();
     Thread.sleep(5000); // wait for server to come up
     // create standard Http client and request which will be used across tests
-    httpClient =
-        HttpClient.newBuilder().connectTimeout(Duration.of(10, SECONDS)).build();
-    stdHttpRequest = HttpRequest.newBuilder()
-        .uri(new URI(NAKSHA_HTTP_URI))
-        .header("Content-Type", "application/json")
-        .build();
+    nakshaClient = new NakshaTestWebClient();
 
     // create test helpers
-    createFeatureTests = new CreateFeatureTestHelper(app, NAKSHA_HTTP_URI, httpClient, stdHttpRequest);
-    readFeaturesByIdsTests = new ReadFeaturesByIdsTestHelper(app, NAKSHA_HTTP_URI, httpClient, stdHttpRequest);
+    createFeatureTests = new CreateFeatureTestHelper(app, nakshaClient);
+    readFeaturesByIdsTests = new ReadFeaturesByIdsTestHelper(app, nakshaClient);
   }
 
   @Test
@@ -85,12 +74,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.post("hub/storages", bodyJson, streamId);
 
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
@@ -109,12 +93,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.post("hub/storages", bodyJson, streamId);
 
     // 3. Perform assertions
     assertEquals(409, response.statusCode(), "ResCode mismatch");
@@ -133,12 +112,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.post("hub/storages", bodyJson, streamId);
 
     // 3. Perform assertions
     assertEquals(400, response.statusCode(), "ResCode mismatch");
@@ -151,11 +125,8 @@ class NakshaAppTest {
   @Order(2)
   void tc0004_testInvalidUrlPath() throws Exception {
     // Test API : GET /hub/invalid_storages
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/invalid_storages"))
-        .GET()
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response =
+        nakshaClient.get("hub/invalid_storages", UUID.randomUUID().toString());
 
     // Perform assertions
     assertEquals(404, response.statusCode(), "ResCode mismatch");
@@ -170,12 +141,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/um-mod-dev"))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.get("hub/storages/um-mod-dev", streamId);
 
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
@@ -192,12 +158,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/nothingness"))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.get("hub/storages/nothingness", streamId);
 
     // 3. Perform assertions
     assertEquals(404, response.statusCode(), "ResCode mismatch");
@@ -213,12 +174,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages"))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.get("hub/storages", streamId);
 
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
@@ -237,12 +193,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/um-mod-dev"))
-        .PUT(HttpRequest.BodyPublishers.ofString(updateStorageJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.put("hub/storages/um-mod-dev", updateStorageJson, streamId);
 
     // Then:
     assertEquals(200, response.statusCode());
@@ -260,12 +211,8 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/this-id-does-not-exist"))
-        .PUT(HttpRequest.BodyPublishers.ofString(updateStorageJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response =
+        nakshaClient.put("hub/storages/this-id-does-not-exist", updateStorageJson, streamId);
 
     // Then:
     assertEquals(409, response.statusCode());
@@ -283,12 +230,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/um-mod-dev"))
-        .PUT(HttpRequest.BodyPublishers.ofString(updateStorageJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.put("hub/storages/um-mod-dev", updateStorageJson, streamId);
 
     // Then:
     assertEquals(400, response.statusCode());
@@ -307,12 +249,8 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/not-really-um-mod-dev"))
-        .PUT(HttpRequest.BodyPublishers.ofString(bodyWithDifferentStorageId))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response =
+        nakshaClient.put("hub/storages/not-really-um-mod-dev", bodyWithDifferentStorageId, streamId);
 
     // Then:
     assertEquals(400, response.statusCode());
@@ -325,17 +263,12 @@ class NakshaAppTest {
   void tc0100_testCreateEventHandler() throws Exception {
     // Test API : POST /hub/handlers
     // 1. Load test data
-    final String bodyJson1 = loadFileOrFail("TC0100_createEventHandler/create_event_handler.json");
+    final String bodyJson = loadFileOrFail("TC0100_createEventHandler/create_event_handler.json");
     final String expectedCreationResponse = loadFileOrFail("TC0100_createEventHandler/response_create_1.json");
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call creating handler
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson1))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.post("hub/handlers", bodyJson, streamId);
 
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
@@ -352,17 +285,14 @@ class NakshaAppTest {
   void tc0101_testDuplicateEventHandler() throws Exception {
     // Test API : POST /hub/handlers
     // 1. Load test data
-    final String bodyJson1 = loadFileOrFail("TC0100_createEventHandler/create_event_handler.json");
+    final String bodyJson = loadFileOrFail("TC0100_createEventHandler/create_event_handler.json");
     final String expectedDuplicateResponse = loadFileOrFail("TC0101_duplicateEventHandler/response_conflict.json");
     final String streamId = UUID.randomUUID().toString();
+
     // 2. Perform REST API call creating handler
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson1))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-    // 5. Perform assertions
+    final HttpResponse<String> response = nakshaClient.post("hub/handlers", bodyJson, streamId);
+
+    // 3. Perform assertions
     assertEquals(409, response.statusCode(), "ResCode mismatch");
     JSONAssert.assertEquals(
         "Expecting duplicated handler in response",
@@ -381,12 +311,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.post("hub/handlers", bodyJson, streamId);
 
     // 3. Perform assertions
     assertEquals(400, response.statusCode(), "ResCode mismatch");
@@ -404,12 +329,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/test-handler"))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.get("hub/handlers/test-handler", streamId);
 
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
@@ -426,12 +346,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/not-real-handler"))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.get("hub/handlers/not-real-handler", streamId);
 
     // 3. Perform assertions
     assertEquals(404, response.statusCode(), "ResCode mismatch");
@@ -447,12 +362,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers"))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.get("hub/handlers", streamId);
 
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
@@ -471,12 +381,8 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/test-handler"))
-        .PUT(HttpRequest.BodyPublishers.ofString(updateEventHandlerJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response =
+        nakshaClient.put("hub/handlers/test-handler", updateEventHandlerJson, streamId);
 
     // Then:
     assertEquals(200, response.statusCode());
@@ -495,12 +401,8 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/non-existent-test-handler"))
-        .PUT(HttpRequest.BodyPublishers.ofString(updateEventHandlerJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response =
+        nakshaClient.put("hub/handlers/non-existent-test-handler", updateEventHandlerJson, streamId);
 
     // Then:
     assertEquals(409, response.statusCode());
@@ -519,12 +421,9 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/test-handler"))
-        .PUT(HttpRequest.BodyPublishers.ofString(updateOtherHandlerJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response =
+        nakshaClient.put("hub/handlers/test-handler", updateOtherHandlerJson, streamId);
+
     // Then:
     assertEquals(400, response.statusCode());
     JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
@@ -541,12 +440,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces"))
-        .POST(HttpRequest.BodyPublishers.ofString(spaceJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.post("hub/spaces", spaceJson, streamId);
 
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
@@ -565,12 +459,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces"))
-        .POST(HttpRequest.BodyPublishers.ofString(duplicatedSpace))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.post("hub/spaces", duplicatedSpace, streamId);
 
     // 3. Perform assertions
     assertEquals(409, response.statusCode(), "ResCode mismatch");
@@ -586,13 +475,9 @@ class NakshaAppTest {
     // 1. Load test data
     final String expectedBodyPart = loadFileOrFail("TC0200_createSpace/response.json");
     final String streamId = UUID.randomUUID().toString();
+
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/test-space"))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/test-space", streamId);
 
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
@@ -608,12 +493,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/not-real-space"))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces/not-real-space", streamId);
 
     // 3. Perform assertions
     assertEquals(404, response.statusCode(), "ResCode mismatch");
@@ -629,12 +509,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // 2. Perform REST API call
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces"))
-        .GET()
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.get("hub/spaces", streamId);
 
     // 3. Perform assertions
     assertEquals(200, response.statusCode(), "ResCode mismatch");
@@ -653,12 +528,7 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/test-space"))
-        .PUT(HttpRequest.BodyPublishers.ofString(updateStorageJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response = nakshaClient.put("hub/spaces/test-space", updateStorageJson, streamId);
 
     // Then:
     assertEquals(200, response.statusCode());
@@ -676,12 +546,8 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/non-existent-space"))
-        .PUT(HttpRequest.BodyPublishers.ofString(updateSpaceJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response =
+        nakshaClient.put("hub/spaces/non-existent-space", updateSpaceJson, streamId);
 
     // Then:
     assertEquals(409, response.statusCode());
@@ -699,12 +565,8 @@ class NakshaAppTest {
     final String streamId = UUID.randomUUID().toString();
 
     // When:
-    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/test-space"))
-        .PUT(HttpRequest.BodyPublishers.ofString(bodyWithDifferentSpaceId))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    final HttpResponse<String> response =
+        nakshaClient.put("hub/spaces/test-space", bodyWithDifferentSpaceId, streamId);
 
     // Then:
     assertEquals(400, response.statusCode());

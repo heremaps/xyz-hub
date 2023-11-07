@@ -18,19 +18,22 @@
  */
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.common.TestUtil.*;
+import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
+import static com.here.naksha.app.common.TestUtil.getHeader;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
+import static com.here.naksha.app.common.TestUtil.parseJson;
+import static com.here.naksha.app.common.TestUtil.parseJsonFileOrFail;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.here.naksha.app.common.NakshaTestWebClient;
 import com.here.naksha.app.service.models.FeatureCollectionRequest;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.naksha.Space;
-import com.here.naksha.lib.core.models.storage.*;
-import java.net.URI;
 import java.net.URLEncoder;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
@@ -45,19 +48,11 @@ import org.skyscreamer.jsonassert.comparator.ArraySizeComparator;
 public class CreateFeatureTestHelper {
 
   final @NotNull NakshaApp app;
-  final @NotNull String nakshaHttpUri;
-  final @NotNull HttpClient httpClient;
-  final @NotNull HttpRequest stdHttpRequest;
+  final @NotNull NakshaTestWebClient nakshaClient;
 
-  public CreateFeatureTestHelper(
-      final @NotNull NakshaApp app,
-      final @NotNull String nakshaHttpUri,
-      final @NotNull HttpClient httpClient,
-      final @NotNull HttpRequest stdHttpRequest) {
+  public CreateFeatureTestHelper(final @NotNull NakshaApp app, final @NotNull NakshaTestWebClient nakshaClient) {
     this.app = app;
-    this.nakshaHttpUri = nakshaHttpUri;
-    this.httpClient = httpClient;
-    this.stdHttpRequest = stdHttpRequest;
+    this.nakshaClient = nakshaClient;
   }
 
   private void standardAssertions(
@@ -116,33 +111,18 @@ public class CreateFeatureTestHelper {
     // Given: Storage (mock implementation) configured in Admin storage
     final String storageJson = loadFileOrFail("TC0300_createFeaturesWithNewIds/create_storage.json");
     streamId = UUID.randomUUID().toString();
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/storages"))
-        .POST(HttpRequest.BodyPublishers.ofString(storageJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/storages", storageJson, streamId);
     assertEquals(200, response.statusCode(), "ResCode mismatch. Failed creating Storage");
 
     // Given: EventHandler (uses above Storage) configured in Admin storage
     final String eventHandlerJson = loadFileOrFail("TC0300_createFeaturesWithNewIds/create_event_handler.json");
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/handlers"))
-        .POST(HttpRequest.BodyPublishers.ofString(eventHandlerJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/handlers", eventHandlerJson, streamId);
     assertEquals(200, response.statusCode(), "ResCode mismatch. Failed creating Event Handler");
 
     // Given: Space (uses above EventHandler) configured in Admin storage
     final Space space = parseJsonFileOrFail("TC0300_createFeaturesWithNewIds/create_space.json", Space.class);
     final String spaceJsonString = loadFileOrFail("TC0300_createFeaturesWithNewIds/create_space.json");
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces"))
-        .POST(HttpRequest.BodyPublishers.ofString(spaceJsonString))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/spaces", spaceJsonString, streamId);
     assertEquals(200, response.statusCode(), "ResCode mismatch. Failed creating Event Handler");
 
     // Given: Create Features request (against above Space)
@@ -154,12 +134,7 @@ public class CreateFeatureTestHelper {
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + space.getId() + "/features"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/spaces/" + space.getId() + "/features", bodyJson, streamId);
 
     // Then: Perform assertions
     standardAssertions(response, 200, expectedBodyPart, streamId);
@@ -188,12 +163,7 @@ public class CreateFeatureTestHelper {
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/spaces/" + spaceId + "/features", bodyJson, streamId);
 
     // Then: Perform assertions
     standardAssertions(response, 200, expectedBodyPart, streamId);
@@ -224,13 +194,8 @@ public class CreateFeatureTestHelper {
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features?prefixId="
-            + URLEncoder.encode(prefixId, UTF_8)))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post(
+        "hub/spaces/" + spaceId + "/features?prefixId=" + utf8Encoded(prefixId), bodyJson, streamId);
 
     // Then: Perform assertions
     standardAssertions(response, 200, expectedBodyPart, streamId);
@@ -252,9 +217,9 @@ public class CreateFeatureTestHelper {
     final String spaceId = "um-mod-topology-dev";
     // Given: addTags API query param
     final String tagQueryParam = "addTags=New_Normalized_Tag"
-        + "&addTags=" + URLEncoder.encode("@New_Non_Normalized_Tag", UTF_8)
+        + "&addTags=" + utf8Encoded("@New_Non_Normalized_Tag")
         + "&addTags=Existing_Normalized_Tag"
-        + "&addTags=" + URLEncoder.encode("@Existing_Non_Normalized_Tag", UTF_8);
+        + "&addTags=" + utf8Encoded("@Existing_Non_Normalized_Tag");
     // Given: Create Features request
     final String bodyJson = loadFileOrFail("TC0303_createFeaturesWithAddTags/create_features.json");
     // TODO: include geometry after Cursor-related changes ->
@@ -264,12 +229,7 @@ public class CreateFeatureTestHelper {
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features?" + tagQueryParam))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/spaces/" + spaceId + "/features?" + tagQueryParam, bodyJson, streamId);
 
     // Then: Perform assertions
     standardAssertions(response, 200, expectedBodyPart, streamId);
@@ -302,12 +262,7 @@ public class CreateFeatureTestHelper {
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features?" + tagQueryParam))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/spaces/" + spaceId + "/features?" + tagQueryParam, bodyJson, streamId);
 
     // Then: Perform assertions
     standardAssertions(response, 200, expectedBodyPart, streamId);
@@ -330,17 +285,12 @@ public class CreateFeatureTestHelper {
     // Given: New Features in place
     final String bodyJson = loadFileOrFail("TC0305_createFeaturesWithDupIds/create_features.json");
     streamId = UUID.randomUUID().toString();
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/spaces/" + spaceId + "/features", bodyJson, streamId);
     assertEquals(200, response.statusCode(), "ResCode mismatch");
 
     // When: Create Features request is submitted with the same Ids
     final String expectedBodyPart = loadFileOrFail("TC0305_createFeaturesWithDupIds/feature_response_part.json");
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/spaces/" + spaceId + "/features", bodyJson, streamId);
 
     // Then: Perform assertions
     standardAssertions(response, 409, expectedBodyPart, streamId);
@@ -352,18 +302,10 @@ public class CreateFeatureTestHelper {
     // Test API : POST /hub/spaces/{spaceId}/features
     // Validate request gets failed if we attempt creating features with no associated Event Handler
     String streamId = UUID.randomUUID().toString();
-    ;
-    HttpRequest request;
-    HttpResponse<String> response;
 
     // Given: Space (without EventHandler) configured in Admin storage
     final Space space = parseJsonFileOrFail("TC0307_createFeaturesWithNoHandler/create_space.json", Space.class);
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces"))
-        .POST(HttpRequest.BodyPublishers.ofString(space.toString()))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    HttpResponse<String> response = nakshaClient.post("hub/spaces", space.toString(), streamId);
     assertEquals(200, response.statusCode(), "ResCode mismatch. Failed creating Event Handler");
 
     // Given: Create Features request (against above Space)
@@ -371,12 +313,7 @@ public class CreateFeatureTestHelper {
     final String expectedBodyPart = loadFileOrFail("TC0307_createFeaturesWithNoHandler/feature_response_part.json");
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + space.getId() + "/features"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/spaces/" + space.getId() + "/features", bodyJson, streamId);
 
     // Then: Perform assertions
     standardAssertions(response, 404, expectedBodyPart, streamId);
@@ -398,14 +335,13 @@ public class CreateFeatureTestHelper {
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    response = nakshaClient.post("hub/spaces/" + spaceId + "/features", bodyJson, streamId);
 
     // Then: Perform assertions
     standardAssertions(response, 404, expectedBodyPart, streamId);
+  }
+
+  private String utf8Encoded(String text) {
+    return URLEncoder.encode(text, UTF_8);
   }
 }

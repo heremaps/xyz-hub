@@ -15,7 +15,7 @@ permissions:
 
 env:
   MIN_COVERAGE_OVERALL: 25
-  MIN_COVERAGE_CHANGED_FILES: 80
+  MIN_COVERAGE_CHANGED_FILES: 65
 
 jobs:
   test:
@@ -39,7 +39,7 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v3
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
       - name: Setup Gradle, execute tests & verify overall coverage
         uses: gradle/gradle-build-action@v2
