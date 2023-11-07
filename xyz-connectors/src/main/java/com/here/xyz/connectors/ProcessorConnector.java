@@ -64,15 +64,7 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
   }
 
   public XyzResponse processEventNotification(EventNotification notification) throws Exception {
-    if (notification == null) {
-      throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Unknown event type");
-    }
-
-    final NotificationParams notificationParams = new NotificationParams(
-        eventDecryptor.decryptParams(notification.getParams(), notification.getSpace()),
-        eventDecryptor.decryptParams(notification.getConnectorParams(), notification.getSpace()),
-        eventDecryptor.decryptParams(notification.getMetadata(), notification.getSpace()),
-        notification.getTid(), notification.getAid(), notification.getJwt());
+    final NotificationParams notificationParams = getNotificationParams(notification);
 
     if (notification.getEvent() instanceof ErrorResponse) {
       return processErrorResponse((ErrorResponse) notification.getEvent(), notification.getEventType(), notificationParams);
@@ -145,7 +137,7 @@ public abstract class ProcessorConnector extends AbstractConnectorHandler {
     throw new ErrorResponseException(streamId, XyzError.NOT_IMPLEMENTED, "Unknown event type '" + eventType + "'");
   }
 
-  private ModifiedEventResponse wrapEvent(Event event) {
+    private ModifiedEventResponse wrapEvent(Event event) {
     return new ModifiedEventResponse().withEvent(event);
   }
 

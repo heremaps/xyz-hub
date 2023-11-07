@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import static org.junit.Assert.assertTrue;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.psql.tools.FeatureGenerator;
 import com.here.xyz.util.Hasher;
 import java.sql.Connection;
@@ -49,15 +48,17 @@ import org.junit.Test;
 @SuppressWarnings("unused")
 public class PSQLHashedSpaceIdIT extends PSQLAbstractIT {
 
-  protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
-            put(ConnectorParameters.ENABLE_HASHED_SPACEID, true);
-            put(ConnectorParameters.AUTO_INDEXING, true);
+  protected static Map<String, Object> connectorParams = new HashMap<>(){
+        {   put(PSQLAbstractIT.CONNECTOR_ID, "test-connector");
+            put(PSQLAbstractIT.ENABLE_HASHED_SPACEID, true);
+            put(PSQLAbstractIT.AUTO_INDEXING, true);
         }
   };
 
   @BeforeClass
-  public static void init() throws Exception { initEnv(connectorParams); }
+  public static void init() throws Exception {
+    initEnv(connectorParams);
+  }
 
   @Before
   public void createTable() throws Exception {

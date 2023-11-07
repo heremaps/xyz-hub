@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,21 +51,6 @@ public class XyzNamespace implements XyzSerializable {
    * The timestamp, when a feature was last updated.
    */
   private long updatedAt;
-
-  /**
-   * The uuid of the feature. When the client modifies the feature it must not modify the uuid.
-   */
-  private String uuid;
-
-  /**
-   * The previous uuid of the feature.
-   */
-  private String puuid;
-
-  /**
-   * The uuid of the merged feature, in case a merge was performed.
-   */
-  private String muuid;
 
   /**
    * The list of tags being attached to the feature.
@@ -250,49 +235,6 @@ public class XyzNamespace implements XyzSerializable {
 
   public XyzNamespace withUpdatedAt(long updatedAt) {
     setUpdatedAt(updatedAt);
-    return this;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public String getUuid() {
-    return uuid;
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public void setUuid(String uuid) {
-    this.uuid = uuid;
-  }
-
-  public XyzNamespace withUuid(String uuid) {
-    setUuid(uuid);
-    return this;
-  }
-
-  public String getPuuid() {
-    return puuid;
-  }
-
-  public void setPuuid(String puuid) {
-    this.puuid = puuid;
-  }
-
-  public XyzNamespace withPuuid(String puuid) {
-    setPuuid(puuid);
-    return this;
-  }
-
-  @SuppressWarnings("unused")
-  public String getMuuid() {
-    return muuid;
-  }
-
-  @SuppressWarnings("unused")
-  public void setMuuid(String muuid) {
-    this.muuid = muuid;
-  }
-
-  public XyzNamespace withMuuid(String muuid) {
-    setMuuid(muuid);
     return this;
   }
 

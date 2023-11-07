@@ -8,21 +8,17 @@ info:
 servers:
   - url: /
 tags:
-  - name: Service
+  - name: HTTP-Conncector
     description: Endpoint for Events
-  - name: Status
-    description: Retreive status
-  - name: Maintain Connector
+  - name: Connector-Maintenance
     description: Initialize or maintain underlying databases
-  - name: Maintain Spaces
+  - name: Space-Maintenance
     description: Maintain database releated stuff on space level
-  - name: Maintain History
-    description: Maintain database releated stuff on history level
 paths:
   '/psql/event':
     post:
       tags:
-        - Service
+        - HTTP-Conncector
       summary: Event Endpoint
       description: >-
         Process an Event.
@@ -41,27 +37,10 @@ paths:
           description: Connector Response
         '400':
           $ref: '#/components/responses/ErrorResponse400'
-  '/psql/status':
-    get:
-      tags:
-        - Status
-      summary: Get status of Connector
-      description: >-
-        Get the status of a connector in focus of its configured underlying database.
-      operationId: getStatus
-      parameters:
-        - $ref: '#/components/parameters/ConnectorId'
-        - $ref: '#/components/parameters/ECPS'
-        - $ref: '#/components/parameters/Passphrase'
-      responses:
-        '200':
-          $ref: '#/components/responses/ConnectorStatusResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
   '/psql/health':
     get:
       tags:
-        - Status
+        - HTTP-Conncector
       summary: Health-Check endpoint
       description: >-
         Performes a connector Health-Check
@@ -69,17 +48,30 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/HealthResponse'
-  '/psql/initialization':
+  '/psql/connectors/{connectorId}/status':
+    get:
+      tags:
+        - Connector-Maintenance
+      summary: Get status of Connector
+      description: >-
+        Get the status of a connector in focus of its configured underlying database.
+      operationId: getStatus
+      parameters:
+        - $ref: '#/components/parameters/ConnectorIdP'
+      responses:
+        '200':
+          $ref: '#/components/responses/ConnectorStatusResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+  '/psql/connectors/{connectorId}/initialization':
     post:
       tags:
-        - Maintain Connector
+        - Connector-Maintenance
       summary:  Connector Initialization
       description: Initialize the underlying database from a connector
       operationId: postInitialization
       parameters:
-        - $ref: '#/components/parameters/ConnectorId'
-        - $ref: '#/components/parameters/ECPS'
-        - $ref: '#/components/parameters/Passphrase'
+        - $ref: '#/components/parameters/ConnectorIdP'
         - name: force
           in: query
           description: >-
@@ -94,22 +86,20 @@ paths:
           $ref: '#/components/responses/ErrorResponse400'
         '405':
           $ref: '#/components/responses/ErrorResponse405'
-  '/psql/maintain/indices':
+  '/psql/connectors/{connectorId}/maintain/indices':
     post:
       tags:
-        - Maintain Connector
+        - Connector-Maintenance
       summary: Trigger Index Maintenance
       description: Maintain all Indices which are getting created automatically
       operationId: postMaintainIndices
       parameters:
-        - $ref: '#/components/parameters/ConnectorId'
-        - $ref: '#/components/parameters/ECPS'
-        - $ref: '#/components/parameters/Passphrase'
+        - $ref: '#/components/parameters/ConnectorIdP'
         - name: autoIndexing
           in: query
           description: >-
             Choose if AutoIndexing should get triggerd
-          required: true
+          required: false
           schema:
             type: boolean
             default: false
@@ -118,18 +108,15 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
-  '/psql/maintain/space/{spaceId}':
+  '/psql/maintain/spaces/{spaceId}':
     get:
       tags:
-        - Maintain Spaces
+        - Space-Maintenance
       summary: Get maintainance status of a Space
       description: Reteives information about the current maintenance status of a space.
       operationId: getMaintenanceStatusSpace
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/ConnectorId'
-        - $ref: '#/components/parameters/ECPS'
-        - $ref: '#/components/parameters/Passphrase'
       responses:
         '200':
           description : OK
@@ -137,15 +124,12 @@ paths:
           $ref: '#/components/responses/ErrorResponse400'
     post:
       tags:
-        - Maintain Spaces
+        - Space-Maintenance
       summary: Trigger Space Maintenance
       description: Maintain all Indices which are required for a space
       operationId: postMaintainSpace
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/ConnectorId'
-        - $ref: '#/components/parameters/ECPS'
-        - $ref: '#/components/parameters/Passphrase'
         - name: force
           in: query
           description: >-
@@ -158,26 +142,15 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
-  '/psql/maintain/space/{spaceId}/purge':
+  '/psql/maintain/spaces/{spaceId}/purge':
     post:
       tags:
-        - Purge Versions
+        - Space-Maintenance
       summary: Purge old versions of a space
       description: Delete outdated versions
       operationId: postPurgeVersions
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/ConnectorId'
-        - $ref: '#/components/parameters/ECPS'
-        - $ref: '#/components/parameters/EnableHashedSpaceId'
-        - $ref: '#/components/parameters/Passphrase'
-        - name: versionsToKeep
-          in: query
-          description: >-
-            maxVersionsToKeep
-          required: true
-          schema:
-            type: integer
         - name: minTagVersion
           in: query
           description: >-
@@ -185,38 +158,6 @@ paths:
           required: false
           schema:
             type: integer
-      responses:
-        '200':
-          description : OK
-        '400':
-          $ref: '#/components/responses/ErrorResponse400'
-  '/psql/maintain/space/{spaceId}/history':
-    post:
-      tags:
-        - Maintain History
-      summary: Trigger History Maintenance
-      description: Reduce the size of a History based on globale versions
-      operationId: postMaintainHistory
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/ConnectorId'
-        - $ref: '#/components/parameters/ECPS'
-        - $ref: '#/components/parameters/Passphrase'
-        - name: maxVersionCount
-          in: query
-          description: >-
-            Provide maxVersionCount
-          required: false
-          schema:
-            type: integer
-        - name: currentVersion
-          in: query
-          description: >-
-            Provide current Version
-          required: false
-          schema:
-            type: integer
-            #default: false
       responses:
         '200':
           description : OK
@@ -240,6 +181,8 @@ paths:
           $ref: '#/components/responses/JobResponse'
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
     get:
       tags:
         - Jobs
@@ -300,7 +243,7 @@ paths:
       operationId: deleteJob
       parameters:
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/Force'
+        - $ref: '#/components/parameters/DeleteData'
       responses:
         '200':
           $ref: '#/components/responses/JobResponse'
@@ -317,24 +260,6 @@ paths:
       operationId: postExecute
       parameters:
         - $ref: '#/components/parameters/JobId'
-        - name: connectorId
-          in: query
-          description: >-
-            Provide ConnectorId
-          required: false
-          schema:
-            type: string
-        - name: ecps
-          in: query
-          description: >-
-            Provide ECPS
-          required: false
-          schema:
-            type: string
-        - $ref: '#/components/parameters/EnableHashedSpaceId'
-        - $ref: '#/components/parameters/EnableUUID'
-        - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Incremental'
         - $ref: '#/components/parameters/UrlCount'
         - $ref: '#/components/parameters/Command'
       responses:
@@ -393,27 +318,6 @@ components:
       required: false
       schema:
         type: string
-    Context:
-      name: context
-      in: query
-      description: |
-        The context where the operation will be performed on a composite space.
-        If not specified, the operation occurs based on the extension rules.
-        For additional information, see Space.extends.
-
-        Available context are:
-        |Context|Description|
-        |-------|-----------|
-        |default|The default value if none is given. For composite spaces the operation occurs based on the extension rules. For normal spaces this is the only valid context.|
-        |extension|The operation will be executed only in the extension and no operation will be performed in the extended space.|
-        |super|Only applicable for read-operations. The operation will be executed only in the space being extended (super space).|
-      schema:
-        type: string
-        enum:
-          - default
-          - extension
-          - super
-        default: default
     Command:
       name: command
       in: query
@@ -440,26 +344,11 @@ components:
         default: 1
         minimum: 1
         maximum: 1000
-    Incremental:
-      name: incremental
+    DeleteData:
+      name: deleteData
       in: query
       description: >-
-        Available for composite spaces where the super space has a "persistExport" configuration.
-        Full: reuse existing super export and add changed tiles of composite compound on top.
-        Changes: changed tiles of composite compound.
-      required: false
-      schema:
-        type: string
-        enum:
-          - deactivated
-          - full
-          - changes
-        default: deactivated
-    Force:
-      name: force
-      in: query
-      description: >-
-        With force also persistent job data gets deleted.
+        By setting deleteData=true also immediate deletion of import and export files is getting performed.
       required: false
       schema:
         type: boolean
@@ -467,6 +356,13 @@ components:
       name: spaceId
       in: path
       description: The unique identifier of the space.
+      required: true
+      schema:
+        type: string
+    ConnectorIdP:
+      name: connectorId
+      in: path
+      description: The unique identifier of the connector.
       required: true
       schema:
         type: string
@@ -478,24 +374,6 @@ components:
       required: true
       schema:
         type: string
-    EnableUUID:
-      name: enableUUID
-      in: query
-      description: >-
-        Do we need an UUID?
-      required: false
-      schema:
-        type: boolean
-        default: false
-    EnableHashedSpaceId:
-      name: enableHashedSpaceId
-      in: query
-      description: >-
-        Do we hava a hashedSpaceId?
-      required: true
-      schema:
-        type: boolean
-        default: true
     ECPS:
       name: ecps
       in: query

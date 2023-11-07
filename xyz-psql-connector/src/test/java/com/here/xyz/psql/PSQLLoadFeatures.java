@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,29 +21,19 @@ package com.here.xyz.psql;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import com.here.xyz.XyzSerializable;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.here.xyz.responses.ErrorResponse;
-import com.here.xyz.responses.XyzResponse;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class PSQLLoadFeatures extends PSQLAbstractIT {
-
-  @BeforeClass
-  public static void init() throws Exception {
-    initEnv(null);
-  }
 
   @Before
   public void createTable() throws Exception {
@@ -63,7 +53,7 @@ public class PSQLLoadFeatures extends PSQLAbstractIT {
             .withConnectorParams(defaultTestConnectorParams)
             .withSpace("foo")
             .withTransaction(true)
-            .withEnableUUID(true)
+            .withConflictDetectionEnabled(true)
             .withVersionsToKeep(10)
             .withInsertFeatures(Arrays.asList(
                     new Feature().withId("F1").withProperties(new Properties().withXyzNamespace(xyzNamespace)),

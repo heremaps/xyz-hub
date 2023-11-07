@@ -24,28 +24,30 @@ import com.amazonaws.services.dynamodbv2.document.ScanFilter;
 import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.document.spec.DeleteItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
+import com.amazonaws.services.dynamodbv2.document.spec.ScanSpec;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
-import com.here.xyz.httpconnector.util.jobs.Job.Type;
 import com.here.xyz.hub.config.dynamo.DynamoClient;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.json.DecodeException;
-import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 /**
  * A client for writing and editing JOBs on a DynamoDb
@@ -70,7 +72,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    public void init(Handler<AsyncResult<Void>> onReady) {
+    public Future<Void> init() {
         if (dynamoClient.isLocal()) {
             logger.info("DynamoDB running locally, initializing tables.");
 
@@ -79,11 +81,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
             }
             catch (Exception e) {
                 logger.error("Failure during creating tables on DynamoSpaceConfigClient init", e);
-                onReady.handle(Future.failedFuture(e));
-                return;
+                return Future.failedFuture(e);
             }
         }
-        onReady.handle(Future.succeededFuture());
+        return Future.succeededFuture();
     }
 
     @Override
@@ -99,11 +100,10 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 Item jobItem = jobs.getItem(spec);
 
                 if (jobItem == null) {
-                    logger.info(marker, "Getting job with ID: {} returned null", jobId);
+                    logger.info(marker, "job[{}] not found!", jobId);
                     p.complete();
                 }
                 else {
-                    logger.info(marker, "Loaded Job width ID: {}", jobId);
                     p.complete(convertItemToJob(jobItem));
                 }
             }
@@ -114,7 +114,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     @Override
-    protected Future<List<Job>> getJobs(Marker marker, Type type, Status status, String targetSpaceId) {
+    protected Future<List<Job>> getJobs(Marker marker, String type, Status status, String targetSpaceId) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 final List<Job> result = new ArrayList<>();
@@ -132,7 +132,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                         final Job job = convertItemToJob(i);
                         result.add(job);
                     }catch (DecodeException e){
-                        logger.warn("Cant decode Job-Item - skip",e);
+                        logger.warn("Cant decode Job-Item - skip!", e);
                     }
                 }));
                 p.complete(result);
@@ -142,7 +142,57 @@ public class DynamoJobConfigClient extends JobConfigClient {
         });
     }
 
-    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, Type type) {
+    @Override
+    protected Future<List<Job>> getJobs(Marker marker, Status status, String key, DatasetDirection direction) {
+        return DynamoClient.dynamoWorkers.executeBlocking(p -> {
+            try {
+
+                List<String> filterExpression = new ArrayList<>();
+                Map<String, String> nameMap = new HashMap<>();
+                Map<String, Object> valueMap = new HashMap<>();
+
+                final List<Job> result = new ArrayList<>();
+
+                if (status != null) {
+                    nameMap.put("#status", "status");
+                    valueMap.put(":status", status);
+                    filterExpression.add("#status = :status");
+                }
+
+                if(key != null) {
+                    nameMap.put("#sourceKey", "_sourceKey");
+                    nameMap.put("#targetKey", "_targetKey");
+                    valueMap.put(":key", key);
+                    if(direction == DatasetDirection.SOURCE)
+                        filterExpression.add("#sourceKey = :key");
+                    else if(direction == DatasetDirection.TARGET)
+                        filterExpression.add("#targetKey = :key");
+                    else
+                        filterExpression.add("(#sourceKey = :key OR #targetKey = :key)");
+                }
+
+                ScanSpec scanSpec = new ScanSpec()
+                        .withFilterExpression(String.join(" AND ", filterExpression))
+                        .withNameMap(nameMap)
+                        .withValueMap(valueMap);
+
+
+                jobs.scan(scanSpec).pages().forEach(j -> j.forEach(i -> {
+                    try{
+                        final Job job = convertItemToJob(i);
+                        result.add(job);
+                    }catch (DecodeException e){
+                        logger.warn("Cant decode Job-Item - skip!", e);
+                    }
+                }));
+                p.complete(result);
+            } catch (Exception e) {
+                p.fail(e);
+            }
+        });
+    }
+
+    protected Future<String> findRunningJobOnSpace(Marker marker, String targetSpaceId, String type) {
         return DynamoClient.dynamoWorkers.executeBlocking(p -> {
             try {
                 List<ScanFilter> filterList = new ArrayList<>();
@@ -166,7 +216,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                             }
                         }
                     }catch (DecodeException e){
-                        logger.warn("Cant decode Job-Item - skip",e);
+                        logger.warn("Cant decode Job-Item - skip!", e);
                     }
                 }));
 
@@ -195,13 +245,13 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     @Override
     protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
-        if(!isUpdate && this.expiration != null){
+        //If exp is set we take it
+        if (!isUpdate && this.expiration != null && job.getExp() == null)
             job.setExp(System.currentTimeMillis() / 1000L + expiration * 24 * 60 * 60);
-        }
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
-    private void storeJobSync(Job job, Promise<Job> p){
+    private void storeJobSync(Job job, Promise<Job> p) {
         Item item = convertJobToItem(job);
         jobs.putItem(item);
         p.complete(job);
@@ -209,11 +259,37 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     private static Item convertJobToItem(Job job) {
         JsonObject json = JsonObject.mapFrom(job);
-        if( json.containsKey(IO_IMPORT_ATTR_NAME) )
+        if(job.getSource() != null)
+            json.put("_sourceKey", job.getSource().getKey());
+        if(job.getTarget() != null)
+            json.put("_targetKey", job.getTarget().getKey());
+        //TODO: Remove the following hacks from the persistence layer!
+        if (json.containsKey(IO_IMPORT_ATTR_NAME))
             return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
-        if( json.containsKey(IO_EXPORT_ATTR_NAME) )
-            return convertJobToItem(json, IO_EXPORT_ATTR_NAME);
+        else if (job instanceof CombinedJob && ((CombinedJob) job).getChildren().size() > 0)
+            sanitizeChildren(json);
+        else if (json.containsKey(IO_EXPORT_ATTR_NAME))
+            sanitizeJob(json);
         return Item.fromJSON(json.toString());
+    }
+
+    private static void sanitizeJob(JsonObject json) {
+        Map<String, Object> exportObjects = json.getJsonObject(IO_EXPORT_ATTR_NAME).getMap();
+        sanitizeUrls(exportObjects);
+        json.put(IO_EXPORT_ATTR_NAME, exportObjects);
+    }
+
+    private static void sanitizeChildren(JsonObject combinedJob) {
+        JsonArray children = combinedJob.getJsonArray("children");
+        for (int i = 0; i < children.size(); i++) {
+            JsonObject childJob = children.getJsonObject(i);
+            if (childJob.containsKey(IO_EXPORT_ATTR_NAME))
+                sanitizeJob(childJob);
+        }
+    }
+
+    private static void sanitizeUrls(Map<String, Object> exportObjects) {
+        exportObjects.forEach((fileName, exportObject) -> ((Map<String, Object>) exportObject).remove("downloadUrl"));
     }
 
     private static Job convertItemToJob(Item item){
@@ -229,7 +305,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         return item.withBinary(attrName, compressString(str));
     }
 
-    private static Job convertItemToJob(Item item, String attrName){
+    private static Job convertItemToJob(Item item, String attrName) {
         JsonObject ioObjects = null;
         if(item.isPresent(attrName)) {
             try{
@@ -242,7 +318,12 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
                 .put(attrName, ioObjects);
-        return Json.decodeValue(json.toString(), Job.class);
+        try {
+            return XyzSerializable.deserialize(json.toString(), Job.class);
+        }
+        catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static byte[] compressString(String input) {

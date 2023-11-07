@@ -20,7 +20,7 @@
 package com.here.xyz.psql.tools;
 
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
-import com.here.xyz.connectors.SimulatedContext;
+import com.here.xyz.connectors.runtime.SimulatedContext;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
 import java.util.HashMap;
@@ -37,6 +37,8 @@ public class GSContext extends SimulatedContext implements LambdaLogger {
   @SuppressWarnings("serial")
   private static final Map<String, String> vars_local = new HashMap<String, String>() {{
     put(DatabaseSettings.PSQL_HOST, "localhost");
+    put(DatabaseSettings.PSQL_REPLICA_HOST, "localhost");
+    put(DatabaseSettings.PSQL_REPLICA_USER, "ro_user");
     put(DatabaseSettings.PSQL_USER, "postgres");
     put(DatabaseSettings.PSQL_PASSWORD, "password");
     put(PSQLConfig.ECPS_PHRASE, "testing");
@@ -49,6 +51,10 @@ public class GSContext extends SimulatedContext implements LambdaLogger {
   public static GSContext newLocal() {
     if (System.getenv().containsKey(DatabaseSettings.PSQL_HOST))
       vars_local.put(DatabaseSettings.PSQL_HOST, System.getenv(DatabaseSettings.PSQL_HOST));
+    if (System.getenv().containsKey(DatabaseSettings.PSQL_REPLICA_HOST))
+      vars_local.put(DatabaseSettings.PSQL_REPLICA_HOST, System.getenv(DatabaseSettings.PSQL_REPLICA_HOST));
+    if (System.getenv().containsKey(DatabaseSettings.PSQL_REPLICA_USER))
+      vars_local.put(DatabaseSettings.PSQL_REPLICA_USER, System.getenv(DatabaseSettings.PSQL_REPLICA_USER));
     if (System.getenv().containsKey(DatabaseSettings.PSQL_USER))
       vars_local.put(DatabaseSettings.PSQL_USER, System.getenv(DatabaseSettings.PSQL_USER));
     if (System.getenv().containsKey(DatabaseSettings.PSQL_PASSWORD))

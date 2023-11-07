@@ -29,16 +29,13 @@ import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.model.ReturnValue;
 import com.here.xyz.hub.config.SubscriptionConfigClient;
 import com.here.xyz.models.hub.Subscription;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.json.Json;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
 
@@ -54,12 +51,12 @@ public class DynamoSubscriptionConfigClient extends SubscriptionConfigClient {
     }
 
     @Override
-    public void init(Handler<AsyncResult<Void>> onReady) {
+    public Future<Void> init() {
         if (dynamoClient.isLocal()) {
             dynamoClient.createTable(subscriptions.getTableName(), "id:S,source:S", "id", "source", null);
         }
 
-        onReady.handle(Future.succeededFuture());
+        return Future.succeededFuture();
     }
 
     @Override

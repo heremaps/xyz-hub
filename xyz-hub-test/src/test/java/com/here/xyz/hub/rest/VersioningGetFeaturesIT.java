@@ -20,9 +20,8 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -56,7 +55,8 @@ public class VersioningGetFeaturesIT extends TestSpaceWithFeature {
     postFeature(SPACE_ID, newFeature()
         .withGeometry(new Point().withCoordinates(new PointCoordinates(50,50)))
         .withProperties(new Properties().with("key2", "value2")),
-        AuthProfile.ACCESS_OWNER_1_ADMIN
+        AuthProfile.ACCESS_OWNER_1_ADMIN,
+        true
     );
   }
 

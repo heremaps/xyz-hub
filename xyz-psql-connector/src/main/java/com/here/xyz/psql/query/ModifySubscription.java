@@ -22,22 +22,21 @@ package com.here.xyz.psql.query;
 import static com.here.xyz.events.ModifySubscriptionEvent.Operation.CREATE;
 import static com.here.xyz.events.ModifySubscriptionEvent.Operation.DELETE;
 import static com.here.xyz.events.ModifySubscriptionEvent.Operation.UPDATE;
-import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE;
+import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE_FQN;
 import static com.here.xyz.responses.XyzError.EXCEPTION;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class ModifySubscription extends XyzQueryRunner<ModifySubscriptionEvent, FeatureCollection> {
 
-  public ModifySubscription(ModifySubscriptionEvent event, DatabaseHandler dbHandler)
+  public ModifySubscription(ModifySubscriptionEvent event)
       throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+    super(event);
   }
 
   @Override
@@ -56,7 +55,7 @@ public class ModifySubscription extends XyzQueryRunner<ModifySubscriptionEvent, 
       throw new ErrorResponseException(EXCEPTION, "Unsupported operation for ModifySubscriptionEvent: " + event.getOperation());
 
     return query
-        .withQueryFragment("spaceMetaTable", SPACE_META_TABLE)
+        .withQueryFragment("spaceMetaTable", SPACE_META_TABLE_FQN)
         .withNamedParameter("spaceId", event.getSpace())
         .withNamedParameter(SCHEMA, getSchema());
   }

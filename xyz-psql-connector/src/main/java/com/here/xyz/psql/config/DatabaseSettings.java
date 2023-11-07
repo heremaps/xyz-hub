@@ -19,7 +19,6 @@
 
 package com.here.xyz.psql.config;
 
-import com.amazonaws.services.lambda.runtime.Context;
 import com.here.xyz.util.Hasher;
 
 public class DatabaseSettings {
@@ -38,6 +37,12 @@ public class DatabaseSettings {
      * A constant that is normally used as environment variable name for the host.
      */
     public static final String PSQL_REPLICA_HOST = "PSQL_REPLICA_HOST";
+
+    /**
+     * A constant that is normally used as environment variable name for the replica user - if not set PSQL_USER will be used instead.
+     * As password the PSQL_PASSWORD will be shared.
+     */
+    public static final String PSQL_REPLICA_USER = "PSQL_REPLICA_USER";
 
     /**
      * A constant that is normally used as environment variable name for the database.
@@ -74,63 +79,37 @@ public class DatabaseSettings {
     private String password;
     private String host;
     private String replicaHost;
+    private String replicaUser;
     private String db;
     private String schema;
     private Integer port;
     private Boolean readOnly;
+    private Boolean enableHashedSpaceId;
     @Deprecated
     private Integer maxConnections;
 
     public DatabaseSettings(){
-        if(this.user == null)
-            this.user = "postgres";
-        if(this.password == null)
-            this.password = "password";
-        if(this.host == null)
-            this.host = "localhost";
-        if(this.replicaHost == null)
-            this.replicaHost = null;
-        if(this.db == null)
-            this.db = "postgres";
-        if(this.schema == null)
-            this.schema = "public";
-        if(this.port == null)
-            this.port = 5432;
-        if(this.readOnly == null)
-            this.readOnly = false;
+       setDefaults();
     }
 
     public DatabaseSettings(String schema){
         this.schema = schema;
     }
 
-    public DatabaseSettings(Context context){
-        this.user = PSQLConfig.readFromEnvVars(PSQL_USER,context);
-        this.password = PSQLConfig.readFromEnvVars(PSQL_PASSWORD,context);
-        this.host = PSQLConfig.readFromEnvVars(PSQL_HOST,context);
-        this.replicaHost = PSQLConfig.readFromEnvVars(PSQL_REPLICA_HOST,context);
-        this.db = PSQLConfig.readFromEnvVars(PSQL_DB,context);
-        this.schema = PSQLConfig.readFromEnvVars(PSQL_SCHEMA,context);
-        this.port = PSQLConfig.readFromEnvVars(PSQL_PORT,context) != null ? Integer.parseInt(PSQLConfig.readFromEnvVars(PSQL_PORT,context)) : null;
-        this.readOnly = PSQLConfig.readFromEnvVars(PSQL_READ_ONLY,context) != null ? Boolean.parseBoolean( PSQLConfig.readFromEnvVars(PSQL_READ_ONLY,context)) : null;
-        this.maxConnections = PSQLConfig.readFromEnvVars(PSQL_MAX_CONN,context) != null ? Integer.parseInt(PSQLConfig.readFromEnvVars(PSQL_MAX_CONN,context)) : null;
+    public DatabaseSettings(PSQLConfig config) {
+        super();
+        this.user = config.readFromEnvVars(PSQL_USER);
+        this.password = config.readFromEnvVars(PSQL_PASSWORD);
+        this.host = config.readFromEnvVars(PSQL_HOST);
+        this.replicaHost = config.readFromEnvVars(PSQL_REPLICA_HOST);
+        this.replicaUser = config.readFromEnvVars(PSQL_REPLICA_USER);
+        this.db = config.readFromEnvVars(PSQL_DB);
+        this.schema = config.readFromEnvVars(PSQL_SCHEMA);
+        this.port = config.readFromEnvVars(PSQL_PORT) != null ? Integer.parseInt(config.readFromEnvVars(PSQL_PORT)) : null;
+        this.readOnly = config.readFromEnvVars(PSQL_READ_ONLY) != null ? Boolean.parseBoolean(config.readFromEnvVars(PSQL_READ_ONLY)) : null;
+        this.maxConnections = config.readFromEnvVars(PSQL_MAX_CONN) != null ? Integer.parseInt(config.readFromEnvVars(PSQL_MAX_CONN)) : null;
 
-        if(this.user == null)
-            this.user = "postgres";
-        if(this.password == null)
-            this.password = "password";
-        if(this.host == null)
-            this.host = "localhost";
-        if(this.replicaHost == null)
-            this.replicaHost = null;
-        if(this.db == null)
-            this.db = "postgres";
-        if(this.schema == null)
-            this.schema = "public";
-        if(this.port == null)
-            this.port = 5432;
-        if(this.readOnly == null)
-            this.readOnly = false;
+        setDefaults();
     }
 
     public void setUser(String user) {
@@ -147,6 +126,10 @@ public class DatabaseSettings {
 
     public void setReplicaHost(String replicaHost) {
         this.replicaHost = replicaHost;
+    }
+
+    public void setPsqlReplicaUser(String replicaUser) {
+        this.replicaUser = replicaUser;
     }
 
     public void setDb(String db) {
@@ -169,17 +152,27 @@ public class DatabaseSettings {
         return password;
     }
 
-    public String getHost() {
-        return host;
-    }
+    public String getHost() {return host; }
 
-    public String getReplicaHost() {
+    public String getHost( boolean useReplica) {
+        if(!useReplica || replicaHost == null)
+            return host;
         return replicaHost;
     }
 
-    public String getDb() {
-        return db;
+    public String getUser(boolean useReplica) {
+        if(!useReplica || replicaUser == null)
+            return user;
+        return replicaUser;
     }
+
+    public String getReplicaHost() { return replicaHost; }
+
+    public String getReplicaUser() {
+        return replicaUser;
+    }
+
+    public String getDb() { return db; }
 
     public String getSchema() {
         return schema;
@@ -192,6 +185,10 @@ public class DatabaseSettings {
     public boolean isReadOnly() {
         return readOnly;
     }
+
+    public Boolean isEnabledHashSpaceId() { return enableHashedSpaceId;}
+
+    public void setEnabledHashSpaceId(Boolean enableHashedSpaceId) { this.enableHashedSpaceId = enableHashedSpaceId; }
 
     @Deprecated
     public Integer getMaxConnections() {
@@ -216,5 +213,34 @@ public class DatabaseSettings {
 
     public String getCacheKey(String id) {
         return Hasher.getHash(id+getConfigValuesAsString());
+    }
+
+    public String getDBClusterIdentifier() {
+        if(host == null || host.indexOf(".cluster-") == -1)
+            return null;
+
+        //DbClusterIdentifier.ClusterIdentifier.Region.rds.amazonaws.com
+        return host.split("\\.")[0];
+    }
+
+    public void setDefaults(){
+        if(this.user == null)
+            this.user = "postgres";
+        if(this.password == null)
+            this.password = "password";
+        if(this.host == null)
+            this.host = "localhost";
+        if(this.replicaHost == null)
+            this.replicaHost = null;
+        if(this.replicaUser == null)
+            this.replicaUser = null;
+        if(this.db == null)
+            this.db = "postgres";
+        if(this.schema == null)
+            this.schema = "public";
+        if(this.port == null)
+            this.port = 5432;
+        if(this.readOnly == null)
+            this.readOnly = false;
     }
 }

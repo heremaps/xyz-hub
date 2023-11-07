@@ -16,6 +16,7 @@
         ]
       },
       "type": "Feature",
+      "id": "F1",
       "properties": {
         "name": "Toyota",
         "size": 8.5,
@@ -40,6 +41,7 @@
         ]
       },
       "type": "Feature",
+      "id": "F2",
       "properties": {
         "name": "Tesla",
         "@ns:com:here:xyz": {
@@ -61,6 +63,7 @@
         ]
       },
       "type": "Feature",
+      "id": "F3",
       "properties": {
         "name": "Ducati",
         "size": 1.0,
@@ -81,6 +84,7 @@
         ]
       },
       "type": "Feature",
+      "id": "F4",
       "properties": {
         "name": "BikeX",
         "size": 0.3,

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,17 +19,20 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-
-import java.sql.*;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.hamcrest.Matchers.equalTo;
 
 @Category(RestTests.class)
 public class ReadFeatureApiClusteringIT extends TestSpaceWithFeature {
@@ -52,6 +55,24 @@ public class ReadFeatureApiClusteringIT extends TestSpaceWithFeature {
     removeSpace(SPACE_ID);
   }
 
+  @Test
+  public void testBBoxAndTileClusteringParamNegative() {
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get("/spaces/"+ SPACE_ID + "/bbox?west=179&north=89&east=-179&south=-89&clustering=abc123")
+        .then()
+        .statusCode(BAD_REQUEST.code()).extract().body().asString();
+
+    given()
+        .accept(APPLICATION_GEO_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .when()
+        .get("/spaces/"+ SPACE_ID + "/tile/quadkey/120?clustering=abc123")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
 
   @Test
   public void readByBoundingBoxWithQuadbinClustering() {

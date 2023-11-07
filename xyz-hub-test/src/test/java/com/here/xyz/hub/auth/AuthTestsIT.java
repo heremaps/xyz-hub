@@ -21,11 +21,11 @@ package com.here.xyz.hub.auth;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -38,7 +38,7 @@ import com.here.xyz.hub.util.Compression;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.jayway.restassured.response.ValidatableResponse;
+import io.restassured.response.ValidatableResponse;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.zip.DataFormatException;
@@ -842,14 +842,6 @@ public class AuthTestsIT extends RestAssuredTest {
         .get("/spaces/x-auth-test-space/bbox?west=179&north=89&east=-179&south=-89&clustering=hexbin")
         .then()
         .statusCode(FORBIDDEN.code());
-
-    given()
-        .accept(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_USE_CAPABILITIES))
-        .when()
-        .get("/spaces/x-auth-test-space/bbox?west=179&north=89&east=-179&south=-89&clustering=abc123")
-        .then()
-        .statusCode(BAD_REQUEST.code());
   }
 
   @Test
@@ -886,14 +878,6 @@ public class AuthTestsIT extends RestAssuredTest {
         .get("/spaces/x-auth-test-space/tile/quadkey/120?clustering=hexbin")
         .then()
         .statusCode(FORBIDDEN.code());
-
-    given()
-        .accept(APPLICATION_GEO_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_WITH_USE_CAPABILITIES))
-        .when()
-        .get("/spaces/x-auth-test-space/tile/quadkey/120?clustering=abc123")
-        .then()
-        .statusCode(BAD_REQUEST.code());
   }
 
   @Test

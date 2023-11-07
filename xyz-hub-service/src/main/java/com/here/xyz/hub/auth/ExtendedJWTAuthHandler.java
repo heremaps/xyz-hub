@@ -22,7 +22,6 @@ package com.here.xyz.hub.auth;
 import static com.here.xyz.hub.rest.ApiParam.Query.ACCESS_TOKEN;
 
 import com.here.xyz.hub.Service;
-import com.here.xyz.hub.auth.Authorization.AuthorizationType;
 import com.here.xyz.hub.rest.Api;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.util.Compression;

@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.config.jdbc;
 
+import static com.here.xyz.hub.config.jdbc.JDBCConfig.SCHEMA;
 import static com.here.xyz.hub.config.jdbc.JDBCConfig.TAG_TABLE;
 
 import com.here.xyz.hub.config.TagConfigClient;
@@ -31,7 +32,6 @@ import io.vertx.ext.sql.SQLClient;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -56,8 +56,12 @@ public class JDBCTagConfigClient extends TagConfigClient {
   @Override
   public Future<Tag> getTag(Marker marker, String id, String spaceId) {
     Promise<Tag> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + TAG_TABLE + " WHERE id = ? AND space = ?", id, spaceId);
-    client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+    SQLQuery query = new SQLQuery("SELECT id, space, version FROM ${schema}.${table} WHERE id = #{tagId} AND space = #{spaceId}")
+        .withNamedParameter("tagId", id)
+        .withNamedParameter("spaceId", spaceId);
+
+    setVars(query);
+    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         Optional<Tag> tag = out.result().getRows().stream().map(r->new Tag()
                 .withId(r.getString("id"))
@@ -77,30 +81,28 @@ public class JDBCTagConfigClient extends TagConfigClient {
   }
 
   @Override
-  public Future<List<Tag>> getTags(Marker marker, String id, List<String> spaceIds) {
-    List<String> params = spaceIds.stream().map(e->"?").collect(Collectors.toList());
-    SQLQuery query = new SQLQuery("WHERE id=?", id);
-    query.append(new SQLQuery("AND space IN (" + StringUtils.join(params, ",")+")", spaceIds.toArray()));
+  public Future<List<Tag>> getTags(Marker marker, String tagId, List<String> spaceIds) { //FIXME: Failing with test testListSpacesFilterByTagId()
+    SQLQuery query = new SQLQuery("WHERE id = #{tagId} AND space IN (#{spaceIds})")
+        .withNamedParameter("tagId", tagId)
+        .withNamedParameter("spaceIds", spaceIds.toArray(new String[0]));
     return _getTags(marker, query);
   }
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, String spaceId) {
-    return _getTags(marker, new SQLQuery("WHERE space=?", spaceId));
+    return _getTags(marker, new SQLQuery("WHERE space = #{spaceId}").withNamedParameter("spaceId", spaceId));
   }
 
   @Override
   public Future<List<Tag>> getTags(Marker marker, List<String> spaceIds) {
-    List<String> params = spaceIds.stream().map(e->"?").collect(Collectors.toList());
-    SQLQuery query = new SQLQuery("WHERE space IN (" + StringUtils.join(params, ",")+")", spaceIds.toArray());
+    SQLQuery query = new SQLQuery("WHERE space IN (#{spaceIds})")
+        .withNamedParameter("spaceIds", spaceIds.toArray(new String[0]));
     return _getTags(marker, query);
   }
 
   @Override
   public Future<List<Tag>> getTagsByTagId(Marker marker, String tagId) {
-    SQLQuery query = new SQLQuery("WHERE id=#{tagId}").withNamedParameter("tagId", tagId);
-    query.substitute();
-    return _getTags(marker, query);
+    return _getTags(marker, new SQLQuery("WHERE id = #{tagId}").withNamedParameter("tagId", tagId));
   }
 
   @Override
@@ -110,10 +112,14 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   private Future<List<Tag>> _getTags(Marker marker, SQLQuery whereClause) {
     Promise<List<Tag>> p = Promise.promise();
-    SQLQuery query = new SQLQuery("SELECT id, space, version FROM " + TAG_TABLE);
-    if(whereClause != null )
-      query.append(whereClause);
-    client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+    SQLQuery query = new SQLQuery("SELECT id, space, version FROM ${schema}.${table} ${{whereClause}}");
+    if (whereClause == null)
+      query.setQueryFragment("whereClause", "");
+    else
+      query.setQueryFragment("whereClause", whereClause);
+
+    setVars(query);
+    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         List<Tag> tag = out.result().getRows().stream().map(r->new Tag()
             .withId(r.getString("id"))
@@ -130,35 +136,35 @@ public class JDBCTagConfigClient extends TagConfigClient {
 
   @Override
   public Future<Void> storeTag(Marker marker, Tag tag) {
-    Promise<Void> p = Promise.promise();
-
-    final SQLQuery query = new SQLQuery("INSERT INTO " + TAG_TABLE + " (id, space, version) VALUES (?, ?, ?) " +
+    final SQLQuery query = new SQLQuery("INSERT INTO ${schema}.${table} (id, space, version) VALUES (#{tagId}, #{spaceId}, #{version}) " +
         "ON CONFLICT (id,space) DO " +
-        "UPDATE SET id = ?, space = ?, version = ?",
-        tag.getId(), tag.getSpaceId(), tag.getVersion(),
-        tag.getId(), tag.getSpaceId(), tag.getVersion());
-
-    client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
-      if (out.succeeded()) {
-        p.complete();
-      } else {
-        p.fail(out.cause());
-      }
-    });
-    return p.future();
+        "UPDATE SET id = #{tagId}, space = #{spaceId}, version = #{version}")
+        .withNamedParameter("tagId", tag.getId())
+        .withNamedParameter("spaceId", tag.getSpaceId())
+        .withNamedParameter("version", tag.getVersion());
+    return JDBCConfig.updateWithParams(setVars(query));
   }
 
   @Override
   public Future<Tag> deleteTag(Marker marker, String id, String spaceId) {
-    final SQLQuery query = new SQLQuery("DELETE FROM " + TAG_TABLE + " WHERE id = ? AND space = ?", id, spaceId);
-    return getTag(marker, id, spaceId).compose(tag -> JDBCConfig.updateWithParams(query).map(tag));
+    final SQLQuery query = new SQLQuery("DELETE FROM ${schema}.${table} WHERE id = #{tagId} AND space = #{spaceId}")
+        .withNamedParameter("tagId", id)
+        .withNamedParameter("spaceId", spaceId);
+    return getTag(marker, id, spaceId).compose(tag -> JDBCConfig.updateWithParams(setVars(query)).map(tag));
   }
 
   @Override
   public Future<List<Tag>> deleteTagsForSpace(Marker marker, String spaceId) {
-    final SQLQuery query = new SQLQuery("DELETE FROM " + TAG_TABLE + " WHERE space = ?", spaceId);
+    final SQLQuery query = new SQLQuery("DELETE FROM ${schema}.${table} WHERE space = #{spaceId}")
+        .withNamedParameter("spaceId", spaceId);
     return getTags(marker, spaceId)
-        .compose(tags -> JDBCConfig.updateWithParams(query)
+        .compose(tags -> JDBCConfig.updateWithParams(setVars(query))
         .map(tags));
+  }
+
+  private SQLQuery setVars(SQLQuery q) {
+    return q
+        .withVariable("schema", SCHEMA)
+        .withVariable("table", TAG_TABLE);
   }
 }

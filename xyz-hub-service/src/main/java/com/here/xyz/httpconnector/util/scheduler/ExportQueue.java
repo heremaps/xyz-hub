@@ -16,227 +16,149 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
+
 package com.here.xyz.httpconnector.util.scheduler;
 
+import static com.here.xyz.httpconnector.util.jobs.Export.ERROR_DESCRIPTION_HTTP_TRIGGER_FAILED;
+import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
+import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_FINALIZATION_FAILED;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.prepared;
+
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.config.JDBCExporter;
-import com.here.xyz.httpconnector.config.JDBCImporter;
-import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Export;
-import com.here.xyz.httpconnector.util.jobs.ExportObject;
+import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import com.mchange.v3.decode.CannotDecodeException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import java.util.Map;
+import io.vertx.core.Future;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Job-Queue for Export-Jobs (S3 -> RDS)
  */
-public class ExportQueue extends JobQueue{
+public class ExportQueue extends JobQueue {
     private static final Logger logger = LogManager.getLogger();
     protected static ScheduledThreadPoolExecutor executorService = new ScheduledThreadPoolExecutor(CORE_POOL_SIZE, Core.newThreadFactory("export-queue"));
 
     protected void process() throws InterruptedException, CannotDecodeException {
 
-        for (int i = 0; i <  getQueue().size(); i++) {
-            Job job = getQueue().get(i);
+        getQueue().stream().filter(job -> (job instanceof Export || job instanceof CombinedJob)).forEach(job -> {
 
-            if (!(job instanceof Export))
-                return;
+            //Check Capacity
+            ((Future<Job>) job.isProcessingPossible())
+                .compose(j -> loadCurrentConfig(job))
+                .compose(currentJob -> {
+                    /*
+                    Job-Life-Cycle:
+                    waiting -> (executing) -> executed -> executing_trigger -> trigger_executed -> collecting_trigger_status -> finalized
+                    all stages can end up in failed
+                     */
+                    switch (currentJob.getStatus()) {
+                        case waiting:
+                            updateJobStatus(currentJob, Job.Status.queued);
+                            break;
+                        case queued:
+                            updateJobStatus(currentJob, Job.Status.preparing)
+                                .onSuccess(f -> prepareJob(currentJob));
+                            break;
+                        case prepared:
+                            updateJobStatus(currentJob, Job.Status.executing)
+                                    .onSuccess(f -> currentJob.execute());
+                            break;
+                        case executed:
+                            updateJobStatus(currentJob, Job.Status.executing_trigger)
+                                .onSuccess(f -> {
+                                    if (currentJob instanceof Export export && export.getExportTarget().getType() == VML
+                                            && export.getStatistic() != null
+                                            && export.getStatistic().getFilesUploaded() > 0
+                                            && export.getStatistic().getBytesUploaded() > 0
+                                            && !export.readParamSkipTrigger())
+                                        //Only here we need a trigger
+                                        postTrigger(currentJob);
+                                    else
+                                        currentJob.finalizeJob();
+                                });
+                            break;
+                        case trigger_executed:
+                            updateJobStatus(currentJob, Job.Status.collecting_trigger_status)
+                                .onSuccess(f -> collectTriggerStatus(currentJob));
+                            break;
+                    }
+                    return Future.succeededFuture();
+                })
+                .onFailure(e -> logError(e, job.getId()));
+            });
+    }
 
-            /** Check Capacity */
-            isProcessingOnRDSPossible(i, job)
-                    .onSuccess(canProcess -> {
+    @Override
+    protected Export validateJob(Job j) {
+        //Currently not needed
+        return null;
+    }
 
-                        /** Execution is currently not possible */
-                        if (!canProcess){
+    @Override
+    protected void prepareJob(Job job) {
+        if (job instanceof Export export)
+            export.checkPersistentExports();
+        else
+            updateJobStatus(job, prepared);
+    }
+
+    protected Future<String> postTrigger(Job job) {
+        return HubWebClient.executeHTTPTrigger((Export) job)
+            .onSuccess(triggerId -> {
+                //Add import ID
+                ((Export) job).setTriggerId(triggerId);
+                updateJobStatus(job, Job.Status.trigger_executed);
+            })
+            .onFailure(e -> {
+                if (e instanceof HttpException)
+                    setJobFailed(job, Export.ERROR_DESCRIPTION_TARGET_ID_INVALID, ERROR_TYPE_FINALIZATION_FAILED);
+                else
+                    setJobFailed(job, ERROR_DESCRIPTION_HTTP_TRIGGER_FAILED, ERROR_TYPE_FINALIZATION_FAILED);
+            });
+    }
+
+    protected void collectTriggerStatus(Job job) {
+        //executeHttpTrigger
+        if (((Export) job).getExportTarget().getType() == VML) {
+            HubWebClient.executeHTTPTriggerStatus((Export) job)
+                .onFailure(e -> {
+                    if (e instanceof HttpException)
+                        setJobFailed(job, Export.ERROR_DESCRIPTION_TARGET_ID_INVALID, ERROR_TYPE_FINALIZATION_FAILED);
+                    else
+                        setJobFailed(job, Export.ERROR_DESCRIPTION_HTTP_TRIGGER_STATUS_FAILED, ERROR_TYPE_FINALIZATION_FAILED);
+                })
+                .onSuccess(status -> {
+                    switch (status) {
+                        case "initialized":
+                        case "submitted":
+                            //In other cases reset status for next status query
+                            updateJobStatus(job, Job.Status.trigger_executed);
                             return;
-                        }
-
-                        /** Check if JDBC Client is available */
-                        if (!isTargetJDBCClientLoaded(job))
+                        case "succeeded":
+                            logger.info("job[{}] execution of '{}' succeeded ", job.getId(), ((Export) job).getTriggerId());
+                            job.finalizeJob();
                             return;
-
-                        /** Run first Job Queue (FIFO) */
-                        Export exportJob = (Export) job;
-
-                        /**
-                         * Job-Life-Cycle:
-                         * waiting -> (validating) -> validated ->  queued -> (preparing) -> prepared -> (executing) -> executed -> (finalizing) -> finalized
-                         * all stages can end up in failed
-                         **/
-
-                        switch (exportJob.getStatus()) {
-                            case finalized:
-                                logger.info("JOB[{}] is finalized!", exportJob.getId());
-                                /** Remove Job from Queue */
-                                removeJob(exportJob);
-                                break;
-                            case failed:
-                                logger.info("JOB[{}] has failed!", exportJob.getId());
-                                /** Remove Job from Queue - in some cases the user is able to retry */
-                                removeJob(exportJob);
-                                break;
-                            case waiting:
-                            case queued:
-                                updateJobStatus(exportJob, Job.Status.executing)
-                                        .onSuccess(f -> executeJob(exportJob));
-                                break;
-                            case executed:
-                                updateJobStatus(exportJob, Job.Status.executing_trigger)
-                                        .onSuccess(f -> postTrigger(exportJob));
-                                break;
-                            case trigger_executed:
-                                updateJobStatus(exportJob, Job.Status.collecting_trigger_status)
-                                        .onSuccess(f -> collectTriggerStatus(exportJob));
-                                break;
-                            default: {
-                                logger.info("JOB[{}] is currently '{}' - current Queue-size: {}", exportJob.getId(), exportJob.getStatus(), queueSize());
-                            }
-                        }
-                    })
-                    .onFailure(e -> logger.info(e.getMessage()));
-            }
-    }
-
-    @Override
-    protected void validateJob(Job j){
-        //** Currently not needed */
-    }
-
-    @Override
-    protected void prepareJob(Job j){
-        //** Currently not needed */
-    }
-
-    @Override
-    protected void executeJob(Job j){
-        j.setExecutedAt(Core.currentTimeMillis() / 1000L);
-        String defaultSchema = JDBCImporter.getDefaultSchema(j.getTargetConnector());
-
-        String s3Path = CService.jobS3Client.getS3Path(j);
-
-        if(((Export) j).readParamPersistExport() ) {
-            Export existingJob = CService.jobS3Client.readMetaFileFromJob((Export) j);
-            if(existingJob != null) {
-                if(existingJob.getExportObjects() == null || existingJob.getExportObjects().isEmpty()) {
-                    String message = String.format("Another job already started for %s and targetLevel %s with status %s",
-                            existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
-                    failJob(j, message, Job.ERROR_TYPE_EXECUTION_FAILED);
-                } else {
-                     addFileData(existingJob);
-                     ((Export) j).setExportObjects(existingJob.getExportObjects());
-                     updateJobStatus(j, Job.Status.executed);
-                }
-                return;
-            } else {
-                addFileData(j);
-            }
+                        case "cancelled":
+                        case "failed":
+                            logger.warn("job[{}] Trigger '{}' failed with state '{}'", job.getId(), ((Export) job).getTriggerId(), status);
+                            setJobFailed(job, ERROR_DESCRIPTION_HTTP_TRIGGER_FAILED, ERROR_TYPE_FINALIZATION_FAILED);
+                    }
+                });
         }
-
-        JDBCExporter.executeExport(((Export) j), defaultSchema, CService.configuration.JOBS_S3_BUCKET, s3Path,
-                        CService.configuration.JOBS_REGION)
-                .onSuccess(statistic -> {
-                            /** Everything is processed */
-                            logger.info("JOB[{}] Export of '{}' completely succeeded!", j.getId(), j.getTargetSpaceId());
-                            ((Export)j).addStatistic(statistic);
-                            updateJobStatus(j, Job.Status.executed);
-                        }
-                )
-                .onFailure(f -> {
-                            logger.warn("JOB[{}] Export of '{}' failed ", j.getId(), j.getTargetSpaceId(), f);
-                            failJob(j, null , Job.ERROR_TYPE_EXECUTION_FAILED);
-                        }
-                );
-    }
-
-    @Override
-    protected void finalizeJob(Job j){
-        j.setFinalizedAt(Core.currentTimeMillis() / 1000L);
-        updateJobStatus(j, Job.Status.finalized);
-    }
-
-    protected void addFileData(Job j){
-        /** Add file statistics and downloadLinks */
-        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath((Export)j, false, true);
-        ((Export) j).setExportObjects(exportObjects);
-
-        if(((Export)j).readParamSuperExportPath() != null) {
-            /** Add exportObjects including fresh download links for persistent base exports */
-            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath((Export) j, true, true);
-            ((Export) j).setSuperExportObjects(superExportObjects);
-        }
-
-        /** Write MetaFile to S3 */
-        CService.jobS3Client.writeMetaFile((Export) j);
-    }
-
-    protected void postTrigger(Job j){
-        addFileData(j);
-
-        /** executeHttpTrigger - only on VML*/
-        if(((Export)j).getExportTarget().getType().equals(Export.ExportTarget.Type.VML)) {
-            HubWebClient.executeHTTPTrigger((Export) j)
-                    .onFailure(e -> {
-                                if(e instanceof HttpException){
-                                    failJob(j, Export.ERROR_TYPE_TARGET_ID_INVALID, Job.ERROR_TYPE_FINALIZATION_FAILED);
-                                }else
-                                    failJob(j, Export.ERROR_TYPE_HTTP_TRIGGER_FAILED, Job.ERROR_TYPE_FINALIZATION_FAILED);
-                            }
-                    )
-                    .onSuccess(triggerId -> {
-                        //** Add import ID */
-                        ((Export) j).setTriggerId(triggerId);
-                        updateJobStatus(j, Job.Status.trigger_executed);
-                    });
-        }else {
-            /** skip collecting Trigger */
-            finalizeJob(j);
-        }
-    }
-
-    protected void collectTriggerStatus(Job j){
-        /** executeHttpTrigger */
-        if(((Export)j).getExportTarget().getType().equals(Export.ExportTarget.Type.VML)) {
-            HubWebClient.executeHTTPTriggerStatus((Export) j)
-                    .onFailure(e -> {
-                            if(e instanceof HttpException){
-                                failJob(j, Export.ERROR_TYPE_TARGET_ID_INVALID, Job.ERROR_TYPE_FINALIZATION_FAILED);
-                            }else
-                                failJob(j, Export.ERROR_TYPE_HTTP_TRIGGER_STATUS_FAILED, Job.ERROR_TYPE_FINALIZATION_FAILED);
-                        }
-                    )
-                    .onSuccess(status -> {
-                        switch (status){
-                            case "initialized":
-                            case "submitted":
-                                /** In other cases reset status for next status query */
-                                updateJobStatus(j, Job.Status.trigger_executed);
-                                return;
-                            case "succeeded":
-                                logger.info("JOB[{}] execution of '{}' succeeded ", j.getId(), ((Export) j).getTriggerId());
-                                finalizeJob(j);
-                                return;
-                            case "cancelled":
-                            case "failed":
-                                logger.warn("JOB[{}] Trigger '{}' failed with state '{}'", j.getId(), ((Export) j).getTriggerId(), status);
-                                failJob(j, Export.ERROR_TYPE_HTTP_TRIGGER_FAILED, Job.ERROR_TYPE_FINALIZATION_FAILED);
-                        }
-                    });
-        }else {
-            /** skip collecting Trigger */
-            finalizeJob(j);
-        }
+        else
+            //Skip collecting Trigger
+            job.finalizeJob();
     }
 
     /**
-     * Begins executing the JobQueue processing - periodically and asynchronously.
+     * Begins executing the ExportQueue processing - periodically and asynchronously.
      *
      * @return This check for chaining
      */
@@ -260,8 +182,9 @@ public class ExportQueue extends JobQueue{
                     //Nothing to do here.
                 }
             });
-        }catch (Exception e) {
-            logger.error("{}: Error when executing Job", this.getClass().getSimpleName(), e);
+        }
+        catch (Exception e) {
+            logger.error("Error when executing ExportQueue! ", e);
         }
     }
 }

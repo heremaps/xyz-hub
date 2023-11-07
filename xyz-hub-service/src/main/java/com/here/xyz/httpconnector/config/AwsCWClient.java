@@ -24,29 +24,60 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatch;
 import com.amazonaws.services.cloudwatch.AmazonCloudWatchClientBuilder;
-import com.amazonaws.services.cloudwatch.model.*;
+import com.amazonaws.services.cloudwatch.model.Dimension;
+import com.amazonaws.services.cloudwatch.model.GetMetricDataRequest;
+import com.amazonaws.services.cloudwatch.model.GetMetricDataResult;
+import com.amazonaws.services.cloudwatch.model.Metric;
+import com.amazonaws.services.cloudwatch.model.MetricDataQuery;
+import com.amazonaws.services.cloudwatch.model.MetricDataResult;
+import com.amazonaws.services.cloudwatch.model.MetricStat;
 import com.here.xyz.httpconnector.CService;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
-
-import java.text.DecimalFormat;
-import java.util.*;
 
 public class AwsCWClient {
     private static final Logger logger = LogManager.getLogger();
 
     private final AmazonCloudWatch client;
     private static final String RDS_NAMESPACE = "AWS/RDS";
+    private static final String DB_CLUSTER_IDENTIFIER = "DBClusterIdentifier";
+
+    public static final String DATABASE_CONNECTIONS = "DatabaseConnections";
+    public static final String ACU_UTILIZATION = "ACUUtilization";
+    public static final String CPU_UTILIZATION = "CPUUtilization";
+    public static final String FREEABLE_MEMORY = "FreeableMemory";
+    public static final String WRITE_THROUGHPUT = "WriteThroughput";
+    public static final String NETWORK_RECEIVE_THROUGHPUT = "NetworkReceiveThroughput";
+    public static final String SERVERLESS_DATABASE_CAPACITY = "ServerlessDatabaseCapacity";
+
     private static final DecimalFormat DF = new DecimalFormat("0.0000");
-    private static final HashMap<String,String> METRIC_MAP = new HashMap<String,String>(){{
-        put("DatabaseConnections","dbConnections");
-        put("CPUUtilization","cpuLoad");
-        put("FreeableMemory","freemem");
-        put("WriteThroughput","writeThroughput");
-        put("NetworkReceiveThroughput","networkReceiveThroughput");
-        put("ServerlessDatabaseCapacity","capacity");
+
+    public static final HashSet<String> METRIC_LIST = new HashSet<>(){{
+        add(DATABASE_CONNECTIONS);add(ACU_UTILIZATION);add(CPU_UTILIZATION);add(FREEABLE_MEMORY);
+        add(WRITE_THROUGHPUT);add(NETWORK_RECEIVE_THROUGHPUT);add(SERVERLESS_DATABASE_CAPACITY);
     }};
+
+    public enum Role {
+        READER, WRITER;
+
+        public static Role of(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return valueOf(value.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+    }
 
     public AwsCWClient(){
         final String region = CService.configuration != null ? CService.configuration.JOBS_REGION : "eu-west-1";
@@ -63,18 +94,25 @@ public class AwsCWClient {
         this.client = builder.build();
     }
 
-    public JSONObject getAvg5MinRDSMetrics(String dbInstanceIdentifier){
-        return getRDSMetrics(dbInstanceIdentifier , 5 , 5 * 60 , "Average" );
+    public JSONObject getAvg5MinRDSMetrics(String dBClusterIdentifier) {
+        return getRDSMetrics(dBClusterIdentifier , 5 , 5 * 60 , "Average", Role.READER);
     }
 
-    private JSONObject getRDSMetrics(String dbInstanceIdentifier, int timeRangeInMin, int periodInSec, String statistic){
-        final Dimension dimension = new Dimension().withName("DBInstanceIdentifier").withValue(dbInstanceIdentifier);
+    public JSONObject getAvg5MinRDSMetrics(String dBClusterIdentifier, Role role) {
+        return getRDSMetrics(dBClusterIdentifier , 5 , 5 * 60 , "Average", role);
+    }
+
+    private JSONObject getRDSMetrics(String dBClusterIdentifier, int timeRangeInMin, int periodInSec, String statistic, Role role) {
+        List<Dimension> dimensions = new ArrayList<>();
+        dimensions.add(new Dimension().withName(DB_CLUSTER_IDENTIFIER).withValue(dBClusterIdentifier));
+        dimensions.add(new Dimension().withName("Role").withValue(role.toString()));
+
         final Date endTime = new Date();
 
         List<MetricDataQuery> metricDataQueryList = new ArrayList<>();
 
-        METRIC_MAP.keySet().forEach(
-                metric ->  metricDataQueryList.add(createMetricDataQuery(dimension, metric, statistic, periodInSec))
+        METRIC_LIST.forEach(
+                metric ->  metricDataQueryList.add(createMetricDataQuery(dimensions, metric, statistic, periodInSec))
         );
 
         final GetMetricDataRequest getMetricDataRequest = new GetMetricDataRequest()
@@ -98,11 +136,11 @@ public class AwsCWClient {
         for (MetricDataResult res : metricDataResult) {
             res.getValues().forEach(
                     r -> {
-                        if(res.getId().equalsIgnoreCase("freemem")) {
+                        if(res.getId().equalsIgnoreCase(FREEABLE_MEMORY)) {
                             /** to GB */
                             r = r / 1024 / 1024 / 1024;
-                        }if(res.getId().equalsIgnoreCase("networkReceiveThroughput")
-                            || res.getId().equalsIgnoreCase("writeThroughput")) {
+                        }if(res.getId().equalsIgnoreCase(NETWORK_RECEIVE_THROUGHPUT)
+                            || res.getId().equalsIgnoreCase(WRITE_THROUGHPUT)) {
                             /** to MB */
                             r = r / 1024 / 1024 ;
                         }
@@ -114,9 +152,10 @@ public class AwsCWClient {
         return rdsStatistic;
     }
 
-    private MetricDataQuery createMetricDataQuery(Dimension dimension, String metricName, String statistic, int periodInSec){
-              final Metric metric = new Metric()
-                .withDimensions(Collections.singletonList(dimension))
+    private MetricDataQuery createMetricDataQuery(List<Dimension> dimensions, String metricName, String statistic, int periodInSec){
+
+        final Metric metric = new Metric()
+                .withDimensions(dimensions)
                 .withMetricName(metricName)
                 .withNamespace(RDS_NAMESPACE);
 
@@ -126,7 +165,7 @@ public class AwsCWClient {
                 .withStat(statistic);
 
         return new MetricDataQuery()
-                .withId(METRIC_MAP.get(metricName))
+                .withId(metricName.toLowerCase())
                 .withMetricStat(metricStat);
     }
 

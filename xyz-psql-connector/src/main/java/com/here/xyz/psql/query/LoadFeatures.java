@@ -22,7 +22,6 @@ package com.here.xyz.psql.query;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.LoadFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import java.sql.SQLException;
 import java.util.HashMap;
@@ -32,8 +31,8 @@ import java.util.Set;
 
 public class LoadFeatures extends GetFeatures<LoadFeaturesEvent, FeatureCollection> {
 
-  public LoadFeatures(LoadFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public LoadFeatures(LoadFeaturesEvent event) throws SQLException, ErrorResponseException {
+    super(event);
     setUseReadReplica(false);
   }
 

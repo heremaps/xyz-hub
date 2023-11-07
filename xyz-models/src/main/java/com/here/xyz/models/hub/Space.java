@@ -29,6 +29,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.annotation.JsonView;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Public;
+import com.here.xyz.XyzSerializable.Static;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -55,13 +57,13 @@ public class Space {
   private String id;
 
   /**
-   * A human readable title of the space.
+   * A human-readable title of the space.
    */
   @JsonView({Public.class, Static.class})
   private String title;
 
   /**
-   * A human readable description of the space and it's content.
+   * A human-readable description of the space and it's content.
    */
   @JsonView({Public.class, Static.class})
   private String description;
@@ -110,7 +112,7 @@ public class Space {
   private Map<String, List<ListenerConnectorRef>> listeners;
 
   /**
-   * The event processors configuration. A processing connector get's the specified events and can re-process them synchronously. The XYZ
+   * The event processors configuration. A processing connector gets the specified events and can re-process them synchronously. The XYZ
    * Hub waits for a response.
    */
   @JsonInclude(Include.NON_NULL)
@@ -137,15 +139,6 @@ public class Space {
   @JsonView({Public.class, Static.class})
   @JsonInclude(Include.NON_EMPTY)
   private Map<String, Object> client;
-
-  /**
-   * If true, every state of the feature, will be assigned a UUID value.
-   * @deprecated Will be removed once there exists a new flag for version-based conflict-detection.
-   */
-  @JsonView({Public.class, Static.class})
-  @JsonInclude(Include.NON_DEFAULT)
-  @Deprecated
-  private boolean enableUUID = false;
 
   /**
    * Defines how many versions will be kept before the automatic purging of old versions is starting.
@@ -211,6 +204,15 @@ public class Space {
   private boolean readOnly = false;
 
   /**
+   * The current HEAD version of this space after it has been set to readOnly.
+   * If {@link #readOnly} is false this value should always be set to -1.
+   * @see #readOnly
+   */
+  @JsonInclude(Include.NON_DEFAULT)
+  @JsonView({Internal.class, Static.class})
+  private long readOnlyHeadVersion = -1;
+
+  /**
    * A map defined by the user which tells which of the feature-properties to make searchable. The key is the name of the property and the
    * value is a boolean flag telling whether the property should be searchable or not. Also nested properties can be referenced by
    * specifying a path with dots (e.g. "my.prop"). Setting the value to {@code false} the property won't be made searchable at all. (even if
@@ -223,13 +225,6 @@ public class Space {
   @JsonInclude(Include.NON_EMPTY)
   @JsonView({Public.class, Static.class})
   private List<List<Object>> sortableProperties;
-
-  /**
-   * Controls whether during feature creation, the operation succeeds when the payload contains UUID or fails with 409. Default is true.
-   */
-  @JsonInclude(Include.NON_DEFAULT)
-  @JsonView({Internal.class, Static.class})
-  private boolean allowFeatureCreationWithUUID = false;
 
   public String getId() {
     return id;
@@ -400,22 +395,6 @@ public class Space {
     return this;
   }
 
-  @Deprecated
-  public boolean isEnableUUID() {
-    return enableUUID;
-  }
-
-  @Deprecated
-  public void setEnableUUID(final boolean enableUUID) {
-    this.enableUUID = enableUUID;
-  }
-
-  @Deprecated
-  public Space withEnableUUID(final boolean enableUUID) {
-    setEnableUUID(enableUUID);
-    return this;
-  }
-
   public int getVersionsToKeep() {
     return versionsToKeep;
   }
@@ -520,6 +499,19 @@ public class Space {
     return this;
   }
 
+  public long getReadOnlyHeadVersion() {
+    return readOnlyHeadVersion;
+  }
+
+  public void setReadOnlyHeadVersion(long readOnlyHeadVersion) {
+    this.readOnlyHeadVersion = readOnlyHeadVersion;
+  }
+
+  public Space withReadOnlyHeadVersion(long readOnlyHeadVersion) {
+    setReadOnlyHeadVersion(readOnlyHeadVersion);
+    return this;
+  }
+
   public Map<String, Boolean> getSearchableProperties() {
     return searchableProperties;
   }
@@ -546,19 +538,6 @@ public class Space {
     return this;
   }
 
-  public boolean isAllowFeatureCreationWithUUID() {
-    return allowFeatureCreationWithUUID;
-  }
-
-  public void setAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
-    this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
-  }
-
-  public Space withAllowFeatureCreationWithUUID(final boolean allowFeatureCreationWithUUID) {
-    setAllowFeatureCreationWithUUID(allowFeatureCreationWithUUID);
-    return this;
-  }
-
   public Map<String, Tag> getTags() {
     return tags;
   }
@@ -572,26 +551,18 @@ public class Space {
     return this;
   }
 
+  /**
+   * Used as a JsonView on a {@link Space} to indicate that a property should be part of a response which was requested to contain
+   * connector information.
+   */
   @SuppressWarnings("WeakerAccess")
-  public static class Public {
-
-  }
-
-  @SuppressWarnings("WeakerAccess")
-  public static class WithConnectors extends Public {
-
-  }
-
-  public static class Internal extends WithConnectors {
-
-  }
+  public static class WithConnectors extends Public {}
 
   /**
-   * Used for properties which are intended to be persisted.
+   * Used as a JsonView on models to indicate that a property should be only serialized in internal JSON representations.
+   * (e.g. when it comes RPC calls between inner software components)
    */
-  public static class Static {
-
-  }
+  public static class Internal extends WithConnectors {}
 
   /**
    * The reference to a connector configuration.

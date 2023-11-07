@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -50,7 +50,7 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
         get(getSpacesPath() + "/x-psql-test/tile/quadkey/2100300120310022").
         then().
         header("X-Decompressed-Input-Size", "0").
-        header("X-Decompressed-Output-Size", "479").
+        header("X-Decompressed-Output-Size", "493").
         statusCode(OK.code());
   }
 
@@ -64,7 +64,7 @@ public class DecompressedSizeIT extends TestSpaceWithFeature {
         put(getSpacesPath() + "/x-psql-test/features").
         then().
         header("X-Decompressed-Input-Size", "63").
-        header("X-Decompressed-Output-Size", "282").
+        header("X-Decompressed-Output-Size", "294").
         statusCode(OK.code());
   }
 }

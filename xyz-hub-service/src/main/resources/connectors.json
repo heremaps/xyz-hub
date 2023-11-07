@@ -8,7 +8,7 @@
       "dbCheckoutTimeout": 12,
       "dbAcquireRetryAttempts": 10,
       "connectorId" : "psql",
-      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})",
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_HOST\":\"${PSQL_REPLICA_HOST}\",\"PSQL_REPLICA_USER\":\"${PSQL_REPLICA_USER}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"${PSQL_DB}\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"public\"})",
       "mvtSupport": true
     },
     "capabilities": {
@@ -409,6 +409,54 @@
         "type": "Embedded",
         "className": "com.here.xyz.hub.connectors.test.EvalConnector"
       }
+    }
+  },
+  {
+    "id": "psql_db2_hashed",
+    "params": {
+      "autoIndexing": true,
+      "propertySearch": true,
+      "onDemandIdxLimit": 8,
+      "dbCheckoutTimeout": 12,
+      "dbAcquireRetryAttempts": 10,
+      "connectorId" : "psql_db2_hashed",
+      "enableHashedSpaceId" : true,
+      "ecps": "$encrypt({\"PSQL_HOST\":\"${PSQL_HOST}\",\"PSQL_REPLICA_USER\":\"${PSQL_REPLICA_USER}\",\"PSQL_PORT\":\"${PSQL_PORT}\",\"PSQL_DB\":\"postgres_db2\",\"PSQL_USER\":\"${PSQL_USER}\",\"PSQL_PASSWORD\":\"${PSQL_PASSWORD}\",\"PSQL_SCHEMA\":\"custom\"})",
+      "mvtSupport": true
+    },
+    "capabilities": {
+      "propertySearch": true,
+      "searchablePropertiesConfiguration": true,
+      "preserializedResponseSupport": true,
+      "enableAutoCache": true,
+      "maxPayloadSize": 1073741824,
+      "storageUtilizationReporting": true,
+      "clusteringTypes": [
+        "hexbin", "quadbin"
+      ],
+      "mvtSupport": true,
+      "extensionSupport": true
+    },
+    "connectionSettings": {
+      "maxConnections": 32
+    },
+    "remoteFunctions": {
+      "local": {
+        "type": "Embedded",
+        "id": "xyz-psql-local",
+        "warmUp": 1,
+        "className": "com.here.xyz.psql.PSQLXyzConnector",
+        "env": {
+          "ECPS_PHRASE": "local"
+        },
+        "protocolVersion": "0.6.0"
+      }
+    },
+    "trusted": true,
+    "forwardParamsConfig": {
+      "cookies": ["here_access", "here_access_st"],
+      "headers": ["AuthorizatioN", "realm"],
+      "queryParams": ["apiKey"]
     }
   }
 ]

@@ -21,17 +21,16 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 import com.here.xyz.models.geojson.coordinates.PointCoordinates;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.Point;
-import com.jayway.restassured.response.ValidatableResponse;
+import io.restassured.response.ValidatableResponse;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -67,15 +66,6 @@ public class UpdateSpaceApiIT extends TestSpaceWithFeature {
             body("title", equalTo("My Demo Space Updated")).
             body("storage.id", equalTo("psql")).
             body("updatedAt", not(equalTo(createdAt)));
-
-        /** Test immutable UUID */
-        given().
-            accept(APPLICATION_JSON).
-            contentType(APPLICATION_JSON).
-            headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-            body(content("/xyz/hub/createSpaceWithUUID.json")).
-            when().patch("/spaces/x-psql-test").then()
-                .statusCode(BAD_REQUEST.code());
     }
 
   @Test

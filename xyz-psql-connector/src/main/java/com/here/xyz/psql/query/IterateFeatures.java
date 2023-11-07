@@ -20,41 +20,27 @@
 package com.here.xyz.psql.query;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.IterateFeaturesEvent;
-import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.PropertyQuery.QueryOperation;
-import com.here.xyz.events.PropertyQueryList;
-import com.here.xyz.events.TagsQuery;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.Capabilities;
-import com.here.xyz.psql.Capabilities.IndexList;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.PSQLXyzConnector;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.config.PSQLConfig;
-import com.here.xyz.psql.config.PSQLConfig.AESGCMHelper;
-import com.here.xyz.responses.XyzError;
 import com.here.xyz.psql.tools.DhString;
-import java.security.GeneralSecurityException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, FeatureCollection> {
 
   public static final String HPREFIX = "h07~";
-  private static final String HANDLE_ENCRYPTION_PHRASE = "findFeaturesSort";
+  protected static final String HANDLE_ENCRYPTION_PHRASE = "findFeaturesSort";
   private static String pg_hint_plan = "/*+ Set(seq_page_cost 100.0) IndexOnlyScan( ht1 ) */";
   private static String PropertyDoesNotExistIndikator = "#zJfCzPCz#";
   private long limit;
@@ -62,10 +48,10 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
 
   private boolean isOrderByEvent;
 
-  private IterateFeaturesEvent tmpEvent; //TODO: Remove after refactoring
+  protected IterateFeaturesEvent tmpEvent; //TODO: Remove after refactoring
 
-  public IterateFeatures(IterateFeaturesEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public IterateFeatures(IterateFeaturesEvent event) throws SQLException, ErrorResponseException {
+    super(event);
     limit = event.getLimit();
     isOrderByEvent = PSQLXyzConnector.isOrderByEvent(event);
     tmpEvent = event;
@@ -190,14 +176,8 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     return fc;
   }
 
-  private SQLQuery buildQueryForOrderBy(IterateFeaturesEvent event) throws SQLException {
-    SQLQuery filterWhereClause = generateSearchQuery(event);
-    if (filterWhereClause == null)
-      filterWhereClause = new SQLQuery("TRUE");
-
-    //---------------------------------------------------------------------------------------------
-
-    SQLQuery partialQuery = buildPartialSortIterateQuery(event, filterWhereClause);
+  private SQLQuery buildQueryForOrderBy(IterateFeaturesEvent event) {
+    SQLQuery partialQuery = buildPartialSortIterateQuery(event);
 
     String nextHandleJson = buildNextHandleAttribute(event.getSort(), isPartOverI(event));
     SQLQuery innerQry = new SQLQuery("WITH dt AS ("
@@ -206,7 +186,9 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
         + ") "
         + "SELECT jsondata, geo, ${{nextHandleJson}} AS nxthandle "
         + "    FROM dt s JOIN ${schema}.${table} d ON ( s.i = d.i ) "
-        + "    ORDER BY s.ord1, s.ord2");
+        + "    ORDER BY s.ord1, s.ord2")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event));
 
     innerQry.setQueryFragment("partialQuery", partialQuery);
     innerQry.setQueryFragment("orderings", event.getHandle() == null ? "" : "ORDER BY ord1, ord2 limit #{limit}");
@@ -222,36 +204,45 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
         + "    ${{innerQuery}}"
         + ") o");
     query.setQueryFragment("pgHintPlan", pg_hint_plan);
-    query.setQueryFragment("selection", SQLQuery.selectJson(event));
+    query.setQueryFragment("selection", buildSelectionFragment(event));
     query.setQueryFragment("geo", buildGeoFragment(event));
     query.setQueryFragment("innerQuery", innerQry);
 
     return query;
   }
 
-  private SQLQuery buildPartialSortIterateQuery(IterateFeaturesEvent event, SQLQuery filterWhereClause) {
+  private SQLQuery buildPartialSortIterateQuery(IterateFeaturesEvent event) {
+    SQLQuery searchQuery = generateSearchQuery(event);
+    SQLQuery filterWhereClause = new SQLQuery("${{searchQuery}} ${{partialIterationModules}}");
+    if (searchQuery != null)
+      filterWhereClause.setQueryFragment("searchQuery", searchQuery);
+    else
+      filterWhereClause.setQueryFragment("searchQuery", "");
+
     //Extend the filterWhereClause by the necessary parts for partial iteration using modules
     Integer[] part = event.getPart();
     if (part != null && part.length == 2 && part[1] > 1) {
-      filterWhereClause.append(" AND (( i %% #{total} ) = #{partition})");
-      filterWhereClause.setNamedParameter("total", part[1]);
-      filterWhereClause.setNamedParameter("partition", part[0] - 1);
+      filterWhereClause.setQueryFragment("partialIterationModules",
+          new SQLQuery((searchQuery != null ? "AND " : "") + "(( i %% #{total} ) = #{partition})")
+              .withNamedParameter("total", part[1])
+              .withNamedParameter("partition", part[0] - 1));
     }
 
     String orderByClause = buildOrderByClause(event);
     List<String> continuationWhereClauses = event.getHandle() == null ? Collections.singletonList("")
         : buildContinuationConditions(event);
 
-    SQLQuery partialQuery = new SQLQuery("");
+    List<SQLQuery> unionQueries = new ArrayList<>();
+    for (int i = 0; i < continuationWhereClauses.size(); i++)
+      unionQueries.add(new SQLQuery(buildPartialSortIterateSQL(i))
+          .withQueryFragment("continuation", continuationWhereClauses.get(i)));
 
-    for (int i = 0; i < continuationWhereClauses.size(); i++) {
-      partialQuery.append((i > 0 ? " UNION ALL " : "") + buildPartialSortIterateSQL(i));
-      partialQuery.setQueryFragment("continuation", continuationWhereClauses.get(i));
-    }
-    partialQuery.setQueryFragment("orderBy", orderByClause);
-    partialQuery.setNamedParameter("limit", limit);
-
-    partialQuery.setQueryFragment("filterWhereClause", filterWhereClause);
+    SQLQuery partialQuery = SQLQuery.join(unionQueries, " UNION ALL ")
+        .withVariable(SCHEMA, getSchema())
+        .withVariable(TABLE, getDefaultTable(event))
+        .withQueryFragment("orderBy", orderByClause)
+        .withNamedParameter("limit", limit)
+        .withQueryFragment("filterWhereClause", filterWhereClause);
 
     return partialQuery;
   }
@@ -265,36 +256,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
         + ")";
   }
 
-  private static SQLQuery buildGetIterateHandlesQuery( int nrHandles )
-    { return getIterateHandles(nrHandles);  }
-
-  private static boolean canSortBy(String space, List<String> sort, DatabaseHandler dbHandler)
-  {
-    if (sort == null || sort.isEmpty() ) return true;
-
-    try
-    {
-     String normalizedSortProp = "o:" + IdxMaintenance.normalizedSortProperties(sort);
-
-     switch( normalizedSortProp.toLowerCase() ) { case "o:f.id" : case "o:f.createdat" : case "o:f.updatedat" : return true; }
-
-     List<String> indices = IndexList.getIndexList(space, dbHandler);
-
-     if (indices == null) return true; // The table is small and not indexed. It's not listed in the xyz_idxs_status table
-
-     for( String idx : indices )
-      if( idx.startsWith( normalizedSortProp) ) return true;
-
-     return false;
-    }
-    catch (Exception e)
-    { // In all cases, when something with the check went wrong, allow the sort
-    }
-
-    return true;
-  }
-
-  private static boolean isDescending(String sortproperty) { return sortproperty.toLowerCase().endsWith(":desc"); }
+  protected static boolean isDescending(String sortproperty) { return sortproperty.toLowerCase().endsWith(":desc"); }
 
   private static String jpathFromSortProperty(String sortproperty)
   { String jformat = "(%s->'%s')", jpth = "jsondata";
@@ -322,7 +284,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     return DhString.format("jsonb_set(%s,'{s}','[%s]')", nhandle, svalue);
   }
 
-  private  String buildOrderByClause(IterateFeaturesEvent event) {
+  private String buildOrderByClause(IterateFeaturesEvent event) {
     List<String> sortby = event.getHandle() != null ? convHandle2sortbyList(event.getHandle()) : event.getSort();
 
     if (sortby == null || sortby.size() == 0)
@@ -363,7 +325,7 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
   private static List<String> buildContinuationConditions(IterateFeaturesEvent event)
   {
     String handle = event.getHandle();
-   List<String> ret = new ArrayList<String>(),
+   List<String> ret = new ArrayList<>(),
                 sortby = convHandle2sortbyList( handle );
    JSONObject h = new JSONObject(handle);
    boolean descendingLast = false, sortbyIdUseCase = false;
@@ -445,40 +407,6 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
 
   }
 
-  private static String bucketOfIdsSql =
-      "with  "
-    + "idata as "
-    + "(  select min(id) as id from ${schema}.${table} "
-    + "  union  "
-    + "   select id from ${schema}.${table} "
-    + "    tablesample system( (select least((100000/greatest(reltuples,1)),100) from pg_catalog.pg_class where oid = format('%%s.%%s','${schema}', '${table}' )::regclass) ) " //-- repeatable ( 0.7 )
-    + "), "
-    + "iidata   as ( select id, ntile( %1$d ) over ( order by id ) as bucket from idata ), "
-    + "iiidata  as ( select min(id) as id, bucket from iidata group by bucket ), "
-    + "iiiidata as ( select bucket, id as i_from, lead( id, 1) over ( order by id ) as i_to from iiidata ) "
-    + "select  jsonb_set('{\"type\":\"Feature\",\"properties\":{}}','{properties,handles}', jsonb_agg(jsonb_build_array(bucket, i_from, i_to ))),'{\"type\":\"Point\",\"coordinates\":[]}', null from iiiidata ";
-
-
-  private static SQLQuery getIterateHandles(int nrHandles)
-  { return new SQLQuery(DhString.format(bucketOfIdsSql, nrHandles)); }
-
-  private static void setEventValuesFromHandle(IterateFeaturesEvent event, String handle) throws JsonProcessingException
-  {
-    ObjectMapper om = new ObjectMapper();
-    JsonNode jn = om.readTree(handle);
-    String ps = jn.get("p").toString();
-    String ts = jn.get("t").toString();
-    String ms = jn.get("m").toString();
-    PropertiesQuery pq = om.readValue( ps, PropertiesQuery.class );
-    TagsQuery tq = om.readValue( ts, TagsQuery.class );
-    Integer[] part = om.readValue(ms,Integer[].class);
-
-    event.setPart(part);
-    event.setPropertiesQuery(pq);
-    event.setTags(tq);
-    event.setHandle(handle);
-  }
-
   private static String addEventValuesToHandle(IterateFeaturesEvent event, String dbhandle)  throws JsonProcessingException
   {
    ObjectMapper om = new ObjectMapper();
@@ -489,119 +417,10 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
    return hndl;
   }
 
-  private static List<String> translateSortSysValues(List<String> sort)
-  { if( sort == null ) return null;
-    List<String> r = new ArrayList<String>();
-    for( String f : sort )      // f. sysval replacements - f.sysval:desc -> sysval:desc
-     if( f.toLowerCase().startsWith("f.createdat" ) || f.toLowerCase().startsWith("f.updatedat" ) )
-      r.add( f.replaceFirst("^f\\.", "properties.@ns:com:here:xyz.") );
-     else
-      r.add( f.replaceFirst("^f\\.", "") );
-
-    return r;
-  }
-
-  private static List<String> getSearchKeys(  PropertiesQuery p )
-  { return p.stream()
-             .flatMap(List::stream)
-             .filter(k -> k.getKey() != null && k.getKey().length() > 0)
-             .map(PropertyQuery::getKey)
-             .collect(Collectors.toList());
-  }
-
-  private static List<String> getSortFromSearchKeys( List<String> searchKeys, String space, DatabaseHandler dbHandler ) throws Exception
-  {
-   List<String> indices = Capabilities.IndexList.getIndexList(space, dbHandler);
-   if( indices == null ) return null;
-
-   indices.sort((s1, s2) -> s1.length() - s2.length());
-
-   for(String sk : searchKeys )
-    switch( sk )
-    { case "id" : return null; // none is always sorted by ID;
-      case "properties.@ns:com:here:xyz.createdAt" : return Arrays.asList("f.createdAt");
-      case "properties.@ns:com:here:xyz.updatedAt" : return Arrays.asList("f.updatedAt");
-      default:
-       if( !sk.startsWith("properties.") ) sk = "o:f." + sk;
-       else sk = sk.replaceFirst("^properties\\.","o:");
-
-       for(String idx : indices)
-        if( idx.startsWith(sk) )
-        { List<String> r = new ArrayList<String>();
-          String[] sortIdx = idx.replaceFirst("^o:","").split(",");
-          for( int i = 0; i < sortIdx.length; i++)
-           r.add( sortIdx[i].startsWith("f.") ? sortIdx[i] : "properties." + sortIdx[i] );
-          return r;
-        }
-      break;
-    }
-
-   return null;
-  }
-
   private static String chrE( String s ) { return s.replace('+','-').replace('/','_').replace('=','.'); }
 
-  private static String chrD( String s ) { return s.replace('-','+').replace('_','/').replace('.','='); }
-
-  private static String createHandle(IterateFeaturesEvent event, String jsonData ) throws Exception {
+  protected static String createHandle(IterateFeaturesEvent event, String jsonData ) throws Exception {
     return HPREFIX + chrE(encrypt(addEventValuesToHandle(event, jsonData), HANDLE_ENCRYPTION_PHRASE));
-  }
-
-  private static FeatureCollection requestIterationHandles(IterateFeaturesEvent event, int nrHandles, DatabaseHandler dbHandler) throws Exception
-  {
-    event.setPart(null);
-    event.setTags(null);
-
-    FeatureCollection cl = dbHandler.executeQueryWithRetry( buildGetIterateHandlesQuery(nrHandles));
-    List<List<Object>> hdata = cl.getFeatures().get(0).getProperties().get("handles");
-    for( List<Object> entry : hdata )
-    {
-      event.setPropertiesQuery(null);
-      if( entry.get(2) != null )
-      { PropertyQuery pqry = new PropertyQuery();
-        pqry.setKey("id");
-        pqry.setOperation(QueryOperation.LESS_THAN);
-        pqry.setValues(Arrays.asList( entry.get(2)) );
-        PropertiesQuery pqs = new PropertiesQuery();
-        PropertyQueryList pql = new PropertyQueryList();
-        pql.add( pqry );
-        pqs.add( pql );
-
-        event.setPropertiesQuery( pqs );
-      }
-      entry.set(0, createHandle(event,DhString.format("{\"h\":\"%s\",\"s\":[]}",entry.get(1).toString())));
-    }
-    return cl;
-  }
-
-  public static FeatureCollection findFeaturesSort(IterateFeaturesEvent event, DatabaseHandler dbHandler) throws Exception
-  {
-    boolean hasHandle = (event.getHandle() != null);
-    String space = dbHandler.getConfig().readTableFromEvent(event);
-
-    if( !hasHandle )  // decrypt handle and configure event
-    {
-      if( event.getPart() != null && event.getPart()[0] == -1 )
-       return requestIterationHandles(event, event.getPart()[1], dbHandler);
-
-      if (!canSortBy(space, event.getSort(), dbHandler)) {
-        throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT,
-            "Invalid request parameters. Sorting by for the provided properties is not supported for this space.");
-      }
-
-      event.setSort( translateSortSysValues( event.getSort() ));
-    }
-    else if( !event.getHandle().startsWith( HPREFIX ) )
-      throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Invalid request parameter. handle is corrupted");
-    else
-     try {
-       setEventValuesFromHandle(event, decrypt(chrD(event.getHandle().substring(HPREFIX.length())), HANDLE_ENCRYPTION_PHRASE));
-     }
-     catch (GeneralSecurityException | IllegalArgumentException e) {
-       throw new ErrorResponseException(XyzError.ILLEGAL_ARGUMENT, "Invalid request parameter. handle is corrupted");
-     }
-
-     return new IterateFeatures(event, dbHandler).run();
   }
 
   @SuppressWarnings("unused")
@@ -609,67 +428,4 @@ public class IterateFeatures extends SearchForFeatures<IterateFeaturesEvent, Fea
     return PSQLConfig.encryptECPS( plaintext, phrase );
   }
 
-  @SuppressWarnings("unused")
-  private static String decrypt(String encryptedtext, String phrase) throws Exception { return AESGCMHelper.getInstance(phrase).decrypt(encryptedtext); }
-
-  private static class IdxMaintenance // idx Maintenance
-  {
-  /*
-    private static String crtSortIdxSql = "create index \"%1$s\" on ${schema}.${table} using btree ( %2$s (jsondata->>'id') %3$s ) ",
-                          crtSortIdxCommentSql = "comment on index ${schema}.\"%1$s\" is '%2$s'";
-
-    // create index u. comment sql statments.
-    private static String[] buildCreateIndexSql(List<String> sortby,String spaceName)
-    { if (sortby == null || sortby.size() == 0) return null;
-
-      String btreeClause = "", idxComment = "", direction = "", idxPostFix = "";
-      boolean dFlip = false;
-
-      for( int i = 0; i < sortby.size(); i++ )
-      {
-       String s = sortby.get(i),
-              pname = s.replaceAll(":(?i)(asc|desc)$", "");
-
-       if( i == 0 && isDescending(s) ) dFlip = true;  //normalize idx, first is always ascending
-
-       if( isDescending(s) != dFlip )
-       { direction = "desc"; idxPostFix += "0"; }
-       else
-       { direction = ""; idxPostFix += "1"; }
-
-       btreeClause += DhString.format("%s %s,", jpathFromSortProperty(s), direction);
-       idxComment += DhString.format("%s%s%s%s", idxComment.length()> 0 ? ",":"", pname, direction.length()>0 ? ":" : "", direction);
-      }
-
-      String hash = DigestUtils.md5Hex(idxComment).substring(0, 7),
-             idxName = DhString.format("idx_%s_%s_o%s",spaceName,hash,idxPostFix);
-      return new String[] { DhString.format( crtSortIdxSql, idxName, btreeClause, direction ),
-                            DhString.format( crtSortIdxCommentSql, idxName, idxComment ) };
-     }
-  */
-
-     public static String normalizedSortProperties(List<String> sortby) // retuns feld1,feld2:ord2,feld3:ord3 where sortorder feld1 is always ":asc"
-     { if (sortby == null || sortby.size() == 0) return null;
-
-       String normalizedSortProp = "";
-       boolean dFlip = false;
-
-       for( int i = 0; i < sortby.size(); i++ )
-       {
-        String direction = "",
-               s = sortby.get(i),
-               pname = s.replaceAll(":(?i)(asc|desc)$", "").replaceAll("^properties\\.","");
-
-        if( i == 0 && isDescending(s) ) dFlip = true;  //normalize idx, first is always ascending
-
-        if( isDescending(s) != dFlip )
-         direction = "desc";
-
-         normalizedSortProp += DhString.format("%s%s%s%s", normalizedSortProp.length()> 0 ? ",":"", pname, direction.length() > 0 ? ":" : "", direction);
-       }
-
-       return normalizedSortProp;
-    }
-
-   }
 }

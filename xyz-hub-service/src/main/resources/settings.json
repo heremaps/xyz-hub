@@ -1,0 +1,8 @@
+[{
+  "id": "SpaceStorageMatchingMap",
+  "data": {
+    "^.*:test$": {
+      "local": "psql_db2_hashed"
+    }
+  }
+}]

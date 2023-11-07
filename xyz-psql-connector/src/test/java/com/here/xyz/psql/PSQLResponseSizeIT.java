@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.AbstractConnectorHandler;
 import com.here.xyz.events.IterateFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
-import com.here.xyz.psql.config.ConnectorParameters;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzError;
 import java.util.HashMap;
@@ -41,7 +40,7 @@ import org.junit.Test;
 public class PSQLResponseSizeIT extends PSQLAbstractIT {
 
   static Map<String, Object> connectorParams = new HashMap<String,Object>(){{
-    put(ConnectorParameters.CONNECTOR_ID, "test-connector");
+    put(PSQLAbstractIT.CONNECTOR_ID, "test-connector");
   }};
 
   @BeforeClass

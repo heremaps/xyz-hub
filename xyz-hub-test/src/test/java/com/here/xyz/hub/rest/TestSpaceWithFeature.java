@@ -21,9 +21,9 @@ package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.isIn;
@@ -36,12 +36,15 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
-import com.jayway.restassured.response.ValidatableResponse;
+import io.restassured.response.ValidatableResponse;
 import io.vertx.core.json.JsonObject;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -71,6 +74,11 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .statusCode(OK.code());
   }
 
+  /**
+   * @deprecated Please do not use this method anymore. Use {@link #createSpaceWithRandomId()} instead.
+   * This will allow running tests in parallel.
+   */
+  @Deprecated
   protected static void createSpace() {
     String path = "/xyz/hub/createSpace.json";
     String content = usedStorageId == embeddedStorageId ? content(path) : content(path, usedStorageId);
@@ -78,6 +86,29 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
             .body("id", equalTo(getSpaceId()))
             .body("title", equalTo("My Demo Space"))
             .body("storage.id", equalTo((usedStorageId)));
+  }
+
+  protected static void setReadOnly(String spaceId) {
+    patchSpace(spaceId, new JsonObject().put("readOnly", true));
+  }
+
+  protected static ValidatableResponse patchSpace(String spaceId, JsonObject spacePatch) {
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .contentType(APPLICATION_JSON)
+        .body(spacePatch.encode())
+        .when()
+        .patch(getCreateSpacePath(spaceId) + "/" + spaceId)
+        .then()
+        .statusCode(200);
+  }
+
+  /**
+   * Creates a space with a random ID.
+   * @return the random ID
+   */
+  protected static String createSpaceWithRandomId() {
+    return createSpaceWithId(UUID.randomUUID().toString());
   }
 
   protected static String createSpaceWithId(String spaceId) {
@@ -96,7 +127,8 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     return createSpaceWithCustomStorage(spaceId, storageId, storageParams, versionsToKeep, false);
   }
 
-  protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams, int versionsToKeep, boolean persistExport) {
+  protected static String createSpaceWithCustomStorage(String spaceId, String storageId, JsonObject storageParams, int versionsToKeep,
+      boolean persistExport) {
     JsonObject storage = new JsonObject()
         .put("id", storageId);
     if (storageParams != null)
@@ -116,7 +148,10 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .when()
         .post(getCreateSpacePath(spaceId))
         .then()
-        .statusCode(200).extract().body().path("id");
+        .statusCode(200)
+        .extract()
+        .body()
+        .path("id");
   }
 
   protected static String createSpace(final AuthProfile authProfile, final String title, final boolean shared) {
@@ -134,15 +169,28 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .path("id");
   }
 
-  public void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep, boolean enableUUID) {
+  public void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep) {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":"+enableUUID+"}")
+        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+"}")
         .when()
         .post(getCreateSpacePath())
         .then()
         .statusCode(OK.code());
+  }
+
+  protected static void addFeature(String spaceId, Feature f) {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
+        .body(wrapFeature(f).serialize())
+        .when()
+        .post(getSpacesPath() + "/" + spaceId + "/features");
+  }
+
+  protected static FeatureCollection wrapFeature(Feature f) {
+    return new FeatureCollection().withFeatures(Collections.singletonList(f));
   }
 
   protected static void addFeatures() {
@@ -279,25 +327,6 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     return collection;
   }
 
-  static FeatureCollection generateEVFeatures(int startId, int chunksize, Boolean isFree) {
-    FeatureCollection collection = new FeatureCollection();
-    Random random = new Random();
-
-    List<Feature> fList = new ArrayList<>();
-
-    for(int i=startId; i < startId+chunksize ; i++){
-      Feature f = new Feature()
-              .withId(""+i)
-              .withGeometry(
-                      new Point().withCoordinates(new PointCoordinates(360d * random.nextDouble() - 180d, 180d * random.nextDouble() - 90d)))
-              .withProperties(new Properties().with("free" , isFree == null ? random.nextBoolean() : isFree));
-      fList.add(f);
-    }
-
-    collection.setFeatures(fList);
-    return collection;
-  }
-
   protected void validateFeatureProperties(ValidatableResponse resp, String featureId) {
     JsonObject body = new JsonObject(resp
         .extract()
@@ -319,21 +348,27 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
     String[] allowedFieldNames = {"space", "createdAt", "updatedAt", "tags", "author", "version"};
     assertThat(xyzNs.fieldNames(), everyItem(isIn(allowedFieldNames)));
   }
-
-  protected void getFeature(String spaceId, String featureId) {
-    getFeature(spaceId, featureId, null);
-  }
   protected void getFeature(String spaceId, String featureId, Integer statusCode) {
     getFeature(spaceId, featureId, statusCode, null, null);
   }
 
   protected void getFeature(String spaceId, String featureId, Integer statusCode, String path, String value) {
-    ValidatableResponse response = given()
-        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
-        .when()
-        .get("/spaces/" + spaceId + "/features/" + featureId)
-        .then();
+    validateGetFeatureResponse(statusCode, path, value, getFeature(spaceId, featureId));
+  }
 
+  protected void getFeature(String spaceId, String featureId, long version, int statusCode) {
+    getFeature(spaceId, featureId, version, null, statusCode);
+  }
+
+  protected void getFeature(String spaceId, String featureId, String context, int statusCode) {
+    getFeature(spaceId, featureId, -1, context, statusCode);
+  }
+
+  protected void getFeature(String spaceId, String featureId, long version, String context, int statusCode) {
+    validateGetFeatureResponse(statusCode, null, null, getFeature(spaceId, featureId, version, context));
+  }
+
+  private static void validateGetFeatureResponse(Integer statusCode, String path, String value, ValidatableResponse response) {
     if (statusCode != null)
       response.statusCode(statusCode);
 
@@ -341,36 +376,68 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
       response.body(path, equalTo(value));
   }
 
-  protected void deleteFeature(String spaceId, String featureId) {
+  protected ValidatableResponse getFeature(String spaceId, String featureId) {
+    return getFeature(spaceId, featureId, -1);
+  }
+
+  private String queryStringFromMap(Map<String, Object> queryParams) {
+    List<String> queryStringParts = queryParams.entrySet()
+        .stream()
+        .filter(entry -> entry.getValue() != null)
+        .map(entry -> entry.getKey() + "=" + entry.getValue())
+        .collect(Collectors.toList());
+    if (queryStringParts.isEmpty())
+      return "";
+    return "?" + String.join("&", queryStringParts);
+  }
+
+  protected ValidatableResponse getFeature(String spaceId, String featureId, long version) {
+    return getFeature(spaceId, featureId, version, null);
+  }
+
+  protected ValidatableResponse getFeature(String spaceId, String featureId, String context) {
+    return getFeature(spaceId, featureId, -1, context);
+  }
+
+  protected ValidatableResponse getFeature(String spaceId, String featureId, long version, String context) {
+    Map<String, Object> queryParams = new HashMap<>() {{
+      put("version", version != -1 ? version : null);
+      put("context", context);
+    }};
+    return given()
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .when()
+        .get("/spaces/" + spaceId + "/features/" + featureId + queryStringFromMap(queryParams))
+        .then();
+  }
+
+  protected static void deleteFeature(String spaceId, String featureId) {
+    deleteFeature(spaceId, featureId, null);
+  }
+
+  protected static void deleteFeature(String spaceId, String featureId, String context) {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
         .when()
-        .delete("/spaces/" + spaceId + "/features/" + featureId)
+        .delete("/spaces/" + spaceId + "/features/" + featureId + (context != null ? "?context=" + context : ""))
         .then()
         .statusCode(NO_CONTENT.code());
   }
 
   public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile) {
+    postFeature(spaceId, feature, authProfile, false);
+  }
+
+  public static void postFeature(String spaceId, Feature feature, AuthProfile authProfile, boolean withConflictDetection) {
     given()
         .contentType(APPLICATION_GEO_JSON)
         .headers(getAuthHeaders(authProfile))
         .body(feature.serialize())
         .when()
-        .post("/spaces/" + spaceId + "/features")
+        .post("/spaces/" + spaceId + "/features?conflictDetection=" + withConflictDetection)
         .then()
         .statusCode(OK.code())
         .body("features[0].id", equalTo(feature.getId()));
-  }
-
-  public static void createSpaceWithVersionsToKeep(String spaceId, int versionsToKeep) {
-    given()
-        .contentType(APPLICATION_JSON)
-        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
-        .body("{\"id\":\""+spaceId+"\",\"title\":\"" + spaceId + "\",\"versionsToKeep\":"+versionsToKeep+",\"enableUUID\":\"true\"}")
-        .when()
-        .post(getCreateSpacePath())
-        .then()
-        .statusCode(OK.code());
   }
 
   public static Feature newFeature() {
@@ -388,7 +455,7 @@ public class TestSpaceWithFeature extends TestWithSpaceCleanup {
         .post(getSpacesPath() + "/"+ spaceId +"/features");
   }
 
-  protected static void modifyComposite(String spaceId, String newExtendingId) {
+  protected static void makeComposite(String spaceId, String newExtendingId) {
     given()
         .contentType(APPLICATION_JSON)
         .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))

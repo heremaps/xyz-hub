@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,17 +21,16 @@ package com.here.xyz.psql;
 
 import static org.junit.Assert.assertEquals;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.psql.config.DatabaseSettings;
 import com.here.xyz.psql.config.PSQLConfig;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 @SuppressWarnings("unused")
 public class PSQLXyzConnectorIT extends PSQLAbstractIT {
-
   @Test
   public void testPSQLConfig() throws Exception {
     Map<String, Object> connectorParams = new HashMap<>();
@@ -44,7 +43,7 @@ public class PSQLXyzConnectorIT extends PSQLAbstractIT {
     HealthCheckEvent event = new HealthCheckEvent()
         .withConnectorParams(connectorParams);
 
-    PSQLConfig config = new PSQLConfig(event, GS_CONTEXT, new TraceItem("test-stream-id","testing"));
+    PSQLConfig config = new PSQLConfig(event, GS_CONTEXT);
     assertEquals(config.getDatabaseSettings().getHost(), "example.com");
     assertEquals(config.getDatabaseSettings().getPort(), 1234);
     assertEquals(config.getDatabaseSettings().getPassword(), "1234password");

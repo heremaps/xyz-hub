@@ -23,11 +23,15 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.here.xyz.httpconnector.config.JobS3Client;
+
 import java.net.URL;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 public class ImportObject {
+    public static int MAX_RETRIES = 2;
+
     @JsonIgnore
     private String s3Key;
     private URL uploadUrl;
@@ -35,11 +39,12 @@ public class ImportObject {
     private Boolean valid;
     private Status status;
     private String details;
+    private int retryCount;
 
     private long filesize;
 
     public enum Status {
-        waiting, processing, imported, failed;
+        waiting, imported, failed;
         public static Status of(String value) {
             if (value == null) {
                 return null;
@@ -102,6 +107,10 @@ public class ImportObject {
 
     public String getS3Key() { return s3Key;}
 
+    public String getS3Key(String jobId, String part){
+        return JobS3Client.getImportPath(jobId, part);
+    }
+
     public URL getUploadUrl(){ return uploadUrl;}
 
     public boolean isCompressed() {
@@ -124,22 +133,31 @@ public class ImportObject {
         this.status = status;
     }
 
-    public String getDetails() {
-        return details;
-    }
+    public String getDetails() { return details; }
 
     public void setDetails(String details) {
         this.details = details;
     }
 
+    public int getRetryCount() { return retryCount; }
+
+    public void setRetryCount(int retryCount) { this.retryCount = retryCount; }
+
+    public void increaseRetryCount() { this.retryCount++;}
+
+    @JsonIgnore
+    public boolean isRetryPossible() { return this.retryCount < MAX_RETRIES ; }
+
     @Override
     public String toString() {
         return "ImportObject{" +
-                "s3key='" + s3Key + '\'' +
-                ", filename='" + getFilename() + '\'' +
+                "s3Key='" + s3Key + '\'' +
                 ", uploadUrl=" + uploadUrl +
                 ", compressed=" + compressed +
                 ", valid=" + valid +
+                ", status=" + status +
+                ", details='" + details + '\'' +
+                ", retryCount=" + retryCount +
                 ", filesize=" + filesize +
                 '}';
     }

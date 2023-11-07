@@ -6,6 +6,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.hub.rest.ApiParam.Query;
 import com.here.xyz.hub.task.FeatureTaskHandler.InvalidStorageException;
+import com.here.xyz.hub.connectors.models.Space.InvalidExtensionException;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.responses.ErrorResponse;
 import io.vertx.ext.web.RoutingContext;
@@ -32,6 +33,9 @@ public abstract class SpaceBasedApi extends Api {
   public void sendErrorResponse(final Task task, final Throwable e) {
     if (e instanceof InvalidStorageException) {
       super.sendErrorResponse(task.context, new HttpException(NOT_FOUND, "The resource definition contains an invalid storage ID."));
+    }
+    else if (e instanceof InvalidExtensionException) {
+      super.sendErrorResponse(task.context, new HttpException(NOT_FOUND, e.getMessage()));
     }
     else {
       super.sendErrorResponse(task.context, e);

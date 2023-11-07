@@ -41,7 +41,7 @@
 
   <groupId>com.here.xyz</groupId>
   <artifactId>xyz-hub</artifactId>
-  <version>2.2.31-SNAPSHOT</version>
+  <version>3.6.14-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -62,10 +62,12 @@
   <distributionManagement>
     <snapshotRepository>
       <id>snapshot</id>
+      <!--suppress MavenModelInspection -->
       <url>${distributionManagemment.snapshotRepository.url}</url>
     </snapshotRepository>
     <repository>
       <id>release</id>
+      <!--suppress MavenModelInspection -->
       <url>${distributionManagemment.repository.url}</url>
     </repository>
   </distributionManagement>
@@ -83,12 +85,12 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
     <!-- Java version -->
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
 
     <!-- Dependencies versions -->
     <aws-sdk-version>1.12.128</aws-sdk-version>
-    <vertx-version>4.1.7</vertx-version>
+    <vertx-version>4.4.4</vertx-version>
     <geo-tools-version>19.1</geo-tools-version>
     <jts-version>1.14.0</jts-version>
     <jackson-version>2.15.2</jackson-version>
@@ -141,31 +143,36 @@
         <!-- Plugin versions -->
         <plugin>
           <artifactId>maven-failsafe-plugin</artifactId>
-          <version>2.15</version>
+          <version>3.1.2</version>
         </plugin>
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>2.22.1</version>
+          <version>3.1.2</version>
         </plugin>
         <plugin>
           <artifactId>maven-source-plugin</artifactId>
-          <version>3.2.0</version>
+          <version>3.3.0</version>
         </plugin>
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.8.1</version>
+          <version>3.11.0</version>
         </plugin>
         <plugin>
           <artifactId>maven-javadoc-plugin</artifactId>
-          <version>3.1.1</version>
+          <version>3.5.0</version>
         </plugin>
         <plugin>
           <artifactId>maven-shade-plugin</artifactId>
-          <version>3.1.0</version>
+          <version>3.5.0</version>
         </plugin>
         <plugin>
+          <artifactId>maven-resources-plugin</artifactId>
+          <version>3.3.1</version>
+        </plugin>
+
+        <plugin>
           <artifactId>maven-release-plugin</artifactId>
-          <version>2.5.3</version>
+          <version>3.0.1</version>
         </plugin>
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
@@ -229,7 +236,17 @@
         <version>${vertx-version}</version>
       </dependency>
       <dependency>
+        <artifactId>vertx-openapi</artifactId>
+        <groupId>io.vertx</groupId>
+        <version>${vertx-version}</version>
+      </dependency>
+      <dependency>
         <artifactId>vertx-web-openapi</artifactId>
+        <groupId>io.vertx</groupId>
+        <version>${vertx-version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>vertx-web-openapi-router</artifactId>
         <groupId>io.vertx</groupId>
         <version>${vertx-version}</version>
       </dependency>
@@ -384,6 +401,13 @@
         <version>${aws-sdk-version}</version>
       </dependency>
 
+      <!-- For Job API only -->
+      <dependency>
+        <artifactId>aws-java-sdk-emrserverless</artifactId>
+        <groupId>com.amazonaws</groupId>
+        <version>1.12.230</version>
+      </dependency>
+
       <!-- AWS Lambda Core -->
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -400,7 +424,7 @@
       <dependency>
         <artifactId>guava</artifactId>
         <groupId>com.google.guava</groupId>
-        <version>31.0.1-jre</version>
+        <version>32.0.0-jre</version>
       </dependency>
       <dependency>
         <groupId>org.apache.commons</groupId>
@@ -482,16 +506,16 @@
         <version>4.13.2</version>
       </dependency>
       <dependency>
-        <groupId>com.jayway.jsonpath</groupId>
+        <groupId>io.rest-assured</groupId>
         <artifactId>json-path</artifactId>
-        <version>2.8.0</version>
+        <version>5.3.1</version>
         <scope>test</scope>
       </dependency>
       <dependency>
+        <groupId>io.rest-assured</groupId>
         <artifactId>rest-assured</artifactId>
-        <groupId>com.jayway.restassured</groupId>
         <scope>test</scope>
-        <version>2.9.0</version>
+        <version>5.3.1</version>
         <exclusions>
           <exclusion>
             <groupId>org.apache.httpcomponents</groupId>

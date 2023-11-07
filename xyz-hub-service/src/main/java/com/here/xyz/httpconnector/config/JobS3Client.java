@@ -19,51 +19,48 @@
 package com.here.xyz.httpconnector.config;
 
 import com.amazonaws.AmazonServiceException;
-
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.here.xyz.httpconnector.CService;
-import com.here.xyz.httpconnector.util.jobs.Import;
-import com.here.xyz.httpconnector.util.jobs.ImportObject;
-import com.here.xyz.httpconnector.util.jobs.validate.ImportValidator;
-import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.ExportObject;
-import com.here.xyz.util.Hasher;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.here.xyz.httpconnector.util.jobs.Import;
+import com.here.xyz.httpconnector.util.jobs.ImportObject;
+import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.validate.Validator;
+import io.vertx.core.Future;
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.EOFException;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
-import java.io.ByteArrayInputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class JobS3Client extends AwsS3Client{
     private static final Logger logger = LogManager.getLogger();
 
-    private static final int VALIDATE_LINE_KB_STEPS = 100 * 1024;
-    private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES = 10 * 1024 * 1024;
+    private static final int VALIDATE_LINE_KB_STEPS = 512 * 1024;
+    private static final int VALIDATE_LINE_MAX_LINE_SIZE_BYTES =  4 * 1024 * 1024;
 
     protected static final String IMPORT_MANUAL_UPLOAD_FOLDER = "manual";
     protected static final String IMPORT_UPLOAD_FOLDER = "imports";
     public static final String EXPORT_DOWNLOAD_FOLDER = "exports";
     public static final String EXPORT_PERSIST_FOLDER = "persistent";
 
-    public URL generateUploadURL(String key) throws IOException {
-        return generateUploadURL(CService.configuration.JOBS_S3_BUCKET, key);
+    public static String getImportPath(String jobId, String part){
+        return IMPORT_UPLOAD_FOLDER +"/"+ jobId+"/"+part;
     }
 
     public ImportObject generateUploadURL(Import job) throws IOException {
@@ -116,6 +113,14 @@ public class JobS3Client extends AwsS3Client{
     }
 
     private ImportObject checkFile(S3ObjectSummary s3ObjectSummary, ObjectMetadata objectMetadata, Job.CSVFormat csvFormat){
+        //skip validation till refactoring is done.
+        ImportObject io = new ImportObject(s3ObjectSummary, objectMetadata);
+        io.setStatus(ImportObject.Status.waiting);
+        io.setValid(true);
+        return io;
+    }
+
+    private ImportObject checkFileBak(S3ObjectSummary s3ObjectSummary, ObjectMetadata objectMetadata, Job.CSVFormat csvFormat){
         ImportObject io = new ImportObject(s3ObjectSummary, objectMetadata);
 
         try {
@@ -129,11 +134,11 @@ public class JobS3Client extends AwsS3Client{
             io.setValid(true);
         } catch (Exception e) {
             if(e instanceof UnsupportedEncodingException){
-                logger.info("CSV Format is not valid: {}",io.getS3Key());
+                logger.info("CSV Format is not valid: {}", io.getS3Key());
             }else if(e instanceof ZipException){
                 logger.info("Wrong content-encoding: [}", io.getS3Key());
             }else
-                logger.warn("checkFile error {} {}",io.getS3Key(), e);
+                logger.warn("checkFile error {} {}", io.getS3Key(), e);
             io.setValid(false);
         }
 
@@ -161,7 +166,7 @@ public class JobS3Client extends AwsS3Client{
                 line += c;
 
                 if(c == '\n' || c == '\r'){
-                    ImportValidator.validateCSVLine(line, csvFormat);
+                    Validator.validateCSVLine(line, csvFormat);
                     return;
                 }
             }
@@ -169,8 +174,8 @@ public class JobS3Client extends AwsS3Client{
         }catch (AmazonServiceException e){
             /** Did not find a lineBreak - maybe CSV with 1LOC */
             if(e.getErrorCode().equalsIgnoreCase("InvalidRange")){
-                logger.info("Invalid Range found for s3Key {}",key_name);
-                ImportValidator.validateCSVLine(line, csvFormat);
+                logger.info("Invalid Range found for s3Key {}", key_name);
+                Validator.validateCSVLine(line, csvFormat);
                 return;
             }
             throw e;
@@ -221,7 +226,7 @@ public class JobS3Client extends AwsS3Client{
                 line += c;
                 if (c == '\n' || c == '\r') {
                     /** Found complete line */
-                    ImportValidator.validateCSVLine(line, csvFormat);
+                    Validator.validateCSVLine(line, csvFormat);
                     return;
                 }
             }
@@ -247,14 +252,8 @@ public class JobS3Client extends AwsS3Client{
             throw new UnsupportedEncodingException("Not able to find EOL!");
     }
 
-    public Map<String, ExportObject> scanExportPath(Export job, boolean isSuperPath, boolean createDownloadUrl){
-        Map<String, ExportObject> exportObjectMap = new HashMap<>();
-        String path = isSuperPath ? job.readParamSuperExportPath() : getS3Path(job);
-        exportObjectMap.putAll(scanExportPath(path, CService.configuration.JOBS_S3_BUCKET, createDownloadUrl));
-        return exportObjectMap;
-    }
-
-    public Map<String,ExportObject> scanExportPath(String prefix, String bucketName, boolean createDownloadUrl){
+    public Map<String,ExportObject> scanExportPath(String prefix) {
+        String bucketName = CService.configuration.JOBS_S3_BUCKET;
         Map<String, ExportObject> exportObjectList = new HashMap<>();
         ListObjectsRequest listObjects = new ListObjectsRequest()
                 .withPrefix(prefix)
@@ -268,100 +267,48 @@ public class JobS3Client extends AwsS3Client{
                 continue;
 
             ExportObject eo = new ExportObject(objectSummary.getKey(), objectSummary.getSize());
-            if(eo.getFilename().equalsIgnoreCase("manifest.json"))
+            if (eo.getFilename().equalsIgnoreCase("manifest.json"))
                 continue;;
 
             exportObjectList.put(eo.getFilename(prefix), eo);
-            if(createDownloadUrl){
-                try {
-                    eo.setDownloadUrl(generateDownloadURL(bucketName, eo.getS3Key()));
-                }catch (IOException e){
-                    logger.error("[{}] Cant create download-url.{}", prefix, e);
-                }
-            }
         }
 
         return exportObjectList;
     }
 
-    public void writeMetaFile(Export job){
-        writeMetaFile(job, CService.configuration.JOBS_S3_BUCKET);
-    }
-
-    public void writeMetaFile(Export job, String bucketName){
-        try {
-
-            String path = getS3Path(job) + "/manifest.json";
-
-            byte[] meta = new ObjectMapper().writeValueAsBytes(job);
-
-            ObjectMetadata omd = new ObjectMetadata();
-            omd.setContentLength(meta.length);
-            omd.setContentType("application/json");
-            client.putObject(bucketName, path, new ByteArrayInputStream(meta), omd);
-
-        } catch (AmazonServiceException | IOException e) {
-            logger.error("[{}] Cant write Metafile {}", job.getId(), e);
-        }
-    }
-
-    public String checkPersistentS3ExportOfSuperLayer(String superLayer, Export sourceJob) {
-        String path = getS3Path(superLayer, sourceJob.getTargetLevel());
-        Export superExport = readMetaFileFromPath(path);
-        if(superExport == null)
-            return null;
-        return path;
-    }
-
-    public Export readMetaFileFromJob(Export job) {
-        return readMetaFileFromPath(getS3Path(job));
-    }
-
-    public Export readMetaFileFromPath(String path) {
-        try {
-            path += "/manifest.json";
-            S3Object s3Object = client.getObject(CService.configuration.JOBS_S3_BUCKET, path);
-            if(s3Object != null)
-                return new ObjectMapper().readValue(s3Object.getObjectContent(), Export.class);
-        } catch (Exception e) {
-            logger.error("[{}] Cant read Metafile {}", e);
-        }
-        return null;
+    public String getPersistentS3ExportOfSuperLayer(String superLayer, Export sourceJob) {
+        return getS3Path(sourceJob, true);
     }
 
     public String getS3Path(Job job) {
-        if(job instanceof Import){
-            return IMPORT_UPLOAD_FOLDER +"/"+ job.getId();
-        }
-
-        String s3Path = CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER + "/" + job.getId();
-
-        if(job instanceof Export && ((Export) job).readParamPersistExport()) {
-            Export exportJob = (Export) job;
-            if(exportJob.getExportTarget().getType() == Export.ExportTarget.Type.VML && exportJob.getFilters() == null) {
-                String hashedSpaceId = Hasher.getHash(job.getTargetSpaceId());
-                s3Path = CService.jobS3Client.EXPORT_PERSIST_FOLDER + "/" + hashedSpaceId + "/" + exportJob.getTargetLevel();
-            }
-        }
-        return s3Path;
+        return getS3Path(job, false);
     }
 
-    public String getS3Path(String targetSpaceId, int targetLevel) {
-        String hashedSpaceId = Hasher.getHash(targetSpaceId);
-        return CService.jobS3Client.EXPORT_PERSIST_FOLDER + "/" + hashedSpaceId + "/" + targetLevel;
+    public String getS3Path(Job job, boolean readSuper) {
+        if (job instanceof Import)
+            return IMPORT_UPLOAD_FOLDER + "/" + job.getId();
+
+        //Decide if persistent or not.
+        String subFolder = job instanceof Export export && export.readPersistExport() || readSuper
+            ? CService.jobS3Client.EXPORT_PERSIST_FOLDER
+            : CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER;
+
+        String jobId = readSuper ? ((Export)job).getSuperId() : job.getId();
+
+        return String.join("/", new String[]{
+                subFolder,
+                jobId,
+                ((Export) job).getHashForPersistentStorage()
+         });
     }
 
-    public void cleanJobData(Job job, boolean force){
+    public Future<Job> cleanJobData(Job job){
         String path = getS3Path(job);
 
-        if(job instanceof Export && ((Export) job).readParamPersistExport() && !force){
-            //force is required!
-            return;
-        }else if(job instanceof Import && !force){
-            //force is required!
-            return;
-        }
+        if (job instanceof Export export && export.getSuperId() != null)
+            logger.info("job[{}] data are got produced from {}! Data still present! ", job.getId(), export.getSuperId());
 
         this.deleteS3Folder(CService.configuration.JOBS_S3_BUCKET, path + "/");
+        return Future.succeededFuture(job);
     }
 }

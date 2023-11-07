@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,11 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
@@ -32,7 +32,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-import com.jayway.restassured.response.ValidatableResponse;
+import com.here.xyz.hub.connectors.models.Space;
+import io.restassured.response.ValidatableResponse;
 import org.junit.After;
 import org.junit.Test;
 
@@ -425,5 +426,33 @@ public class CreateSpaceApiIT extends TestSpaceWithFeature {
     cleanUpId = response.extract().path("id");
 
     response.statusCode(OK.code());
+  }
+
+  @Test
+  public void createSpaceUsingExistingConnectorMapping() {
+    cleanUpId = "abc:test";
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body(new Space().withRegion("local").withTitle("test").withId(cleanUpId))
+        .when()
+        .post("/spaces?connectorMapping=spacestoragematchingmap")
+        .then()
+        .statusCode(OK.code())
+        .body("storage.id", equalTo("psql_db2_hashed"));
+  }
+
+  @Test
+  public void createSpaceUsingAnyConnectorMapping() {
+    cleanUpId = "abc:test";
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body(new Space().withRegion("local").withTitle("test").withId(cleanUpId))
+        .when()
+        .post("/spaces?connectorMapping=any")
+        .then()
+        .statusCode(OK.code())
+        .body("storage.id", equalTo("psql"));
   }
 }

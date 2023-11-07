@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+
 import com.amazonaws.util.StringUtils;
 import com.here.xyz.events.ContextAwareEvent;
 import com.here.xyz.events.PropertiesQuery;
@@ -127,6 +129,7 @@ public class ApiParam {
     static final String IF_EXISTS = "e";
     static final String IF_NOT_EXISTS = "ne";
     static final String TRANSACTIONAL = "transactional";
+    static final String CONFLICT_DETECTION = "conflictDetection";
     static final String CONFLICT_RESOLUTION = "cr";
     static final String PREFIX_ID = "prefixId";
     static final String CLIP = "clip";
@@ -183,6 +186,8 @@ public class ApiParam {
     static final String F_PREFIX = "f.";
 
     static final String REGION = "region";
+
+    static final String CONNECTOR_MAPPING = "connectorMapping";
 
     private static Map<String, QueryOperation> operators = new HashMap<String, QueryOperation>() {{
       put("!=", QueryOperation.NOT_EQUALS);
@@ -305,9 +310,9 @@ public class ApiParam {
 
       List<String> input = Query.queryParam(Query.SELECTION, context);
 
-      if(input.size() == 1 && "*".equals( input.get(0).toLowerCase() )) return input;
+      if (input.size() == 1 && "*".equalsIgnoreCase(input.get(0))) return new ArrayList<>(input);
 
-      HashSet<String> selection = new HashSet<String>(Arrays.asList("id","type"));
+      HashSet<String> selection = new HashSet<String>(Arrays.asList("id", "type"));
 
       for (String s : input)
        switch( s )
@@ -648,22 +653,7 @@ public class ApiParam {
     }
 
     public static ContextAwareEvent.SpaceContext getContext(RoutingContext context){
-      return ContextAwareEvent.SpaceContext.of(Query.getString(context, CONTEXT, ContextAwareEvent.SpaceContext.DEFAULT.toString()).toUpperCase());
-    }
-
-    public enum Incremental {
-      DEACTIVATED, FULL, CHANGES;
-
-      public static Incremental of(String value) {
-        if (value == null) {
-          return null;
-        }
-        try {
-          return valueOf(value);
-        } catch (IllegalArgumentException e) {
-          return null;
-        }
-      }
+      return ContextAwareEvent.SpaceContext.of(Query.getString(context, CONTEXT, DEFAULT.toString()).toUpperCase());
     }
 
     public static Integer getRadius(RoutingContext context) {

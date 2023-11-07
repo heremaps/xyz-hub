@@ -19,30 +19,28 @@
 
 package com.here.xyz.psql.query;
 
-import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE;
+import static com.here.xyz.psql.query.ModifySpace.SPACE_META_TABLE_FQN;
 import static com.here.xyz.responses.XyzError.ILLEGAL_ARGUMENT;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.DeleteChangesetsEvent;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.versioning.GetHeadVersion;
 import com.here.xyz.responses.SuccessResponse;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
 public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, SuccessResponse> {
   private DeleteChangesetsEvent event;
 
-  public DeleteChangesets(DeleteChangesetsEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public DeleteChangesets(DeleteChangesetsEvent event) throws SQLException, ErrorResponseException {
+    super(event);
     this.event = event;
   }
 
   @Override
   public int write() throws SQLException, ErrorResponseException {
-    long headVersion = new GetHeadVersion<>(event, dbHandler).run();
+    long headVersion = new GetHeadVersion<>(event).run();
     if(event.getMinTagVersion() != null && event.getMinTagVersion() < event.getRequestedMinVersion())
       throw new ErrorResponseException(ILLEGAL_ARGUMENT, "Tag for version " + event.getMinTagVersion() +" exists!");
     if (event.getRequestedMinVersion() > headVersion)
@@ -56,7 +54,7 @@ public class DeleteChangesets extends XyzQueryRunner<DeleteChangesetsEvent, Succ
   @Override
   protected SQLQuery buildQuery(DeleteChangesetsEvent event) throws SQLException, ErrorResponseException {
     /** Update "userMinVersion" which flags the minimum Version the user wants to have. The deletion will happen asynchronously. */
-    return new SQLQuery("UPDATE "+SPACE_META_TABLE+" " +
+    return new SQLQuery("UPDATE "+ SPACE_META_TABLE_FQN +" " +
             "SET meta = meta || #{userMinVersionJson}::jsonb " +
             "WHERE id=#{spaceId} " +
             " AND (meta->'userMinVersion' < #{userMinVersion}::text::jsonb OR meta->'userMinVersion' IS NULL) " +

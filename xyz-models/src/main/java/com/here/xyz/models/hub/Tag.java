@@ -32,8 +32,12 @@ public class Tag {
 
   /**
    * The version pointer.
+   * Versions below -2 are invalid versions.
+   * The version -2 is the default version, when version is not provided for example.
+   * The version -1 points to the initial version of a space without data.
+   * The version 0 points to the initial version of a space with data.
    */
-  private long version;
+  private long version = -2;
 
   public String getId() {
     return id;

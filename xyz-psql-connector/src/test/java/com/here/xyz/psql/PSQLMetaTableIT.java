@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
  */
 package com.here.xyz.psql;
 
-import com.here.xyz.psql.config.ConnectorParameters;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,13 +32,15 @@ import static org.junit.Assert.*;
 
 public class PSQLMetaTableIT extends PSQLAbstractIT {
     protected static Map<String, Object> connectorParams = new HashMap<String,Object>(){
-        {   put(ConnectorParameters.CONNECTOR_ID, "test-connector");
-            put(ConnectorParameters.ENABLE_HASHED_SPACEID, true);
+        {   put(PSQLAbstractIT.CONNECTOR_ID, "test-connector");
+            put(PSQLAbstractIT.ENABLE_HASHED_SPACEID, true);
         }
     };
 
     @BeforeClass
-    public static void init() throws Exception { initEnv(connectorParams); }
+    public static void init() throws Exception {
+        initEnv(connectorParams);
+    }
 
     @After
     public void shutdown() throws Exception { invokeDeleteTestSpace(connectorParams); }

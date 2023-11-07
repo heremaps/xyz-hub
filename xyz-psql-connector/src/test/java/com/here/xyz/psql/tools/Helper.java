@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 
 package com.here.xyz.psql.tools;
 
+import static io.restassured.path.json.JsonPath.with;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -30,32 +31,26 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifyFeaturesEvent;
 import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.XyzResponse;
-import com.jayway.jsonpath.Configuration;
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
-import com.jayway.jsonpath.Option;
-import java.io.InputStream;
 import java.util.List;
-import java.util.UUID;
 
-public class Helper{
-    protected final Configuration jsonPathConf = Configuration.defaultConfiguration().addOptions(Option.SUPPRESS_EXCEPTIONS);
+public class Helper {
 
-    protected void setPUUID(FeatureCollection featureCollection) throws JsonProcessingException {
-        for (Feature feature : featureCollection.getFeatures()){
-            feature.getProperties().getXyzNamespace().setPuuid(feature.getProperties().getXyzNamespace().getUuid());
-            feature.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
-        }
+    protected static <T extends XyzResponse> T deserializeResponse(String jsonResponse) throws JsonProcessingException, ErrorResponseException {
+      XyzResponse response = XyzSerializable.deserialize(jsonResponse);
+      if (response instanceof ErrorResponse)
+        throw new ErrorResponseException(((ErrorResponse) response).getError(), ((ErrorResponse) response).getErrorMessage());
+      return (T) response;
     }
 
     protected void assertNoErrorInResponse(String response) {
-        assertEquals(null, JsonPath.compile("$.errorMessage").read(response, jsonPathConf));
-        assertEquals(null, JsonPath.compile("$.error").read(response, jsonPathConf));
+        assertNull(with(response).get("$.errorMessage"));
+        assertNull(with(response).get("$.error"));
     }
 
     protected void assertNoErrorInResponse(XyzResponse response) {
@@ -66,24 +61,14 @@ public class Helper{
         }
     }
 
-    protected void assertRead(String insertRequest, String response, boolean checkGuid) throws Exception {
-        final FeatureCollection responseCollection = XyzSerializable.deserialize(response);
-        final List<Feature> responseFeatures = responseCollection.getFeatures();
-
-        final ModifyFeaturesEvent gsModifyFeaturesEvent = XyzSerializable.deserialize(insertRequest);
-        List<Feature> modifiedFeatures;
-
-        modifiedFeatures = gsModifyFeaturesEvent.getInsertFeatures();
-        assertReadFeatures(gsModifyFeaturesEvent.getSpace(), checkGuid, modifiedFeatures, responseFeatures);
-
-        modifiedFeatures = gsModifyFeaturesEvent.getUpsertFeatures();
-        assertReadFeatures(gsModifyFeaturesEvent.getSpace(), checkGuid, modifiedFeatures, responseFeatures);
-    }
-
-    protected void assertReadFeatures(String space, boolean checkGuid, List<Feature> requestFeatures, List<Feature> responseFeatures) {
-        if (requestFeatures == null) {
+    protected void assertRead(String insertRequest, String response, boolean checkVersion) throws Exception {
+        final List<Feature> responseFeatures = ((FeatureCollection) deserializeResponse(response)).getFeatures();
+        final ModifyFeaturesEvent mfe = XyzSerializable.deserialize(insertRequest);
+        String space = mfe.getSpace();
+        List<Feature> requestFeatures = mfe.getInsertFeatures();
+        if (requestFeatures == null)
             return;
-        }
+
         for (int i = 0; i < requestFeatures.size(); i++) {
             Feature requestFeature = requestFeatures.get(i);
             Feature responseFeature = responseFeatures.get(i);
@@ -95,13 +80,8 @@ public class Helper{
             assertEquals("Check space", space, responseFeature.getProperties().getXyzNamespace().getSpace());
             assertNotEquals("Check createdAt", 0L, responseFeature.getProperties().getXyzNamespace().getCreatedAt());
             assertNotEquals("Check updatedAt", 0L, responseFeature.getProperties().getXyzNamespace().getUpdatedAt());
-            assertNull("Check parent", responseFeature.getProperties().getXyzNamespace().getPuuid());
 
-            if (checkGuid) {
-                assertNotNull("Check uuid", responseFeature.getProperties().getXyzNamespace().getUuid());
-            } else {
-                assertNull("Check uuid", responseFeature.getProperties().getXyzNamespace().getUuid());
-            }
+            assertNotEquals("Check version", -1, responseFeature.getProperties().getXyzNamespace().getVersion());
         }
     }
 
@@ -110,10 +90,5 @@ public class Helper{
         JsonNode tree1 = mapper.convertValue(o1, JsonNode.class);
         JsonNode tree2 = mapper.convertValue(o2, JsonNode.class);
         return tree1.equals(tree2);
-    }
-
-    protected DocumentContext getEventFromResource(String file) {
-        InputStream inputStream = this.getClass().getResourceAsStream(file);
-        return JsonPath.parse(inputStream);
     }
 }

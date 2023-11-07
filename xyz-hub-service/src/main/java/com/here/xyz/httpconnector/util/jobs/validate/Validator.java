@@ -19,60 +19,81 @@
 
 package com.here.xyz.httpconnector.util.jobs.validate;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.hub.Core;
-import com.here.xyz.hub.rest.HttpException;
-import org.apache.commons.lang3.RandomStringUtils;
-
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
+import com.here.xyz.models.geojson.implementation.Feature;
+import com.vividsolutions.jts.io.ParseException;
+import com.vividsolutions.jts.io.WKBReader;
+import java.io.UnsupportedEncodingException;
+import org.apache.commons.lang3.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class Validator {
 
-    protected static void setJobDefaults(Job job){
-        job.setCreatedAt(Core.currentTimeMillis() / 1000L);
-        job.setUpdatedAt(Core.currentTimeMillis() / 1000L);
+    private static final Logger logger = LogManager.getLogger();
 
-        if (job.getId() == null) {
-            job.setId(RandomStringUtils.randomAlphanumeric(6));
-        }
+    public static void validateCSVLine(String csvLine, Job.CSVFormat csvFormat) throws UnsupportedEncodingException {
 
-        if(job.getErrorType() != null){
-            job.setErrorType(null);
-        }
-        if(job.getErrorDescription() != null){
-            job.setErrorDescription(null);
+        if(csvLine != null && csvLine.endsWith("\r\n"))
+            csvLine = csvLine.substring(0,csvLine.length()-4);
+        else if(csvLine != null && (csvLine.endsWith("\n") || csvLine.endsWith("\r")))
+            csvLine = csvLine.substring(0,csvLine.length()-2);
+
+        switch (csvFormat){
+            case GEOJSON:
+                 validateGEOJSON(csvLine);
+                break;
+            case JSON_WKB:
+                validateJSON_WKB(csvLine);
+                break;
+            case JSON_WKT:
+                validateJSON_WKT(csvLine);
         }
     }
 
-    public static void validateJobCreation(Job job) throws HttpException {
-        if(job.getTargetSpaceId() == null){
-            throw new HttpException(BAD_REQUEST,("Please specify 'targetSpaceId'!"));
-        }
-        if(job.getCsvFormat() == null){
-            throw new HttpException(BAD_REQUEST,("Please specify 'csvFormat'!"));
+    private static void validateGEOJSON(String csvLine) throws UnsupportedEncodingException {
+        try {
+            /** Try to serialize JSON */
+            String geoJson = csvLine.substring(1,csvLine.length()).replaceAll("'\"","\"");
+            XyzSerializable.deserialize(geoJson, Feature.class);
+        } catch (JsonProcessingException e) {
+            logger.info("Bad Encoding: ",e);
+            throw new UnsupportedEncodingException();
+        } catch (Exception e) {
+            logger.info("Bad Encoding: ",e);
+            throw new UnsupportedEncodingException();
         }
     }
 
-    protected static void isValidForStart(Job job) throws HttpException{
-        switch (job.getStatus()){
-            case finalized:
-                throw new HttpException(PRECONDITION_FAILED, "Job is already finalized !");
-            case failed:
-                throw new HttpException(PRECONDITION_FAILED, "Failed - check error and retry!");
-            case queued:
-            case validating:
-            case validated:
-            case preparing:
-            case prepared:
-            case executing:
-            case executed:
-            case executing_trigger:
-            case trigger_executed:
-            case collecting_trigger_status:
-            case trigger_status_collected:
-            case finalizing:
-                throw new HttpException(PRECONDITION_FAILED, "Job is already running - current status: "+job.getStatus());
+    private static void validateJSON_WKB(String csvLine) throws UnsupportedEncodingException {
+        if(csvLine.lastIndexOf(",") != -1) {
+            try {
+                String json = csvLine.substring(1,csvLine.lastIndexOf(",")-1).replaceAll("'\"","\"");
+                String wkb = csvLine.substring(csvLine.lastIndexOf(",")+1);
+
+                byte[] aux = WKBReader.hexToBytes(wkb);
+                /** Try to read WKB */
+                new WKBReader().read(aux);
+                /** Try to serialize JSON */
+                new JSONObject(json);
+            } catch (ParseException e) {
+                logger.info("Bad WKB Encoding: ",e);
+                throw new UnsupportedEncodingException();
+            } catch (JSONException e) {
+                logger.info("Bad JSON Encoding: ",e);
+                throw new UnsupportedEncodingException();
+            } catch (Exception e) {
+                logger.info("Bad Encoding: ",e);
+                throw new UnsupportedEncodingException();
+            }
         }
+    }
+
+    private static void validateJSON_WKT(String csvLine) throws UnsupportedEncodingException {
+        throw new NotImplementedException();
     }
 }

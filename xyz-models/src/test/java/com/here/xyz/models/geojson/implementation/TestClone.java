@@ -57,7 +57,7 @@ public class TestClone {
   public void testAsMap() throws JsonProcessingException {
     FeatureCollection collection = generateRandomFeatures(1, 1);
     Feature feature = collection.getFeatures().get(0);
-    feature.asMap();
+    feature.toMap();
   }
 
   @Test

@@ -21,9 +21,7 @@ package com.here.xyz.hub.config.jdbc;
 
 import com.here.xyz.hub.Service;
 import com.here.xyz.psql.SQLQuery;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -37,14 +35,23 @@ import org.apache.logging.log4j.Logger;
 public class JDBCConfig {
 
   private static final Logger logger = LogManager.getLogger();
-
   public static final String SCHEMA = "xyz_config";
   static final String CONNECTOR_TABLE = SCHEMA + ".xyz_storage";
   static final String SPACE_TABLE = SCHEMA + ".xyz_space";
   static final String SUBSCRIPTION_TABLE = SCHEMA + ".xyz_subscription";
-  static final String TAG_TABLE = SCHEMA + ".xyz_tags";
+  static final String TAG_TABLE = "xyz_tags";
   private static SQLClient client;
   private static boolean initialized = false;
+  private static final String CHECK_SCHEMA_EXISTS_QUERY = "SELECT schema_name FROM information_schema.schemata WHERE schema_name='xyz_config'";
+  private static final List<String> batchQueries = Arrays.asList(
+      "CREATE SCHEMA " + SCHEMA,
+      "CREATE TABLE  " + CONNECTOR_TABLE + " (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)",
+      "CREATE TABLE  " + SPACE_TABLE + " (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB, region VARCHAR (50))",
+      "CREATE TABLE  " + SUBSCRIPTION_TABLE + " (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB)",
+      "CREATE TABLE  " + SCHEMA + "." +TAG_TABLE + " (id VARCHAR(255), space VARCHAR (255), version BIGINT, PRIMARY KEY(id, space))"
+  );
+
+  private static class SchemaAlreadyExistsException extends Exception {}
 
   public static SQLClient getClient() {
     if (client != null) {
@@ -68,71 +75,76 @@ public class JDBCConfig {
     }
   }
 
-  public static synchronized void init(Handler<AsyncResult<Void>> onReady) {
+  private static Future<SQLConnection> getConnection() {
+    Promise<SQLConnection> promise = Promise.promise();
+    client.getConnection(res -> {
+      if (res.failed()) {
+        logger.error("Initializing of the config table failed.", res.cause());
+        promise.fail(res.cause());
+      } else {
+        promise.complete(res.result());
+      }
+    });
+
+    return promise.future();
+  }
+
+  private static Future<SQLConnection> checkSchemaExists(SQLConnection connection) {
+    Promise<SQLConnection> promise = Promise.promise();
+    connection.query(CHECK_SCHEMA_EXISTS_QUERY, out -> {
+      if (out.failed()) {
+        connection.close();
+        promise.fail(out.cause());
+      } else if (out.result().getNumRows() > 0) {
+        connection.close();
+        promise.fail(new SchemaAlreadyExistsException());
+      } else {
+        promise.complete(connection);
+      }
+    });
+    return promise.future();
+  }
+
+  private static Future<SQLConnection> setAutoCommit(SQLConnection connection, boolean autoCommit) {
+    Promise<Void> promise = Promise.promise();
+    connection.setAutoCommit(autoCommit, promise);
+    return promise.future().map(connection);
+  }
+
+  private static Future<SQLConnection> disableAutoCommit(SQLConnection connection) {
+    return setAutoCommit(connection, false);
+  }
+
+  private static Future<SQLConnection> enableAutoCommit(SQLConnection connection) {
+    return setAutoCommit(connection, true);
+  }
+
+  private static Future<SQLConnection> executeBachQueries(SQLConnection connection) {
+    Promise<List<Integer>> promise = Promise.promise();
+    connection.batch(batchQueries, promise);
+    return promise.future().map(connection);
+  }
+
+  public static synchronized Future<Void> init() {
     if (initialized) {
-      onReady.handle(Future.succeededFuture());
-      return;
+      return Future.succeededFuture();
     }
 
     initialized = true;
 
-    client.getConnection(res -> {
-      if (res.failed()) {
-        logger.error("Initializing of the config table failed.", res.cause());
-        onReady.handle(Future.failedFuture(res.cause()));
-        return;
-      }
-      SQLConnection connection = res.result();
-
-      String query = "SELECT schema_name FROM information_schema.schemata WHERE schema_name='xyz_config'";
-      connection.query(query, out -> {
-        if (out.succeeded() && out.result().getNumRows() > 0) {
-          logger.info("schema already created");
-          onReady.handle(Future.succeededFuture());
-          connection.close();
-          return;
-        }
-        List<String> batchQueries = Arrays.asList(
-            "CREATE SCHEMA " + SCHEMA,
-            "CREATE table  " + CONNECTOR_TABLE + " (id VARCHAR(50) primary key, owner VARCHAR (50), config JSONB)",
-            "CREATE table  " + SPACE_TABLE + " (id VARCHAR(255) primary key, owner VARCHAR (50), cid VARCHAR (255), config JSONB, region VARCHAR (50))",
-            "CREATE table  " + SUBSCRIPTION_TABLE + " (id VARCHAR(255) primary key, source VARCHAR (255), config JSONB)",
-            "CREATE table  " + TAG_TABLE + " (id VARCHAR(255), space VARCHAR (255), version BIGINT, PRIMARY KEY(id, space))"
-        );
-
-        Promise<Void> onComplete = Promise.promise();
-        Promise<Void> step1Completer = Promise.promise();
-
-        //Step 1
-        Runnable step1 = () -> connection.setAutoCommit(false, step1Completer);
-
-        //Step 2
-        step1Completer.future().compose(r -> {
-          Promise<List<Integer>> f = Promise.promise();
-          connection.batch(batchQueries, f);
-          return f.future();
-        }).compose(r -> {
-          connection.setAutoCommit(true, onComplete);
-          return onComplete.future();
-        });
-
-        //Step 3
-        onComplete.future().onComplete(ar -> {
-          if (ar.failed()) {
-            logger.error("Initializing of the config table failed.", ar.cause());
-          } else {
-            logger.info("Initializing of the config table was successful.");
-          }
-          onReady.handle(ar);
-          connection.close();
-        });
-
-        step1.run();
-      });
-    });
+    return getConnection()
+        .compose(JDBCConfig::checkSchemaExists)
+        .compose(JDBCConfig::disableAutoCommit)
+        .compose(JDBCConfig::executeBachQueries)
+        .compose(JDBCConfig::enableAutoCommit)
+        .<Void>mapEmpty()
+        .recover(t -> t instanceof SchemaAlreadyExistsException ? Future.succeededFuture() : Future.failedFuture(t))
+        .onSuccess(connection -> logger.info("Initializing of the config table was successful."))
+        .onFailure(t -> logger.error("Initializing of the config table failed.", t));
   }
 
   protected static Future<Void> updateWithParams(SQLQuery query) {
+    query.substitute();
     Promise<Void> p = Promise.promise();
     client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {

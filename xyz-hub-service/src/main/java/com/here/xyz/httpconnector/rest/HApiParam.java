@@ -18,6 +18,9 @@
  */
 package com.here.xyz.httpconnector.rest;
 
+import static com.here.xyz.hub.AbstractHttpServerVerticle.STREAM_INFO_CTX_KEY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.hub.rest.ApiParam;
@@ -25,11 +28,7 @@ import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.RoutingContext;
-
 import java.util.HashMap;
-
-import static com.here.xyz.hub.AbstractHttpServerVerticle.STREAM_INFO_CTX_KEY;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 
 public class HApiParam extends ApiParam {
 
@@ -38,13 +37,11 @@ public class HApiParam extends ApiParam {
     }
 
     public static class HQuery extends Query{
-        static final String ENABLED_HASHED_SPACE_ID = "enableHashedSpaceId";
-        static final String ENABLED_UUID = "enableUUID";
         static final String TARGET_SPACEID = "targetSpaceId";
         public static final String FORCE = "force";
+        public static final String DELETE_DATA = "deleteData";
         public static final String H_COMMAND = "command";
         public static final String URL_COUNT = "urlCount";
-        public static final String INCREMENTAL = "incremental";
 
         public enum Command {
             START,RETRY,ABORT,CREATEUPLOADURL;
@@ -95,15 +92,16 @@ public class HApiParam extends ApiParam {
             }
         }
 
-        protected static Job.Type getJobType(RoutingContext context) {
-            Job.Type type = Job.Type.of(getString(context, "type", null));
+        protected static String getJobType(RoutingContext context) {
+            String type = getString(context, "type", null);
 
-            if(type == null)
+            if (type == null)
                 return null;
 
-            switch (type){
-                case Export:
-                case Import:
+            //TODO: Dynamnically check if the type is valid
+            switch (type) {
+                case "Export":
+                case "Import":
                     return type;
                 default:
                     return null;
@@ -112,31 +110,12 @@ public class HApiParam extends ApiParam {
 
         public static Job getJobInput(final RoutingContext context) throws HttpException{
             try {
-                Job job = Json.decodeValue(context.getBodyAsString(), Job.class);
+                Job job = Json.decodeValue(context.body().asString(), Job.class);
                 return job;
             }
             catch (DecodeException e) {
-                throw new HttpException(BAD_REQUEST, e.getMessage());
+                throw new HttpException(BAD_REQUEST, e.getMessage(), e);
             }
-        }
-
-        protected static String[] parseMainParams(RoutingContext context) {
-            String connectorId = Query.getString(context, "connectorId", null);
-            addStreamInfo(context, "SID", connectorId);
-
-            return new String[]{
-                    connectorId,
-                    Query.getString(context, "ecps", null),
-                    Query.getString(context, "passphrase", CService.configuration.ECPS_PHRASE)
-            };
-        }
-
-        protected static void addStreamInfo(final RoutingContext context, String key, Object value){
-            context.put(STREAM_INFO_CTX_KEY, new HashMap<String, Object>(){{put(key, value);}});
-        }
-
-        public static Incremental getIncremental(RoutingContext context){
-            return Incremental.of(Query.getString(context, INCREMENTAL, Incremental.DEACTIVATED.toString()).toUpperCase());
         }
     }
 }

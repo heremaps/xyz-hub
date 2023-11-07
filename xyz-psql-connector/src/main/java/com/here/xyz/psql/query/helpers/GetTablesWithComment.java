@@ -20,7 +20,6 @@
 package com.here.xyz.psql.query.helpers;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.GetTablesWithComment.GetTablesWithCommentInput;
@@ -31,9 +30,9 @@ import java.util.List;
 
 public class GetTablesWithComment extends QueryRunner<GetTablesWithCommentInput, List<String>> {
 
-  public GetTablesWithComment(GetTablesWithCommentInput input, DatabaseHandler dbHandler)
+  public GetTablesWithComment(GetTablesWithCommentInput input)
       throws SQLException, ErrorResponseException {
-    super(input, dbHandler);
+    super(input);
   }
 
   @Override

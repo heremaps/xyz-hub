@@ -21,7 +21,6 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.Event;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.ResultSet;
@@ -37,9 +36,9 @@ import java.sql.SQLException;
  */
 public abstract class XyzQueryRunner<E extends Event, R extends XyzResponse> extends XyzEventBasedQueryRunner<E, R> {
 
-  public XyzQueryRunner(E event, DatabaseHandler dbHandler)
+  public XyzQueryRunner(E event)
       throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+    super(event);
   }
 
 }

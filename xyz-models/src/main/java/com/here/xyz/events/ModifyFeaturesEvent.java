@@ -53,7 +53,7 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
   @JsonInclude(Include.ALWAYS)
   private Map<String, String> deleteFeatures;
   private boolean transaction;
-  private boolean enableUUID;
+  private boolean conflictDetectionEnabled;
   private List<ModificationFailure> failed;
 
   /**
@@ -168,28 +168,25 @@ public final class ModifyFeaturesEvent extends ContextAwareEvent<ModifyFeaturesE
   }
 
   /**
-   * Returns true if the hash should be maintained.
-   *
-   * @return true if the hash should be maintained, false otherwise.
+   * @return Whether conflict detection should be enabled for this modification.
    */
-  @SuppressWarnings("unused")
-  public boolean getEnableUUID() {
-    return this.enableUUID;
+  public boolean isConflictDetectionEnabled() {
+    return conflictDetectionEnabled;
   }
 
   /**
-   * Sets the enabler for uuid.
-   *
-   * @param enableUUID if true, then set an uuid for each feature state
+   * @param conflictDetectionEnabled whether conflict detection should be enabled for this modification.
    */
-  @SuppressWarnings("WeakerAccess")
-  public void setEnableUUID(boolean enableUUID) {
-    this.enableUUID = enableUUID;
+  public void setConflictDetectionEnabled(boolean conflictDetectionEnabled) {
+    this.conflictDetectionEnabled = conflictDetectionEnabled;
   }
 
-  @SuppressWarnings("unused")
-  public ModifyFeaturesEvent withEnableUUID(boolean enableUUID) {
-    setEnableUUID(enableUUID);
+  /**
+   * @param conflictDetectionEnabled whether conflict detection should be enabled for this modification.
+   * @return this event object for chaining.
+   */
+  public ModifyFeaturesEvent withConflictDetectionEnabled(boolean conflictDetectionEnabled) {
+    setConflictDetectionEnabled(conflictDetectionEnabled);
     return this;
   }
 

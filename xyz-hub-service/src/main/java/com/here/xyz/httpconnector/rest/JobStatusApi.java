@@ -54,13 +54,18 @@ public class JobStatusApi {
 
     public JobStatusApi(Router router) {
         this.system = new JSONObject();
+        JSONObject poolSizes = new JSONObject();
+
+        poolSizes.put("DB_POOL_SIZE_PER_CLIENT", CService.configuration.JOB_DB_POOL_SIZE_PER_CLIENT);
+        poolSizes.put("DB_POOL_SIZE_PER_STATUS_CLIENT", CService.configuration.JOB_DB_POOL_SIZE_PER_STATUS_CLIENT);
+        poolSizes.put("DB_POOL_SIZE_PER_MAINTENANCE_CLIENT", CService.configuration.JOB_DB_POOL_SIZE_PER_MAINTENANCE_CLIENT);
 
         /** Add static configurations */
         this.system.put("MAX_RDS_INFLIGHT_IMPORT_BYTES", CService.configuration.JOB_MAX_RDS_INFLIGHT_IMPORT_BYTES);
-        this.system.put("MAX_RDS_CAPACITY", CService.configuration.JOB_MAX_RDS_CAPACITY);
-        this.system.put("MAX_RDS_CPU_LOAD", CService.configuration.JOB_MAX_RDS_CPU_LOAD);
-        this.system.put("MAX_RUNNING_JOBS", CService.configuration.JOB_MAX_RUNNING_JOBS);
-        this.system.put("DB_POOL_SIZE_PER_CLIENT", CService.configuration.JOB_DB_POOL_SIZE_PER_CLIENT);
+        this.system.put("MAX_RDS_UTILIZATION_", CService.configuration.JOB_MAX_RDS_MAX_ACU_UTILIZATION);
+        this.system.put("MAX_RUNNING_EXPORT_QUERIES", CService.configuration.JOB_MAX_RDS_MAX_RUNNING_EXPORT_QUERIES);
+        this.system.put("MAX_RUNNING_IMPORT_QUERIES", CService.configuration.JOB_MAX_RDS_MAX_RUNNING_IMPORT_QUERIES);
+        this.system.put("POOL_SIZES", poolSizes);
 
         this.system.put("SUPPORTED_CONNECTORS", CService.supportedConnectors);
         this.system.put("JOB_QUEUE_INTERVAL", CService.configuration.JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS);
@@ -88,28 +93,27 @@ public class JobStatusApi {
         httpResponse.putHeader(CONTENT_TYPE, APPLICATION_JSON);
         JSONObject resp = new JSONObject();
 
-        JobHandler.getJob(jobId, Api.Context.getMarker(context))
-                .onFailure(e -> {
-                    resp.put("STATUS", "does_not_exist");
-                })
+        JobHandler.loadJob(jobId, Api.Context.getMarker(context))
+                .onFailure(e -> resp.put("STATUS", "does_not_exist"))
                 .onSuccess(job -> {
                     if(JobQueue.hasJob(job) != null) {
                         resp.put("STATUS", "already_present");
+                        httpResponse.end(resp.toString());
                     }else{
-                        try {
-                            JDBCImporter.addClientIfRequired(job.getTargetConnector());
-                        } catch (Exception e) {
-                            httpResponse.setStatusCode(BAD_GATEWAY.code()).end();
-                            return;
-                        }
-
-                        job.resetToPreviousState();
-                        JobQueue.addJob(job);
-                        resp.put("STATUS", "job_added");
+                        JDBCImporter.addClientsIfRequired(job.getTargetConnector())
+                                .onSuccess(f -> {
+                                    try{
+                                        JobQueue.addJob(job);
+                                        logger.info("JOB[{}] got added manually to queue! Host-id: {}", job.getId(), CService.HOST_ID);
+                                        resp.put("STATUS", "job_added");
+                                    }catch (Exception e){
+                                        logger.info("JOB[{}] state has no last state {}", job.getId(), CService.HOST_ID);
+                                        resp.put("STATUS", "not_added");
+                                    }
+                                    httpResponse.end(resp.toString());
+                                })
+                                .onFailure(e -> httpResponse.setStatusCode(BAD_GATEWAY.code()).end());
                     }
-
-                }).onComplete(job -> {
-                    httpResponse.end(resp.toString());
                 });
     }
 
@@ -126,15 +130,14 @@ public class JobStatusApi {
 
         JSONObject resp = new JSONObject();
 
-        JobHandler.getJob(jobId, Api.Context.getMarker(context))
+        JobHandler.loadJob(jobId, Api.Context.getMarker(context))
                 .onFailure(e -> {
                     resp.put("STATUS", "does_not_exist");
                 })
                 .onSuccess(job -> {
-                    if(JobQueue.hasJob(job) != null) {
-                        JobQueue.removeJob(job);
-                        resp.put("STATUS", "job_removed");
-                    }
+                    JobQueue.removeJob(job);
+                    logger.info("JOB[{}] got manually deleted from queue! Host-id: {}", job.getId(), CService.HOST_ID);
+                    resp.put("STATUS", "job_removed");
                 }).onComplete(job -> {
                     httpResponse.end(resp.toString());
                 });
@@ -170,7 +173,7 @@ public class JobStatusApi {
                     statusFutures.forEach( f1 -> {
                         if(f1.succeeded()){
                             RDSStatus rdsStatus = (RDSStatus)f1.result();
-                            rdsStatusList.put(rdsStatus.getClientId(), new JSONObject(Json.encode(rdsStatus)));
+                            rdsStatusList.put(rdsStatus.getConnectorId(), new JSONObject(Json.encode(rdsStatus)));
                         }
                     });
                     status.put("RDS", rdsStatusList);

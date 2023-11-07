@@ -20,7 +20,6 @@
 package com.here.xyz.psql.query.helpers;
 
 import com.here.xyz.connectors.ErrorResponseException;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.QueryRunner;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.psql.query.helpers.FetchExistingIds.FetchIdsInput;
@@ -32,8 +31,8 @@ import java.util.List;
 
 public class FetchExistingIds extends QueryRunner<FetchIdsInput, List<String>> {
 
-  public FetchExistingIds(FetchIdsInput input, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(input, dbHandler);
+  public FetchExistingIds(FetchIdsInput input) throws SQLException, ErrorResponseException {
+    super(input);
   }
 
   @Override

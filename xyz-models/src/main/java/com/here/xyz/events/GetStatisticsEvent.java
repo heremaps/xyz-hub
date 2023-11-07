@@ -27,6 +27,5 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "GetStatisticsEvent")
-public final class GetStatisticsEvent extends Event<GetStatisticsEvent> {
-
+public final class GetStatisticsEvent extends ContextAwareEvent<GetStatisticsEvent> {   
 }

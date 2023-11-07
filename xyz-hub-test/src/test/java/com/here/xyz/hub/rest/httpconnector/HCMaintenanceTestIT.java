@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2021 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,104 +19,44 @@
 
 package com.here.xyz.hub.rest.httpconnector;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.here.xyz.httpconnector.CService;
-import com.here.xyz.hub.auth.TestAuthenticator;
-import com.here.xyz.httpconnector.config.MaintenanceClient;
-import com.here.xyz.hub.rest.RestAssuredConfig;
-import com.here.xyz.psql.SQLQuery;
-import com.here.xyz.psql.config.PSQLConfig;
-import io.vertx.core.json.JsonObject;
-import org.junit.*;
-
-import java.util.HashMap;
-
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
-import static org.hamcrest.Matchers.*;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.hub.auth.TestAuthenticator;
+import com.here.xyz.hub.rest.RestAssuredConfig;
+import java.util.HashMap;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class HCMaintenanceTestIT {
-    private static String ecps;
-    private static String host;
+    private static String host = RestAssuredConfig.config().fullHttpConnectorUri;;
     private static String defaultConnector;
-    private static MaintenanceClient mc;
     private static HashMap<String, String> authHeaders;
-
     private static final String testSpace = "x-psql-test";
 
     @BeforeClass
     public static void setupClass() throws Exception {
         authHeaders = new HashMap<>();
         authHeaders.put("Authorization", "Bearer " + TestAuthenticator.AuthProfile.ACCESS_ALL.jwt_string);
-
         defaultConnector = "psql";
-        retrieveConfig();
-        mc = initMaintenanceClient();
-        deleteTestResources();
 
         given()
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .post(host+"/initialization?connectorId="+defaultConnector+"&ecps="+ecps)
+                .post(host+"/connectors/"+defaultConnector+"/initialization")
                 .then()
                 .statusCode(OK.code());
-    }
-
-    @AfterClass
-    public static void tearDown() throws Exception {
-        deleteTestResources();
-    }
-
-    public static MaintenanceClient initMaintenanceClient() throws Exception {
-        CService.configuration = new CService.Config();
-        CService.configuration.DB_INITIAL_POOL_SIZE = 1;
-        CService.configuration.DB_MIN_POOL_SIZE = 1;
-        CService.configuration.DB_MAX_POOL_SIZE = 1;
-
-        CService.configuration.DB_ACQUIRE_RETRY_ATTEMPTS = 1;
-        CService.configuration.DB_ACQUIRE_INCREMENT = 1;
-
-        CService.configuration.DB_CHECKOUT_TIMEOUT = 10;
-        CService.configuration.DB_TEST_CONNECTION_ON_CHECKOUT = true;
-
-        return new MaintenanceClient();
-    }
-
-    public static void deleteTestResources() throws Exception {
-        String psqlHost = System.getenv().containsKey("PSQL_HOST") ? System.getenv("PSQL_HOST") : "localhost";
-        String localhostECPS = PSQLConfig.encryptECPS("{\"PSQL_HOST\":\""+psqlHost+"\"}", "local");
-        MaintenanceClient.MaintenanceInstance dbInstance = mc.getClient(defaultConnector, localhostECPS, "local");
-        SQLQuery query = new SQLQuery("DELETE from xyz_config.db_status where connector_id='TestConnector'");
-
-        //delete connector entry
-        mc.executeQueryWithoutResults(query, dbInstance.getSource());
-
-        //delete space
-        given()
-                .contentType(APPLICATION_JSON)
-                .headers(authHeaders)
-                .accept(APPLICATION_JSON)
-                .when()
-                .delete(RestAssuredConfig.config().fullHubUri+"/spaces/"+testSpace);
-    }
-
-    public static void retrieveConfig() {
-        final String response = given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .headers(authHeaders)
-                .when()
-                .get(RestAssuredConfig.config().fullHubUri+"/connectors/psql-http")
-                .getBody().asString();
-
-        JsonObject connector = new JsonObject(response);
-        JsonObject params = connector.getJsonObject("params");
-
-        ecps = params.getString("ecps");
-        host = RestAssuredConfig.config().fullHttpConnectorUri;
     }
 
     @Test
@@ -142,26 +82,14 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .get(host+"/status?connectorId="+defaultConnector+"&ecps="+ecps)
+                .get(host+"/connectors/"+defaultConnector+"/status")
                 .then()
                 .statusCode(OK.code())
                 .body("initialized", equalTo(true))
-                .body("extensions.size", greaterThan(1))
+                .body("extensions.size()", greaterThan(1))
                 .body("extensions", hasItem("postgis"))
                 .body("scriptVersions.h3", greaterThan(1))
                 .body("scriptVersions.ext", greaterThan(1));
-    }
-
-    @Test
-    public void testPSQLStatusWithWrongECPSConnector() {
-        given()
-                .contentType(APPLICATION_JSON)
-                .accept(APPLICATION_JSON)
-                .when()
-                .get(host+"/status?connectorId="+defaultConnector+"p&ecps=NA")
-                .then()
-                .statusCode(BAD_REQUEST.code())
-                .body("errorMessage", notNullValue());
     }
 
     @Test
@@ -170,9 +98,9 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .get(host+"/status?connectorId=NA&ecps="+ecps)
+                .get(host+"/connectors/NA/status")
                 .then()
-                .statusCode(NOT_FOUND.code())
+                .statusCode(BAD_REQUEST.code())
                 .body("errorMessage", notNullValue());
     }
 
@@ -184,7 +112,7 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .post(host+"/maintain/indices?connectorId="+defaultConnector+"&ecps="+ecps+"&autoIndexing=true")
+                .post(host+"/connectors/"+defaultConnector+"/maintain/indices")
                 .then()
                 .statusCode(OK.code());
 
@@ -192,11 +120,11 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .get(host+"/status?connectorId="+defaultConnector+"&ecps="+ecps)
+                .get(host+"/connectors/"+defaultConnector+"/status")
                 .then()
                 .statusCode(OK.code())
                 .body("maintenanceStatus.AUTO_INDEXING.maintainedAt", greaterThan(curTime))
-                .body("maintenanceStatus.AUTO_INDEXING.maintenanceRunning.size", equalTo(0));
+                .body("maintenanceStatus.AUTO_INDEXING.maintenanceRunning.size()", equalTo(0));
     }
 
     @Test
@@ -205,10 +133,10 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .post(host+"/maintain/indices?connectorId=NA&ecps="+ecps+"&autoIndexing=true")
+                .post(host+"/connectors/NA/maintain/indices")
                 .then()
-                .statusCode(METHOD_NOT_ALLOWED.code())
-                .body("errorMessage", equalTo("Database not initialized!"));
+                .statusCode(BAD_REQUEST.code())
+                .body("errorMessage", equalTo("Connector [NA] cant get found/loaded!"));
     }
 
     @Test
@@ -218,7 +146,7 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .post(host+"/initialization?connectorId=TestConnector&ecps="+ecps)
+                .post(host+"/connectors/c1/initialization")
                 .then()
                 .statusCode(OK.code());
 
@@ -226,24 +154,31 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .get(host+"/status?connectorId=TestConnector&ecps="+ecps)
+                .get(host+"/connectors/"+defaultConnector+"/status")
+            .prettyPeek()
                 .then()
                 .statusCode(OK.code())
                 .body("initialized", equalTo(true))
-                .body("extensions.size", greaterThan(1))
                 .body("extensions", hasItem("postgis"))
+                .body("extensions.size()", greaterThan(1))
                 .body("scriptVersions.h3", greaterThan(1))
                 .body("scriptVersions.ext", greaterThan(1));
     }
 
     @Test
     public void maintainSpace() {
+        given()
+                .contentType(APPLICATION_JSON)
+                .accept(APPLICATION_JSON)
+                .headers(authHeaders)
+                .when()
+                .delete(RestAssuredConfig.config().fullHubUri +"/spaces/"+testSpace);
 
         given()
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .get(host+"/maintain/space/"+testSpace+"?connectorId="+defaultConnector+"&ecps="+ecps)
+                .get(host+"/maintain/spaces/"+testSpace)
                 .then()
                 .statusCode(NOT_FOUND.code());
 
@@ -261,7 +196,7 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .post(host+"/maintain/space/"+testSpace+"?connectorId="+defaultConnector+"&ecps="+ecps)
+                .post(host+"/maintain/spaces/"+testSpace)
                 .then()
                 .statusCode(CONFLICT.code());
 
@@ -269,7 +204,7 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .post(host+"/maintain/space/"+testSpace+"?connectorId="+defaultConnector+"&ecps="+ecps+"&force=true")
+                .post(host+"/maintain/spaces/"+testSpace+"?force=true")
                 .then()
                 .statusCode(OK.code());
 
@@ -277,11 +212,11 @@ public class HCMaintenanceTestIT {
                 .contentType(APPLICATION_JSON)
                 .accept(APPLICATION_JSON)
                 .when()
-                .get(host+"/maintain/space/"+testSpace+"?connectorId="+defaultConnector+"&ecps="+ecps)
+                .get(host+"/maintain/spaces/"+testSpace)
                 .then()
                 .statusCode(OK.code())
                 .body("idxCreationFinished", equalTo(true))
-                .body("idxAvailable.size", equalTo(13))
+                .body("idxAvailable.size()", equalTo(13))
                 .body("idxManual.searchableProperties.foo", equalTo(true))
                 .body("idxManual.sortableProperties", nullValue());
     }

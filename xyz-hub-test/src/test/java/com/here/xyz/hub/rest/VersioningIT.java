@@ -20,12 +20,11 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -39,7 +38,6 @@ import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.FixMethodOrder;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runners.MethodSorters;
@@ -47,23 +45,23 @@ import org.junit.runners.MethodSorters;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 @Category(RestTests.class)
 public class VersioningIT extends TestSpaceWithFeature {
-  final String SPACE_ID_1_NO_UUID = "space1nouuid";
-  final String SPACE_ID_2_UUID = "space2uuid";
+  final String SPACE_ID_1 = "space1";
+  final String SPACE_ID_2 = "space2";
   final String FEATURE_ID_1 = "Q3495887";
   final String FEATURE_ID_2 = "Q929126";
   final String FEATURE_ID_3 = "Q1370732";
-  final String USER_1= "XYZ-01234567-89ab-cdef-0123-456789aUSER1";
-  final String USER_2= "XYZ-01234567-89ab-cdef-0123-456789aUSER2";
+  final String USER_1 = AuthProfile.ACCESS_OWNER_1_ADMIN.payload.aid;
+  final String USER_2 = AuthProfile.ACCESS_OWNER_2.payload.aid;
 
   @Before
   public void setup() {
     remove();
-    createSpaceWithVersionsToKeep(SPACE_ID_1_NO_UUID, 5, false);
-    createSpaceWithVersionsToKeep(SPACE_ID_2_UUID, 5, true);
-    addFeatures(SPACE_ID_1_NO_UUID);
-    addFeatures(SPACE_ID_2_UUID);
-    updateFeature(SPACE_ID_1_NO_UUID);
-    updateFeature(SPACE_ID_2_UUID);
+    createSpaceWithVersionsToKeep(SPACE_ID_1, 5);
+    createSpaceWithVersionsToKeep(SPACE_ID_2, 5);
+    addFeatures(SPACE_ID_1);
+    addFeatures(SPACE_ID_2);
+    updateFeature(SPACE_ID_1);
+    updateFeature(SPACE_ID_2);
   }
 
   public void updateFeature(String spaceId) {
@@ -74,8 +72,8 @@ public class VersioningIT extends TestSpaceWithFeature {
 
   @After
   public void tearDown() {
-    removeSpace(SPACE_ID_1_NO_UUID);
-    removeSpace(SPACE_ID_2_UUID);
+    removeSpace(SPACE_ID_1);
+    removeSpace(SPACE_ID_2);
   }
 
   @Test
@@ -89,14 +87,14 @@ public class VersioningIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(fc.toString())
         .when()
-        .post(getSpacesPath() + "/"+ SPACE_ID_2_UUID +"/features?transactional=true")
+        .post(getSpacesPath() + "/"+ SPACE_ID_2 +"/features?transactional=true&conflictDetection=true")
         .then()
         .statusCode(CONFLICT.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_2_UUID +"/features/"+ FEATURE_ID_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_2 +"/features/"+ FEATURE_ID_1)
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"))
@@ -105,7 +103,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_2_UUID +"/features/"+ FEATURE_ID_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_2 +"/features/"+ FEATURE_ID_2)
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo(""))
@@ -123,7 +121,7 @@ public class VersioningIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(fc.toString())
         .when()
-        .post(getSpacesPath() + "/"+ SPACE_ID_2_UUID +"/features?transactional=false")
+        .post(getSpacesPath() + "/"+ SPACE_ID_2 +"/features?transactional=false&conflictDetection=true")
         .then()
         .statusCode(OK.code())
         .extract().body().asString();
@@ -131,7 +129,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_2_UUID +"/features/"+ FEATURE_ID_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_2 +"/features/"+ FEATURE_ID_1)
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"))
@@ -140,7 +138,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_2_UUID +"/features/"+ FEATURE_ID_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_2 +"/features/"+ FEATURE_ID_2)
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("non-conflicting change"))
@@ -158,14 +156,14 @@ public class VersioningIT extends TestSpaceWithFeature {
         .contentType(APPLICATION_GEO_JSON)
         .when()
         .body(fc.toString())
-        .post(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features")
+        .post(getSpacesPath() + "/"+ SPACE_ID_1 +"/features")
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_1)
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("conflicting change"))
@@ -182,14 +180,14 @@ public class VersioningIT extends TestSpaceWithFeature {
         .contentType(APPLICATION_GEO_JSON)
         .when()
         .body(fc.toString())
-        .post(getSpacesPath() + "/"+ SPACE_ID_2_UUID +"/features")
+        .post(getSpacesPath() + "/"+ SPACE_ID_2 +"/features?conflictDetection=true")
         .then()
         .statusCode(CONFLICT.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_2_UUID +"/features/"+ FEATURE_ID_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_2 +"/features/"+ FEATURE_ID_1)
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"))
@@ -206,21 +204,21 @@ public class VersioningIT extends TestSpaceWithFeature {
         .contentType(APPLICATION_GEO_JSON)
         .when()
         .body(fc.toString())
-        .post(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features")
+        .post(getSpacesPath() + "/"+ SPACE_ID_1 +"/features")
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/F1?version=0")
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/F1?version=0")
         .then()
         .statusCode(NOT_FOUND.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/F1")
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/F1")
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("abc"))
@@ -237,21 +235,21 @@ public class VersioningIT extends TestSpaceWithFeature {
         .contentType(APPLICATION_GEO_JSON)
         .when()
         .body(fc.toString())
-        .post(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features")
+        .post(getSpacesPath() + "/"+ SPACE_ID_1 +"/features")
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/F1?version=0")
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/F1?version=0")
         .then()
         .statusCode(NOT_FOUND.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/F1")
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/F1")
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("abc"))
@@ -267,14 +265,14 @@ public class VersioningIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
         .body(fc.toString())
-        .post(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features")
+        .post(getSpacesPath() + "/"+ SPACE_ID_1 +"/features")
         .then()
         .statusCode(OK.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_1)
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"))
@@ -287,7 +285,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_1 +"?version=*")
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_1 +"?version=*")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -302,7 +300,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_1)
         .then()
         .statusCode(OK.code())
         .body("properties.@ns:com:here:xyz.version", equalTo(1));
@@ -313,7 +311,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_1 +"?version=0")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 +"/features/" + FEATURE_ID_1 + "?version=0")
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("Stade Tata Raphaël"));
@@ -321,7 +319,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_1 +"?version=1")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features/"+ FEATURE_ID_1 + "?version=1")
         .then()
         .statusCode(OK.code())
         .body("properties.name", equalTo("updated name"));
@@ -329,9 +327,9 @@ public class VersioningIT extends TestSpaceWithFeature {
 //    given()
 //        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
 //        .when()
-//        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_1 +"?version=222")
+//        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features/" + FEATURE_ID_1 + "?version=222")
 //        .then()
-//        .statusCode(NOT_FOUND.code()); FIXME should return not found or head?
+//        .statusCode(NOT_FOUND.code()); FIXME should return not found with special hint, that the version is not existing!
   }
 
   @Test
@@ -339,7 +337,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&version=0")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features?id=" + FEATURE_ID_1 + "&id="+FEATURE_ID_2 + "&version=0")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -349,7 +347,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&version=1")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/features?id="+  FEATURE_ID_1 + "&id="+FEATURE_ID_2 + "&version=1")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -358,20 +356,20 @@ public class VersioningIT extends TestSpaceWithFeature {
 //    given()
 //        .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
 //        .when()
-//        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&version=222")
+//        .get(getSpacesPath() + "/"+ SPACE_ID_1 + "/features?id=" + FEATURE_ID_1 + "&id=" + FEATURE_ID_2 + "&version=222")
 //        .then()
 //        .statusCode(OK.code())
-//        .body("features.size()", equalTo(0)); FIXME should return not found or head?
+//        .body("features.size()", equalTo(0)); FIXME should return not found with special hint, that the version is not existing!
   }
 
   @Test
   public void getFeatureByAuthor() {
-    postFeature(SPACE_ID_1_NO_UUID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
+    postFeature(SPACE_ID_1, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_1 +"?author="+USER_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_1 +"?author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(FEATURE_ID_1))
@@ -380,21 +378,21 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_1 +"?author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_1 +"?author="+USER_2)
         .then()
         .statusCode(NOT_FOUND.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_2 +"?author="+USER_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_2 +"?author="+USER_1)
         .then()
         .statusCode(NOT_FOUND.code());
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features/"+ FEATURE_ID_2 +"?author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features/"+ FEATURE_ID_2 +"?author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("id", equalTo(FEATURE_ID_2))
@@ -403,12 +401,12 @@ public class VersioningIT extends TestSpaceWithFeature {
 
   @Test
   public void getFeaturesByAuthor() {
-    postFeature(SPACE_ID_1_NO_UUID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
+    postFeature(SPACE_ID_1, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&author="+USER_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -418,7 +416,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -426,7 +424,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_2 +"&author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_2 +"&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -436,12 +434,12 @@ public class VersioningIT extends TestSpaceWithFeature {
 
   @Test
   public void getFeaturesEqualsToVersionAndAuthor() {
-    postFeature(SPACE_ID_1_NO_UUID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
+    postFeature(SPACE_ID_1, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("name", "second feature")), AuthProfile.ACCESS_OWNER_2_ALL);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=0&author="+USER_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=0&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(3))
@@ -451,7 +449,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=2&author="+USER_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=2&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2))
@@ -461,7 +459,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=0&author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=0&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -469,7 +467,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=555&author="+USER_1)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=555&author="+USER_1)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(2));
@@ -477,7 +475,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=1&author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=1&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -485,7 +483,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/"+ SPACE_ID_1_NO_UUID +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=2&author="+USER_2)
+        .get(getSpacesPath() + "/"+ SPACE_ID_1 +"/features?id="+ FEATURE_ID_1 +"&id="+FEATURE_ID_2+"&id="+FEATURE_ID_3+"&version=2&author="+USER_2)
         .then()
         .statusCode(OK.code())
         .statusCode(OK.code())
@@ -496,13 +494,13 @@ public class VersioningIT extends TestSpaceWithFeature {
 
   @Test
   public void searchFeaturesByPropertyAndAuthor() {
-    postFeature(SPACE_ID_1_NO_UUID, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("capacity", 58505)),
+    postFeature(SPACE_ID_1, new Feature().withId(FEATURE_ID_2).withProperties(new Properties().with("capacity", 58505)),
         AuthProfile.ACCESS_OWNER_2_ALL);
 
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1_NO_UUID + "/search?version=1&author=" + USER_1 + "&p.capacity=58500")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=1&author=" + USER_1 + "&p.capacity=58500")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -511,7 +509,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1_NO_UUID + "/search?version=2&author=" + USER_1 + "&p.capacity=58500")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=2&author=" + USER_1 + "&p.capacity=58500")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(0));
@@ -519,7 +517,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1_NO_UUID + "/search?version=2&author=" + USER_2 + "&p.capacity>58500")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=2&author=" + USER_2 + "&p.capacity>58500")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -529,7 +527,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1_NO_UUID + "/search?version=10&author=" + USER_2 + "&p.capacity=58505")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?version=10&author=" + USER_2 + "&p.capacity=58505")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -539,7 +537,7 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .get(getSpacesPath() + "/" + SPACE_ID_1_NO_UUID + "/search?f.id=" + FEATURE_ID_2 + "&version=2&author=" + USER_2 + "&p.capacity<=58505")
+        .get(getSpacesPath() + "/" + SPACE_ID_1 + "/search?f.id=" + FEATURE_ID_2 + "&version=2&author=" + USER_2 + "&p.capacity<=58505")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))
@@ -553,12 +551,12 @@ public class VersioningIT extends TestSpaceWithFeature {
     given()
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .when()
-        .delete(getSpacesPath() + "/" + SPACE_ID_2_UUID + "/features/" + FEATURE_ID_1)
+        .delete(getSpacesPath() + "/" + SPACE_ID_2 + "/features/" + FEATURE_ID_1 + "?conflictDetection=true")
         .then()
         .statusCode(NO_CONTENT.code());
 
-    postFeature(SPACE_ID_2_UUID, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 2")), AuthProfile.ACCESS_OWNER_1_ADMIN);
+    postFeature(SPACE_ID_2, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 2")), AuthProfile.ACCESS_OWNER_1_ADMIN, true);
 
-    postFeature(SPACE_ID_2_UUID, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 3")), AuthProfile.ACCESS_OWNER_1_ADMIN);
+    postFeature(SPACE_ID_2, new Feature().withId(FEATURE_ID_1).withProperties(new Properties().with("name", "updated name 3")), AuthProfile.ACCESS_OWNER_1_ADMIN, true);
   }
 }

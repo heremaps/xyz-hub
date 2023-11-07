@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,23 +19,18 @@
 
 package com.here.xyz.psql;
 
+import static io.restassured.path.json.JsonPath.with;
+import static org.junit.Assert.assertEquals;
+
 import com.amazonaws.util.IOUtils;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.HealthCheckEvent;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
 import com.here.xyz.psql.tools.GSContext;
 import com.here.xyz.psql.tools.Helper;
-import com.here.xyz.responses.ErrorResponse;
 import com.here.xyz.responses.SuccessResponse;
-import com.here.xyz.responses.XyzResponse;
-import com.jayway.jsonpath.JsonPath;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -44,16 +39,28 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-
-import static org.junit.Assert.assertEquals;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.BeforeClass;
 
 public abstract class PSQLAbstractIT extends Helper {
+
+  public final static String CONNECTOR_ID = "connectorId";
+  public final static String PROPERTY_SEARCH = "propertySearch";
+  public final static String AUTO_INDEXING = "autoIndexing";
+  public final static String ENABLE_HASHED_SPACEID = "enableHashedSpaceId";
+  public final static String ON_DEMAND_IDX_LIMIT = "onDemandIdxLimit";
   protected static final Logger LOGGER = LogManager.getLogger();
 
   protected static PSQLXyzConnector LAMBDA;
-  protected static GSContext GS_CONTEXT = GSContext.newLocal();
+  public static GSContext GS_CONTEXT = GSContext.newLocal();
   protected static Random RANDOM = new Random();
   protected static String TEST_SPACE_ID = "foo";
+
+  @BeforeClass
+  public static void init() throws Exception {
+    initEnv(null);
+  }
 
   protected static Map<String, Object> defaultTestConnectorParams = new HashMap<String,Object>(){
     {
@@ -80,7 +87,7 @@ public abstract class PSQLAbstractIT extends Helper {
   }
 
   protected static void invokeCreateTestSpace(Map<String, Object>  connectorParameters, String spaceId) throws Exception {
-    LOGGER.info("Creat Test space..");
+    LOGGER.info("Create Test space ...");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
     ModifySpaceEvent mse = new ModifySpaceEvent()
@@ -95,7 +102,7 @@ public abstract class PSQLAbstractIT extends Helper {
   }
 
   protected static void invokeDeleteTestSpace(Map<String, Object>  connectorParameters) throws Exception {
-    LOGGER.info("Cleanup spaces..");
+    LOGGER.info("Cleanup spaces ...");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
     ModifySpaceEvent mse = new ModifySpaceEvent()
@@ -104,13 +111,13 @@ public abstract class PSQLAbstractIT extends Helper {
             .withConnectorParams(connectorParameters);
 
     String response = invokeLambda(mse.serialize());
-    assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+    assertEquals("Check response status", "OK", with(response).get("status"));
 
     LOGGER.info("Cleanup space Completed.");
   }
 
   protected static void invokeDeleteTestSpaces(Map<String, Object>  connectorParameters, List<String> spaces) throws Exception {
-    LOGGER.info("Cleanup spaces...");
+    LOGGER.info("Cleanup spaces ...");
 
     connectorParameters = connectorParameters == null ? defaultTestConnectorParams : connectorParameters;
 
@@ -121,7 +128,7 @@ public abstract class PSQLAbstractIT extends Helper {
               .withConnectorParams(connectorParameters);
 
       String response = invokeLambda(mse.serialize());
-      assertEquals("Check response status", "OK", JsonPath.read(response, "$.status").toString());
+      assertEquals("Check response status", "OK", with(response).get("status"));
     }
 
     LOGGER.info("Cleanup spaces Completed.");
@@ -147,10 +154,4 @@ public abstract class PSQLAbstractIT extends Helper {
     return response;
   }
 
-  protected <T extends XyzResponse> T deserializeResponse(String jsonResponse) throws JsonProcessingException, ErrorResponseException {
-    XyzResponse response = XyzSerializable.deserialize(jsonResponse);
-    if (response instanceof ErrorResponse)
-      throw new ErrorResponseException(((ErrorResponse) response).getError(), ((ErrorResponse) response).getErrorMessage());
-    return (T) response;
-  }
 }

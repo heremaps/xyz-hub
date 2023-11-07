@@ -200,11 +200,17 @@ public abstract class ConnectorConfigClient implements Initializable {
     });
   }
 
-  public void insertLocalConnectors(Handler<AsyncResult<Void>> handler) {
+  public CompletableFuture<Void> insertLocalConnectors() {
+    if (!Service.configuration.INSERT_LOCAL_CONNECTORS)
+      return CompletableFuture.completedFuture(null);
+
     final InputStream input = ConnectorConfigClient.class.getResourceAsStream("/connectors.json");
+    if (input == null)
+      return CompletableFuture.completedFuture(null);
+
     try (BufferedReader buffer = new BufferedReader(new InputStreamReader(input))) {
       final String connectorsFile = buffer.lines().collect(Collectors.joining("\n"));
-      final List<Connector> connectors = JacksonCodec.decodeValue(connectorsFile, new TypeReference<List<Connector>>() {});
+      final List<Connector> connectors = JacksonCodec.decodeValue(connectorsFile, new TypeReference<>() {});
       final List<CompletableFuture<Void>> futures = new ArrayList<>();
 
       connectors.forEach(c -> {
@@ -222,18 +228,10 @@ public abstract class ConnectorConfigClient implements Initializable {
         });
       });
 
-      CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).handle((res, e) -> {
-        if (e != null) {
-          handler.handle(Future.failedFuture(e));
-        } else {
-          handler.handle(Future.succeededFuture());
-        }
-
-        return null;
-      });
+      return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]));
     } catch (IOException e) {
       logger.error("Unable to insert the local connectors.");
-      handler.handle(Future.failedFuture(e));
+      return CompletableFuture.failedFuture(e);
     }
   }
 
@@ -278,8 +276,10 @@ public abstract class ConnectorConfigClient implements Initializable {
     if (Service.configuration.STORAGE_DB_URL != null) {
       URI uri = URI.create(Service.configuration.STORAGE_DB_URL.substring(5));
       psqlVars.put("PSQL_HOST", uri.getHost());
+      psqlVars.put("PSQL_REPLICA_HOST", uri.getHost());
       psqlVars.put("PSQL_PORT", String.valueOf(uri.getPort() == -1 ? 5432 : uri.getPort()));
       psqlVars.put("PSQL_USER", Service.configuration.STORAGE_DB_USER);
+      psqlVars.put("PSQL_REPLICA_USER", "ro_user");
       psqlVars.put("PSQL_PASSWORD", Service.configuration.STORAGE_DB_PASSWORD);
       String[] pathComponent = uri.getPath() == null ? null : uri.getPath().split("/");
       if (pathComponent != null && pathComponent.length > 1)
@@ -316,7 +316,6 @@ public abstract class ConnectorConfigClient implements Initializable {
       }
     });
   }
-
 
   protected abstract void getConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler);
 

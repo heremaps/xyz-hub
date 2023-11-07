@@ -61,14 +61,15 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
   }
 
   @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
-    JDBCConfig.init(onReady);
+  public Future<Void> init() {
+    return JDBCConfig.init();
   }
 
   @Override
   protected void getConnector(final Marker marker, final String connectorId, final Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE id = ?", connectorId);
-    client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE id = #{connectorId}")
+        .withNamedParameter("connectorId", connectorId);
+    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Optional<String> config = out.result().getRows().stream().map(r -> r.getString("config")).findFirst();
         if (config.isPresent()) {
@@ -88,8 +89,9 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void getConnectorsByOwner(Marker marker, String ownerId, Handler<AsyncResult<List<Connector>>> handler) {
-    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE owner = ?", ownerId);
-    client.queryWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+    final SQLQuery query = new SQLQuery("SELECT config FROM " + CONNECTOR_TABLE + " WHERE owner = #{ownerId}")
+        .withNamedParameter("ownerId", ownerId);
+    client.queryWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         final Stream<String> config = out.result().getRows().stream().map(r -> r.getString("config"));
         List<Connector> result = new ArrayList<>();
@@ -111,17 +113,19 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
 
   @Override
   protected void storeConnector(Marker marker, Connector connector, Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery("INSERT INTO " + CONNECTOR_TABLE + " (id, owner, config) VALUES (?, ?, cast(? as JSONB)) " +
+    final SQLQuery query = new SQLQuery("INSERT INTO " + CONNECTOR_TABLE + " (id, owner, config) VALUES (#{connectorId}, #{owner}, cast(#{connectorJson} as JSONB)) " +
         "ON CONFLICT (id) DO " +
-        "UPDATE SET id = ?, owner = ?, config = cast(? as JSONB)",
-        connector.id, connector.owner, Json.encode(connector),
-        connector.id, connector.owner, Json.encode(connector));
+        "UPDATE SET id = #{connectorId}, owner = #{owner}, config = cast(#{connectorJson} as JSONB)")
+        .withNamedParameter("connectorId", connector.id)
+        .withNamedParameter("owner", connector.owner)
+        .withNamedParameter("connectorJson", Json.encode(connector));
     updateWithParams(connector, query, handler);
   }
 
   @Override
   protected void deleteConnector(Marker marker, String connectorId, Handler<AsyncResult<Connector>> handler) {
-    final SQLQuery query = new SQLQuery("DELETE FROM " + CONNECTOR_TABLE + " WHERE id = ?", connectorId);
+    final SQLQuery query = new SQLQuery("DELETE FROM " + CONNECTOR_TABLE + " WHERE id = #{connectorId}")
+        .withNamedParameter("connectorId", connectorId);
     get(marker, connectorId, ar -> {
       if (ar.succeeded()) {
         updateWithParams(ar.result(), query, handler);
@@ -133,7 +137,7 @@ public class JDBCConnectorConfigClient extends ConnectorConfigClient {
   }
 
   private void updateWithParams(Connector modifiedObject, SQLQuery query, Handler<AsyncResult<Connector>> handler) {
-    client.updateWithParams(query.text(), new JsonArray(query.parameters()), out -> {
+    client.updateWithParams(query.substitute().text(), new JsonArray(query.parameters()), out -> {
       if (out.succeeded()) {
         handler.handle(Future.succeededFuture(modifiedObject));
       } else {

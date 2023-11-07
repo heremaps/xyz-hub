@@ -24,9 +24,8 @@ import com.amazonaws.services.dynamodbv2.document.Table;
 import com.amazonaws.services.dynamodbv2.model.AmazonDynamoDBException;
 import com.here.xyz.hub.config.SettingsConfigClient;
 import com.here.xyz.hub.config.settings.Setting;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import java.util.Map;
 import org.apache.logging.log4j.Marker;
@@ -69,7 +68,22 @@ public class DynamoSettingsConfigClient extends SettingsConfigClient {
   }
 
   @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
+  protected Future<Setting> storeSetting(Marker marker, Setting setting) {
+    logger.debug(marker, "Storing setting ID {} into Dynamo Table {}", setting.id, dynamoClient.tableName);
+    return DynamoClient.dynamoWorkers.executeBlocking(
+        promise -> {
+          try {
+            settings.putItem(Item.fromJSON(Json.encode(setting)));
+            promise.complete(setting);
+          }
+          catch (Exception e) {
+            promise.fail(e);
+          }
+        });
+  }
+
+  @Override
+  public Future<Void> init() {
     if (dynamoClient.isLocal()) {
       logger.info("DynamoDB running locally, initializing tables.");
 
@@ -78,10 +92,9 @@ public class DynamoSettingsConfigClient extends SettingsConfigClient {
       }
       catch (AmazonDynamoDBException e) {
         logger.error("Failure during creating table on DynamoSettingsConfigClient init", e);
-        onReady.handle(Future.failedFuture(e));
-        return;
+        return Future.failedFuture(e);
       }
     }
-    onReady.handle(Future.succeededFuture());
+    return Future.succeededFuture();
   }
 }

@@ -18,7 +18,11 @@
  */
 package com.here.xyz.hub.rest;
 
-import com.here.xyz.events.ContextAwareEvent;
+import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -28,35 +32,28 @@ import com.here.xyz.hub.auth.XyzHubActionMatrix;
 import com.here.xyz.hub.auth.XyzHubAttributeMap;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
-import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.HttpResponse;
-import io.vertx.ext.web.openapi.RouterBuilder;
+import io.vertx.ext.web.openapi.router.RouterBuilder;
+import java.nio.charset.Charset;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.nio.charset.Charset;
-import java.util.HashMap;
-import java.util.Map;
-
-import static com.here.xyz.hub.auth.XyzHubAttributeMap.SPACE;
-import static io.netty.handler.codec.http.HttpResponseStatus.*;
 
 public class JobProxyApi extends Api{
     private static final Logger logger = LogManager.getLogger();
     private static int JOB_API_TIMEOUT = 29_000;
 
     public JobProxyApi(RouterBuilder rb) {
-        rb.operation("postJob").handler(this::postJob);
-        rb.operation("patchJob").handler(this::patchJob);
-        rb.operation("getJobs").handler(this::getJobs);
-        rb.operation("getJob").handler(this::getJob);
-        rb.operation("deleteJob").handler(this::deleteJob);
-        rb.operation("postExecute").handler(this::postExecute);
+        rb.getRoute("postJob").setDoValidation(false).addHandler(this::postJob);
+        rb.getRoute("patchJob").setDoValidation(false).addHandler(this::patchJob);
+        rb.getRoute("getJobs").setDoValidation(false).addHandler(this::getJobs);
+        rb.getRoute("getJob").setDoValidation(false).addHandler(this::getJob);
+        rb.getRoute("deleteJob").setDoValidation(false).addHandler(this::deleteJob);
+        rb.getRoute("postExecute").setDoValidation(false).addHandler(this::postExecute);
     }
 
     private void postJob(final RoutingContext context) {
@@ -66,60 +63,15 @@ public class JobProxyApi extends Api{
             JobAuthorization.authorizeManageSpacesRights(context,spaceId)
                     .onSuccess(auth -> {
                         Service.spaceConfigClient.get(Api.Context.getMarker(context), spaceId)
-                                .onFailure(t ->  this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "The resource ID does not exist!")))
+                                .onFailure(t ->  this.sendErrorResponse(context, new HttpException(BAD_REQUEST, "Error fetching space!", t)))
                                 .compose(headSpace -> {
-                                    if (headSpace == null) {
-                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "The resource ID does not exist!"));
-                                    }
-                                    if (job instanceof Import && headSpace.getVersionsToKeep() != 1) {
-                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "Versioning is not supported!"));
-                                    }
+                                    if (headSpace == null)
+                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "The space ID does not exist!"));
+                                    if (job instanceof Import && headSpace.getVersionsToKeep() > 1)
+                                        return Future.failedFuture(new HttpException(BAD_REQUEST, "History is not supported!"));
 
-                                    return Future.succeededFuture(headSpace);
-                                })
-                                .compose(headSpace -> {
                                     job.setTargetSpaceId(spaceId);
-                                    job.setTargetConnector(headSpace.getStorage().getId());
-                                    job.addParam("versionsToKeep",headSpace.getVersionsToKeep());
-                                    job.addParam("persistExport", headSpace.isPersistExport());
-
-                                    Promise<Map> p = Promise.promise();
-
-                                    if (headSpace.getExtension() != null) {
-                                        /** Resolve Extension */
-                                        Service.spaceConfigClient.get(Api.Context.getMarker(context), headSpace.getExtension().getSpaceId())
-                                                .onSuccess(baseSpace -> {
-                                                    p.complete(headSpace.resolveCompositeParams(baseSpace));
-                                                })
-                                                .onFailure(e -> p.fail(e));
-                                    }else
-                                        p.complete(null);
-                                    return p.future();
-                                })
-                                .compose(extension -> {
-                                    Promise<Map> p = Promise.promise();
-                                    if (extension != null && extension.get("extends") != null  && ((Map)extension.get("extends")).get("extends") != null) {
-                                        /** Resolve 2nd Level Extension */
-                                        Service.spaceConfigClient.get(Api.Context.getMarker(context), (String)((Map)((Map)extension.get("extends")).get("extends")).get("spaceId"))
-                                                .onSuccess(baseSpace -> {
-                                                    /** Add persistExport flag to Parameters */
-                                                    Map<String, Object> ext = new HashMap<>();
-                                                    ext.putAll(extension);
-                                                    ((Map)((Map)ext.get("extends")).get("extends")).put("persistExport", baseSpace.isPersistExport());
-
-                                                    p.complete(ext);
-                                                })
-                                                .onFailure(e -> p.fail(e));
-                                    }else
-                                        p.complete(extension);
-                                    return p.future();
-                                })
-                                .compose(extension -> {
-                                    if(extension != null) {
-                                        /** Add extends to jobConfig params  */
-                                        job.addParam("extends",extension.get("extends"));
-                                    }
-                                    return Future.succeededFuture();
+                                    return Future.succeededFuture(headSpace);
                                 })
                                 .onSuccess(f -> {
                                     Future.succeededFuture(Service.webClient
@@ -212,6 +164,7 @@ public class JobProxyApi extends Api{
     private void deleteJob(final RoutingContext context) {
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
+        boolean deleteData = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.DELETE_DATA, false);
         boolean force = HApiParam.HQuery.getBoolean(context, HApiParam.HQuery.FORCE, false);
 
         JobAuthorization.authorizeManageSpacesRights(context,spaceId)
@@ -230,7 +183,8 @@ public class JobProxyApi extends Api{
                                         this.sendErrorResponse(context, new HttpException(FORBIDDEN, "This job belongs to another space!"));
                                         return;
                                     }
-                                    Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT+"/jobs/"+jobId+"?force="+force)
+                                    Service.webClient.deleteAbs(Service.configuration.HTTP_CONNECTOR_ENDPOINT + "/jobs/" + jobId
+                                            + "?deleteData=" + deleteData + "&force=" + force)
                                             .timeout(JOB_API_TIMEOUT)
                                             .send()
                                             .onSuccess(res2 -> jobAPIResultHandler(context,res2,spaceId))
@@ -245,8 +199,6 @@ public class JobProxyApi extends Api{
     private void postExecute(final RoutingContext context) {
         String spaceId = context.pathParam(ApiParam.Path.SPACE_ID);
         String jobId = context.pathParam(HApiParam.Path.JOB_ID);
-        ContextAwareEvent.SpaceContext _context = ApiParam.Query.getContext(context);
-        ApiParam.Query.Incremental incremental = HApiParam.HQuery.getIncremental(context);
         String command = ApiParam.Query.getString(context, HApiParam.HQuery.H_COMMAND, null);
         int urlCount = ApiParam.Query.getInteger(context, HApiParam.HQuery.URL_COUNT, 1);
 
@@ -285,8 +237,6 @@ public class JobProxyApi extends Api{
                                                     +"&connectorId={connectorId}"
                                                     +"&ecps={ecps}"
                                                     +"&enableHashedSpaceId={enableHashedSpaceId}"
-                                                    +"&enableUUID={enableUUID}"
-                                                    +"&incremental={incremental}"
                                                     +"&context={context}"
                                                     +"&command={command}"
                                                     +"&urlCount={urlCount}")
@@ -294,10 +244,6 @@ public class JobProxyApi extends Api{
                                                         .replace("{connectorId}",connector.id)
                                                         .replace("{ecps}",ecps)
                                                         .replace("{enableHashedSpaceId}", Boolean.toString(enableHashedSpaceId))
-                                                        .replace("{incremental}", incremental.toString().toLowerCase())
-                                                        .replace("{context}",_context.toString().toLowerCase())
-                                                        /**deprecated */
-                                                        .replace("{enableUUID}","false")
                                                         .replace("{command}",command)
                                                         .replace("{urlCount}",Integer.toString(urlCount));
 
@@ -349,6 +295,7 @@ public class JobProxyApi extends Api{
 
             try{
                 this.sendResponse(context, HttpResponseStatus.valueOf(res.statusCode()), res.bodyAsJsonObject());
+                return;
             }catch (Exception e){}
         }
 

@@ -30,7 +30,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.ModifySpaceEvent;
 import com.here.xyz.models.hub.Space;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.XyzResponse;
 import java.sql.ResultSet;
@@ -50,9 +49,12 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
     public static final String IDX_STATUS_TABLE = "xyz_idxs_status";
 
     public static final String IDX_STATUS_TABLE_FQN = XYZ_CONFIG_SCHEMA + "." + IDX_STATUS_TABLE;
-    public static final String SPACE_META_TABLE = "xyz_config.space_meta";
-    public ModifySpace(ModifySpaceEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-        super(event, dbHandler);
+
+    public static final String SPACE_META_TABLE = "space_meta";
+    public static final String SPACE_META_TABLE_FQN = XYZ_CONFIG_SCHEMA + "." + SPACE_META_TABLE;
+    public static final String I_SEQUENCE_SUFFIX = "_i_seq";
+    public ModifySpace(ModifySpaceEvent event) throws SQLException, ErrorResponseException {
+        super(event);
         setUseReadReplica(false);
     }
 
@@ -99,7 +101,7 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
     }
 
     public SQLQuery buildSpaceMetaUpsertQuery(ModifySpaceEvent event) throws SQLException {
-          SQLQuery q = new SQLQuery("INSERT INTO "+ SPACE_META_TABLE +" as s_m VALUES (#{spaceid},#{schema},#{table},(#{extend})::json)" +
+          SQLQuery q = new SQLQuery("INSERT INTO "+ SPACE_META_TABLE_FQN +" as s_m VALUES (#{spaceid},#{schema},#{table},(#{extend})::json)" +
                   "  ON CONFLICT (id,schem)" +
                   "  DO " +
                   "  UPDATE" +
@@ -176,17 +178,16 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
         upsertIDX.setNamedParameter("schema", getSchema());
         upsertIDX.setNamedParameter("auto_indexing", enableAutoIndexing);
 
-        SQLQuery updateReferencedTables = new SQLQuery();
         if (event.getOperation() == UPDATE) {
             /* update possible existing delta tables */
-            updateReferencedTables = new SQLQuery("UPDATE " + IDX_STATUS_TABLE_FQN + " "
+            SQLQuery updateReferencedTables = new SQLQuery("UPDATE " + IDX_STATUS_TABLE_FQN + " "
                     + "             SET schem=#{schema}, "
                     + "    			idx_manual = (${{idx_manual_sub2}}), "
                     + "				idx_creation_finished = false"
                     + "		WHERE " +
                     "           array_position(" +
                     "               (SELECT ARRAY_AGG(h_id) " +
-                    "                   FROM " + SPACE_META_TABLE + " as b " +
+                    "                   FROM " + SPACE_META_TABLE_FQN + " as b " +
                     "               WHERE 1=1" +
                     "                   AND b.meta->'extends'->>'extendedTable' = #{table}" +
                     "                   AND b.schem = #{schema}" +
@@ -195,23 +196,40 @@ public class ModifySpace extends ExtendedSpace<ModifySpaceEvent, XyzResponse> {
                     "           AND schem = #{schema};" );
 
             updateReferencedTables.setQueryFragment("idx_manual_sub2", idx_ext_q);
+
+            q.setQueryFragment("updateReferencedTables", updateReferencedTables);
         }
+        else
+            q.setQueryFragment("updateReferencedTables", "");
 
         return q
-            .withQueryFragment("upsertIDX", upsertIDX)
-            .withQueryFragment("updateReferencedTables", updateReferencedTables);
+            .withQueryFragment("upsertIDX", upsertIDX);
     }
 
     public SQLQuery buildCleanUpQuery(ModifySpaceEvent event) {
-        SQLQuery q = new SQLQuery("DELETE FROM " + SPACE_META_TABLE + " WHERE h_id = #{table} AND schem = #{schema};");
-        q.append("DELETE FROM " + IDX_STATUS_TABLE_FQN + " WHERE spaceid = #{table} AND schem = #{schema};");
-        q.append("DROP TABLE IF EXISTS ${schema}.${table};");
-        q.append("DROP SEQUENCE IF EXISTS ${schema}.${table_seq};");
-        q.append("DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
+        String table = getDefaultTable(event);
+        SQLQuery q = new SQLQuery("${{deleteMetadata}} ${{deleteIndexStatus}} ${{dropTable}} ${{dropISequence}} ${{dropVersionSequence}}")
+            .withQueryFragment(
+                "deleteMetadata",
+                "DELETE FROM ${configSchema}.${spaceMetaTable} WHERE h_id = #{table} AND schem = #{schema};"
+            )
+            .withQueryFragment(
+                "deleteIndexStatus",
+                "DELETE FROM ${configSchema}.${idxStatusTable} WHERE spaceid = #{table} AND schem = #{schema};"
+            )
+            .withQueryFragment("dropTable", "DROP TABLE IF EXISTS ${schema}.${table};")
+            .withQueryFragment("dropISequence", "DROP SEQUENCE IF EXISTS ${schema}.${iSequence};")
+            .withQueryFragment("dropVersionSequence", "DROP SEQUENCE IF EXISTS ${schema}.${versionSequence};");
 
         return q
-            .withNamedParameter(TABLE, getDefaultTable(event))
+            .withVariable(SCHEMA, getSchema())
+            .withVariable(TABLE, table)
             .withNamedParameter(SCHEMA, getSchema())
+            .withNamedParameter(TABLE, table)
+            .withVariable("configSchema", XYZ_CONFIG_SCHEMA)
+            .withVariable("idxStatusTable", IDX_STATUS_TABLE)
+            .withVariable("spaceMetaTable", SPACE_META_TABLE)
+            .withVariable("iSequence", table + I_SEQUENCE_SUFFIX)
             .withVariable("versionSequence", getDefaultTable(event) + VERSION_SEQUENCE_SUFFIX);
     }
 

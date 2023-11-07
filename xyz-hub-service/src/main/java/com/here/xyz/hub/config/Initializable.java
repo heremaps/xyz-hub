@@ -19,12 +19,10 @@
 
 package com.here.xyz.hub.config;
 
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 
 public interface Initializable {
-  default void init(Handler<AsyncResult<Void>> onReady) {
-    onReady.handle(Future.succeededFuture());
+  default Future<Void> init() {
+    return Future.succeededFuture();
   }
 }

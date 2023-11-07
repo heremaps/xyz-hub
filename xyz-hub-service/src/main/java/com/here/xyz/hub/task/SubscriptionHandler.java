@@ -146,10 +146,10 @@ public class SubscriptionHandler {
                 handler.handle(Future.failedFuture(new HttpException(INTERNAL_SERVER_ERROR, "Unable to store the resource definition.", ar.cause())));
             } else {
                 Future<Void> spaceFuture = SpaceConfigClient.getInstance().get(marker, subscription.getSource())
-                    .flatMap(space -> increaseVersionsToKeepIfNecessary(marker, space))
+                    .compose(space -> increaseVersionsToKeepIfNecessary(marker, space))
                     .recover(t->Future.failedFuture("Unable to increase versionsToKeep value on space " + subscription.getSource() + " during subscription registration."));
                 Future<Tag> tagFuture = TagConfigClient.getInstance().getTag(marker, subscription.getId(), subscription.getSource())
-                    .flatMap(tag -> createTagIfNecessary(marker, tag, subscription.getSource()))
+                    .compose(tag -> createTagIfNecessary(marker, tag, subscription.getSource()))
                     .recover(t->Future.failedFuture("Unable to store tag for space " + subscription.getSource() + " during subscription registration."));
 
                 CompositeFuture.all(spaceFuture, tagFuture)

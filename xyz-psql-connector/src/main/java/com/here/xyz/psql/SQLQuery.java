@@ -19,11 +19,10 @@
 
 package com.here.xyz.psql;
 
-import static com.here.xyz.psql.DatabaseHandler.HEAD_TABLE_SUFFIX;
-
+import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.PropertyQuery;
-import com.here.xyz.events.SelectiveEvent;
-import com.here.xyz.psql.query.GetFeatures;
+import com.here.xyz.psql.datasource.StaticDataSources;
+import com.here.xyz.psql.query.InlineQueryRunner;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -37,110 +36,76 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.sql.DataSource;
+import org.apache.commons.dbutils.ResultSetHandler;
 
 /**
  * A struct like object that contains the string for a prepared statement and the respective parameters for replacement.
  */
 public class SQLQuery {
-  private String statement;
-  private List<Object> parameters;
-  private Map<String, Object> namedParameters;
-  private Map<String, String> variables;
-  private Map<String, SQLQuery> queryFragments;
   private static final String VAR_PREFIX = "\\$\\{";
   private static final String VAR_SUFFIX = "\\}";
   private static final String FRAGMENT_PREFIX = "${{";
   private static final String FRAGMENT_SUFFIX = "}}";
-  private static final String VAR_SCHEMA = "schema";
-  private static final String VAR_TABLE = "table";
-  private static final String VAR_TABLE_HEAD = "table_head";
-  private static final String VAR_TABLE_SEQ = "table_seq";
-
+  private String statement = "";
+  private List<Object> parameters = new ArrayList<>();
+  private Map<String, Object> namedParameters;
+  private Map<String, String> variables;
+  private Map<String, SQLQuery> queryFragments;
   private boolean async = false;
 
   private HashMap<String, List<Integer>> namedParams2Positions = new HashMap<>();
 
   private PreparedStatement preparedStatement;
 
-  @Deprecated
-  public SQLQuery() {
-    this.statement = "";
-    this.parameters = new ArrayList<>();
-  }
-
   public SQLQuery(String text) {
-    this();
-    append(text);
+    if (text != null)
+      statement = text;
   }
 
-  @Deprecated
-  public SQLQuery(String text, Object... parameters) {
-    this();
-    append(text, parameters);
+  /**
+   * Creates a new {@link SQLQuery} which combines all specified queries into one.
+   * The newly created query holds references to all provided queries.
+   * @param queries The queries which should be used inside the joined query
+   * @param delimiter The string to put in between all the joined queries
+   * @return A newly created query which joins all the specified queries together
+   */
+  public static SQLQuery join(List<SQLQuery> queries, String delimiter) {
+    return join(queries, delimiter, false);
   }
 
-  @Deprecated
-  public static SQLQuery join(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets ) {
-    if (queries == null) throw new NullPointerException("queries parameter is required");
-    if (queries.size() == 0) throw new IllegalArgumentException("queries parameter is required");
-
-
-    int counter = 0;
-    final SQLQuery result = new SQLQuery();
-    if( queries.size() > 1 && encloseInBrackets ){
-      result.append("(");
-    }
+  /**
+   * Creates a new {@link SQLQuery} which combines all specified queries into one.
+   * The newly created query holds references to all provided queries.
+   * @param queries The queries which should be used inside the joined query
+   * @param delimiter The string to put in between all the joined queries
+   * @param encloseInBrackets Whether to put brackets around the resulting query
+   * @return A newly created query which joins all the specified queries together
+   */
+  public static SQLQuery join(List<SQLQuery> queries, String delimiter, boolean encloseInBrackets) {
+    List<String> fragmentPlaceholders = new ArrayList<>();
+    Map<String, SQLQuery> queryFragments = new HashMap<>();
+    int i = 0;
     for (SQLQuery q : queries) {
-      if (q == null) continue;
-
-      if (counter++ > 0) result.append(delimiter);
-      result.append(q);
+      String fragmentName = "f" + i++;
+      fragmentPlaceholders.add("${{" + fragmentName + "}}");
+      queryFragments.put(fragmentName, q);
     }
 
-    if( queries.size() > 1 && encloseInBrackets ){
-      result.append(")");
-    }
-
-    if (counter == 0) return null;
-
-    return result;
+    String joinedSql = String.join(delimiter, fragmentPlaceholders);
+    if (encloseInBrackets)
+      joinedSql = "(" + joinedSql + ")";
+    SQLQuery joinedQuery = new SQLQuery(joinedSql);
+    for (Entry<String, SQLQuery> queryFragment : queryFragments.entrySet())
+      joinedQuery.setQueryFragment(queryFragment.getKey(), queryFragment.getValue());
+    return joinedQuery;
   }
 
-  //@Deprecated
-  public void append(String text, Object... parameters) {
-    addText(text);
-    addParameters(parameters);
-  }
-
-  @Deprecated
-  public void append(SQLQuery other) {
-    if (other.parameters() != null)
-      append(other.text(), other.parameters().toArray());
-    else
-      append(other.text());
-  }
-
-  @Deprecated
-  private void addText(CharSequence text) {
-    if (text == null || text.length() == 0)
-      return;
-    if (text.charAt(0) == ' ' || statement.length() == 0 || statement.charAt(statement.length() - 1) == ' ')
-      statement += text;
-    else
-      statement += " " + text;
-  }
-
-  @Deprecated
-  public void addParameter(Object value) {
-    parameters.add(value);
-  }
-
-  private void addParameters(Object... values) {
-    if (values != null) {
-      Collections.addAll(parameters, values);
-    }
-  }
-
+  /**
+   * Returns the query text as it has been defined for this SQLQuery.
+   * Use method {@link #substitute()} prior to this method to retrieve to substitute all placeholders of this query.
+   * @return
+   */
   public String text() {
     return statement;
   }
@@ -177,11 +142,11 @@ public class SQLQuery {
     return result;
   }
 
-  //TODO: Make private when refactoring is complete
-  public void setText(String queryText) {
-    statement = queryText;
-  }
-
+  /**
+   * @deprecated Please do not use this method anymore!
+   * Instead, please use more flexible / configurable / isolation-keeping placeholders
+   * in the form of variables / query-fragments / named-parameters.
+   */
   @Deprecated
   public List<Object> parameters() {
     return parameters;
@@ -194,8 +159,8 @@ public class SQLQuery {
     if (async) {
       SQLQuery asyncQuery = new SQLQuery("SELECT asyncify(#{query}, #{password})")
           .withNamedParameter("query", text())
-          .withNamedParameter("password", DatabaseHandler.getInstance().getConfig().getDatabaseSettings().getPassword());
-      setText(asyncQuery.substitute().text());
+          .withNamedParameter("password", PSQLXyzConnector.getInstance().getConfig().getDatabaseSettings().getPassword());
+      statement = asyncQuery.substitute().text();
       return asyncQuery;
     }
     return this;
@@ -237,17 +202,6 @@ public class SQLQuery {
     return text == null ? "" : '"' + text.replace("\"", "\"\"") + '"';
   }
 
-  @Deprecated
-  public static String replaceVars(String query, String schema, String table) {
-    SQLQuery q = new SQLQuery(query)
-        .withVariable(VAR_SCHEMA, schema)
-        .withVariable(VAR_TABLE, table)
-        .withVariable(VAR_TABLE_HEAD, table + HEAD_TABLE_SUFFIX)
-        .withVariable(VAR_TABLE_SEQ, table != null ? table.replaceAll("-", "_") + "_i_seq\";" : "");
-    q.substitute();
-    return q.text();
-  }
-
   /**
    * Replaces #{namedVar} in the queryText with ? and appends the corresponding parameters from the specified map.
    */
@@ -255,22 +209,22 @@ public class SQLQuery {
     Pattern p = Pattern.compile("#\\{\\s*([^\\s\\}]+)\\s*\\}");
     Matcher m = p.matcher(text());
 
-    while( m.find() )
-    { String nParam = m.group(1);
+    while(m.find()) {
+      String nParam = m.group(1);
       if (!namedParameters.containsKey(nParam))
         throw new IllegalArgumentException("sql: named Parameter ["+ nParam +"] missing");
       if (!namedParams2Positions.containsKey(nParam))
         namedParams2Positions.put(nParam, new ArrayList<>());
       namedParams2Positions.get(nParam).add(parameters.size());
-      addParameter( namedParameters.get(nParam) );
+      parameters.add(namedParameters.get(nParam));
       if (!usePlaceholders) {
-        setText(m.replaceFirst(paramValueToString(namedParameters.get(nParam))));
+        statement = m.replaceFirst(paramValueToString(namedParameters.get(nParam)));
         m = p.matcher(text());
       }
     }
 
     if (usePlaceholders)
-      setText(m.replaceAll("?"));
+      statement = m.replaceAll("?");
   }
 
   private String paramValueToString(Object paramValue) {
@@ -280,12 +234,6 @@ public class SQLQuery {
       return paramValue.toString();
     throw new RuntimeException("Only strings or numeric values are allowed for parameters of async queries. Provided: "
         + paramValue.getClass().getSimpleName());
-  }
-
-  private static String replaceVars(String queryText, Map<String, String> replacements) {
-    for (String key : replacements.keySet())
-      queryText = queryText.replaceAll(VAR_PREFIX + key + VAR_SUFFIX, sqlQuote(replacements.get(key)));
-    return queryText;
   }
 
   private void replaceVars() {
@@ -304,17 +252,19 @@ public class SQLQuery {
       queryFragments.values().forEach(fragment -> fragment.replaceAllSubVars(variablesLookup));
     //Now replace all direct variables
     if (variablesLookup.size() != 0)
-      replaceChildVars(variablesLookup);
+      replaceVars(variablesLookup);
     //Clear all variables
     variables = null;
   }
 
-  private void replaceChildVars(Map<String, String> variables) {
-    setText(replaceVars(text(), variables));
+  private void replaceVars(Map<String, String> variables) {
+    String queryText = text();
+    for (String key : variables.keySet())
+      queryText = queryText.replaceAll(VAR_PREFIX + key + VAR_SUFFIX, sqlQuote(variables.get(key)));
+    statement = queryText;
   }
 
-  //TODO: Make private when refactoring is complete
-  public void replaceFragments() {
+  private void replaceFragments() {
     replaceAllSubFragments(Collections.emptyMap());
   }
 
@@ -347,12 +297,7 @@ public class SQLQuery {
     String queryText = text();
     for (String key : fragments.keySet())
       queryText = queryText.replace(FRAGMENT_PREFIX + key + FRAGMENT_SUFFIX, fragments.get(key).text());
-    setText(queryText);
-  }
-
-  //TODO: Make private when refactoring is complete
-  public void replaceNamedParameters() {
-    replaceNamedParameters(true);
+    statement = queryText;
   }
 
   private void replaceNamedParameters(boolean usePlaceholders) {
@@ -366,31 +311,9 @@ public class SQLQuery {
     namedParameters = null;
   }
 
-  //TODO: Can be removed after completion of refactoring
-  @Deprecated
-  public void replaceUnnamedParameters() {
-    if (parameters() == null || parameters().size() == 0)
-      return;
-    List<Object> params = parameters();
-    //Clear all un-named parameters
-    parameters = new ArrayList<>();
-    int i = 0;
-    for (Object paramValue : params) {
-      String paramName = "param" + ++i;
-      setNamedParameter(paramName, paramValue);
-      setText(text().replaceFirst(Pattern.quote("?"), "#{" + paramName + "}"));
-    }
-  }
-
-  @Deprecated
-  public static SQLQuery selectJson(SelectiveEvent event) {
-    return GetFeatures.buildSelectionFragmentBWC(event);
-  }
-
   public static String getOperation(PropertyQuery.QueryOperation op) {
-    if (op == null) {
+    if (op == null)
       throw new NullPointerException("op is required");
-    }
 
     switch (op) {
       case EQUALS:
@@ -517,6 +440,11 @@ public class SQLQuery {
     this.queryFragments.putAll(queryFragments);
   }
 
+  public SQLQuery withQueryFragments(Map<String, SQLQuery> queryFragments) {
+    setQueryFragments(queryFragments);
+    return this;
+  }
+
   public SQLQuery getQueryFragment(String key) {
     if (queryFragments == null)
       return null;
@@ -567,9 +495,24 @@ public class SQLQuery {
     return null;
   }
 
+  public void run(DataSource dataSource) throws SQLException, ErrorResponseException {
+    run(dataSource, rs -> null);
+  }
+
+  public <R> R run(DataSource dataSource, ResultSetHandler<R> handler) throws SQLException, ErrorResponseException {
+    return new InlineQueryRunner<>(() -> this, handler).run(new StaticDataSources(dataSource));
+  }
+
+  public int write(DataSource dataSource) throws SQLException, ErrorResponseException {
+    return new InlineQueryRunner<Void>(() -> this).write(new StaticDataSources(dataSource));
+  }
+
+  /**
+   * @deprecated Can be removed, once the db client interface has been streamlined.
+   */
   /** from ? to $1-$N */
   @Deprecated
-  public static SQLQuery substituteAndUseDollarSyntax(SQLQuery q){
+  public static SQLQuery substituteAndUseDollarSyntax(SQLQuery q) {
     q.substitute();
 
     String translatedQuery = "";
@@ -581,7 +524,7 @@ public class SQLQuery {
         translatedQuery += c;
     }
 
-    q.setText(translatedQuery);
+    q.statement = translatedQuery;
     return q;
   }
 }

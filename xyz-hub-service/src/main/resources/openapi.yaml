@@ -6,7 +6,7 @@ info:
   contact: {}
   version: 1.0.0
 servers:
-  - url: /hub
+  - url: http://localhost:8080/hub
 security:
   - AccessToken: []
   - Bearer: []
@@ -432,7 +432,7 @@ paths:
       operationId: getFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/RequiredIds'
+        - $ref: '#/components/parameters/Ids'
         - $ref: '#/components/parameters/PropertiesSelection'
         - $ref: '#/components/parameters/Force2D'
         - $ref: '#/components/parameters/Context'
@@ -743,6 +743,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/SkipCache'
+        - $ref: '#/components/parameters/Context'
       responses:
         '200':
           $ref: '#/components/responses/StatisticsResponse'
@@ -1190,6 +1191,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
   '/spaces/{spaceId}/jobs':
     post:
       tags:
@@ -1280,7 +1283,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/Force'
+        - $ref: '#/components/parameters/DeleteData'
       responses:
         '200':
           $ref: '#/components/responses/JobResponse'
@@ -1302,8 +1305,6 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SpaceId'
         - $ref: '#/components/parameters/JobId'
-        - $ref: '#/components/parameters/Context'
-        - $ref: '#/components/parameters/Incremental'
         - $ref: '#/components/parameters/Command'
         - $ref: '#/components/parameters/UrlCount'
       responses:
@@ -1435,13 +1436,14 @@ components:
         |             |         |           |     The returned count property set to 1, for non empty tiles |
       style: form
       explode: true
+      allowReserved: true
       schema:
-        type: object
+        type: array
+        items:
+          type: string
         example:
           clustering.resolution: 3
           clustering.property: 'a.nested.property'
-        additionalProperties:
-          type: string
     ConflictResolution:
       name: cr
       in: query
@@ -1541,6 +1543,7 @@ components:
         for this field:
           * id=value1,value2
           * id=value1,id=value2
+      required: true
       schema:
         type: array
         items:
@@ -1720,13 +1723,15 @@ components:
           - "<" or "=lt=" - less than
           - "@>" or "=cs=" - Array contains
       explode: true
+      style: form
+      allowReserved: true
       schema:
-        type: object
+        type: array
+        items:
+          type: string
         example:
           p.myProperty: 'someValue'
           p.otherProperty: 5
-        additionalProperties:
-          type: string
     PropertiesSelection:
       name: selection
       in: query
@@ -1780,19 +1785,6 @@ components:
         Required if refFeatureId is used.
       schema:
         type: string
-    RequiredIds:
-      name: id
-      in: query
-      description: >-
-        A comma separated list of unique feature identifiers. These are the acceptable formats
-        for this field:
-          * id=value1,value2
-          * id=value1,id=value2
-      required: true
-      schema:
-        type: array
-        items:
-          type: string
     VersionLowerThan:
       name: version
       in: query
@@ -1944,12 +1936,13 @@ components:
 
       style: form
       explode: true
+      allowReserved: true
       schema:
-        type: object
+        type: array
+        items:
+          type: string
         example:
           tweaks.strength: "1-100 | [low,lowmed,med,medhigh,high]"
-        additionalProperties:
-          type: string
     Version:
       name: version
       in: query
@@ -2080,26 +2073,11 @@ components:
         default: 1
         minimum: 1
         maximum: 1000
-    Incremental:
-      name: incremental
+    DeleteData:
+      name: deleteData
       in: query
       description: >-
-        Available for composite spaces where the super space has a "persistExport" configuration.
-        Full: reuse existing super export and add changed tiles of composite compound on top.
-        Changes: changed tiles of composite compound.
-      required: false
-      schema:
-        type: string
-        enum:
-          - deactivated
-          - full
-          - changes
-        default: deactivated
-    Force:
-      name: force
-      in: query
-      description: >-
-        With force also persistent job data gets deleted.
+        By setting deleteData=true also immediate deletion of import and export files is getting performed.
       required: false
       schema:
         type: boolean
@@ -2201,7 +2179,7 @@ components:
     ErrorResponse413:
       description: Request entity too large.
       content:
-        text/plain:
+        application/json:
           schema:
             $ref: '#/components/schemas/Error'
           example:
@@ -2355,6 +2333,7 @@ components:
       content:
         application/json:
           schema:
+            type: array
             items:
               $ref: '#/components/schemas/Job'
   requestBodies:
@@ -3413,13 +3392,6 @@ components:
           $ref: '#/components/schemas/Extension'
         client:
           $ref: '#/components/schemas/SpaceClient'
-        enableUUID:
-          deprecated: true
-          default: false
-          description: >-
-            Whether the uuid should be added to the response or not.
-          example: true
-          type: boolean
         packages:
           description: List of packages that this space belongs to.
           items:
@@ -3571,6 +3543,14 @@ components:
               type: integer
             estimated:
               $ref: '#/components/schemas/Estimated'
+        contentUpdatedAt:
+          type: object
+          description: The time when the content in the space was last updated.
+          properties:
+            value:
+              type: integer
+            estimated:
+              $ref: '#/components/schemas/Estimated'
         dataSize:
           type: object
           description: The amount of bytes that are allocated in the storage for this space.
@@ -3637,6 +3617,9 @@ components:
         type: StatisticsResponse
         count:
           value: 29208
+          estimated: true
+        contentUpdatedAt:
+          value: 1692368695049
           estimated: true
         dataSize:
           value: 108364

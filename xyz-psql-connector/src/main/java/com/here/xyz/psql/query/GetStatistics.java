@@ -24,8 +24,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetStatisticsEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.models.geojson.coordinates.BBox;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.StatisticsResponse;
 import com.here.xyz.responses.StatisticsResponse.Value;
@@ -40,17 +40,18 @@ public class GetStatistics extends XyzQueryRunner<GetStatisticsEvent, Statistics
 
   private static final Pattern BBOX_PATTERN = Pattern.compile("^BOX\\(([-\\d\\.]*)\\s([-\\d\\.]*),([-\\d\\.]*)\\s([-\\d\\.]*)\\)$");
 
-  public GetStatistics(GetStatisticsEvent event, DatabaseHandler dbHandler) throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+  public GetStatistics(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
+    super(event);
     setUseReadReplica(true);
   }
 
   @Override
   protected SQLQuery buildQuery(GetStatisticsEvent event) throws SQLException, ErrorResponseException {
-    return new SQLQuery("SELECT * FROM ${schema}.xyz_statistic_space(#{schema}, #{table})")
+    return new SQLQuery("SELECT * FROM ${schema}.xyz_statistic_space(#{schema}, #{table}, #{isExtension} )")
         .withVariable(SCHEMA, getSchema())
         .withNamedParameter(SCHEMA, getSchema())
-        .withNamedParameter(TABLE, getDefaultTable(event));
+        .withNamedParameter(TABLE, getDefaultTable(event))
+        .withNamedParameter("isExtension", event.getContext() == SpaceContext.EXTENSION);
   }
 
   @Override

@@ -20,10 +20,10 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 
@@ -35,7 +35,6 @@ import com.here.xyz.models.geojson.implementation.Feature;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.LineString;
 import com.here.xyz.models.geojson.implementation.Point;
-import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -356,15 +355,15 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void postFeatureWithUUIDnonUUIDSpace() throws Exception {
+  public void postFeatureWithVersionWithoutConflictDetection() throws Exception {
     FeatureCollection featureCollection = XyzSerializable.deserialize(content("/xyz/hub/updateFeatureById.json"));
-    featureCollection.getFeatures().get(0).getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    featureCollection.getFeatures().get(0).getProperties().getXyzNamespace().setVersion(5);
 
     given().
         accept(APPLICATION_GEO_JSON).
         contentType(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body(XyzSerializable.serialize(featureCollection)).
+        body(featureCollection.serialize()).
         when().
         post(getSpacesPath() + "/x-psql-test/features").
         then().
@@ -372,15 +371,15 @@ public class UpdateFeatureApiIT extends TestSpaceWithFeature {
   }
 
   @Test
-  public void patchFeatureWithUUIDnonUUIDSpace() throws Exception {
+  public void patchFeatureWithVersionWithoutConflictDetection() throws Exception {
     Feature feature = XyzSerializable.deserialize(content("/xyz/hub/updateFeature.json"));
-    feature.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
+    feature.getProperties().getXyzNamespace().setVersion(5);
 
     given().
         accept(APPLICATION_GEO_JSON).
         contentType(APPLICATION_GEO_JSON).
         headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN)).
-        body(XyzSerializable.serialize(feature)).
+        body(feature.serialize()).
         when().
         patch(getSpacesPath() + "/x-psql-test/features/Q2838923").
         then().

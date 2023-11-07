@@ -49,7 +49,7 @@ public class DatabaseMaintainer {
     private static final Logger logger = LogManager.getLogger();
 
     /** Is used to check against xyz_ext_version() */
-    public static final int XYZ_EXT_VERSION = 175;
+    public static final int XYZ_EXT_VERSION = 182;
 
     public static final int H3_CORE_VERSION = 108;
 
@@ -74,16 +74,14 @@ public class DatabaseMaintainer {
         if(config.getMaintenanceEndpoint() != null){
             try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()){
                 HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
-                        +"/maintain/indices?connectorId="+traceItem.getConnectorId()
-                        +"&ecps="+config.getEcps()+"&autoIndexing="+autoIndexing
+                        +"/maintain/connectors/"+traceItem.getConnectorId()+"/indices"
                 );
 
                 HttpResponse response = client.execute(request);
                 if(response.getStatusLine().getStatusCode() == 405){
                     logger.warn("{} Database not initialized!",traceItem);
                     request = new HttpPost(config.getMaintenanceEndpoint()
-                            +"/initialization?connectorId="+traceItem.getConnectorId()
-                            +"&ecps="+config.getEcps()+"&autoIndexing="+autoIndexing);
+                            +"/maintain/connectors/"+traceItem.getConnectorId()+"/initialization");
                     response = client.execute(request);
                     if(response.getStatusLine().getStatusCode() >= 400){
                         logger.warn("{} Could not initialize Database! {}",traceItem, EntityUtils.toString(response.getEntity()));
@@ -293,21 +291,20 @@ public class DatabaseMaintainer {
         }
     }
 
-    public void maintainSpace(TraceItem traceItem, String schema, String table){
+    public void maintainSpace(TraceItem traceItem, String schema, String spaceId){
         if(config.getMaintenanceEndpoint() != null){
             try (CloseableHttpClient client = HttpClients.custom().setDefaultRequestConfig(requestConfig).build()){
                 HttpPost request = new HttpPost(config.getMaintenanceEndpoint()
-                        +"/maintain/space/"+table+"?connectorId="+traceItem.getConnectorId()
-                        +"&ecps="+config.getEcps()+"&force=true"
+                        +"/maintain/spaces/"+spaceId+"?force=true"
                 );
 
                 HttpResponse response = client.execute(request);
                 if(response.getStatusLine().getStatusCode() >= 400)
-                    logger.warn("{} Could not maintain space!{}/{} {}", traceItem, schema, table, EntityUtils.toString(response.getEntity()));
+                    logger.warn("{} Could not maintain space!{}/{} {}", traceItem, schema, spaceId, EntityUtils.toString(response.getEntity()));
             }catch (SocketTimeoutException | ConnectTimeoutException e){
                 logger.info("{} Do not further wait for a response {}",traceItem,e);
             }catch (Exception e){
-                logger.error("{} Could not maintain space!{}/{}", traceItem, schema, table);
+                logger.error("{} Could not maintain space!{}/{}", traceItem, schema, spaceId);
             }
         }
     }

@@ -18,22 +18,19 @@
  */
 package com.here.xyz.psql;
 
+import static io.restassured.path.json.JsonPath.with;
+
 import com.amazonaws.util.IOUtils;
-import com.jayway.jsonpath.DocumentContext;
-import com.jayway.jsonpath.JsonPath;
+import com.here.xyz.events.ModifyFeaturesEvent;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 public class PSQLDeleteIT extends PSQLAbstractIT {
-
-    @BeforeClass
-    public static void init() throws Exception { initEnv(null); }
 
     @Before
     public void createTable() throws Exception {
@@ -53,20 +50,17 @@ public class PSQLDeleteIT extends PSQLAbstractIT {
         String insertRequest = IOUtils.toString(this.getClass().getResourceAsStream(insertJsonFile));
         assertRead(insertRequest, insertResponse, false);
 
-        final JsonPath jsonPathFeatureIds = JsonPath.compile("$.features..id");
-        List<String> ids = jsonPathFeatureIds.read(insertResponse, jsonPathConf);
+        List<String> ids = with(insertResponse).get("features.id");
         LOGGER.info("Preparation: Inserted features {}", ids);
 
         // =========== DELETE ==========
-        final DocumentContext modifyFeaturesEventDoc = getEventFromResource("/events/InsertFeaturesEvent.json");
-        modifyFeaturesEventDoc.delete("$.insertFeatures");
-
         Map<String, String> idsMap = new HashMap<>();
         ids.forEach(id -> idsMap.put(id, null));
-        modifyFeaturesEventDoc.put("$", "deleteFeatures", idsMap);
+        ModifyFeaturesEvent deleteEvent = new ModifyFeaturesEvent()
+            .withSpace("foo")
+            .withDeleteFeatures(idsMap);
 
-        String deleteEvent = modifyFeaturesEventDoc.jsonString();
-        String deleteResponse = invokeLambda(deleteEvent);
+        String deleteResponse = invokeLambda(deleteEvent.toString());
         assertNoErrorInResponse(deleteResponse);
         LOGGER.info("Modify features tested successfully");
     }

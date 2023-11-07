@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@
 package com.here.xyz.hub.rest;
 
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
 import org.junit.Test;
@@ -165,5 +165,39 @@ public class ModifyCompositeSpaceIT extends TestCompositeSpace {
         .statusCode(NO_CONTENT.code());
   }
 
-  //TODO create test for update cyclic a->b->a
+  @Test
+  public void updateExtendsSelfReference() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"x-psql-test\"}}")
+        .when()
+        .patch("/spaces/x-psql-test")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void updateExtendsCyclicReference() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"x-psql-test-ext\"}}")
+        .when()
+        .patch("/spaces/x-psql-test")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
+
+  @Test
+  public void updateExtendsCyclicReference2Levels() {
+    given()
+        .contentType(APPLICATION_JSON)
+        .headers(getAuthHeaders(AuthProfile.ACCESS_OWNER_1_ADMIN))
+        .body("{\"extends\":{\"spaceId\":\"x-psql-test-ext-ext\"}}")
+        .when()
+        .patch("/spaces/x-psql-test")
+        .then()
+        .statusCode(BAD_REQUEST.code());
+  }
 }

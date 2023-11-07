@@ -20,10 +20,13 @@
 package com.here.xyz.hub.auth;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
+import static io.netty.handler.codec.http.HttpResponseStatus.UNAUTHORIZED;
 
 import com.here.xyz.hub.rest.HttpException;
+import com.here.xyz.hub.spi.Modules;
 import com.here.xyz.hub.task.Task;
 import com.here.xyz.hub.task.TaskPipeline.Callback;
+import io.vertx.core.Future;
 import io.vertx.core.json.Json;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,10 +35,19 @@ import org.apache.logging.log4j.Marker;
 public abstract class Authorization {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final CompositeAuthorizationHandler compositeAuthorizationHandler = Modules.getCompositeAuthorizationHandler();
 
-  public enum AuthorizationType {
-    JWT,
-    DUMMY
+  public static <X extends Task> void authorizeComposite(X task, Callback<X> callback) {
+    final HttpException unauthorized = new HttpException(UNAUTHORIZED, "Authorization failed");
+
+    compositeAuthorizationHandler.authorize(task.context)
+        .flatMap(authorized -> authorized ? Future.succeededFuture() : Future.failedFuture(unauthorized))
+        .onSuccess(v -> callback.call(task))
+        .onFailure(e -> {
+          if (!(e instanceof HttpException))
+            logger.error(task.getMarker(), "Module authorization failed at " + task.context.request().method() + " " + task.context.request().path(), e);
+          callback.exception(unauthorized);
+        });
   }
 
   protected static void evaluateRights(Marker marker, ActionMatrix requestRights, ActionMatrix tokenRights) throws HttpException {

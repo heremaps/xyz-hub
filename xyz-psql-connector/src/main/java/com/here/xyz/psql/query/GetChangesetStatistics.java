@@ -21,10 +21,8 @@ package com.here.xyz.psql.query;
 
 import com.here.xyz.connectors.ErrorResponseException;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
-import com.here.xyz.psql.DatabaseHandler;
 import com.here.xyz.psql.SQLQuery;
 import com.here.xyz.responses.ChangesetsStatisticsResponse;
-
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
@@ -33,9 +31,9 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
   long minSpaceVersion;
   int versionsToKeep;
 
-  public GetChangesetStatistics(GetChangesetStatisticsEvent event, DatabaseHandler dbHandler)
+  public GetChangesetStatistics(GetChangesetStatisticsEvent event)
       throws SQLException, ErrorResponseException {
-    super(event, dbHandler);
+    super(event);
     setUseReadReplica(true);
     this.minSpaceVersion = event.getMinSpaceVersion();
     this.minTagVersion = event.getMinTagVersion();
@@ -63,6 +61,7 @@ public class GetChangesetStatistics extends XyzQueryRunner<GetChangesetStatistic
       String maxV = rs.getString("max");
       String minV = rs.getString("min");
       long maxVersion = (maxV == null ? -1 : Long.parseLong(maxV));
+      //FIXME: Returned minVersion is not always correct for spaces with v2k=1
       long minVersion = (minV == null ? 0 : Long.parseLong(minV));
 
       csr.setMaxVersion(maxVersion);

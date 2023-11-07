@@ -27,6 +27,7 @@ import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.Event;
 import com.here.xyz.events.GetFeaturesByBBoxEvent;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
@@ -41,6 +42,7 @@ import com.here.xyz.events.ModifySpaceEvent.Operation;
 import com.here.xyz.events.ModifySubscriptionEvent;
 import com.here.xyz.events.SearchForFeaturesEvent;
 import com.here.xyz.hub.Service;
+import com.here.xyz.hub.auth.Authorization;
 import com.here.xyz.hub.auth.FeatureAuthorization;
 import com.here.xyz.hub.connectors.RpcClient;
 import com.here.xyz.hub.connectors.models.Connector;
@@ -63,6 +65,7 @@ import com.here.xyz.responses.XyzResponse;
 import io.vertx.core.AsyncResult;
 import io.vertx.ext.web.RoutingContext;
 import java.nio.charset.Charset;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,7 +84,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   /**
    * The spaces being extended by {@link #space} (if existing).
    */
-  public List<Space> extendedSpaces;
+  public Collection<Space> extendedSpaces;
 
   /**
    * The storage connector to be used for this operation.
@@ -113,9 +116,6 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public static final String SPACE = "space";
     public static final String CREATED_AT = "createdAt";
     public static final String UPDATED_AT = "updatedAt";
-    public static final String UUID = "uuid";
-    public static final String PUUID = "puuid";
-    public static final String MUUID = "muuid";
     public static final String VERSION = "version";
     public static final String AUTHOR = "author";
   }
@@ -142,22 +142,26 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   @Override
-  public String getCacheKey() {
-    if (cacheKey != null) {
+  String getCacheKey() {
+    if (cacheKey != null)
       return cacheKey;
-    }
+
     try {
       //noinspection UnstableApiUsage
       Hasher hasher = Hashing.murmur3_128().newHasher()
           .putString(getEvent().getCacheString(), Charset.defaultCharset())
-          .putString(responseType.toString(), Charset.defaultCharset())
-          .putLong(space.contentUpdatedAt);
+          .putString(responseType.toString(), Charset.defaultCharset());
 
-      if (space.getExtension() != null)
-        extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
+      if (!readOnlyAccess) {
+        hasher.putLong(space.contentUpdatedAt);
+        if (space.getExtension() != null && extendedSpaces != null)
+          extendedSpaces.forEach(extendedSpace -> hasher.putLong(extendedSpace.getContentUpdatedAt()));
+      }
 
       return cacheKey = hasher.hash().toString();
-    } catch (JsonProcessingException e) {
+    }
+    catch (JsonProcessingException e) {
+      logger.error(getMarker(), "Error creating cache key.", e);
       return null;
     }
   }
@@ -206,6 +210,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
    * @return the response feature collection, if the response is a feature collection.
    * @deprecated please rather use {@link #getResponse()}
    */
+  @Deprecated
   public FeatureCollection responseCollection() {
     if (response instanceof FeatureCollection) {
       return (FeatureCollection) response;
@@ -261,9 +266,11 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::resolveSpace)
           .then(this::resolveRefSpace)
           .then(this::resolveRefConnector)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(this::loadObject)
           .then(this::verifyResourceExists)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -349,7 +356,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     void processLoadEvent(Callback<GeometryQuery> callback, LoadFeaturesEvent event, AsyncResult<XyzResponse> r) {
       if (r.failed()) {
         if (r.cause() instanceof Exception) {
-          callback.exception((Exception) r.cause());
+          callback.exception(r.cause());
         } else {
           callback.exception(new Exception(r.cause()));
         }
@@ -386,7 +393,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<BBoxQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -413,7 +422,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<TileQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -446,7 +457,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::validateReadFeaturesParams)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
           .then(FeatureTaskHandler::convertResponse)
@@ -463,6 +476,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<LoadFeaturesQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -481,7 +495,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<IterateQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -499,7 +515,9 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<SearchQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
+          .then(FeatureTaskHandler::checkImmutability)
           .then(FeatureTaskHandler::validate)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -508,15 +526,18 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
   }
 
   public static class GetStatistics extends FeatureTask<GetStatisticsEvent, GetStatistics> {
+    final public SpaceContext spaceContext;
 
     public GetStatistics(GetStatisticsEvent event, RoutingContext context, ApiResponseType apiResponseTypeType, boolean skipCache) {
       super(event, context, apiResponseTypeType, skipCache);
+      spaceContext = event.getContext();
     }
 
     @Override
     public TaskPipeline<GetStatistics> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::readCache)
           .then(FeatureTaskHandler::invoke)
@@ -613,6 +634,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::verifyResourceExists)
           .then(FeatureTaskHandler::updateTags)
           .then(FeatureTaskHandler::processConditionalOp)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
           .then(FeatureTaskHandler::extractUnmodifiedFeatures)
@@ -666,6 +688,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
           .then(FeatureTaskHandler::resolveSpace)
           .then(FeatureTaskHandler::checkPreconditions)
           .then(FeatureTaskHandler::injectSpaceParams)
+          .then(Authorization::authorizeComposite)
           .then(FeatureAuthorization::authorize)
           .then(FeatureTaskHandler::enforceUsageQuotas)
           .then(FeatureTaskHandler::invoke);

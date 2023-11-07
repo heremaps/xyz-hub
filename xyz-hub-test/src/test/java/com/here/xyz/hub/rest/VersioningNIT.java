@@ -19,12 +19,11 @@
 
 package com.here.xyz.hub.rest;
 
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST;
-import static com.jayway.restassured.RestAssured.given;
 import static io.netty.handler.codec.http.HttpResponseStatus.CONFLICT;
 import static io.netty.handler.codec.http.HttpResponseStatus.NO_CONTENT;
 import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -35,10 +34,10 @@ import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.geojson.implementation.Point;
 import com.here.xyz.models.geojson.implementation.Properties;
 import com.here.xyz.models.geojson.implementation.XyzNamespace;
-import com.jayway.restassured.RestAssured;
-import com.jayway.restassured.config.EncoderConfig;
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.ValidatableResponse;
+import io.restassured.RestAssured;
+import io.restassured.config.EncoderConfig;
+import io.restassured.http.ContentType;
+import io.restassured.response.ValidatableResponse;
 import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
@@ -66,7 +65,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
   @Before
   public void before() {
     removeSpace(SPACE_ID);
-    createSpaceWithVersionsToKeep("spacev2k1000", 1000);
+    createSpaceWithVersionsToKeep(SPACE_ID, 1000);
   }
 
   @After
@@ -80,29 +79,35 @@ public class VersioningNIT extends TestSpaceWithFeature {
         + "    \"modifications\": ["
         + "        {"
         + "            \"type\": \"FeatureModification\","
-        + "            \"onFeatureNotExists\": \""+ifNotExists+"\","
-        + "            \"onFeatureExists\": \""+ifExists+"\","
+        + "            \"onFeatureNotExists\": \"" + ifNotExists + "\","
+        + "            \"onFeatureExists\": \"" + ifExists + "\","
         + "            \"featureData\": " + new FeatureCollection().withFeatures(Collections.singletonList(feature)).serialize()
         + "        }"
         + "    ]"
         + "}";
   }
 
-  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists){
+  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists) {
+    return write(feature, ifNotExists, ifExists, true);
+  }
+
+  public ValidatableResponse write(Feature feature, String ifNotExists, String ifExists, boolean conflictDetection) {
     return given()
         .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(constructPayload(feature, ifNotExists, ifExists))
-        .when().post(getSpacesPath() + "/"+ SPACE_ID +"/features").then();
+        .when()
+        .post(getSpacesPath() + "/" + SPACE_ID + "/features?conflictDetection=" + conflictDetection)
+        .then();
   }
 
-  public void addDefaultFeature(){
+  public void addDefaultFeature() {
     given()
         .contentType(APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST)
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(constructPayload(TEST_FEATURE, "create", "patch"))
         .when()
-        .post(getSpacesPath() + "/"+ SPACE_ID +"/features");
+        .post(getSpacesPath() + "/" + SPACE_ID + "/features");
   }
 
   @Test
@@ -112,7 +117,7 @@ public class VersioningNIT extends TestSpaceWithFeature {
         .headers(getAuthHeaders(AuthProfile.ACCESS_ALL))
         .body(constructPayload(TEST_FEATURE, "create", "patch"))
         .when()
-        .post(getSpacesPath() + "/"+ SPACE_ID +"/features")
+        .post(getSpacesPath() + "/" + SPACE_ID + "/features")
         .then()
         .statusCode(OK.code())
         .body("features.size()", equalTo(1))

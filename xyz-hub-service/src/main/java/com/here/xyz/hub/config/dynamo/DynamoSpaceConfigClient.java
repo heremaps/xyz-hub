@@ -35,17 +35,15 @@ import com.amazonaws.services.dynamodbv2.model.GetItemResult;
 import com.amazonaws.services.dynamodbv2.model.PutItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutItemResult;
 import com.amazonaws.util.CollectionUtils;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.PropertiesQuery;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.util.ARN;
 import com.here.xyz.psql.SQLQuery;
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
-import io.vertx.core.Handler;
 import io.vertx.core.Promise;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.jackson.DatabindCodec;
@@ -86,7 +84,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   }
 
   @Override
-  public void init(Handler<AsyncResult<Void>> onReady) {
+  public Future<Void> init() {
     if (dynamoClient.isLocal()) {
       logger.info("DynamoDB running locally, initializing tables.");
 
@@ -96,12 +94,11 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       }
       catch (AmazonDynamoDBException e) {
         logger.error("Failure during creating tables on DynamoSpaceConfigClient init", e);
-        onReady.handle(Future.failedFuture(e));
-        return;
+        return Future.failedFuture(e);
       }
     }
 
-    onReady.handle(Future.succeededFuture());
+    return Future.succeededFuture();
   }
 
   @Override
@@ -166,7 +163,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   }
 
   private void storeSpaceSync(Space space, Promise<Void> p) {
-    final Map<String, Object> itemData = XyzSerializable.STATIC_MAPPER.get().convertValue(space, new TypeReference<Map<String, Object>>() {});
+    final Map<String, Object> itemData = XyzSerializable.toMap(space, Static.class);
     itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
     sanitize(itemData);
     spaces.putItem(Item.fromMap(itemData));

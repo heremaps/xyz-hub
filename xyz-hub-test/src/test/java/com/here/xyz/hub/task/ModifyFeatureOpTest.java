@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ package com.here.xyz.hub.task;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import com.here.xyz.XyzSerializable;
@@ -59,8 +58,7 @@ public class ModifyFeatureOpTest {
 
       long now = System.currentTimeMillis();
       head.getProperties().put("newProperty", 1);
-      head.getProperties().getXyzNamespace().setUuid("new-uuid");
-      head.getProperties().getXyzNamespace().setPuuid(base.getProperties().getXyzNamespace().getUuid());
+      head.getProperties().getXyzNamespace().setVersion(1);
       head.getProperties().getXyzNamespace().setUpdatedAt(now);
 
       input.getProperties().put("name", "changed");
@@ -122,7 +120,7 @@ public class ModifyFeatureOpTest {
   }
 
   @Test
-  public void createWithUUID() throws ModifyOpError {
+  public void createWithConflictDetection() throws ModifyOpError {
     try (
         final InputStream is1 = ModifyFeatureOpTest.class.getResourceAsStream("/xyz/hub/task/FeatureSample01.json")
     ) {
@@ -135,14 +133,8 @@ public class ModifyFeatureOpTest {
 
       List<FeatureEntry> entries = ModifyFeatureOp.convertToFeatureEntries(Collections.singletonList(Collections.singletonMap("featureData", featureCollection)),
           IfNotExists.CREATE, IfExists.MERGE, ConflictResolution.ERROR);
-      ModifyFeatureOp op = new ModifyFeatureOp(entries, true, false);
+      ModifyFeatureOp op = new ModifyFeatureOp(entries, true);
       final Entry<Feature> entry = op.entries.get(0);
-      entry.head = null;
-      entry.base = null;
-
-      assertThrows(ModifyOpError.class, op::process);
-
-      op.allowFeatureCreationWithUUID = true;
       op.process();
       Feature res = entry.result;
       assertEquals(res.getProperties().get("name"), "changed");

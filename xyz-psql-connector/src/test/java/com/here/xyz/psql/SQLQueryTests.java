@@ -27,18 +27,17 @@ public class SQLQueryTests {
 
   @Test
   public void testVariableInheritance() {
-    SQLQuery q = new SQLQuery("${{someFragment}} ${someVariable}");
-    q.setVariable("someVariable", "someValue");
-    q.setQueryFragment("someFragment", "${someVariable} ==");
-    q.substitute();
-    assertEquals("\"someValue\" == \"someValue\"", q.text());
+    SQLQuery q = new SQLQuery("${{someFragment}} ${someVariable}")
+        .withVariable("someVariable", "someValue")
+        .withQueryFragment("someFragment", "${someVariable} ==");
+    assertEquals("\"someValue\" == \"someValue\"", q.substitute().text());
   }
 
   @Test
   public void testParameterInheritance() {
-    SQLQuery q = new SQLQuery("${{someFragment}} #{someParameter}");
-    q.setNamedParameter("someParameter", "someValue");
-    q.setQueryFragment("someFragment", "#{someParameter} ==");
+    SQLQuery q = new SQLQuery("${{someFragment}} #{someParameter}")
+        .withNamedParameter("someParameter", "someValue")
+        .withQueryFragment("someFragment", "#{someParameter} ==");
     q.substitute();
     assertEquals("? == ?", q.text());
     assertEquals(2, q.parameters().size());
@@ -48,11 +47,18 @@ public class SQLQueryTests {
 
   @Test
   public void testFragmentInheritance() {
-    SQLQuery q = new SQLQuery("${{someInnerFragment}} ${{abc}}");
-    q.setQueryFragment("abc", "someValue");
-    q.setQueryFragment("someInnerFragment", new SQLQuery("${{abc}} =="));
-    q.substitute();
-    assertEquals("someValue == someValue", q.text());
+    SQLQuery q = new SQLQuery("${{someInnerFragment}} ${{abc}}")
+        .withQueryFragment("abc", "someValue")
+        .withQueryFragment("someInnerFragment", new SQLQuery("${{abc}} =="));
+    assertEquals("someValue == someValue", q.substitute().text());
+  }
+
+  @Test
+  public void testConflictingQueryFragmentNames() {
+    SQLQuery q = new SQLQuery("${{fragmentA}} ${{fragmentB}}")
+        .withQueryFragment("fragmentA", new SQLQuery("${{frag}}").withQueryFragment("frag", "Hello"))
+        .withQueryFragment("fragmentB", new SQLQuery("${{frag}}").withQueryFragment("frag", "World"));
+    assertEquals("Hello World", q.substitute().text());
   }
 
 }

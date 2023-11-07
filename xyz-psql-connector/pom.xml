@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (C) 2017-2019 HERE Europe B.V.
+  ~ Copyright (C) 2017-2023 HERE Europe B.V.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
   <parent>
     <groupId>com.here.xyz</groupId>
     <artifactId>xyz-hub</artifactId>
-    <relativePath>../</relativePath>
-    <version>2.2.31-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+    <version>3.6.14-SNAPSHOT</version>
   </parent>
 
   <licenses>
@@ -90,9 +90,13 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
         <configuration>
+          <createDependencyReducedPom>false</createDependencyReducedPom>
           <transformers>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
               <mainClass>com.here.xyz.psql.PSQLXyzConnector</mainClass>
+              <manifestEntries>
+                <Multi-Release>true</Multi-Release>
+              </manifestEntries>
             </transformer>
             <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
           </transformers>
@@ -288,7 +292,7 @@
     </dependency>
 
     <dependency>
-      <groupId>com.jayway.jsonpath</groupId>
+      <groupId>io.rest-assured</groupId>
       <artifactId>json-path</artifactId>
       <scope>test</scope>
     </dependency>

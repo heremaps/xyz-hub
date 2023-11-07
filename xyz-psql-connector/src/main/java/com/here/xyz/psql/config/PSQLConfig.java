@@ -19,28 +19,31 @@
 
 package com.here.xyz.psql.config;
 
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_DB;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_HOST;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_PASSWORD;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_PORT;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_REPLICA_HOST;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_SCHEMA;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_USER;
+import static com.here.xyz.psql.config.DatabaseSettings.PSQL_REPLICA_USER;
+
 import com.amazonaws.services.lambda.runtime.Context;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.crypto.tink.aead.AeadConfig;
 import com.google.crypto.tink.subtle.AesGcmJce;
-import com.here.xyz.connectors.AbstractConnectorHandler.TraceItem;
-import com.here.xyz.connectors.SimulatedContext;
+import com.here.xyz.connectors.runtime.ConnectorRuntime;
+import com.here.xyz.connectors.runtime.SimulatedContext;
 import com.here.xyz.events.Event;
-import com.here.xyz.psql.DatabaseMaintainer;
-import com.here.xyz.util.Hasher;
 import com.here.xyz.psql.tools.DhString;
-
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import javax.sql.DataSource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import javax.sql.DataSource;
-
-import static com.here.xyz.psql.config.DatabaseSettings.*;
 
 public class PSQLConfig {
   private static final Logger logger = LogManager.getLogger();
@@ -49,22 +52,15 @@ public class PSQLConfig {
 
   private DataSource dataSource;
   private DataSource readDataSource;
-  private DatabaseMaintainer databaseMaintainer;
   private String maintenanceServiceEndpoint;
+
+  private Context context;
 
   public void addDataSource(DataSource dataSource){
     this.dataSource = dataSource;
   }
   public void addReadDataSource(DataSource readDataSource){
     this.readDataSource = readDataSource;
-  }
-
-  public void addDatabaseMaintainer(DatabaseMaintainer databaseMaintainer){
-    this.databaseMaintainer = databaseMaintainer;
-  }
-
-  public DatabaseMaintainer getDatabaseMaintainer() {
-    return databaseMaintainer;
   }
 
   public DataSource getDataSource() {
@@ -87,18 +83,19 @@ public class PSQLConfig {
   public PSQLConfig(Event event, String schema) {
       ecps = null;
       databaseSettings = new DatabaseSettings(schema);
-      connectorParams = new ConnectorParameters(event.getConnectorParams(), null);
+      connectorParams = new ConnectorParameters(event.getConnectorParams());
   }
 
-  public PSQLConfig(Event event, Context context, TraceItem traceItem) {
-    this.connectorParams = event == null ? new ConnectorParameters(null, traceItem) : new ConnectorParameters(event.getConnectorParams(), traceItem);
-    this.applicationName = context.getFunctionName();
+  public PSQLConfig(Event event, Context context) {
+    this.context = context;
+    this.connectorParams = event == null ? new ConnectorParameters(null) : new ConnectorParameters(event.getConnectorParams());
+    this.applicationName = ConnectorRuntime.getInstance().getApplicationName();
     this.ecps = connectorParams.getEcps() ;
 
     /** Stored in env variable */
-    String ecpsPhrase = readFromEnvVars(ECPS_PHRASE, context);
-    maintenanceServiceEndpoint = readFromEnvVars(MAINTENANCE_ENDPOINT, context);
-    databaseSettings = new DatabaseSettings(context);
+    String ecpsPhrase = readFromEnvVars(ECPS_PHRASE);
+    maintenanceServiceEndpoint = readFromEnvVars(MAINTENANCE_ENDPOINT);
+    databaseSettings = new DatabaseSettings(this);
 
     /** Fallback: support old env-variable */
     if(databaseSettings.getMaxConnections() != null)
@@ -111,7 +108,7 @@ public class PSQLConfig {
 
       for (String key : decodedECPSDatabaseSettings.keySet()){
         switch (key){
-          case DatabaseSettings.PSQL_DB: databaseSettings.setDb((String) decodedECPSDatabaseSettings.get(PSQL_DB));
+          case PSQL_DB: databaseSettings.setDb((String) decodedECPSDatabaseSettings.get(PSQL_DB));
             break;
           case PSQL_HOST: databaseSettings.setHost((String) decodedECPSDatabaseSettings.get(PSQL_HOST));
             break;
@@ -120,6 +117,8 @@ public class PSQLConfig {
           case PSQL_PORT: databaseSettings.setPort(Integer.parseInt((String)decodedECPSDatabaseSettings.get(PSQL_PORT)));
             break;
           case PSQL_REPLICA_HOST: databaseSettings.setReplicaHost((String) decodedECPSDatabaseSettings.get(PSQL_REPLICA_HOST));
+            break;
+          case PSQL_REPLICA_USER: databaseSettings.setPsqlReplicaUser((String) decodedECPSDatabaseSettings.get(PSQL_REPLICA_USER));
             break;
           case PSQL_SCHEMA: databaseSettings.setSchema((String) decodedECPSDatabaseSettings.get(PSQL_SCHEMA));
             break;
@@ -181,40 +180,12 @@ public class PSQLConfig {
     return DhString.format("%s[%s]", applicationName, ecpsSnippet );
   }
 
-  public String readTableFromEvent(Event event) {
-    if (event != null && event.getParams() != null) {
-      final String TABLE_NAME = "tableName";
-      Object tableName = event.getParams().get(TABLE_NAME);
-      if (tableName instanceof String && ((String) tableName).length() > 0)
-        return (String) tableName;
-    }
-    String spaceId = null;
-    if (event != null && event.getSpace() != null && event.getSpace().length() > 0)
-      spaceId = event.getSpace();
-    return getTableNameForSpaceId(spaceId);
-  }
-
-  public String getTableNameForSpaceId(String spaceId) {
-    if (spaceId != null && spaceId.length() > 0) {
-      if (connectorParams.isHrnShortening()) {
-        String[] splitHrn = spaceId.split(":");
-        if (splitHrn.length > 0)
-          return splitHrn[splitHrn.length - 1];
-      }
-      else if (connectorParams.isEnableHashedSpaceId())
-        return Hasher.getHash(spaceId);
-      else
-        return spaceId;
-    }
-
-    return null;
-  }
-
-  protected static String readFromEnvVars(String name, Context context) {
+  protected String readFromEnvVars(String name) {
     if (context instanceof SimulatedContext) {
       return ((SimulatedContext) context).getEnv(name);
     }
     return System.getenv(name);
+    //return ConnectorRuntime.getInstance().getEnvironmentVariable(name);
   }
 
   /**

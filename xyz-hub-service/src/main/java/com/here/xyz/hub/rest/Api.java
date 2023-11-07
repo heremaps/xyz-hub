@@ -22,7 +22,7 @@ package com.here.xyz.hub.rest;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_GEO_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
-import static io.netty.handler.codec.http.HttpHeaderValues.TEXT_PLAIN;
+import static com.here.xyz.hub.rest.Api.HeaderValues.TEXT_PLAIN;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
@@ -35,6 +35,7 @@ import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
 import com.here.xyz.hub.auth.JWTPayload;
@@ -47,7 +48,6 @@ import com.here.xyz.hub.task.TaskPipeline;
 import com.here.xyz.hub.util.logging.AccessLog;
 import com.here.xyz.models.geojson.implementation.FeatureCollection;
 import com.here.xyz.models.hub.Space.Internal;
-import com.here.xyz.models.hub.Space.Public;
 import com.here.xyz.models.hub.Space.WithConnectors;
 import com.here.xyz.responses.BinaryResponse;
 import com.here.xyz.responses.CountResponse;
@@ -60,6 +60,7 @@ import com.here.xyz.responses.changesets.ChangesetCollection;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpHeaders;
@@ -137,6 +138,24 @@ public abstract class Api {
     }
 
     return false;
+  }
+
+  protected Handler<RoutingContext> handleErrors(ThrowingHandler<RoutingContext> handler) {
+    return context -> {
+      try {
+        handler.handle(context);
+      }
+      catch (HttpException e) {
+        sendErrorResponse(context, e);
+      }
+      catch (Exception e) {
+        sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Server error!", e));
+      }
+    };
+  }
+
+  public interface ThrowingHandler<E> {
+    void handle(E event) throws Exception;
   }
 
   /**
@@ -362,6 +381,8 @@ public abstract class Api {
           error = XyzError.TIMEOUT;
         } else if (BAD_REQUEST.code() == httpException.status.code()) {
           error = XyzError.ILLEGAL_ARGUMENT;
+        } else if (NOT_FOUND.code() == httpException.status.code()) {
+          error = XyzError.NOT_FOUND;
         } else {
           error = XyzError.EXCEPTION;
         }
@@ -534,10 +555,9 @@ public abstract class Api {
     public static final String STRICT_TRANSPORT_SECURITY = "Strict-Transport-Security";
     public static final String APPLICATION_GEO_JSON = "application/geo+json";
     public static final String APPLICATION_JSON = "application/json";
+    public static final String TEXT_PLAIN = "text/plain";
     public static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
     public static final String APPLICATION_VND_HERE_FEATURE_MODIFICATION_LIST = "application/vnd.here.feature-modification-list";
-    public static final String APPLICATION_VND_HERE_CHANGESET_COLLECTION = "application/vnd.here.changeset-collection";
-    public static final String APPLICATION_VND_HERE_COMPACT_CHANGESET = "application/vnd.here.compact-changeset";
   }
 
   private static class XYZHttpContentCompressor extends HttpContentCompressor {

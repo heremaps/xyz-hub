@@ -33,7 +33,6 @@ import static io.netty.handler.codec.rtsp.RtspResponseStatuses.REQUEST_ENTITY_TO
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.exc.InvalidTypeIdException;
 import com.google.common.io.ByteStreams;
 import com.here.xyz.Payload;
@@ -66,6 +65,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
@@ -230,7 +230,7 @@ public class RpcClient {
    * @param event
    * @return Whether to expect a binary response from the storage connector
    */
-  private boolean expectBinaryResponse(Event event) {
+  private boolean expectBinaryResponse(Event<?> event) {
     return event instanceof GetFeaturesByTileEvent
         && (((GetFeaturesByTileEvent) event).getResponseType() == MVT || ((GetFeaturesByTileEvent) event).getResponseType() == MVT_FLATTENED)
         && getConnector().capabilities.mvtSupport
@@ -263,7 +263,7 @@ public class RpcClient {
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback, Space tmpSpace) {
     tmpFillVersionsToKeepParam(event, tmpSpace);
     final Connector connector = getConnector();
-    event.setConnectorParams(connector.params);
+    injectConnectorParams(event, connector);
     final boolean expectBinaryResponse = expectBinaryResponse(event);
     final String eventJson = event.serialize();
     final byte[] eventBytes = eventJson.getBytes();
@@ -308,6 +308,13 @@ public class RpcClient {
     return context;
   }
 
+  //TODO: Remove this injection of "connectorId" connector-param when the hash of ECPS is used as cache key for any connections in the PSQL connector
+  private static void injectConnectorParams(Event event, Connector connector) {
+    Map<String, Object> connectorParams = new HashMap<>(connector.params);
+    connectorParams.put("connectorId", connector.id);
+    event.setConnectorParams(connectorParams);
+  }
+
   public RpcContext execute(final Marker marker, final Event event, final boolean hasPriority, final Handler<AsyncResult<XyzResponse>> callback) {
     return execute(marker, event, hasPriority, callback, null);
   }
@@ -348,7 +355,7 @@ public class RpcClient {
    */
   public RpcContext send(final Marker marker, @SuppressWarnings("rawtypes") final Event event) throws NullPointerException {
     final Connector connector = getConnector();
-    event.setConnectorParams(connector.params);
+    injectConnectorParams(event, connector);
     final byte[] eventBytes = event.toByteArray();
     RpcContext context = new RpcContext().withRequestSize(eventBytes.length);
     invokeWithRelocation(marker, context, eventBytes, true, false, r -> {
@@ -364,7 +371,6 @@ public class RpcClient {
     return context;
   }
 
-  @SuppressWarnings("rawtypes")
   private void validateResponsePayload(Marker marker, final Typed payload) throws HttpException {
     if (payload == null)
       throw new NullPointerException("Response payload is null");
@@ -543,12 +549,11 @@ public class RpcClient {
    */
   private HttpException getJsonMappingErrorMessage(final String stringResponse) {
     try {
-      final JsonNode node = XyzSerializable.DEFAULT_MAPPER.get().readTree(stringResponse);
-      if (node.has("errorMessage")) {
-        final String errorMessage = node.get("errorMessage").asText();
-        if (errorMessage.contains("Task timed out after ")) {
+      Map<String, Object> response = XyzSerializable.deserialize(stringResponse, Map.class);
+      if (response.containsKey("errorMessage")) {
+        final String errorMessage = response.get("errorMessage").toString();
+        if (errorMessage.contains("timed out"))
           return new HttpException(GATEWAY_TIMEOUT, "Connector timeout error.");
-        }
       }
     }
     catch (Exception e) {
@@ -608,7 +613,6 @@ public class RpcClient {
       final StatisticsResponse sr = (StatisticsResponse) payload;
       // TODO copy byteSize property over dataSize, when byteSize is finally removed, this code won't be necessary anymore
       sr.setDataSize(sr.getByteSize());
-      return;
     }
   }
 

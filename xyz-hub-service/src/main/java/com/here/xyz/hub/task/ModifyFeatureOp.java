@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2022 HERE Europe B.V.
+ * Copyright (C) 2017-2023 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,15 +21,11 @@ package com.here.xyz.hub.task;
 
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.AUTHOR;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.CREATED_AT;
-import static com.here.xyz.hub.task.FeatureTask.FeatureKey.MUUID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PROPERTIES;
-import static com.here.xyz.hub.task.FeatureTask.FeatureKey.PUUID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.SPACE;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UPDATED_AT;
-import static com.here.xyz.hub.task.FeatureTask.FeatureKey.UUID;
 import static com.here.xyz.hub.task.FeatureTask.FeatureKey.VERSION;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.task.ModifyFeatureOp.FeatureEntry;
@@ -50,15 +46,8 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
   private final static String ON_FEATURE_EXISTS = "onFeatureExists";
   private final static String ON_MERGE_CONFLICT = "onMergeConflict";
 
-  public boolean allowFeatureCreationWithUUID;
-
   public ModifyFeatureOp(List<FeatureEntry> featureEntries, boolean isTransactional) {
-    this(featureEntries, isTransactional, false);
-  }
-
-  public ModifyFeatureOp(List<FeatureEntry> featureEntries, boolean isTransactional, boolean allowFeatureCreationWithUUID) {
     super(featureEntries, isTransactional);
-    this.allowFeatureCreationWithUUID = allowFeatureCreationWithUUID;
   }
 
   /**
@@ -134,29 +123,18 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
       } catch (Exception e) {
         try {
           throw new HttpException(HttpResponseStatus.BAD_REQUEST,
-              "Unable to create a Feature from the provided input: " + XyzSerializable.DEFAULT_MAPPER.get().writeValueAsString(map));
-        } catch (JsonProcessingException jsonProcessingException) {
+              "Unable to create a Feature from the provided input: " + XyzSerializable.serialize(map));
+        }
+        catch (Exception jsonProcessingException) {
           throw new HttpException(HttpResponseStatus.BAD_REQUEST,
-              "Unable to create a Feature from the provided input. id: " + map.get("id") + ",type: " + map.get("type"));
+              "Unable to create a Feature from the provided input. id: " + map.get("id") + ", type: " + map.get("type"));
         }
       }
     }
 
     @Override
     public Map<String, Object> toMap(Feature record) throws ModifyOpError, HttpException {
-      return filterMetadata(record.asMap());
-    }
-
-    @Override
-    protected String getUuid(Map<String, Object> feature) {
-      try {
-        return new JsonObject(feature).getJsonObject(PROPERTIES).getJsonObject(XyzNamespace.XYZ_NAMESPACE).getString(UUID);
-        //NOTE: The following is a temporary implementation for backwards compatibility for legacy spaces with versionsToKeep = 0
-        //return uuid == null ? "" + getVersion(feature) : uuid;
-      }
-      catch (Exception e) {
-        return null;
-      }
+      return filterMetadata(record.toMap());
     }
 
     @Override
@@ -166,15 +144,6 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
       }
       catch (Exception e) {
         return -1;
-      }
-    }
-
-    @Override
-    protected String getUuid(Feature input) {
-      try {
-        return input.getProperties().getXyzNamespace().getUuid();
-      } catch (Exception e) {
-        return null;
       }
     }
 
@@ -204,25 +173,8 @@ public class ModifyFeatureOp extends ModifyOp<Feature, FeatureEntry> {
                     .put(SPACE, true)
                     .put(CREATED_AT, true)
                     .put(UPDATED_AT, true)
-                    .put(UUID, true)
-                    .put(PUUID, true)
-                    .put(MUUID, true)
                     .put(VERSION, true)
                     .put(AUTHOR, true))
         ).mapTo(Map.class);
-  }
-
-  /**
-   * Validates whether the feature can be created based on the space's flag allowFeatureCreationWithUUID.
-   * Creation of features using UUID in the payload should always return an error, however at the moment, due to a bug,
-   * the creation succeeds.
-   * @param entry
-   * @throws ModifyOpError
-   */
-  @Override
-  public void validateCreate(Entry<Feature> entry) throws ModifyOpError {
-    if (!allowFeatureCreationWithUUID && entry.inputUUID != null)
-      throw new ModifyOpError(
-          "The feature with id " + entry.input.get("id") + " cannot be created. Property UUID should not be provided as input.");
   }
 }
