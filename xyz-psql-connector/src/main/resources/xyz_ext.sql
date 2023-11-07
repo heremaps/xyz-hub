@@ -1342,7 +1342,7 @@ $BODY$
                 CONTINUE;
             END IF;
 
-			EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'')',schema , xyz_spaces.spaceid)
+			EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'', false)',schema , xyz_spaces.spaceid)
 				INTO tablesize, geometrytypes, properties, tags, count, bbox;
 			RETURN NEXT;
 			EXCEPTION WHEN OTHERS THEN
@@ -1536,7 +1536,7 @@ $BODY$
 		IF min_table_count > 0 AND min_table_count > xyz_spaces.cnt THEN
 			RETURN;
 		ELSE
-			EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'')',schema , xyz_spaces.spaceid)
+			EXECUTE format('SELECT tablesize, geometrytypes, properties, tags, count, bbox from xyz_statistic_space(''%s'',''%s'', false)',schema , xyz_spaces.spaceid)
 				INTO tablesize, geometrytypes, properties, tags, count, bbox;
 			RETURN NEXT;
 		END IF;
