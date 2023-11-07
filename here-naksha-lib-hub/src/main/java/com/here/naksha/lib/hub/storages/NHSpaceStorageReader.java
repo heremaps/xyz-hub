@@ -213,6 +213,9 @@ public class NHSpaceStorageReader implements IReadSession {
       if (space == null) {
         return new ErrorResult(XyzError.NOT_FOUND, "Space not found : " + spaceId);
       }
+      if (space.getEventHandlerIds() == null || space.getEventHandlerIds().isEmpty()) {
+        return new ErrorResult(XyzError.NOT_FOUND, "No associated handler");
+      }
 
       // Get EventHandler Details using Admin Storage
       result = reader.execute(

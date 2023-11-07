@@ -232,6 +232,30 @@ class NakshaAppTest {
     createFeatureTests.tc0304_testCreateFeaturesWithRemoveTags();
   }
 
+  @Test
+  @Order(9)
+  void tc0305_testCreateFeaturesWithDupIds() throws Exception {
+    createFeatureTests.tc0305_testCreateFeaturesWithDupIds();
+  }
+
+  @Test
+  @Order(10)
+  void tc0306_testCreateFeaturesWithNoStorage() throws Exception {
+    createFeatureTests.tc0306_testCreateFeaturesWithNoStorage();
+  }
+
+  @Test
+  @Order(11)
+  void tc0307_testCreateFeaturesWithNoHandler() throws Exception {
+    createFeatureTests.tc0307_testCreateFeaturesWithNoHandler();
+  }
+
+  @Test
+  @Order(12)
+  void tc0308_testCreateFeaturesWithNoSpace() throws Exception {
+    createFeatureTests.tc0308_testCreateFeaturesWithNoSpace();
+  }
+
   @AfterAll
   static void close() throws InterruptedException {
     if (app != null) {

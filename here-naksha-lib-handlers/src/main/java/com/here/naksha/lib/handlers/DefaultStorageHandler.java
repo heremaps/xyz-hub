@@ -70,7 +70,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     // Obtain storageId from EventHandler object
     final String storageId = properties.getStorageId();
     if (storageId == null) {
-      return new ErrorResult(XyzError.NOT_FOUND, "Storage with id " + storageId + " not found.");
+      return new ErrorResult(XyzError.NOT_FOUND, "No storageId configured for handler.");
     }
 
     // Obtain IStorage implementation using NakshaHub

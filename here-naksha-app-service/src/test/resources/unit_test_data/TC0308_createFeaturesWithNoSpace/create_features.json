@@ -1,0 +1,17 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60"
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "80"
+      }
+    }
+  ]
+}
