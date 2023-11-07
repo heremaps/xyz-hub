@@ -26,8 +26,12 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class WriteFeatureApi extends Api {
+
+  private static final Logger logger = LoggerFactory.getLogger(WriteFeatureApi.class);
 
   public WriteFeatureApi(final @NotNull NakshaHttpVerticle verticle) {
     super(verticle);

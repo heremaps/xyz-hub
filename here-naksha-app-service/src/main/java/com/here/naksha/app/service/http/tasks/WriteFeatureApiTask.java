@@ -73,6 +73,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
    */
   @Override
   protected @NotNull XyzResponse execute() {
+    logger.info("Received Http request {}", this.reqType);
     // Custom execute logic to process input API request based on reqType
     try {
       switch (this.reqType) {
@@ -83,6 +84,7 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
       }
     } catch (Exception ex) {
       // unexpected exception
+      logger.error("Exception processing Http request. ", ex);
       return verticle.sendErrorResponse(
           routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
     }

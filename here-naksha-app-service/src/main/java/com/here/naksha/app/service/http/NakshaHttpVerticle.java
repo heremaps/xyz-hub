@@ -679,6 +679,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       }
       httpResponse.end(content);
     }
+    log.info("Returned Http status {}", status.code());
   }
 
   public @NotNull NakshaContext createNakshaContext(final @NotNull RoutingContext routingContext) {
