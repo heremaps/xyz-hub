@@ -24,9 +24,9 @@ import static com.here.xyz.httpconnector.util.Futures.futurify;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
@@ -61,7 +61,6 @@ import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
-import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -218,17 +217,16 @@ public class Export extends JDBCBasedJob<Export> {
 
             if (getExportTarget().getTargetId() == null)
                 throw new HttpException(BAD_REQUEST,("Please specify the targetId!"));
+        }
 
-            if ( getCsvFormat().equals(TILEID_FC_B64) || ( getCsvFormat().equals(PARTITIONED_JSON_WKB) && (getPartitionKey() == null || "tileid".equalsIgnoreCase(getPartitionKey())))) {
-                if (getTargetLevel() == null)
-                    throw new HttpException(BAD_REQUEST, "Please specify targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL + ":"
+        if ( getCsvFormat().equals(TILEID_FC_B64) || ( getCsvFormat().equals(PARTITIONED_JSON_WKB) && (getPartitionKey() == null || "tileid".equalsIgnoreCase(getPartitionKey())))) {
+            if (getTargetLevel() == null)
+                throw new HttpException(BAD_REQUEST, "Please specify targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL + ":"
                         + VML_EXPORT_MAX_TARGET_LEVEL + "]");
 
-                if (getTargetLevel() < VML_EXPORT_MIN_TARGET_LEVEL || getTargetLevel() > VML_EXPORT_MAX_TARGET_LEVEL)
-                    throw new HttpException(BAD_REQUEST, "Invalid targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL
+            if (getTargetLevel() < VML_EXPORT_MIN_TARGET_LEVEL || getTargetLevel() > VML_EXPORT_MAX_TARGET_LEVEL)
+                throw new HttpException(BAD_REQUEST, "Invalid targetLevel! Allowed range [" + VML_EXPORT_MIN_TARGET_LEVEL
                         + ":" + VML_EXPORT_MAX_TARGET_LEVEL + "]");
-            }
-
         }
 
         Filters filters = getFilters();
@@ -255,23 +253,7 @@ public class Export extends JDBCBasedJob<Export> {
         if (readPersistExport())
             setExp(-1l);
 
-        if (compositeMode != DEACTIVATED) {
-            if (getExportTarget().getType() == DOWNLOAD && getCsvFormat() != JSON_WKB)
-                throw new HttpException(BAD_REQUEST, "CompositeMode is not available for Type Download!");
-
-            switch(getCsvFormat())
-            { case TILEID_FC_B64: case PARTITIONID_FC_B64: case JSON_WKB: case PARTITIONED_JSON_WKB: break; 
-              default : 
-               throw new HttpException(BAD_REQUEST, "CompositeMode does not support the provided CSV format!"); 
-            }
-
-            if (ext == null) {
-                // No extension present - so we remove the composite mode
-                params.remove(PARAM_COMPOSITE_MODE);
-            }
-        }
-
-        if (compositeMode.equals(CompositeMode.FULL_OPTIMIZED)) {
+        if (ext != null) {
             boolean superIsReadOnly = ext.get("readOnly") != null ? (boolean) ext.get("readOnly") : false;
             Map l2Ext = (Map) ext.get("extends");
 
@@ -279,8 +261,21 @@ public class Export extends JDBCBasedJob<Export> {
                 //L2 Composite
                 superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
 
-            if (!superIsReadOnly)
-                throw new HttpException(BAD_REQUEST, "CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer!");
+            if (compositeMode.equals(DEACTIVATED) && superIsReadOnly) {
+                //Enabled by default
+                params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
+            }
+
+            if(!superIsReadOnly && compositeMode.equals(CompositeMode.FULL_OPTIMIZED)) {
+                params.remove(PARAM_COMPOSITE_MODE);
+                logger.info("job[{}] CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer - fall back!", getId());
+            }
+
+            if (csvFormat.equals(GEOJSON))
+                params.remove(PARAM_COMPOSITE_MODE);
+        }else{
+            //Only make sense in case of extended space
+            params.remove(PARAM_COMPOSITE_MODE);
         }
 
         SpaceContext context = readParamContext();
@@ -294,26 +289,6 @@ public class Export extends JDBCBasedJob<Export> {
             throw new HttpException(BAD_REQUEST, "partitionKey [" + getPartitionKey() + "] is not a searchable property");
 
         return this;
-    }
-
-    @Override
-    protected Future<Job> isValidForStart() {
-        return super.isValidForStart()
-            .compose(job -> {
-                CompositeMode compositeMode = readParamCompositeMode();
-
-                if (compositeMode != DEACTIVATED ) {
-                    switch( getCsvFormat() )
-                    { case TILEID_FC_B64 : case PARTITIONID_FC_B64 : case JSON_WKB : case PARTITIONED_JSON_WKB : break;  
-                      default: return Future.failedFuture(new HttpException(BAD_REQUEST, "CSV format is not supported for CompositeMode!"));
-                    }
-
-                    if (getExportTarget().getType() == DOWNLOAD && getCsvFormat() != JSON_WKB )
-                        return Future.failedFuture(new HttpException(HttpResponseStatus.BAD_REQUEST,
-                            "CompositeMode Export is not available for Type Download!"));
-                }
-                return Future.succeededFuture(job);
-            });
     }
 
     public List<String> getProcessingList() {
@@ -619,8 +594,11 @@ public class Export extends JDBCBasedJob<Export> {
             case aborted:
                 super.resetToPreviousState();
                 break;
-            case executing:
+            case preparing:
                 resetStatus(waiting);
+                break;
+            case executing:
+                resetStatus(prepared);
                 break;
             case executing_trigger:
                 resetStatus(executed);
@@ -846,20 +824,28 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public Future<Export> searchPersistentJobOnTarget(String targetId){
-        return CService.jobConfigClient.getList(getMarker(), Export.class.getSimpleName() , null, targetId)
+        return CService.jobConfigClient.getList(getMarker(), null , null, targetId)
                 .compose(jobs -> {
                     Export existingJob = null;
 
                     for (Job jobCandidate :jobs) {
+                        if(jobCandidate instanceof Import)
+                            continue;
+
                         //exp=-1 => persistent
                         //hash must fit
                         logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
                         if( jobCandidate.getExp() == -1 && ((Export)jobCandidate).getHashForPersistentStorage().equals(getHashForPersistentStorage())){
-                            logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                            existingJob = (Export) jobCandidate;
                             //try to find a finalized one - doesn't matter if its the origin export
-                            if(existingJob.getStatus().equals(finalized) || existingJob.getStatus().equals(trigger_executed))
+                            if(jobCandidate.getStatus().equals(finalized) || jobCandidate.getStatus().equals(trigger_executed)) {
+                                logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
+                                existingJob = (Export) jobCandidate;
                                 break;
+                            }else if(jobCandidate.getStatus().equals(failed) && jobCandidate.getId().equalsIgnoreCase(getId() + "_missing_base")) {
+                                logger.info(getMarker(), "job[{}] Spawned job has failed {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
+                                existingJob = (Export) jobCandidate;
+                                break;
+                            }
                         }
                     }
                     return Future.succeededFuture(existingJob);
@@ -890,6 +876,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //Export is available but is failed - abort also this export.
                         String message = String.format("Another related job "+existingJob.getId()+" has failed.",
                                 existingJob.getTargetSpaceId(), existingJob.getTargetLevel(), existingJob.getStatus());
+
                         logger.warn("job[{}] Export {}", getId(), message);
                         setJobFailed(this, message, Job.ERROR_TYPE_EXECUTION_FAILED);
                         return Future.failedFuture(Job.ERROR_TYPE_EXECUTION_FAILED);
@@ -910,7 +897,6 @@ public class Export extends JDBCBasedJob<Export> {
 
         return searchPersistentJobOnTarget(superSpaceId)
             .compose(existingJob -> {
-                //TODO: if status is failed no retry is implemented/possible
                 if (existingJob == null) {
                     logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), superSpaceId);
 
