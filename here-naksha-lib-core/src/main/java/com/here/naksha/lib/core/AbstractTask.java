@@ -37,6 +37,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 /**
  * A task that executes in an own dedicated thread to fulfill some job. The currently executed task can be queried using
@@ -220,8 +221,9 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
     this.thread = thread;
     this.oldName = threadName;
     this.oldUncaughtExceptionHandler = threadUncaughtExceptionHandler;
-    thread.setName(context.streamId());
+    thread.setName(context.getStreamId());
     thread.setUncaughtExceptionHandler(this);
+    MDC.put("streamId", context.getStreamId());
   }
 
   /**
@@ -243,6 +245,7 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
     this.thread = null;
     this.oldName = null;
     this.oldUncaughtExceptionHandler = null;
+    MDC.remove("streamId");
   }
 
   /**

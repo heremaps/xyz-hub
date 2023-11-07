@@ -67,10 +67,12 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     final NakshaContext ctx = NakshaContext.currentContext();
     final Request<?> request = event.getRequest();
 
+    logger.info("Handler received request {}", request.getClass().getSimpleName());
     // Obtain storageId from EventHandler object
     final String storageId = properties.getStorageId();
     if (storageId == null) {
-      return new ErrorResult(XyzError.NOT_FOUND, "Storage with id " + storageId + " not found.");
+      logger.error("No storageId configured");
+      return new ErrorResult(XyzError.NOT_FOUND, "No storageId configured for handler.");
     }
 
     // Obtain IStorage implementation using NakshaHub
@@ -80,11 +82,13 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     String customCollectionId = null;
     if (properties.getStorageCollection() != null) {
       customCollectionId = properties.getStorageCollection().getId();
+      logger.info("Using collectionId {} associated with EventHandler", customCollectionId);
     }
     if (customCollectionId == null && eventTarget instanceof Space s) {
       final SpaceProperties spaceProperties = JsonSerializable.convert(s.getProperties(), SpaceProperties.class);
       if (spaceProperties.getStorageCollection() != null) {
         customCollectionId = spaceProperties.getStorageCollection().getId();
+        logger.info("Using collectionId {} associated with Space", customCollectionId);
       }
     }
 
@@ -115,6 +119,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final boolean isReattempt) {
     // overwrite collectionId with custom one if available
     if (customCollectionId != null) rf.setCollections(List.of(customCollectionId));
+    logger.info("Processing ReadFeatures against {}", rf.getCollections());
     try (final IReadSession reader = storageImpl.newReadSession(ctx, false)) {
       return reader.execute(rf);
     } catch (RuntimeException re) {
@@ -139,6 +144,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final boolean isReattempt) {
     // overwrite collectionId with custom one if available
     if (customCollectionId != null) wf.collectionId = customCollectionId;
+    logger.info("Processing WriteFeatures against {}", wf.collectionId);
     try (final IWriteSession writer = storageImpl.newWriteSession(ctx, true)) {
       final Result result = writer.execute(wf);
       if (result instanceof SuccessResult) writer.commit();

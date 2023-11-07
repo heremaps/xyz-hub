@@ -172,6 +172,7 @@ subprojects {
         test {
             maxHeapSize = "4g"
             useJUnitPlatform()
+            testLogging.showStandardStreams = true
         }
 
         compileJava {

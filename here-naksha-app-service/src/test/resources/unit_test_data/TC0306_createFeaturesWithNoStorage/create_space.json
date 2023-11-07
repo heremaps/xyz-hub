@@ -1,0 +1,11 @@
+{
+  "id": "um-space-no-storage",
+  "type": "Space",
+  "title": "Invalid Space for Testing purpose",
+  "description": "Invalid Space with Event Handler not associated with any storageId",
+  "eventHandlerIds": [
+    "um-handler-no-storage"
+  ],
+  "properties": {
+  }
+}

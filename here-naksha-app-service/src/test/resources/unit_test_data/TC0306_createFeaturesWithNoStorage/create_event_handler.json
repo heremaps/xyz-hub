@@ -1,0 +1,11 @@
+{
+  "id": "um-handler-no-storage",
+  "type": "EventHandler",
+  "title": "Invalid Handler for Test purpose",
+  "description": "Invalid Event Handler which is not associated with any storageId",
+  "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+  }
+}

@@ -177,10 +177,9 @@ public class XyzNamespace extends JsonObject {
    * A method to normalize and lower case a tag.
    *
    * @param tag the tag.
-   * @param sb  The string builder to use for normalization; if {@code null}, then a new string builder is created.
    * @return the normalized and lower cased version of it.
    */
-  public static @NotNull String normalizeTag(final @NotNull String tag, @Nullable StringBuilder sb) {
+  public static @NotNull String normalizeTag(final @NotNull String tag) {
     if (tag.length() == 0) {
       return tag;
     }
@@ -199,9 +198,7 @@ public class XyzNamespace extends JsonObject {
         first == '~' || first == '#' || normalized.startsWith("ref_") || normalized.startsWith("sourceID_")
             ? AS_IS
             : TO_LOWER;
-    if (sb == null) {
-      sb = new StringBuilder(normalized.length());
-    }
+    final StringBuilder sb = new StringBuilder(normalized.length());
     for (int i = 0; i < normalized.length(); i++) {
       // Note: This saves one branch, and the array-size check, because 0 - 32 will become 65504.
       final char c = (char) (normalized.charAt(i) - 32);
@@ -221,9 +218,8 @@ public class XyzNamespace extends JsonObject {
   public static @Nullable List<@NotNull String> normalizeTags(final @Nullable List<@NotNull String> tags) {
     final int SIZE;
     if (tags != null && (SIZE = tags.size()) > 0) {
-      final StringBuilder sb = new StringBuilder(32);
       for (int i = 0; i < SIZE; i++) {
-        tags.set(i, normalizeTag(tags.get(i), sb));
+        tags.set(i, normalizeTag(tags.get(i)));
       }
     }
     return tags;
@@ -458,9 +454,8 @@ public class XyzNamespace extends JsonObject {
     if (normalize) {
       final int SIZE;
       if (tags != null && (SIZE = tags.size()) > 0) {
-        final StringBuilder sb = new StringBuilder(32);
         for (int i = 0; i < SIZE; i++) {
-          tags.set(i, normalizeTag(tags.get(i), sb));
+          tags.set(i, normalizeTag(tags.get(i)));
         }
       }
     }
@@ -481,7 +476,7 @@ public class XyzNamespace extends JsonObject {
       thisTags = this.tags = new ArrayList<>();
     }
     if (normalize) {
-      tag = normalizeTag(tag, null);
+      tag = normalizeTag(tag);
     }
     if (!thisTags.contains(tag)) {
       thisTags.add(tag);
@@ -505,9 +500,8 @@ public class XyzNamespace extends JsonObject {
     }
     if (tags != null && tags.size() > 0) {
       if (normalize) {
-        final StringBuilder sb = new StringBuilder(32);
         for (final @NotNull String s : tags) {
-          final String tag = normalizeTag(s, sb);
+          final String tag = normalizeTag(s);
           if (!thisTags.contains(tag)) {
             thisTags.add(tag);
           }
@@ -532,9 +526,8 @@ public class XyzNamespace extends JsonObject {
       thisTags = this.tags = new ArrayList<>();
     }
     if (tags != null && tags.length > 0) {
-      final StringBuilder sb = new StringBuilder(32);
       for (final @NotNull String s : tags) {
-        final String tag = normalizeTag(s, sb);
+        final String tag = normalizeTag(s);
         if (!thisTags.contains(tag)) {
           thisTags.add(tag);
         }
@@ -556,7 +549,7 @@ public class XyzNamespace extends JsonObject {
       return false;
     }
     if (normalize) {
-      tag = normalizeTag(tag, null);
+      tag = normalizeTag(tag);
     }
     return thisTags.remove(tag);
   }
@@ -574,9 +567,8 @@ public class XyzNamespace extends JsonObject {
       return this;
     }
     if (normalize) {
-      final StringBuilder sb = new StringBuilder(32);
       for (@NotNull String tag : tags) {
-        tag = normalizeTag(tag, sb);
+        tag = normalizeTag(tag);
         thisTags.remove(tag);
       }
     } else {

@@ -284,6 +284,11 @@ public class XyzFeature extends JsonObject implements Typed {
     geometry.validate();
   }
 
+  @JsonIgnore
+  public void setIdPrefix(final @Nullable String prefixId) {
+    if (prefixId != null) setId(prefixId + getId());
+  }
+
   @Override
   public @NotNull String toString() {
     return JsonSerializable.toString(this);

@@ -32,9 +32,8 @@ public class TagList extends ArrayList<String> {
     super(tags.length);
     if (tags.length > 0) {
       if (normalize) {
-        final StringBuilder sb = new StringBuilder(tags[0].length());
         for (final @NotNull String tag : tags) {
-          add(XyzNamespace.normalizeTag(tag, sb));
+          add(XyzNamespace.normalizeTag(tag));
         }
       } else {
         for (final @NotNull String tag : tags) {
