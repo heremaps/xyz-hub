@@ -22,13 +22,14 @@ package com.here.xyz.httpconnector.util.jobs;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.httpconnector.util.Futures.futurify;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
+import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.FULL_OPTIMIZED;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
@@ -1075,6 +1076,8 @@ public class Export extends JDBCBasedJob<Export> {
                     scriptParams.add(sourceS3Url);
                     scriptParams.add(sourceS3Url + EMRConfig.S3_PATH_SUFFIX);
                     scriptParams.add("--type=" + getEmrType());
+                    if (readParamCompositeMode() == FULL_OPTIMIZED)
+                        scriptParams.add("--delta");
 
                     String emrJobId = getEmrManager().startJob(EMRConfig.APPLICATION_ID, job.getId(), EMRConfig.EMR_RUNTIME_ROLE_ARN,
                         EMRConfig.JAR_PATH, scriptParams, EMRConfig.SPARK_PARAMS);
