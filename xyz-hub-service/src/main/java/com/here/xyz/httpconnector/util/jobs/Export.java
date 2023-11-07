@@ -27,6 +27,7 @@ import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
@@ -823,7 +824,7 @@ public class Export extends JDBCBasedJob<Export> {
         return updateJobStatus(this, prepared);
     }
 
-    public Future<Export> searchPersistentJobOnTarget(String targetId){
+    public Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat format){
         return CService.jobConfigClient.getList(getMarker(), null , null, targetId)
                 .compose(jobs -> {
                     Export existingJob = null;
@@ -835,7 +836,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //exp=-1 => persistent
                         //hash must fit
                         logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                        if( jobCandidate.getExp() == -1 && ((Export)jobCandidate).getHashForPersistentStorage().equals(getHashForPersistentStorage())){
+                        if( jobCandidate.getExp() == -1 && ((Export)jobCandidate).getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))){
                             //try to find a finalized one - doesn't matter if its the origin export
                             if(jobCandidate.getStatus().equals(finalized) || jobCandidate.getStatus().equals(trigger_executed)) {
                                 logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
@@ -854,7 +855,7 @@ public class Export extends JDBCBasedJob<Export> {
 
     public Future<Job> checkPersistentExport() {
         //Deliver result if Export is already available
-        return searchPersistentJobOnTarget(targetSpaceId)
+        return searchPersistentJobOnTarget(targetSpaceId, null)
             .compose(existingJob -> {
                 if (existingJob != null) {
                     //metafile is present but Export is not started yet
@@ -895,7 +896,7 @@ public class Export extends JDBCBasedJob<Export> {
         //Check if we can find a persistent export and check status. If no persistent export is available we are starting one.
         String superSpaceId = extractSuperSpaceId();
 
-        return searchPersistentJobOnTarget(superSpaceId)
+        return searchPersistentJobOnTarget(superSpaceId, JSON_WKB)
             .compose(existingJob -> {
                 if (existingJob == null) {
                     logger.info("job[{}] Persist Export {} of Base-Layer is missing -> starting one!", getId(), superSpaceId);
@@ -903,12 +904,13 @@ public class Export extends JDBCBasedJob<Export> {
                     Export baseExport = new Export()
                         .withId(getId() + "_missing_base")
                         .withDescription("Persistent Base Export for " + getId())
-                        .withExportTarget(getExportTarget())
+                        .withExportTarget(new ExportTarget().withType(DOWNLOAD))
                         .withFilters(getFilters())
                         .withMaxTilesPerFile(getMaxTilesPerFile())
                         .withTargetLevel(getTargetLevel())
                         .withPartitionKey(getPartitionKey())
-                        .withCsvFormat(getCsvFormat())
+                            //always use JSON_WKB
+                        .withCsvFormat(JSON_WKB)
                         .withEmrTransformation(isEmrTransformation())
                         .withEmrType(getEmrType());
 
@@ -1139,12 +1141,12 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     @JsonIgnore
-    public String getHashForPersistentStorage() {
+    public String getHashForPersistentStorage(CSVFormat targetFormat) {
         return Hasher.getHash(
                 (targetLevel != null ? targetLevel.toString() : "")
                 + maxTilesPerFile
                 + partitionKey
-                + csvFormat
+                + (targetFormat == null ? csvFormat : targetFormat)
                 + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().geometry.getJTSGeometry().hashCode() : "")
                 + (filters != null && filters.getPropertyFilter() != null ? filters.getPropertyFilter().hashCode() : "")
                 + (filters != null && filters.getSpatialFilter() != null ? filters.getSpatialFilter().getRadius() : "")

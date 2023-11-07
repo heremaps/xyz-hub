@@ -33,14 +33,12 @@ import org.junit.Test;
 
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.*;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
 import static io.netty.handler.codec.http.HttpResponseStatus.PRECONDITION_FAILED;
 import static org.junit.Assert.*;
 
@@ -51,34 +49,8 @@ public class JobApiCompositeExportIT extends JobApiIT{
     protected String testSpaceId1Ext = "composite-export-space-ext";
     protected String testSpaceId1ExtExt = "composite-export-space-ext-ext";
 
-    private static List<String> baseContent = new ArrayList<>(){
-        {
-            add("4807");
-            add("4953");
-            add("5681");
-            add("5693");
-            add("5749");
-            add("5760");
-            add("5831");
-        }};
-
-    private static List<String> l1ChangesContent = new ArrayList<>(){
-        {
-            add("4807");
-            add("4991");
-            add("4993");
-            add("5693");
-            add("5760");
-        }};
-
-    private static List<String> l2ChangesContent = new ArrayList<>(){
-        {
-            add("5831");
-        }};
-
     private static List<String> baseContentWKB = new ArrayList<>(){
         {
-            addAll(baseContent);
             add("id1");
             add("id2");
             add("id3");
@@ -89,22 +61,40 @@ public class JobApiCompositeExportIT extends JobApiIT{
             add("01010000A0E6100000B0CD1A681EE23C403411B4C4CEE939400000000000000000");
         }};
 
-    private static List<String> l1ChangesContentWKB = new ArrayList<>(){
+    private static List<String> l1ChangesContentTILEID_FC_B64 = new ArrayList<>(){
         {
-            addAll(l1ChangesContent);
+            add("4807");
+            add("4991");
+            add("4993");
+            add("5693");
+            add("5760");
+        }};
+
+    private static List<String> l2ChangesContentTILEID_FC_B64 = new ArrayList<>(){
+        {
+            add("5831");
+        }};
+
+    private static List<String> l1ChangesContentJSONWKB = new ArrayList<>(){
+        {
             add("idX");
             add("id3");
             add("id7");
             add("01010000A0E61000007DF82175422C54C0D056CC177DD246400000000000000000");
             add("01010000A0E610000038D07F5137D34440F0968E42E97B43400000000000000000");
+        }};
+
+    private static List<String> l1ChangesContentPARTITIONED_JSON_WKB = new ArrayList<>(){
+        {
+            //add features
+            addAll(l1ChangesContentJSONWKB);
             //empty tiles
             add("4807,,");
             add("5760,,");
         }};
 
-    private static List<String> l2ChangesContentWKB = new ArrayList<>(){
+    private static List<String> l2ChangesContentPARTITIONED_JSON_WKB = new ArrayList<>(){
         {
-            addAll(l2ChangesContent);
             add("id8");
             //empty tiles
             add("5831,,");
@@ -271,12 +261,11 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
-        mustContain.addAll(baseContent);
-        mustContain.add("NjQ3LCAyNS45MTM");
-        mustContain.addAll(l1ChangesContent);
+        mustContain.addAll(baseContentWKB);
+        mustContain.addAll(l1ChangesContentTILEID_FC_B64);
 
-        //7 Features from base + 3 Features from base+delta changes. 12 Tiles including two empty tiles.
-        downloadAndCheckFC(urls, 4276, 10, mustContain, 12);
+        //7 Features from base + 5 tiles from base+delta changes.
+        downloadAndCheck(urls, 3313, 7, mustContain);
     }
 
     @Test
@@ -290,12 +279,11 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
-        mustContain.addAll(baseContent);
-        mustContain.add("NjQ3LCAyNS45MTM");
-        mustContain.addAll(l1ChangesContent);
+        mustContain.addAll(baseContentWKB);
+        mustContain.addAll(l1ChangesContentTILEID_FC_B64);
 
-        //7 Features from base + 3 Features from base+delta changes. 12 Tiles including two empty tiles.
-        downloadAndCheckFC(urls, 4276, 10, mustContain, 12);
+        //7 Features from base + 5 tiles from base+delta changes.
+        downloadAndCheck(urls, 3313, 7, mustContain);
     }
 
     @Test
@@ -307,12 +295,11 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
-        mustContain.addAll(baseContent);
-        mustContain.add("NjQ3LCAyNS45MTM");
-        mustContain.addAll(l1ChangesContent);
+        mustContain.addAll(baseContentWKB);
+        mustContain.addAll(l1ChangesContentTILEID_FC_B64);
 
-        //7 Features from base + 3 Features from base+delta changes. 12 Tiles including two empty tiles.
-        downloadAndCheckFC(urls, 4276, 10, mustContain, 12);
+        //7 Features from base + 5 tiles from base+delta changes.
+        downloadAndCheck(urls, 3313, 7, mustContain);
     }
 
     @Test
@@ -323,7 +310,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, false);
 
         //3 Features from base+delta changes. 5 Tiles including two empty tiles.
-        downloadAndCheckFC(urls, 1346, 3, l1ChangesContent, 5);
+        downloadAndCheckFC(urls, 1346, 3, l1ChangesContentTILEID_FC_B64, 5);
     }
 
     @Test
@@ -341,11 +328,11 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
-        mustContain.addAll(baseContent);
-        mustContain.add("NjQ3LCAyNS45MTM");
-        mustContain.addAll(l2ChangesContent);
-        
-        downloadAndCheckFC(urls, 3362, 8 , mustContain, 9);
+        mustContain.addAll(baseContentWKB);
+        mustContain.addAll(l2ChangesContentTILEID_FC_B64);
+
+        //7 Features from base + 2 tiles from base+delta changes.
+        downloadAndCheck(urls, 2399, 7 , mustContain);
     }
 
     @Test
@@ -357,7 +344,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, false);
 
         //* One Feature got added and one got deleted .. so we expect 1 Feature + 2 Tiles (one is empty) */
-        downloadAndCheckFC(urls, 432, 1, l2ChangesContent, 2);
+        downloadAndCheckFC(urls, 432, 1, l2ChangesContentTILEID_FC_B64, 2);
     }
 
     /** ######################## JSON_WKB / PARTITIONED_JSON_WKB ################################ **/
@@ -372,18 +359,8 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
-        mustContain.add("id1");
-        mustContain.add("id2");
-        mustContain.add("id3");
-        mustContain.add("id4");
-        mustContain.add("id5");
-        mustContain.add("id6");
-        mustContain.add("id7");
-        //delta
-        mustContain.add("idX");
-        mustContain.add("id3");
-        mustContain.add("id3");
-        mustContain.add("id7");
+        mustContain.addAll(baseContentWKB);
+        mustContain.addAll(l1ChangesContentJSONWKB);
         //Feature with deleted flag
         mustContain.add("deleted");
 
@@ -401,10 +378,10 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         List<String> mustContain = new ArrayList<>();
         mustContain.addAll(baseContentWKB);
-        mustContain.addAll(l1ChangesContentWKB);
+        mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
-        //7 Features from base + 4 Features from delta - including one deletion.
-        downloadAndCheck(urls, 2945, 10, mustContain);
+        //7 Features from base + 2 base+delta tiles with changes - including one deletion.
+        downloadAndCheck(urls, 2910, 10, mustContain);
 
         // Same test with type DOWNLOAD
         job =  buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), PARTITIONED_JSON_WKB);
@@ -413,8 +390,8 @@ public class JobApiCompositeExportIT extends JobApiIT{
         urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
         checkUrls(urls, true);
 
-        //7 Features from base + 4 Features from delta - including one deletion.
-        downloadAndCheck(urls, 2945, 10, mustContain);
+        //7 Features from base + 2 base+delta tiles with changes
+        downloadAndCheck(urls, 2910, 10, mustContain);
     }
 
     @Test
@@ -434,10 +411,10 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         List<String> mustContain = new ArrayList<>();
         mustContain.addAll(baseContentWKB);
-        mustContain.addAll(l1ChangesContentWKB);
+        mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
-        //7 Features from base + 4 Features from delta - including one deletion.
-        downloadAndCheck(urls, 2945, 10, mustContain);
+        //7 Features from base + 2 base+delta tiles with changes
+        downloadAndCheck(urls, 2910, 10, mustContain);
     }
 
     @Test
@@ -448,7 +425,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         checkUrls(urls, false);
 
         List<String> mustContain = new ArrayList<>();
-        mustContain.addAll(l1ChangesContentWKB);
+        mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
         //3 Features from delta + 2 empty tiles
         downloadAndCheck(urls, 943, 3, mustContain);
@@ -470,12 +447,10 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         List<String> mustContain = new ArrayList<>();
         mustContain.addAll(baseContentWKB);
-        mustContain.addAll(l2ChangesContentWKB);
-        //empty tiles
-        mustContain.add("5831,,");
+        mustContain.addAll(l2ChangesContentPARTITIONED_JSON_WKB);
 
         //8 Features from base + delta + 1 empty tile
-        downloadAndCheck(urls, 2323, 8 , mustContain);
+        downloadAndCheck(urls, 2288, 8 , mustContain);
     }
 
     /** ######################################################## **/
