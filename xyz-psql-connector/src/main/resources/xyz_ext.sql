@@ -111,7 +111,7 @@ DROP FUNCTION IF EXISTS exp_build_sql_inhabited_txt(boolean, text, integer, text
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 182
+ select 183
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2388,7 +2388,7 @@ $BODY$
 			||'				select * FROM xyz_tag_statistic('''||schema||''','''||spaceid||''', null) '
 			||'			) as tag_stat '
 			||'		), '
-			||'		(SELECT count(*) FROM "'||schema||'"."'||spaceid||'") AS count, '
+			||'		(SELECT count(*) FROM "'||schema||'"."'||spaceid||'" where operation not in (''H'',''J'',''D'') ) AS count, '
 			||'		(SELECT xyz_space_bbox('''||schema||''','''||spaceid||''', null)) AS bbox '
 			||'			FROM pg_class '
 			||'		WHERE oid='''||schema||'."'||spaceid||'"''::regclass) A';
