@@ -20,18 +20,10 @@ package com.here.naksha.app.service;
 
 import static com.here.naksha.app.common.TestUtil.*;
 import static com.here.naksha.app.service.NakshaApp.newInstance;
-import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
 import static java.time.temporal.ChronoUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.here.naksha.lib.core.NakshaAdminCollection;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.naksha.EventHandler;
-import com.here.naksha.lib.core.models.naksha.Space;
-import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.*;
-import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.net.URI;
@@ -55,8 +47,7 @@ class NakshaAppTest {
   static HttpClient httpClient;
   static HttpRequest stdHttpRequest;
 
-  static final String TEST_DATA_FOLDER = "src/test/resources/unit_test_data/";
-  static final String HDR_STREAM_ID = "Stream-Id";
+  static CreateFeatureTestHelper createFeatureTests;
 
   @BeforeAll
   static void prepare() throws InterruptedException, URISyntaxException {
@@ -78,6 +69,9 @@ class NakshaAppTest {
         .uri(new URI(NAKSHA_HTTP_URI))
         .header("Content-Type", "application/json")
         .build();
+
+    // create test helpers
+    createFeatureTests = new CreateFeatureTestHelper(app, NAKSHA_HTTP_URI, httpClient, stdHttpRequest);
   }
 
   @Test
@@ -210,68 +204,42 @@ class NakshaAppTest {
 
   @Test
   @Order(4)
-  void tc0300_testCreateFeatures() throws Exception {
-    // Test API : POST /hub/spaces/{spaceId}/features
-    // Given: Storage (mock implementation) configured in Admin storage
-    final Storage storage = parseJsonFileOrFail("TC0300_createFeatures/create_storage.json", Storage.class);
-    final WriteFeatures<?> stRequest =
-        createFeatureRequest(NakshaAdminCollection.STORAGES, storage, IfExists.REPLACE, IfConflict.REPLACE);
-    try (final IWriteSession writer =
-        app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
-      final Result result = writer.execute(stRequest);
-      assertTrue(result instanceof SuccessResult, "Failed creating Stroage");
-      writer.commit();
-    }
+  void tc0300_testCreateFeaturesWithNewIds() throws Exception {
+    createFeatureTests.tc0300_testCreateFeaturesWithNewIds();
+  }
 
-    // Given: EventHandler (uses above Storage) configured in Admin storage
-    final EventHandler eventHandler =
-        parseJsonFileOrFail("TC0300_createFeatures/create_event_handler.json", EventHandler.class);
-    final WriteFeatures<?> ehRequest = createFeatureRequest(
-        NakshaAdminCollection.EVENT_HANDLERS, eventHandler, IfExists.REPLACE, IfConflict.REPLACE);
-    try (final IWriteSession writer =
-        app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
-      final Result result = writer.execute(ehRequest);
-      assertTrue(result instanceof SuccessResult, "Failed creating EventHandler");
-      writer.commit();
-    }
+  @Test
+  @Order(5)
+  void tc0301_testCreateFeaturesWithGivenIds() throws Exception {
+    createFeatureTests.tc0301_testCreateFeaturesWithGivenIds();
+  }
 
-    // Given: Space (uses above EventHandler) configured in Admin storage
-    final Space space = parseJsonFileOrFail("TC0300_createFeatures/create_space.json", Space.class);
-    final WriteFeatures<?> spRequest =
-        createFeatureRequest(NakshaAdminCollection.SPACES, space, IfExists.REPLACE, IfConflict.REPLACE);
-    try (final IWriteSession writer =
-        app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
-      final Result result = writer.execute(spRequest);
-      assertTrue(result instanceof SuccessResult, "Failed creating Space");
-      writer.commit();
-    }
+  @Test
+  @Order(6)
+  void tc0302_testCreateFeaturesWithPrefixId() throws Exception {
+    createFeatureTests.tc0302_testCreateFeaturesWithPrefixId();
+  }
 
-    // Given: Create Features request (against above Space)
-    final XyzFeature feature = parseJsonFileOrFail("TC0300_createFeatures/create_features.json", XyzFeature.class);
-    final WriteFeatures<?> fRequest = createFeatureRequest(space.getId(), feature, IfExists.FAIL, IfConflict.FAIL);
+  @Test
+  @Order(7)
+  void tc0303_testCreateFeaturesWithAddTags() throws Exception {
+    createFeatureTests.tc0303_testCreateFeaturesWithAddTags();
+  }
 
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
-    try (final IWriteSession writer =
-        app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
-      final Result result = writer.execute(fRequest);
-      assertTrue(result instanceof SuccessResult, "Failed creating Features " + result);
-      writer.commit();
-    }
-
-    // Then:
-    // TODO : Verify
-
+  @Test
+  @Order(8)
+  void tc0304_testCreateFeaturesWithRemoveTags() throws Exception {
+    createFeatureTests.tc0304_testCreateFeaturesWithRemoveTags();
   }
 
   @AfterAll
   static void close() throws InterruptedException {
-    // TODO: Find a way to gracefully shutdown the server.
-    //       To do some manual testing with the running service, uncomment this:
     if (app != null) {
       // drop schema after test execution
       if (app.getHub().getAdminStorage() instanceof PsqlStorage psqlStorage) {
         psqlStorage.dropSchema();
       }
+      // To do some manual testing with the running service, uncomment this:
       // app.join(java.util.concurrent.TimeUnit.SECONDS.toMillis(3600));
       app.stopInstance();
     }

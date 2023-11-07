@@ -1,8 +1,8 @@
 openapi: "3.0.2"
 
 servers:
-  - url: "/"
-    description: "Current host"
+  - url: "http://localhost:8080/"
+    description: "Local"
   - url: "https://naksha.ext.mapcreator.here.com/"
     description: "PRD"
   - url: "https://naksha-e2e.ext.mapcreator.here.com/"
@@ -21,6 +21,14 @@ security:
 tags:
   - name: Manage Storages
     description: Storage management endpoints.
+  - name: Manage Event Handlers
+    description: Event Handler management endpoints.
+  - name: Manage Spaces
+    description: Space management endpoints.
+  - name: Read Features
+    description: Read endpoints for features.
+  - name: Write Features
+    description: Write endpoints for features.
 paths:
   '/hub/health-status':
     get:
@@ -111,6 +119,39 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
         '500':
           $ref: '#/components/responses/ErrorResponse500'
+  '/hub/spaces/{spaceId}/features':
+    post:
+      tags:
+        - Write Features
+      summary: Create new features in the space
+      description: >
+        This method allows to create new features in the storage associated (directly or via event handler) with the space.
+        Feature id will be automatically (randomly) created, if not already provided.
+        If the feature id is provided and it clashes with the one already present in the space, then the operation will fail.
+        It ensures an atomic operation, so either all features will be created or none (in case of failure).
+      operationId: postFeatures
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/AddTags'
+        - $ref: '#/components/parameters/RemoveTags'
+        - $ref: '#/components/parameters/PrefixId'
+      requestBody:
+        $ref: '#/components/requestBodies/FeatureCollectionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureCollectionModificationResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
 components:
   securitySchemes:
     AccessToken:
@@ -121,7 +162,68 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    SpaceId:
+      name: spaceId
+      in: path
+      description: The unique identifier of the space.
+      required: true
+      schema:
+        type: string
+    AddTags:
+      name: addTags
+      in: query
+      description: Tags to be added to the features.
+      required: false
+      style: form
+      schema:
+        type: array
+        items:
+          type: string
+    RemoveTags:
+      name: removeTags
+      in: query
+      description: Tags to be removed from the features.
+      required: false
+      style: form
+      schema:
+        type: array
+        items:
+          type: string
+    PrefixId:
+      name: prefixId
+      in: query
+      description: If set all feature IDs are prefixed with the provided string.
+      required: false
+      schema:
+        type: string
   requestBodies:
+    FeatureCollectionRequest:
+      description: An FeatureCollection request holding list of Feature objects.
+      required: true
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/FeatureCollection'
+          example:
+            type: "FeatureCollection"
+            features:
+              - type: "Feature"
+                geometry:
+                  type: "Point"
+                  coordinates:
+                    - 8.68872
+                    - 50.0561
+                    - 292.94377758
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
     StorageRequest:
       required: true
       content:
@@ -152,6 +254,7 @@ components:
         application/x-empty:
           schema:
             type: string
+          example: ""
     ErrorResponse400:
       description: Indicates bad request.
       content:
@@ -262,6 +365,39 @@ components:
             error: "PayloadTooLarge"
             errorMessage: "Payload too large."
             streamId: "d5b2edaa-2c6b-44e1-b794-feea6fa0e15b"
+    FeatureCollectionModificationResponse:
+      description: An array of features and their modifications response.
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/FeatureCollectionModification'
+          example:
+            type: FeatureCollection
+            inserted:
+              - BfiimUxHjj
+            updated:
+              - cuiImUxOjj
+            deleted:
+              - dyoweUxjde
+            features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - -2.960847
+                    - 53.430828
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    createdAt: 1517504700726
+                    updatedAt: 1517504700726
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
     StorageResponse:
       description: The space.
       content:
@@ -317,6 +453,191 @@ components:
           description: >-
             A human readable message in English that should provide a more
             detailed description of the error reason.
+    GeoJSON:
+      type: object
+      description: The base type for all possible GeoJSON objects.
+      required:
+        - type
+      properties:
+        type:
+          type: string
+      discriminator:
+        propertyName: type
+        mapping:
+          Feature: '#/components/schemas/Feature'
+          FeatureCollection: '#/components/schemas/FeatureCollection'
+          Geometry: '#/components/schemas/Geometry'
+      additionalProperties: true
+    Geometry:
+      allOf:
+        - $ref: '#/components/schemas/GeoJSON'
+        - type: object
+          description: A Geometry object represents points, curves, and surfaces in coordinate space.
+          discriminator:
+            propertyName: type
+            mapping:
+              LineString: '#/components/schemas/LineString'
+              MultiLineString: '#/components/schemas/MultiLineString'
+              MultiPoint: '#/components/schemas/MultiPoint'
+              MultiPolygon: '#/components/schemas/MultiPolygon'
+              Point: '#/components/schemas/Point'
+              Polygon: '#/components/schemas/Polygon'
+          anyOf:
+            - $ref: '#/components/schemas/LineString'
+            - $ref: '#/components/schemas/MultiLineString'
+            - $ref: '#/components/schemas/MultiPoint'
+            - $ref: '#/components/schemas/MultiPolygon'
+            - $ref: '#/components/schemas/Point'
+            - $ref: '#/components/schemas/Polygon'
+    Feature:
+      allOf:
+        - $ref: '#/components/schemas/GeoJSON'
+        - type: object
+          description: A Feature represents a spatially bounded object.
+          properties:
+            id:
+              description: The unique identifier of the feature.
+              type: string
+            geometry:
+              $ref: '#/components/schemas/Geometry'
+            properties:
+              type: object
+              description: The properties of the feature.
+              properties:
+                '@ns:com:here:xyz':
+                  $ref: '#/components/schemas/XyzNamespace'
+              additionalProperties: true
+    FeatureCollection:
+      description: A FeatureCollection GeoJSON object.
+      allOf:
+        - $ref: '#/components/schemas/GeoJSON'
+        - type: object
+          required:
+            - features
+          discriminator:
+            propertyName: type
+            mapping:
+              FeatureCollectionModification: '#/components/schemas/FeatureCollectionModification'
+          properties:
+            features:
+              type: array
+              description: Features included in the collection.
+              items:
+                $ref: '#/components/schemas/Feature'
+    FeatureCollectionModification:
+      allOf:
+        - $ref: '#/components/schemas/FeatureCollection'
+        - type: object
+          properties:
+            inserted:
+              type: array
+              description: List of inserted feature IDs.
+              items:
+                type: string
+            updated:
+              type: array
+              description: List of updated features IDs.
+              items:
+                type: string
+            deleted:
+              type: array
+              description: List of deleted features IDs.
+              items:
+                type: string
+    LineString:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A LineString geometry.
+          properties:
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: number
+                maxItems: 3
+                minItems: 2
+              minItems: 2
+    MultiLineString:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A MultiLineString geometry.
+          properties:
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: number
+                  maxItems: 3
+                  minItems: 2
+                minItems: 2
+    MultiPoint:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A MultiPoint geometry.
+          properties:
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: number
+                maxItems: 3
+                minItems: 2
+    MultiPolygon:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A MultiPolygon geometry.
+          properties:
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      type: number
+                    maxItems: 3
+                    minItems: 2
+                  minItems: 4
+    Point:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A Point geometry.
+          properties:
+            coordinates:
+              type: array
+              items:
+                type: number
+              maxItems: 3
+              minItems: 2
+    Polygon:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A Polygon geometry.
+          properties:
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: number
+                  maxItems: 3
+                  minItems: 2
+                minItems: 4
     Storage:
       type: object
       description: A physical storage to perform read/write interaction with collections.
@@ -383,3 +704,29 @@ components:
           description: The maximum amount of concurrent connections this connector can use for storage operations.
           type: integer
           default: 20
+    XyzNamespace:
+      type: object
+      description: The XYZ namespace object managed by Naksha service
+      properties:
+        tags:
+          description: The tags for this objects.
+          items:
+            type: string
+          type: array
+        createdAt:
+          description: >-
+            The UNIX Epoch time of when this feature has been created (in
+            milliseconds since 01.01.1970).
+          example: 1234567890123
+          format: int64
+          readOnly: true
+          type: integer
+        updatedAt:
+          description: >-
+            The UNIX Epoch time of when this feature has been last updated (in
+            milliseconds since 01.01.1970).
+          example: 1234567890123
+          format: int64
+          readOnly: true
+          type: integer
+      additionalProperties: true

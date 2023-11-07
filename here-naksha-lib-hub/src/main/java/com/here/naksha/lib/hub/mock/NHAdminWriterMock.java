@@ -130,7 +130,7 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
   protected <T> @NotNull WriteOpResult<XyzFeature> insertFeature(
       final @NotNull String collectionId, final @NotNull WriteOp<T> wOp) throws SQLException {
     final XyzFeature f = (XyzFeature) wOp.feature;
-    if (mockCollection.get(collectionId).putIfAbsent(f.getId(), f) == null) {
+    if (mockCollection.get(collectionId).putIfAbsent(f.getId(), setUuidFor(f)) == null) {
       return new WriteOpResult<>(EExecutedOp.INSERTED, f);
     }
     throw new SQLException("Feature already exists " + f.getId(), PSQLState.UNIQUE_VIOLATION.getState());

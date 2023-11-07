@@ -18,8 +18,12 @@
  */
 package com.here.naksha.app.service.http.apis;
 
+import static com.here.naksha.app.service.http.tasks.WriteFeatureApiTask.WriteFeatureApiReqType.CREATE_FEATURES;
+
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
+import com.here.naksha.app.service.http.tasks.WriteFeatureApiTask;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.jetbrains.annotations.NotNull;
 
@@ -31,9 +35,19 @@ public class WriteFeatureApi extends Api {
 
   @Override
   public void addOperations(final @NotNull RouterBuilder rb) {
-    // TODO : map API operations to respective controller methods
+    rb.operation("postFeatures").handler(this::createFeatures);
   }
 
   @Override
   public void addManualRoutes(final @NotNull Router router) {}
+
+  private void createFeatures(final @NotNull RoutingContext routingContext) {
+    new WriteFeatureApiTask<>(
+            CREATE_FEATURES,
+            verticle,
+            naksha(),
+            routingContext,
+            verticle.createNakshaContext(routingContext))
+        .start();
+  }
 }

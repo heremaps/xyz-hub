@@ -18,12 +18,24 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import static com.here.naksha.app.service.http.apis.ApiParams.*;
+
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
+import com.here.naksha.app.service.models.FeatureCollectionRequest;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.util.storage.RequestHelper;
+import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.RoutingContext;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,9 +73,11 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
    */
   @Override
   protected @NotNull XyzResponse execute() {
-    // TODO : Add custom execute logic to process input API request based on reqType
+    // Custom execute logic to process input API request based on reqType
     try {
       switch (this.reqType) {
+        case CREATE_FEATURES:
+          return executeCreateFeatures();
         default:
           return executeUnsupported();
       }
@@ -71,6 +85,47 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
       // unexpected exception
       return verticle.sendErrorResponse(
           routingContext, XyzError.EXCEPTION, "Internal error : " + ex.getMessage());
+    }
+  }
+
+  private @NotNull XyzResponse executeCreateFeatures() throws Exception {
+    // Deserialize input request
+    final FeatureCollectionRequest collectionRequest;
+    try (final Json json = Json.get()) {
+      final String bodyJson = routingContext.body().asString();
+      collectionRequest = json.reader(ViewDeserialize.User.class)
+          .forType(FeatureCollectionRequest.class)
+          .readValue(bodyJson);
+    }
+    final List<XyzFeature> features = (List<XyzFeature>) collectionRequest.getFeatures();
+    if (features.isEmpty()) {
+      return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Can't create empty features");
+    }
+    // Parse parameters
+    final String spaceId = pathParam(routingContext, SPACE_ID);
+    final String prefixId = queryParam(routingContext, PREFIX_ID);
+    final List<String> addTags = queryParamList(routingContext, ADD_TAGS);
+    final List<String> removeTags = queryParamList(routingContext, REMOVE_TAGS);
+
+    // Validate parameters
+    if (spaceId == null || spaceId.isEmpty()) {
+      return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing spaceId parameter");
+    }
+
+    // as applicable, modify features based on parameters supplied
+    if (prefixId != null || addTags != null || removeTags != null) {
+      for (final XyzFeature feature : features) {
+        feature.setIdPrefix(prefixId);
+        feature.getProperties().getXyzNamespace().addTags(addTags, true).removeTags(removeTags, true);
+      }
+    }
+
+    // Forward request to NH Space Storage writer instance
+    try (final IWriteSession writer = naksha().getSpaceStorage().newWriteSession(context(), true)) {
+      final WriteFeatures<XyzFeature> wrRequest = RequestHelper.createFeaturesRequest(spaceId, features);
+      final Result wrResult = writer.execute(wrRequest);
+      // transform WriteResult to Http FeatureCollection response
+      return transformWriteResultToXyzCollectionResponse(wrResult, Storage.class);
     }
   }
 }

@@ -450,6 +450,14 @@ public class XyzFeatureCollection extends XyzResponse {
     return this;
   }
 
+  @SuppressWarnings("unused")
+  public @NotNull XyzFeatureCollection withInsertedFeatures(
+      final @NotNull List<? extends @NotNull XyzFeature> insertedFeatures) {
+    ((List<XyzFeature>) this.features.get()).addAll(insertedFeatures); // append features
+    withInserted(insertedFeatures.stream().map(XyzFeature::getId).toList()); // overwrite inserted
+    return this;
+  }
+
   public static class ModificationFailure {
 
     private String id;

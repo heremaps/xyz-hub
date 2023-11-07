@@ -1,0 +1,30 @@
+{
+  "type": "FeatureCollection",
+  "inserted": ["my-custom-id-304-1", "my-custom-id-304-2"],
+  "features": [
+    {
+      "id": "my-custom-id-304-1",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:xyz": {
+          "tags": [
+            "some_other_tag"
+          ]
+        },
+        "speedLimit": "60"
+      }
+    },
+    {
+      "id": "my-custom-id-304-2",
+      "type": "Feature",
+      "properties": {
+        "@ns:com:here:xyz": {
+          "tags": [
+            "some_other_tag"
+          ]
+        },
+        "speedLimit": "80"
+      }
+    }
+  ]
+}
