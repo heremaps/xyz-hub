@@ -59,15 +59,18 @@ public class ReadFeaturesByIdsTestHelper {
   }
 
   private void standardAssertions(
-      final @NotNull String streamId,
-      final @NotNull HttpResponse<String> response,
+      final @NotNull HttpResponse<String> actualResponse,
+      final int expectedStatusCode,
       final @NotNull String expectedBodyPart,
-      final @NotNull String resBody)
+      final @NotNull String expectedStreamId)
       throws JSONException {
-    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    assertEquals(expectedStatusCode, actualResponse.statusCode(), "ResCode mismatch");
     JSONAssert.assertEquals(
-        "Create Feature response body doesn't match", expectedBodyPart, resBody, JSONCompareMode.LENIENT);
-    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+        "Get Feature response body doesn't match",
+        expectedBodyPart,
+        actualResponse.body(),
+        JSONCompareMode.LENIENT);
+    assertEquals(expectedStreamId, getHeader(actualResponse, HDR_STREAM_ID), "StreamId mismatch");
   }
 
   private void additionalCustomAssertions(final @NotNull String resBody) {
@@ -151,11 +154,10 @@ public class ReadFeaturesByIdsTestHelper {
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    final String resBody = response.body();
-    standardAssertions(streamId, response, expectedBodyPart, resBody);
+    standardAssertions(response, 200, expectedBodyPart, streamId);
 
     // Then: also match individual JSON attributes (in addition to whole object comparison above)
-    additionalCustomAssertions(resBody);
+    additionalCustomAssertions(response.body());
   }
 
   public void tc0401_testReadFeaturesForMissingIds() throws Exception {
@@ -183,7 +185,150 @@ public class ReadFeaturesByIdsTestHelper {
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    final String resBody = response.body();
-    standardAssertions(streamId, response, expectedBodyPart, resBody);
+    standardAssertions(response, 200, expectedBodyPart, streamId);
+  }
+
+  public void tc0402_testReadFeaturesWithoutIds() throws Exception {
+    // NOTE : This test depends on setup done as part of tc0400_testReadFeaturesByIds
+
+    // Test API : GET /hub/spaces/{spaceId}/features
+    // Validate request gets failed due to missing Id parameter
+    String streamId;
+    HttpRequest request;
+    HttpResponse<String> response;
+
+    // Given: Features By Ids request (against configured space)
+    final String spaceId = "local-space-4-feature-by-id";
+    final String expectedBodyPart =
+        loadFileOrFail("ReadFeatures/ByIds/TC0402_WithoutIds/feature_response_part.json");
+    streamId = UUID.randomUUID().toString();
+
+    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features"))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then: Perform assertions
+    standardAssertions(response, 400, expectedBodyPart, streamId);
+  }
+
+  public void tc0403_testReadFeaturesByIdsFromMissingSpace() throws Exception {
+    // NOTE : This test depends on setup done as part of tc0400_testReadFeaturesByIds
+
+    // Test API : GET /hub/spaces/{spaceId}/features
+    // Validate request getting failed due to missing space
+    String streamId;
+    HttpRequest request;
+    HttpResponse<String> response;
+
+    // Given: Features By Ids request (against configured space)
+    final String spaceId = "missing-space";
+    final String idsQueryParam = "&id=some-id-1";
+    final String expectedBodyPart =
+        loadFileOrFail("ReadFeatures/ByIds/TC0403_ByIdsFromMissingSpace/feature_response_part.json");
+    streamId = UUID.randomUUID().toString();
+
+    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features?" + idsQueryParam))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then: Perform assertions
+    standardAssertions(response, 404, expectedBodyPart, streamId);
+  }
+
+  public void tc0404_testReadFeatureById() throws Exception {
+    // NOTE : This test depends on setup done as part of tc0400_testReadFeaturesByIds
+
+    // Test API : GET /hub/spaces/{spaceId}/features/{featureId}
+    // Validate feature getting returned for given Id
+    String streamId;
+    HttpRequest request;
+    HttpResponse<String> response;
+
+    // Given: Feature By Id request (against already existing space)
+    final String spaceId = "local-space-4-feature-by-id";
+    final String featureId = "my-custom-id-400-1";
+    final String expectedBodyPart =
+        loadFileOrFail("ReadFeatures/ByIds/TC0404_ExistingId/feature_response_part.json");
+    streamId = UUID.randomUUID().toString();
+
+    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features/" + featureId))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then: Perform assertions
+    standardAssertions(response, 200, expectedBodyPart, streamId);
+
+    // Then: also match individual JSON attributes (in addition to whole object comparison above)
+    final XyzFeature feature = parseJson(response.body(), XyzFeature.class);
+    assertNotNull(
+        feature.getProperties().getXyzNamespace().getUuid(), "UUID found missing in response for feature");
+  }
+
+  public void tc0405_testReadFeatureForMissingId() throws Exception {
+    // NOTE : This test depends on setup done as part of tc0400_testReadFeaturesByIds
+
+    // Test API : GET /hub/spaces/{spaceId}/features/{featureId}
+    // Validate request gets failed when attempted to load feature for missing Id
+    String streamId;
+    HttpRequest request;
+    HttpResponse<String> response;
+
+    // Given: Feature By Id request, against existing space, for missing feature Id
+    final String spaceId = "local-space-4-feature-by-id";
+    final String featureId = "missing-id";
+    final String expectedBodyPart =
+        loadFileOrFail("ReadFeatures/ByIds/TC0405_MissingId/feature_response_part.json");
+    streamId = UUID.randomUUID().toString();
+
+    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features/" + featureId))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then: Perform assertions
+    standardAssertions(response, 404, expectedBodyPart, streamId);
+  }
+
+  public void tc0406_testReadFeatureByIdFromMissingSpace() throws Exception {
+    // NOTE : This test depends on setup done as part of tc0400_testReadFeaturesByIds
+
+    // Test API : GET /hub/spaces/{spaceId}/features/{featureId}
+    // Validate request gets failed when attempted to load feature from missing space
+    String streamId;
+    HttpRequest request;
+    HttpResponse<String> response;
+
+    // Given: Feature By Id request (against missing space)
+    final String spaceId = "missing-space";
+    final String featureId = "my-custom-id-400-1";
+    final String expectedBodyPart =
+        loadFileOrFail("ReadFeatures/ByIds/TC0406_ByIdFromMissingSpace/feature_response_part.json");
+    streamId = UUID.randomUUID().toString();
+
+    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features/" + featureId))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then: Perform assertions
+    standardAssertions(response, 404, expectedBodyPart, streamId);
   }
 }
