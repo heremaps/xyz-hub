@@ -18,8 +18,10 @@
  */
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.common.TestUtil.*;
-import static com.here.naksha.app.service.NakshaApp.newInstance;
+import static com.here.naksha.app.common.NakshaAppInitializer.mockedNakshaApp;
+import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
+import static com.here.naksha.app.common.TestUtil.getHeader;
+import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static java.time.temporal.ChronoUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -32,7 +34,12 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.UUID;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
@@ -51,14 +58,7 @@ class NakshaAppTest {
 
   @BeforeAll
   static void prepare() throws InterruptedException, URISyntaxException {
-    String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
-    String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
-    if (password == null) password = "password";
-    if (dbUrl == null)
-      dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
-          + "&schema=naksha_test_maint_app";
-
-    app = newInstance("mock-config", dbUrl);
+    app = mockedNakshaApp(); // to test with local postgres use `NakshaAppInitializer::localPsqlBasedNakshaApp`
     config = app.getHub().getConfig();
     app.start();
     Thread.sleep(5000); // wait for server to come up
@@ -301,6 +301,77 @@ class NakshaAppTest {
     JSONAssert.assertEquals(
         "Expecting failure response", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
     assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(2)
+  void tc0007_testUpdateStorage() throws Exception {
+    // Test API : POST /hub/storages
+    // Given:
+    final String updateStorageJson = loadFileOrFail("TC0007_updateStorage/update_storage.json");
+    final String expectedRespBody = loadFileOrFail("TC0007_updateStorage/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/um-mod-dev"))
+        .PUT(HttpRequest.BodyPublishers.ofString(updateStorageJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then:
+    assertEquals(200, response.statusCode());
+    JSONAssert.assertEquals(expectedRespBody, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
+  @Order(2)
+  void tc0008_testUpdateInexistentStorage() throws Exception {
+    // Test API : POST /hub/storages
+    // Given:
+    final String updateStorageJson = loadFileOrFail("TC0008_updateInexistentStorage/update_storage.json");
+    final String expectedErrorResponse = loadFileOrFail("TC0008_updateInexistentStorage/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/this-id-does-not-exist"))
+        .PUT(HttpRequest.BodyPublishers.ofString(updateStorageJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then:
+    // TODO(Kuba): IMO it should be 400 or 404, 409 (Conflict) indicates that there was some conflicting entity
+    assertEquals(409, response.statusCode());
+    JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+//  @Test
+// TODO: uncomment once the PR ... is merged
+//  @Order(3)
+  void tc0009_testUpdateStorageWithoutClassName() throws Exception {
+    // Test API : POST /hub/storages
+    // Given:
+    final String updateStorageJson = loadFileOrFail("TC0009_updateStorageWithMalformedBody/update_storage.json");
+    final String expectedErrorResponse = loadFileOrFail("TC0009_updateStorageWithMalformedBody/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/um-mod-dev"))
+        .PUT(HttpRequest.BodyPublishers.ofString(updateStorageJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then:
+    assertEquals(400, response.statusCode());
+    JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
   }
 
   @Test
