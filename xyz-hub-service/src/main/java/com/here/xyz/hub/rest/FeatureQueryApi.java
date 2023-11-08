@@ -223,6 +223,16 @@ public class FeatureQueryApi extends SpaceBasedApi {
           .withContext(spaceContext)
           .withRef(version);
 
+       boolean bCrossDateLine = false;
+       
+       try 
+       { bCrossDateLine = GeoTools.geometryCrossesDateline(event.getGeometry(), event.getRadius()); }
+       catch (Exception e) 
+       { throw new HttpException(BAD_REQUEST,e.getMessage()); }
+
+       if( bCrossDateLine )
+        throw new HttpException(BAD_REQUEST, "Invalid arguments! geometry filter intersects with antimeridian");
+
       final GeometryQuery task = new GeometryQuery(event, context, ApiResponseType.FEATURE_COLLECTION, skipCache, refSpaceId, refFeatureId);
       task.execute(this::sendResponse, this::sendErrorResponse);
     } catch (HttpException e) {
