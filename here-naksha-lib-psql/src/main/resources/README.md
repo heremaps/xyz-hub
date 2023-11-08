@@ -20,6 +20,25 @@ Due to partitioning of the big tables, we need to change **cluster** and **group
 - `show max_worker_processes = 1024`
   - We should be able to at least execute 64 parallel big table queries.
 
+# Configuration
+- https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-MAX-PARALLEL-WORKERS
+- `max_parallel_maintenance_workers = GREATEST({DBInstanceVCPU},64)`
+  - Sets the maximum number of parallel workers that can be started by a single utility command.
+- `force_parallel_mode = off`
+- `effective_io_concurrency = GREATEST({DBInstanceVCPU},1000)`
+  - Raising this value will increase the number of I/O operations that any individual PostgreSQL session attempts to initiate in parallel.
+- `max_worker_processes = GREATEST({DBInstanceVCPU*4},128)`
+  - Sets the maximum number of workers that the system can support for parallel operations.
+- `max_parallel_workers = GREATEST({DBInstanceVCPU*4},128)`
+  - Sets the maximum number of background processes that the system can support.
+  - Limited by `max_worker_processes`.
+- `max_parallel_workers_per_gather = GREATEST({DBInstanceVCPU},64)`
+  - Sets the maximum number of workers that can be started by a single Gather or Gather Merge node.
+  - Parallel workers are taken from the pool of processes established by `max_worker_processes`, limited by `max_parallel_workers`.
+- `parallel_leader_participation = off`
+  - Allows the leader process to execute the query plan under Gather and Gather Merge nodes instead of waiting for worker processes.
+  - Setting this value to off reduces the likelihood that workers will become blocked because the leader is not reading tuples fast enough.
+
 # Links
 
 ## Functions
@@ -35,8 +54,9 @@ Due to partitioning of the big tables, we need to change **cluster** and **group
 - https://www.postgresql.org/docs/current/errcodes-appendix.html
 - https://www.postgresql.org/docs/current/plpgsql-control-structures.html#PLPGSQL-ERROR-TRAPPING
 
-## Index optimization
+## Index optimization (pg_hint_plan)
 - https://www.postgresql.org/docs/current/sql-createindex.html#SQL-CREATEINDEX-STORAGE-PARAMETERS
+- https://pg-hint-plan.readthedocs.io/en/master/hint_list.html
 
 ## Concurrency & Function Volatility Categories
 - https://www.postgresql.org/docs/current/explicit-locking.html
@@ -51,6 +71,7 @@ In a nutshell:
 ## Other useful information about PostgesQL
 - https://www.postgresql.org/docs/current/catalog-pg-class.html
 - https://www.postgresql.org/docs/current/catalog-pg-trigger.html
+- https://www.crunchydata.com/blog/random-geometry-generation-with-postgis
 
 # DBeaver - Notification / Debugging
 Debugging in DBeaver can be done by adding notices like:

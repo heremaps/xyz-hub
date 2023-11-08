@@ -24,7 +24,9 @@ import static com.here.naksha.lib.core.models.storage.PRef.id;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.*;
+import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -105,7 +107,7 @@ public class RequestHelper {
    */
   public static @NotNull <T extends XyzFeature> WriteFeatures<T> updateFeatureRequest(
       final @NotNull String collectionName, final @NotNull T feature) {
-    WriteOp<T> updateOp = new WriteOp<>(EWriteOp.UPDATE, feature);
+    WriteOp<T> updateOp = new WriteXyzOp<>(EWriteOp.UPDATE, feature);
     return new WriteFeatures<>(collectionName, List.of(updateOp));
   }
 
@@ -183,17 +185,19 @@ public class RequestHelper {
       final @NotNull IfExists ifExistsAction,
       final @NotNull IfConflict ifConflictAction) {
     // TODO: Due to simplification and not yet supported advanced write ops, please adjust!
-    final List<WriteOp<T>> opList = featureList.stream()
-        .map(feature -> new WriteOp<>(EWriteOp.INSERT, feature))
-        .toList();
+    final List<@NotNull WriteOp<T>> opList = new ArrayList<>();
+    for (final T feature : featureList) {
+      opList.add(new WriteXyzOp<>(EWriteOp.CREATE, feature));
+    }
     return new WriteFeatures<>(collectionName, opList);
   }
 
-  public static @NotNull WriteCollections<StorageCollection> createWriteCollectionsRequest(
+  public static @NotNull WriteCollections<XyzCollection> createWriteCollectionsRequest(
       final @NotNull List<@NotNull String> collectionNames) {
-    final List<WriteOp<StorageCollection>> collectionList = collectionNames.stream()
-        .map(name -> new WriteOp<>(EWriteOp.INSERT, new StorageCollection(name), false))
-        .toList();
-    return new WriteCollections<>(collectionList);
+    WriteXyzCollections writeXyzCollections = new WriteXyzCollections();
+    for (final String collectionId : collectionNames) {
+      writeXyzCollections.add(new WriteXyzOp<>(EWriteOp.CREATE, new XyzCollection(collectionId)));
+    }
+    return writeXyzCollections;
   }
 }

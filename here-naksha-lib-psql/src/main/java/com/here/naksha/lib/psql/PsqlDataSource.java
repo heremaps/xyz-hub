@@ -32,10 +32,14 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
+import java.util.Properties;
 import javax.sql.DataSource;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.postgresql.PGProperty;
+import org.postgresql.jdbc.PgConnection;
+import org.postgresql.util.HostSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -151,9 +155,36 @@ public class PsqlDataSource implements DataSource {
    */
   @Override
   public final @NotNull Connection getConnection() throws SQLException {
-    return initConnection(pool.dataSource.getConnection(), NakshaContext.currentContext());
+    return getConnection(NakshaContext.currentContext());
   }
 
+  private @NotNull Properties properties(final boolean readOnly) {
+    final Properties props = new Properties();
+    props.setProperty(PGProperty.PG_DBNAME.getName(), config.db);
+    props.setProperty(PGProperty.USER.getName(), config.user);
+    props.setProperty(PGProperty.PASSWORD.getName(), config.password);
+    // props.setProperty(PGProperty.APPLICATION_NAME.getName(), ...);
+
+    //    if (pool.config.defaultSchema != null) {
+    //      props.setProperty(PGProperty.CURRENT_SCHEMA.getName(), pool.config.defaultSchema);
+    //    }
+    props.setProperty(PGProperty.DEFAULT_ROW_FETCH_SIZE.getName(), "1000");
+    props.setProperty(PGProperty.BINARY_TRANSFER.getName(), "true");
+    if (readOnly) {
+      props.setProperty(PGProperty.READ_ONLY.getName(), "true");
+    }
+    // CONNECT_TIMEOUT
+    // SOCKET_TIMEOUT
+    // CANCEL_SIGNAL_TIMEOUT
+    // RECEIVE_BUFFER_SIZE
+    // SEND_BUFFER_SIZE
+    props.setProperty(PGProperty.REWRITE_BATCHED_INSERTS.getName(), "true");
+    return props;
+  }
+
+  private @NotNull PgConnection newConnection(boolean readOnly) throws SQLException {
+    return new PgConnection(new HostSpec[] {new HostSpec(config.host, config.port)}, properties(readOnly), null);
+  }
   /**
    * Returns an initialized connection. This means the connection will have auto-commit being off, the current schema will be at the root of
    * the search path. If a context is given, {@code naksha_start_session} method will have been invoked. Note that these settings can be
@@ -166,8 +197,8 @@ public class PsqlDataSource implements DataSource {
    * @throws SQLException if any error happened while initializing the connection.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public final @NotNull Connection getConnection(@Nullable NakshaContext context) throws SQLException {
-    return initConnection(pool.dataSource.getConnection(), context);
+  final @NotNull Connection getConnection(@Nullable NakshaContext context) throws SQLException {
+    return initConnection(newConnection(false), context);
   }
 
   /**
@@ -238,7 +269,7 @@ public class PsqlDataSource implements DataSource {
    */
   @SuppressWarnings("SqlSourceToSinkFlow")
   @AvailableSince(NakshaVersion.v2_0_7)
-  public final @NotNull Connection initConnection(@NotNull Connection conn, @Nullable NakshaContext context) {
+  final @NotNull Connection initConnection(@NotNull Connection conn, @Nullable NakshaContext context) {
     try {
       conn.setAutoCommit(false);
       try (final Statement stmt = conn.createStatement()) {
@@ -270,36 +301,44 @@ public class PsqlDataSource implements DataSource {
    *                invoked.
    * @throws Unauthorized If a context without application-identifier given.
    */
-  protected void initSession(@NotNull StringBuilder sb, @Nullable NakshaContext context) {
-    // TODO: We need to escape the application name.
-    sb.append("SET SESSION application_name TO '").append(applicationName).append("';\n");
-    sb.append("SET SESSION work_mem TO '256 MB';\n");
-    sb.append("SET SESSION enable_seqscan TO OFF;\n");
-    sb.append("SET SESSION statement_timeout TO ")
-        .append(config.stmtTimeout)
-        .append(";\n");
-    sb.append("SET SESSION lock_timeout TO ").append(config.lockTimeout).append(";\n");
+  void initSession(@NotNull StringBuilder sb, @Nullable NakshaContext context) {
+    // We call naksha_start_session() first, so that we can override settings done by it, if we want!
     sb.append("SET SESSION search_path TO ").append(searchPath).append(";\n");
-    // sb.append("SELECT naksha_init_plv8();");
     if (context != null) {
       sb.append("SELECT naksha_start_session(");
       open_literal(sb);
-      write_literal(context.getAppId(), sb);
+      write_literal(sb, applicationName);
+      close_literal(sb);
+      sb.append(',');
+      open_literal(sb);
+      write_literal(sb, context.getAppId());
       close_literal(sb);
       sb.append(',');
       final String author = context.getAuthor();
       if (author != null) {
         open_literal(sb);
-        write_literal(author, sb);
+        write_literal(sb, author);
         close_literal(sb);
       } else {
         sb.append("null");
       }
       sb.append(',');
       open_literal(sb);
-      write_literal(context.getStreamId(), sb);
+      write_literal(sb, context.getStreamId());
       close_literal(sb);
-      sb.append(");");
+      sb.append(")");
+    } else {
+      sb.append("SET SESSION application_name TO ");
+      open_literal(sb);
+      write_literal(sb, applicationName);
+      close_literal(sb);
     }
+    sb.append(";\n");
+    sb.append("SET SESSION work_mem TO '256 MB';\n");
+    sb.append("SET SESSION enable_seqscan TO OFF;\n");
+    sb.append("SET SESSION statement_timeout TO ")
+        .append(config.stmtTimeout)
+        .append(";\n");
+    sb.append("SET SESSION lock_timeout TO ").append(config.lockTimeout).append(";\n");
   }
 }

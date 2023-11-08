@@ -89,7 +89,7 @@ public class SQL implements CharSequence {
 
   // Requires an opening with E'
   @SuppressWarnings("DuplicatedCode")
-  public static void write_literal(@NotNull CharSequence chars, @NotNull StringBuilder sb) {
+  public static void write_literal(@NotNull StringBuilder sb, @NotNull CharSequence chars) {
     // See: https://www.asciitable.com/
     // See: https://www.postgresql.org/docs/16/sql-syntax-lexical.html
     // We do not escape normal ASCII characters (32 (space) to 126 (~)).
@@ -100,11 +100,11 @@ public class SQL implements CharSequence {
         throw new IllegalArgumentException("ASCII zero is not allowed in a literal");
       }
       if (codePoint < 128 && !ESCAPE[codePoint]) {
-        sb.append(codePoint);
+        sb.append((char) codePoint);
         continue;
       }
       if (codePoint == '\\' || codePoint == '\'') {
-        sb.append(codePoint).append(codePoint);
+        sb.append((char) codePoint).append((char) codePoint);
         continue;
       }
       if (codePoint == '\t') {
@@ -155,6 +155,12 @@ public class SQL implements CharSequence {
 
   public static void close_literal(@NotNull StringBuilder sb) {
     sb.append('\'');
+  }
+
+  public static void quote_literal(@NotNull StringBuilder sb, @NotNull CharSequence literal) {
+    open_literal(sb);
+    write_literal(sb, literal);
+    close_literal(sb);
   }
 
   /**
@@ -254,13 +260,79 @@ public class SQL implements CharSequence {
   }
 
   /**
+   * Changes the length.
+   *
+   * @param length The new length to set.
+   * @return this.
+   */
+  public @NotNull SQL setLength(int length) {
+    sb.setLength(length);
+    return this;
+  }
+
+  /**
    * Append some raw SQL statement part.
    *
    * @param cs The characters sequence to append.
    * @return this.
    */
-  public @NotNull SQL append(@NotNull CharSequence cs) {
+  public @NotNull SQL add(@NotNull CharSequence cs) {
     sb.append(cs);
+    return this;
+  }
+
+  /**
+   * Append some raw SQL statement part.
+   *
+   * @param intNumber The integral number.
+   * @return this.
+   */
+  public @NotNull SQL add(int intNumber) {
+    sb.append(intNumber);
+    return this;
+  }
+
+  /**
+   * Append some raw SQL statement part.
+   *
+   * @param character The character to add.
+   * @return this.
+   */
+  public @NotNull SQL add(char character) {
+    sb.append(character);
+    return this;
+  }
+
+  /**
+   * Append some raw SQL statement part.
+   *
+   * @param intNumber The integral number.
+   * @return this.
+   */
+  public @NotNull SQL add(long intNumber) {
+    sb.append(intNumber);
+    return this;
+  }
+
+  /**
+   * Append some raw SQL statement part.
+   *
+   * @param floatNumber The floating point number.
+   * @return this.
+   */
+  public @NotNull SQL add(float floatNumber) {
+    sb.append(floatNumber);
+    return this;
+  }
+
+  /**
+   * Append some raw SQL statement part.
+   *
+   * @param floatNumber The floating point number.
+   * @return this.
+   */
+  public @NotNull SQL add(double floatNumber) {
+    sb.append(floatNumber);
     return this;
   }
 
@@ -271,28 +343,42 @@ public class SQL implements CharSequence {
    * @return The given string builder.
    * @throws SQLException If the identifier contains illegal characters, for example the ASCII-0.
    */
-  public @NotNull SQL add_ident(@NotNull CharSequence id) {
+  public @NotNull SQL addIdent(@NotNull CharSequence id) {
     quote_ident(sb, id);
     return this;
   }
 
   /**
-   * Escape all given PostgresQL identifiers together, not individually, for example:
+   * Escape all given PostgresQL identifier parts together as one identifier, not individually, for example:
    *
    * <pre>{@code
-   * String prefix = "hello";
-   * String postfix = "world";
-   * escapeId(prefix, "_", postfix);
+   * sql.addIdent("hello", "_", "world");
    * }</pre>
    * <p>
    * will result in the code generated being: {@code "hello_world"}.
    *
-   * @param ids The identifiers to escape.
+   * @param parts The parts of the identifier to escape.
    * @return The given string builder.
    * @throws SQLException If any identifier contains illegal characters, for example the ASCII-0.
    */
-  public @NotNull SQL add_ident(@NotNull CharSequence... ids) {
-    quote_ident(sb, ids);
+  public @NotNull SQL addIdent(@NotNull CharSequence... parts) {
+    quote_ident(sb, parts);
+    return this;
+  }
+
+  /**
+   * Add the given literal, optionally quoted.
+   * @param literal The literal to add.
+   * @return this.
+   */
+  public @NotNull SQL addLiteral(@NotNull CharSequence literal) {
+    if (!shouldEscape(literal)) {
+      sb.append(literal);
+      return this;
+    }
+    open_literal(sb);
+    write_literal(sb, literal);
+    close_literal(sb);
     return this;
   }
 

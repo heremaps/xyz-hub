@@ -18,11 +18,17 @@
  */
 package com.here.naksha.lib.core.storage;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Future;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -31,27 +37,52 @@ import org.jetbrains.annotations.Nullable;
  * Storage API to gain access to storages.
  */
 @AvailableSince(NakshaVersion.v2_0_6)
-public interface IStorage {
+public interface IStorage extends AutoCloseable {
 
   /**
    * Initializes the storage, create the transaction table, install needed scripts and extensions.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   void initStorage();
 
   /**
    * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   void startMaintainer();
 
   /**
    * Blocking call to perform maintenance tasks right now. One-time maintenance.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   void maintainNow();
 
   /**
    * Stops the maintainer thread.
    */
+  @AvailableSince(NakshaVersion.v2_0_7)
   void stopMaintainer();
+
+  /**
+   * A special operation that asks the storage to split the given write-request into chunks to improve performance. The storage
+   * implementation will split the given single request into parts that can be executed in parallel through different sessions. This is done
+   * in a way that guarantee lock-freedom between the different session and will improve throughput.
+   *
+   * <p>However, there is no guarantee that such an action is possible. If the storage is not able to perform bulk processing, it will
+   * simply return a list only one request in it, being the original write request given to it.
+   *
+   * @param writeFeatures The request that should be split for bulk write.
+   * @param <T>           The feature type.
+   * @return a list of requests that can be executed in parallel and are guaranteed to are lock-free against each other (as far as
+   * possible). Note that the list may only have one member, the given request, if the storage can't split it, or it would not get any
+   * advantage.
+   */
+  default <T> @NotNull List<@NotNull WriteFeatures<T>> newBulkWrite(@NotNull WriteFeatures<T> writeFeatures) {
+    // The default implementation simply rejects to split.
+    final ArrayList<@NotNull WriteFeatures<T>> bulk = new ArrayList<>(1);
+    bulk.add(writeFeatures);
+    return bulk;
+  }
 
   /**
    * Open a new write-session, optionally to a master-node (when being in a multi-writer cluster).
@@ -67,6 +98,16 @@ public interface IStorage {
     }
     throw new UnsupportedOperationException();
   }
+
+  // TODO: Should split all features added and just offer a single writeAndCommit() instruction.
+  //       Disadvantage: It can partially fail, because it uses concurrent.
+  // IBulkWriter newBulkWriter();
+  //   add(op, Feature);
+  //   start();
+  // Starts tasks and try to write all.
+  //   isDone();
+  //   close();
+  //
 
   /**
    * Open a new read-session, optionally to a master-node to prevent replication lags.
@@ -157,10 +198,29 @@ public interface IStorage {
   }
 
   /**
-   * Closes the storage, may block for cleanup work.
+   * Shutdown the storage instance. The method will block until the storage is down including all open connections, statements and cursors.
    */
-  @Deprecated
+  @AvailableSince(NakshaVersion.v2_0_5)
+  @Override
   default void close() {
-    throw new UnsupportedOperationException();
+    while (true) {
+      try {
+        shutdown(null).get();
+        return;
+      } catch (InterruptedException ignore) {
+      } catch (Exception e) {
+        throw unchecked(e);
+      }
+    }
   }
+
+  /**
+   * Shutdown the storage instance asynchronously. This method returns asynchronously whatever the given {@code onShutdown} handler returns.
+   * If no shutdown handler given, then {@code null} is returned.
+   *
+   * @param onShutdown The (optional) method to call when the shutdown is done.
+   * @return The future when the shutdown will be done.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  <T> @NotNull Future<T> shutdown(@Nullable Fe1<T, IStorage> onShutdown);
 }

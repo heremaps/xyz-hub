@@ -18,51 +18,42 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonFormat.Shape;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
-import org.jetbrains.annotations.Nullable;
 
 /** The action to perform if a feature does not exist. */
-@JsonFormat(shape = Shape.STRING)
+@SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_7)
-public enum IfNotExists {
+public class IfNotExists extends JsonEnum {
+
   /**
    * The existing state should be retained, so the feature continues to not exist.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  RETAIN,
+  public static final IfNotExists RETAIN = def(IfNotExists.class, "RETAIN");
 
   /**
    * The transaction should be aborted.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  FAIL,
+  public static final IfNotExists FAIL =
+      def(IfNotExists.class, "FAIL").alias(IfNotExists.class, "ERROR").alias(IfNotExists.class, "ABORT");
 
   /**
-   * The {@link WriteOp#feature} should be created.
+   * The {@link AdvancedWriteOp#feature} should be created.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  CREATE,
+  public static final IfNotExists CREATE = def(IfNotExists.class, "CREATE");
 
   /**
    * The feature should be purged (finally removed, so that there is no further trace in the HEAD).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  PURGE;
+  public static final IfNotExists PURGE = def(IfNotExists.class, "PURGE");
 
-  @AvailableSince(NakshaVersion.v2_0_7)
-  @JsonCreator
-  public static @Nullable IfNotExists of(@Nullable String value) {
-    if (value != null) {
-      for (final IfNotExists e : IfNotExists.values()) {
-        if (e.name().equalsIgnoreCase(value)) {
-          return e;
-        }
-      }
-    }
-    return null;
+  @Override
+  protected void init() {
+    register(IfNotExists.class);
   }
 }

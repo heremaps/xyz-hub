@@ -34,8 +34,8 @@ public class AdvancedWriteOp<T> extends WriteOp<T> {
       @NotNull IfExists onExists,
       @NotNull IfConflict onConflict,
       @NotNull IfNotExists onNotExists) {
-    super(EWriteOp.ADVANCED, feature, id, uuid, noResult);
-    // TODO: Verify the parameter combinations!
+    super(EAdvancedWriteOp.ADVANCED, id, uuid, feature, null, noResult);
+    // TODO: Fix this!
     this.patch = patch;
     this.onExists = onExists;
     this.onConflict = onConflict;

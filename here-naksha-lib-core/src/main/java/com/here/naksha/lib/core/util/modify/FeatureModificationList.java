@@ -21,7 +21,7 @@ package com.here.naksha.lib.core.util.modify;
 import static com.here.naksha.lib.core.models.storage.IfExists.MERGE;
 import static com.here.naksha.lib.core.models.storage.IfNotExists.CREATE;
 
-import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
+import com.here.naksha.lib.core.models.geojson.implementation.EXyzAction;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.payload.events.feature.LoadFeaturesEvent;
 import com.here.naksha.lib.core.models.storage.IfExists;
@@ -40,7 +40,7 @@ public class FeatureModificationList<FEATURE extends XyzFeature, ENTRY extends F
   /**
    * All features by action. Filled after {@link FeatureModificationEntry#apply()} has been invoked.
    */
-  private final HashMap<@NotNull XyzAction, @NotNull List<@NotNull ENTRY>> usedActions = new HashMap<>();
+  private final HashMap<@NotNull EXyzAction, @NotNull List<@NotNull ENTRY>> usedActions = new HashMap<>();
 
   /** All features, wrapped into an entry. */
   private final ArrayList<@NotNull ENTRY> entries = new ArrayList<>();

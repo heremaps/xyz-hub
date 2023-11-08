@@ -29,11 +29,20 @@ import org.jetbrains.annotations.Nullable;
 @AvailableSince(NakshaVersion.v2_0_7)
 public class WriteOpResult<T> {
 
-  public WriteOpResult(@NotNull EExecutedOp op, @Nullable T object) {
+  public WriteOpResult(@NotNull EExecutedOp op, @Nullable T feature) {
     this.op = op;
-    this.object = object;
+    this.feature = feature;
   }
 
+  /**
+   * The operation that has been performed.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public final @NotNull EExecutedOp op;
-  public final @Nullable T object;
+
+  /**
+   * The feature that is the result of the operation; will be {@code null}, if the {@code noResult} argument was set.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public final @Nullable T feature;
 }

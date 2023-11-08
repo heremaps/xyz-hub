@@ -239,6 +239,48 @@ public final class NakshaContext {
   }
 
   /**
+   * Returns the value for the give key; if it exists.
+   *
+   * @param key The key of the value to return.
+   * @param <T> The value type.
+   * @return The value or {@code null}, if no such key exists.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public <T> @Nullable T get(@NotNull Object key) {
+    final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments = attachments();
+    return (T) attachments.get(key);
+  }
+
+  /**
+   * Returns the value for the give key and removes it; if it exists.
+   *
+   * @param key The key to remove.
+   * @param <T> The value type.
+   * @return The value of the key or {@code null}, if no such key existed.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public <T> @Nullable T remove(@NotNull Object key) {
+    return (T) attachments().remove(key);
+  }
+
+  /**
+   * Sets the given value in the {@link #attachments()} using the given key.
+   *
+   * @param key   The key.
+   * @param value the value to set.
+   * @return the key.
+   * @throws NullPointerException if the given value is null.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull NakshaContext with(@NotNull Object key, @NotNull Object value) {
+    if (value == null) {
+      throw new NullPointerException();
+    }
+    attachments().put(key, value);
+    return this;
+  }
+
+  /**
    * The attachments of this context.
    */
   private final @NotNull ConcurrentHashMap<@NotNull Object, Object> attachments;

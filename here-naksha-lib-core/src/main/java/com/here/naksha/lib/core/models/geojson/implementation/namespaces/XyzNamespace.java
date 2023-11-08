@@ -22,7 +22,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
+import com.here.naksha.lib.core.models.geojson.implementation.EXyzAction;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.util.json.JsonObject;
@@ -34,7 +34,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The properties stored as value for the {@link XyzProperties#XYZ_NAMESPACE @ns:com:here:xyz} key in the {@link XyzProperties}.
+ * The properties stored as value for the {@link XyzProperties#XYZ_NAMESPACE @ns:com:here:xyz} key in the {@link XyzProperties properties}
+ * of features managed by Naksha. Except for the {@code tags} and {@code crid} all these values are read-only.
  */
 @SuppressWarnings("unused")
 public class XyzNamespace extends JsonObject {
@@ -53,7 +54,7 @@ public class XyzNamespace extends JsonObject {
   public static final String ACTION = "action";
   public static final String VERSION = "version";
   public static final String AUTHOR = "author";
-  public static final String APP_ID = "appId";
+  public static final String APP_ID = "app_id";
   public static final String OWNER = "owner";
 
   /**
@@ -127,11 +128,10 @@ public class XyzNamespace extends JsonObject {
   private List<@NotNull String> tags;
 
   /**
-   * The operation that lead to the current state of the namespace. Should be a value from {@link XyzAction}.
+   * The operation that lead to the current state of the namespace. Should be a value from {@link EXyzAction}.
    */
   @JsonProperty(ACTION)
-  @JsonInclude(Include.NON_EMPTY)
-  private String action;
+  private EXyzAction action;
 
   /**
    * The version of the feature, the first version (1) will always be in the state CREATED.
@@ -152,7 +152,7 @@ public class XyzNamespace extends JsonObject {
    */
   @JsonProperty(APP_ID)
   @JsonInclude(Include.NON_EMPTY)
-  private String appId;
+  private String app_id;
 
   /**
    * The space, normally added dynamically by Naksha.
@@ -301,20 +301,20 @@ public class XyzNamespace extends JsonObject {
   }
 
   public @Nullable String rawAction() {
-    return action;
+    return action == null ? null : action.toString();
   }
 
   @JsonIgnore
-  public @Nullable XyzAction getAction() {
-    return XyzAction.get(action);
+  public @Nullable EXyzAction getAction() {
+    return action;
   }
 
   public void setAction(@Nullable String action) {
-    this.action = action;
+    this.action = EXyzAction.get(EXyzAction.class, action);
   }
 
-  public void setAction(@NotNull XyzAction action) {
-    this.action = action.toString();
+  public void setAction(@NotNull EXyzAction action) {
+    this.action = action;
   }
 
   public @NotNull XyzNamespace withAction(@Nullable String action) {
@@ -322,7 +322,7 @@ public class XyzNamespace extends JsonObject {
     return this;
   }
 
-  public @NotNull XyzNamespace withAction(@NotNull XyzAction action) {
+  public @NotNull XyzNamespace withAction(@NotNull EXyzAction action) {
     setAction(action);
     return this;
   }
@@ -579,12 +579,12 @@ public class XyzNamespace extends JsonObject {
 
   @JsonIgnore
   public boolean isDeleted() {
-    return XyzAction.DELETE.equals(getAction());
+    return EXyzAction.DELETE.equals(getAction());
   }
 
   public void setDeleted(boolean deleted) {
     if (deleted) {
-      setAction(XyzAction.DELETE);
+      setAction(EXyzAction.DELETE);
     }
   }
 
@@ -621,11 +621,11 @@ public class XyzNamespace extends JsonObject {
   }
 
   public @Nullable String getAppId() {
-    return appId;
+    return app_id;
   }
 
   public void setAppId(@Nullable String app_id) {
-    this.appId = app_id;
+    this.app_id = app_id;
   }
 
   public @NotNull XyzNamespace withAppId(@Nullable String app_id) {
@@ -633,6 +633,7 @@ public class XyzNamespace extends JsonObject {
     return this;
   }
 
+  @Deprecated
   @JsonIgnore
   public @Nullable String getSpace() {
     return space;

@@ -19,6 +19,6 @@
 package com.here.naksha.lib.core.models.storage;
 
 /**
- * A result being sent to signal success without further information. Mainly used when a notification has been processed successfully.
+ * A result being sent to signal success.
  */
 public class SuccessResult extends Result {}

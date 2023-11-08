@@ -21,6 +21,7 @@ package com.here.naksha.lib.core.exceptions;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A wrapper for checked exceptions.
@@ -41,6 +42,59 @@ public final class UncheckedException extends RuntimeException {
       return new UncheckedIOException(e);
     }
     return new UncheckedException(t);
+  }
+
+  /**
+   * Extract the checked exception, if the given one is a well-known unchecked exception that just wraps a checked exception.
+   * @param t The exception to review.
+   * @return The checked exception, if {@code t} is an envelope exception.
+   */
+  public static @NotNull Throwable causeOf(@NotNull Throwable t) {
+    Throwable cause = t;
+    while (true) {
+      t = t.getCause();
+      if (t == null) {
+        return cause;
+      }
+      cause = t;
+    }
+  }
+
+  /**
+   * Extract the desired exception, if the given one is a well-known unchecked exception that just wraps a checked exception.
+   * @param t The exception to review.
+   * @param exceptionClass The class of the exception type to return.
+   * @param <T> The exception-type to look for.
+   * @return The exception if the given exception is either such an exception or a wrapped exception containing this exception as cause.
+   */
+  public static <T extends Throwable> @Nullable T causeOf(@NotNull Throwable t, @NotNull Class<T> exceptionClass) {
+    while (t != null) {
+      if (exceptionClass.isInstance(t)) {
+        return exceptionClass.cast(t);
+      }
+      t = t.getCause();
+    }
+    return null;
+  }
+
+  /**
+   * Extract the desired exception, if the given one wraps the searched exception as cause.
+   * @param t The exception to review.
+   * @param exceptionClass The class of the exception type to return.
+   * @param <T> The exception-type to look for.
+   * @return The exception if the given exception is either such an exception or a wrapped exception containing this exception as cause.
+   * @throws RuntimeException If the given exception does not have the searched exception as cause or is it.
+   */
+  public static <T extends Throwable> @NotNull T rethrowExcept(
+      final @NotNull Throwable t, final @NotNull Class<T> exceptionClass) {
+    Throwable e = t;
+    while (e != null) {
+      if (exceptionClass.isInstance(e)) {
+        return exceptionClass.cast(e);
+      }
+      e = e.getCause();
+    }
+    throw unchecked(t);
   }
 
   /**

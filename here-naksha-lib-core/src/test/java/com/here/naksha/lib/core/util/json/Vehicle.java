@@ -16,33 +16,14 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.models.storage;
+package com.here.naksha.lib.core.util.json;
 
-import java.util.List;
-import org.jetbrains.annotations.NotNull;
+public class Vehicle extends JsonEnum {
 
-public interface IAdvancedReadResult<T> {
-
-  boolean hasNext();
-
-  boolean loadNext();
-
-  @NotNull
-  T next();
-
-  @NotNull
-  List<@NotNull T> next(int limit);
-
-  @NotNull
-  String getFeatureType();
-
-  @NotNull
-  String getPropertiesType();
-
-  @NotNull
-  T getFeature();
-
-  <NT> @NotNull NT getFeature(@NotNull Class<NT> featureClass);
-
-  <NT> @NotNull IAdvancedReadResult<NT> withType(@NotNull Class<NT> featureClass);
+  @Override
+  protected void init() {
+    register(Vehicle.class);
+    register(Car.class);
+    register(Truck.class);
+  }
 }

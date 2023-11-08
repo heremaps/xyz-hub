@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.NakshaVersion;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,14 +50,44 @@ public class WriteFeatures<T> extends WriteRequest<T, WriteFeatures<T>> {
    * @param modifies     the operations to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteFeatures(@NotNull String collectionId, @NotNull List<@NotNull WriteOp<T>> modifies) {
+  public WriteFeatures(@NotNull String collectionId, @NotNull List<WriteOp<T>> modifies) {
     super(modifies);
     this.collectionId = collectionId;
   }
 
   /**
+   * Returns the collection-id to write features into.
+   *
+   * @return the collection-id to write features into .
+   */
+  public @NotNull String getCollectionId() {
+    return collectionId;
+  }
+
+  /**
+   * Sets the collection-id to write features into.
+   *
+   * @param collectionId the collection-id to write features into.
+   */
+  public void setCollectionId(@NotNull String collectionId) {
+    this.collectionId = collectionId;
+  }
+
+  /**
+   * Sets the collection-id to write features into.
+   *
+   * @param collectionId the collection-id to write features into.
+   * @return this.
+   */
+  public @NotNull WriteFeatures<T> withCollectionId(@NotNull String collectionId) {
+    this.collectionId = collectionId;
+    return this;
+  }
+
+  /**
    * The identifier of the collection to write into.
    */
+  @JsonProperty
   @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull String collectionId;
+  private @NotNull String collectionId;
 }

@@ -37,9 +37,13 @@ public class CleanInitMain {
         .withAppName("Naksha-Psql-Init")
         .parseUrl(args[0])
         .build();
-    final PsqlStorage storage = new PsqlStorage(config, config.schema);
-    // Connect and initialize the database.
-    storage.dropSchema();
-    storage.initStorage();
+    try (final PsqlStorage storage = new PsqlStorage(config, config.schema)) {
+      // Connect and initialize the database.
+      storage.dropSchema();
+      storage.initStorageWithDebugInfo();
+    }
+    System.out.println("DONE");
+    System.out.flush();
+    System.err.flush();
   }
 }

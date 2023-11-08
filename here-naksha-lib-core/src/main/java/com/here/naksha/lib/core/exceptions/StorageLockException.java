@@ -18,4 +18,15 @@
  */
 package com.here.naksha.lib.core.exceptions;
 
-public class StorageLockException extends Exception {}
+public class StorageLockException extends Exception {
+
+  protected StorageLockException() {}
+
+  public StorageLockException(String message) {
+    super(message);
+  }
+
+  public StorageLockException(String message, Throwable cause) {
+    super(message, cause);
+  }
+}

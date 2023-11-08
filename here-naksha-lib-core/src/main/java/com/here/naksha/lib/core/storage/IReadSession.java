@@ -31,7 +31,7 @@ import org.jetbrains.annotations.NotNull;
  * A storage session that can only read. Each session is backed by a single storage connection with a single transaction.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
-public interface IReadSession extends AutoCloseable {
+public interface IReadSession extends ISession {
 
   /**
    * Tests whether this session is connected to the master-node.
@@ -49,6 +49,22 @@ public interface IReadSession extends AutoCloseable {
   @AvailableSince(NakshaVersion.v2_0_7)
   @NotNull
   NakshaContext getNakshaContext();
+
+  /**
+   * Returns the amount of features to fetch at ones.
+   *
+   * @return the amount of features to fetch at ones.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  int getFetchSize();
+
+  /**
+   * Changes the amount of features to fetch at ones.
+   *
+   * @param size The amount of features to fetch at ones.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  void setFetchSize(int size);
 
   /**
    * Returns the statement timeout.
@@ -103,12 +119,4 @@ public interface IReadSession extends AutoCloseable {
   @AvailableSince(NakshaVersion.v2_0_7)
   @NotNull
   Result process(@NotNull Notification<?> notification);
-
-  /**
-   * Closes the session, returns the underlying connection back to the connection pool. Any method of the session will from now on throw an
-   * {@link IllegalStateException}.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  @Override
-  void close();
 }

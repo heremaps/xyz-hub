@@ -11,7 +11,7 @@ The admin database of Naksha will (currently) be based upon a PostgresQL databas
 Within PostgresQL a collection is a set of database tables. All these tables are prefixed by the `collection` identifier. The tables are:
 
 - `{collection}`: The HEAD table (`PARTITION BY LIST substring(md5(jsondata->>'id'),1,1)`) with all features in their live state. This table is the only one that should be directly accessed for manual SQL queries and has triggers attached that will ensure that the history is written accordingly.
-- `{collection}_[n]`: The 16 HEAD partitions (`FOR VALUES FROM '{n}' TO '{n+1}'`, `n=[0..9a..f]`).
+- `{collection}_p[n]`: The 16 HEAD partitions (`FOR VALUES FROM '{n}' TO '{n+1}'`, `n=[0..9a..f]`).
 - `{collection}_del`: The HEAD deletion table holding all features that are deleted from the HEAD table. This can be used to read zombie features (features that have been deleted, but are not yet fully unrecoverable dead).
 - `{collection}_hst`: The history view, this is partitioned table, partitioned by `txn_next`.
 - `{collection}_hst_{YYYY}_{MM}_{YY}`: The history partition for a specific day (`txn_next >= naksha_txn('2023-09-29',0) AND txn_next < naksha_txn('2023-09-30',0)`.
@@ -26,37 +26,26 @@ Within PostgresQL a collection is a set of database tables. All these tables are
 
 ## Triggers
 
-Naksha PSQL-Storage will add two triggers to the HEAD table to ensure the desired behavior, even when direct SQL queries are executed. One trigger is added _before_ `INSERT` and `UPDATE`, the other _after_ all. The triggers implement the following behavior (it basically exists in two variants: with history enabled or disabled):
+Naksha PSQL-Storage will add two triggers to the HEAD table (or partitions) to ensure the desired behavior, even when direct SQL queries are executed. One trigger is added _before_ `INSERT` and `UPDATE`, the other _after_ all. The triggers implement the following behavior (it basically exists in two variants: with history enabled or disabled):
 
-* **before** `INSERT`
-  * Fix the XYZ namespace `txn=naksha_txn(), txn_next=0, app_id=, author=, ...`
-* **after** `INSERT`
-   * Update the transaction-log
-   * Delete the inserted feature (by id) from the `{collection}_del`
-* **before** `UPDATE`
-  * Fix the XYZ namespace `txn=naksha_txn(), txn_next=0, app_id=, author=, ...`
-* **after** `UPDATE`
+* **before** `INSERT` and `UPDATE`
+  * Fix the XYZ namespace `txn=naksha_txn(), txn_next=0, ...` (full update)
+* **after** `INSERT`, `UPDATE` or `DELETE`
   * Update the transaction-log
-  * Delete the updated feature (by id) from the `{collection}_del`
-  * If history is enabled:
-    * Ensure that the history partition exists
+  * if not `disableHistory`
     * Update XYZ namespace of OLD: `txn_next=naksha_txn()` (only this!)
     * INSERT a copy of OLD into `{collection}_hst`
-    * This basically creates a backup of the old state, linked to the new HEAD state.
-* **after** `DELETE` 
-  * If history is enabled:
-    * Ensure that the history partition exists
-    * Update XYZ namespace of OLD: `txn_next=naksha_txn()` (only this!)
-    * INSERT a copy of OLD into `{collection}_hst`
-    * This basically creates a backup of the old state (in action UPDATE or INSERT), linked to the new HEAD state.
-  * Update XYZ namespace of OLD: `action=DELETED, txn_next=0, uuid=, puuid=, app_id=, author=, ...` (full update)
-  * UPSERT a copy of OLD state into the `{collection}_del`
-    * This boils down to creating a new state and then copy it into the deletion table
-    * Therefore: When the client requests deleted features, we can simply read them from the deletion table
-  * If history is enabled:
-    * Update XYZ namespace of OLD: `txn_next=naksha_txn()` (only this!)
-    * INSERT a copy of OLD into `{collection}_hst`
-    * This basically creates a backup of the DELETE state.
+    * This basically creates a backup of the old state (in action UPDATE or CREATE), linked to the new HEAD state.
+  * if `INSERT` or `UPDATE`
+    * Delete the feature (by id) from the `{collection}_del`
+  * if `DELETE`
+    * Update XYZ namespace of OLD: `action=DELETED, txn_next=0, ...` (full update)
+    * INSERT a copy of OLD state into the `{collection}_del`
+      * This boils down to creating a new state and then copy it into the deletion table
+      * Therefore: When the client requests deleted features, we can simply read them from the deletion table
+    * if not `disableHistory`
+      * INSERT a copy of OLD into `{collection}_hst`
+        * This basically creates a backup of the deleted state we just inserted into the "del" table.
 
 Naksha will implement a special PURGE operation, which will remove elements from the special deletion table (which is a special HEAD table).
 
@@ -98,11 +87,11 @@ Traditionally XYZ-Hub used UUIDs as state-identifiers, but exposed them as strin
 
 The new format is called GUID (global unique identifier), returning to the roots of the Geo-Space-API. The syntax for a GUID in the PSQL-storage is:
 
-`{storageId}:{collectionId}:{year}:{month}:{day}:{id}`
+`{storageId}:{collectionId}:{year}:{month}:{day}:{uid}`
 
 **Note**: This format holds all information needed for Naksha to know in which storage a feature is located, of which it only has the _GUID_. The PSQL storage knows from this _GUID_ exactly in which database table the features is located, even taking partitioning into account. The reason is, that partitioning is done by transaction start date, which is contained in the _GUID_. Therefore, providing a _GUID_, directly identifies the storage location of a feature, which in itself holds the information to which transaction it belongs to (`txn`). Beware that the transaction-number as well encodes the transaction start time and therefore allows as well to know exactly where the features of a transaction are located (including finding the transaction details itself).
 
-For the PostgresQL implementation the **id** is either the row number (`i`) for features in collections or the **sequence-number** of the transaction.
+For the PostgresQL implementation the **uid** is either the row number (`i`) for features in collections or the **sequence-number** of the transaction.
 
 ## Table layout
 
@@ -110,7 +99,7 @@ The table layout for all the tables of a collection is the same and 100% downwar
 
 | Column    | Type                      | Modifiers            | Description                                                     |
 |-----------|---------------------------|----------------------|-----------------------------------------------------------------|
-| i         | int8                      | PRIMARY KEY NOT NULL | Primary row identifier.                                         |
+| i         | int8                      | PRIMARY KEY NOT NULL | Primary row identifier (`uid`).                                 |
 | geo       | geometry(GeometryZ, 4326) |                      | The geometry of the features, extracted from `feature->>'geo'`. |
 | jsondata  | jsonb                     |                      | The Geo-JSON feature.                                           |
 
@@ -210,7 +199,7 @@ Therefore, the union of all the query returns only exactly one feature, the sear
 
 ## Transaction Logs
 
-The transaction logs are stored in the `naksha_tx` table. Each transaction persists out of **signals**, grouped by the transaction-number (`tnx`). The table layout is:
+The transaction logs are stored in the `naksha_tx` table. Each transaction persists out of **signals**, grouped by the transaction-number (`tnx`). Note that there is a `naksha_tx_uid_seq` encoded into the `txn`. The table layout is:
 
 | Column     | Type         | Modifiers            | Description                                                                                                 |
 |------------|--------------|----------------------|-------------------------------------------------------------------------------------------------------------|

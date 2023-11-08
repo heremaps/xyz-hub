@@ -18,59 +18,60 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonFormat.Shape;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * The operation that was actually executed.
  */
-@JsonFormat(shape = Shape.STRING)
+@SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_7)
-public enum EExecutedOp {
+public class EExecutedOp extends JsonEnum {
+  /**
+   * A read operation was executed.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final EExecutedOp READ = def(EExecutedOp.class, "READ");
+
+  /**
+   * A write operation was performed, but the existing state was retained.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final EExecutedOp RETAIN = def(EExecutedOp.class, "RETAIN");
+
   /**
    * A new feature was created.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  INSERTED,
+  public static final EExecutedOp CREATED = def(EExecutedOp.class, "CREATED");
 
   /**
-   * The existing state was retained.
+   * A feature was updated.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  RETAINED,
+  public static final EExecutedOp UPDATED = def(EExecutedOp.class, "UPDATED");
 
   /**
-   * The existing state was deleted.
+   * The feature was deleted.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  DELETED,
+  public static final EExecutedOp DELETED = def(EExecutedOp.class, "DELETED");
 
   /**
-   * The feature was deleted and purged (finally removed, so that there is no further trace in the HEAD).
+   * The feature was purged (eventually deleted, so that there is no further trace in the HEAD).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  PURGED,
+  public static final EExecutedOp PURGED = def(EExecutedOp.class, "PURGED");
 
   /**
-   * The changes were updated with foreign changes.
+   * The collection was restored, only possible for collections.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  UPDATED;
+  public static final EExecutedOp RESTORED = def(EExecutedOp.class, "RESTORED");
 
-  @AvailableSince(NakshaVersion.v2_0_7)
-  @JsonCreator
-  public static @Nullable EExecutedOp of(@Nullable String value) {
-    if (value != null) {
-      for (final EExecutedOp e : EExecutedOp.values()) {
-        if (e.name().equalsIgnoreCase(value)) {
-          return e;
-        }
-      }
-    }
-    return null;
+  @Override
+  protected void init() {
+    register(EExecutedOp.class);
   }
 }

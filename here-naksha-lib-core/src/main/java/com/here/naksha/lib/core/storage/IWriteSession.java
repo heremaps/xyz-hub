@@ -38,10 +38,9 @@ public interface IWriteSession extends IReadSession {
    * @param writeRequest the write-request to execute.
    * @return the result.
    */
-  @SuppressWarnings("rawtypes")
   @AvailableSince(NakshaVersion.v2_0_7)
   @NotNull
-  Result execute(@NotNull WriteRequest writeRequest);
+  Result execute(@NotNull WriteRequest<?, ?> writeRequest);
 
   /**
    * Acquire a lock to a specific feature in the HEAD state.

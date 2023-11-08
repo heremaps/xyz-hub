@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.storage.CollectionInfo;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -35,7 +36,10 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A collection is a virtual container for features, managed by a {@link Storage}. All collections optionally have a history and transaction
  * log.
+ *
+ * @deprecated Please use {@link XyzCollection}.
  */
+@Deprecated
 @JsonTypeName(value = "StorageCollection")
 @AvailableSince(NakshaVersion.v2_0_3)
 public class StorageCollection extends NakshaFeature {
@@ -52,7 +56,7 @@ public class StorageCollection extends NakshaFeature {
   /**
    * Create a new empty collection.
    *
-   * @param id     the identifier of the collection.
+   * @param id the identifier of the collection.
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @JsonCreator
@@ -157,6 +161,7 @@ public class StorageCollection extends NakshaFeature {
    *
    * @return the UNIX epoch time in milliseconds when to delete the collection; zero or less when the collection has no deletion time.
    */
+  @Deprecated
   public long getDeletedAt() {
     return deletedAt;
   }
@@ -167,6 +172,7 @@ public class StorageCollection extends NakshaFeature {
    * @param deletedAt the UNIX epoch time in milliseconds when to delete the collection; zero or less when the collection should never be
    *                  deleted.
    */
+  @Deprecated
   public void setDeletedAt(long deletedAt) {
     this.deletedAt = deletedAt;
   }

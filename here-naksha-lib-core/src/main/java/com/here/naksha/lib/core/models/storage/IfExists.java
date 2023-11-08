@@ -18,69 +18,61 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonFormat.Shape;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * If the feature that should be modified does exist (optionally in the requested state, so having the provided {@link WriteOp#uuid}). If
  * the feature exists, but not in the requested state ({@link WriteOp#uuid} given, but does not match), then an {@link IfConflict} action is
  * execute instead of the {@link IfExists}.
  */
+@SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_7)
-@JsonFormat(shape = Shape.STRING)
-public enum IfExists {
+public class IfExists extends JsonEnum {
+
   /**
    * The existing state should be retained.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  RETAIN,
+  public static final IfExists RETAIN = def(IfExists.class, "RETAIN");
 
   /**
    * The transaction should be aborted.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  FAIL,
+  public static final IfExists FAIL =
+      def(IfExists.class, "FAIL").alias(IfExists.class, "ERROR").alias(IfExists.class, "ABORT");
 
   /**
    * The existing state should be deleted.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  DELETE,
+  public static final IfExists DELETE = def(IfExists.class, "DELETE");
 
   /**
    * The feature should be deleted and purged (finally removed, so that there is no further trace in the HEAD).
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  PURGE,
+  public static final IfExists PURGE = def(IfExists.class, "PURGE");
 
   /**
    * The existing state should be replaced with the given one in {@link WriteOp#feature}.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  REPLACE,
+  public static final IfExists REPLACE = def(IfExists.class, "REPLACE");
 
   /**
-   * The given {@link WriteOp#patch} should be applied.
+   * The given {@link AdvancedWriteOp#patch} should be applied.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  PATCH,
+  public static final IfExists PATCH = def(IfExists.class, "PATCH");
 
   @Deprecated
-  MERGE;
+  public static final IfExists MERGE = def(IfExists.class, "MERGE");
 
-  @JsonCreator
-  public static @Nullable IfExists of(@Nullable String value) {
-    if (value != null) {
-      for (final IfExists e : IfExists.values()) {
-        if (e.name().equalsIgnoreCase(value)) {
-          return e;
-        }
-      }
-    }
-    return null;
+  @Override
+  protected void init() {
+    register(IfExists.class);
   }
 }

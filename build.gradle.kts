@@ -81,7 +81,7 @@ val log4j_jcl = "org.apache.logging.log4j:log4j-jcl:2.20.0"
 val log4j_slf4j = "org.apache.logging.log4j:log4j-slf4j-impl:2.20.0"
 
 val postgres = "org.postgresql:postgresql:42.5.4"
-val zaxxer_hikari = "com.zaxxer:HikariCP:5.0.1"
+val zaxxer_hikari = "com.zaxxer:HikariCP:5.1.0"
 val commons_dbutils = "commons-dbutils:commons-dbutils:1.7"
 
 val commons_lang3 = "org.apache.commons:commons-lang3:3.12.0"

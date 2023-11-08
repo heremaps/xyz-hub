@@ -41,6 +41,7 @@ import com.vividsolutions.jts.geom.Polygon;
 import com.vividsolutions.jts.geom.PrecisionModel;
 import java.util.ArrayList;
 import java.util.List;
+import org.jetbrains.annotations.Nullable;
 
 public class JTSHelper {
 
@@ -166,7 +167,7 @@ public class JTSHelper {
 
   /** Creates a JTS Geometry from the provided GeoJSON geometry. */
   @SuppressWarnings("unchecked")
-  public static <X extends Geometry> X toGeometry(XyzGeometry geometry) {
+  public static <X extends Geometry> @Nullable X toGeometry(@Nullable XyzGeometry geometry) {
     if (geometry == null) {
       return null;
     }

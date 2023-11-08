@@ -35,7 +35,9 @@ import com.here.naksha.lib.core.models.features.Subscription;
 import com.here.naksha.lib.core.models.features.TxSignal;
 import com.here.naksha.lib.core.models.geojson.coordinates.BBox;
 import com.here.naksha.lib.core.models.geojson.exceptions.InvalidGeometryException;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.IfExists;
@@ -68,6 +70,7 @@ import org.jetbrains.annotations.Nullable;
   @JsonSubTypes.Type(value = Storage.class),
   @JsonSubTypes.Type(value = CollectionInfo.class),
   @JsonSubTypes.Type(value = StorageCollection.class),
+  @JsonSubTypes.Type(value = NakshaFeature.class),
   @JsonSubTypes.Type(value = TxSignal.class)
 })
 public class XyzFeature extends JsonObject implements Typed {
@@ -185,6 +188,15 @@ public class XyzFeature extends JsonObject implements Typed {
     return id;
   }
 
+  /**
+   * Helper method that returns the {@link XyzNamespace}.
+   *
+   * @return the {@link XyzNamespace}.
+   */
+  public @NotNull XyzNamespace xyz() {
+    return properties.getXyzNamespace();
+  }
+
   @JsonSetter
   public void setId(@NotNull String id) {
     this.id = id;
@@ -206,6 +218,12 @@ public class XyzFeature extends JsonObject implements Typed {
 
   public void setGeometry(@Nullable XyzGeometry geometry) {
     this.geometry = geometry;
+  }
+
+  public @Nullable XyzGeometry removeGeometry() {
+    final XyzGeometry geometry = this.geometry;
+    this.geometry = null;
+    return geometry;
   }
 
   @JsonGetter

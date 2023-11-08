@@ -19,6 +19,7 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -38,7 +39,7 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
    * @param queries the operations to execute.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  protected WriteRequest(@NotNull List<@NotNull WriteOp<T>> queries) {
+  protected WriteRequest(@NotNull List<WriteOp<T>> queries) {
     this.queries = queries;
   }
 
@@ -49,10 +50,11 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
   public @NotNull List<@NotNull WriteOp<T>> queries;
 
   /**
-   * The queries to execute.
+   * If the result-cursor should not hold the final feature and geometry, this saves IO, but does not provide back details about the new
+   * {@link XyzNamespace} that was generated.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull boolean noResults;
+  public boolean minResults;
 
   /**
    * Add a modification and return this.
@@ -64,20 +66,4 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
     queries.add(writeOp);
     return self();
   }
-
-  /**
-   * Generate default INSERT operations for the given object.
-   * @param object the object to insert.
-   * @return this.
-   */
-  public final @NotNull SELF insert(@NotNull T object) {
-    queries.add(new WriteOp<>(EWriteOp.INSERT, object, false));
-    return self();
-  }
-
-  // TODO: Add update, upsert, delete and purge
-  // TODO: For some we need the uuid or only id (for delete and purge).
-  // TODO: Add mass methods that use specific well-known features, for example in WriteFeatures we can support
-  //       addAll(List<XyzFeature>) and we could read the UUID from the feature and add more logical handling
-  //       to reduce the burden, when the caller simply has a list of features coming from a client!
 }

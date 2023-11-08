@@ -18,149 +18,95 @@
  */
 package com.here.naksha.lib.core.models;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonFormat.Shape;
-import com.fasterxml.jackson.annotation.JsonValue;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.util.json.JsonEnum;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
 /**
  * An enumeration of all possible error codes that can happen while processing a request.
  */
-@JsonFormat(shape = Shape.STRING)
-public enum XyzError {
+@AvailableSince(NakshaVersion.v2_0_0)
+public class XyzError extends JsonEnum {
 
   /**
    * An unexpected error (not further specified) happened while processing the request.
    *
    * <p>This can result in a 500 Internal Server Error.
    */
-  EXCEPTION("Exception"),
+  public static final XyzError EXCEPTION = defIgnoreCase(XyzError.class, "Exception");
 
   /**
    * An event that was sent to the connector failed, because the connector cannot process it.
    *
    * <p>This will result in an 501 Not Implemented response.
    */
-  NOT_IMPLEMENTED("NotImplemented"),
+  public static final XyzError NOT_IMPLEMENTED = defIgnoreCase(XyzError.class, "NotImplemented");
 
   /**
    * A conflict occurred when updating a feature.
    *
    * <p>This will result in an 409 Conflict response.
    */
-  CONFLICT("Conflict"),
+  public static final XyzError CONFLICT = defIgnoreCase(XyzError.class, "Conflict");
 
   /**
    * Indicates an authorization error.
    *
    * <p>This will result in a 401 Unauthorized response.
    */
-  UNAUTHORIZED("Unauthorized"),
+  public static final XyzError UNAUTHORIZED = defIgnoreCase(XyzError.class, "Unauthorized");
 
   /**
    * Indicates an authorization error.
    *
    * <p>This will result in an 403 Forbidden response.
    */
-  FORBIDDEN("Forbidden"),
+  public static final XyzError FORBIDDEN = defIgnoreCase(XyzError.class, "Forbidden");
 
   /**
    * The connector cannot handle the request due to a processing limitation in an upstream service or a database.
    *
    * <p>This will result in an 429 Too Many Requests response.
    */
-  TOO_MANY_REQUESTS("TooManyRequests"),
+  public static final XyzError TOO_MANY_REQUESTS = defIgnoreCase(XyzError.class, "TooManyRequests");
 
   /**
    * A provided argument is invalid or missing.
    *
    * <p>This will lead to a HTTP 400 Bad Request response.
    */
-  ILLEGAL_ARGUMENT("IllegalArgument"),
+  public static final XyzError ILLEGAL_ARGUMENT = defIgnoreCase(XyzError.class, "IllegalArgument");
 
   /**
    * Any service or remote function required to process the request was not reachable.
    *
    * <p>This will result in a 502 Bad Gateway response.
    */
-  BAD_GATEWAY("BadGateway"),
+  public static final XyzError BAD_GATEWAY = defIgnoreCase(XyzError.class, "BadGateway");
 
   /**
    * The request was aborted due to a timeout.
    *
    * <p>This will result in a HTTP 504 Gateway Timeout response.
    */
-  TIMEOUT("Timeout"),
+  public static final XyzError TIMEOUT = defIgnoreCase(XyzError.class, "Timeout");
 
   /**
    * The request was aborted due to PayloadTooLarge.
    *
    * <p>This will result in a HTTP 513 response.
    */
-  PAYLOAD_TOO_LARGE("PayloadTooLarge"),
+  public static final XyzError PAYLOAD_TOO_LARGE = defIgnoreCase(XyzError.class, "PayloadTooLarge");
 
   /**
    * The requested feature was not available.
    *
    * <p>This will result in a HTTP 404 response.
    */
-  NOT_FOUND("NotFound");
-
-  /**
-   * The error code.
-   */
-  @JsonValue
-  public final @NotNull String value;
-
-  /**
-   * Create a new error code.
-   *
-   * @param error the error code value.
-   */
-  XyzError(@NotNull String error) {
-    value = error;
-  }
-
-  /**
-   * Returns the enumeration item for the given value or null, when the given string is no valid error code.
-   *
-   * @param error the error code as string.
-   * @return the error code as enumeration value.
-   */
-  public static @Nullable XyzError forValue(@Nullable String error) {
-    if (error == null) {
-      return null;
-    }
-    for (final XyzError e : XyzError.values()) {
-      if (e.value.equalsIgnoreCase(error) || e.name().equalsIgnoreCase(error)) {
-        return e;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Returns the enumeration item for the given value or null, when the given string is no valid error code.
-   *
-   * @param error        the error code as string.
-   * @param defaultValue the default error to return, when the given error is unknown.
-   * @return the error code as enumeration value.
-   */
-  public static @NotNull XyzError forValue(@Nullable String error, @NotNull XyzError defaultValue) {
-    if (error == null) {
-      return defaultValue;
-    }
-    for (final XyzError e : XyzError.values()) {
-      if (e.value.equalsIgnoreCase(error) || e.name().equalsIgnoreCase(error)) {
-        return e;
-      }
-    }
-    return defaultValue;
-  }
+  public static final XyzError NOT_FOUND = defIgnoreCase(XyzError.class, "NotFound");
 
   @Override
-  public String toString() {
-    return "XyzError{" + "value='" + value + '\'' + '}';
+  protected void init() {
+    register(XyzError.class);
   }
 }

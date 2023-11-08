@@ -18,11 +18,10 @@
  */
 package com.here.naksha.lib.core.util.modify;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.models.storage.IfExists.REPLACE;
 import static com.here.naksha.lib.core.util.diff.Patcher.calculateDifferenceOfPartialUpdate;
 
-import com.here.naksha.lib.core.models.geojson.implementation.XyzAction;
+import com.here.naksha.lib.core.models.geojson.implementation.EXyzAction;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.storage.IfExists;
@@ -44,82 +43,86 @@ import org.jetbrains.annotations.Nullable;
  */
 public class FeatureModificationEntry<FEATURE extends XyzFeature> {
 
-  /** The input state of the caller. */
+  /**
+   * The input state of the caller.
+   */
   @NotNull
   FEATURE input;
 
-  /** The latest state the feature currently has in the data storage. */
+  /**
+   * The latest state the feature currently has in the data storage.
+   */
   @Nullable
   FEATURE head;
 
-  /** The latest state the feature currently has in the data storage. */
+  /**
+   * The latest state the feature currently has in the data storage.
+   */
   public @Nullable FEATURE head() {
     return head;
   }
 
   /**
-   * The state onto which the caller made the modifications. This is the state against which we may
-   * perform a three-way merge, if the current head state has base is a common ancestor.
+   * The state onto which the caller made the modifications. This is the state against which we may perform a three-way merge, if the
+   * current head state has base is a common ancestor.
    */
   @Nullable
   FEATURE base;
 
   /**
-   * The state onto which the caller made the modifications. This is the state against which we may
-   * perform a three-way merge, if the current head state has base is a common ancestor.
+   * The state onto which the caller made the modifications. This is the state against which we may perform a three-way merge, if the
+   * current head state has base is a common ancestor.
    */
   public @Nullable FEATURE base() {
     return base;
   }
 
   /**
-   * The resulting target state, which should go to the data storage. May be {@code null}, either if
-   * the feature should be deleted or if the no change needed.
+   * The resulting target state, which should go to the data storage. May be {@code null}, either if the feature should be deleted or if the
+   * no change needed.
    */
   @Nullable
   FEATURE result;
 
   /**
-   * The resulting target state, which should go to the data storage. May be {@code null}, either if
-   * the feature should be deleted or if the no change needed.
+   * The resulting target state, which should go to the data storage. May be {@code null}, either if the feature should be deleted or if the
+   * no change needed.
    */
   public @Nullable FEATURE result() {
     return result;
   }
 
   /**
-   * The action to perform; {@code null} if nothing is need to be done, for example an existing
-   * feature should simply be retained.
+   * The action to perform; {@code null} if nothing is need to be done, for example an existing feature should simply be retained.
    */
   @Nullable
-  XyzAction action;
+  EXyzAction action;
 
   /**
-   * The action to perform; {@code null} if nothing is need to be done, for example an existing
-   * feature should simply be retained.
+   * The action to perform; {@code null} if nothing is need to be done, for example an existing feature should simply be retained.
    */
-  public @Nullable XyzAction action() {
+  public @Nullable EXyzAction action() {
     return action;
   }
 
   /**
-   * The action to take, if the feature does have a valid head state, so this is a replacement, or a
-   * patch (input parameter).
+   * The action to take, if the feature does have a valid head state, so this is a replacement, or a patch (input parameter).
    */
   public final @NotNull IfExists ifExists;
 
   /**
-   * The action to take, if the feature does not have any head state, or the head state is deleted
-   * (input parameter).
+   * The action to take, if the feature does not have any head state, or the head state is deleted (input parameter).
    */
   public final @NotNull IfNotExists ifNotExists;
 
-  /** The conflict resolution strategy. */
+  /**
+   * The conflict resolution strategy.
+   */
   public final @NotNull ConflictResolution cr;
 
   /**
-   * Tests if this entry represents an UPSERT, in this special case we do not need to load any
-   * existing features, we can simply override whatever exists in the database.
+   * Tests if this entry represents an UPSERT, in this special case we do not need to load any existing features, we can simply override
+   * whatever exists in the database.
    *
    * @return {@code true} if the entry represents an upsert; {@code false} otherwise.
    */
@@ -128,8 +131,7 @@ public class FeatureModificationEntry<FEATURE extends XyzFeature> {
   }
 
   /**
-   * When creating patches and testing for differences, we should ignore these properties from the
-   * {@link XyzNamespace}.
+   * When creating patches and testing for differences, we should ignore these properties from the {@link XyzNamespace}.
    */
   protected static final HashMap<@NotNull String, @NotNull Boolean> xyzNamespaceIgnore = new HashMap<>() {
     {
@@ -150,10 +152,10 @@ public class FeatureModificationEntry<FEATURE extends XyzFeature> {
   /**
    * Wrap the user input into a modification entry.
    *
-   * @param input The user input, which can be a partial patch, or a full new state.
+   * @param input       The user input, which can be a partial patch, or a full new state.
    * @param ifNotExists The behavior, when the feature does not yet exist.
-   * @param ifExists The behavior, when the feature does exist already.
-   * @param cr The conflict resolution to apply.
+   * @param ifExists    The behavior, when the feature does exist already.
+   * @param cr          The conflict resolution to apply.
    */
   public FeatureModificationEntry(
       @NotNull FEATURE input,
@@ -169,11 +171,10 @@ public class FeatureModificationEntry<FEATURE extends XyzFeature> {
   /**
    * The method to test if a key should be ignored.
    *
-   * @param key The key to test for.
-   * @param source The source object, can be a child object from within the feature.
+   * @param key           The key to test for.
+   * @param source        The source object, can be a child object from within the feature.
    * @param targetOrPatch The target object, or the patch object.
-   * @return {@code true} if the feature should be ignored for difference and patching; {@code
-   *     false} to take the key into consideration.
+   * @return {@code true} if the feature should be ignored for difference and patching; {@code false} to take the key into consideration.
    */
   protected boolean ignore(@NotNull Object key, @NotNull Object source, @NotNull Object targetOrPatch) {
     if (key instanceof String && source instanceof XyzNamespace) {
@@ -183,66 +184,58 @@ public class FeatureModificationEntry<FEATURE extends XyzFeature> {
   }
 
   /**
-   * Calling this method requires that all states filled correctly, so {@link #input}, {@link #head} and {@link #base}. It will generate
-   * the {@link #result}, which then can be sent to the storage. The {@link XyzNamespace#getAction()} can be used to detect, which action
-   * must be done.
+   * Calling this method requires that all states filled correctly, so {@link #input}, {@link #head} and {@link #base}. It will generate the
+   * {@link #result}, which then can be sent to the storage. The {@link XyzNamespace#getAction()} can be used to detect, which action must
+   * be done.
    *
    * @return the action to perform.
    * @throws MergeConflictException If a merge failed.
-   * @throws ModificationException If any error occurred.
+   * @throws ModificationException  If any error occurred.
    */
-  final @Nullable XyzAction apply() throws ModificationException, MergeConflictException {
+  final @Nullable EXyzAction apply() throws ModificationException, MergeConflictException {
     if (head == null) { // IF NOT EXISTS
-      switch (ifNotExists) {
-        case RETAIN -> {
-          result = null;
-          return action = null;
-        }
-        case CREATE -> {
-          result = input;
-          return action = XyzAction.CREATE;
-        }
-        case FAIL -> {
-          result = null;
-          action = null;
-          throw new ModificationException("The feature {" + input.getId() + "} does not exist.");
-        }
+      if (ifNotExists == IfNotExists.RETAIN) {
+        result = null;
+        return action = null;
       }
-    } else { // IF EXISTS
-      switch (ifExists) {
-        case RETAIN -> {
-          result = null;
-          return action = null;
-        }
-        case REPLACE -> {
-          result = input;
-          return action = XyzAction.UPDATE;
-        }
-        case DELETE -> {
-          result = null;
-          return action = XyzAction.DELETE;
-        }
-        case PATCH -> {
-          result = patch();
-          return action = result == null ? null : XyzAction.UPDATE;
-        }
-        case MERGE -> {
-          result = merge();
-          return action = result == null ? null : XyzAction.UPDATE;
-        }
-        case FAIL -> {
-          result = null;
-          action = null;
-          throw new ModificationException("The feature {" + input.getId() + "} exists.");
-        }
+      if (ifNotExists == IfNotExists.CREATE) {
+        result = input;
+        return action = EXyzAction.CREATE;
       }
+      if (ifNotExists == IfNotExists.FAIL) {
+        result = null;
+        action = null;
+        throw new ModificationException("The feature {" + input.getId() + "} does not exist.");
+      }
+      throw new ModificationException("The provided operation for ifNotExists is unknown: " + ifNotExists);
     }
-    // We must never execute this code!
-    assert false;
-    final var e =
-        new ModificationException("Reached unexpected step while processing feature {" + input.getId() + "}");
-    currentLogger().atError(e.getMessage()).setCause(e).log();
-    throw e;
+    // IF EXISTS
+    if (ifExists == IfExists.RETAIN) {
+      result = null;
+      return action = null;
+    }
+    if (ifExists == IfExists.REPLACE) {
+      result = input;
+      return action = EXyzAction.UPDATE;
+    }
+    if (ifExists == IfExists.DELETE) {
+      result = null;
+      return action = EXyzAction.DELETE;
+    }
+    if (ifExists == IfExists.PATCH) {
+      result = patch();
+      return action = result == null ? null : EXyzAction.UPDATE;
+    }
+    if (ifExists == IfExists.MERGE) {
+      result = merge();
+      return action = result == null ? null : EXyzAction.UPDATE;
+    }
+    if (ifExists == IfExists.FAIL) {
+      result = null;
+      action = null;
+      throw new ModificationException("The feature {" + input.getId() + "} exists.");
+    }
+    throw new ModificationException("The provided operation for ifExists is unknown: " + ifExists);
   }
 
   private @Nullable FEATURE patch() {

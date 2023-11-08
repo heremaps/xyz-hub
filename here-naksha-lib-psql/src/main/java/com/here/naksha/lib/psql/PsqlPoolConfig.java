@@ -145,7 +145,8 @@ public class PsqlPoolConfig {
     this.minPoolSize = minPoolSize != null && minPoolSize > 0 ? minPoolSize : 1;
     this.maxPoolSize =
         maxPoolSize != null && maxPoolSize >= this.minPoolSize ? maxPoolSize : max(this.minPoolSize, 200);
-    this.idleTimeout = idleTimeout != null && idleTimeout > 0L ? max(idleTimeout, 60L) : MINUTES.toSeconds(10);
+    this.idleTimeout =
+        idleTimeout != null && idleTimeout > 0L ? max(idleTimeout, MINUTES.toSeconds(1)) : MINUTES.toSeconds(5);
     this.url = "jdbc:postgresql://" + host + (this.port != 5432 ? "" : ":" + this.port) + "/" + db;
     this.hashCode = Objects.hash(
         url,

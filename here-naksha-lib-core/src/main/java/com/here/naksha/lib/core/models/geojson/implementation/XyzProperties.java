@@ -45,12 +45,11 @@ public class XyzProperties extends JsonObject {
    */
   public static final String XYZ_ACTIVITY_LOG_NS = "@ns:com:here:xyz:log";
 
-  public XyzProperties() {
-    xyzNamespace = new XyzNamespace();
-  }
+  public XyzProperties() {}
 
   @JsonProperty(XYZ_NAMESPACE)
-  private @NotNull XyzNamespace xyzNamespace;
+  @JsonInclude(Include.NON_NULL)
+  private XyzNamespace xyzNamespace;
 
   /**
    * Returns the XYZ namespace, guaranteed to be always present. If parsing a feature without such
@@ -59,6 +58,9 @@ public class XyzProperties extends JsonObject {
    * @return The namespace.
    */
   public @NotNull XyzNamespace getXyzNamespace() {
+    if (xyzNamespace == null) {
+      return xyzNamespace = new XyzNamespace();
+    }
     return xyzNamespace;
   }
 

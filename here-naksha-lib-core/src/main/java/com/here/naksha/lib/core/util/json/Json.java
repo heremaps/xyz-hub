@@ -19,6 +19,11 @@
 package com.here.naksha.lib.core.util.json;
 
 import static com.fasterxml.jackson.databind.MapperFeature.DEFAULT_VIEW_INCLUSION;
+import static com.fasterxml.jackson.databind.MapperFeature.SORT_CREATOR_PROPERTIES_FIRST;
+import static com.fasterxml.jackson.databind.MapperFeature.SORT_PROPERTIES_ALPHABETICALLY;
+import static com.vividsolutions.jts.io.ByteOrderValues.BIG_ENDIAN;
+import static com.vividsolutions.jts.io.ByteOrderValues.LITTLE_ENDIAN;
+import static java.nio.ByteOrder.nativeOrder;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect.Visibility;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -40,6 +45,7 @@ import com.vividsolutions.jts.geom.PrecisionModel;
 import com.vividsolutions.jts.io.WKBReader;
 import com.vividsolutions.jts.io.WKBWriter;
 import java.lang.ref.WeakReference;
+import java.nio.ByteOrder;
 import java.util.Formatter;
 import java.util.HashMap;
 import java.util.Locale;
@@ -157,7 +163,9 @@ public final class Json implements AutoCloseable {
     jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_TARGET, false);
     jsonFactory.configure(JsonParser.Feature.AUTO_CLOSE_SOURCE, false);
     this.mapper = JsonMapper.builder(jsonFactory)
-        .enable(DEFAULT_VIEW_INCLUSION) // , SORT_PROPERTIES_ALPHABETICALLY
+        .enable(DEFAULT_VIEW_INCLUSION)
+        .enable(SORT_PROPERTIES_ALPHABETICALLY)
+        .enable(SORT_CREATOR_PROPERTIES_FIRST)
         .serializationInclusion(Include.NON_NULL)
         .visibility(PropertyAccessor.SETTER, Visibility.ANY)
         .visibility(PropertyAccessor.GETTER, Visibility.PUBLIC_ONLY)
@@ -166,10 +174,26 @@ public final class Json implements AutoCloseable {
         .configure(SerializationFeature.CLOSE_CLOSEABLE, false)
         .addModule(new JsonModule())
         .build();
+    this.hashMapper = JsonMapper.builder(jsonFactory)
+        .enable(DEFAULT_VIEW_INCLUSION)
+        .enable(SORT_PROPERTIES_ALPHABETICALLY)
+        .disable(SORT_CREATOR_PROPERTIES_FIRST)
+        .serializationInclusion(Include.NON_NULL)
+        .visibility(PropertyAccessor.SETTER, Visibility.ANY)
+        .visibility(PropertyAccessor.GETTER, Visibility.PUBLIC_ONLY)
+        .visibility(PropertyAccessor.IS_GETTER, Visibility.NONE)
+        .visibility(PropertyAccessor.CREATOR, Visibility.ANY)
+        .configure(SerializationFeature.CLOSE_CLOSEABLE, false)
+        .addModule(new JsonModule())
+        .build();
+    // Note: eWKB does encode the endian into the binary, so we can simply use the optimal one for this hardware.
+    // - https://postgis.net/docs/ST_AsEWKB.html
+    // - https://postgis.net/docs/ST_GeomFromEWKB.html
     this.wkbReader = new WKBReader(new GeometryFactory(new PrecisionModel(), 4326));
-    this.wkbWriter = new WKBWriter(3);
+    this.wkbWriter = new WKBWriter(3, nativeOrder() == ByteOrder.LITTLE_ENDIAN ? LITTLE_ENDIAN : BIG_ENDIAN, true);
     this.simpleReader = mapper.reader();
     this.simpleWriter = mapper.writer();
+    this.simpleHashWriter = hashMapper.writer();
   }
 
   /**
@@ -198,6 +222,11 @@ public final class Json implements AutoCloseable {
   final @NotNull ObjectMapper mapper;
 
   /**
+   * The Jackson mapper to serialize for hashing.
+   */
+  final @NotNull ObjectMapper hashMapper;
+
+  /**
    * Simple reader without any View.
    */
   final @NotNull ObjectReader simpleReader;
@@ -206,6 +235,11 @@ public final class Json implements AutoCloseable {
    * Simple writer without any view.
    */
   final @NotNull ObjectWriter simpleWriter;
+
+  /**
+   * Simple writer without any view.
+   */
+  final @NotNull ObjectWriter simpleHashWriter;
 
   /**
    * Return a new dedicated thread local Json parser instance. Can be used recursive.

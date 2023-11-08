@@ -18,8 +18,10 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
+import com.vividsolutions.jts.geom.Geometry;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -32,73 +34,66 @@ import org.jetbrains.annotations.Nullable;
 @AvailableSince(NakshaVersion.v2_0_7)
 public class WriteOp<T> {
 
+  /**
+   * Create a write operation.
+   *
+   * @param op        The operation to perform.
+   * @param id        The identifier of the feature.
+   * @param uuid      The optional expected state identifier to force atomic operations. If given, the operation will fail, when the feature
+   *                  is not in this state.
+   * @param feature   The feature the operation applies to.
+   * @param geometry  The geometry the operation applies to.
+   * @param minResult {@code true} if a minimal result should be returned, that means the feature and geometry is not returned.
+   */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteOp(@NotNull EWriteOp op, T feature, String id, String uuid, boolean noResult) {
-    // TODO: Verify the parameter combinations!
+  public WriteOp(
+      @NotNull EWriteOp op,
+      @NotNull String id,
+      @Nullable String uuid,
+      @Nullable T feature,
+      @Nullable Geometry geometry,
+      boolean minResult) {
     this.op = op;
-    this.feature = feature;
     this.id = id;
     this.uuid = uuid;
-    this.noResult = noResult;
-  }
-
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteOp(@NotNull EWriteOp op, @NotNull T feature) {
-    // TODO: Verify the parameter combinations!
-    this.op = op;
     this.feature = feature;
-    this.id = null;
-    this.uuid = null;
-    this.noResult = false;
-  }
-
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteOp(@NotNull EWriteOp op, @NotNull T feature, boolean noResult) {
-    // TODO: Verify the parameter combinations!
-    this.op = op;
-    this.feature = feature;
-    this.id = null;
-    this.uuid = null;
-    this.noResult = noResult;
-  }
-
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteOp(@NotNull EWriteOp op, @NotNull String id, @NotNull String uuid, boolean noResult) {
-    // TODO: Verify the parameter combinations!
-    this.op = op;
-    this.feature = null;
-    this.id = id;
-    this.uuid = uuid;
-    this.noResult = noResult;
+    this.geometry = geometry;
+    this.minResult = minResult;
   }
 
   /**
    * The operation to perform.
    */
+  @JsonProperty
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @NotNull EWriteOp op;
 
   /**
    * The object to modify, if a full state of the object is available.
    */
+  @JsonProperty
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @Nullable T feature;
 
   /**
-   * The feature identifier.
-   *
-   * <b>Note</b>: This value is only used when {@link #feature} is {@code null}, otherwise the {@code id} property of the object is used.
+   * The geometry.
    */
+  @JsonProperty
   @AvailableSince(NakshaVersion.v2_0_7)
-  public final @Nullable String id;
+  public final @Nullable Geometry geometry;
+
+  /**
+   * The feature identifier.
+   */
+  @JsonProperty
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public final @NotNull String id;
 
   /**
    * The unique state identifier to expect when performing the action. If the object does not exist in exactly this state a conflict is
    * raised. If {@code null}, then the operation is not concurrency save.
-   *
-   * <b>Note</b>: This value is only used when {@link #feature} is {@code null}, otherwise the {@code properties->@ns:com:here:xyz->uuid} is
-   * used.
    */
+  @JsonProperty
   @AvailableSince(NakshaVersion.v2_0_7)
   public final @Nullable String uuid;
 
@@ -107,6 +102,7 @@ public class WriteOp<T> {
    * will have been changed with new {@link XyzNamespace#getUuid() uuid} and other changes. It is recommended, and the default behavior, to
    * return the new state after the modification succeeded.
    */
+  @JsonProperty
   @AvailableSince(NakshaVersion.v2_0_7)
-  public final boolean noResult;
+  public final boolean minResult;
 }

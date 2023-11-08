@@ -18,29 +18,52 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
-import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.NotNull;
 
-public enum EWriteOp {
-  INSERT,
-  UPDATE,
-  UPSERT,
-  DELETE,
-  PURGE,
-  ADVANCED;
+/**
+ * The write operation to perform.
+ */
+@SuppressWarnings("unused")
+@AvailableSince(NakshaVersion.v2_0_7)
+public class EWriteOp extends JsonEnum {
 
-  @AvailableSince(NakshaVersion.v2_0_7)
-  @JsonCreator
-  public static @Nullable EWriteOp of(@Nullable String value) {
-    if (value != null) {
-      for (final EWriteOp e : EWriteOp.values()) {
-        if (e.name().equalsIgnoreCase(value)) {
-          return e;
-        }
-      }
-    }
-    return null;
+  /**
+   * Create a new feature or collection. Fails if the feature or collection exist.
+   */
+  public static final @NotNull EWriteOp CREATE = def(EWriteOp.class, "CREATE");
+
+  /**
+   * Update a feature or collection. Fails if the feature or collection does not exist.
+   */
+  public static final @NotNull EWriteOp UPDATE = def(EWriteOp.class, "UPDATE");
+
+  /**
+   * Create a feature or collection. If the feature or collection exist, update it.
+   */
+  public static final @NotNull EWriteOp PUT = def(EWriteOp.class, "PUT");
+
+  /**
+   * Delete a feature or collection. Does not fail, if the feature or collection do not exist (are already deleted).
+   */
+  public static final @NotNull EWriteOp DELETE = def(EWriteOp.class, "DELETE");
+
+  /**
+   * Delete a feature or collection in a way that makes it impossible to restore it. Does not fail, if the feature or collection do not
+   * exist (are already deleted).
+   */
+  public static final @NotNull EWriteOp PURGE = def(EWriteOp.class, "PURGE");
+
+  /**
+   * Restore a deleted collection. This operation is only allowed in an {@link WriteCollections} request and fails, if the collection is not
+   * deleted or if applied in a {@link WriteFeatures} request.
+   */
+  public static final @NotNull EWriteOp RESTORE = def(EWriteOp.class, "RESTORE");
+
+  @Override
+  protected void init() {
+    register(EWriteOp.class);
   }
 }

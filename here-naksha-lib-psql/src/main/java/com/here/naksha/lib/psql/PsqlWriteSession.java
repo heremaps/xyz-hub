@@ -18,94 +18,73 @@
  */
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
+import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.Notification;
+import com.here.naksha.lib.core.models.storage.ReadRequest;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
-import com.here.naksha.lib.psql.statement.PsqlCollectionWriter;
-import com.here.naksha.lib.psql.statement.PsqlFeatureWriter;
 import java.sql.*;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class PsqlWriteSession extends PsqlReadSession implements IWriteSession {
+public final class PsqlWriteSession extends PsqlSession implements IWriteSession {
 
-  private Long txn;
+  private static final Logger log = LoggerFactory.getLogger(PsqlWriteSession.class);
 
-  PsqlWriteSession(@NotNull PsqlStorage storage, @NotNull Connection connection) {
-    super(storage, connection);
-    nakshaTxStart();
-  }
-
-  @Override
-  public boolean isMasterConnect() {
-    return true;
-  }
-
-  @SuppressWarnings({"rawtypes", "unchecked"})
-  @Override
-  public @NotNull Result execute(@NotNull WriteRequest writeRequest) {
-    Result result = null;
-    if (writeRequest instanceof WriteCollections writeCollections) {
-      result = new PsqlCollectionWriter(connection, statementTimeout).writeCollections(writeCollections);
-    } else if (writeRequest instanceof WriteFeatures<?> writeFeatures) {
-      result = new PsqlFeatureWriter(connection, statementTimeout).writeFeatures(writeFeatures);
-    }
-    if (result == null) {
-      throw new UnsupportedOperationException("WriteRequest not yet supported: " + writeRequest.getClass());
-    }
-    return result;
+  PsqlWriteSession(@NotNull PostgresStorage storage, @NotNull NakshaContext context, @NotNull Connection connection) {
+    super(storage, context, connection, false);
   }
 
   @Override
   public @NotNull IStorageLock lockFeature(
       @NotNull String collectionId, @NotNull String featureId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
-    throw new UnsupportedOperationException();
+    return session().lockFeature(collectionId, featureId, timeout, timeUnit);
   }
 
   @Override
   public @NotNull IStorageLock lockStorage(@NotNull String lockId, long timeout, @NotNull TimeUnit timeUnit)
       throws StorageLockException {
-    return null;
+    return session().lockStorage(lockId, timeout, timeUnit);
   }
 
   @Override
   public void commit() {
     try {
-      connection.commit();
-    } catch (final Throwable t) {
-      throw unchecked(t);
-    } finally {
-      // start a new transaction, this ensures that the app_id and author are set.
-      nakshaTxStart();
+      session().connection.commit();
+    } catch (final SQLException e) {
+      throw unchecked(e);
     }
   }
 
   @Override
   public void rollback() {
     try {
-      connection.rollback();
-    } catch (final Throwable t) {
-      currentLogger().atWarn("Automatic rollback failed").setCause(t).log();
-    } finally {
-      // start a new transaction, this ensures that the app_id and author are set.
-      nakshaTxStart();
+      session().connection.rollback();
+    } catch (final SQLException e) {
+      throw unchecked(e);
     }
   }
 
-  protected void nakshaTxStart() {
-    if (isMasterConnect()) {
-      try (final PreparedStatement stmt = connection.prepareStatement("SELECT naksha_txn();")) {
-        ResultSet rs = stmt.executeQuery();
-        rs.next();
-        txn = rs.getLong(1);
-      } catch (final Exception e) {
-        throw unchecked(e);
-      }
-    }
+  @Override
+  public @NotNull Result execute(@NotNull ReadRequest<?> readRequest) {
+    return session().executeRead(readRequest);
+  }
+
+  @Override
+  public @NotNull Result execute(@NotNull WriteRequest<?, ?> writeRequest) {
+    return session().executeWrite(writeRequest);
+  }
+
+  @Override
+  public @NotNull Result process(@NotNull Notification<?> notification) {
+    return session().process(notification);
   }
 }

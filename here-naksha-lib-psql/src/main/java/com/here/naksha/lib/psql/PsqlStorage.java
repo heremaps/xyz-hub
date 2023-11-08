@@ -19,26 +19,25 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-import static com.here.naksha.lib.core.util.IoHelp.readResource;
-import static com.here.naksha.lib.psql.SQL.quote_ident;
-import static com.here.naksha.lib.psql.SQL.shouldEscape;
 
+import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.naksha.Storage;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.IOException;
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
+import java.util.concurrent.Future;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,19 +50,7 @@ public final class PsqlStorage implements IStorage {
 
   private static final Logger log = LoggerFactory.getLogger(PsqlStorage.class);
 
-  /**
-   * The constructor to create a new PostgresQL storage client using a storage configuration.
-   *
-   * @param storage the storage configuration to use for this client.
-   * @throws SQLException if any error occurred while accessing the database.
-   * @throws IOException  if reading the SQL extensions from the resources fail.
-   */
-  public PsqlStorage(@NotNull Storage storage) throws SQLException, IOException {
-    this.dataSource = dataSourceFromStorage(storage);
-    this.storageId = storage.getId();
-  }
-
-  private @NotNull PsqlDataSource dataSourceFromStorage(final @NotNull Storage storage) {
+  private static @NotNull PsqlDataSource dataSourceFromStorage(final @NotNull Storage storage) {
     final PsqlStorageProperties properties =
         JsonSerializable.convert(storage.getProperties(), PsqlStorageProperties.class);
     PsqlDataSource ds = null;
@@ -81,6 +68,30 @@ public final class PsqlStorage implements IStorage {
           "Psql DB configuration not available for storage id " + storage.getId());
     }
     return ds;
+  }
+
+  /**
+   * The constructor to create a new PostgresQL storage client using a storage configuration.
+   *
+   * @param naksha  The Naksha-Hub reference.
+   * @param storage The storage configuration to use for this client.
+   * @throws SQLException If any error occurred while accessing the database.
+   * @throws IOException  If reading the SQL extensions from the resources fail.
+   */
+  public PsqlStorage(@NotNull INaksha naksha, @NotNull Storage storage) throws SQLException, IOException {
+    this(storage);
+    this.naksha = naksha;
+  }
+
+  /**
+   * The constructor to create a new PostgresQL storage client using a storage configuration.
+   *
+   * @param storage the storage configuration to use for this client.
+   * @throws SQLException if any error occurred while accessing the database.
+   * @throws IOException  if reading the SQL extensions from the resources fail.
+   */
+  public PsqlStorage(@NotNull Storage storage) throws SQLException, IOException {
+    this(storage.getId(), dataSourceFromStorage(storage));
   }
 
   /**
@@ -106,8 +117,21 @@ public final class PsqlStorage implements IStorage {
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
   public PsqlStorage(@NotNull PsqlConfig config, @NotNull String storageId) {
-    this.dataSource = new PsqlDataSource(config);
-    this.storageId = storageId;
+    this(storageId, new PsqlDataSource(config));
+  }
+
+  private PsqlStorage(@NotNull String storageId, @NotNull PsqlDataSource dataSource) {
+    this.storage = new PostgresStorage(this, storageId, dataSource);
+  }
+
+  /**
+   * The implementation.
+   */
+  private final @NotNull PostgresStorage storage;
+
+  @NotNull
+  PostgresStorage storage() {
+    return storage.assertNotClosed();
   }
 
   /**
@@ -115,22 +139,19 @@ public final class PsqlStorage implements IStorage {
    *
    * @return the PostgresQL connection pool.
    */
-  public final @NotNull PsqlPool getPsqlPool() {
-    return dataSource.getPool();
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull PsqlPool getPsqlPool() {
+    return getDataSource().getPool();
   }
-
-  /**
-   * The data source.
-   */
-  protected final @NotNull PsqlDataSource dataSource;
 
   /**
    * Returns the PSQL data source.
    *
    * @return the PSQL data source.
    */
-  public final @NotNull PsqlDataSource getDataSource() {
-    return dataSource;
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull PsqlDataSource getDataSource() {
+    return storage().dataSource;
   }
 
   /**
@@ -138,8 +159,9 @@ public final class PsqlStorage implements IStorage {
    *
    * @return the main schema to operate on.
    */
-  public final @NotNull String getSchema() {
-    return dataSource.getSchema();
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @NotNull String getSchema() {
+    return storage().getSchema();
   }
 
   /**
@@ -149,13 +171,8 @@ public final class PsqlStorage implements IStorage {
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull String getStorageId() {
-    return storageId;
+    return storage().storageId;
   }
-
-  /**
-   * The storage identification.
-   */
-  final @NotNull String storageId;
 
   /**
    * Returns the connector identification number.
@@ -163,12 +180,9 @@ public final class PsqlStorage implements IStorage {
    * @return the connector identification number.
    */
   @Deprecated
-  public final long getStorageNumber() {
+  public long getStorageNumber() {
     return 0L;
   }
-
-  @Deprecated
-  NakshaVersion latest = NakshaVersion.latest;
 
   @Override
   public void startMaintainer() {}
@@ -191,75 +205,18 @@ public final class PsqlStorage implements IStorage {
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
-  @SuppressWarnings("SqlSourceToSinkFlow")
   @Override
   public void initStorage() {
-    String SQL;
-    // Note: We need to open a "raw connection", so one, that is not initialized!
-    //       The reason is, that the normal initialization would invoke naksha_init_plv8(),
-    //       but init-storage is called to install exactly this method.
-    try (final Connection conn = dataSource.getPool().dataSource.getConnection()) {
-      try (final Statement stmt = conn.createStatement()) {
-        long version = 0L;
-        try {
-          final StringBuilder sb = new StringBuilder();
-          sb.append("SELECT ");
-          final String schema = getSchema();
-          if (shouldEscape(schema)) {
-            quote_ident(sb, getSchema());
-          } else {
-            sb.append(schema);
-          }
-          sb.append(".naksha_version();");
-          final ResultSet rs = stmt.executeQuery(sb.toString());
-          if (rs.next()) {
-            version = rs.getLong(1);
-          }
-          rs.close();
-        } catch (PSQLException e) {
-          final EPsqlState state = EPsqlState.of(e);
-          if (state != EPsqlState.UNDEFINED_FUNCTION
-              && state != EPsqlState.INVALID_SCHEMA_DEFINITION
-              && state != EPsqlState.INVALID_SCHEMA_NAME) {
-            throw e;
-          }
-          conn.rollback();
-          log.atInfo()
-              .setMessage("Naksha schema and/or extension missing")
-              .log();
-        }
-        if (true || latest.toLong() != version) {
-          if (version == 0L) {
-            log.atInfo()
-                .setMessage("Install and initialize Naksha extension v{}")
-                .addArgument(latest)
-                .log();
-          } else {
-            log.atInfo()
-                .setMessage("Upgrade Naksha extension from v{} to v{}")
-                .addArgument(new NakshaVersion(version))
-                .addArgument(latest)
-                .log();
-          }
-          SQL = readResource("naksha_plpgsql.sql");
-          SQL = SQL.replaceAll("\n--#", "\n");
-          SQL = SQL.replaceAll("\\$\\{schema}", getSchema());
-          SQL = SQL.replaceAll("\\$\\{storage_id}", getStorageId());
-          System.out.println(SQL);
-          //noinspection SqlSourceToSinkFlow
-          stmt.execute(SQL);
-          conn.commit();
+    storage().initStorage(false);
+  }
 
-          // Now, we can be sure that the code exists, and we can invoke it.
-          // Note: We do not want to naksha_start_session to be invoked, therefore pass null!
-          dataSource.initConnection(conn, null);
-          stmt.execute("SELECT naksha_init();");
-          conn.commit();
-        }
-      }
-    } catch (Throwable t) {
-      throw unchecked(t);
-    }
+  /**
+   * Special method that installs the extension again with the latest pl/pgsql code coming together with this code and enabling debugging,
+   * this will slow down the storage methods, but get a lot of debug information printed to PostgresQL logs (in DBeaver use Strg+Shit+O to
+   * open the debug log output).
+   */
+  public void initStorageWithDebugInfo() {
+    storage().initStorage(true);
   }
 
   /**
@@ -267,50 +224,21 @@ public final class PsqlStorage implements IStorage {
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public void dropSchema() {
-    try (final Connection conn = getDataSource().getPool().dataSource.getConnection()) {
-      try (final Statement stmt = conn.createStatement()) {
-        try {
-          final String sql = "DROP SCHEMA IF EXISTS " + SQL.quote_ident(getSchema()) + " CASCADE";
-          stmt.execute(sql);
-          conn.commit();
-        } catch (PSQLException e) {
-          final EPsqlState state = EPsqlState.of(e);
-          if (state != EPsqlState.INVALID_SCHEMA_DEFINITION && state != EPsqlState.INVALID_SCHEMA_NAME) {
-            throw e;
-          }
-          log.atInfo()
-              .setMessage("Schema {} does not exist")
-              .addArgument(getSchema())
-              .log();
-        }
-      }
-    } catch (Throwable t) {
-      throw unchecked(t);
-    }
+    storage().dropSchema();
+  }
+
+  public <T> @NotNull List<@NotNull WriteFeatures<T>> newBulkWrite(@NotNull WriteFeatures<T> writeFeatures) {
+    return storage().toBulkWrite(writeFeatures);
   }
 
   @Override
-  public @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
-    if (context == null) {
-      context = NakshaContext.currentContext();
-    }
-    try {
-      return new PsqlWriteSession(this, dataSource.getConnection(context));
-    } catch (Exception e) {
-      throw unchecked(e);
-    }
+  public @NotNull PsqlWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
+    return storage().newWriteSession(context, useMaster);
   }
 
   @Override
-  public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
-    if (context == null) {
-      context = NakshaContext.currentContext();
-    }
-    try {
-      return new PsqlReadSession(this, dataSource.getConnection(context));
-    } catch (Exception e) {
-      throw unchecked(e);
-    }
+  public @NotNull PsqlReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
+    return storage().newReadSession(context, useMaster);
   }
 
   @Deprecated
@@ -326,7 +254,7 @@ public final class PsqlStorage implements IStorage {
   @Override
   public void maintain(@NotNull List<CollectionInfo> collectionInfoList) {
     for (CollectionInfo collectionInfo : collectionInfoList) {
-      try (final Connection conn = dataSource.getConnection()) {
+      try (final Connection conn = storage().dataSource.getConnection()) {
         try (final Statement stmt = conn.createStatement()) {
           stmt.execute(createHstPartitionOfOneDay(0, collectionInfo));
           stmt.execute(createHstPartitionOfOneDay(1, collectionInfo));
@@ -414,8 +342,9 @@ public final class PsqlStorage implements IStorage {
    */
   @Deprecated
   public @NotNull ITransactionSettings createSettings() {
-    return new PsqlTransactionSettings(
-        dataSource.getPool().config.stmtTimeout, dataSource.getPool().config.lockTimeout);
+    final PostgresStorage storage = storage();
+    final PsqlPool pool = storage.dataSource.getPool();
+    return new PsqlTransactionSettings(pool.config.stmtTimeout, pool.config.lockTimeout);
   }
 
   @Deprecated
@@ -428,5 +357,12 @@ public final class PsqlStorage implements IStorage {
   @Override
   public @NotNull PsqlTxWriter openMasterTransaction(@NotNull ITransactionSettings settings) {
     return new PsqlTxWriter(this, settings);
+  }
+
+  private @Nullable INaksha naksha;
+
+  @Override
+  public @NotNull <T> Future<T> shutdown(@Nullable Fe1<T, IStorage> onShutdown) {
+    return new PsqlShutdownTask<>(this, onShutdown, naksha, NakshaContext.currentContext()).start();
   }
 }

@@ -25,7 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * When a request failed, this returns the error details.
+ * When a request failed, fully or partially, this returns the error details.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
 public class ErrorResult extends Result {
