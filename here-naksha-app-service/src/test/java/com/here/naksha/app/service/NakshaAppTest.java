@@ -23,7 +23,6 @@ import static com.here.naksha.app.service.NakshaApp.newInstance;
 import static java.time.temporal.ChronoUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.net.URI;
@@ -48,6 +47,7 @@ class NakshaAppTest {
   static HttpRequest stdHttpRequest;
 
   static CreateFeatureTestHelper createFeatureTests;
+  static ReadFeaturesByIdsTestHelper readFeaturesByIdsTests;
 
   @BeforeAll
   static void prepare() throws InterruptedException, URISyntaxException {
@@ -72,6 +72,7 @@ class NakshaAppTest {
 
     // create test helpers
     createFeatureTests = new CreateFeatureTestHelper(app, NAKSHA_HTTP_URI, httpClient, stdHttpRequest);
+    readFeaturesByIdsTests = new ReadFeaturesByIdsTestHelper(app, NAKSHA_HTTP_URI, httpClient, stdHttpRequest);
   }
 
   @Test
@@ -278,6 +279,18 @@ class NakshaAppTest {
   @Order(12)
   void tc0308_testCreateFeaturesWithNoSpace() throws Exception {
     createFeatureTests.tc0308_testCreateFeaturesWithNoSpace();
+  }
+
+  @Test
+  @Order(13)
+  void tc0400_testReadFeaturesWithIds() throws Exception {
+    readFeaturesByIdsTests.tc0400_testReadFeaturesByIds();
+  }
+
+  @Test
+  @Order(14)
+  void tc0401_testReadFeaturesForMissingIds() throws Exception {
+    readFeaturesByIdsTests.tc0401_testReadFeaturesForMissingIds();
   }
 
   @AfterAll

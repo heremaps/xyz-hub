@@ -26,8 +26,10 @@ import org.jetbrains.annotations.Nullable;
 public final class ApiParams {
   public static String SPACE_ID = "spaceId";
   public static String PREFIX_ID = "prefixId";
+  public static String FEATURE_ID = "featureId";
   public static String ADD_TAGS = "addTags";
   public static String REMOVE_TAGS = "removeTags";
+  public static String FEATURE_IDS = "id";
 
   public static @Nullable List<String> queryParamList(
       final @NotNull RoutingContext routingContext, final @NotNull String param) {

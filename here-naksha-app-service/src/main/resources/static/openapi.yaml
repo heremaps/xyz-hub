@@ -126,6 +126,38 @@ paths:
         '500':
           $ref: '#/components/responses/ErrorResponse500'
   '/hub/spaces/{spaceId}/features':
+    get:
+      tags:
+        - Read Features
+      summary: Get features by ID
+      description: >
+        Returns all of the features found for the provided list of IDs from the storage associated (directly or via event handler) with the given Space. 
+        The response is always a FeatureCollection, even if there are no features with the provided IDs.
+      operationId: getFeatures
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/RequiredIds'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureCollectionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
     post:
       tags:
         - Write Features
@@ -166,6 +198,27 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+  '/hub/spaces/{spaceId}/features/{featureId}':
+    get:
+      tags:
+        - Read Features
+      summary: Get a feature by ID
+      description: Retrieves the feature with the provided identifier.
+      operationId: getFeature
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/FeatureId'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
 components:
   securitySchemes:
     AccessToken:
@@ -194,12 +247,32 @@ components:
         type: array
         items:
           type: string
+    FeatureId:
+      name: featureId
+      in: path
+      description: The unique identifier of a feature in the space.
+      required: true
+      schema:
+        type: string
     RemoveTags:
       name: removeTags
       in: query
       description: Tags to be removed from the features.
       required: false
       style: form
+      schema:
+        type: array
+        items:
+          type: string
+    RequiredIds:
+      name: id
+      in: query
+      description: >-
+        A comma separated list of unique feature identifiers. These are the acceptable formats
+        for this field:
+          * id=value1,value2
+          * id=value1,id=value2
+      required: true
       schema:
         type: array
         items:
@@ -379,6 +452,58 @@ components:
             error: "PayloadTooLarge"
             errorMessage: "Payload too large."
             streamId: "d5b2edaa-2c6b-44e1-b794-feea6fa0e15b"
+    FeatureResponse:
+      description: A feature response.
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/Feature'
+          example:
+            type: Feature
+            id: BfiimUxHjj
+            geometry:
+              type: Point
+              coordinates:
+                - 8.68872
+                - 50.0561
+                - 292.94377758
+            properties:
+              name: Anfield
+              '@ns:com:here:xyz':
+                tags:
+                  - football
+                  - stadium
+              amenity: Football Stadium
+              capacity: 54074
+              description: Home of Liverpool Football Club
+    FeatureCollectionResponse:
+      description: An array of features response.
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/FeatureCollection'
+          example:
+            type: FeatureCollection
+            features:
+              - type: Feature
+                id: BfiimUxHjj
+                geometry:
+                  type: Point
+                  coordinates:
+                    - 8.68872
+                    - 50.0561
+                    - 292.94377758
+                properties:
+                  name: Anfield
+                  '@ns:com:here:xyz':
+                    createdAt: 1517504700726
+                    updatedAt: 1517504700726
+                    tags:
+                      - football
+                      - stadium
+                  amenity: Football Stadium
+                  capacity: 54074
+                  description: Home of Liverpool Football Club
     FeatureCollectionModificationResponse:
       description: An array of features and their modifications response.
       content:
@@ -399,8 +524,9 @@ components:
                 geometry:
                   type: Point
                   coordinates:
-                    - -2.960847
-                    - 53.430828
+                    - 8.68872
+                    - 50.0561
+                    - 292.94377758
                 properties:
                   name: Anfield
                   '@ns:com:here:xyz':

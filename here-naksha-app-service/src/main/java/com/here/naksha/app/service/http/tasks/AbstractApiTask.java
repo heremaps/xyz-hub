@@ -121,6 +121,7 @@ public abstract class AbstractApiTask<T extends XyzResponse>
             routingContext, XyzError.NOT_FOUND, "The desired feature does not exist.");
       final List<R> features = new ArrayList<>();
       features.add(iterator.next());
+      rr.close();
       final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(features);
       return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, featureResponse);
     }
