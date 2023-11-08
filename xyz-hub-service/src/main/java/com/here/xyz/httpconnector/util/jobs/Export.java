@@ -580,7 +580,7 @@ public class Export extends JDBCBasedJob<Export> {
         if (extension == null)
             return null;
 
-        Map recursiveExtension = readParamExtends();
+        Map recursiveExtension = (Map) extension.get(PARAM_EXTENDS);
         if (recursiveExtension != null)
             return (String) recursiveExtension.get("spaceId");
 
@@ -592,7 +592,7 @@ public class Export extends JDBCBasedJob<Export> {
         if (extension == null)
             return false;
 
-        Map recursiveExtension = readParamExtends();
+        Map recursiveExtension = (Map) extension.get(PARAM_EXTENDS);
         if (recursiveExtension != null)
             return recursiveExtension.get("readOnly") != null ? (boolean) recursiveExtension.get("readOnly") : false;
 
