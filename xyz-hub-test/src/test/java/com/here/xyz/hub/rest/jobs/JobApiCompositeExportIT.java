@@ -375,21 +375,26 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
     @Test
     public void validCompositeL1ExportFullOptimizedWithoutBaseJSON_WKB() throws Exception {
-        /** Composite Export */
+        /** Composite Export - format gets automatically override to PARTITIONED_JSON_WKB */
         Export job =  buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), JSON_WKB);
+        job.setTargetLevel(6);
 
         List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-
         checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
         mustContain.addAll(baseContentWKB);
-        mustContain.addAll(l1ChangesContentJSONWKB);
-        //Feature with deleted flag
-        mustContain.add("deleted");
+        mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
-        //7 Features from base + 4 Features from delta - including one deletion.
-        downloadAndCheck(urls, 3002, 11, mustContain);
+        //7 Features from base + 5 Features from delta - including 2 deletions.
+        downloadAndCheck(urls, 2910, 10, mustContain);
+
+        Job job1 = loadJob(testSpaceId1Ext, job.getId());
+        assertEquals(PARTITIONED_JSON_WKB, job1.getCsvFormat());
+
+        Job spawendJob = loadJob(testSpaceId1, job.getId()+ "_missing_base");
+        assertEquals(JSON_WKB, spawendJob.getCsvFormat());
+        assertEquals(Long.valueOf(-1), spawendJob.getExp());
     }
 
     @Test
@@ -404,7 +409,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(baseContentWKB);
         mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
-        //7 Features from base + 2 base+delta tiles with changes - including one deletion.
+        //7 Features from base + 5 Features from delta - including 2 deletions.
         downloadAndCheck(urls, 2910, 10, mustContain);
 
         // Same test with type DOWNLOAD
@@ -437,7 +442,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(baseContentWKB);
         mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
-        //7 Features from base + 2 base+delta tiles with changes
+        //7 Features from base + 5 Features from delta - including 2 deletions.
         downloadAndCheck(urls, 2910, 10, mustContain);
     }
 
