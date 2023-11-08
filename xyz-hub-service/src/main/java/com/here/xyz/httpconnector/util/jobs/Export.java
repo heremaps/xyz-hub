@@ -837,7 +837,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //exp=-1 => persistent
                         //hash must fit
                         logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                        if( jobCandidate.getExp() == -1 && ((Export)jobCandidate).getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))){
+                        if((jobCandidate.getExp() != null && jobCandidate.getExp() == -1) && ((Export)jobCandidate).getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))){
                             //try to find a finalized one - doesn't matter if its the origin export
                             if(jobCandidate.getStatus().equals(finalized) || jobCandidate.getStatus().equals(trigger_executed)) {
                                 logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
@@ -1159,6 +1159,7 @@ public class Export extends JDBCBasedJob<Export> {
     public enum CompositeMode {
         FULL_OPTIMIZED, //Load persistent Base + (Changes)
         CHANGES, //Only changes
+        FULL, //context=default
         DEACTIVATED;
 
         public static CompositeMode of(String value) {
