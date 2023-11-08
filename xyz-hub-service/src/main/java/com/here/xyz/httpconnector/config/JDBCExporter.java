@@ -457,8 +457,8 @@ public class JDBCExporter extends JDBCClients {
         if (params != null && params.get("versionsToKeep") != null)
             event.setVersionsToKeep((int)params.get("versionsToKeep"));
 
-        if (params != null && params.get("context") != null) {
-            ContextAwareEvent.SpaceContext context = ContextAwareEvent.SpaceContext.of((String) params.get("context"));
+        if (params != null && params.get(Export.PARAM_CONTEXT) != null) {
+            ContextAwareEvent.SpaceContext context = ContextAwareEvent.SpaceContext.of(params.get(Export.PARAM_CONTEXT).toString());
 
             //TODO: Remove the following hack and perform the switch to super within connector (GetFeatures QR) instead
             if (context == SUPER) {
