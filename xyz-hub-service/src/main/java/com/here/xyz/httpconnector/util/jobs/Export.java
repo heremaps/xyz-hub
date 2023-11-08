@@ -176,6 +176,50 @@ public class Export extends JDBCBasedJob<Export> {
                     if (getMaxTilesPerFile() == 0)
                         setMaxTilesPerFile(VML_EXPORT_MAX_TILES_PER_FILE);
                 }
+
+                //Set Composite related defaults
+                CompositeMode compositeMode = readParamCompositeMode();
+                Map ext = readParamExtends();
+
+                if (readPersistExport())
+                    setExp(-1l);
+
+                if (ext != null) {
+                    boolean superIsReadOnly = ext.get("readOnly") != null ? (boolean) ext.get("readOnly") : false;
+                    Map l2Ext = (Map) ext.get("extends");
+
+                    if (l2Ext != null)
+                        //L2 Composite
+                        superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
+
+                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly) {
+                        //Enabled by default
+                        params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
+                    }
+
+                    if(!superIsReadOnly && compositeMode.equals(CompositeMode.FULL_OPTIMIZED)) {
+                        params.remove(PARAM_COMPOSITE_MODE);
+                        logger.info("job[{}] CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer - fall back!", getId());
+                    }
+
+                    if (csvFormat.equals(GEOJSON))
+                        params.remove(PARAM_COMPOSITE_MODE);
+                }else{
+                    //Only make sense in case of extended space
+                    params.remove(PARAM_COMPOSITE_MODE);
+                }
+
+                if(readParamCompositeMode() == FULL_OPTIMIZED && exportTarget.type.equals(DOWNLOAD)) {
+                    //Override Target-Format to PARTITIONED_JSON_WKB
+                    csvFormat = PARTITIONED_JSON_WKB;
+                    if(targetLevel == null)
+                        targetLevel = 12;
+                }
+
+                SpaceContext context = readParamContext();
+                if (readParamExtends() != null && context == null)
+                    addParam("context", DEFAULT);
+
                 return HubWebClient.getSpaceStatistics(job.getTargetSpaceId());
             })
             .compose(statistics -> {
@@ -248,42 +292,6 @@ public class Export extends JDBCBasedJob<Export> {
                 }
             }
         }
-
-        CompositeMode compositeMode = readParamCompositeMode();
-        Map ext = readParamExtends();
-
-        if (readPersistExport())
-            setExp(-1l);
-
-        if (ext != null) {
-            boolean superIsReadOnly = ext.get("readOnly") != null ? (boolean) ext.get("readOnly") : false;
-            Map l2Ext = (Map) ext.get("extends");
-
-            if (l2Ext != null)
-                //L2 Composite
-                superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
-
-            if (compositeMode.equals(DEACTIVATED) && superIsReadOnly) {
-                //Enabled by default
-                params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
-            }
-
-            if(!superIsReadOnly && compositeMode.equals(CompositeMode.FULL_OPTIMIZED)) {
-                params.remove(PARAM_COMPOSITE_MODE);
-                logger.info("job[{}] CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer - fall back!", getId());
-            }
-
-            if (csvFormat.equals(GEOJSON))
-                params.remove(PARAM_COMPOSITE_MODE);
-        }else{
-            //Only make sense in case of extended space
-            params.remove(PARAM_COMPOSITE_MODE);
-        }
-
-        SpaceContext context = readParamContext();
-
-        if (readParamExtends() != null && context == null)
-            addParam("context", DEFAULT);
 
         if (getEstimatedFeatureCount() > 1000000 //searchable limit without index
             && getPartitionKey() != null && !"id".equals(getPartitionKey())
@@ -562,7 +570,7 @@ public class Export extends JDBCBasedJob<Export> {
 
     public CompositeMode readParamCompositeMode() {
         return params != null && params.containsKey(PARAM_COMPOSITE_MODE)
-                ? CompositeMode.valueOf((String) params.get(PARAM_COMPOSITE_MODE))
+                ? CompositeMode.valueOf(params.get(PARAM_COMPOSITE_MODE).toString())
                 : DEACTIVATED;
     }
 
