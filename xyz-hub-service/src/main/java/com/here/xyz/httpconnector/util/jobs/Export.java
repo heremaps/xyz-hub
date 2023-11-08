@@ -20,7 +20,9 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.httpconnector.util.Futures.futurify;
+import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.CHANGES;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.VML;
@@ -175,7 +177,7 @@ public class Export extends JDBCBasedJob<Export> {
                     if (getMaxTilesPerFile() == 0)
                         setMaxTilesPerFile(VML_EXPORT_MAX_TILES_PER_FILE);
                 }
-                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId());
+                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ( job.readParamCompositeMode() != CHANGES ? null : EXTENSION) );
             })
             .compose(statistics -> {
                 //Store count of features which are in source layer

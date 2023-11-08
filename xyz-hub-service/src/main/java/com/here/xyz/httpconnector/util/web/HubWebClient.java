@@ -20,6 +20,7 @@ package com.here.xyz.httpconnector.util.web;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.xyz.XyzSerializable;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -218,9 +219,9 @@ public class HubWebClient {
       return response;
     }
 
-    public static Future<StatisticsResponse> getSpaceStatistics(String spaceId) {
+    public static Future<StatisticsResponse> getSpaceStatistics(String spaceId,SpaceContext context) {
         //Collect statistics from hub, which also ensures an existing table
-        return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT + "/spaces/" + spaceId + "/statistics?skipCache=true")
+        return CService.webClient.getAbs(CService.configuration.HUB_ENDPOINT + "/spaces/" + spaceId + "/statistics?skipCache=true" + ( context == null ? "" : "&context=" + context.toString().toLowerCase() ) )
                 .putHeader("content-type", "application/json; charset=" + Charset.defaultCharset().name())
                 .send()
                 .compose(res -> {
@@ -238,4 +239,9 @@ public class HubWebClient {
                     Future.failedFuture("Cant get space statistics!");
                 });
     }
+
+    public static Future<StatisticsResponse> getSpaceStatistics(String spaceId) 
+    { return getSpaceStatistics(spaceId,null); }
+    
+
 }
