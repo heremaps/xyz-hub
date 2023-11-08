@@ -269,7 +269,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
     }
 
     @Test
-    public void validCompositeL1ExportFull() throws Exception {
+    public void validCompositeL1ExportWithoutCompositeMode() throws Exception {
         /** Full Export base+delta1 */
         //uses automatically FULL_OPTIMIZED because base layer is readOnly
         Export job =  generateExportJob(testExportJobId, 6);
@@ -284,6 +284,30 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         //7 Features from base + 5 tiles from base+delta changes.
         downloadAndCheck(urls, 3313, 7, mustContain);
+    }
+
+    @Test
+    public void validCompositeL1ExportFull() throws Exception {
+        /** Full Export base+delta1 */
+        Export job =  generateExportJob(testExportJobId, 6);
+
+        /** Initial Base Export */
+        List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL);
+        //Only one file (base+delta)
+        checkUrls(urls, false);
+
+        List<String> mustContain = new ArrayList<>();
+        mustContain.add("4953");
+        mustContain.add("4991");
+        mustContain.add("4993");
+        mustContain.add("5681");
+        mustContain.add("5693");
+        mustContain.add("5749");
+        mustContain.add("5831");
+        mustContain.add("iQG5zOmNvbTpoZXJlOnh5");
+
+        //7 Features from base + 5 tiles from base+delta changes.
+        downloadAndCheckFC(urls, 3006, 7, mustContain, 7);
     }
 
     @Test

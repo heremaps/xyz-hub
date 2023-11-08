@@ -105,7 +105,8 @@ public class ExportQueue extends JobQueue {
     protected void prepareJob(Job job) {
         if (job instanceof Export export) {
             export.checkPersistentExports()
-                    .onFailure(f -> {
+                    .onFailure(e -> {
+                        logger.warn("job[{}] CheckPersistentExports has failed!", job.getId(), e);
                         setJobFailed(job, Export.ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, Export.ERROR_TYPE_EXECUTION_FAILED);
                     });
         }else
