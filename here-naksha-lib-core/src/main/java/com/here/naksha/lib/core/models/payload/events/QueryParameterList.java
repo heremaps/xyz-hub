@@ -19,13 +19,8 @@
 package com.here.naksha.lib.core.models.payload.events;
 
 import com.here.naksha.lib.core.exceptions.ParameterError;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -153,8 +148,32 @@ public class QueryParameterList implements Iterable<QueryParameter> {
    * @param key The key of the parameter to query.
    * @return A list with all values of the parameter; {@code null} if no such parameter exists.
    */
+  public <T> @Nullable T getValueOf(@NotNull String key, @NotNull Class<T> type) {
+    List<T> list = collectAllOf(key, Integer.MAX_VALUE, type);
+    if (list.isEmpty()) return null;
+    return list.get(0);
+  }
+
+  /**
+   * Returns all values of all parameter with the given key.
+   *
+   * @param key The key of the parameter to query.
+   * @param type type of the class the values should be cast to
+   * @return A list with all values of the parameter; {@code null} if no such parameter exists.
+   * @param <T> the class type for which the list of values is to be returned back
+   */
+  public <T> @NotNull List<@NotNull T> collectAllOf(@NotNull String key, @NotNull Class<T> type) {
+    return collectAllOf(key, Integer.MAX_VALUE, type);
+  }
+
+  /**
+   * Returns all values of all parameter with the given key.
+   *
+   * @param key The key of the parameter to query.
+   * @return A list with all values of the parameter; {@code null} if no such parameter exists.
+   */
   public @NotNull List<@NotNull Object> collectAllOf(@NotNull String key) {
-    return collectAllOf(key, Integer.MAX_VALUE);
+    return collectAllOf(key, Integer.MAX_VALUE, Object.class);
   }
 
   /**
@@ -162,15 +181,17 @@ public class QueryParameterList implements Iterable<QueryParameter> {
    *
    * @param key The key of the parameter to query.
    * @param limit The maximal amount of parameters to collect from.
+   * @param type type of the class the values should be cast to
    * @return A list with all values of the parameter; {@code null} if no such parameter exists.
+   * @param <T> the class type for which the list of values is to be returned back
    */
-  public @NotNull List<@NotNull Object> collectAllOf(@NotNull String key, int limit) {
-    final List<@NotNull Object> all = new ArrayList<>(DEFAULT_CAPACITY);
+  public <T> @NotNull List<@NotNull T> collectAllOf(@NotNull String key, int limit, Class<T> type) {
+    final List<@NotNull T> all = new ArrayList<>(DEFAULT_CAPACITY);
     QueryParameter param = map.get(key);
     int i = 0;
     while (i++ < limit && param != null) {
       if (param.hasValues()) {
-        all.addAll(param.values());
+        all.addAll((Collection<T>) param.values());
       }
       param = param.next;
     }

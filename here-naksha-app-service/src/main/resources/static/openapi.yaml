@@ -271,7 +271,7 @@ components:
         A comma separated list of unique feature identifiers. These are the acceptable formats
         for this field:
           * id=value1,value2
-          * id=value1,id=value2
+          * id=value1&id=value2
       required: true
       schema:
         type: array

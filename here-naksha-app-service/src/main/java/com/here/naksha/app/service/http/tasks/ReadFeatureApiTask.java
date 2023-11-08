@@ -26,15 +26,13 @@ import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import io.vertx.ext.web.RoutingContext;
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.StringTokenizer;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +90,11 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
   private @NotNull XyzResponse executeFeaturesById() throws Exception {
     // Parse parameters
     final String spaceId = pathParam(routingContext, SPACE_ID);
-    final List<String> featureIds = queryParamList(routingContext, FEATURE_IDS);
+    final QueryParameterList queryParams = (routingContext.request().query() != null)
+        ? new QueryParameterList(routingContext.request().query())
+        : null;
+    final List<String> featureIds =
+        (queryParams != null) ? queryParams.collectAllOf(FEATURE_IDS, String.class) : null;
 
     // Validate parameters
     if (spaceId == null || spaceId.isEmpty()) {
@@ -100,16 +102,6 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     }
     if (featureIds == null || featureIds.isEmpty()) {
       return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing id parameter");
-    }
-
-    // TODO : extract featureIds if they are comma separated (possibly using QueryParameterList.java)
-    final List<String> extractedFeatureIds = new ArrayList<>();
-    for (final String featureId : featureIds) {
-      if (featureId.contains(",")) {
-        for (Iterator<Object> it = new StringTokenizer(featureId, ",", false).asIterator(); it.hasNext(); ) {
-          extractedFeatureIds.add((String) it.next());
-        }
-      }
     }
 
     // Forward request to NH Space Storage writer instance

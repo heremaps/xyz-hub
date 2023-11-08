@@ -331,4 +331,35 @@ public class ReadFeaturesByIdsTestHelper {
     // Then: Perform assertions
     standardAssertions(response, 404, expectedBodyPart, streamId);
   }
+
+  public void tc0407_testReadFeaturesWithCommaSeparatedIds() throws Exception {
+    // NOTE : This test depends on setup done as part of tc0400_testReadFeaturesByIds
+
+    // Test API : GET /hub/spaces/{spaceId}/features
+    // Validate features getting returned for Ids provided as comma separated values
+    String streamId;
+    HttpRequest request;
+    HttpResponse<String> response;
+
+    // Given: Features By Ids request (against existing space)
+    final String spaceId = "local-space-4-feature-by-id";
+    final String idsQueryParam = "id=my-custom-id-400-1,my-custom-id-400-2,missing-id-1,missing-id-2";
+    final String expectedBodyPart =
+        loadFileOrFail("ReadFeatures/ByIds/TC0407_CommaSeparatedIds/feature_response_part.json");
+    streamId = UUID.randomUUID().toString();
+
+    // When: Create Features request is submitted to NakshaHub Space Storage instance
+    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features?" + idsQueryParam))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then: Perform assertions
+    standardAssertions(response, 200, expectedBodyPart, streamId);
+
+    // Then: also match individual JSON attributes (in addition to whole object comparison above)
+    additionalCustomAssertions(response.body());
+  }
 }

@@ -323,6 +323,12 @@ class NakshaAppTest {
     readFeaturesByIdsTests.tc0406_testReadFeatureByIdFromMissingSpace();
   }
 
+  @Test
+  @Order(7)
+  void tc0407_testReadFeaturesWithCommaSeparatedIds() throws Exception {
+    readFeaturesByIdsTests.tc0407_testReadFeaturesWithCommaSeparatedIds();
+  }
+
   @AfterAll
   static void close() throws InterruptedException {
     if (app != null) {

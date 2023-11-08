@@ -28,6 +28,7 @@ import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.storage.IWriteSession;
@@ -103,11 +104,16 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
     if (features.isEmpty()) {
       return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Can't create empty features");
     }
-    // Parse parameters
+
+    // Parse API parameters
     final String spaceId = pathParam(routingContext, SPACE_ID);
-    final String prefixId = queryParam(routingContext, PREFIX_ID);
-    final List<String> addTags = queryParamList(routingContext, ADD_TAGS);
-    final List<String> removeTags = queryParamList(routingContext, REMOVE_TAGS);
+    final QueryParameterList queryParams = (routingContext.request().query() != null)
+        ? new QueryParameterList(routingContext.request().query())
+        : null;
+    final String prefixId = (queryParams != null) ? queryParams.getValueOf(PREFIX_ID, String.class) : null;
+    final List<String> addTags = (queryParams != null) ? queryParams.collectAllOf(ADD_TAGS, String.class) : null;
+    final List<String> removeTags =
+        (queryParams != null) ? queryParams.collectAllOf(REMOVE_TAGS, String.class) : null;
 
     // Validate parameters
     if (spaceId == null || spaceId.isEmpty()) {
