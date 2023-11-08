@@ -153,8 +153,9 @@ public class Export extends JDBCBasedJob<Export> {
     private static String PARAM_RUN_AS_ID = "runAsId";
     private static String PARAM_SCOPE = "scope";
     private static String PARAM_EXTENDS = "extends";
-    private static String PARAM_CONTEXT = "context";
     private static String PARAM_SKIP_TRIGGER = "skipTrigger";
+
+    public static String PARAM_CONTEXT = "context";
 
     public Export() {
         super();
@@ -218,7 +219,7 @@ public class Export extends JDBCBasedJob<Export> {
 
                 SpaceContext context = readParamContext();
                 if (readParamExtends() != null && context == null)
-                    addParam("context", DEFAULT);
+                    addParam(PARAM_CONTEXT, DEFAULT);
 
                 return HubWebClient.getSpaceStatistics(job.getTargetSpaceId());
             })
@@ -565,7 +566,7 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public SpaceContext readParamContext() {
-        return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf((String) this.params.get(PARAM_CONTEXT)) : null;
+        return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf(this.params.get(PARAM_CONTEXT).toString()) : null;
     }
 
     public CompositeMode readParamCompositeMode() {
@@ -579,7 +580,7 @@ public class Export extends JDBCBasedJob<Export> {
         if (extension == null)
             return null;
 
-        Map recursiveExtension = (Map) extension.get(PARAM_EXTENDS);
+        Map recursiveExtension = readParamExtends();
         if (recursiveExtension != null)
             return (String) recursiveExtension.get("spaceId");
 
@@ -591,7 +592,7 @@ public class Export extends JDBCBasedJob<Export> {
         if (extension == null)
             return false;
 
-        Map recursiveExtension = (Map) extension.get(PARAM_EXTENDS);
+        Map recursiveExtension = readParamExtends();
         if (recursiveExtension != null)
             return recursiveExtension.get("readOnly") != null ? (boolean) recursiveExtension.get("readOnly") : false;
 
@@ -876,11 +877,10 @@ public class Export extends JDBCBasedJob<Export> {
                         //Export is available - use it and skip jdbc-export
                         logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
                         setSuperId(existingJob.getId());
-                        addDownloadLinks(existingJob);
                         setExportObjects(existingJob.getExportObjects());
-
                         setStatistic(existingJob.getStatistic());
-                        return updateJobStatus(this, executed);
+
+                        return updateJobStatus(this, finalized);
                     }
                     else if(existingJob.getStatus() == failed) {
                         //Export is available but is failed - abort also this export.
@@ -947,7 +947,9 @@ public class Export extends JDBCBasedJob<Export> {
                     if (superId == null)
                         setSuperId(existingJob.getId());
 
+                    setSuperExportObjects(existingJob.getExportObjects());
                     setSuperStatistic(existingJob.getStatistic());
+
                     return updateJobStatus(this, prepared);
                 }
                 else {
@@ -977,7 +979,7 @@ public class Export extends JDBCBasedJob<Export> {
                     //Everything is processed
                     logger.info("job[{}] Export of '{}' completely succeeded!", getId(), getTargetSpaceId());
                     addStatistic(statistic);
-                    addDownloadLinks(this);
+                    scanAndRegisterExportObjects(this, "");
                     updateJobStatus(this, executed);
                 }
             )
@@ -992,21 +994,13 @@ public class Export extends JDBCBasedJob<Export> {
             );
     }
 
-    protected void addDownloadLinks(Job j) {
+    protected void scanAndRegisterExportObjects(Job j, String emrSuffix) {
         Export export = ((Export) j); //TODO: Use this instance once scheduler is fixed
-        String emrSuffix = isEmrTransformation() ? EMRConfig.S3_PATH_SUFFIX : "";
 
         //Add file statistics and downloadLinks
         Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath(
             CService.jobS3Client.getS3Path(j, false) + emrSuffix);
         export.setExportObjects(exportObjects);
-
-        if (export.getSuperId() != null) {
-            //Add exportObjects including fresh download links for persistent base exports
-            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath(
-                CService.jobS3Client.getS3Path(j, true) + emrSuffix);
-            export.setSuperExportObjects(superExportObjects);
-        }
     }
 
     private static class EMRConfig {
@@ -1122,7 +1116,7 @@ public class Export extends JDBCBasedJob<Export> {
                     switch (jobState) {
                         case SUCCESS:
                             logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
-                            addDownloadLinks(this);
+                            scanAndRegisterExportObjects(this, EMRConfig.S3_PATH_SUFFIX);
                             //Update this job's state finally to "finalized"
                             updateJobStatus(this, finalized);
                             //Stop this thread
