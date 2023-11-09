@@ -176,9 +176,9 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
         final List<@NotNull Api> apiControllers = List.of(
             new HealthApi(this),
-            new ConnectorApi(this),
             new StorageApi(this),
             new SpaceApi(this),
+            new EventHandlerApi(this),
             new ReadFeatureApi(this),
             new WriteFeatureApi(this));
 

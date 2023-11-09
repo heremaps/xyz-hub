@@ -18,12 +18,10 @@
  */
 package com.here.naksha.app.service.http.apis;
 
-import static com.here.naksha.app.service.http.tasks.ConnectorApiTask.ConnectorApiReqType.CREATE_CONNECTOR;
-import static com.here.naksha.app.service.http.tasks.ConnectorApiTask.ConnectorApiReqType.GET_ALL_CONNECTORS;
+import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.CREATE_HANDLER;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
-import com.here.naksha.app.service.http.tasks.ConnectorApiTask;
-import com.here.naksha.lib.core.storage.*;
+import com.here.naksha.app.service.http.tasks.EventHandlerApiTask;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -31,36 +29,25 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ConnectorApi extends Api {
+public class EventHandlerApi extends Api {
 
-  private static final Logger logger = LoggerFactory.getLogger(ConnectorApi.class);
+  private static final Logger logger = LoggerFactory.getLogger(EventHandlerApi.class);
 
-  public ConnectorApi(final @NotNull NakshaHttpVerticle verticle) {
+  public EventHandlerApi(@NotNull NakshaHttpVerticle verticle) {
     super(verticle);
   }
 
   @Override
-  public void addOperations(final @NotNull RouterBuilder rb) {
-    // rb.operation("getConnectors").handler(this::getConnectors);
-    // rb.operation("postConnector").handler(this::createConnector);
+  public void addOperations(@NotNull RouterBuilder rb) {
+    rb.operation("createHandler").handler(this::createEventHandler);
   }
 
   @Override
-  public void addManualRoutes(final @NotNull Router router) {}
+  public void addManualRoutes(@NotNull Router router) {}
 
-  private void getConnectors(final @NotNull RoutingContext routingContext) {
-    new ConnectorApiTask<>(
-            GET_ALL_CONNECTORS,
-            verticle,
-            naksha(),
-            routingContext,
-            verticle.createNakshaContext(routingContext))
-        .start();
-  }
-
-  private void createConnector(final @NotNull RoutingContext routingContext) {
-    new ConnectorApiTask<>(
-            CREATE_CONNECTOR,
+  private void createEventHandler(final @NotNull RoutingContext routingContext) {
+    new EventHandlerApiTask<>(
+            CREATE_HANDLER,
             verticle,
             naksha(),
             routingContext,
