@@ -230,7 +230,7 @@ class NakshaAppTest {
   @Test
   @Order(2)
   void tc0060_testUpdateStorage() throws Exception {
-    // Test API : POST /hub/storages
+    // Test API : PUT /hub/storages/{storageId}
     // Given:
     final String updateStorageJson = loadFileOrFail("TC0060_updateStorage/update_storage.json");
     final String expectedRespBody = loadFileOrFail("TC0060_updateStorage/response.json");
@@ -253,7 +253,7 @@ class NakshaAppTest {
   @Test
   @Order(2)
   void tc0061_testUpdateNonexistentStorage() throws Exception {
-    // Test API : POST /hub/storages
+    // Test API : PUT /hub/storages/{storageId}
     // Given:
     final String updateStorageJson = loadFileOrFail("TC0061_updateNonexistentStorage/update_storage.json");
     final String expectedErrorResponse = loadFileOrFail("TC0061_updateNonexistentStorage/response.json");
@@ -276,7 +276,7 @@ class NakshaAppTest {
   @Test
   @Order(3)
   void tc0062_testUpdateStorageWithoutClassName() throws Exception {
-    // Test API : POST /hub/storages
+    // Test API : PUT /hub/storages/{storageId}
     // Given:
     final String updateStorageJson = loadFileOrFail("TC0062_updateStorageWithoutClassName/update_storage.json");
     final String expectedErrorResponse = loadFileOrFail("TC0062_updateStorageWithoutClassName/response.json");
