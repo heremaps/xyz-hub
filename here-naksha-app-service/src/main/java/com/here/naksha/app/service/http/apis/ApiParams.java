@@ -19,26 +19,16 @@
 package com.here.naksha.app.service.http.apis;
 
 import io.vertx.ext.web.RoutingContext;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class ApiParams {
   public static String SPACE_ID = "spaceId";
   public static String PREFIX_ID = "prefixId";
+  public static String FEATURE_ID = "featureId";
   public static String ADD_TAGS = "addTags";
   public static String REMOVE_TAGS = "removeTags";
-
-  public static @Nullable List<String> queryParamList(
-      final @NotNull RoutingContext routingContext, final @NotNull String param) {
-    return routingContext.queryParam(param);
-  }
-
-  public static @Nullable String queryParam(
-      final @NotNull RoutingContext routingContext, final @NotNull String param) {
-    final List<String> paramList = routingContext.queryParam(param);
-    return (paramList == null || paramList.isEmpty()) ? null : paramList.get(0);
-  }
+  public static String FEATURE_IDS = "id";
 
   public static @Nullable String pathParam(
       final @NotNull RoutingContext routingContext, final @NotNull String param) {

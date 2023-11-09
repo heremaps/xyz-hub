@@ -47,6 +47,7 @@ class NakshaAppTest {
   static HttpRequest stdHttpRequest;
 
   static CreateFeatureTestHelper createFeatureTests;
+  static ReadFeaturesByIdsTestHelper readFeaturesByIdsTests;
 
   @BeforeAll
   static void prepare() throws InterruptedException, URISyntaxException {
@@ -71,6 +72,7 @@ class NakshaAppTest {
 
     // create test helpers
     createFeatureTests = new CreateFeatureTestHelper(app, NAKSHA_HTTP_URI, httpClient, stdHttpRequest);
+    readFeaturesByIdsTests = new ReadFeaturesByIdsTestHelper(app, NAKSHA_HTTP_URI, httpClient, stdHttpRequest);
   }
 
   @Test
@@ -314,39 +316,87 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(6)
+  @Order(5)
   void tc0302_testCreateFeaturesWithPrefixId() throws Exception {
     createFeatureTests.tc0302_testCreateFeaturesWithPrefixId();
   }
 
   @Test
-  @Order(7)
+  @Order(5)
   void tc0303_testCreateFeaturesWithAddTags() throws Exception {
     createFeatureTests.tc0303_testCreateFeaturesWithAddTags();
   }
 
   @Test
-  @Order(8)
+  @Order(5)
   void tc0304_testCreateFeaturesWithRemoveTags() throws Exception {
     createFeatureTests.tc0304_testCreateFeaturesWithRemoveTags();
   }
 
   @Test
-  @Order(9)
+  @Order(5)
   void tc0305_testCreateFeaturesWithDupIds() throws Exception {
     createFeatureTests.tc0305_testCreateFeaturesWithDupIds();
   }
 
   @Test
-  @Order(11)
+  @Order(5)
   void tc0307_testCreateFeaturesWithNoHandler() throws Exception {
     createFeatureTests.tc0307_testCreateFeaturesWithNoHandler();
   }
 
   @Test
-  @Order(12)
+  @Order(5)
   void tc0308_testCreateFeaturesWithNoSpace() throws Exception {
     createFeatureTests.tc0308_testCreateFeaturesWithNoSpace();
+  }
+
+  @Test
+  @Order(6)
+  void tc0400_testReadFeaturesWithIds() throws Exception {
+    readFeaturesByIdsTests.tc0400_testReadFeaturesByIds();
+  }
+
+  @Test
+  @Order(7)
+  void tc0401_testReadFeaturesForMissingIds() throws Exception {
+    readFeaturesByIdsTests.tc0401_testReadFeaturesForMissingIds();
+  }
+
+  @Test
+  @Order(7)
+  void tc0402_testReadFeaturesWithoutIds() throws Exception {
+    readFeaturesByIdsTests.tc0402_testReadFeaturesWithoutIds();
+  }
+
+  @Test
+  @Order(7)
+  void tc0403_testReadFeaturesByIdsFromMissingSpace() throws Exception {
+    readFeaturesByIdsTests.tc0403_testReadFeaturesByIdsFromMissingSpace();
+  }
+
+  @Test
+  @Order(7)
+  void tc0404_testReadFeatureById() throws Exception {
+    readFeaturesByIdsTests.tc0404_testReadFeatureById();
+  }
+
+  @Test
+  @Order(7)
+  void tc0405_testReadFeatureForMissingId() throws Exception {
+    readFeaturesByIdsTests.tc0405_testReadFeatureForMissingId();
+  }
+
+  @Test
+  @Order(7)
+  void tc0406_testReadFeatureByIdFromMissingSpace() throws Exception {
+    readFeaturesByIdsTests.tc0406_testReadFeatureByIdFromMissingSpace();
+  }
+
+  @Test
+  @Order(7)
+  void tc0407_testReadFeaturesWithCommaSeparatedIds() throws Exception {
+    readFeaturesByIdsTests.tc0407_testReadFeaturesWithCommaSeparatedIds();
   }
 
   @AfterAll

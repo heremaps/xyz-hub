@@ -21,6 +21,7 @@ package com.here.naksha.app.service;
 import static com.here.naksha.app.common.TestUtil.*;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.app.service.models.FeatureCollectionRequest;
@@ -32,6 +33,7 @@ import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -63,15 +65,18 @@ public class CreateFeatureTestHelper {
   }
 
   private void standardAssertions(
-      final @NotNull String streamId,
-      final @NotNull HttpResponse<String> response,
+      final @NotNull HttpResponse<String> actualResponse,
+      final int expectedStatusCode,
       final @NotNull String expectedBodyPart,
-      final @NotNull String resBody)
+      final @NotNull String expectedStreamId)
       throws JSONException {
-    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    assertEquals(expectedStatusCode, actualResponse.statusCode(), "ResCode mismatch");
     JSONAssert.assertEquals(
-        "Create Feature response body doesn't match", expectedBodyPart, resBody, JSONCompareMode.LENIENT);
-    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+        "Create Feature response body doesn't match",
+        expectedBodyPart,
+        actualResponse.body(),
+        JSONCompareMode.LENIENT);
+    assertEquals(expectedStreamId, getHeader(actualResponse, HDR_STREAM_ID), "StreamId mismatch");
   }
 
   private void additionalCustomAssertions(
@@ -161,11 +166,10 @@ public class CreateFeatureTestHelper {
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    final String resBody = response.body();
-    standardAssertions(streamId, response, expectedBodyPart, resBody);
+    standardAssertions(response, 200, expectedBodyPart, streamId);
 
     // Then: also match individual JSON attributes (in addition to whole object comparison above)
-    additionalCustomAssertions(bodyJson, resBody, null);
+    additionalCustomAssertions(bodyJson, response.body(), null);
   }
 
   public void tc0301_testCreateFeaturesWithGivenIds() throws Exception {
@@ -193,11 +197,10 @@ public class CreateFeatureTestHelper {
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    final String resBody = response.body();
-    standardAssertions(streamId, response, expectedBodyPart, resBody);
+    standardAssertions(response, 200, expectedBodyPart, streamId);
 
     // Then: also match individual JSON attributes (in addition to whole object comparison above)
-    additionalCustomAssertions(bodyJson, resBody, null);
+    additionalCustomAssertions(bodyJson, response.body(), null);
   }
 
   public void tc0302_testCreateFeaturesWithPrefixId() throws Exception {
@@ -220,18 +223,18 @@ public class CreateFeatureTestHelper {
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
     request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features?prefixId=" + prefixId))
+        .uri(new URI(nakshaHttpUri + "hub/spaces/" + spaceId + "/features?prefixId="
+            + URLEncoder.encode(prefixId, UTF_8)))
         .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
         .header(HDR_STREAM_ID, streamId)
         .build();
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    final String resBody = response.body();
-    standardAssertions(streamId, response, expectedBodyPart, resBody);
+    standardAssertions(response, 200, expectedBodyPart, streamId);
 
     // Then: also match individual JSON attributes (in addition to whole object comparison above)
-    additionalCustomAssertions(bodyJson, resBody, prefixId);
+    additionalCustomAssertions(bodyJson, response.body(), prefixId);
   }
 
   public void tc0303_testCreateFeaturesWithAddTags() throws Exception {
@@ -246,9 +249,10 @@ public class CreateFeatureTestHelper {
     // Given: existing space
     final String spaceId = "um-mod-topology-dev";
     // Given: addTags API query param
-    final String tagQueryParam = "addTags=New_Normalized_Tag" + "&addTags=@New_Non_Normalized_Tag"
+    final String tagQueryParam = "addTags=New_Normalized_Tag"
+        + "&addTags=" + URLEncoder.encode("@New_Non_Normalized_Tag", UTF_8)
         + "&addTags=Existing_Normalized_Tag"
-        + "&addTags=@Existing_Non_Normalized_Tag";
+        + "&addTags=" + URLEncoder.encode("@Existing_Non_Normalized_Tag", UTF_8);
     // Given: Create Features request
     final String bodyJson = loadFileOrFail("TC0303_createFeaturesWithAddTags/create_features.json");
     final String expectedBodyPart = loadFileOrFail("TC0303_createFeaturesWithAddTags/feature_response_part.json");
@@ -263,11 +267,10 @@ public class CreateFeatureTestHelper {
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    final String resBody = response.body();
-    standardAssertions(streamId, response, expectedBodyPart, resBody);
+    standardAssertions(response, 200, expectedBodyPart, streamId);
 
     // Then: also match individual JSON attributes (in addition to whole object comparison above)
-    additionalCustomAssertions(bodyJson, resBody, null);
+    additionalCustomAssertions(bodyJson, response.body(), null);
   }
 
   public void tc0304_testCreateFeaturesWithRemoveTags() throws Exception {
@@ -282,8 +285,9 @@ public class CreateFeatureTestHelper {
     // Given: existing space
     final String spaceId = "um-mod-topology-dev";
     // Given: removeTags API query param
-    final String tagQueryParam = "removeTags=non_existing_tag" + "&removeTags=Existing_Normalized_Tag"
-        + "&removeTags=@Existing_Non_Normalized_Tag";
+    final String tagQueryParam = "removeTags=non_existing_tag"
+        + "&removeTags=Existing_Normalized_Tag"
+        + "&removeTags=" + URLEncoder.encode("@Existing_Non_Normalized_Tag", UTF_8);
     // Given: Create Features request
     final String bodyJson = loadFileOrFail("TC0304_createFeaturesWithRemoveTags/create_features.json");
     final String expectedBodyPart =
@@ -299,11 +303,10 @@ public class CreateFeatureTestHelper {
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    final String resBody = response.body();
-    standardAssertions(streamId, response, expectedBodyPart, resBody);
+    standardAssertions(response, 200, expectedBodyPart, streamId);
 
     // Then: also match individual JSON attributes (in addition to whole object comparison above)
-    additionalCustomAssertions(bodyJson, resBody, null);
+    additionalCustomAssertions(bodyJson, response.body(), null);
   }
 
   public void tc0305_testCreateFeaturesWithDupIds() throws Exception {
@@ -333,13 +336,7 @@ public class CreateFeatureTestHelper {
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    assertEquals(409, response.statusCode(), "ResCode mismatch");
-    JSONAssert.assertEquals(
-        "Create Feature response body doesn't match",
-        expectedBodyPart,
-        response.body(),
-        JSONCompareMode.LENIENT);
-    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+    standardAssertions(response, 409, expectedBodyPart, streamId);
   }
 
   public void tc0307_testCreateFeaturesWithNoHandler() throws Exception {
@@ -377,13 +374,7 @@ public class CreateFeatureTestHelper {
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    assertEquals(404, response.statusCode(), "ResCode mismatch");
-    JSONAssert.assertEquals(
-        "Create Feature response body doesn't match",
-        expectedBodyPart,
-        response.body(),
-        JSONCompareMode.LENIENT);
-    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+    standardAssertions(response, 404, expectedBodyPart, streamId);
   }
 
   public void tc0308_testCreateFeaturesWithNoSpace() throws Exception {
@@ -410,12 +401,6 @@ public class CreateFeatureTestHelper {
     response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
     // Then: Perform assertions
-    assertEquals(404, response.statusCode(), "ResCode mismatch");
-    JSONAssert.assertEquals(
-        "Create Feature response body doesn't match",
-        expectedBodyPart,
-        response.body(),
-        JSONCompareMode.LENIENT);
-    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+    standardAssertions(response, 404, expectedBodyPart, streamId);
   }
 }

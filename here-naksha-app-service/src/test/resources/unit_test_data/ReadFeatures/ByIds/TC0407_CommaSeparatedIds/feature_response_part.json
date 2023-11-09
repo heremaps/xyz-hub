@@ -2,16 +2,9 @@
   "type": "FeatureCollection",
   "features": [
     {
-      "id": "my-custom-id-304-1",
+      "id": "my-custom-id-400-1",
       "type": "Feature",
       "properties": {
-        "@ns:com:here:xyz": {
-          "tags": [
-            "existing_normalized_tag",
-            "@Existing_Non_Normalized_Tag",
-            "some_other_tag"
-          ]
-        },
         "speedLimit": "60"
       },
       "geometry": {
@@ -20,16 +13,9 @@
       }
     },
     {
-      "id": "my-custom-id-304-2",
+      "id": "my-custom-id-400-2",
       "type": "Feature",
       "properties": {
-        "@ns:com:here:xyz": {
-          "tags": [
-            "existing_normalized_tag",
-            "@Existing_Non_Normalized_Tag",
-            "some_other_tag"
-          ]
-        },
         "speedLimit": "80"
       },
       "geometry": {

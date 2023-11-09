@@ -18,12 +18,21 @@
  */
 package com.here.naksha.app.service.http.apis;
 
+import static com.here.naksha.app.service.http.tasks.ReadFeatureApiTask.ReadFeatureApiReqType.GET_BY_ID;
+import static com.here.naksha.app.service.http.tasks.ReadFeatureApiTask.ReadFeatureApiReqType.GET_BY_IDS;
+
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
+import com.here.naksha.app.service.http.tasks.ReadFeatureApiTask;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ReadFeatureApi extends Api {
+
+  private static final Logger logger = LoggerFactory.getLogger(ReadFeatureApi.class);
 
   public ReadFeatureApi(final @NotNull NakshaHttpVerticle verticle) {
     super(verticle);
@@ -31,9 +40,22 @@ public class ReadFeatureApi extends Api {
 
   @Override
   public void addOperations(final @NotNull RouterBuilder rb) {
-    // TODO : map API operations to respective controller methods
+    rb.operation("getFeature").handler(this::getFeatureById);
+    rb.operation("getFeatures").handler(this::getFeaturesById);
   }
 
   @Override
   public void addManualRoutes(final @NotNull Router router) {}
+
+  private void getFeaturesById(final @NotNull RoutingContext routingContext) {
+    new ReadFeatureApiTask<>(
+            GET_BY_IDS, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
+        .start();
+  }
+
+  private void getFeatureById(final @NotNull RoutingContext routingContext) {
+    new ReadFeatureApiTask<>(
+            GET_BY_ID, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
+        .start();
+  }
 }

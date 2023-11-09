@@ -156,6 +156,7 @@ public class NHAdminReaderMock implements IReadSession {
         }
         features.addAll(ids.stream()
             .map(id -> mockCollection.get(collectionName).get(id))
+            .filter(Objects::nonNull)
             .toList());
       }
     } else {
