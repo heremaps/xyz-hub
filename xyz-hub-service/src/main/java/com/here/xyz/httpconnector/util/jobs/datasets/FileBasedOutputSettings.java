@@ -6,7 +6,7 @@ import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
 
 public class FileBasedOutputSettings {
   private CSVFormat format = JSON_WKB;
-  private String partitionKey = "id";
+  private String partitionKey = "tileid";
   private int tileLevel = 12;
   private boolean clipped = false;
   private int maxTilesPerFile = 512;

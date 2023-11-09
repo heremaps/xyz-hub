@@ -463,6 +463,7 @@ public class Export extends JDBCBasedJob<Export> {
             setTargetLevel(files.getOutputSettings().getTileLevel());
             setClipped(files.getOutputSettings().isClipped());
             setMaxTilesPerFile(files.getOutputSettings().getMaxTilesPerFile());
+            setPartitionKey(files.getOutputSettings().getPartitionKey());
         }
     }
 
