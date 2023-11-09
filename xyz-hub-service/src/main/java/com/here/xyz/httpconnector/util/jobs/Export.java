@@ -55,6 +55,7 @@ import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.emr.EMRManager;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
+import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
 import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
@@ -212,8 +213,12 @@ public class Export extends JDBCBasedJob<Export> {
                 if(readParamCompositeMode() == FULL_OPTIMIZED && exportTarget.type.equals(DOWNLOAD)) {
                     //Override Target-Format to PARTITIONED_JSON_WKB
                     csvFormat = PARTITIONED_JSON_WKB;
+
                     if(targetLevel == null)
                         targetLevel = 12;
+
+                    if(getTarget() instanceof FileBasedTarget<?> fbt)
+                        fbt.getOutputSettings().setFormat(PARTITIONED_JSON_WKB);
                 }
 
                 SpaceContext context = readParamContext();
