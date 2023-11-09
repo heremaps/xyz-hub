@@ -101,7 +101,7 @@ paths:
     get:
       tags:
         - Manage Storages
-      summary: Get the storage with the specific ID
+      summary: Get the storage with the specific ID.
       description: >-
         Return the storage detail corresponding to the given ID if the current authenticated user has access to.
       operationId: getStorageById
@@ -115,16 +115,48 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/StoragesResponse'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
         '401':
           $ref: '#/components/responses/ErrorResponse401'
         '403':
           $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
         '429':
           $ref: '#/components/responses/ErrorResponse429'
         '500':
           $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+  '/hub/handlers':
+    post:
+      tags:
+        - Manage Event Handlers
+      summary: Create event handler.
+      description: Create a new event handler.
+      operationId: createHandler
+      responses:
+        '201':
+          $ref: '#/components/responses/HandlerResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
   '/hub/spaces/{spaceId}/features':
     post:
       tags:
@@ -166,6 +198,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+
 components:
   securitySchemes:
     AccessToken:
@@ -442,6 +475,22 @@ components:
                   title: "UniMap Moderation Dev Storage"
                   description: "UniMap Moderation storage for Dev environment, holding collections managed by Naksha service"
                   className: "com.here.naksha.lib.psql.PsqlStorage"
+    HandlerResponse:
+      description: The handler details.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/EventHandler'
+          examples:
+            response:
+              value:
+                id: "um-mod-dev"
+                type: "EventHandler"
+                title: "Storage Handler for UniMap Moderation Dev Storage"
+                description: "Default Naksha Storage Handler for operations on UniMap Moderation Dev Storage"
+                className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
+                properties:
+                  storageId: "ID"
   schemas:
     Error:
       type: object
@@ -687,6 +736,44 @@ components:
             The URL holding connectivity details about backend physical storage instance.
           type: string
           example: 'jdbc:postgresql://localhost:5432/db_name?user=db_user&password=db_passwd&schema=naksha_moderation_dev'
+    EventHandler:
+      type: object
+      description: >-
+        A configured event handler responsible for defining processing behaviour of incoming event, by internally using other event handler or backend storage implementation as applicable.
+      properties:
+        id:
+          description: The unique identifier of the event handler.
+          type: string
+        type:
+          description: The feature type fixed as "EventHandler".
+          type: string
+        title:
+          description: The handler title.
+          type: string
+        description:
+          description: The handler description in markdown format.
+          type: string
+        className:
+          description: The FQCN (Fully Qualified Class Name) which implements event handler interactions.
+          type: string
+        active:
+          description: Whether the handler is active.
+          type: boolean
+        extensionId:
+          description: If this handler is running on an external Naksha extention, the ID will be specified, null otherwise.
+          type: string
+        properties:
+          $ref: '#/components/schemas/HandlerProperties'
+    HandlerProperties:
+      type: object
+      description: >-
+        This object represents properties, as supported by default Naksha Handler implementation, but it can be customized as per custom handler implementation.
+      properties:
+        storageId:
+          description: The storage this handler is bound to.
+          type: string
+        storageCollection:
+          $ref: '#/components/schemas/StorageCollection'
     PsqlConfig:
       type: object
       description: >-
@@ -718,6 +805,27 @@ components:
           description: The maximum amount of concurrent connections this connector can use for storage operations.
           type: integer
           default: 20
+    StorageCollection:
+      type: object
+      description: A collection is a virtual container for features. All collections optionally have a history and transaction log.
+      properties:
+        id:
+          description: The unique storage ID.
+          type: string
+        type:
+          description: The data type fixed as "StorageCollection".
+          type: string
+        maxAge:
+          description: The maximum age of the history entries in days. Zero means no history.
+          type: number
+        history:
+          description: Toggle if the history is enabled.
+          type: boolean
+        deletedAt:
+          description: A value greater than zero implies that the collection shall be treated as deleted and represents the UTC Epoch timestamp in
+            milliseconds when the deletion has been done.
+          type: number
+
     XyzNamespace:
       type: object
       description: The XYZ namespace object managed by Naksha service
