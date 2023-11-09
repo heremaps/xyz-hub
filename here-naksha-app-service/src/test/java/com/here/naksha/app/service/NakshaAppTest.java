@@ -297,6 +297,30 @@ class NakshaAppTest {
   }
 
   @Test
+  @Order(3)
+  void tc0063_testUpdateStorageWithWithMismatchingId() throws Exception {
+    // Test API : PUT /hub/storages/{storageId}
+    // Given:
+    final String bodyWithDifferentStorageId =
+        loadFileOrFail("TC0063_updateStorageWithMismatchingId/update_storage.json");
+    final String expectedErrorResponse = loadFileOrFail("TC0063_updateStorageWithMismatchingId/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages/not-really-um-mod-dev"))
+        .PUT(HttpRequest.BodyPublishers.ofString(bodyWithDifferentStorageId))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then:
+    assertEquals(400, response.statusCode());
+    JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
   @Order(2)
   void tc0100_testCreateEventHandler() throws Exception {
     // Test API : POST /hub/handlers

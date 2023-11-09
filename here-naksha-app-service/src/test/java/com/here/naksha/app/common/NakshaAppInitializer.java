@@ -26,8 +26,7 @@ public class NakshaAppInitializer {
 
   private static final String MOCK_CONFIG_ID = "mock-config";
 
-  private NakshaAppInitializer() {
-  }
+  private NakshaAppInitializer() {}
 
   public static NakshaApp mockedNakshaApp() {
     return newInstance(MOCK_CONFIG_ID);
