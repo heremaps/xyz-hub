@@ -136,9 +136,7 @@ public class JDBCExporter extends JDBCClients {
                                           /** Build export for each tile of the weighted tile list */
                                           SQLQuery q2 = buildVMLExportQuery(job, schema, s3Bucket, s3Path, s3Region, tileList.get(i), qkQuery);
                                           
-                                          exportFutures.add( job.getCsvFormat() != PARTITIONED_JSON_WKB 
-                                                             ? exportTypeVML(job.getTargetConnector(), q2, job, s3Path) 
-                                                             : exportTypeDownload(job.getTargetConnector(), q2, job, s3Path) );
+                                          exportFutures.add( exportTypeVML(job.getTargetConnector(), q2, job, s3Path) );
 
                                        }
 
@@ -257,14 +255,22 @@ public class JDBCExporter extends JDBCClients {
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .map(row -> {
-                    Row res = row.iterator().next();
-                    if (res != null) {
+                    
+                    if( row.iterator().hasNext() )
+                    {
+                     Row res = row.iterator().next();
+                     if (res != null) {
                         return new Export.ExportStatistic()
                                 .withRowsUploaded(res.getLong("rows_uploaded"))
                                 .withFilesUploaded(res.getLong("files_uploaded"))
                                 .withBytesUploaded(res.getLong("bytes_uploaded"));
+                     }
                     }
-                    return null;
+
+                    return new Export.ExportStatistic()
+                                .withRowsUploaded(0)
+                                .withFilesUploaded(0)
+                                .withBytesUploaded(0);
                 });
     }
 
