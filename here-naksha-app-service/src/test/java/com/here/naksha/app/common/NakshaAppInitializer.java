@@ -26,7 +26,8 @@ public class NakshaAppInitializer {
 
   private static final String MOCK_CONFIG_ID = "mock-config";
 
-  private NakshaAppInitializer() {}
+  private NakshaAppInitializer() {
+  }
 
   public static NakshaApp mockedNakshaApp() {
     return newInstance(MOCK_CONFIG_ID);
@@ -35,11 +36,14 @@ public class NakshaAppInitializer {
   public static NakshaApp localPsqlBasedNakshaApp() {
     String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
-    if (password == null) password = "password";
-    if (dbUrl == null)
+    if (password == null) {
+      password = "password";
+    }
+    if (dbUrl == null) {
       dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
           + "&schema=naksha_test_maint_app";
+    }
 
-    return newInstance("mock-config", dbUrl);
+    return newInstance(MOCK_CONFIG_ID, dbUrl);
   }
 }
