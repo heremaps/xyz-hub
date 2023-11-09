@@ -94,7 +94,6 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     }
   }
 
-  // TODO(Kuba): what about invalid request body? We should not return 5xx, rather 4xx
   private @NotNull XyzResponse executeUpdateStorage() throws JsonProcessingException {
     final Storage storage = storageFromRequestBody();
     final WriteFeatures<Storage> updateStorageReq = RequestHelper.updateFeatureRequest(STORAGES, storage);
@@ -115,7 +114,7 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     return transformReadResultToXyzFeatureResponse(rdResult, Storage.class);
   }
 
-  private @NotNull XyzResponse executeCreateStorage() throws Exception {
+  private @NotNull XyzResponse executeCreateStorage() throws JsonProcessingException {
     final Storage newStorage = storageFromRequestBody();
     final WriteFeatures<Storage> wrRequest = RequestHelper.createFeatureRequest(STORAGES, newStorage, false);
     final Result wrResult = executeWriteRequest(wrRequest);
@@ -134,7 +133,6 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     }
   }
 
-  // TODO(Kuba): make sure about project exception policy
   private @NotNull Storage storageFromRequestBody() throws JsonProcessingException {
     try (final Json json = Json.get()) {
       final String bodyJson = routingContext.body().asString();
