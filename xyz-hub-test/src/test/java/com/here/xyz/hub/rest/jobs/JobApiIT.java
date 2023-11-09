@@ -560,7 +560,8 @@ public class JobApiIT extends TestSpaceWithFeature {
             assertEquals(expectedFeatureCount.intValue(), result.split("'\"id'\"", -1).length-1);
 
         for (String word : csvMustContain) {
-            assertNotEquals(-1, result.indexOf(word));
+            if(result.indexOf(word) == -1)
+                fail("CSV is MISSING: "+word);
         }
 
         return result;

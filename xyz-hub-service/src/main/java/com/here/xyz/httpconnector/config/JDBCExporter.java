@@ -139,9 +139,7 @@ public class JDBCExporter extends JDBCClients {
                                           /** Build export for each tile of the weighted tile list */
                                           SQLQuery q2 = buildVMLExportQuery(job, schema, s3Bucket, s3Path, s3Region, tileList.get(i), qkQuery);
                                           
-                                          exportFutures.add( job.getCsvFormat() != PARTITIONED_JSON_WKB 
-                                                             ? exportTypeVML(job.getTargetConnector(), q2, job, s3Path) 
-                                                             : exportTypeDownload(job.getTargetConnector(), q2, job, s3Path) );
+                                          exportFutures.add( exportTypeVML(job.getTargetConnector(), q2, job, s3Path) );
 
                                        }
 
@@ -260,14 +258,22 @@ public class JDBCExporter extends JDBCClients {
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
                 .map(row -> {
-                    Row res = row.iterator().next();
-                    if (res != null) {
+                    
+                    if( row.iterator().hasNext() )
+                    {
+                     Row res = row.iterator().next();
+                     if (res != null) {
                         return new Export.ExportStatistic()
                                 .withRowsUploaded(res.getLong("rows_uploaded"))
                                 .withFilesUploaded(res.getLong("files_uploaded"))
                                 .withBytesUploaded(res.getLong("bytes_uploaded"));
+                     }
                     }
-                    return null;
+
+                    return new Export.ExportStatistic()
+                                .withRowsUploaded(0)
+                                .withFilesUploaded(0)
+                                .withBytesUploaded(0);
                 });
     }
 
@@ -460,8 +466,8 @@ public class JDBCExporter extends JDBCClients {
         if (params != null && params.get("versionsToKeep") != null)
             event.setVersionsToKeep((int)params.get("versionsToKeep"));
 
-        if (params != null && params.get("context") != null) {
-            ContextAwareEvent.SpaceContext context = ContextAwareEvent.SpaceContext.of((String) params.get("context"));
+        if (params != null && params.get(Export.PARAM_CONTEXT) != null) {
+            ContextAwareEvent.SpaceContext context = ContextAwareEvent.SpaceContext.of(params.get(Export.PARAM_CONTEXT).toString());
 
             //TODO: Remove the following hack and perform the switch to super within connector (GetFeatures QR) instead
             if (context == SUPER) {

@@ -297,8 +297,7 @@ public class JobS3Client extends AwsS3Client{
 
         return String.join("/", new String[]{
                 subFolder,
-                jobId,
-                ((Export) job).getHashForPersistentStorage()
+                jobId
          });
     }
 
