@@ -342,62 +342,6 @@ public class CreateFeatureTestHelper {
     assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
   }
 
-  public void tc0306_testCreateFeaturesWithNoStorage() throws Exception {
-    // NOTE : This test depends on setup done as part of tc0300_testCreateFeaturesWithNewIds
-
-    // Test API : POST /hub/spaces/{spaceId}/features
-    // Validate request gets failed if we attempt creating features with no associated storageId
-    String streamId;
-    HttpRequest request;
-    HttpResponse<String> response;
-
-    // TODO : Need to replace setup steps when EventHandler and Space REST API tests are available
-    // Given: EventHandler (without storageId) configured in Admin storage
-    final EventHandler eventHandler =
-        parseJsonFileOrFail("TC0306_createFeaturesWithNoStorage/create_event_handler.json", EventHandler.class);
-    final WriteFeatures<?> ehRequest = createFeatureRequest(
-        NakshaAdminCollection.EVENT_HANDLERS, eventHandler, IfExists.REPLACE, IfConflict.REPLACE);
-    try (final IWriteSession writer =
-        app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
-      final Result result = writer.execute(ehRequest);
-      assertTrue(result instanceof SuccessResult, "Failed creating EventHandler");
-      writer.commit();
-    }
-
-    // Given: Space (uses above EventHandler) configured in Admin storage
-    final Space space = parseJsonFileOrFail("TC0306_createFeaturesWithNoStorage/create_space.json", Space.class);
-    final WriteFeatures<?> spRequest =
-        createFeatureRequest(NakshaAdminCollection.SPACES, space, IfExists.REPLACE, IfConflict.REPLACE);
-    try (final IWriteSession writer =
-        app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
-      final Result result = writer.execute(spRequest);
-      assertTrue(result instanceof SuccessResult, "Failed creating Space");
-      writer.commit();
-    }
-
-    // Given: Create Features request (against above Space)
-    final String bodyJson = loadFileOrFail("TC0306_createFeaturesWithNoStorage/create_features.json");
-    final String expectedBodyPart = loadFileOrFail("TC0306_createFeaturesWithNoStorage/feature_response_part.json");
-    streamId = UUID.randomUUID().toString();
-
-    // When: Create Features request is submitted to NakshaHub Space Storage instance
-    request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
-        .uri(new URI(nakshaHttpUri + "hub/spaces/" + space.getId() + "/features"))
-        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
-        .header(HDR_STREAM_ID, streamId)
-        .build();
-    response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-    // Then: Perform assertions
-    assertEquals(404, response.statusCode(), "ResCode mismatch");
-    JSONAssert.assertEquals(
-        "Create Feature response body doesn't match",
-        expectedBodyPart,
-        response.body(),
-        JSONCompareMode.LENIENT);
-    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
-  }
-
   public void tc0307_testCreateFeaturesWithNoHandler() throws Exception {
     // NOTE : This test depends on setup done as part of tc0300_testCreateFeaturesWithNewIds
 

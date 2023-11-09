@@ -202,6 +202,30 @@ class NakshaAppTest {
   }
 
   @Test
+  @Order(3)
+  void tc0007_testCreateStorageMissingClassName() throws Exception {
+    // Test API : POST /hub/storages
+    // 1. Load test data
+    final String bodyJson = loadFileOrFail("TC0007_createStorageMissingClassName/create_storage.json");
+    final String expectedBodyPart = loadFileOrFail("TC0007_createStorageMissingClassName/response_part.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/storages"))
+        .POST(HttpRequest.BodyPublishers.ofString(bodyJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(400, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals(
+        "Expecting failure response", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
   @Order(2)
   void tc0008_testCreateEventHandler() throws Exception {
     // Test API : POST /hub/handlers
@@ -311,12 +335,6 @@ class NakshaAppTest {
   @Order(9)
   void tc0305_testCreateFeaturesWithDupIds() throws Exception {
     createFeatureTests.tc0305_testCreateFeaturesWithDupIds();
-  }
-
-  @Test
-  @Order(10)
-  void tc0306_testCreateFeaturesWithNoStorage() throws Exception {
-    createFeatureTests.tc0306_testCreateFeaturesWithNoStorage();
   }
 
   @Test

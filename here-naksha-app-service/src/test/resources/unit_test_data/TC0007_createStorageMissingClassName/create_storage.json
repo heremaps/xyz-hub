@@ -1,0 +1,7 @@
+{
+  "id": "invalid-storage-missing-classname",
+  "type": "Storage",
+  "title": "Invalid storage for test purpose",
+  "description": "Testing Storage creation when classname is missing",
+  "className": ""
+}
