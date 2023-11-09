@@ -570,7 +570,7 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public SpaceContext readParamContext() {
-        return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf((String) this.params.get(PARAM_CONTEXT)) : null;
+        return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf(this.params.get(PARAM_CONTEXT).toString()) : null;
     }
 
     public CompositeMode readParamCompositeMode() {
