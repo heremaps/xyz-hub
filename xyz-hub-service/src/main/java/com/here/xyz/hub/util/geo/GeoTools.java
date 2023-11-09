@@ -217,9 +217,12 @@ public class GeoTools {
     
     degGeo = JTS.transform(mtrGeo, convertFromMeter);
     Envelope envelope = degGeo.getEnvelopeInternal();
-    boolean rval =  ( envelope.getMinX() * envelope.getMaxX() ) < 0;
 
-    return rval; 
+    boolean r1 = envelope.intersects( 179.999995, envelope.centre().y),
+            r2 = envelope.intersects(-179.999995, envelope.centre().y),
+            r3 = ( envelope.getMinX() * envelope.getMaxX() ) < 0;
+    
+    return (r1 || r2) && r3; 
   }
 
 }
