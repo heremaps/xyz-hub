@@ -622,13 +622,6 @@ components:
               MultiPolygon: '#/components/schemas/MultiPolygon'
               Point: '#/components/schemas/Point'
               Polygon: '#/components/schemas/Polygon'
-          anyOf:
-            - $ref: '#/components/schemas/LineString'
-            - $ref: '#/components/schemas/MultiLineString'
-            - $ref: '#/components/schemas/MultiPoint'
-            - $ref: '#/components/schemas/MultiPolygon'
-            - $ref: '#/components/schemas/Point'
-            - $ref: '#/components/schemas/Polygon'
     Feature:
       allOf:
         - $ref: '#/components/schemas/GeoJSON'
@@ -639,7 +632,13 @@ components:
               description: The unique identifier of the feature.
               type: string
             geometry:
-              $ref: '#/components/schemas/Geometry'
+              oneOf:
+                - $ref: '#/components/schemas/LineString'
+                - $ref: '#/components/schemas/MultiLineString'
+                - $ref: '#/components/schemas/MultiPoint'
+                - $ref: '#/components/schemas/MultiPolygon'
+                - $ref: '#/components/schemas/Point'
+                - $ref: '#/components/schemas/Polygon'
             properties:
               type: object
               description: The properties of the feature.
