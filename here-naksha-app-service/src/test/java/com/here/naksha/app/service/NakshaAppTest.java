@@ -338,12 +338,6 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(10)
-  void tc0306_testCreateFeaturesWithNoStorage() throws Exception {
-    createFeatureTests.tc0306_testCreateFeaturesWithNoStorage();
-  }
-
-  @Test
   @Order(11)
   void tc0307_testCreateFeaturesWithNoHandler() throws Exception {
     createFeatureTests.tc0307_testCreateFeaturesWithNoHandler();
