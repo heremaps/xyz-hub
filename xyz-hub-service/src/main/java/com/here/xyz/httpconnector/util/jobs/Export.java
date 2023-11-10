@@ -211,15 +211,14 @@ public class Export extends JDBCBasedJob<Export> {
                     params.remove(PARAM_COMPOSITE_MODE);
                 }
 
-                if(readParamCompositeMode() == FULL_OPTIMIZED && exportTarget.type.equals(DOWNLOAD)) {
+                if (readParamCompositeMode() == FULL_OPTIMIZED && exportTarget.type.equals(DOWNLOAD)) {
                     //Override Target-Format to PARTITIONED_JSON_WKB
                     csvFormat = PARTITIONED_JSON_WKB;
-                    if(targetLevel == null)
+                    if (getTarget() instanceof FileBasedTarget<?> fbt)
+                        fbt.getOutputSettings().setFormat(PARTITIONED_JSON_WKB);
+                    if (targetLevel == null)
                         targetLevel = 12;
                 }
-
-                if(getTarget() instanceof FileBasedTarget<?> fbt)
-                    fbt.getOutputSettings().setFormat(PARTITIONED_JSON_WKB);
 
                 SpaceContext context = readParamContext();
                 if (readParamExtends() != null && context == null)
