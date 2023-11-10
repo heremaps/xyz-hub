@@ -298,10 +298,8 @@ public class Export extends JDBCBasedJob<Export> {
         }
 
         if (getEstimatedFeatureCount() > 1000000 //searchable limit without index
-            && getPartitionKey() != null && !"id".equals(getPartitionKey())
-            && searchableProperties != null
-            && !searchableProperties.containsKey(getPartitionKey().replaceFirst("^(p|properties)\\." ,""))
-            && !"tileid".equals(getPartitionKey()))
+            && getPartitionKey() != null && !"id".equals(getPartitionKey()) && !"tileid".equals(getPartitionKey())
+            && (searchableProperties == null || !searchableProperties.containsKey(getPartitionKey().replaceFirst("^(p|properties)\\." ,""))))
             throw new HttpException(BAD_REQUEST, "partitionKey [" + getPartitionKey() + "] is not a searchable property");
 
         return this;
