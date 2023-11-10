@@ -18,11 +18,20 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import static com.here.naksha.lib.core.NakshaAdminCollection.SPACES;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.util.storage.RequestHelper;
+import com.here.naksha.lib.core.view.ViewDeserialize;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -31,6 +40,7 @@ import org.slf4j.LoggerFactory;
 public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResponse> {
 
   private static final Logger logger = LoggerFactory.getLogger(SpaceApiTask.class);
+  private static final String SPACE_ID_PATH_KEY = "spaceId";
   private final @NotNull SpaceApiReqType reqType;
 
   public enum SpaceApiReqType {
@@ -65,12 +75,11 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
   @Override
   protected @NotNull XyzResponse execute() {
     try {
-      switch (this.reqType) {
-        case GET_ALL_SPACES:
-          return executeGetSpaces();
-        default:
-          return executeUnsupported();
-      }
+      return switch (this.reqType) {
+        case CREATE_SPACE -> executeCreateSpace();
+        case UPDATE_SPACE -> executeUpdateSpace();
+        default -> executeUnsupported();
+      };
     } catch (Exception ex) {
       // unexpected exception
       return verticle.sendErrorResponse(
@@ -78,7 +87,35 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
     }
   }
 
-  private @NotNull XyzResponse executeGetSpaces() {
-    return executeUnsupported();
+  private @NotNull XyzResponse executeCreateSpace() throws JsonProcessingException {
+    final Space newSpace = spaceFromRequestBody();
+    final WriteFeatures<Space> wrRequest = RequestHelper.createFeatureRequest(SPACES, newSpace, false);
+    final Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest);
+    return transformWriteResultToXyzFeatureResponse(wrResult, Space.class);
+  }
+
+  private @NotNull XyzResponse executeUpdateSpace() throws JsonProcessingException {
+    final String spaceIdFromPath = routingContext.pathParam(SPACE_ID_PATH_KEY);
+    final Space spaceFromBody = spaceFromRequestBody();
+    if (!spaceFromBody.getId().equals(spaceIdFromPath)) {
+      return verticle.sendErrorResponse(
+          routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(spaceIdFromPath, spaceFromBody));
+    } else {
+      final WriteFeatures<Space> updateSpaceReq = RequestHelper.updateFeatureRequest(SPACES, spaceFromBody);
+      final Result updateSpaceResult = executeWriteRequestFromSpaceStorage(updateSpaceReq);
+      return transformWriteResultToXyzFeatureResponse(updateSpaceResult, Space.class);
+    }
+  }
+
+  private Space spaceFromRequestBody() throws JsonProcessingException {
+    try (final Json json = Json.get()) {
+      final String bodyJson = routingContext.body().asString();
+      return json.reader(ViewDeserialize.User.class).forType(Space.class).readValue(bodyJson);
+    }
+  }
+
+  private static String mismatchMsg(String spaceIdFromPath, Space spaceFromBody) {
+    return "Mismatch between space ids. Path space id: %s, body space id: %s"
+        .formatted(spaceIdFromPath, spaceFromBody.getId());
   }
 }

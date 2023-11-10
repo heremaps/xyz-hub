@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "IllegalArgument",
+  "errorMessage": "Mismatch between space ids. Path space id: test-space, body space id: other-test-space"
+}

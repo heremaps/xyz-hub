@@ -19,11 +19,11 @@
 package com.here.naksha.app.service.http.apis;
 
 import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.CREATE_SPACE;
-import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.GET_ALL_SPACES;
+import static com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType.UPDATE_SPACE;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.SpaceApiTask;
-import com.here.naksha.lib.core.storage.*;
+import com.here.naksha.app.service.http.tasks.SpaceApiTask.SpaceApiReqType;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -41,26 +41,23 @@ public class SpaceApi extends Api {
 
   @Override
   public void addOperations(final @NotNull RouterBuilder rb) {
-    // rb.operation("getSpaces").handler(this::getSpaces);
-    // rb.operation("postSpace").handler(this::createSpace);
+    rb.operation("postSpace").handler(this::createSpace);
+    rb.operation("putSpace").handler(this::updateSpace);
   }
 
   @Override
   public void addManualRoutes(final @NotNull Router router) {}
 
-  private void getSpaces(final @NotNull RoutingContext routingContext) {
-    new SpaceApiTask<>(
-            GET_ALL_SPACES,
-            verticle,
-            naksha(),
-            routingContext,
-            verticle.createNakshaContext(routingContext))
-        .start();
+  private void createSpace(final @NotNull RoutingContext routingContext) {
+    startSpaceApiTask(CREATE_SPACE, routingContext);
   }
 
-  private void createSpace(final @NotNull RoutingContext routingContext) {
-    new SpaceApiTask<>(
-            CREATE_SPACE, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
+  private void updateSpace(final @NotNull RoutingContext routingContext) {
+    startSpaceApiTask(UPDATE_SPACE, routingContext);
+  }
+
+  private void startSpaceApiTask(SpaceApiReqType reqType, RoutingContext routingContext) {
+    new SpaceApiTask<>(reqType, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
         .start();
   }
 }

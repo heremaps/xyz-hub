@@ -43,7 +43,7 @@ public class EventHandlerApi extends Api {
 
   @Override
   public void addOperations(@NotNull RouterBuilder rb) {
-    rb.operation("createHandler").handler(this::createEventHandler);
+    rb.operation("postHandler").handler(this::createEventHandler);
     rb.operation("getHandlers").handler(this::getEventHandlers);
     rb.operation("getHandlerById").handler(this::getEventHandlerById);
     rb.operation("updateHandler").handler(this::updateEventHandler);
