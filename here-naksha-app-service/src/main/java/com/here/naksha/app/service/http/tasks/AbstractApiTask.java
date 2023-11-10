@@ -27,10 +27,9 @@ import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
-import com.here.naksha.lib.core.models.storage.ReadResult;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteResult;
+import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.core.storage.IWriteSession;
 import io.vertx.ext.web.RoutingContext;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -187,5 +186,17 @@ public abstract class AbstractApiTask<T extends XyzResponse>
         routingContext,
         XyzError.EXCEPTION,
         "Unsupported result type : " + wrResult.getClass().getSimpleName());
+  }
+
+  protected Result executeReadRequestFromSpaceStorage(ReadFeatures readRequest) {
+    try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
+      return reader.execute(readRequest);
+    }
+  }
+
+  protected Result executeWriteRequestFromSpaceStorage(WriteFeatures<?> writeRequest) {
+    try (final IWriteSession writer = naksha().getSpaceStorage().newWriteSession(context(), true)) {
+      return writer.execute(writeRequest);
+    }
   }
 }

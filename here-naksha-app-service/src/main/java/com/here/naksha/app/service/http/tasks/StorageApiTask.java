@@ -32,8 +32,6 @@ import com.here.naksha.lib.core.models.storage.PRef;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteFeatures;
-import com.here.naksha.lib.core.storage.IReadSession;
-import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
@@ -103,41 +101,29 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     } else {
       final WriteFeatures<Storage> updateStorageReq =
           RequestHelper.updateFeatureRequest(STORAGES, storageFromBody);
-      final Result updateStorageResult = executeWriteRequest(updateStorageReq);
+      final Result updateStorageResult = executeWriteRequestFromSpaceStorage(updateStorageReq);
       return transformWriteResultToXyzFeatureResponse(updateStorageResult, Storage.class);
     }
   }
 
   private @NotNull XyzResponse executeGetStorages() {
     final ReadFeatures request = new ReadFeatures(STORAGES);
-    final Result rdResult = executeReadRequest(request);
+    final Result rdResult = executeReadRequestFromSpaceStorage(request);
     return transformReadResultToXyzCollectionResponse(rdResult, Storage.class);
   }
 
   private @NotNull XyzResponse executeGetStorageById() {
     final String storageId = routingContext.pathParam(STORAGE_ID_PATH_KEY);
     final ReadFeatures request = new ReadFeatures(STORAGES).withPropertyOp(POp.eq(PRef.id(), storageId));
-    final Result rdResult = executeReadRequest(request);
+    final Result rdResult = executeReadRequestFromSpaceStorage(request);
     return transformReadResultToXyzFeatureResponse(rdResult, Storage.class);
   }
 
   private @NotNull XyzResponse executeCreateStorage() throws JsonProcessingException {
     final Storage newStorage = storageFromRequestBody();
     final WriteFeatures<Storage> wrRequest = RequestHelper.createFeatureRequest(STORAGES, newStorage, false);
-    final Result wrResult = executeWriteRequest(wrRequest);
+    final Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest);
     return transformWriteResultToXyzFeatureResponse(wrResult, Storage.class);
-  }
-
-  private Result executeWriteRequest(WriteFeatures<Storage> writeRequest) {
-    try (final IWriteSession writer = naksha().getSpaceStorage().newWriteSession(context(), true)) {
-      return writer.execute(writeRequest);
-    }
-  }
-
-  private Result executeReadRequest(ReadFeatures readRequest) {
-    try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
-      return reader.execute(readRequest);
-    }
   }
 
   private @NotNull Storage storageFromRequestBody() throws JsonProcessingException {

@@ -18,10 +18,9 @@
  */
 package com.here.naksha.app.service.http.apis;
 
-import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.CREATE_HANDLER;
-
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.EventHandlerApiTask;
+import com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -40,18 +39,28 @@ public class EventHandlerApi extends Api {
   @Override
   public void addOperations(@NotNull RouterBuilder rb) {
     rb.operation("createHandler").handler(this::createEventHandler);
+    rb.operation("getHandlers").handler(this::getEventHandlers);
+    rb.operation("getHandlerById").handler(this::getEventHandlerById);
   }
 
   @Override
   public void addManualRoutes(@NotNull Router router) {}
 
   private void createEventHandler(final @NotNull RoutingContext routingContext) {
+    startHandlerApiTask(EventHandlerApiReqType.CREATE_HANDLER, routingContext);
+  }
+
+  private void getEventHandlers(final @NotNull RoutingContext routingContext) {
+    startHandlerApiTask(EventHandlerApiReqType.GET_ALL_HANDLERS, routingContext);
+  }
+
+  private void getEventHandlerById(final @NotNull RoutingContext routingContext) {
+    startHandlerApiTask(EventHandlerApiReqType.GET_HANDLER_BY_ID, routingContext);
+  }
+
+  private void startHandlerApiTask(EventHandlerApiReqType reqType, RoutingContext routingContext) {
     new EventHandlerApiTask<>(
-            CREATE_HANDLER,
-            verticle,
-            naksha(),
-            routingContext,
-            verticle.createNakshaContext(routingContext))
+            reqType, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
         .start();
   }
 }

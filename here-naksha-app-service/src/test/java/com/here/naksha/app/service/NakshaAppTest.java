@@ -396,6 +396,72 @@ class NakshaAppTest {
   }
 
   @Test
+  @Order(3)
+  void tc0120_testGetHandlerById() throws Exception {
+    // Test API : GET /hub/handlers/{handlerId}
+    // 1. Load test data
+    final String expectedBodyPart = loadFileOrFail("TC0100_createEventHandler/response_create_1.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/test-handler"))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals(
+        "Expecting handler response", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(3)
+  void tc0121_testGetHandlerByWrongId() throws Exception {
+    // Test API : GET /hub/handlers/{handlerId}
+    // 1. Load test data
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/not-real-handler"))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(404, response.statusCode(), "ResCode mismatch");
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(3)
+  void tc0140_testGetHandlers() throws Exception {
+    // Test API : GET /hub/handlers
+    // 1. Load test data
+    final String expectedBodyPart = loadFileOrFail("TC0140_getHandlers/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers"))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals(
+        "Expecting previously created handler", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
   @Order(4)
   void tc0300_testCreateFeaturesWithNewIds() throws Exception {
     createFeatureTests.tc0300_testCreateFeaturesWithNewIds();

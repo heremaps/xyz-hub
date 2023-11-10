@@ -114,7 +114,7 @@ paths:
             type: string
       responses:
         '200':
-          $ref: '#/components/responses/StoragesResponse'
+          $ref: '#/components/responses/StorageResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse401'
         '403':
@@ -183,6 +183,60 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+    get:
+      tags:
+        - Manage Event Handlers
+      summary: List event handlers
+      description: Lists the event handlers, which the current authenticated user has access to.
+      operationId: getHandlers
+      responses:
+        '200':
+          $ref: '#/components/responses/HandlersResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+  '/hub/handlers/{handlerId}':
+    get:
+      tags:
+        - Manage Event Handlers
+      summary: Get the event handler with the specific ID.
+      description: Return the handler detail corresponding to the given ID if the current authenticated user has access to.
+      operationId: getHandlerById
+      parameters:
+        - name: handlerId
+          in: path
+          description: ID of event handler to fetch
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/HandlerResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
         '429':
           $ref: '#/components/responses/ErrorResponse429'
         '500':
@@ -652,6 +706,24 @@ components:
                 className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
                 properties:
                   storageId: "ID"
+    HandlersResponse:
+      description: The list of event handlers.
+      content:
+        application/json:
+          schema:
+            items:
+              $ref: '#/components/schemas/EventHandler'
+            type: array
+          examples:
+            response:
+              value:
+                - id: "um-mod-dev"
+                  type: "EventHandler"
+                  title: "Storage Handler for UniMap Moderation Dev Storage"
+                  description: "Default Naksha Storage Handler for operations on UniMap Moderation Dev Storage"
+                  className: "com.here.naksha.lib.handlers.DefaultStorageHandler"
+                  properties:
+                    storageId: "ID"
   schemas:
     Error:
       type: object

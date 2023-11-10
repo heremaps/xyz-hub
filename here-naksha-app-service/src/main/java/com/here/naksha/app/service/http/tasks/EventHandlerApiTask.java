@@ -18,16 +18,16 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
-import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
@@ -37,6 +37,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResponse> {
+
+  private static final String HANDLER_ID_PATH_KEY = "handlerId";
 
   private static final Logger logger = LoggerFactory.getLogger(EventHandlerApiTask.class);
 
@@ -68,6 +70,8 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     try {
       return switch (reqType) {
         case CREATE_HANDLER -> executeCreateHandler();
+        case GET_ALL_HANDLERS -> executeGetHandlers();
+        case GET_HANDLER_BY_ID -> executeGetHandlerById();
         default -> executeUnsupported();
       };
     } catch (Exception ex) {
@@ -79,19 +83,38 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
 
   private @NotNull XyzResponse executeCreateHandler() throws Exception {
     // Read request JSON
-    EventHandler newHandler = null;
+    final EventHandler newHandler = handlerFromRequestBody();
+    final WriteFeatures<EventHandler> writeRequest =
+        RequestHelper.createFeatureRequest(EVENT_HANDLERS, newHandler, false);
+    // persist new handler in Admin DB (if doesn't exist already)
+    final Result writeResult = executeWriteRequestFromSpaceStorage(writeRequest);
+    return transformWriteResultToXyzFeatureResponse(writeResult, EventHandler.class);
+  }
+
+  private @NotNull XyzResponse executeGetHandlers() {
+    // Create ReadFeatures Request to read all handlers from Admin DB
+    final ReadFeatures request = new ReadFeatures(EVENT_HANDLERS);
+    // Submit request to NH Space Storage
+    final Result rdResult = executeReadRequestFromSpaceStorage(request);
+    // transform ReadResult to Http FeatureCollection response
+    return transformReadResultToXyzCollectionResponse(rdResult, EventHandler.class);
+  }
+
+  private @NotNull XyzResponse executeGetHandlerById() {
+    // Create ReadFeatures Request to read the handler with the specific ID from Admin DB
+    final String handlerId = routingContext.pathParam(HANDLER_ID_PATH_KEY);
+    final ReadFeatures request = new ReadFeatures(EVENT_HANDLERS).withPropertyOp(POp.eq(PRef.id(), handlerId));
+    // Submit request to NH Space Storage
+    final Result rdResult = executeReadRequestFromSpaceStorage(request);
+    return transformReadResultToXyzFeatureResponse(rdResult, EventHandler.class);
+  }
+
+  private @NotNull EventHandler handlerFromRequestBody() throws JsonProcessingException {
     try (final Json json = Json.get()) {
       final String bodyJson = routingContext.body().asString();
-      newHandler = json.reader(ViewDeserialize.User.class)
+      return json.reader(ViewDeserialize.User.class)
           .forType(EventHandler.class)
           .readValue(bodyJson);
-    }
-    // persist new handler in Admin DB (if doesn't exist already)
-    try (final IWriteSession writeSession = naksha().getSpaceStorage().newWriteSession(context(), true)) {
-      final WriteFeatures<EventHandler> writeRequest =
-          RequestHelper.createFeatureRequest(NakshaAdminCollection.EVENT_HANDLERS, newHandler, false);
-      final Result writeResult = writeSession.execute(writeRequest);
-      return transformWriteResultToXyzFeatureResponse(writeResult, EventHandler.class);
     }
   }
 }
