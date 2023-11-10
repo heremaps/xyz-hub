@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "IllegalArgument",
+  "errorMessage": "Mismatch between event handler ids. Path event handler id: test-handler, body event handler id: other-test-handler"
+}

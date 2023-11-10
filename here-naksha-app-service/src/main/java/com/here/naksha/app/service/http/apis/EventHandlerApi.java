@@ -18,6 +18,11 @@
  */
 package com.here.naksha.app.service.http.apis;
 
+import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.CREATE_HANDLER;
+import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.GET_ALL_HANDLERS;
+import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.GET_HANDLER_BY_ID;
+import static com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType.UPDATE_HANDLER;
+
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.EventHandlerApiTask;
 import com.here.naksha.app.service.http.tasks.EventHandlerApiTask.EventHandlerApiReqType;
@@ -41,21 +46,26 @@ public class EventHandlerApi extends Api {
     rb.operation("createHandler").handler(this::createEventHandler);
     rb.operation("getHandlers").handler(this::getEventHandlers);
     rb.operation("getHandlerById").handler(this::getEventHandlerById);
+    rb.operation("updateHandler").handler(this::updateEventHandler);
   }
 
   @Override
   public void addManualRoutes(@NotNull Router router) {}
 
   private void createEventHandler(final @NotNull RoutingContext routingContext) {
-    startHandlerApiTask(EventHandlerApiReqType.CREATE_HANDLER, routingContext);
+    startHandlerApiTask(CREATE_HANDLER, routingContext);
   }
 
   private void getEventHandlers(final @NotNull RoutingContext routingContext) {
-    startHandlerApiTask(EventHandlerApiReqType.GET_ALL_HANDLERS, routingContext);
+    startHandlerApiTask(GET_ALL_HANDLERS, routingContext);
   }
 
   private void getEventHandlerById(final @NotNull RoutingContext routingContext) {
-    startHandlerApiTask(EventHandlerApiReqType.GET_HANDLER_BY_ID, routingContext);
+    startHandlerApiTask(GET_HANDLER_BY_ID, routingContext);
+  }
+
+  private void updateEventHandler(RoutingContext routingContext) {
+    startHandlerApiTask(UPDATE_HANDLER, routingContext);
   }
 
   private void startHandlerApiTask(EventHandlerApiReqType reqType, RoutingContext routingContext) {

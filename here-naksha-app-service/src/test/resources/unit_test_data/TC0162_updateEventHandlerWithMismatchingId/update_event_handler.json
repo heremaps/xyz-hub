@@ -1,0 +1,14 @@
+{
+  "id": "other-test-handler",
+  "type": "EventHandler",
+  "title": "Handler that should not be used to update `test-handler`",
+  "description": "Handler that should not be used to update `test-handler`",
+  "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
+  "active": true,
+  "properties": {
+    "storageId": "um-mod-dev",
+    "storageCollection": {
+      "maxAge": 3
+    }
+  }
+}
