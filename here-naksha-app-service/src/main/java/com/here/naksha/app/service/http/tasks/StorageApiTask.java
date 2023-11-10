@@ -126,6 +126,20 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     return transformWriteResultToXyzFeatureResponse(wrResult, Storage.class);
   }
 
+  private @NotNull XyzResponse executeUpdateStorage() throws JsonProcessingException {
+    final String storageIdFromPath = routingContext.pathParam(STORAGE_ID_PATH_KEY);
+    final Storage storageFromBody = storageFromRequestBody();
+    if (!storageFromBody.getId().equals(storageIdFromPath)) {
+      return verticle.sendErrorResponse(
+          routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(storageIdFromPath, storageFromBody));
+    } else {
+      final WriteFeatures<Storage> updateStorageReq =
+          RequestHelper.updateFeatureRequest(STORAGES, storageFromBody);
+      final Result updateStorageResult = executeWriteRequestFromSpaceStorage(updateStorageReq);
+      return transformWriteResultToXyzFeatureResponse(updateStorageResult, Storage.class);
+    }
+  }
+
   private @NotNull Storage storageFromRequestBody() throws JsonProcessingException {
     try (final Json json = Json.get()) {
       final String bodyJson = routingContext.body().asString();

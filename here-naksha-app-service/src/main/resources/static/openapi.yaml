@@ -140,7 +140,7 @@ paths:
       parameters:
         - name: storageId
           in: path
-          description: ID of storage to fetch
+          description: ID of storage to update
           required: true
           schema:
             type: string
@@ -175,7 +175,40 @@ paths:
       description: Create a new event handler.
       operationId: createHandler
       responses:
-        '201':
+        '200':
+          $ref: '#/components/responses/HandlerResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+  '/hub/handlers/{eventHandlerId}':
+    put:
+      tags:
+        - Manage Event Handlers
+      summary: Update event handler.
+      description: Update existing event handler.
+      operationId: updateHandler
+      parameters:
+        - name: eventHandlerId
+          in: path
+          description: ID of handler to update
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
           $ref: '#/components/responses/HandlerResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse401'

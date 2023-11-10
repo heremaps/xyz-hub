@@ -21,6 +21,9 @@ package com.here.naksha.app.service.http.tasks;
 import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
@@ -72,6 +75,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
         case CREATE_HANDLER -> executeCreateHandler();
         case GET_ALL_HANDLERS -> executeGetHandlers();
         case GET_HANDLER_BY_ID -> executeGetHandlerById();
+        case UPDATE_HANDLER -> executeUpdateHandler();
         default -> executeUnsupported();
       };
     } catch (Exception ex) {
@@ -109,6 +113,20 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     return transformReadResultToXyzFeatureResponse(rdResult, EventHandler.class);
   }
 
+  private @NotNull XyzResponse executeUpdateHandler() throws JsonProcessingException {
+    String handlerIdFromPath = routingContext.pathParam(EVENT_HANDLER_ID_PATH_KEY);
+    EventHandler handlerToUpdate = eventHandlerFromRequestBody();
+    if (!handlerIdFromPath.equals(handlerToUpdate.getId())) {
+      return verticle.sendErrorResponse(
+          routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(handlerIdFromPath, handlerToUpdate));
+    } else {
+      final WriteFeatures<EventHandler> updateHandlerReq =
+          RequestHelper.updateFeatureRequest(EVENT_HANDLERS, handlerToUpdate);
+      final Result updateHandlerResult = executeWriteRequest(updateHandlerReq);
+      return transformWriteResultToXyzFeatureResponse(updateHandlerResult, EventHandler.class);
+    }
+  }
+
   private @NotNull EventHandler handlerFromRequestBody() throws JsonProcessingException {
     try (final Json json = Json.get()) {
       final String bodyJson = routingContext.body().asString();
@@ -116,5 +134,10 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
           .forType(EventHandler.class)
           .readValue(bodyJson);
     }
+  }
+
+  private static String mismatchMsg(String handlerIdFromPath, EventHandler handlerToUpdate) {
+    return "Mismatch between event handler ids. Path event handler id: %s, body event handler id: %s"
+        .formatted(handlerIdFromPath, handlerToUpdate.getId());
   }
 }

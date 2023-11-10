@@ -462,6 +462,76 @@ class NakshaAppTest {
   }
 
   @Test
+  @Order(3)
+  void tc0160_testUpdateEventHandler() throws Exception {
+    // Test API : PUT /hub/handlers/{eventHandlerId}
+    // Given:
+    final String updateEventHandlerJson = loadFileOrFail("TC0160_updateEventHandler/update_event_handler.json");
+    final String expectedRespBody = loadFileOrFail("TC0160_updateEventHandler/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/test-handler"))
+        .PUT(HttpRequest.BodyPublishers.ofString(updateEventHandlerJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then:
+    assertEquals(200, response.statusCode());
+    JSONAssert.assertEquals(expectedRespBody, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
+  @Order(3)
+  void tc0161_testUpdateNonexistentEventHandler() throws Exception {
+    // Test API : PUT /hub/handlers/{eventHandlerId}
+    // Given:
+    final String updateEventHandlerJson =
+        loadFileOrFail("TC0161_updateNonexistentEventHandler/update_event_handler.json");
+    final String expectedRespBody = loadFileOrFail("TC0161_updateNonexistentEventHandler/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/non-existent-test-handler"))
+        .PUT(HttpRequest.BodyPublishers.ofString(updateEventHandlerJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then:
+    assertEquals(409, response.statusCode());
+    JSONAssert.assertEquals(expectedRespBody, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
+  @Order(3)
+  void tc0162_testUpdateEventHandlerWithMismatchingId() throws Exception {
+    // Test API : PUT /hub/handlers/{eventHandlerId}
+    // Given:
+    final String updateOtherHandlerJson =
+        loadFileOrFail("TC0162_updateEventHandlerWithMismatchingId/update_event_handler.json");
+    final String expectedErrorResponse = loadFileOrFail("TC0162_updateEventHandlerWithMismatchingId/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/handlers/test-handler"))
+        .PUT(HttpRequest.BodyPublishers.ofString(updateOtherHandlerJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    // Then:
+    assertEquals(400, response.statusCode());
+    JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
   @Order(4)
   void tc0300_testCreateFeaturesWithNewIds() throws Exception {
     createFeatureTests.tc0300_testCreateFeaturesWithNewIds();
