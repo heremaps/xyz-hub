@@ -18,14 +18,20 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import static com.here.naksha.lib.core.NakshaAdminCollection.STORAGES;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.PRef;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.json.Json;
@@ -38,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResponse> {
 
+  private static final String STORAGE_ID_PATH_KEY = "storageId";
   private static final Logger logger = LoggerFactory.getLogger(StorageApiTask.class);
   private final @NotNull StorageApiReqType reqType;
 
@@ -73,16 +80,13 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
   @Override
   protected @NotNull XyzResponse execute() {
     try {
-      switch (this.reqType) {
-        case GET_ALL_STORAGES:
-          return executeGetStorages();
-        case GET_STORAGE_BY_ID:
-          return executeGetStorageById();
-        case CREATE_STORAGE:
-          return executeCreateStorage();
-        default:
-          return executeUnsupported();
-      }
+      return switch (this.reqType) {
+        case GET_ALL_STORAGES -> executeGetStorages();
+        case GET_STORAGE_BY_ID -> executeGetStorageById();
+        case CREATE_STORAGE -> executeCreateStorage();
+        case UPDATE_STORAGE -> executeUpdateStorage();
+        default -> executeUnsupported();
+      };
     } catch (Exception ex) {
       // unexpected exception
       return verticle.sendErrorResponse(
@@ -90,46 +94,63 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
     }
   }
 
-  private @NotNull XyzResponse executeGetStorages() {
-    // Create ReadFeatures Request to read all storages from Admin DB
-    final ReadFeatures request = new ReadFeatures(NakshaAdminCollection.STORAGES);
-    // Submit request to NH Space Storage
-    try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
-      final Result rdResult = reader.execute(request);
-      // transform ReadResult to Http FeatureCollection response
-      return transformReadResultToXyzCollectionResponse(rdResult, Storage.class);
+  private @NotNull XyzResponse executeUpdateStorage() throws JsonProcessingException {
+    final String storageIdFromPath = routingContext.pathParam(STORAGE_ID_PATH_KEY);
+    final Storage storageFromBody = storageFromRequestBody();
+    if (!storageFromBody.getId().equals(storageIdFromPath)) {
+      return verticle.sendErrorResponse(
+          routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(storageIdFromPath, storageFromBody));
+    } else {
+      final WriteFeatures<Storage> updateStorageReq =
+          RequestHelper.updateFeatureRequest(STORAGES, storageFromBody);
+      final Result updateStorageResult = executeWriteRequest(updateStorageReq);
+      return transformWriteResultToXyzFeatureResponse(updateStorageResult, Storage.class);
     }
+  }
+
+  private @NotNull XyzResponse executeGetStorages() {
+    final ReadFeatures request = new ReadFeatures(STORAGES);
+    final Result rdResult = executeReadRequest(request);
+    return transformReadResultToXyzCollectionResponse(rdResult, Storage.class);
   }
 
   private @NotNull XyzResponse executeGetStorageById() {
-    // Create ReadFeatures Request to read the storage with the specific ID from Admin DB
-    final String storageId = routingContext.pathParam("storageId");
-    final ReadFeatures request =
-        new ReadFeatures(NakshaAdminCollection.STORAGES).withPropertyOp(POp.eq(PRef.id(), storageId));
-    // Submit request to NH Space Storage
-    try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
-      final Result rdResult = reader.execute(request);
-      // transform ReadResult to Http FeatureCollection response
-      return transformReadResultToXyzFeatureResponse(rdResult, Storage.class);
+    final String storageId = routingContext.pathParam(STORAGE_ID_PATH_KEY);
+    final ReadFeatures request = new ReadFeatures(STORAGES).withPropertyOp(POp.eq(PRef.id(), storageId));
+    final Result rdResult = executeReadRequest(request);
+    return transformReadResultToXyzFeatureResponse(rdResult, Storage.class);
+  }
+
+  private @NotNull XyzResponse executeCreateStorage() throws JsonProcessingException {
+    final Storage newStorage = storageFromRequestBody();
+    final WriteFeatures<Storage> wrRequest = RequestHelper.createFeatureRequest(STORAGES, newStorage, false);
+    final Result wrResult = executeWriteRequest(wrRequest);
+    return transformWriteResultToXyzFeatureResponse(wrResult, Storage.class);
+  }
+
+  private Result executeWriteRequest(WriteFeatures<Storage> writeRequest) {
+    try (final IWriteSession writer = naksha().getSpaceStorage().newWriteSession(context(), true)) {
+      return writer.execute(writeRequest);
     }
   }
 
-  private @NotNull XyzResponse executeCreateStorage() throws Exception {
-    // Read request JSON
-    Storage newStorage = null;
+  private Result executeReadRequest(ReadFeatures readRequest) {
+    try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), false)) {
+      return reader.execute(readRequest);
+    }
+  }
+
+  private @NotNull Storage storageFromRequestBody() throws JsonProcessingException {
     try (final Json json = Json.get()) {
       final String bodyJson = routingContext.body().asString();
-      newStorage = json.reader(ViewDeserialize.User.class)
+      return json.reader(ViewDeserialize.User.class)
           .forType(Storage.class)
           .readValue(bodyJson);
     }
-    // persist new storage in Admin DB (if doesn't exist already)
-    try (final IWriteSession writer = naksha().getSpaceStorage().newWriteSession(context(), true)) {
-      final WriteFeatures<Storage> wrRequest =
-          RequestHelper.createFeatureRequest(NakshaAdminCollection.STORAGES, newStorage, false);
-      final Result wrResult = writer.execute(wrRequest);
-      // transform WriteResult to Http Feature response
-      return transformWriteResultToXyzFeatureResponse(wrResult, Storage.class);
-    }
+  }
+
+  private static String mismatchMsg(String storageIdFromPath, Storage storageFromBody) {
+    return "Mismatch between storage ids. Path storage id: %s, body storage id: %s"
+        .formatted(storageIdFromPath, storageFromBody.getId());
   }
 }

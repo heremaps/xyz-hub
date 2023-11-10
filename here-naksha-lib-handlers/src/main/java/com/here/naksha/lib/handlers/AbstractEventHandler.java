@@ -23,7 +23,9 @@ import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.Plugin;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
 import org.jetbrains.annotations.NotNull;
 
 public abstract class AbstractEventHandler implements IEventHandler {
@@ -46,7 +48,7 @@ public abstract class AbstractEventHandler implements IEventHandler {
   }
 
   protected @NotNull Result validateWritePluginRequest(final @NotNull Plugin<?, ?> plugin) {
-    if (plugin.getClassName().isEmpty()) {
+    if (plugin.getClassName() == null || plugin.getClassName().isEmpty()) {
       return new ErrorResult(XyzError.ILLEGAL_ARGUMENT, "Mandatory parameter className missing!");
     }
     return new SuccessResult();

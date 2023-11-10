@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "Conflict",
+  "errorMessage": "No feature found for id this-id-does-not-exist"
+}

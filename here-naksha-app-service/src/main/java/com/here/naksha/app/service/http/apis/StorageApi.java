@@ -18,10 +18,14 @@
  */
 package com.here.naksha.app.service.http.apis;
 
-import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.*;
+import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.CREATE_STORAGE;
+import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.GET_ALL_STORAGES;
+import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.GET_STORAGE_BY_ID;
+import static com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType.UPDATE_STORAGE;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.StorageApiTask;
+import com.here.naksha.app.service.http.tasks.StorageApiTask.StorageApiReqType;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -38,38 +42,30 @@ public class StorageApi extends Api {
     rb.operation("getStorages").handler(this::getStorages);
     rb.operation("getStorageById").handler(this::getStorageById);
     rb.operation("postStorage").handler(this::createStorage);
+    rb.operation("putStorage").handler(this::updateStorage);
   }
 
   @Override
   public void addManualRoutes(final @NotNull Router router) {}
 
   private void getStorages(final @NotNull RoutingContext routingContext) {
-    new StorageApiTask<>(
-            GET_ALL_STORAGES,
-            verticle,
-            naksha(),
-            routingContext,
-            verticle.createNakshaContext(routingContext))
-        .start();
+    startStorageApiTask(GET_ALL_STORAGES, routingContext);
   }
 
   private void getStorageById(final @NotNull RoutingContext routingContext) {
-    new StorageApiTask<>(
-            GET_STORAGE_BY_ID,
-            verticle,
-            naksha(),
-            routingContext,
-            verticle.createNakshaContext(routingContext))
-        .start();
+    startStorageApiTask(GET_STORAGE_BY_ID, routingContext);
   }
 
   private void createStorage(final @NotNull RoutingContext routingContext) {
-    new StorageApiTask<>(
-            CREATE_STORAGE,
-            verticle,
-            naksha(),
-            routingContext,
-            verticle.createNakshaContext(routingContext))
+    startStorageApiTask(CREATE_STORAGE, routingContext);
+  }
+
+  private void updateStorage(final @NotNull RoutingContext routingContext) {
+    startStorageApiTask(UPDATE_STORAGE, routingContext);
+  }
+
+  private void startStorageApiTask(StorageApiReqType reqType, RoutingContext routingContext) {
+    new StorageApiTask<>(reqType, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
         .start();
   }
 }
