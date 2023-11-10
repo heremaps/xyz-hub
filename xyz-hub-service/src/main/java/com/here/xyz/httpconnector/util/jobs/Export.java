@@ -227,7 +227,13 @@ public class Export extends JDBCBasedJob<Export> {
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
 
-                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ( job.readParamCompositeMode() != CHANGES ? null : EXTENSION) );
+                SpaceContext ctx = (   job.readParamContext() == EXTENSION   
+                                    || job.readParamCompositeMode() == CHANGES 
+                                    || job.readParamCompositeMode() == FULL_OPTIMIZED 
+                                    ? EXTENSION : null
+                                   );
+                                   
+                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx );
             })
             .compose(statistics -> {
                 //Store count of features which are in source layer
