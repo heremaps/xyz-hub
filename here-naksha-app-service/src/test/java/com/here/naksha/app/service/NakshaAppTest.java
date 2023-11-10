@@ -531,6 +531,74 @@ class NakshaAppTest {
     assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
   }
 
+//  @Test
+//  @Order(4)
+//  void tc0220_testGetSpaceById() throws Exception {
+//    // Test API : GET /hub/spaces/{spaceId}
+//    // 1. Load test data
+//    // TODO MCPODS-6510 fix file name once "create" is ready
+//    final String expectedBodyPart = loadFileOrFail("TC0200_createEventHandler/response.json");
+//    final String streamId = UUID.randomUUID().toString();
+//    // TODO MCPODS-6510 fix end point once "create" is ready
+//    // 2. Perform REST API call
+//    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+//            .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/"))
+//            .GET()
+//            .header(HDR_STREAM_ID, streamId)
+//            .build();
+//    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+//
+//    // 3. Perform assertions
+//    assertEquals(200, response.statusCode(), "ResCode mismatch");
+//    JSONAssert.assertEquals(
+//            "Expecting space response", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+//    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+//  }
+
+//  @Test
+//  @Order(4)
+//  void tc0221_testGetSpaceByWrongId() throws Exception {
+//    // Test API : GET /hub/spaces/{spaceId}
+//    // 1. Load test data
+//    final String streamId = UUID.randomUUID().toString();
+//
+//    // 2. Perform REST API call
+//    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+//            .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/not-real-space"))
+//            .GET()
+//            .header(HDR_STREAM_ID, streamId)
+//            .build();
+//    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+//
+//    // 3. Perform assertions
+//    assertEquals(404, response.statusCode(), "ResCode mismatch");
+//    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+//  }
+
+//  @Test
+//  @Order(4)
+//  void tc0240_testGetSpaces() throws Exception {
+//    // Test API : GET /hub/spaces
+//    // 1. Load test data
+//    // TODO MCPODS-6510 add resource once "create" is ready
+//    final String expectedBodyPart = loadFileOrFail("TC0240_getHandlers/response.json");
+//    final String streamId = UUID.randomUUID().toString();
+//
+//    // 2. Perform REST API call
+//    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+//            .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces"))
+//            .GET()
+//            .header(HDR_STREAM_ID, streamId)
+//            .build();
+//    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+//
+//    // 3. Perform assertions
+//    assertEquals(200, response.statusCode(), "ResCode mismatch");
+//    JSONAssert.assertEquals(
+//            "Expecting previously created space", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+//    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+//  }
+
   @Test
   @Order(4)
   void tc0300_testCreateFeaturesWithNewIds() throws Exception {
