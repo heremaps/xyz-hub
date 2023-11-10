@@ -464,7 +464,7 @@ class NakshaAppTest {
   @Test
   @Order(3)
   void tc0160_testUpdateEventHandler() throws Exception {
-    // Test API : PUT /hub/handlers/{eventHandlerId}
+    // Test API : PUT /hub/handlers/{handlerId}
     // Given:
     final String updateEventHandlerJson = loadFileOrFail("TC0160_updateEventHandler/update_event_handler.json");
     final String expectedRespBody = loadFileOrFail("TC0160_updateEventHandler/response.json");
@@ -487,7 +487,7 @@ class NakshaAppTest {
   @Test
   @Order(3)
   void tc0161_testUpdateNonexistentEventHandler() throws Exception {
-    // Test API : PUT /hub/handlers/{eventHandlerId}
+    // Test API : PUT /hub/handlers/{handlerId}
     // Given:
     final String updateEventHandlerJson =
         loadFileOrFail("TC0161_updateNonexistentEventHandler/update_event_handler.json");
@@ -511,7 +511,7 @@ class NakshaAppTest {
   @Test
   @Order(3)
   void tc0162_testUpdateEventHandlerWithMismatchingId() throws Exception {
-    // Test API : PUT /hub/handlers/{eventHandlerId}
+    // Test API : PUT /hub/handlers/{handlerId}
     // Given:
     final String updateOtherHandlerJson =
         loadFileOrFail("TC0162_updateEventHandlerWithMismatchingId/update_event_handler.json");

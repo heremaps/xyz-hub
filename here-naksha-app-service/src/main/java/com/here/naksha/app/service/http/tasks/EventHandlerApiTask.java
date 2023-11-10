@@ -21,9 +21,6 @@ package com.here.naksha.app.service.http.tasks;
 import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import static com.here.naksha.lib.core.NakshaAdminCollection.EVENT_HANDLERS;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
@@ -114,15 +111,15 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
   }
 
   private @NotNull XyzResponse executeUpdateHandler() throws JsonProcessingException {
-    String handlerIdFromPath = routingContext.pathParam(EVENT_HANDLER_ID_PATH_KEY);
-    EventHandler handlerToUpdate = eventHandlerFromRequestBody();
+    String handlerIdFromPath = routingContext.pathParam(HANDLER_ID_PATH_KEY);
+    EventHandler handlerToUpdate = handlerFromRequestBody();
     if (!handlerIdFromPath.equals(handlerToUpdate.getId())) {
       return verticle.sendErrorResponse(
           routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(handlerIdFromPath, handlerToUpdate));
     } else {
       final WriteFeatures<EventHandler> updateHandlerReq =
           RequestHelper.updateFeatureRequest(EVENT_HANDLERS, handlerToUpdate);
-      final Result updateHandlerResult = executeWriteRequest(updateHandlerReq);
+      final Result updateHandlerResult = executeWriteRequestFromSpaceStorage(updateHandlerReq);
       return transformWriteResultToXyzFeatureResponse(updateHandlerResult, EventHandler.class);
     }
   }

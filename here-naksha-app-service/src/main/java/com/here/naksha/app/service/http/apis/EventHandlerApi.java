@@ -50,8 +50,7 @@ public class EventHandlerApi extends Api {
   }
 
   @Override
-  public void addManualRoutes(@NotNull Router router) {
-  }
+  public void addManualRoutes(@NotNull Router router) {}
 
   private void createEventHandler(final @NotNull RoutingContext routingContext) {
     startHandlerApiTask(CREATE_HANDLER, routingContext);
@@ -71,11 +70,7 @@ public class EventHandlerApi extends Api {
 
   private void startHandlerApiTask(EventHandlerApiReqType reqType, RoutingContext routingContext) {
     new EventHandlerApiTask<>(
-        reqType,
-        verticle,
-        naksha(),
-        routingContext,
-        verticle.createNakshaContext(routingContext)
-    ).start();
+            reqType, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
+        .start();
   }
 }
