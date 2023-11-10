@@ -22,14 +22,23 @@ import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.PRef;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.Result;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.here.naksha.lib.core.NakshaAdminCollection.SPACES;
+
 public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResponse> {
 
+
+  private static final String SPACE_ID_PATH_KEY = "spaceId";
   private static final Logger logger = LoggerFactory.getLogger(SpaceApiTask.class);
   private final @NotNull SpaceApiReqType reqType;
 
@@ -65,12 +74,11 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
   @Override
   protected @NotNull XyzResponse execute() {
     try {
-      switch (this.reqType) {
-        case GET_ALL_SPACES:
-          return executeGetSpaces();
-        default:
-          return executeUnsupported();
-      }
+        return switch (this.reqType) {
+            case GET_ALL_SPACES -> executeGetSpaces();
+            case GET_SPACE_BY_ID -> executeGetSpaceById();
+            default -> executeUnsupported();
+        };
     } catch (Exception ex) {
       // unexpected exception
       return verticle.sendErrorResponse(
@@ -79,6 +87,15 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
   }
 
   private @NotNull XyzResponse executeGetSpaces() {
-    return executeUnsupported();
+    final ReadFeatures request = new ReadFeatures(SPACES);
+    final Result rdResult = executeReadRequestFromSpaceStorage(request);
+    return transformReadResultToXyzCollectionResponse(rdResult, Space.class);
+  }
+
+  private @NotNull XyzResponse executeGetSpaceById() {
+    final String spaceId = routingContext.pathParam(SPACE_ID_PATH_KEY);
+    final ReadFeatures request = new ReadFeatures(SPACES).withPropertyOp(POp.eq(PRef.id(), spaceId));
+    final Result rdResult = executeReadRequestFromSpaceStorage(request);
+    return transformReadResultToXyzFeatureResponse(rdResult, Space.class);
   }
 }
