@@ -576,8 +576,7 @@ public class JDBCExporter extends JDBCClients {
                               + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) when true then jsondata else null::jsonb end as jsondata," 
                               + " geo "
                               + "from ( ${{contentQuery}}) X"
-                              : "select jsondata->>'id' as id, jsondata, geo" 
-                              + " replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
+                              : "select jsondata->>'id' as id, jsondata, geo "
                               + "from ( ${{contentQuery}}) X" );
 
            if( partitionByPropertyValue )
