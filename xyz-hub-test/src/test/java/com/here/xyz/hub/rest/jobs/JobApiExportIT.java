@@ -691,6 +691,26 @@ public class JobApiExportIT extends JobApiIT {
     }
 
     @Test
+    public void testFullVMLExportByTilesAsPartJsonWkb() throws Exception {
+// export by tiles only changes
+        int targetLevel = 12;
+        int maxTilesPerFile= 300;
+
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testSpaceId3+":dummy");
+
+        /** Create job */
+        Export job =  buildVMTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB, targetLevel, maxTilesPerFile);
+        
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3, scope), finalized, failed,  Export.CompositeMode.DEACTIVATED );
+
+        List<String> mustContain = Arrays.asList("23600771,","23600774,", "baseonly","shouldBeEmpty");
+
+        downloadAndCheck(urls, 968, 3, mustContain);
+    }
+
+    @Test
     public void testFullVMLCompositeL1ExportByTilesAsPartJsonWkbChanges() throws Exception {
 // export by tiles only changes
         int targetLevel = 12;
@@ -711,6 +731,24 @@ public class JobApiExportIT extends JobApiIT {
     }
 
     @Test
+    public void testFullVMLExportByIdAsPartJsonWkb() throws Exception {
+
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testSpaceId3+":dummy");
+
+        /** Create job */
+        Export job = buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB).withPartitionKey("id");
+        job.addParam("skipTrigger", true);
+
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3, scope), finalized, failed,  Export.CompositeMode.DEACTIVATED );
+
+        List<String> mustContain = Arrays.asList("id000,","id001,","id003,", "baseonly","shouldBeEmpty","deletedInDelta");
+
+        downloadAndCheck(urls, 959, 3, mustContain);
+    }
+
+    @Test
     public void testFullVMLCompositeL1ExportByIdAsPartJsonWkbChanges() throws Exception {
 
         Export.ExportTarget exportTarget = new Export.ExportTarget()
@@ -726,6 +764,24 @@ public class JobApiExportIT extends JobApiIT {
         List<String> mustContain = Arrays.asList("id000,","id002,","id003,,", "deltaonly","movedFromEmpty");
 
         downloadAndCheck(urls, 655, 2, mustContain);
+    }
+
+    @Test
+    public void testFullVMLExportByPropertyAsPartJsonWkb() throws Exception {
+
+        Export.ExportTarget exportTarget = new Export.ExportTarget()
+                .withType(Export.ExportTarget.Type.VML)
+                .withTargetId(testSpaceId3+":dummy");
+
+        /** Create job */
+        Export job = buildTestJob(testExportJobId, null, exportTarget, Job.CSVFormat.PARTITIONED_JSON_WKB).withPartitionKey("p.group");
+        job.addParam("skipTrigger", true);
+
+        List<URL> urls = performExport(job, getScopedSpaceId(testSpaceId3, scope), finalized, failed,  Export.CompositeMode.DEACTIVATED );
+
+        List<String> mustContain = Arrays.asList("baseonly,","deletedInDelta,","shouldBeEmpty,","id001","id003","id000", "D214074F04C68920", "B5138214074F04C6892");
+
+        downloadAndCheck(urls, 979, 3, mustContain);
     }
 
     @Test
