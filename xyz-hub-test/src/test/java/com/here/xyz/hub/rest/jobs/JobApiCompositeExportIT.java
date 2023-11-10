@@ -269,7 +269,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
     }
 
     @Test
-    public void validCompositeL1ExportFull() throws Exception {
+    public void validCompositeL1ExportWithoutCompositeMode() throws Exception {
         /** Full Export base+delta1 */
         //uses automatically FULL_OPTIMIZED because base layer is readOnly
         Export job =  generateExportJob(testExportJobId, 6);
@@ -284,6 +284,30 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
         //7 Features from base + 5 tiles from base+delta changes.
         downloadAndCheck(urls, 3313, 7, mustContain);
+    }
+
+    @Test
+    public void validCompositeL1ExportFull() throws Exception {
+        /** Full Export base+delta1 */
+        Export job =  generateExportJob(testExportJobId, 6);
+
+        /** Initial Base Export */
+        List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL);
+        //Only one file (base+delta)
+        checkUrls(urls, false);
+
+        List<String> mustContain = new ArrayList<>();
+        mustContain.add("4953");
+        mustContain.add("4991");
+        mustContain.add("4993");
+        mustContain.add("5681");
+        mustContain.add("5693");
+        mustContain.add("5749");
+        mustContain.add("5831");
+        mustContain.add("iQG5zOmNvbTpoZXJlOnh5");
+
+        //7 Features from base + 5 tiles from base+delta changes.
+        downloadAndCheckFC(urls, 3006, 7, mustContain, 7);
     }
 
     @Test
@@ -351,21 +375,26 @@ public class JobApiCompositeExportIT extends JobApiIT{
 
     @Test
     public void validCompositeL1ExportFullOptimizedWithoutBaseJSON_WKB() throws Exception {
-        /** Composite Export */
+        /** Composite Export - format gets automatically override to PARTITIONED_JSON_WKB */
         Export job =  buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), JSON_WKB);
+        job.setTargetLevel(6);
 
         List<URL> urls = performExport(job, testSpaceId1Ext, finalized, failed, Export.CompositeMode.FULL_OPTIMIZED);
-
         checkUrls(urls, true);
 
         List<String> mustContain = new ArrayList<>();
         mustContain.addAll(baseContentWKB);
-        mustContain.addAll(l1ChangesContentJSONWKB);
-        //Feature with deleted flag
-        mustContain.add("deleted");
+        mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
-        //7 Features from base + 4 Features from delta - including one deletion.
-        downloadAndCheck(urls, 3002, 11, mustContain);
+        //7 Features from base + 5 Features from delta - including 2 deletions.
+        downloadAndCheck(urls, 2910, 10, mustContain);
+
+        Job job1 = loadJob(testSpaceId1Ext, job.getId());
+        assertEquals(PARTITIONED_JSON_WKB, job1.getCsvFormat());
+
+        Job spawendJob = loadJob(testSpaceId1, job.getId()+ "_missing_base");
+        assertEquals(JSON_WKB, spawendJob.getCsvFormat());
+        assertEquals(Long.valueOf(-1), spawendJob.getExp());
     }
 
     @Test
@@ -380,7 +409,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(baseContentWKB);
         mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
-        //7 Features from base + 2 base+delta tiles with changes - including one deletion.
+        //7 Features from base + 5 Features from delta - including 2 deletions.
         downloadAndCheck(urls, 2910, 10, mustContain);
 
         // Same test with type DOWNLOAD
@@ -413,7 +442,7 @@ public class JobApiCompositeExportIT extends JobApiIT{
         mustContain.addAll(baseContentWKB);
         mustContain.addAll(l1ChangesContentPARTITIONED_JSON_WKB);
 
-        //7 Features from base + 2 base+delta tiles with changes
+        //7 Features from base + 5 Features from delta - including 2 deletions.
         downloadAndCheck(urls, 2910, 10, mustContain);
     }
 

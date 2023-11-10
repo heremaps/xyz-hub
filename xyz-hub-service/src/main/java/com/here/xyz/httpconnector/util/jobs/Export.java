@@ -20,7 +20,9 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.httpconnector.util.Futures.futurify;
+import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.CHANGES;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.FULL_OPTIMIZED;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
@@ -55,6 +57,7 @@ import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.emr.EMRManager;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
+import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
 import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
@@ -153,8 +156,9 @@ public class Export extends JDBCBasedJob<Export> {
     private static String PARAM_RUN_AS_ID = "runAsId";
     private static String PARAM_SCOPE = "scope";
     private static String PARAM_EXTENDS = "extends";
-    private static String PARAM_CONTEXT = "context";
     private static String PARAM_SKIP_TRIGGER = "skipTrigger";
+
+    public static String PARAM_CONTEXT = "context";
 
     public Export() {
         super();
@@ -176,7 +180,59 @@ public class Export extends JDBCBasedJob<Export> {
                     if (getMaxTilesPerFile() == 0)
                         setMaxTilesPerFile(VML_EXPORT_MAX_TILES_PER_FILE);
                 }
-                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId());
+
+                //Set Composite related defaults
+                CompositeMode compositeMode = readParamCompositeMode();
+                Map ext = readParamExtends();
+
+                if (readPersistExport())
+                    setExp(-1l);
+
+                if (ext != null) {
+                    boolean superIsReadOnly = ext.get("readOnly") != null ? (boolean) ext.get("readOnly") : false;
+                    Map l2Ext = (Map) ext.get("extends");
+
+                    if (l2Ext != null)
+                        //L2 Composite
+                        superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
+
+                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly) {
+                        //Enabled by default
+                        params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
+                    }
+
+                    if(!superIsReadOnly && compositeMode.equals(CompositeMode.FULL_OPTIMIZED)) {
+                        params.remove(PARAM_COMPOSITE_MODE);
+                        logger.info("job[{}] CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer - fall back!", getId());
+                    }
+
+                    if (csvFormat.equals(GEOJSON))
+                        params.remove(PARAM_COMPOSITE_MODE);
+                }else{
+                    //Only make sense in case of extended space
+                    params.remove(PARAM_COMPOSITE_MODE);
+                }
+
+                if (readParamCompositeMode() == FULL_OPTIMIZED && exportTarget.type.equals(DOWNLOAD)) {
+                    //Override Target-Format to PARTITIONED_JSON_WKB
+                    csvFormat = PARTITIONED_JSON_WKB;
+                    if (getTarget() instanceof FileBasedTarget<?> fbt)
+                        fbt.getOutputSettings().setFormat(PARTITIONED_JSON_WKB);
+                    if (targetLevel == null)
+                        targetLevel = 12;
+                }
+
+                SpaceContext context = readParamContext();
+                if (readParamExtends() != null && context == null)
+                    addParam(PARAM_CONTEXT, DEFAULT);
+
+                SpaceContext ctx = (   job.readParamContext() == EXTENSION   
+                                    || job.readParamCompositeMode() == CHANGES 
+                                    || job.readParamCompositeMode() == FULL_OPTIMIZED 
+                                    ? EXTENSION : null
+                                   );
+                                   
+                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx );
             })
             .compose(statistics -> {
                 //Store count of features which are in source layer
@@ -249,45 +305,9 @@ public class Export extends JDBCBasedJob<Export> {
             }
         }
 
-        CompositeMode compositeMode = readParamCompositeMode();
-        Map ext = readParamExtends();
-
-        if (readPersistExport())
-            setExp(-1l);
-
-        if (ext != null) {
-            boolean superIsReadOnly = ext.get("readOnly") != null ? (boolean) ext.get("readOnly") : false;
-            Map l2Ext = (Map) ext.get("extends");
-
-            if (l2Ext != null)
-                //L2 Composite
-                superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
-
-            if (compositeMode.equals(DEACTIVATED) && superIsReadOnly) {
-                //Enabled by default
-                params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
-            }
-
-            if(!superIsReadOnly && compositeMode.equals(CompositeMode.FULL_OPTIMIZED)) {
-                params.remove(PARAM_COMPOSITE_MODE);
-                logger.info("job[{}] CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer - fall back!", getId());
-            }
-
-            if (csvFormat.equals(GEOJSON))
-                params.remove(PARAM_COMPOSITE_MODE);
-        }else{
-            //Only make sense in case of extended space
-            params.remove(PARAM_COMPOSITE_MODE);
-        }
-
-        SpaceContext context = readParamContext();
-
-        if (readParamExtends() != null && context == null)
-            addParam("context", DEFAULT);
-
         if (getEstimatedFeatureCount() > 1000000 //searchable limit without index
-            && getPartitionKey() != null && !"id".equals(getPartitionKey())
-            && !searchableProperties.containsKey(getPartitionKey().replaceFirst("^(p|properties)\\." ,"")))
+            && getPartitionKey() != null && !"id".equals(getPartitionKey()) && !"tileid".equals(getPartitionKey())
+            && (searchableProperties == null || !searchableProperties.containsKey(getPartitionKey().replaceFirst("^(p|properties)\\." ,""))))
             throw new HttpException(BAD_REQUEST, "partitionKey [" + getPartitionKey() + "] is not a searchable property");
 
         return this;
@@ -454,6 +474,7 @@ public class Export extends JDBCBasedJob<Export> {
             setTargetLevel(files.getOutputSettings().getTileLevel());
             setClipped(files.getOutputSettings().isClipped());
             setMaxTilesPerFile(files.getOutputSettings().getMaxTilesPerFile());
+            setPartitionKey(files.getOutputSettings().getPartitionKey());
         }
     }
 
@@ -557,12 +578,12 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public SpaceContext readParamContext() {
-        return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf((String) this.params.get(PARAM_CONTEXT)) : null;
+        return params != null && params.containsKey(PARAM_CONTEXT) ? SpaceContext.valueOf(this.params.get(PARAM_CONTEXT).toString()) : null;
     }
 
     public CompositeMode readParamCompositeMode() {
         return params != null && params.containsKey(PARAM_COMPOSITE_MODE)
-                ? CompositeMode.valueOf((String) params.get(PARAM_COMPOSITE_MODE))
+                ? CompositeMode.valueOf(params.get(PARAM_COMPOSITE_MODE).toString())
                 : DEACTIVATED;
     }
 
@@ -837,7 +858,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //exp=-1 => persistent
                         //hash must fit
                         logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                        if( jobCandidate.getExp() == -1 && ((Export)jobCandidate).getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))){
+                        if((jobCandidate.getExp() != null && jobCandidate.getExp() == -1) && ((Export)jobCandidate).getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))){
                             //try to find a finalized one - doesn't matter if its the origin export
                             if(jobCandidate.getStatus().equals(finalized) || jobCandidate.getStatus().equals(trigger_executed)) {
                                 logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
@@ -868,11 +889,10 @@ public class Export extends JDBCBasedJob<Export> {
                         //Export is available - use it and skip jdbc-export
                         logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
                         setSuperId(existingJob.getId());
-                        addDownloadLinks(existingJob);
                         setExportObjects(existingJob.getExportObjects());
-
                         setStatistic(existingJob.getStatistic());
-                        return updateJobStatus(this, executed);
+
+                        return updateJobStatus(this, finalized);
                     }
                     else if(existingJob.getStatus() == failed) {
                         //Export is available but is failed - abort also this export.
@@ -939,7 +959,9 @@ public class Export extends JDBCBasedJob<Export> {
                     if (superId == null)
                         setSuperId(existingJob.getId());
 
+                    setSuperExportObjects(existingJob.getExportObjects());
                     setSuperStatistic(existingJob.getStatistic());
+
                     return updateJobStatus(this, prepared);
                 }
                 else {
@@ -969,7 +991,7 @@ public class Export extends JDBCBasedJob<Export> {
                     //Everything is processed
                     logger.info("job[{}] Export of '{}' completely succeeded!", getId(), getTargetSpaceId());
                     addStatistic(statistic);
-                    addDownloadLinks(this);
+                    scanAndRegisterExportObjects(this, "");
                     updateJobStatus(this, executed);
                 }
             )
@@ -984,21 +1006,13 @@ public class Export extends JDBCBasedJob<Export> {
             );
     }
 
-    protected void addDownloadLinks(Job j) {
+    protected void scanAndRegisterExportObjects(Job j, String emrSuffix) {
         Export export = ((Export) j); //TODO: Use this instance once scheduler is fixed
-        String emrSuffix = isEmrTransformation() ? EMRConfig.S3_PATH_SUFFIX : "";
 
         //Add file statistics and downloadLinks
         Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath(
             CService.jobS3Client.getS3Path(j, false) + emrSuffix);
         export.setExportObjects(exportObjects);
-
-        if (export.getSuperId() != null) {
-            //Add exportObjects including fresh download links for persistent base exports
-            Map<String, ExportObject> superExportObjects = CService.jobS3Client.scanExportPath(
-                CService.jobS3Client.getS3Path(j, true) + emrSuffix);
-            export.setSuperExportObjects(superExportObjects);
-        }
     }
 
     private static class EMRConfig {
@@ -1067,7 +1081,7 @@ public class Export extends JDBCBasedJob<Export> {
 
     @Override
     public void finalizeJob() {
-        if (isEmrTransformation()) {
+        if (isEmrTransformation() && !getExportObjects().isEmpty() && (statistic == null || statistic.getRowsUploaded() > 0)) {
             updateJobStatus(this, finalizing)
                 .compose(job -> {
                     //Start EMR Job, return jobId
@@ -1114,7 +1128,7 @@ public class Export extends JDBCBasedJob<Export> {
                     switch (jobState) {
                         case SUCCESS:
                             logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
-                            addDownloadLinks(this);
+                            scanAndRegisterExportObjects(this, EMRConfig.S3_PATH_SUFFIX);
                             //Update this job's state finally to "finalized"
                             updateJobStatus(this, finalized);
                             //Stop this thread
@@ -1159,6 +1173,7 @@ public class Export extends JDBCBasedJob<Export> {
     public enum CompositeMode {
         FULL_OPTIMIZED, //Load persistent Base + (Changes)
         CHANGES, //Only changes
+        FULL, //context=default
         DEACTIVATED;
 
         public static CompositeMode of(String value) {

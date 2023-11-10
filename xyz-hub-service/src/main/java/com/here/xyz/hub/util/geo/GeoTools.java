@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.util.geo;
 
+import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.LinearRing;
@@ -31,11 +32,13 @@ import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
+import org.opengis.geometry.MismatchedDimensionException;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.NoSuchAuthorityCodeException;
 import org.opengis.referencing.crs.CRSAuthorityFactory;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.MathTransform;
+import org.opengis.referencing.operation.TransformException;
 
 /**
  * A helper class to do certain things with JTS.
@@ -202,4 +205,24 @@ public class GeoTools {
         return ret;
     }
   }
+
+  public static boolean geometryCrossesDateline(com.here.xyz.models.geojson.implementation.Geometry geometry, int radius) 
+   throws NullPointerException, NoSuchAuthorityCodeException, FactoryException, MismatchedDimensionException, TransformException
+  { 
+    MathTransform convertToMeter   = mathTransform("EPSG:4326", "EPSG:31300");
+    MathTransform convertFromMeter = mathTransform("EPSG:31300", "EPSG:4326");
+
+    Geometry degGeo = geometry.getJTSGeometry(),
+             mtrGeo = JTS.transform( degGeo, convertToMeter ).buffer(radius);
+    
+    degGeo = JTS.transform(mtrGeo, convertFromMeter);
+    Envelope envelope = degGeo.getEnvelopeInternal();
+
+    boolean r1 = envelope.intersects( 179.999995, envelope.centre().y),
+            r2 = envelope.intersects(-179.999995, envelope.centre().y),
+            r3 = ( envelope.getMinX() * envelope.getMaxX() ) < 0;
+    
+    return (r1 || r2) && r3; 
+  }
+
 }
