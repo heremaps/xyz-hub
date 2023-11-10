@@ -1073,7 +1073,7 @@ public class Export extends JDBCBasedJob<Export> {
 
     @Override
     public void finalizeJob() {
-        if (isEmrTransformation()) {
+        if (isEmrTransformation() && !getExportObjects().isEmpty() && (statistic == null || statistic.getRowsUploaded() > 0)) {
             updateJobStatus(this, finalizing)
                 .compose(job -> {
                     //Start EMR Job, return jobId
