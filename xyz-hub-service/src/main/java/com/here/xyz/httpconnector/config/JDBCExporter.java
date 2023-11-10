@@ -81,9 +81,12 @@ public class JDBCExporter extends JDBCClients {
                                           );
 
               switch ( pseudoCsvFormat ) {
-                  case PARTITIONID_FC_B64:                      exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
-                              job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
-                              compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
+                  case PARTITIONID_FC_B64:     
+
+                              exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
+                                                                        job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
+                                                                        compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
+                                                                        
                       return calculateThreadCountForDownload(job, schema, exportQuery)
                               .compose(threads -> {
                                   try {

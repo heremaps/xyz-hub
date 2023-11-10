@@ -20,7 +20,9 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.httpconnector.util.Futures.futurify;
+import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.CHANGES;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.FULL_OPTIMIZED;
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
@@ -224,7 +226,13 @@ public class Export extends JDBCBasedJob<Export> {
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
 
-                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId());
+                SpaceContext ctx = (   job.readParamContext() == EXTENSION   
+                                    || job.readParamCompositeMode() == CHANGES 
+                                    || job.readParamCompositeMode() == FULL_OPTIMIZED 
+                                    ? EXTENSION : null
+                                   );
+                                   
+                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx );
             })
             .compose(statistics -> {
                 //Store count of features which are in source layer
