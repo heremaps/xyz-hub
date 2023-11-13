@@ -191,7 +191,8 @@ public class CombinedJob extends Job<CombinedJob> {
   public Future<Job> executeAbort() {
     return super.executeAbort()
         .compose(job -> updateJobStatus(job, aborted))
-        .compose(job -> abortAllNonFinalChildren());
+        .compose(job -> abortAllNonFinalChildren())
+        .map(v -> this);
   }
 
   @Override
@@ -225,27 +226,31 @@ public class CombinedJob extends Job<CombinedJob> {
       setExecutedAt(Core.currentTimeMillis() / 1000L);
       new Thread(() -> {
         while (children.stream().anyMatch(childJob -> !childJob.getStatus().isFinal())) {
-          reloadChildren().onSuccess(reloadedChildren -> {
-            children = reloadedChildren;
-            store();
-          });
-          checkForNonSucceededChildren();
+          reloadChildren()
+              .compose(reloadedChildren -> {
+                children = reloadedChildren;
+                return store();
+              })
+              .compose(v -> checkForNonSucceededChildren());
           try {
             Thread.sleep(1000);
           }
           catch (InterruptedException ignored) {}
         }
-        checkForNonSucceededChildren();
-        //Everything is processed
-        logger.info("job[{}] CombinedJob completely succeeded!", getId());
-//        addStatistic(statistic);
-        if (!getStatus().isFinal())
-          updateJobStatus(this, executed);
+        checkForNonSucceededChildren()
+            .compose(v -> {
+              Future<Void> f = Future.succeededFuture();
+              if (!getStatus().isFinal())
+                //Everything is processed
+                f = updateJobStatus(this, executed).mapEmpty();
+              logger.info("job[{}] CombinedJob execution completed with status {}!", getId(), getStatus());
+              return f;
+            });
       }).start();
     }
   }
 
-  private void checkForNonSucceededChildren() {
+  private Future<Void> checkForNonSucceededChildren() {
     Status nonSucceededStatus = null;
     if (children.stream().anyMatch(childJob -> childJob.getStatus() == failed))
       nonSucceededStatus = failed;
@@ -254,12 +259,14 @@ public class CombinedJob extends Job<CombinedJob> {
 
     if (nonSucceededStatus != null) {
       Status combinedEndStatus = nonSucceededStatus;
-      abortAllNonFinalChildren()
-          .compose(job -> updateJobStatus(job, combinedEndStatus));
+      return abortAllNonFinalChildren()
+          .compose(v -> updateJobStatus(this, combinedEndStatus))
+          .mapEmpty();
     }
+    return Future.succeededFuture();
   }
 
-  private Future<Job> abortAllNonFinalChildren() {
+  private Future<Void> abortAllNonFinalChildren() {
     List<Job> nonFinalChildren = children
         .stream()
         .filter(childJob -> !childJob.getStatus().isFinal())
@@ -270,7 +277,7 @@ public class CombinedJob extends Job<CombinedJob> {
 
     return Future
         .all(childrenAbortFutures)
-        .map(compositeFuture -> this);
+        .mapEmpty();
   }
 
   public List<Job> getChildren() {
