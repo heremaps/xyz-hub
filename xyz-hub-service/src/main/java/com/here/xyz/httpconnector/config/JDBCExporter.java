@@ -251,34 +251,7 @@ public class JDBCExporter extends JDBCClients {
                 });
     }
 
-    private static Future<Export.ExportStatistic> exportTypeDownload(String clientId, SQLQuery q, Export j , String s3Path){
-        logger.info("job[{}] Execute S3-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
-
-        return getClient(clientId, true)
-                .preparedQuery(q.text())
-                .execute(new ArrayTuple(q.parameters()))
-                .map(row -> {
-                    
-                    if( row.iterator().hasNext() )
-                    {
-                     Row res = row.iterator().next();
-                     if (res != null) {
-                        return new Export.ExportStatistic()
-                                .withRowsUploaded(res.getLong("rows_uploaded"))
-                                .withFilesUploaded(res.getLong("files_uploaded"))
-                                .withBytesUploaded(res.getLong("bytes_uploaded"));
-                     }
-                    }
-
-                    return new Export.ExportStatistic()
-                                .withRowsUploaded(0)
-                                .withFilesUploaded(0)
-                                .withBytesUploaded(0);
-                });
-    }
-
-    private static Future<Export.ExportStatistic> exportTypeVML(String clientId, SQLQuery q, Export j, String s3Path){
-        logger.info("job[{}] Execute VML-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
+    private static Future<Export.ExportStatistic> _exportType(String clientId, SQLQuery q, Export j , String s3Path){
 
         return getClient(clientId, true)
                 .preparedQuery(q.text())
@@ -296,6 +269,17 @@ public class JDBCExporter extends JDBCClients {
 
                     return es;
                 });
+
+    }
+
+    private static Future<Export.ExportStatistic> exportTypeDownload(String clientId, SQLQuery q, Export j , String s3Path){
+        logger.info("job[{}] Execute S3-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
+        return _exportType(clientId, q, j, s3Path);
+    }
+
+    private static Future<Export.ExportStatistic> exportTypeVML(String clientId, SQLQuery q, Export j, String s3Path){
+        logger.info("job[{}] Execute VML-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
+        return _exportType(clientId, q, j, s3Path);
     }
 
     public static SQLQuery buildS3CalculateQuery(Export job, String schema, SQLQuery query) {
