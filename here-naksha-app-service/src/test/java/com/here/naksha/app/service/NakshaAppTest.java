@@ -534,7 +534,7 @@ class NakshaAppTest {
   @Test
   @Order(3)
   void tc0200_testCreateSpace() throws Exception {
-    // Test API : POST /hub/storages
+    // Test API : POST /hub/spaces
     // 1. Load test data
     final String spaceJson = loadFileOrFail("TC0200_createSpace/create_space.json");
     final String expectedBodyPart = loadFileOrFail("TC0200_createSpace/response.json");
@@ -558,9 +558,9 @@ class NakshaAppTest {
   @Test
   @Order(4)
   void tc0201_testCreateDuplicateSpace() throws Exception {
-    // Test API : POST /hub/storages
+    // Test API : POST /hub/spaces
     // 1. Load test data
-    final String duplicatedSpace = loadFileOrFail("TC0201_createDupSpace/create_space.json");
+    final String duplicatedSpace = loadFileOrFail("TC0200_createSpace/create_space.json");
     final String expectedBodyPart = loadFileOrFail("TC0201_createDupSpace/response.json");
     final String streamId = UUID.randomUUID().toString();
 
@@ -605,7 +605,7 @@ class NakshaAppTest {
   @Test
   @Order(4)
   void tc0261_testUpdateNonexistentSpace() throws Exception {
-    // Test API : PUT /hub/storages/{spaceId}
+    // Test API : PUT /hub/spaces/{spaceId}
     // Given:
     final String updateSpaceJson = loadFileOrFail("TC0261_updateNonexistentSpace/update_space.json");
     final String expectedErrorResponse = loadFileOrFail("TC0261_updateNonexistentSpace/response.json");
@@ -628,7 +628,7 @@ class NakshaAppTest {
   @Test
   @Order(4)
   void tc0263_testUpdateSpaceWithWithMismatchingId() throws Exception {
-    // Test API : PUT /hub/storages/{storageId}
+    // Test API : PUT /hub/spaces/{spaceId}
     // Given:
     final String bodyWithDifferentSpaceId = loadFileOrFail("TC0263_updateSpaceWithMismatchingId/update_space.json");
     final String expectedErrorResponse = loadFileOrFail("TC0263_updateSpaceWithMismatchingId/response.json");
