@@ -607,6 +607,7 @@ public class SpaceTaskHandler {
       };
       //Send "ModifySpaceEvent" to (all) the connector(s) to do some setup, update or clean up.
       query.execute(onEventProcessed, (t, e) -> callback.exception(e));
+      return;
     }
     callback.call(task);
   }
