@@ -5,7 +5,6 @@
   "description": "For unit testing",
   "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
   "active": true,
-  "extensionId": null,
   "properties": {
     "storageId": "um-mod-dev",
     "storageCollection": {

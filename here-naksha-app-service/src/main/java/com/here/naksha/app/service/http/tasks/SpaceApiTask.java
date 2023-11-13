@@ -27,14 +27,14 @@ import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
+import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.PRef;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
-import com.here.naksha.lib.core.models.storage.POp;
-import com.here.naksha.lib.core.models.storage.PRef;
-import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import io.vertx.ext.web.RoutingContext;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -83,7 +83,7 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
         case UPDATE_SPACE -> executeUpdateSpace();
         case GET_ALL_SPACES -> executeGetSpaces();
         case GET_SPACE_BY_ID -> executeGetSpaceById();
-          default -> executeUnsupported();
+        default -> executeUnsupported();
       };
     } catch (Exception ex) {
       // unexpected exception
@@ -113,16 +113,16 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
   }
 
   private @NotNull XyzResponse executeGetSpaces() {
-      final ReadFeatures request = new ReadFeatures(SPACES);
-      final Result rdResult = executeReadRequestFromSpaceStorage(request);
-      return transformReadResultToXyzCollectionResponse(rdResult, Space.class);
+    final ReadFeatures request = new ReadFeatures(SPACES);
+    final Result rdResult = executeReadRequestFromSpaceStorage(request);
+    return transformReadResultToXyzCollectionResponse(rdResult, Space.class);
   }
 
   private @NotNull XyzResponse executeGetSpaceById() {
-      final String spaceId = routingContext.pathParam(SPACE_ID_PATH_KEY);
-      final ReadFeatures request = new ReadFeatures(SPACES).withPropertyOp(POp.eq(PRef.id(), spaceId));
-      final Result rdResult = executeReadRequestFromSpaceStorage(request);
-      return transformReadResultToXyzFeatureResponse(rdResult, Space.class);
+    final String spaceId = routingContext.pathParam(SPACE_ID_PATH_KEY);
+    final ReadFeatures request = new ReadFeatures(SPACES).withPropertyOp(POp.eq(PRef.id(), spaceId));
+    final Result rdResult = executeReadRequestFromSpaceStorage(request);
+    return transformReadResultToXyzFeatureResponse(rdResult, Space.class);
   }
 
   private Space spaceFromRequestBody() throws JsonProcessingException {
@@ -133,7 +133,7 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
   }
 
   private static String mismatchMsg(String spaceIdFromPath, Space spaceFromBody) {
-      return "Mismatch between space ids. Path space id: %s, body space id: %s"
-              .formatted(spaceIdFromPath, spaceFromBody.getId());
+    return "Mismatch between space ids. Path space id: %s, body space id: %s"
+        .formatted(spaceIdFromPath, spaceFromBody.getId());
   }
 }
