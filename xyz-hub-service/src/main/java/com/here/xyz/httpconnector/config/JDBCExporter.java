@@ -22,15 +22,15 @@ package com.here.xyz.httpconnector.config;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.COMPOSITE_EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
-import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONED_JSON_WKB;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.PARTITIONID_FC_B64;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.TILEID_FC_B64;
 
 import com.here.xyz.events.ContextAwareEvent;
+import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.events.GetFeaturesByGeometryEvent;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
@@ -75,18 +75,18 @@ public class JDBCExporter extends JDBCClients {
               boolean compositeCalculation =   job.readParamCompositeMode() == Export.CompositeMode.CHANGES
                                             || job.readParamCompositeMode() == Export.CompositeMode.FULL_OPTIMIZED;
 
-              CSVFormat pseudoCsvFormat = (  job.getCsvFormat() != PARTITIONED_JSON_WKB 
-                                           ? job.getCsvFormat() 
+              CSVFormat pseudoCsvFormat = (  job.getCsvFormat() != PARTITIONED_JSON_WKB
+                                           ? job.getCsvFormat()
                                            : ( job.getPartitionKey() == null || "tileid".equalsIgnoreCase(job.getPartitionKey()) ? TILEID_FC_B64 : PARTITIONID_FC_B64 )
                                           );
 
               switch ( pseudoCsvFormat ) {
-                  case PARTITIONID_FC_B64:     
+                  case PARTITIONID_FC_B64:
 
                               exportQuery = generateFilteredExportQuery(job.getId(), schema, job.getTargetSpaceId(), propertyFilter, spatialFilter,
                                                                         job.getTargetVersion(), job.getParams(), job.getCsvFormat(), null,
                                                                         compositeCalculation , job.getPartitionKey(), job.getOmitOnNull());
-                                                                        
+
                       return calculateThreadCountForDownload(job, schema, exportQuery)
                               .compose(threads -> {
                                   try {
@@ -104,7 +104,8 @@ public class JDBCExporter extends JDBCClients {
                                           String s3Prefix = i + "_";
                                           SQLQuery q2 = buildPartIdVMLExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region, compositeCalculation,
                                                   tCount > 1 ? new SQLQuery("AND i%% " + tCount + " = " + i) : null);
-                                          exportFutures.add(exportTypeVML(job.getTargetConnector(), q2, job, s3Path));
+                                        String clientId = job.getTargetConnector();
+                                        exportFutures.add(executeExportQuery(clientId, q2, job, s3Path));
                                       }
                                       return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
                                   }
@@ -138,8 +139,9 @@ public class JDBCExporter extends JDBCClients {
                                        for (int i = 0; i < tileList.size(); i++) {
                                           /** Build export for each tile of the weighted tile list */
                                           SQLQuery q2 = buildVMLExportQuery(job, schema, s3Bucket, s3Path, s3Region, tileList.get(i), qkQuery);
-                                          
-                                          exportFutures.add( exportTypeVML(job.getTargetConnector(), q2, job, s3Path) );
+
+                                         String clientId = job.getTargetConnector();
+                                         exportFutures.add(executeExportQuery(clientId, q2, job, s3Path));
 
                                        }
 
@@ -164,7 +166,8 @@ public class JDBCExporter extends JDBCClients {
                                                     String s3Prefix = i + "_";
                                                     SQLQuery q2 = buildS3ExportQuery(job, schema, s3Bucket, s3Path, s3Prefix, s3Region, compositeCalculation,
                                                             (threads > 1 ? new SQLQuery("AND i%% " + threads + " = " + i) : null));
-                                                    exportFutures.add(exportTypeDownload(job.getTargetConnector(), q2, job, s3Path));
+                                                  String clientId = job.getTargetConnector();
+                                                  exportFutures.add(executeExportQuery(clientId, q2, job, s3Path));
                                                 }
 
                                       return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
@@ -251,8 +254,8 @@ public class JDBCExporter extends JDBCClients {
                 });
     }
 
-    private static Future<Export.ExportStatistic> _exportType(String clientId, SQLQuery q, Export j , String s3Path){
-
+    private static Future<Export.ExportStatistic> executeExportQuery(String clientId, SQLQuery q, Export j , String s3Path){
+        logger.info("job[{}] Execute S3-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
         return getClient(clientId, true)
                 .preparedQuery(q.text())
                 .execute(new ArrayTuple(q.parameters()))
@@ -272,17 +275,7 @@ public class JDBCExporter extends JDBCClients {
 
     }
 
-    private static Future<Export.ExportStatistic> exportTypeDownload(String clientId, SQLQuery q, Export j , String s3Path){
-        logger.info("job[{}] Execute S3-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
-        return _exportType(clientId, q, j, s3Path);
-    }
-
-    private static Future<Export.ExportStatistic> exportTypeVML(String clientId, SQLQuery q, Export j, String s3Path){
-        logger.info("job[{}] Execute VML-Export {}->{} {}", j.getId(), j.getTargetSpaceId(), s3Path, q.text());
-        return _exportType(clientId, q, j, s3Path);
-    }
-
-    public static SQLQuery buildS3CalculateQuery(Export job, String schema, SQLQuery query) {
+  public static SQLQuery buildS3CalculateQuery(Export job, String schema, SQLQuery query) {
         SQLQuery q = new SQLQuery("select /* s3_export_hint m499#jobId(" + job.getId() + ") */ ${schema}.exp_type_download_precalc(" +
                 "#{estimated_count}, ${{exportSelectString}}, #{tbl}::regclass) as thread_cnt");
 
@@ -428,7 +421,7 @@ public class JDBCExporter extends JDBCClients {
     private static SQLQuery generateFilteredExportQuery(String jobId, String schema, String spaceId, String propertyFilter,
         Export.SpatialFilter spatialFilter, String targetVersion, Map params, CSVFormat csvFormat, SQLQuery customWhereCondition, boolean isForCompositeContentDetection, String partitionKey, Boolean omitOnNull )
         throws SQLException {
-        
+
         csvFormat = (( csvFormat == PARTITIONED_JSON_WKB && ( partitionKey == null || "tileid".equalsIgnoreCase(partitionKey)) ) ? TILEID_FC_B64 : csvFormat );
         //TODO: Re-use existing QR rather than the following duplicated code
         SQLQuery geoFragment;
@@ -488,8 +481,8 @@ public class JDBCExporter extends JDBCClients {
         boolean partitionByPropertyValue = ((csvFormat == PARTITIONID_FC_B64 || csvFormat == PARTITIONED_JSON_WKB) && partitionKey != null && !"id".equalsIgnoreCase(partitionKey)),
                 partitionByFeatureId     = ((csvFormat == PARTITIONID_FC_B64 || csvFormat == PARTITIONED_JSON_WKB) && !partitionByPropertyValue ),
                 downloadAsJsonWkb        = ( csvFormat == JSON_WKB );
-                
-        SpaceContext ctxStashed = event.getContext();        
+
+        SpaceContext ctxStashed = event.getContext();
 
         if (isForCompositeContentDetection)
             event.setContext( (partitionByFeatureId || downloadAsJsonWkb) ? EXTENSION : COMPOSITE_EXTENSION);
@@ -541,33 +534,33 @@ public class JDBCExporter extends JDBCClients {
                 .substitute();
             return queryToText(geoJson);
           }
-         
+
          case PARTITIONED_JSON_WKB :
          case PARTITIONID_FC_B64   :
          {
-            String partQry = 
+            String partQry =
                          csvFormat == PARTITIONID_FC_B64
                             ? ( isForCompositeContentDetection
-                              ? "select jsondata->>'id' as id, " 
+                              ? "select jsondata->>'id' as id, "
                               + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) "
                               + "  when true then replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') "
                               + "  else null::text "
                               + " end as data "
                               + "from ( ${{contentQuery}}) X"
-                              :  "select jsondata->>'id' as id, " 
+                              :  "select jsondata->>'id' as id, "
                               + " replace( encode(convert_to(jsonb_build_object( 'type','FeatureCollection','features', jsonb_build_array( jsondata || jsonb_build_object( 'geometry', ST_AsGeoJSON(geo,8)::jsonb ) ) )::text,'UTF8'),'base64') ,chr(10),'') as data "
                               + "from ( ${{contentQuery}}) X" )
                        /* PARTITIONED_JSON_WKB */
                             : ( isForCompositeContentDetection
-                              ? "select jsondata->>'id' as id, " 
-                              + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) when true then jsondata else null::jsonb end as jsondata," 
+                              ? "select jsondata->>'id' as id, "
+                              + " case not coalesce((jsondata#>'{properties,@ns:com:here:xyz,deleted}')::boolean,false) when true then jsondata else null::jsonb end as jsondata,"
                               + " geo "
                               + "from ( ${{contentQuery}}) X"
                               : "select jsondata->>'id' as id, jsondata, geo "
                               + "from ( ${{contentQuery}}) X" );
 
            if( partitionByPropertyValue )
-           {  
+           {
               String converted = ApiParam.getConvertedKey(partitionKey);
               partitionKey =  String.join("'->'",(converted != null ? converted : partitionKey).split("\\."));
               partQry = String.format(
