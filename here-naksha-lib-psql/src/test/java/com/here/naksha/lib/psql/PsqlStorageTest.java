@@ -304,7 +304,7 @@ FROM bounds, generate_series(""")
   @EnabledIf("isEnabled")
   void startTransaction() throws SQLException {
     assertNotNull(storage);
-    session = (PsqlWriteSession) storage.newWriteSession(nakshaContext, true);
+    session = storage.newWriteSession(nakshaContext, true);
     assertNotNull(session);
   }
 
@@ -775,7 +775,7 @@ FROM bounds, generate_series(""")
       }
       final WriteXyzFeatures<XyzFeature> writeRequest = new WriteXyzFeatures<>(COLLECTION_ID, ops);
       writeRequest.minResults = true;
-      final List<@NotNull WriteFeatures<XyzFeature>> bulkWrites = storage.newBulkWrite(writeRequest);
+      final List<@NotNull WriteFeatures<XyzFeature>> bulkWrites = storage.newBulkSession(writeRequest);
       final ConcurrentHashMap<SimpleTask<Result>, Future<Result>> resultFutures = new ConcurrentHashMap<>();
 
       // Preparations are done, lets test how long the actual write takes.

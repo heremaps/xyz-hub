@@ -235,7 +235,7 @@ CREATE OR REPLACE FUNCTION nk_head_partition_name(_collection_id text, _partitio
 END $$;
 
 CREATE OR REPLACE FUNCTION nk_lock_id(_name text) RETURNS int8 LANGUAGE 'plpgsql' STRICT IMMUTABLE AS $$ BEGIN
-  RETURN ('x'||substr(md5('sda'),1,16))::bit(64)::int8;
+  RETURN ('x'||substr(md5(_name),1,16))::bit(64)::int8;
 END $$;
 
 CREATE OR REPLACE FUNCTION nk_key(_key text) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
@@ -744,7 +744,6 @@ BEGIN
     OLD.jsondata = jsonb_set(OLD.jsondata, array['properties','@ns:com:here:xyz','txn_next'], to_jsonb(txn), true);
     sql = format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_hst', collection_id));
     --RAISE NOTICE '%', sql;
-    EXECUTE sql USING OLD.jsondata, OLD.geo, OLD.i;
     BEGIN
       EXECUTE sql USING OLD.jsondata, OLD.geo, OLD.i;
     EXCEPTION WHEN check_violation THEN
@@ -799,7 +798,7 @@ END $BODY$;
 
 CREATE OR REPLACE FUNCTION nk_create_head_indices(_table text, _use_sp_gist bool) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $BODY$
 DECLARE
-  indices constant text[] = ARRAY['crid', 'qrid', 'app_id', 'author'];
+  indices constant text[] = ARRAY['crid', 'grid', 'app_id', 'author'];
   geo_index_type text;
   idx_name text;
   sql text;

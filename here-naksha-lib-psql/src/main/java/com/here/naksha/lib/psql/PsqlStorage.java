@@ -227,10 +227,6 @@ public final class PsqlStorage implements IStorage {
     storage().dropSchema();
   }
 
-  public <T> @NotNull List<@NotNull WriteFeatures<T>> newBulkWrite(@NotNull WriteFeatures<T> writeFeatures) {
-    return storage().toBulkWrite(writeFeatures);
-  }
-
   @Override
   public @NotNull PsqlWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
     return storage().newWriteSession(context, useMaster);
