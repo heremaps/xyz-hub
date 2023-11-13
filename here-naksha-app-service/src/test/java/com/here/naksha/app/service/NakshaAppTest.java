@@ -532,97 +532,278 @@ class NakshaAppTest {
   }
 
   @Test
+  @Order(3)
+  void tc0200_testCreateSpace() throws Exception {
+    // Test API : POST /hub/spaces
+    // 1. Load test data
+    final String spaceJson = loadFileOrFail("TC0200_createSpace/create_space.json");
+    final String expectedBodyPart = loadFileOrFail("TC0200_createSpace/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces"))
+        .POST(HttpRequest.BodyPublishers.ofString(spaceJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals(
+        "Expecting new space in response", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
   @Order(4)
+  void tc0201_testCreateDuplicateSpace() throws Exception {
+    // Test API : POST /hub/spaces
+    // 1. Load test data
+    final String duplicatedSpace = loadFileOrFail("TC0200_createSpace/create_space.json");
+    final String expectedBodyPart = loadFileOrFail("TC0201_createDupSpace/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces"))
+        .POST(HttpRequest.BodyPublishers.ofString(duplicatedSpace))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(409, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals(
+        "Expecting conflict error message", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(4)
+  void tc0220_testGetSpaceById() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}
+    // 1. Load test data
+    final String expectedBodyPart = loadFileOrFail("TC0200_createSpace/response.json");
+    final String streamId = UUID.randomUUID().toString();
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/test-space"))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals("Expecting space response", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(4)
+  void tc0221_testGetSpaceByWrongId() throws Exception {
+    // Test API : GET /hub/spaces/{spaceId}
+    // 1. Load test data
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/not-real-space"))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(404, response.statusCode(), "ResCode mismatch");
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(4)
+  void tc0240_testGetSpaces() throws Exception {
+    // Test API : GET /hub/spaces
+    // 1. Load test data
+    final String expectedBodyPart = loadFileOrFail("TC0240_getSpaces/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // 2. Perform REST API call
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces"))
+        .GET()
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // 3. Perform assertions
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    JSONAssert.assertEquals(
+        "Expecting previously created space", expectedBodyPart, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID), "StreamId mismatch");
+  }
+
+  @Test
+  @Order(5)
+  void tc0260_testUpdateSpace() throws Exception {
+    // Test API : PUT /hub/spaces/{spaceId}
+    // Given:
+    final String updateStorageJson = loadFileOrFail("TC0260_updateSpace/update_space.json");
+    final String expectedRespBody = loadFileOrFail("TC0260_updateSpace/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/test-space"))
+        .PUT(HttpRequest.BodyPublishers.ofString(updateStorageJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then:
+    assertEquals(200, response.statusCode());
+    JSONAssert.assertEquals(expectedRespBody, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
+  @Order(5)
+  void tc0261_testUpdateNonexistentSpace() throws Exception {
+    // Test API : PUT /hub/spaces/{spaceId}
+    // Given:
+    final String updateSpaceJson = loadFileOrFail("TC0261_updateNonexistentSpace/update_space.json");
+    final String expectedErrorResponse = loadFileOrFail("TC0261_updateNonexistentSpace/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/non-existent-space"))
+        .PUT(HttpRequest.BodyPublishers.ofString(updateSpaceJson))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then:
+    assertEquals(409, response.statusCode());
+    JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
+  @Order(5)
+  void tc0263_testUpdateSpaceWithWithMismatchingId() throws Exception {
+    // Test API : PUT /hub/spaces/{spaceId}
+    // Given:
+    final String bodyWithDifferentSpaceId = loadFileOrFail("TC0263_updateSpaceWithMismatchingId/update_space.json");
+    final String expectedErrorResponse = loadFileOrFail("TC0263_updateSpaceWithMismatchingId/response.json");
+    final String streamId = UUID.randomUUID().toString();
+
+    // When:
+    final HttpRequest request = HttpRequest.newBuilder(stdHttpRequest, (k, v) -> true)
+        .uri(new URI(NAKSHA_HTTP_URI + "hub/spaces/test-space"))
+        .PUT(HttpRequest.BodyPublishers.ofString(bodyWithDifferentSpaceId))
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    final HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+    // Then:
+    assertEquals(400, response.statusCode());
+    JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
+    assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+  @Test
+  @Order(6)
   void tc0300_testCreateFeaturesWithNewIds() throws Exception {
     createFeatureTests.tc0300_testCreateFeaturesWithNewIds();
   }
 
   @Test
-  @Order(5)
+  @Order(7)
   void tc0301_testCreateFeaturesWithGivenIds() throws Exception {
     createFeatureTests.tc0301_testCreateFeaturesWithGivenIds();
   }
 
   @Test
-  @Order(5)
+  @Order(7)
   void tc0302_testCreateFeaturesWithPrefixId() throws Exception {
     createFeatureTests.tc0302_testCreateFeaturesWithPrefixId();
   }
 
   @Test
-  @Order(5)
+  @Order(7)
   void tc0303_testCreateFeaturesWithAddTags() throws Exception {
     createFeatureTests.tc0303_testCreateFeaturesWithAddTags();
   }
 
   @Test
-  @Order(5)
+  @Order(7)
   void tc0304_testCreateFeaturesWithRemoveTags() throws Exception {
     createFeatureTests.tc0304_testCreateFeaturesWithRemoveTags();
   }
 
   @Test
-  @Order(5)
+  @Order(7)
   void tc0305_testCreateFeaturesWithDupIds() throws Exception {
     createFeatureTests.tc0305_testCreateFeaturesWithDupIds();
   }
 
   @Test
-  @Order(5)
+  @Order(7)
   void tc0307_testCreateFeaturesWithNoHandler() throws Exception {
     createFeatureTests.tc0307_testCreateFeaturesWithNoHandler();
   }
 
   @Test
-  @Order(5)
+  @Order(7)
   void tc0308_testCreateFeaturesWithNoSpace() throws Exception {
     createFeatureTests.tc0308_testCreateFeaturesWithNoSpace();
   }
 
   @Test
-  @Order(6)
+  @Order(8)
   void tc0400_testReadFeaturesWithIds() throws Exception {
     readFeaturesByIdsTests.tc0400_testReadFeaturesByIds();
   }
 
   @Test
-  @Order(7)
+  @Order(9)
   void tc0401_testReadFeaturesForMissingIds() throws Exception {
     readFeaturesByIdsTests.tc0401_testReadFeaturesForMissingIds();
   }
 
   @Test
-  @Order(7)
+  @Order(9)
   void tc0402_testReadFeaturesWithoutIds() throws Exception {
     readFeaturesByIdsTests.tc0402_testReadFeaturesWithoutIds();
   }
 
   @Test
-  @Order(7)
+  @Order(9)
   void tc0403_testReadFeaturesByIdsFromMissingSpace() throws Exception {
     readFeaturesByIdsTests.tc0403_testReadFeaturesByIdsFromMissingSpace();
   }
 
   @Test
-  @Order(7)
+  @Order(9)
   void tc0404_testReadFeatureById() throws Exception {
     readFeaturesByIdsTests.tc0404_testReadFeatureById();
   }
 
   @Test
-  @Order(7)
+  @Order(9)
   void tc0405_testReadFeatureForMissingId() throws Exception {
     readFeaturesByIdsTests.tc0405_testReadFeatureForMissingId();
   }
 
   @Test
-  @Order(7)
+  @Order(9)
   void tc0406_testReadFeatureByIdFromMissingSpace() throws Exception {
     readFeaturesByIdsTests.tc0406_testReadFeatureByIdFromMissingSpace();
   }
 
   @Test
-  @Order(7)
+  @Order(9)
   void tc0407_testReadFeaturesWithCommaSeparatedIds() throws Exception {
     readFeaturesByIdsTests.tc0407_testReadFeaturesWithCommaSeparatedIds();
   }

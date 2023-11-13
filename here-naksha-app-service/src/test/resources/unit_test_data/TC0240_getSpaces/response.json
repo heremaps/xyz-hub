@@ -1,0 +1,12 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "test-space",
+      "type": "Space",
+      "eventHandlerIds": [
+        "test-handler"
+      ]
+    }
+  ]
+}

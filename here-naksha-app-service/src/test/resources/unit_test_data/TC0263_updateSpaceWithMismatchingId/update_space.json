@@ -1,0 +1,15 @@
+{
+  "id": "other-test-space",
+  "type": "Space",
+  "title": "Space that should not be used to update `test-space`",
+  "description": "Descripion of Space used for testing",
+  "eventHandlerIds": [
+    "test-handler"
+  ],
+  "properties": {
+    "storageCollection": {
+      "id": "um-mod-dev:test",
+      "type": "StorageCollection"
+    }
+  }
+}
