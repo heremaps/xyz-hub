@@ -19,6 +19,8 @@
 
 package com.here.xyz.hub.config.dynamo;
 
+import static com.here.xyz.hub.Service.configuration;
+
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.dynamodbv2.document.BatchGetItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Item;
@@ -38,7 +40,6 @@ import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Static;
 import com.here.xyz.events.PropertiesQuery;
-import com.here.xyz.hub.Service;
 import com.here.xyz.hub.config.SpaceConfigClient;
 import com.here.xyz.hub.connectors.models.Space;
 import com.here.xyz.hub.util.ARN;
@@ -80,7 +81,19 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     logger.info("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
     spaces = dynamoClient.db.getTable(dynamoClient.tableName);
     packages = dynamoClient.db
-        .getTable(new ARN(Service.configuration.PACKAGES_DYNAMODB_TABLE_ARN).getResourceWithoutType());
+        .getTable(new ARN(configuration.PACKAGES_DYNAMODB_TABLE_ARN).getResourceWithoutType());
+  }
+
+  public static class Provider extends SpaceConfigClient.Provider {
+    @Override
+    public boolean chooseMe() {
+      return configuration.SPACES_DYNAMODB_TABLE_ARN != null && !"test".equals(System.getProperty("scope"));
+    }
+
+    @Override
+    protected SpaceConfigClient getInstance() {
+      return new DynamoSpaceConfigClient(configuration.SPACES_DYNAMODB_TABLE_ARN);
+    }
   }
 
   @Override

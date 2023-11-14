@@ -19,6 +19,7 @@
 
 package com.here.xyz.hub.config.jdbc;
 
+import static com.here.xyz.hub.Service.configuration;
 import static com.here.xyz.hub.config.jdbc.JDBCConfig.SPACE_TABLE;
 
 import com.here.xyz.XyzSerializable;
@@ -53,11 +54,17 @@ public class JDBCSpaceConfigClient extends SpaceConfigClient {
     client = JDBCConfig.getClient();
   }
 
-  public static JDBCSpaceConfigClient getInstance() {
-    if (instance == null) {
-      instance = new JDBCSpaceConfigClient();
+  public static class Provider extends SpaceConfigClient.Provider {
+    @Override
+    public boolean chooseMe() {
+      return configuration.SPACES_DYNAMODB_TABLE_ARN == null && !"test".equals(System.getProperty("scope"));
     }
-    return instance;
+
+
+    @Override
+    protected SpaceConfigClient getInstance() {
+      return new JDBCSpaceConfigClient();
+    }
   }
 
   @Override
