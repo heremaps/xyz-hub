@@ -38,6 +38,19 @@ public class InMemSpaceConfigClient extends SpaceConfigClient {
 
   private final Map<String, Space> spaceMap = new ConcurrentHashMap<>();
 
+  public static class Provider extends SpaceConfigClient.Provider {
+    @Override
+    public boolean chooseMe() {
+      return "test".equals(System.getProperty("scope"));
+    }
+
+
+    @Override
+    protected SpaceConfigClient getInstance() {
+      return new InMemSpaceConfigClient();
+    }
+  }
+
   @Override
   public Future<Space> getSpace(Marker marker, String spaceId) {
     return Future.succeededFuture(spaceMap.get(spaceId));
