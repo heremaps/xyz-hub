@@ -60,7 +60,7 @@ import org.junit.jupiter.api.condition.EnabledIf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@SuppressWarnings({"CallToPrintStackTrace", "unchecked"})
+@SuppressWarnings({"CallToPrintStackTrace", "unchecked", "unused"})
 @TestMethodOrder(OrderAnnotation.class)
 public class PsqlStorageTest {
 
@@ -84,22 +84,26 @@ public class PsqlStorageTest {
   /**
    * The amount of features to write for the bulk insert test, zero or less to disable the test.
    */
-  public static final int BULK_SIZE = 100 * 1000 * 1000;
+  public static final int BULK_SIZE = 10 * 1000 * 1000;
 
   /**
    * Amount of threads to write features concurrently.
    */
+  @Deprecated
   public static final int THREADS = 10;
 
   /**
    * Amount of features to write in each thread.
    */
+  @Deprecated
   public static final int MANY_FEATURES_COUNT = 10_000;
 
   /**
    * The amount of times to do the insert.
    */
+  @Deprecated
   public static final int LOOP = 1;
+
   /**
    * Disable the history for the mass-insertion.
    */
@@ -126,6 +130,7 @@ public class PsqlStorageTest {
    */
   public static final boolean DO_UPDATE = true;
 
+  @Deprecated
   record UpdateKey(String key, String[] values) {}
 
   public static final UpdateKey[] UPDATE_KEYS = new UpdateKey[] {
@@ -135,29 +140,30 @@ public class PsqlStorageTest {
   /**
    * Tests if the environment variable "TEST_ADMIN_DB" is set.
    */
-  private boolean isEnabled() {
+  private boolean hasTestDb() {
     return TEST_ADMIN_DB != null;
   }
 
   private boolean doBulk() {
-    return isEnabled() && BULK_SIZE > 0;
+    return hasTestDb() && BULK_SIZE > 0;
   }
 
+  // This is only to disable tests not yet working!
   @Deprecated
   private boolean isTrue() {
     return true;
   }
 
   private boolean dropInitially() {
-    return isEnabled() && DROP_INITIALLY;
+    return hasTestDb() && DROP_INITIALLY;
   }
 
   private boolean dropFinally() {
-    return isEnabled() && DROP_FINALLY;
+    return hasTestDb() && DROP_FINALLY;
   }
 
   private boolean doUpdate() {
-    return isEnabled() && DO_UPDATE;
+    return hasTestDb() && DO_UPDATE;
   }
 
   static final String TEST_APP_ID = "test_app";
@@ -166,15 +172,24 @@ public class PsqlStorageTest {
   static @Nullable NakshaContext nakshaContext;
   static @Nullable PsqlWriteSession session;
   // Results in ["aaa", "bbb", ...]
+  @Deprecated
   static String[] prefixes = new String[THREADS];
+
+  @Deprecated
   static String[][] ids;
+
+  @Deprecated
   static String[] tags;
+
+  @Deprecated
   static HashMap<String, String[]> idsByPrefix = new HashMap<>();
 
+  @Deprecated
   static String id(String prefix, int i) {
     return String.format("%s_%06d", prefix, i);
   }
 
+  @Deprecated
   static void initStatics(boolean first) {
     final SecureRandom rand = new SecureRandom();
     final StringBuilder sb = new StringBuilder();
@@ -211,7 +226,7 @@ public class PsqlStorageTest {
 
   @Test
   @Order(10)
-  @EnabledIf("isEnabled")
+  @EnabledIf("hasTestDb")
   void createStorage() throws Exception {
     final PsqlConfig config = new PsqlConfigBuilder()
         .withAppName("Naksha-Psql-Test")
@@ -224,18 +239,18 @@ public class PsqlStorageTest {
   @Test
   @Order(20)
   @EnabledIf("dropInitially")
-  void dropSchemaIfExists() throws Exception {
+  void dropSchemaIfExists() {
     assertNotNull(storage);
     storage.dropSchema();
   }
 
   @Test
   @Order(30)
-  @EnabledIf("isEnabled")
-  void initStorage() throws Exception {
+  @EnabledIf("hasTestDb")
+  void initStorage() {
     assertNotNull(storage);
-    // storage.initStorageWithDebugInfo();
-    storage.initStorage();
+    storage.initStorageWithDebugInfo();
+    // storage.initStorage();
   }
 
   @Test
@@ -301,7 +316,7 @@ FROM bounds, generate_series(""")
 
   @Test
   @Order(40)
-  @EnabledIf("isEnabled")
+  @EnabledIf("hasTestDb")
   void startTransaction() throws SQLException {
     assertNotNull(storage);
     session = storage.newWriteSession(nakshaContext, true);
@@ -345,8 +360,8 @@ FROM bounds, generate_series(""")
 
   @Test
   @Order(60)
-  @EnabledIf("isEnabled")
-  void writeSingleFeature() throws NoCursor {
+  @EnabledIf("hasTestDb")
+  void singleFeatureCreate() throws NoCursor {
     assertNotNull(storage);
     assertNotNull(session);
     final WriteXyzFeatures<XyzFeature> request = new WriteXyzFeatures<>(COLLECTION_ID);
@@ -379,9 +394,38 @@ FROM bounds, generate_series(""")
   }
 
   @Test
-  @Order(70)
-  @EnabledIf("isEnabled")
-  void deleteSingleFeature() throws NoCursor {
+  @Order(61)
+  @EnabledIf("hasTestDb")
+  void singleFeatureCreateVerify() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // TODO: Read the created feature and review that it is in version 1, and everything else is good.
+    //       Optionally, ensure that the "grid" is the correct Geo-Hash!
+  }
+
+  @Test
+  @Order(62)
+  @EnabledIf("hasTestDb")
+  void singleFeatureUpdate() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // TODO: Update the feature
+  }
+
+  @Test
+  @Order(63)
+  @EnabledIf("hasTestDb")
+  void singleFeatureUpdateVerify() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // TODO: Read the updated feature and review that it is in version 2, and everything else is good.
+    //       Optionally, ensure that the "grid" is the correct Geo-Hash!
+  }
+
+  @Test
+  @Order(64)
+  @EnabledIf("hasTestDb")
+  void singleFeatureDelete() throws NoCursor {
     assertNotNull(storage);
     assertNotNull(session);
     final WriteXyzFeatures<XyzFeature> request = new WriteXyzFeatures<>(COLLECTION_ID);
@@ -413,6 +457,38 @@ FROM bounds, generate_series(""")
     }
   }
 
+  @Test
+  @Order(65)
+  @EnabledIf("hasTestDb")
+  void singleFeatureDeleteVerify() {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // TODO: Ensure that the feature is deleted (not found)
+    //       Ensure that the feature is available when reading including delete features, verify state (version 3)
+    // aso.
+    //       Directly query database in "del" table and review that the feature exists there in the correct staet.
+  }
+
+  @Test
+  @Order(66)
+  @EnabledIf("hasTestDb")
+  void singleFeaturePurge() {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // TODO: Purge the deleted feature.
+    //       Ensure that the feature is no longer available in "_del" table
+  }
+
+  @Test
+  @Order(67)
+  @EnabledIf("hasTestDb")
+  void singleFeaturePurgeVerify() {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // TODO: Ensure that the feature is no longer available in "_del" table.
+  }
+
+  @Deprecated
   static class InsertionThread extends Thread {
 
     InsertionThread(@NotNull String name) {
@@ -489,6 +565,7 @@ FROM bounds, generate_series(""")
     }
   }
 
+  @Deprecated
   static class UpdateThread extends Thread {
 
     UpdateThread(@NotNull String prefix) {
@@ -578,10 +655,14 @@ FROM bounds, generate_series(""")
     }
   }
 
+  @Deprecated
   static ConcurrentHashMap<String, ConcurrentHashMap<String, NakshaFeature>> readFeaturesByPrefix =
       new ConcurrentHashMap<>();
+
+  @Deprecated
   static ConcurrentHashMap<String, XyzFeature> readFeaturesById = new ConcurrentHashMap<>();
 
+  @Deprecated
   static class ReadThread extends Thread {
 
     ReadThread(@NotNull String prefix) {
@@ -623,7 +704,7 @@ FROM bounds, generate_series(""")
 
   @Test
   @Order(80)
-  @EnabledIf("isEnabled")
+  @EnabledIf("hasTestDb")
   @DisabledIf("isTrue")
   void writeManyFeatures() throws Exception {
     assertNotNull(storage);
@@ -708,7 +789,7 @@ FROM bounds, generate_series(""")
 
   @Test
   @Order(81)
-  @EnabledIf("isEnabled")
+  @EnabledIf("hasTestDb")
   void bulkWriteRandomData() throws Exception {
     assertNotNull(storage);
     if (BULK_SIZE > 0) {
@@ -736,8 +817,9 @@ FROM bounds, generate_series(""")
 
   @Test
   @Order(82)
-  @EnabledIf("isEnabled")
+  @EnabledIf("hasTestDb")
   @DisabledIf("isTrue")
+  @Deprecated
   void bulkWrite() throws Exception {
     assertNotNull(storage);
     if (BULK_SIZE > 0) {
@@ -775,7 +857,7 @@ FROM bounds, generate_series(""")
       }
       final WriteXyzFeatures<XyzFeature> writeRequest = new WriteXyzFeatures<>(COLLECTION_ID, ops);
       writeRequest.minResults = true;
-      final List<@NotNull WriteFeatures<XyzFeature>> bulkWrites = storage.newBulkSession(writeRequest);
+      final List<@NotNull WriteFeatures<XyzFeature>> bulkWrites = null; // storage.newBulkSession(writeRequest);
       final ConcurrentHashMap<SimpleTask<Result>, Future<Result>> resultFutures = new ConcurrentHashMap<>();
 
       // Preparations are done, lets test how long the actual write takes.
@@ -848,8 +930,9 @@ FROM bounds, generate_series(""")
 
   @Test
   @Order(90)
-  @EnabledIf("isEnabled")
+  @EnabledIf("hasTestDb")
   @DisabledIf("isTrue")
+  @Deprecated
   void readFeatures() throws Exception {
     assertNotNull(session);
     final long START = System.nanoTime();
@@ -908,6 +991,7 @@ FROM bounds, generate_series(""")
     }
   }
 
+  @Deprecated
   private void printResults(final String prefix, final long START, final long END) {
     final long NANOS = END - START;
     final long FEATURES = MANY_FEATURES_COUNT * THREADS;
@@ -922,8 +1006,9 @@ FROM bounds, generate_series(""")
 
   @Test
   @Order(110)
-  @EnabledIf("isEnabled")
+  @EnabledIf("hasTestDb")
   @DisabledIf("isTrue")
+  @Deprecated
   void listAllCollections() throws SQLException {
     assertNotNull(storage);
     assertNotNull(session);
@@ -943,9 +1028,11 @@ FROM bounds, generate_series(""")
 
   @Test
   @Order(120)
-  @EnabledIf("isEnabled")
-  @DisabledIf("isTrue")
+  @EnabledIf("hasTestDb")
   void dropFooCollection() {
+    // TODO: First try to DELETE the test collection
+    //       Then try to PURGE the test collection
+    //       Finally try to read the test collection (it should not exist)
     assertNotNull(storage);
     assertNotNull(session);
     //    StorageCollection storageCollection = new StorageCollection(COLLECTION_ID);
@@ -974,7 +1061,7 @@ FROM bounds, generate_series(""")
     //    }
   }
 
-  @EnabledIf("isEnabled")
+  @EnabledIf("hasTestDb")
   @AfterAll
   public static void afterTest() {
     if (session != null) {
@@ -997,6 +1084,7 @@ FROM bounds, generate_series(""")
     }
   }
 
+  @Deprecated
   private static <T> long count(List<WriteOpResult<T>> results, EExecutedOp type) {
     return results.stream().filter(op -> op.op.equals(type)).count();
   }

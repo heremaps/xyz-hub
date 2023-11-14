@@ -136,9 +136,6 @@ final class PostgresStorage extends CloseableResource<PostgresStorage> {
           SQL = SQL.replaceAll("\\$\\{schema}", getSchema());
           SQL = SQL.replaceAll("\\$\\{version}", DEBUG ? "0" : Long.toString(latest.toLong(), 10));
           SQL = SQL.replaceAll("\\$\\{storage_id}", storageId);
-          if (DEBUG) {
-            System.out.println(SQL);
-          }
           //noinspection SqlSourceToSinkFlow
           stmt.execute(SQL);
           conn.commit();

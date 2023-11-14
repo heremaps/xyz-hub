@@ -128,7 +128,7 @@ END $$;
 
 -- Unpack the transaction number structure from a packed 64-bit transaction number.
 -- Example: SELECT nk_unpack_txn(2023123198765432101);
-CREATE OR REPLACE FUNCTION nk_txn_unpack(_txn int8) RETURNS nk_txn_struct LANGUAGE 'plpgsql' STABLE STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_txn_unpack(_txn int8) RETURNS nk_txn_struct LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
 DECLARE
   SEQ_DIVIDER constant int8 := 100000000000;
   r nk_txn_struct;
@@ -145,7 +145,7 @@ BEGIN
 END $$;
 
 -- Pack the transaction number structure into an 64-bit integer.
-CREATE OR REPLACE FUNCTION nk_txn_pack(_txn nk_txn_struct) RETURNS int8 LANGUAGE 'plpgsql' STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_txn_pack(_txn nk_txn_struct) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
 BEGIN
   RETURN nk_txn(_txn.year, _txn.month, _txn.day, _txn.uid);
 END $$;
@@ -159,7 +159,7 @@ BEGIN
 END $$;
 
 -- Create a packed transaction number from the given timestamp and uid.
-CREATE OR REPLACE FUNCTION nk_txn(_ts timestamptz, _uid int8) RETURNS int8 LANGUAGE 'plpgsql' STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_txn(_ts timestamptz, _uid int8) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
 DECLARE
   year int;
   month int;
@@ -180,7 +180,9 @@ CREATE OR REPLACE FUNCTION nk__________GUID_STRUCT_________() RETURNS void LANGU
 
 -- Create a nk_txn_struct row.
 -- Example: SELECT nk_txn(2023,12,31,98765432101::int8);
-CREATE OR REPLACE FUNCTION nk_guid_struct(collection_id text, _year int, _month int, _day int, _uid int8) RETURNS nk_guid_struct LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_guid_struct(collection_id text, _year int, _month int, _day int, _uid int8)
+  RETURNS nk_guid_struct
+  LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
 DECLARE
   r nk_guid_struct;
 BEGIN
@@ -224,29 +226,32 @@ END $$;
 CREATE OR REPLACE FUNCTION nk__________HELPER_________() RETURNS void LANGUAGE 'plpgsql' IMMUTABLE AS $$ BEGIN END $$;
 
 CREATE OR REPLACE FUNCTION nk_head_partition_id(_id text) RETURNS text LANGUAGE 'plpgsql' STRICT IMMUTABLE AS $$ BEGIN
-  RETURN lpad(mod(get_byte(decode(md5(_id), 'hex'), 0)::int, 64)::text,2,'0');
+  RETURN lpad(get_byte(decode(md5(_id), 'hex'), 0)::int::text,3,'0');
 END $$;
 
-CREATE OR REPLACE FUNCTION nk_head_partition_name(_collection_id text, _partition_id int) RETURNS text LANGUAGE 'plpgsql' STRICT IMMUTABLE AS $$ BEGIN
-  IF _partition_id < 0 OR _partition_id >= 64 THEN
+CREATE OR REPLACE FUNCTION nk_head_partition_name(_collection_id text, _partition_id int)
+  RETURNS text
+  LANGUAGE 'plpgsql' STRICT IMMUTABLE AS $$
+BEGIN
+  IF _partition_id < 0 OR _partition_id > 255 THEN
     RETURN _collection_id;
   END IF;
-  RETURN _collection_id||'_p'||lpad(_partition_id::text,2,'0');
+  RETURN _collection_id||'_p'||lpad(_partition_id::text,3,'0');
 END $$;
 
 CREATE OR REPLACE FUNCTION nk_lock_id(_name text) RETURNS int8 LANGUAGE 'plpgsql' STRICT IMMUTABLE AS $$ BEGIN
   RETURN ('x'||substr(md5(_name),1,16))::bit(64)::int8;
 END $$;
 
-CREATE OR REPLACE FUNCTION nk_key(_key text) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
+CREATE OR REPLACE FUNCTION nk_key(_key text) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $$ BEGIN
   RETURN format('naksha.%I', _key);
 END $$;
 
-CREATE OR REPLACE FUNCTION nk_key(_collection text, _key text) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
+CREATE OR REPLACE FUNCTION nk_key(_collection text, _key text) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $$ BEGIN
   RETURN format('naksha.%I', '_'||md5(_collection)||'_'||_key||'_');
 END $$;
 
-CREATE OR REPLACE FUNCTION nk_get_config(_key text) RETURNS text LANGUAGE 'plpgsql' AS $$
+CREATE OR REPLACE FUNCTION nk_get_config(_key text) RETURNS text LANGUAGE 'plpgsql' VOLATILE AS $$
 DECLARE
   value text = NULL;
 BEGIN
@@ -259,7 +264,7 @@ BEGIN
   RETURN value;
 END $$;
 
-CREATE OR REPLACE FUNCTION nk_set_config(_key text, _value text, _is_local bool) RETURNS void LANGUAGE 'plpgsql' AS $$
+CREATE OR REPLACE FUNCTION nk_set_config(_key text, _value text, _is_local bool) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $$
 BEGIN
   IF _key IS NOT NULL THEN
     PERFORM set_config(_key, _value, coalesce(_is_local,false));
@@ -345,8 +350,7 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN RETURN NULL;
 END $$;
 
--- This is a function that caches the state for this transaction.
--- This improved the speed drastically, making the method STABLE have not been that useful alone!
+-- This is a function that caches the state for this session.
 CREATE OR REPLACE FUNCTION nk_get_collection_disable_history(_collection_id text) RETURNS bool LANGUAGE 'plpgsql' STABLE AS $$
 DECLARE
   cache_key text = nk_key(_collection_id, 'dishst');
@@ -368,6 +372,31 @@ BEGIN
   END IF;
   PERFORM nk_set_config(cache_key, disable_history::text, true);
   RETURN disable_history;
+EXCEPTION WHEN OTHERS THEN RETURN false;
+END $$;
+
+-- This is a function that caches the state for this session.
+CREATE OR REPLACE FUNCTION nk_get_collection_points_only(_collection_id text) RETURNS bool LANGUAGE 'plpgsql' STABLE AS $$
+DECLARE
+  cache_key text = nk_key(_collection_id, 'ptonly');
+  cache_value text;
+  points_only bool = false;
+  feature jsonb;
+BEGIN
+  cache_value = nk_get_config(cache_key);
+  IF cache_value = 'true' THEN
+    RETURN true;
+  END IF;
+  IF cache_value = 'false' THEN
+    RETURN false;
+  END IF;
+  SELECT obj_description(oid)::jsonb FROM pg_class
+  WHERE relnamespace = nk_const_schema_oid() AND relname::text = _collection_id INTO feature;
+  IF jsonb_is(feature->'pointsOnly', 'boolean') THEN
+    points_only = (feature->'pointsOnly')::bool;
+  END IF;
+  PERFORM nk_set_config(cache_key, points_only::text, true);
+  RETURN points_only;
 EXCEPTION WHEN OTHERS THEN RETURN false;
 END $$;
 
@@ -438,6 +467,7 @@ BEGIN
       'action', 'CREATE',
       'version', 1,
       'author', naksha_author(naksha_app_id()),
+      'author_ts', ts_millis,
       'app_id', naksha_app_id(),
       'tags', new_tags,
       'crid', crid,
@@ -458,7 +488,10 @@ DECLARE
   ts_millis int8 = naksha_current_millis(current_timestamp);
   rts_millis int8 = naksha_current_millis(clock_timestamp());
   created_at jsonb;
+  new_author text;
+  new_author_ts int8;
   old_author text;
+  old_author_ts int8;
   old_uuid jsonb;
   version int8;
   new_xyz jsonb;
@@ -481,7 +514,12 @@ BEGIN
   IF jsonb_is(_old_feature->'properties'->'@ns:com:here:xyz'->'author', 'string') THEN
     old_author = _old_feature->'properties'->'@ns:com:here:xyz'->>'author';
   ELSE
-    old_author = naksha_app_id();
+    old_author = 'anonymous';
+  END IF;
+  IF jsonb_is(_old_feature->'properties'->'@ns:com:here:xyz'->'author_ts', 'number') THEN
+    old_author_ts = (_old_feature->'properties'->'@ns:com:here:xyz'->'author_ts')::int8;
+  ELSE
+    old_author_ts = ts_millis;
   END IF;
   IF jsonb_is(_old_feature->'properties'->'@ns:com:here:xyz'->'version', 'number') THEN
     version = (_old_feature->'properties'->'@ns:com:here:xyz'->'version')::int8 + 1::int8;
@@ -532,6 +570,13 @@ BEGIN
   ELSE
     crid = null::jsonb;
   END IF;
+  new_author = naksha_author(NULL::text);
+  IF new_author IS NULL THEN
+    new_author = old_author;
+    new_author_ts = old_author_ts;
+  ELSE
+    new_author_ts = ts_millis;
+  END IF;
   xyz = jsonb_build_object(
       'createdAt', created_at,
       'updatedAt', ts_millis,
@@ -544,7 +589,8 @@ BEGIN
       -- muuid
       'action', 'UPDATE',
       'version', version,
-      'author', naksha_author(old_author),
+      'author', new_author,
+      'author_ts', new_author_ts,
       'app_id', naksha_app_id(),
       'tags', tags,
       'crid', crid,
@@ -565,7 +611,10 @@ DECLARE
   ts_millis int8 = naksha_current_millis(current_timestamp);
   rts_millis int8 = naksha_current_millis(clock_timestamp());
   created_at jsonb;
+  new_author text;
+  new_author_ts int8;
   old_author text;
+  old_author_ts int8;
   old_uuid jsonb;
   version int8;
   tags jsonb;
@@ -591,7 +640,12 @@ BEGIN
   IF jsonb_is(_old_feature->'properties'->'@ns:com:here:xyz'->'author', 'string') THEN
     old_author = _old_feature->'properties'->'@ns:com:here:xyz'->>'author';
   ELSE
-    old_author = naksha_app_id();
+    old_author = 'anonymous';
+  END IF;
+  IF jsonb_is(_old_feature->'properties'->'@ns:com:here:xyz'->'author_ts', 'number') THEN
+    old_author_ts = (_old_feature->'properties'->'@ns:com:here:xyz'->'author_ts')::int8;
+  ELSE
+    old_author_ts = ts_millis;
   END IF;
   IF jsonb_is(_old_feature->'properties'->'@ns:com:here:xyz'->'version', 'number') THEN
     version = (_old_feature->'properties'->'@ns:com:here:xyz'->'version')::int8 + 1::int8;
@@ -627,6 +681,13 @@ BEGIN
   ELSE
     crid = null::jsonb;
   END IF;
+  new_author = naksha_author(NULL::text);
+  IF new_author IS NULL THEN
+    new_author = old_author;
+    new_author_ts = old_author_ts;
+  ELSE
+    new_author_ts = ts_millis;
+  END IF;
   xyz = jsonb_build_object(
       'createdAt', created_at,
       'updatedAt', ts_millis,
@@ -639,7 +700,8 @@ BEGIN
       -- muuid
       'action', 'DELETE',
       'version', version,
-      'author', naksha_author(old_author),
+      'author', new_author,
+      'author_ts', new_author_ts,
       'app_id', naksha_app_id(),
       'tags', tags,
       'crid', crid,
@@ -664,8 +726,8 @@ BEGIN
     RAISE EXCEPTION 'Session not initialized, please invoke naksha_start_session first and set application_name' USING ERRCODE='N0000';
   END IF;
   --collection_id = nk_get_collection_id_from_table_name(TG_TABLE_NAME);
-  IF tg_table_name ~ '.*_p[0-9][0-9]$' THEN
-    collection_id = substr(tg_table_name,1,length(tg_table_name)-4);
+  IF tg_table_name ~ '.*_p[0-9][0-9][0-9]$' THEN
+    collection_id = substr(tg_table_name,1,length(tg_table_name)-5);
   ELSE
     collection_id = tg_table_name;
   END IF;
@@ -694,8 +756,8 @@ DECLARE
   disable_history bool;
 BEGIN
   --collection_id = nk_get_collection_id_from_table_name(TG_TABLE_NAME);
-  IF tg_table_name ~ '.*_p[0-9][0-9]$' THEN
-    collection_id = substr(tg_table_name,1,length(tg_table_name)-4);
+  IF tg_table_name ~ '.*_p[0-9][0-9][0-9]$' THEN
+    collection_id = substr(tg_table_name,1,length(tg_table_name)-5);
   ELSE
     collection_id = tg_table_name;
   END IF;
@@ -796,26 +858,41 @@ BEGIN
   EXECUTE sql;
 END $BODY$;
 
-CREATE OR REPLACE FUNCTION nk_create_head_indices(_table text, _use_sp_gist bool) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $BODY$
+CREATE OR REPLACE FUNCTION nk_create_indices(_table text, _use_sp_gist bool, _is_head bool)
+  RETURNS void
+  LANGUAGE 'plpgsql' VOLATILE AS $BODY$
 DECLARE
-  indices constant text[] = ARRAY['crid', 'grid', 'app_id', 'author'];
+  CREATE_UNIQUE_INDEX text;
+  fill_factor text;
   geo_index_type text;
-  idx_name text;
   sql text;
 BEGIN
+  IF _is_head THEN
+    fill_factor = '50';
+    CREATE_UNIQUE_INDEX = 'CREATE UNIQUE INDEX ';
+  ELSE
+    fill_factor = '100';
+    CREATE_UNIQUE_INDEX = 'CREATE INDEX ';
+    -- "i"
+    sql = format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I USING btree (i) WITH (fillfactor=%s)',
+                 format('%s_i_idx', _table), _table, fill_factor);
+    --RAISE NOTICE '%', sql;
+    EXECUTE sql;
+  END IF;
+
   -- "id"
-  sql = format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I USING btree ('
+  sql = format('%s IF NOT EXISTS %I ON %I USING btree ('
             || '(jsondata->>''id'') COLLATE "C" text_pattern_ops DESC'
-            || ') WITH (fillfactor=50)',
-               format('%s_id_idx', _table), _table);
+            || ') WITH (fillfactor=%s)',
+               CREATE_UNIQUE_INDEX, format('%s_id_idx', _table), _table, fill_factor);
 --RAISE NOTICE '%', sql;
   EXECUTE sql;
 
   -- "txn"
   sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
             || '((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8) DESC'
-            || ') WITH (fillfactor=50)',
-               format('%s_txn_idx', _table), _table);
+            || ') WITH (fillfactor=%s)',
+               format('%s_txn_idx', _table), _table, fill_factor);
 --RAISE NOTICE '%', sql;
   EXECUTE sql;
 
@@ -828,8 +905,8 @@ BEGIN
   sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING %s ('
             || ' geo '
             || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8)'
-            || ') WITH (buffering=ON,fillfactor=50)',
-               format('%s_geo_idx', _table), _table, geo_index_type);
+            || ') WITH (buffering=ON,fillfactor=%s)',
+               format('%s_geo_idx', _table), _table, geo_index_type, fill_factor);
 --RAISE NOTICE '%', sql;
   EXECUTE sql;
 
@@ -843,81 +920,48 @@ BEGIN
 --RAISE NOTICE '%', sql;
   EXECUTE sql;
 
-  FOREACH idx_name IN ARRAY indices LOOP
-    sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
-              || ' (jsondata->''properties''->''@ns:com:here:xyz''->''%s'')'
-              || ',(jsondata->''properties''->''@ns:com:here:xyz''->''tags'')'
-              || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8)'
-              || ') WITH (fillfactor=50)',
-                 format('%s_%s_idx', _table, idx_name), _table, idx_name);
+  -- "grid"
+  sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
+            || ' (jsondata->''properties''->''@ns:com:here:xyz''->>''grid'') COLLATE "C" DESC'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8) DESC'
+            || ') WITH (fillfactor=%s)',
+               format('%s_grid_idx', _table), _table, fill_factor);
 --RAISE NOTICE '%', sql;
-    EXECUTE sql;
-  END LOOP;
+  EXECUTE sql;
+
+  -- "mrid"
+  sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
+            || ' (naksha_feature_mrid(jsondata)) COLLATE "C" DESC '
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8) DESC'
+            || ') WITH (fillfactor=%s)',
+               format('%s_mrid_idx', _table), _table, fill_factor);
+--RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  -- "app_id"
+  sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
+            || ' (jsondata->''properties''->''@ns:com:here:xyz''->>''app_id'') COLLATE "C" DESC'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''updatedAt'')::int8) DESC'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8) DESC'
+            || ') WITH (fillfactor=%s)',
+               format('%s_appid_idx', _table), _table, fill_factor);
+--RAISE NOTICE '%', sql;
+  EXECUTE sql;
+
+  -- "author" and "author_ts"
+  sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
+            || ' (jsondata->''properties''->''@ns:com:here:xyz''->>''author'') COLLATE "C" DESC'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''author_ts'')::int8) DESC'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8) DESC'
+            || ') WITH (fillfactor=%s)',
+               format('%s_author_idx', _table), _table, fill_factor);
+--RAISE NOTICE '%', sql;
+  EXECUTE sql;
 END; $BODY$;
 
-CREATE OR REPLACE FUNCTION nk_create_hst_indices(_table text, _use_sp_gist bool) RETURNS void LANGUAGE 'plpgsql' AS $$
-DECLARE
-  sql text;
-BEGIN
-  -- Note: The history table is updated only for one day and then never touched again, therefore
-  --       we want to fill the indices as much as we can, even while this may have a bad effect
-  --       when doing bulk loads, because we may have more page splits.
-  sql := format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON %I '
-             || 'USING btree ('
-             || '  (jsondata->''properties''->''@ns:com:here:xyz''->>''uuid'') DESC '
-             || ') WITH (fillfactor=100) ',
-                format('%s_uuid_idx', _table), _table);
---RAISE NOTICE '%', sql;
-  EXECUTE sql;
-
-  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
-             || 'USING btree ('
-             || '  (jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') DESC '
-             || '  ,(jsondata->''id'') DESC '
-             || ') WITH (fillfactor=100) ',
-                format('%s_txn_id_idx', _table), _table);
---RAISE NOTICE '%', sql;
-  EXECUTE sql;
-
-  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
-             || 'USING btree ('
-             || '  (jsondata->''id'') DESC '
-             || '  ,(jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') DESC'
-             || ') WITH (fillfactor=100) ',
-                format('%s_id_txn_idx', _table), _table);
---RAISE NOTICE '%', sql;
-  EXECUTE sql;
-
-  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
-             || 'USING gist ('
-             || '  geo '
-             || '  ,(jsondata->>''id'')'
-             || '  ,(jsondata->''properties''->''@ns:com:here:xyz''->>''txn'')'
-             || ') WITH (buffering=ON,fillfactor=100) ',
-                format('%s_geo_id_txn_idx', _table), _table);
---RAISE NOTICE '%', sql;
-  EXECUTE sql;
-
-  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
-             || 'USING btree ('
-             || '  ((jsondata->''properties''->''@ns:com:here:xyz''->>''updatedAt'')::int8) DESC'
-             || ') WITH (fillfactor=100) ',
-                format('%s_updatedAt_idx', _table), _table);
---RAISE NOTICE '%', sql;
-  EXECUTE sql;
-
-  sql := format('CREATE INDEX IF NOT EXISTS %I ON %I '
-             || 'USING btree ('
-             || '  (jsondata->''properties''->''@ns:com:here:xyz''->>''lastUpdatedBy'') DESC'
-             || '  ,(jsondata->''id'') DESC'
-             || '  ,(jsondata->''properties''->''@ns:com:here:xyz''->>''txn'') DESC '
-             || ') WITH (fillfactor=100) ',
-                format('%s_lastUpdatedBy_id_txn_idx', _table), _table);
---RAISE NOTICE '%', sql;
-  EXECUTE sql;
-END $$;
-
-CREATE OR REPLACE FUNCTION nk_create_hst_partition_by_ts(_collection text, _from_ts timestamptz) RETURNS void LANGUAGE 'plpgsql' STRICT VOLATILE AS $$
+CREATE OR REPLACE FUNCTION nk_create_hst_partition_by_ts(_collection text, _from_ts timestamptz)
+  RETURNS void
+  LANGUAGE 'plpgsql' STRICT VOLATILE AS $$
 DECLARE
   sql text;
   from_day text;
@@ -941,38 +985,16 @@ BEGIN
                 hst_partition_table_name, hst_table_name, from_part_id, to_part_id);
 --RAISE NOTICE '%', sql;
   EXECUTE sql;
-
-  -- TODO: We need to detect if we should use sp-gist or gist
-  --       We do this by reading the description of the table and check for "pointsOnly" being explicitly true!
   PERFORM nk_optimize_table(hst_partition_table_name, true);
-  --PERFORM nk_create_hst_indices(hst_partition_table_name);
-END $$;
-
--- Helper that is cached and creates partitions on demand.
-CREATE OR REPLACE FUNCTION nk_create_hst_partition(_collection text, _year int, _month int, _day int)
-  RETURNS void
-  LANGUAGE 'plpgsql' STRICT STABLE AS $$
-DECLARE
-  ts timestamptz;
-  part_name text;
-  cache_key text;
-BEGIN
-  ts = make_timestamptz(_year, _month, _day, 0, 0, 0.0, 'UTC');
-  part_name = nk_partition_name_for_ts(ts);
-  cache_key = nk_key(_collection, part_name);
-  IF nk_get_config(cache_key) IS NULL THEN
---RAISE NOTICE 'No cache entry';
-    PERFORM nk_create_hst_partition_by_ts(_collection, ts);
-    PERFORM nk_set_config(cache_key, 'true', false);
-  ELSE
---RAISE NOTICE 'Cached entry for % found, cache-key: %', _collection, cache_key;
-  END IF;
+  PERFORM nk_create_indices(hst_partition_table_name, nk_get_collection_points_only(_collection), false);
 END $$;
 
 -- Create all tables and indices, but not triggers.
 -- CREATE UNLOGGED ... TABLE
 -- TODO: SET { LOGGED | UNLOGGED }
-CREATE OR REPLACE FUNCTION nk_upsert_collection(_collection_id text, _partition bool, _sp_gist bool, unlogged bool) RETURNS void LANGUAGE 'plpgsql' VOLATILE AS $BODY$
+CREATE OR REPLACE FUNCTION nk_upsert_collection( _collection_id text, _partition bool, _sp_gist bool, unlogged bool )
+  RETURNS void
+  LANGUAGE 'plpgsql' VOLATILE AS $BODY$
 DECLARE
   CREATE_TABLE text;
   part_id text;
@@ -998,14 +1020,14 @@ BEGIN
 --RAISE NOTICE '%', sql;
     EXECUTE sql;
 
-    FOR i IN 0..63 LOOP
-      part_id = lpad(i::text,2,'0');
+    FOR i IN 0..255 LOOP
+      part_id = lpad(i::text,3,'0');
       part_name = format('%s_p%s', _collection_id, part_id);
       sql = format('%s IF NOT EXISTS %I PARTITION OF %I FOR VALUES IN (%L);', CREATE_TABLE, part_name, _collection_id, part_id);
 --RAISE NOTICE '  %', sql;
       EXECUTE sql;
       PERFORM nk_optimize_table(part_name, false);
-      PERFORM nk_create_head_indices(part_name, _sp_gist);
+      PERFORM nk_create_indices(part_name, _sp_gist, true);
     END LOOP;
   ELSE
     sql = format('%s IF NOT EXISTS %I ('
@@ -1015,7 +1037,7 @@ BEGIN
               || ')', CREATE_TABLE, _collection_id);
     EXECUTE sql;
     PERFORM nk_optimize_table(_collection_id, false);
-    PERFORM nk_create_head_indices(_collection_id, _sp_gist);
+    PERFORM nk_create_indices(_collection_id, _sp_gist, true);
   END IF;
 
   -- Create the sequence for uid (aka "i").
@@ -1030,13 +1052,13 @@ BEGIN
             || ')', CREATE_TABLE, del_name);
   EXECUTE sql;
   PERFORM nk_optimize_table(del_name, false);
-  PERFORM nk_create_head_indices(del_name, _sp_gist);
+  PERFORM nk_create_indices(del_name, _sp_gist, true);
 
   meta_name = format('%s_meta', _collection_id);
   sql = format('%s IF NOT EXISTS %I (jsondata jsonb, geo geometry(GeometryZ, 4326), i int8 PRIMARY KEY)', CREATE_TABLE, meta_name);
   EXECUTE sql;
   PERFORM nk_optimize_table(meta_name, false);
-  PERFORM nk_create_head_indices(meta_name, _sp_gist);
+  PERFORM nk_create_indices(meta_name, _sp_gist, true);
 
   hst_name = format('%s_hst', _collection_id);
   sql = format('%s IF NOT EXISTS %I ('
@@ -1048,7 +1070,6 @@ BEGIN
 --RAISE NOTICE '%', sql;
   EXECUTE sql;
   PERFORM nk_optimize_table(meta_name, true);
-  -- TODO: PERFORM nk_create_hst_indices(meta_name, _sp_gist);
 
   trigger_name := format('%s_before', _collection_id);
   full_name := format('%I', _collection_id);
@@ -1463,13 +1484,13 @@ BEGIN
   RETURN value;
 END $$;
 
-CREATE OR REPLACE FUNCTION naksha_author(_old text) RETURNS text LANGUAGE 'plpgsql' STABLE AS $$
+CREATE OR REPLACE FUNCTION naksha_author(_alternative text) RETURNS text LANGUAGE 'plpgsql' STABLE AS $$
 DECLARE
   value text;
 BEGIN
   value := current_setting('naksha.author', true);
   IF value IS NULL OR value = '' THEN
-      RETURN _old;
+      RETURN _alternative;
   END IF;
   RETURN value;
 END $$;
@@ -1869,6 +1890,26 @@ BEGIN
   j = t::json;
   IF jsonb_typeof(j->'properties'->'@ns:com:here:xyz'->'action') = 'string' THEN
     RETURN j->'properties'->'@ns:com:here:xyz'->>'action';
+  END IF;
+  RETURN NULL;
+EXCEPTION WHEN OTHERS THEN RETURN NULL;
+END;
+$BODY$;
+
+-- Returns the merged reference id.
+-- This is the "crid" of the given JSON feature, if it has any.
+-- If the feature does not have a "crid", but a "grid", the "grid" is returned.
+-- If the feature is basically not well-formatted, the method returns null (should normally not happen).
+CREATE OR REPLACE FUNCTION naksha_feature_mrid( t anyelement ) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $BODY$
+DECLARE
+  j jsonb;
+BEGIN
+  j = t::json;
+  IF jsonb_typeof(j->'properties'->'@ns:com:here:xyz'->'crid') = 'string' THEN
+    RETURN j->'properties'->'@ns:com:here:xyz'->>'crid';
+  END IF;
+  IF jsonb_typeof(j->'properties'->'@ns:com:here:xyz'->'grid') = 'string' THEN
+    RETURN j->'properties'->'@ns:com:here:xyz'->>'grid';
   END IF;
   RETURN NULL;
 EXCEPTION WHEN OTHERS THEN RETURN NULL;
