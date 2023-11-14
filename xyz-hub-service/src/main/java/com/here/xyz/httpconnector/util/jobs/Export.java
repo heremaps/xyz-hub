@@ -19,8 +19,7 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.*;
 import static com.here.xyz.httpconnector.util.Futures.futurify;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.CHANGES;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
@@ -183,6 +182,8 @@ public class Export extends JDBCBasedJob<Export> {
 
                 //Set Composite related defaults
                 CompositeMode compositeMode = readParamCompositeMode();
+                SpaceContext context = readParamContext();
+
                 Map ext = readParamExtends();
 
                 if (readPersistExport())
@@ -206,7 +207,7 @@ public class Export extends JDBCBasedJob<Export> {
                         logger.info("job[{}] CompositeMode=FULL_OPTIMIZED requires readOnly on superLayer - fall back!", getId());
                     }
 
-                    if (csvFormat.equals(GEOJSON))
+                    if (csvFormat.equals(GEOJSON) || context == EXTENSION || context == SUPER)
                         params.remove(PARAM_COMPOSITE_MODE);
                 }else{
                     //Only make sense in case of extended space
@@ -222,7 +223,6 @@ public class Export extends JDBCBasedJob<Export> {
                         targetLevel = 12;
                 }
 
-                SpaceContext context = readParamContext();
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
 
