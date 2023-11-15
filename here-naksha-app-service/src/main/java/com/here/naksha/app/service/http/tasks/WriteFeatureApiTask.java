@@ -18,7 +18,11 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
-import static com.here.naksha.app.service.http.apis.ApiParams.*;
+import static com.here.naksha.app.service.http.apis.ApiParams.ADD_TAGS;
+import static com.here.naksha.app.service.http.apis.ApiParams.PREFIX_ID;
+import static com.here.naksha.app.service.http.apis.ApiParams.REMOVE_TAGS;
+import static com.here.naksha.app.service.http.apis.ApiParams.SPACE_ID;
+import static com.here.naksha.app.service.http.apis.ApiParams.pathParam;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.models.FeatureCollectionRequest;

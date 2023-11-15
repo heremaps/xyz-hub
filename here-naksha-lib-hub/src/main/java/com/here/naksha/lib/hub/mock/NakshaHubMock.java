@@ -28,7 +28,6 @@ import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
-import com.here.naksha.lib.core.models.storage.ReadResult;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
@@ -45,33 +44,32 @@ public class NakshaHubMock implements INaksha {
 
   /**
    * The in-memory mock storage, which will be used by Storage Mock reader/writer instances.
-   *
-   * This is used to support local development and mocked based unit testing,
-   * bypassing full/part of PsqlStorage implementation.
-   * 1. AdminStorage instance - will internally be mocked using in memory collections
-   * 2. SpaceStorage instance - will continue using NakshaHub's real implementation, as that logic has to be part of tests
-   * 3. As no interactions will happen with database, not all operations may be simulated accurately (e.g. history, subscriptions)
-   *
-   * Mock storage will hold collections in memory as:
-   *     <space_id 1> holds collection of features <id, Feature>
-   *     <space_id 2> holds collection of features <id, Feature>
-   *       :
-   *     <space_id n> holds collection of features <id, Feature>
-   *
-   * where,
-   *     mock collection, will:
-   *       - mandatorily hold admin virtual spaces e.g. naksha:storages, naksha:event_handlers, naksha:spaces
-   *       - optional custom spaces e.g. "foo", "bar"
-   *
+   * <p>
+   * This is used to support local development and mocked based unit testing, bypassing full/part of PsqlStorage implementation. 1.
+   * AdminStorage instance - will internally be mocked using in memory collections 2. SpaceStorage instance - will continue using
+   * NakshaHub's real implementation, as that logic has to be part of tests 3. As no interactions will happen with database, not all
+   * operations may be simulated accurately (e.g. history, subscriptions)
+   * <p>
+   * Mock storage will hold collections in memory as: <space_id 1> holds collection of features <id, Feature> <space_id 2> holds collection
+   * of features <id, Feature> : <space_id n> holds collection of features <id, Feature>
+   * <p>
+   * where, mock collection, will: - mandatorily hold admin virtual spaces e.g. naksha:storages, naksha:event_handlers, naksha:spaces -
+   * optional custom spaces e.g. "foo", "bar"
    */
   protected final @NotNull Map<String, Map<String, Object>> mockCollection;
 
-  /** The NakshaHub config. */
+  /**
+   * The NakshaHub config.
+   */
   protected final @NotNull NakshaHubConfig nakshaHubConfig;
-  /** Singleton instance of AdminStorage, which internally uses mocked admin storage (i.e. NHAdminMock) */
+  /**
+   * Singleton instance of AdminStorage, which internally uses mocked admin storage (i.e. NHAdminMock)
+   */
   protected final @NotNull IStorage adminStorageInstance;
-  /** Singleton instance of Space Storage, which is responsible to manage admin collections as spaces
-   * and support respective read/write operations on spaces */
+  /**
+   * Singleton instance of Space Storage, which is responsible to manage admin collections as spaces and support respective read/write
+   * operations on spaces
+   */
   protected final @NotNull IStorage spaceStorageInstance;
 
   public NakshaHubMock(
@@ -86,7 +84,8 @@ public class NakshaHubMock implements INaksha {
   }
 
   /**
-   * Returns a thin wrapper above the admin-database that adds authorization and internal event handling. Basically, this allows access to the admin collections.
+   * Returns a thin wrapper above the admin-database that adds authorization and internal event handling. Basically, this allows access to
+   * the admin collections.
    *
    * @return the admin-storage.
    */
@@ -119,16 +118,11 @@ public class NakshaHubMock implements INaksha {
         throw unchecked(new Exception(
             "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
       }
-      if (result instanceof ReadResult<?> rr) {
-        final Storage storage = readFeatureFromResult(rr, Storage.class);
-        rr.close();
-        if (storage == null) {
-          throw unchecked(new Exception("No storage found with id " + storageId));
-        }
-        return storage.newInstance(this);
+      final Storage storage = readFeatureFromResult(result, Storage.class);
+      if (storage == null) {
+        throw unchecked(new Exception("No storage found with id " + storageId));
       }
-      throw unchecked(new Exception("Unexpected result type "
-          + result.getClass().getName() + " while fetching storage for id " + storageId));
+      return storage.newInstance(this);
     }
   }
 

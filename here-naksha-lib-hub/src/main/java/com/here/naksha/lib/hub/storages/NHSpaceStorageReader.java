@@ -24,6 +24,7 @@ import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFrom
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeaturesFromResult;
 
 import com.here.naksha.lib.core.*;
+import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Space;
@@ -34,6 +35,7 @@ import com.here.naksha.lib.hub.EventPipelineFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -43,6 +45,7 @@ import org.slf4j.LoggerFactory;
 
 public class NHSpaceStorageReader implements IReadSession {
 
+  private static final int DEFAULT_FETCH_SIZE = 1_000;
   private static final Logger logger = LoggerFactory.getLogger(NHSpaceStorageReader.class);
 
   /** Singleton instance of NakshaHub storage implementation */
@@ -56,6 +59,8 @@ public class NHSpaceStorageReader implements IReadSession {
 
   protected final @NotNull EventPipelineFactory pipelineFactory;
 
+  private @NotNull int fetchSize;
+
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NHSpaceStorageReader(
       final @NotNull INaksha hub,
@@ -68,6 +73,7 @@ public class NHSpaceStorageReader implements IReadSession {
     this.pipelineFactory = pipelineFactory;
     this.context = (context != null) ? context : NakshaContext.currentContext();
     this.useMaster = useMaster;
+    fetchSize = DEFAULT_FETCH_SIZE;
   }
 
   /**
@@ -90,6 +96,26 @@ public class NHSpaceStorageReader implements IReadSession {
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull NakshaContext getNakshaContext() {
     return this.context;
+  }
+
+  /**
+   * Returns the amount of features to fetch at ones.
+   *
+   * @return the amount of features to fetch at ones.
+   */
+  @Override
+  public int getFetchSize() {
+    return fetchSize;
+  }
+
+  /**
+   * Changes the amount of features to fetch at ones.
+   *
+   * @param size The amount of features to fetch at ones.
+   */
+  @Override
+  public void setFetchSize(int size) {
+    this.fetchSize = size;
   }
 
   /**
@@ -206,9 +232,8 @@ public class NHSpaceStorageReader implements IReadSession {
       Result result = reader.execute(readFeaturesByIdRequest(NakshaAdminCollection.SPACES, spaceId));
       if (result instanceof ErrorResult er) {
         return er;
-      } else if (result instanceof ReadResult<?> rr) {
-        space = readFeatureFromResult(rr, Space.class);
-        rr.close();
+      } else {
+        space = readFeatureFromResult(result, Space.class);
       }
       if (space == null) {
         return new ErrorResult(XyzError.NOT_FOUND, "Space not found : " + spaceId);
@@ -222,14 +247,16 @@ public class NHSpaceStorageReader implements IReadSession {
           readFeaturesByIdsRequest(NakshaAdminCollection.EVENT_HANDLERS, space.getEventHandlerIds()));
       if (result instanceof ErrorResult er) {
         return er;
-      } else if (result instanceof ReadResult<?> rr) {
-        eventHandlers = readFeaturesFromResult(rr, EventHandler.class, Integer.MAX_VALUE);
-        rr.close();
-      }
-      if (eventHandlers == null || eventHandlers.isEmpty()) {
-        return new ErrorResult(XyzError.EXCEPTION, "No handlers associated with space : " + spaceId);
-      } else if (eventHandlers.size() != space.getEventHandlerIds().size()) {
-        return new ErrorResult(XyzError.EXCEPTION, "Not all EventHandlers found for space : " + spaceId);
+      } else {
+        try {
+          eventHandlers = readFeaturesFromResult(result, EventHandler.class);
+          if (eventHandlers.size() != space.getEventHandlerIds().size()) {
+            return new ErrorResult(
+                XyzError.EXCEPTION, "Not all EventHandlers found for space : " + spaceId);
+          }
+        } catch (NoCursor | NoSuchElementException e) {
+          return new ErrorResult(XyzError.EXCEPTION, "No handlers associated with space : " + spaceId);
+        }
       }
     }
 

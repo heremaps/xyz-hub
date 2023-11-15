@@ -1,0 +1,19 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "my-custom-id-400-1",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60"
+      }
+    },
+    {
+      "id": "my-custom-id-400-2",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "80"
+      }
+    }
+  ]
+}

@@ -19,12 +19,25 @@
 package com.here.naksha.lib.hub.mock;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.models.storage.EWriteOp.CREATE;
+import static com.here.naksha.lib.core.models.storage.EWriteOp.DELETE;
+import static com.here.naksha.lib.core.models.storage.EWriteOp.PURGE;
+import static com.here.naksha.lib.core.models.storage.EWriteOp.PUT;
+import static com.here.naksha.lib.core.models.storage.EWriteOp.UPDATE;
 
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.NakshaFeature;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
+import com.here.naksha.lib.core.models.storage.EExecutedOp;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteCollections;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.models.storage.WriteOp;
+import com.here.naksha.lib.core.models.storage.WriteOpResult;
+import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import java.sql.SQLException;
@@ -64,50 +77,49 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
   }
 
   protected @NotNull <T extends NakshaFeature> Result executeWriteCollection(@NotNull WriteCollections<T> wc) {
-    final @NotNull List<WriteOpResult<StorageCollection>> wOpResults = new ArrayList<>();
+    final @NotNull List<WriteOpResult<XyzCollection>> wOpResults = new ArrayList<>();
     for (final WriteOp<T> wOp : wc.queries) {
-      final StorageCollection c = (StorageCollection) wOp.feature;
+      final XyzCollection c = (XyzCollection) wOp.feature;
       // persist collection (if not already)
-      EExecutedOp execOp = EExecutedOp.RETAINED;
+      EExecutedOp execOp = EExecutedOp.RETAIN;
       if (mockCollection.putIfAbsent(c.getId(), new ConcurrentHashMap<>()) == null) {
-        execOp = EExecutedOp.INSERTED;
+        execOp = EExecutedOp.CREATED;
       }
       // add to output list
       wOpResults.add(new WriteOpResult<>(execOp, c));
     }
-    return new WriteResult<>(wOpResults);
+    return new MockWriteResult<>(XyzCollection.class, wOpResults);
   }
 
   protected @NotNull <T> Result executeWriteFeatures(@NotNull WriteFeatures<T> wf) {
     final @NotNull List<WriteOpResult<XyzFeature>> wOpResults = new ArrayList<>();
     // Raise exception if collection doesn't exist already
-    if (mockCollection.get(wf.collectionId) == null) {
+    if (mockCollection.get(wf.getCollectionId()) == null) {
       throw unchecked(new SQLException(
-          "Collection " + wf.collectionId + " doesn't exist.", PSQLState.UNDEFINED_TABLE.getState()));
+          "Collection " + wf.getCollectionId() + " doesn't exist.", PSQLState.UNDEFINED_TABLE.getState()));
     }
     // Perform write operation for each feature
     for (final WriteOp<T> wOp : wf.queries) {
       // generate new feature Id, if not already provided
       final XyzFeature f = (XyzFeature) wOp.feature;
-      if (wOp.op == EWriteOp.INSERT && (f.getId() == null || f.getId().isEmpty())) {
+      if (wOp.op == CREATE && (f.getId() == null || f.getId().isEmpty())) {
         f.setId(UUID.randomUUID().toString());
       }
       // persist feature in a space
       try {
         WriteOpResult<XyzFeature> result = null;
-        switch (wOp.op) {
-          case INSERT -> {
-            result = insertFeature(wf.collectionId, wOp);
-          }
-          case UPDATE -> result = updateFeature(wf.collectionId, wOp);
-          case UPSERT -> result = upsertFeature(wf.collectionId, wOp);
-          case DELETE -> result = deleteFeature(wf.collectionId, wOp);
-          case PURGE -> {
-            return new ErrorResult(XyzError.NOT_IMPLEMENTED, "PurgeFeature not mocked yet");
-          }
-          default -> {
-            return new ErrorResult(XyzError.NOT_IMPLEMENTED, wOp.op + " not mocked yet");
-          }
+        if (wOp.op.equals(CREATE)) {
+          result = insertFeature(wf.getCollectionId(), wOp);
+        } else if (wOp.op.equals(UPDATE)) {
+          result = updateFeature(wf.getCollectionId(), wOp);
+        } else if (wOp.op.equals(PUT)) {
+          result = upsertFeature(wf.getCollectionId(), wOp);
+        } else if (wOp.op.equals(DELETE)) {
+          result = deleteFeature(wf.getCollectionId(), wOp);
+        } else if (wOp.op.equals(PURGE)) {
+          return new ErrorResult(XyzError.NOT_IMPLEMENTED, "PurgeFeature not mocked yet");
+        } else {
+          return new ErrorResult(XyzError.NOT_IMPLEMENTED, wOp.op + " not mocked yet");
         }
         // add to output list
         wOpResults.add(result);
@@ -115,7 +127,7 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
         return mapExceptionToErrorResult(ex);
       }
     }
-    return new WriteResult<>(wOpResults);
+    return new MockWriteResult<>(XyzFeature.class, wOpResults);
   }
 
   protected @NotNull ErrorResult mapExceptionToErrorResult(final @NotNull SQLException sqe) {
@@ -131,7 +143,7 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
       final @NotNull String collectionId, final @NotNull WriteOp<T> wOp) throws SQLException {
     final XyzFeature f = (XyzFeature) wOp.feature;
     if (mockCollection.get(collectionId).putIfAbsent(f.getId(), setUuidFor(f)) == null) {
-      return new WriteOpResult<>(EExecutedOp.INSERTED, f);
+      return new WriteOpResult<>(EExecutedOp.CREATED, f);
     }
     throw new SQLException("Feature already exists " + f.getId(), PSQLState.UNIQUE_VIOLATION.getState());
   }
@@ -176,7 +188,7 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     mockCollection.get(collectionId).compute(newF.getId(), (fId, oldF) -> {
       // insert if missing
       if (oldF == null) {
-        result.set(new WriteOpResult<>(EExecutedOp.INSERTED, setUuidFor(newF)));
+        result.set(new WriteOpResult<>(EExecutedOp.CREATED, setUuidFor(newF)));
         return newF;
       }
       // update if UUID matches (or overwrite if new uuid is missing)
