@@ -48,6 +48,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -342,7 +343,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
                 .put(attrName, ioObjects);
 
-        if ("CombinedJob".equals(json.getString("type")))
+        if (item.hasAttribute("children"))
             resolveChildren(json);
         try {
             return Future.succeededFuture(XyzSerializable.deserialize(json.toString(), Job.class));
