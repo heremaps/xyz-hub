@@ -20,11 +20,27 @@
 package com.here.xyz.httpconnector.util.jobs;
 
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.aborted;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.collecting_trigger_status;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.executing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.executing_trigger;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalized;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.finalizing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.prepared;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.preparing;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.queued;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.trigger_executed;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.trigger_status_collected;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.validated;
+import static com.here.xyz.httpconnector.util.jobs.Job.Status.validating;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.waiting;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.CANCELLED;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.FAILED;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.PENDING;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.RUNNING;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.SUBMITTED;
+import static com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State.SUCCEEDED;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.addJob;
 import static com.here.xyz.httpconnector.util.scheduler.JobQueue.updateJobStatus;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
@@ -40,6 +56,7 @@ import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
+import com.here.xyz.httpconnector.util.jobs.RuntimeStatus.State;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
@@ -167,6 +184,7 @@ public abstract class Job<T extends Job> extends Payload {
     @Deprecated
     @JsonIgnore
     private boolean childJob;
+    private RuntimeStatus runtimeStatus = new RuntimeStatus();
 
     public Job() {}
 
@@ -363,6 +381,11 @@ public abstract class Job<T extends Job> extends Payload {
         return getClass().getSimpleName();
     }
 
+    public Future<T> store() {
+      return CService.jobConfigClient.store(getMarker(), this)
+          .map(job -> (T) job);
+    }
+
     @JsonView({Public.class})
     public enum Status {
         waiting, queued, validating, validated, preparing, prepared, executing, executed,
@@ -397,7 +420,7 @@ public abstract class Job<T extends Job> extends Payload {
 
     @JsonView({Public.class})
     public enum CSVFormat {
-        GEOJSON, JSON_WKT, JSON_WKB, TILEID_FC_B64, PARTITIONID_FC_B64, PARTITIONED_JSON_WKB; 
+        GEOJSON, JSON_WKT, JSON_WKB, TILEID_FC_B64, PARTITIONID_FC_B64, PARTITIONED_JSON_WKB;
 
         public static CSVFormat of(String value) {
             if (value == null) {
@@ -524,6 +547,8 @@ public abstract class Job<T extends Job> extends Payload {
         if ((status == aborted || status == failed) && lastStatus == null)
             lastStatus = this.status;
         this.status = status;
+        //Set future-proof state
+        getRuntimeStatus().setState(bwcStatusMapping.get(status));
     }
 
     public T withStatus(final Job.Status status) {
@@ -898,6 +923,31 @@ public abstract class Job<T extends Job> extends Payload {
             marker = new Log4jMarker(getId());
         return marker;
     }
+
+    @JsonIgnore
+    public RuntimeStatus getRuntimeStatus() {
+        return runtimeStatus;
+    }
+
+    private static final Map<Status, State> bwcStatusMapping = new HashMap<>() {{
+        put(waiting, SUBMITTED);
+        put(queued, PENDING);
+        put(validating, PENDING);
+        put(validated, PENDING);
+        put(preparing, PENDING);
+        put(prepared, PENDING);
+        put(executing, RUNNING);
+        put(executed, RUNNING);
+        put(executing_trigger, RUNNING);
+        put(trigger_executed, RUNNING);
+        put(collecting_trigger_status, RUNNING);
+        put(trigger_status_collected, RUNNING);
+        put(finalizing, RUNNING);
+
+        put(finalized, SUCCEEDED);
+        put(aborted, CANCELLED);
+        put(failed, FAILED);
+    }};
 
     public static class ValidationException extends Exception {
         public ValidationException(String message) {
