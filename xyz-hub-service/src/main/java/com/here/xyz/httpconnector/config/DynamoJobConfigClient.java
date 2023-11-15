@@ -99,28 +99,35 @@ public class DynamoJobConfigClient extends JobConfigClient {
     public Future<Job> getJob(Marker marker, String jobId) {
         if(jobId == null)
             return Future.succeededFuture(null);
-        return DynamoClient.dynamoWorkers.executeBlocking(p -> {
-            try {
-                GetItemSpec spec = new GetItemSpec()
-                        .withPrimaryKey("id", jobId)
-                        .withConsistentRead(true);
+        return DynamoClient.dynamoWorkers.executeBlocking(p -> getJobSync(marker, jobId, p));
+    }
 
-                Item jobItem = jobs.getItem(spec);
+    private void getJobSync(Marker marker, String jobId, Promise<Job> p) {
+        try {
+            final Item jobItem = getJobItem(jobId);
 
-                if (jobItem == null) {
-                    logger.info(marker, "job[{}] not found!", jobId);
-                    p.complete();
-                }
-                else {
-                    convertItemToJob(jobItem)
-                        .onSuccess(job -> p.complete(job))
-                        .onFailure(t -> p.fail(t));
-                }
+            if (jobItem == null) {
+                logger.info(marker, "job[{}] not found!", jobId);
+                p.complete();
             }
-            catch (Exception e) {
-                p.fail(e);
+            else {
+                convertItemToJob(jobItem)
+                    .onSuccess(job -> p.complete(job))
+                    .onFailure(t -> p.fail(t));
             }
-        });
+        }
+        catch (Exception e) {
+            p.fail(e);
+        }
+    }
+
+    private Item getJobItem(String jobId) {
+        GetItemSpec spec = new GetItemSpec()
+                .withPrimaryKey("id", jobId)
+                .withConsistentRead(true);
+
+        Item jobItem = jobs.getItem(spec);
+        return jobItem;
     }
 
     @Override
@@ -335,30 +342,23 @@ public class DynamoJobConfigClient extends JobConfigClient {
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
                 .put(attrName, ioObjects);
 
-        Future<Void> resolvedFuture = Future.succeededFuture();
         if ("CombinedJob".equals(json.getString("type")))
-            resolvedFuture = resolveChildren(json);
-        return resolvedFuture.compose(v -> {
-            try {
-                return Future.succeededFuture(XyzSerializable.deserialize(json.toString(), Job.class));
-            }
-            catch (JsonProcessingException e) {
-                return Future.failedFuture(e);
-            }
-        });
+            resolveChildren(json);
+        try {
+            return Future.succeededFuture(XyzSerializable.deserialize(json.toString(), Job.class));
+        }
+        catch (JsonProcessingException e) {
+            return Future.failedFuture(e);
+        }
     }
 
-    private Future<Void> resolveChildren(JsonObject combinedJob) {
+    private void resolveChildren(JsonObject combinedJob) {
         JsonArray children = combinedJob.getJsonArray("children");
         if (!children.isEmpty() && children.getValue(0) instanceof String) {
-            List<Future<Job>> jobFutures = children.stream().map(childId -> getJob(null, (String) childId))
+            List<JsonObject> jobJsons = children.stream().map(childId -> new JsonObject(getJobItem((String) childId).toJSON()))
                 .collect(Collectors.toList());
-            return Future.all(jobFutures).compose(cf -> {
-                combinedJob.put("children", new JsonArray(cf.list()));
-                return Future.succeededFuture();
-            });
+            combinedJob.put("children", new JsonArray(jobJsons));
         }
-        return Future.succeededFuture();
     }
 
     private static byte[] compressString(String input) {
