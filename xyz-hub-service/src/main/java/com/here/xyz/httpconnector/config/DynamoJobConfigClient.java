@@ -261,7 +261,12 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 combinedJob.getChildren().stream().forEach(childJob -> childJob.setExp(job.getExp()));
         }
 
-        return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
+        Future<Void> storeChildrenResult = Future.succeededFuture();
+        if (job instanceof CombinedJob combinedJob)
+            storeChildrenResult = Future.all(combinedJob.getChildren().stream().map(childJob -> storeJob(marker, childJob, isUpdate)).collect(
+                Collectors.toList())).mapEmpty();
+
+        return storeChildrenResult.compose(v -> DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p)));
     }
 
     private void storeJobSync(Job job, Promise<Job> p) {
@@ -333,13 +338,14 @@ public class DynamoJobConfigClient extends JobConfigClient {
         Future<Void> resolvedFuture = Future.succeededFuture();
         if ("CombinedJob".equals(json.getString("type")))
             resolvedFuture = resolveChildren(json);
-        try {
-            final Job job = XyzSerializable.deserialize(json.toString(), Job.class);
-            return resolvedFuture.map(v -> job);
-        }
-        catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
+        return resolvedFuture.compose(v -> {
+            try {
+                return Future.succeededFuture(XyzSerializable.deserialize(json.toString(), Job.class));
+            }
+            catch (JsonProcessingException e) {
+                return Future.failedFuture(e);
+            }
+        });
     }
 
     private Future<Void> resolveChildren(JsonObject combinedJob) {
