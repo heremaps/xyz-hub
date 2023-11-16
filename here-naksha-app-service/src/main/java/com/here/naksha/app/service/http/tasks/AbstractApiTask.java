@@ -19,6 +19,7 @@
 package com.here.naksha.app.service.http.tasks;
 
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeaturesFromResult;
+import static java.util.Collections.emptyList;
 
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
@@ -90,7 +91,9 @@ public abstract class AbstractApiTask<T extends XyzResponse>
         wrResult,
         type,
         () -> verticle.sendErrorResponse(
-            routingContext, XyzError.NOT_FOUND, "The desired feature does not exist."));
+            routingContext,
+            XyzError.EXCEPTION,
+            "Unexpected error while saving feature, the result cursor is empty / does not exist"));
   }
 
   private <R extends XyzFeature> @NotNull XyzResponse transformResultToXyzFeatureResponse(
@@ -136,7 +139,7 @@ public abstract class AbstractApiTask<T extends XyzResponse>
       } catch (NoCursor | NoSuchElementException emptyException) {
         logger.info("No data found in ResultCursor, returning empty collection");
         return verticle.sendXyzResponse(
-            routingContext, HttpResponseType.FEATURE_COLLECTION, new XyzFeatureCollection());
+            routingContext, HttpResponseType.FEATURE_COLLECTION, emptyFeatureCollection());
       }
     }
   }
@@ -175,5 +178,9 @@ public abstract class AbstractApiTask<T extends XyzResponse>
     try (final IWriteSession writer = naksha().getSpaceStorage().newWriteSession(context(), true)) {
       return writer.execute(writeRequest);
     }
+  }
+
+  private XyzFeatureCollection emptyFeatureCollection() {
+    return new XyzFeatureCollection().withFeatures(emptyList());
   }
 }
