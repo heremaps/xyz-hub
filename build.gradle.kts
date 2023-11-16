@@ -72,6 +72,8 @@ val gt_referencing = "org.geotools:gt-referencing:19.1"
 val gt_epsg_hsql = "org.geotools:gt-epsg-hsql:19.1"
 val gt_epsg_extension = "org.geotools:gt-epsg-extension:19.1"
 
+val spatial4j = "com.spatial4j:spatial4j:0.5"
+
 val slf4j_api = "org.slf4j:slf4j-api:2.0.6"
 val slf4j_console = "org.slf4j:slf4j-simple:2.0.6";
 
@@ -286,6 +288,7 @@ project(":here-naksha-lib-psql") {
         implementation(vividsolutions_jts_core)
 
         testImplementation(mockito)
+        testImplementation(spatial4j)
     }
 }
 

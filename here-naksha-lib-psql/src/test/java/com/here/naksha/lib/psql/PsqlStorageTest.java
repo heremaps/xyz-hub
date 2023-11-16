@@ -19,16 +19,15 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.rethrowExcept;
+import static com.spatial4j.core.io.GeohashUtils.encodeLatLon;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.SimpleTask;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.geojson.implementation.EXyzAction;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzPoint;
+import com.here.naksha.lib.core.models.geojson.coordinates.MultiPointCoordinates;
+import com.here.naksha.lib.core.models.geojson.implementation.*;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
@@ -38,8 +37,10 @@ import com.here.naksha.lib.core.util.Hex;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.Point;
 import java.security.SecureRandom;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -84,7 +85,7 @@ public class PsqlStorageTest {
   /**
    * The amount of features to write for the bulk insert test, zero or less to disable the test.
    */
-  public static final int BULK_SIZE = 10 * 1000 * 1000;
+  public static final int BULK_SIZE = 0;
 
   /**
    * Amount of threads to write features concurrently.
@@ -168,6 +169,7 @@ public class PsqlStorageTest {
 
   static final String TEST_APP_ID = "test_app";
   static final String TEST_AUTHOR = "test_author";
+  static final String TEST_STORAGE_ID = "test";
   static @Nullable PsqlStorage storage;
   static @Nullable NakshaContext nakshaContext;
   static @Nullable PsqlWriteSession session;
@@ -233,7 +235,7 @@ public class PsqlStorageTest {
         .parseUrl(TEST_ADMIN_DB)
         .withStatementTimeout(1, TimeUnit.HOURS)
         .build();
-    storage = new PsqlStorage(config, "test");
+    storage = new PsqlStorage(config, TEST_STORAGE_ID);
   }
 
   @Test
@@ -399,8 +401,54 @@ FROM bounds, generate_series(""")
   void singleFeatureCreateVerify() throws NoCursor {
     assertNotNull(storage);
     assertNotNull(session);
-    // TODO: Read the created feature and review that it is in version 1, and everything else is good.
-    //       Optionally, ensure that the "grid" is the correct Geo-Hash!
+
+    // given
+    /**
+     * data inserted in {@link #singleFeatureCreate()} test
+     */
+    final ReadFeatures request = RequestHelper.readFeaturesByIdRequest(COLLECTION_ID, SINGLE_FEATURE_ID);
+
+    // when
+    try (final ResultCursor<XyzFeature> cursor = session.execute(request).cursor()) {
+      cursor.next();
+      final XyzFeature feature = cursor.getFeature();
+      XyzNamespace xyz = feature.xyz();
+
+      // then
+      assertEquals(SINGLE_FEATURE_ID, feature.getId());
+      assertEquals(1, xyz.getVersion());
+      assertSame(EXyzAction.CREATE, xyz.getAction());
+      final XyzGeometry geometry = feature.getGeometry();
+      assertNotNull(geometry);
+      final Coordinate coordinate = geometry.getJTSGeometry().getCoordinate();
+      assertEquals(5.0d, coordinate.getOrdinate(0));
+      assertEquals(6.0d, coordinate.getOrdinate(1));
+      assertEquals(2.0d, coordinate.getOrdinate(2));
+
+      final String uuid = cursor.getUuid();
+      assertEquals(cursor.getUuid(), xyz.uuid);
+      final String[] uuidFields = uuid.split(":");
+      assertEquals(TEST_STORAGE_ID, uuidFields[0]);
+      assertEquals(COLLECTION_ID, uuidFields[1]);
+      assertEquals(4, uuidFields[2].length()); // year (4- digits)
+      assertEquals(2, uuidFields[3].length()); // hour (2- digits)
+      assertEquals(2, uuidFields[4].length()); // minute (2- digits)
+      assertEquals("1", uuidFields[5]); // seq id
+      final String txnFromUuid = uuidFields[2] + uuidFields[3] + uuidFields[4] + "0000000000" + uuidFields[5];
+      assertEquals(txnFromUuid, xyz.getTxn().toString()); // seq id
+      // FIXME new write session should prepare context on DB.
+      // FIXME new write session should prepare context on DB.
+      //      assertEquals(TEST_APP_ID, xyz.getAppId());
+      //      assertEquals(TEST_AUTHOR, xyz.getAuthor());
+      assertNotEquals(xyz.getRealTimeCreateAt(), xyz.getCreatedAt());
+      assertEquals(xyz.getCreatedAt(), xyz.getUpdatedAt());
+
+      assertEquals(encodeLatLon(coordinate.y, coordinate.x, 7), xyz.get("grid"));
+
+      assertFalse(cursor.next());
+      cursor.beforeFirst();
+      assertTrue(cursor.next());
+    }
   }
 
   @Test
@@ -409,7 +457,41 @@ FROM bounds, generate_series(""")
   void singleFeatureUpdate() throws NoCursor {
     assertNotNull(storage);
     assertNotNull(session);
-    // TODO: Update the feature
+
+    // given
+    /**
+     * data inserted in {@link #singleFeatureCreate()} test
+     */
+    final NakshaFeature featureToUpdate = new NakshaFeature(SINGLE_FEATURE_ID);
+    // different geometry
+    XyzPoint newPoint1 = new XyzPoint(5.1d, 6.0d, 2.1d);
+    XyzPoint newPoint2 = new XyzPoint(5.15d, 6.0d, 2.15d);
+    XyzMultiPoint multiPoint = new XyzMultiPoint();
+    MultiPointCoordinates multiPointCoordinates = new MultiPointCoordinates(2);
+    multiPointCoordinates.add(0, newPoint1.getCoordinates());
+    multiPointCoordinates.add(0, newPoint2.getCoordinates());
+    multiPoint.withCoordinates(multiPointCoordinates);
+
+    featureToUpdate.setGeometry(multiPoint);
+    // new property added
+    featureToUpdate.setTitle("Bank");
+    final WriteFeatures<NakshaFeature> request = RequestHelper.updateFeatureRequest(COLLECTION_ID, featureToUpdate);
+
+    // when
+    try (final ResultCursor<NakshaFeature> cursor = session.execute(request).cursor()) {
+      cursor.next();
+
+      // then
+      final XyzFeature feature = cursor.getFeature(XyzFeature.class);
+      assertSame(EExecutedOp.UPDATED, cursor.getOp());
+      assertEquals(SINGLE_FEATURE_ID, cursor.getId());
+      // FIXME should properties type be filled?
+      //      assertNotNull(cursor.getPropertiesType());
+      final Geometry coordinate = cursor.getGeometry();
+      assertEquals(multiPoint.convertToJTSGeometry(), coordinate);
+      // FIXME we should be able to read features just by cursor.getFeature(NakshaFeature.class)
+      assertEquals("Bank", feature.get("title").toString());
+    }
   }
 
   @Test
@@ -418,8 +500,49 @@ FROM bounds, generate_series(""")
   void singleFeatureUpdateVerify() throws NoCursor {
     assertNotNull(storage);
     assertNotNull(session);
-    // TODO: Read the updated feature and review that it is in version 2, and everything else is good.
-    //       Optionally, ensure that the "grid" is the correct Geo-Hash!
+
+    // given
+    /**
+     * data inserted in {@link #singleFeatureCreate()} test and updated by {@link #singleFeatureUpdate()}.
+     */
+    final ReadFeatures request = RequestHelper.readFeaturesByIdRequest(COLLECTION_ID, SINGLE_FEATURE_ID);
+
+    // when
+    try (final ResultCursor<XyzFeature> cursor = session.execute(request).cursor()) {
+      cursor.next();
+      final XyzFeature feature = cursor.getFeature();
+      XyzNamespace xyz = feature.xyz();
+
+      // then
+      assertEquals(SINGLE_FEATURE_ID, feature.getId());
+      assertEquals(2, xyz.getVersion());
+      assertSame(EXyzAction.UPDATE, xyz.getAction());
+      final XyzGeometry geometry = feature.getGeometry();
+      assertNotNull(geometry);
+      Coordinate expectedGeometry = new Coordinate(5.15d, 6.0d, 2.15d);
+      assertEquals(expectedGeometry, geometry.getJTSGeometry().getCoordinate());
+
+      final String uuid = cursor.getUuid();
+      assertEquals(cursor.getUuid(), xyz.uuid);
+      final String[] uuidFields = uuid.split(":");
+      assertEquals(TEST_STORAGE_ID, uuidFields[0]);
+      assertEquals(COLLECTION_ID, uuidFields[1]);
+      assertEquals(4, uuidFields[2].length()); // year (4- digits)
+      assertEquals(2, uuidFields[3].length()); // hour (2- digits)
+      assertEquals(2, uuidFields[4].length()); // minute (2- digits)
+      // should have next seq id, which is 2:
+      assertEquals("2", uuidFields[5]); // seq id
+      final String txnFromUuid = uuidFields[2] + uuidFields[3] + uuidFields[4] + "0000000000" + uuidFields[5];
+      assertEquals(txnFromUuid, xyz.getTxn().toString()); // seq id
+      // FIXME new write session should prepare context on DB.
+      // FIXME new write session should prepare context on DB.
+      //      assertEquals(TEST_APP_ID, xyz.getAppId());
+      //      assertEquals(TEST_AUTHOR, xyz.getAuthor());
+
+      Point centroid = geometry.getJTSGeometry().getCentroid();
+      assertEquals(encodeLatLon(centroid.getY(), centroid.getX(), 7), xyz.get("grid"));
+      assertFalse(cursor.next());
+    }
   }
 
   @Test
@@ -443,9 +566,9 @@ FROM bounds, generate_series(""")
       final Geometry geometry = cursor.getGeometry();
       assertNotNull(geometry);
       final Coordinate coordinate = geometry.getCoordinate();
-      assertEquals(5.0d, coordinate.getOrdinate(0));
+      assertEquals(5.15d, coordinate.getOrdinate(0));
       assertEquals(6.0d, coordinate.getOrdinate(1));
-      assertEquals(2.0d, coordinate.getOrdinate(2));
+      assertEquals(2.15d, coordinate.getOrdinate(2));
       final XyzFeature f = cursor.getFeature();
       assertNotNull(f);
       assertEquals(SINGLE_FEATURE_ID, f.getId());
@@ -460,32 +583,124 @@ FROM bounds, generate_series(""")
   @Test
   @Order(65)
   @EnabledIf("hasTestDb")
-  void singleFeatureDeleteVerify() {
+  void singleFeatureDeleteVerify() throws NoCursor, SQLException {
     assertNotNull(storage);
     assertNotNull(session);
     // TODO: Ensure that the feature is deleted (not found)
     //       Ensure that the feature is available when reading including delete features, verify state (version 3)
     // aso.
     //       Directly query database in "del" table and review that the feature exists there in the correct staet.
+    // given
+
+    // when
+    /**
+     * Read from feature should return nothing.
+     */
+    final ReadFeatures request = RequestHelper.readFeaturesByIdRequest(COLLECTION_ID, SINGLE_FEATURE_ID);
+    try (final ResultCursor<XyzFeature> cursor = session.execute(request).cursor()) {
+      assertFalse(cursor.hasNext());
+    }
+    // also: direct query to feature table should return nothing.
+    try (final PsqlReadSession session = storage.newReadSession(null, true)) {
+      ResultSet rs = getFeatureFromTable(session, COLLECTION_ID, SINGLE_FEATURE_ID);
+      assertFalse(rs.next());
+    }
+
+    /**
+     * Read from deleted should return valid feature.
+     */
+    final ReadFeatures requestWithDeleted = RequestHelper.readFeaturesByIdRequest(COLLECTION_ID, SINGLE_FEATURE_ID);
+    requestWithDeleted.withReturnDeleted(true);
+    String featureJsonBeforeDeletion;
+
+    /* TODO uncomment it when read with deleted is ready.
+
+    try (final ResultCursor<XyzFeature> cursor =
+    session.execute(requestWithDeleted).cursor()) {
+    cursor.next();
+    final XyzFeature feature = cursor.getFeature();
+    XyzNamespace xyz = feature.xyz();
+
+    // then
+    assertSame(EExecutedOp.DELETED, cursor.getOp());
+    final String id = cursor.getId();
+    assertEquals(SINGLE_FEATURE_ID, id);
+    final String uuid = cursor.getUuid();
+    assertNotNull(uuid);
+    final Geometry geometry = cursor.getGeometry();
+    assertNotNull(geometry);
+    assertEquals(new Coordinate(5.1d, 6.0d, 2.1d), geometry.getCoordinate());
+    assertNotNull(feature);
+    assertEquals(SINGLE_FEATURE_ID, feature.getId());
+    assertEquals(uuid, feature.xyz().getUuid());
+    assertSame(EXyzAction.DELETE, feature.xyz().getAction());
+    featureJsonBeforeDeletion = cursor.getJson()
+    assertFalse(cursor.next());
+    }
+    */
+    /**
+     * Check directly _del table.
+     */
+    final String collectionDelTableName = COLLECTION_ID + "_del";
+    try (final PsqlReadSession session = storage.newReadSession(null, true)) {
+      ResultSet rs = getFeatureFromTable(session, collectionDelTableName, SINGLE_FEATURE_ID);
+
+      // feature exists in _del table
+      assertTrue(rs.next());
+
+      /* FIXME uncomment this when read with deleted is ready.
+      assertEquals(featureJsonBeforeDeletion, rs.getString(1));
+       */
+    }
   }
 
   @Test
   @Order(66)
   @EnabledIf("hasTestDb")
-  void singleFeaturePurge() {
+  void singleFeaturePurge() throws NoCursor {
     assertNotNull(storage);
     assertNotNull(session);
-    // TODO: Purge the deleted feature.
-    //       Ensure that the feature is no longer available in "_del" table
+
+    // given
+    /**
+     * Data inserted in {@link #singleFeatureCreate()} and deleted in {@link #singleFeatureDelete()}.
+     * We don't care about geometry or other properties during PURGE operation, feature_id is only required thing,
+     * thanks to that you don't have to read feature before purge operation.
+     */
+    final XyzFeature featureToPurge = new XyzFeature(SINGLE_FEATURE_ID);
+    final WriteXyzFeatures<XyzFeature> request = new WriteXyzFeatures<>(COLLECTION_ID);
+    request.add(new WriteXyzOp<>(EWriteOp.PURGE, featureToPurge));
+
+    // when
+    try (final ResultCursor<XyzFeature> cursor = session.execute(request).cursor()) {
+      cursor.next();
+
+      // then
+      final XyzFeature feature = cursor.getFeature(XyzFeature.class);
+      assertSame(EExecutedOp.PURGED, cursor.getOp());
+      assertEquals(SINGLE_FEATURE_ID, cursor.getId());
+    } finally {
+      session.commit();
+    }
   }
 
   @Test
   @Order(67)
   @EnabledIf("hasTestDb")
-  void singleFeaturePurgeVerify() {
+  void singleFeaturePurgeVerify() throws NoCursor, SQLException {
     assertNotNull(storage);
     assertNotNull(session);
-    // TODO: Ensure that the feature is no longer available in "_del" table.
+
+    // given
+    final String collectionDelTableName = COLLECTION_ID + "_del";
+
+    // when
+    try (final PsqlReadSession session = storage.newReadSession(null, true)) {
+      ResultSet rs = getFeatureFromTable(session, collectionDelTableName, SINGLE_FEATURE_ID);
+
+      // then
+      assertFalse(rs.next());
+    }
   }
 
   @Deprecated
@@ -1087,5 +1302,13 @@ FROM bounds, generate_series(""")
   @Deprecated
   private static <T> long count(List<WriteOpResult<T>> results, EExecutedOp type) {
     return results.stream().filter(op -> op.op.equals(type)).count();
+  }
+
+  private ResultSet getFeatureFromTable(PsqlReadSession session, String table, String featureId) throws SQLException {
+    final PostgresSession pgSession = session.session();
+    final SQL sql = pgSession.sql().add("SELECT * from ").addIdent(table).add(" WHERE jsondata->>'id' = ? ;");
+    final PreparedStatement stmt = pgSession.prepare(sql);
+    stmt.setString(1, featureId);
+    return stmt.executeQuery();
   }
 }

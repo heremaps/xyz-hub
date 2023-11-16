@@ -23,15 +23,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
-import com.here.naksha.lib.core.models.storage.Notification;
-import com.here.naksha.lib.core.models.storage.ReadFeatures;
-import com.here.naksha.lib.core.models.storage.ReadRequest;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteCollections;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
-import com.here.naksha.lib.core.models.storage.WriteOp;
-import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.util.CloseableResource;
 import com.here.naksha.lib.core.util.json.Json;
@@ -186,7 +178,24 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
   Result executeRead(@NotNull ReadRequest<?> readRequest) {
     if (readRequest instanceof final ReadFeatures readFeatures) {
       final List<@NotNull String> collections = readFeatures.getCollections();
-      final SQL sql = sql();
+      // TODO read multiple collections
+      final PreparedStatement stmt = prepare(sql().add(
+              "SELECT jsondata->'properties'->'@ns:com:here:xyz'->>'action', jsondata->>'id', jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', jsondata->>'type', 'TODO' as r_ptype, jsondata::jsonb, ST_AsEWKB(geo)")
+          .add(" FROM ")
+          .addIdent(collections.get(0))
+          .add("  WHERE jsondata->>'id' = ?;"));
+      try {
+        // TODO create dynamic where section
+        stmt.setString(1, readFeatures.getPropertyOp().value().toString());
+        return new PsqlSuccess(new PsqlCursor<>(this, stmt, stmt.executeQuery()));
+      } catch (SQLException e) {
+        try {
+          stmt.close();
+        } catch (Throwable ce) {
+          log.info("Failed to close statement", ce);
+        }
+        throw unchecked(e);
+      }
     }
     return new ErrorResult(XyzError.NOT_IMPLEMENTED, "executeRead");
   }
