@@ -1,0 +1,5 @@
+{
+    "id": "custom-config",
+    "type": "Config",
+    "httpPort": 8080
+}

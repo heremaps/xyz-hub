@@ -23,6 +23,7 @@ import static java.lang.System.err;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
+import com.here.naksha.app.service.metrics.OTelMetrics;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.util.IoHelp;
@@ -356,6 +357,9 @@ public final class NakshaApp extends Thread {
     }
 
     final Thread appThread = this;
+
+    // initialize OTel metrics collector
+    OTelMetrics.init();
 
     // Add verticles
     final int processors = Runtime.getRuntime().availableProcessors();

@@ -103,6 +103,8 @@ val mockito = "org.mockito:mockito-core:3.12.4"
 val flipkart_zjsonpatch = "com.flipkart.zjsonpatch:zjsonpatch:0.4.13"
 val json_assert = "org.skyscreamer:jsonassert:1.5.1"
 
+val otel = "io.opentelemetry:opentelemetry-api:1.28.0"
+
 val mavenUrl = rootProject.properties["mavenUrl"] as String
 val mavenUser = rootProject.properties["mavenUser"] as String
 val mavenPassword = rootProject.properties["mavenPassword"] as String
@@ -406,6 +408,7 @@ project(":here-naksha-lib-handlers") {
             implementation(project(":here-naksha-handler-psql"))
             implementation(project(":here-naksha-lib-hub"))
 
+            implementation(otel)
             implementation(commons_lang3)
             implementation(vividsolutions_jts_core)
             implementation(postgres)
@@ -468,4 +471,9 @@ rootProject.tasks.shadowJar {
         attributes["Implementation-Title"] = "Naksha Service"
         attributes["Main-Class"] = "com.here.naksha.app.service.NakshaApp"
     }
+}
+
+// print app version
+rootProject.tasks.register("printAppVersion") {
+    println(rootProject.version)
 }

@@ -1,0 +1,42 @@
+{
+    "urm": {
+        "xyz-hub": {
+            "readFeatures": [
+                {}
+            ],
+            "createFeatures": [
+                {}
+            ],
+            "updateFeatures": [
+                {}
+            ],
+            "deleteFeatures": [
+                {}
+            ],
+            "manageSpaces": [
+                {}
+            ],
+            "adminSpaces": [
+                {}
+            ],
+            "managePackages": [
+                {}
+            ],
+            "accessConnectors": [
+                {}
+            ],
+            "manageConnectors": [
+                {}
+            ],
+            "useCapabilities": [
+                {}
+            ],
+            "useAdminCapabilities": [
+                {}
+            ]
+        }
+    },
+    "aid": "ANONYMOUS",
+    "iat": 1577833200,
+    "exp": 2000000000
+}
