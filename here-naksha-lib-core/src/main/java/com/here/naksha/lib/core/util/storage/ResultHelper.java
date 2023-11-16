@@ -18,43 +18,78 @@
  */
 package com.here.naksha.lib.core.util.storage;
 
+import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.ResultCursor;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.NoSuchElementException;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 public class ResultHelper {
-  //
-  //  /**
-  //   * Helper method to iterate given ReadResult and return list of features with type T limited to given limit.
-  //   *
-  //   * @param rr        the ReadResult which is to be read
-  //   * @param type      the type of feature to be extracted from result
-  //   * @param limit     the max number of features to be extracted
-  //   * @return list of features extracted from ReadResult
-  //   * @param <T> type of feature
-  //   */
-  //  public static <T> @NotNull List<T> readFeaturesFromResult(
-  //      final @NotNull ReadResult<?> rr, final @NotNull Class<T> type, final int limit) {
-  //    final List<T> features = new ArrayList<>();
-  //    int cnt = 0;
-  //    for (final T feature : rr.withFeatureType(type)) {
-  //      features.add(feature);
-  //      if (++cnt >= limit) {
-  //        break;
-  //      }
-  //    }
-  //    return features;
-  //  }
-  //
-  //  /**
-  //   * Helper method to read single feature from ReadResult
-  //   *
-  //   * @param <T>  the type parameter
-  //   * @param rr   the ReadResult to read from
-  //   * @param type the type of feature
-  //   * @return the feature of type T if found, else null
-  //   */
-  //  public static <T> @Nullable T readFeatureFromResult(final @NotNull ReadResult<?> rr, final @NotNull Class<T>
-  // type) {
-  //    for (final T t : rr.withFeatureType(type)) {
-  //      return t;
-  //    }
-  //    return null;
-  //  }
+
+  private ResultHelper() {}
+
+  /**
+   * Helper method to fetch features from given Result and return list of features with type T.
+   * Returned list is not limited - to set the upper bound, use sibling method with limit argument.
+   *
+   * @param result      the Result which is to be read
+   * @param featureType the type of feature to be extracted from result
+   * @param <R>         type of feature
+   * @return list of features extracted from ReadResult
+   */
+  public static <R extends XyzFeature> List<R> readFeaturesFromResult(Result result, Class<R> featureType)
+      throws NoCursor, NoSuchElementException {
+    return readFeaturesFromResult(result, featureType, Long.MAX_VALUE);
+  }
+
+  /**
+   * Helper method to fetch features from given Result and return list of features with type T.
+   * Returned list is limited with respect to supplied `limit` parameter.
+   *
+   * @param result      the Result which is to be read
+   * @param featureType the type of feature to be extracted from result
+   * @param limit       the max number of features to be extracted
+   * @param <R>         type of feature
+   * @return list of features extracted from ReadResult
+   */
+  public static <R extends XyzFeature> List<R> readFeaturesFromResult(Result result, Class<R> featureType, long limit)
+      throws NoCursor, NoSuchElementException {
+    try (ResultCursor<R> resultCursor = result.cursor(featureType)) {
+      if (!resultCursor.hasNext()) {
+        throw new NoSuchElementException("Result Cursor is empty");
+      }
+      List<R> features = new ArrayList<>();
+      int cnt = 0;
+      while (resultCursor.hasNext() && cnt < limit) {
+        if (!resultCursor.next()) {
+          throw new RuntimeException("Unexpected invalid result");
+        }
+        features.add(resultCursor.getFeature());
+      }
+      return features;
+    }
+  }
+
+  /**
+   * Helper method to read single feature from ReadResult
+   *
+   * @param <T>    the type parameter
+   * @param result the Result to read from
+   * @param type   the type of feature
+   * @return the feature of type T if found, else null
+   */
+  public static <T> @Nullable T readFeatureFromResult(final @NotNull Result result, final @NotNull Class<T> type) {
+    try (ResultCursor<T> resultCursor = result.cursor(type)) {
+      if (resultCursor.hasNext() && resultCursor.next()) {
+        return resultCursor.getFeature();
+      }
+      return null;
+    } catch (NoCursor e) {
+      return null;
+    }
+  }
 }

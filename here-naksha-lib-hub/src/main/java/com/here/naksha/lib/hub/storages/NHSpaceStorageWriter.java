@@ -72,7 +72,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
   }
 
   private @NotNull Result executeWriteFeatures(final @NotNull WriteFeatures wf) {
-    if (virtualSpaces.containsKey(wf.collectionId)) {
+    if (virtualSpaces.containsKey(wf.getCollectionId())) {
       // Request is to write to Naksha Admin space
       return executeWriteFeaturesToAdminSpaces(wf);
     } else {
@@ -85,14 +85,14 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
     // Run pipeline against virtual space
     final EventPipeline pipeline = pipelineFactory.eventPipeline();
     // add internal Admin resource specific event handlers
-    for (final IEventHandler handler : virtualSpaces.get(wf.collectionId)) {
+    for (final IEventHandler handler : virtualSpaces.get(wf.getCollectionId())) {
       pipeline.addEventHandler(handler);
     }
     return pipeline.sendEvent(wf);
   }
 
   private @NotNull Result executeWriteFeaturesToCustomSpaces(final @NotNull WriteFeatures<?> wf) {
-    final String spaceId = wf.collectionId;
+    final String spaceId = wf.getCollectionId();
     final EventPipeline eventPipeline = pipelineFactory.eventPipeline();
     final Result result = setupEventPipelineForSpaceId(spaceId, eventPipeline);
     if (!(result instanceof SuccessResult)) return result;

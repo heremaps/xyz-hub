@@ -114,7 +114,7 @@ class DisabledNakshaHubTest {
         assertEquals(1, wr.results.size(), "Expected 1 storage in result");
         final List<Storage> storageResultList = new ArrayList<>();
         for (final WriteOpResult<?> wOpResult : wr.results) {
-          storageResultList.add((Storage) wOpResult.object);
+          storageResultList.add((Storage) wOpResult.feature);
         }
         JSONAssert.assertEquals(
             "Mismatch in Storage WriteResult",
@@ -146,7 +146,7 @@ class DisabledNakshaHubTest {
       admin.rollback();
       if (wrResult instanceof ErrorResult er) {
         assertEquals(
-            XyzError.CONFLICT.value, er.reason.value, "Expecting conflict error on duplicate storage!");
+            XyzError.CONFLICT.value(), er.reason.value(), "Expecting conflict error on duplicate storage!");
         return;
       }
       fail("Received different result while creating duplicate storage! " + wrResult);

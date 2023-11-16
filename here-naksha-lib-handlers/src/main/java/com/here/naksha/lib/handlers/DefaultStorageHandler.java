@@ -25,8 +25,17 @@ import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.naksha.*;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.naksha.EventHandler;
+import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
+import com.here.naksha.lib.core.models.naksha.EventTarget;
+import com.here.naksha.lib.core.models.naksha.Space;
+import com.here.naksha.lib.core.models.naksha.SpaceProperties;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.Request;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
@@ -118,7 +127,9 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final @NotNull ReadFeatures rf,
       final boolean isReattempt) {
     // overwrite collectionId with custom one if available
-    if (customCollectionId != null) rf.setCollections(List.of(customCollectionId));
+    if (customCollectionId != null) {
+      rf.setCollections(List.of(customCollectionId));
+    }
     logger.info("Processing ReadFeatures against {}", rf.getCollections());
     try (final IReadSession reader = storageImpl.newReadSession(ctx, false)) {
       return reader.execute(rf);
@@ -143,11 +154,15 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final @NotNull WriteFeatures<?> wf,
       final boolean isReattempt) {
     // overwrite collectionId with custom one if available
-    if (customCollectionId != null) wf.collectionId = customCollectionId;
-    logger.info("Processing WriteFeatures against {}", wf.collectionId);
+    if (customCollectionId != null) {
+      wf.setCollectionId(customCollectionId);
+    }
+    logger.info("Processing WriteFeatures against {}", wf.getCollectionId());
     try (final IWriteSession writer = storageImpl.newWriteSession(ctx, true)) {
       final Result result = writer.execute(wf);
-      if (result instanceof SuccessResult) writer.commit();
+      if (result instanceof SuccessResult) {
+        writer.commit();
+      }
       return result;
     } catch (RuntimeException re) {
       if (!isReattempt && re.getCause() instanceof SQLException sqe) {
@@ -155,11 +170,15 @@ public class DefaultStorageHandler extends AbstractEventHandler {
         if (EPsqlState.UNDEFINED_TABLE.toString().equals(sqe.getSQLState())) {
           logger.warn(
               "Collection not found for {}, so we will attempt collection creation and then reattempt write request.",
-              wf.collectionId);
-          createStorageCollections(ctx, storageImpl, List.of(wf.collectionId));
+              wf.getCollectionId());
+          createStorageCollections(ctx, storageImpl, List.of(wf.getCollectionId()));
           return forwardWriteFeaturesToStorage(ctx, storageImpl, customCollectionId, wf, true);
-        } else throw re;
-      } else throw re;
+        } else {
+          throw re;
+        }
+      } else {
+        throw re;
+      }
     }
   }
 

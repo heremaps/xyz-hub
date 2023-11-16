@@ -30,12 +30,17 @@ import org.jetbrains.annotations.NotNull;
 
 public class NHAdminStorageReader implements IReadSession {
 
+  private final int DEFAULT_FETCH_SIZE = 1_000;
+
   /** Current session, all read storage operations should be executed against */
   final @NotNull IReadSession session;
+
+  private int fetchSize;
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   protected NHAdminStorageReader(final @NotNull IReadSession reader) {
     this.session = reader;
+    fetchSize = DEFAULT_FETCH_SIZE;
   }
 
   /**
@@ -58,6 +63,26 @@ public class NHAdminStorageReader implements IReadSession {
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull NakshaContext getNakshaContext() {
     return session.getNakshaContext();
+  }
+
+  /**
+   * Returns the amount of features to fetch at ones.
+   *
+   * @return the amount of features to fetch at ones.
+   */
+  @Override
+  public int getFetchSize() {
+    return fetchSize;
+  }
+
+  /**
+   * Changes the amount of features to fetch at ones.
+   *
+   * @param size The amount of features to fetch at ones.
+   */
+  @Override
+  public void setFetchSize(int size) {
+    this.fetchSize = size;
   }
 
   /**

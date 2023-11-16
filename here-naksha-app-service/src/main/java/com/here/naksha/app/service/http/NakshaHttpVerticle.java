@@ -524,19 +524,30 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   }
 
   private @NotNull HttpResponseStatus mapErrorToHttpStatus(final @NotNull XyzError xyzError) {
-    return switch (xyzError) {
-      case EXCEPTION -> HttpResponseStatus.INTERNAL_SERVER_ERROR;
-      case NOT_IMPLEMENTED -> HttpResponseStatus.NOT_IMPLEMENTED;
-      case ILLEGAL_ARGUMENT -> HttpResponseStatus.BAD_REQUEST;
-      case PAYLOAD_TOO_LARGE -> HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
-      case BAD_GATEWAY -> HttpResponseStatus.BAD_GATEWAY;
-      case CONFLICT -> HttpResponseStatus.CONFLICT;
-      case UNAUTHORIZED -> HttpResponseStatus.UNAUTHORIZED;
-      case FORBIDDEN -> HttpResponseStatus.FORBIDDEN;
-      case TOO_MANY_REQUESTS -> HttpResponseStatus.TOO_MANY_REQUESTS;
-      case TIMEOUT -> HttpResponseStatus.GATEWAY_TIMEOUT;
-      case NOT_FOUND -> HttpResponseStatus.NOT_FOUND;
-    };
+    if (xyzError.equals(XyzError.EXCEPTION)) {
+      return HttpResponseStatus.INTERNAL_SERVER_ERROR;
+    } else if (xyzError.equals(XyzError.NOT_IMPLEMENTED)) {
+      return HttpResponseStatus.NOT_IMPLEMENTED;
+    } else if (xyzError.equals(ILLEGAL_ARGUMENT)) {
+      return HttpResponseStatus.BAD_REQUEST;
+    } else if (xyzError.equals(XyzError.PAYLOAD_TOO_LARGE)) {
+      return HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
+    } else if (xyzError.equals(XyzError.BAD_GATEWAY)) {
+      return HttpResponseStatus.BAD_GATEWAY;
+    } else if (xyzError.equals(XyzError.CONFLICT)) {
+      return HttpResponseStatus.CONFLICT;
+    } else if (xyzError.equals(XyzError.UNAUTHORIZED)) {
+      return HttpResponseStatus.UNAUTHORIZED;
+    } else if (xyzError.equals(XyzError.FORBIDDEN)) {
+      return HttpResponseStatus.FORBIDDEN;
+    } else if (xyzError.equals(XyzError.TOO_MANY_REQUESTS)) {
+      return HttpResponseStatus.TOO_MANY_REQUESTS;
+    } else if (xyzError.equals(XyzError.TIMEOUT)) {
+      return HttpResponseStatus.GATEWAY_TIMEOUT;
+    } else if (xyzError.equals(XyzError.NOT_FOUND)) {
+      return NOT_FOUND;
+    }
+    throw new IllegalArgumentException();
   }
 
   /**

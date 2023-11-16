@@ -18,32 +18,14 @@
  */
 package com.here.naksha.lib.hub.mock;
 
-import com.here.naksha.lib.core.models.storage.IAdvancedReadResult;
-import com.here.naksha.lib.core.models.storage.ReadResult;
-import java.util.Iterator;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
-public class MockReadResult<T> extends ReadResult<T> {
-
-  private final @NotNull List<Object> featureList;
+public class MockReadResult<T extends XyzFeature> extends SuccessResult {
 
   public MockReadResult(@NotNull Class<T> featureType, @NotNull List<Object> featureList) {
-    super(featureType);
-    this.featureList = featureList;
-  }
-
-  @Override
-  public IAdvancedReadResult<T> advanced() {
-    return null;
-  }
-
-  @Override
-  protected void onFeatureTypeChange() {}
-
-  @NotNull
-  @Override
-  public Iterator<T> iterator() {
-    return (Iterator<T>) featureList.listIterator();
+    this.cursor = new MockResultCursor<>(featureType, featureList);
   }
 }

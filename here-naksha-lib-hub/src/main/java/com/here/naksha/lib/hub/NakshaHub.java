@@ -19,43 +19,62 @@
 package com.here.naksha.lib.hub;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-import static com.here.naksha.lib.core.util.storage.RequestHelper.*;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.createWriteCollectionsRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdsRequest;
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFromResult;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.IfConflict;
+import com.here.naksha.lib.core.models.storage.IfExists;
+import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.Json;
+import com.here.naksha.lib.core.util.storage.ResultHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
 import com.here.naksha.lib.psql.PsqlConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.util.List;
+import java.util.NoSuchElementException;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class NakshaHub implements INaksha {
 
-  /** The id of default NakshaHub Config feature object */
+  /**
+   * The id of default NakshaHub Config feature object
+   */
   public static final @NotNull String DEF_CFG_ID = "default-config";
-  /** The NakshaHub config. */
+  /**
+   * The NakshaHub config.
+   */
   protected final @NotNull NakshaHubConfig nakshaHubConfig;
-  /** Singleton instance of physical admin storage implementation */
+  /**
+   * Singleton instance of physical admin storage implementation
+   */
   protected final @NotNull IStorage psqlStorage;
-  /** Singleton instance of AdminStorage, which internally uses physical admin storage (i.e. PsqlStorage) */
+  /**
+   * Singleton instance of AdminStorage, which internally uses physical admin storage (i.e. PsqlStorage)
+   */
   protected final @NotNull IStorage adminStorageInstance;
-  /** Singleton instance of Space Storage, which is responsible to manage admin collections as spaces
-   * and support respective read/write operations on spaces */
+  /**
+   * Singleton instance of Space Storage, which is responsible to manage admin collections as spaces and support respective read/write
+   * operations on spaces
+   */
   protected final @NotNull IStorage spaceStorageInstance;
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
@@ -172,21 +191,27 @@ public class NakshaHub implements INaksha {
       if (rdResult instanceof ErrorResult er) {
         throw unchecked(new Exception(
             "Unable to read custom/default config from Admin DB. " + er.toString(), er.exception));
-      } else if (rdResult instanceof ReadResult<?> rr) {
-        for (final NakshaHubConfig cfg : rr.withFeatureType(NakshaHubConfig.class)) {
-          if (cfg.getId().equals(configId)) {
-            customDbCfg = cfg;
+      } else {
+        try {
+          List<NakshaHubConfig> nakshaHubConfigs =
+              ResultHelper.readFeaturesFromResult(rdResult, NakshaHubConfig.class);
+          for (final NakshaHubConfig cfg : nakshaHubConfigs) {
+            if (cfg.getId().equals(configId)) {
+              customDbCfg = cfg;
+            }
+            if (cfg.getId().equals(DEF_CFG_ID)) {
+              defDbCfg = cfg;
+            }
           }
-          if (cfg.getId().equals(DEF_CFG_ID)) {
-            defDbCfg = cfg;
+          if (customDbCfg != null) {
+            return customDbCfg; // return custom config from DB
+          } else if (defDbCfg != null) {
+            return defDbCfg; // return default config from DB
           }
+        } catch (NoCursor | NoSuchElementException er) {
+          throw unchecked(new Exception(
+              "Unable to read custom/default config from Admin DB - ResultCursor has no data"));
         }
-        rr.close();
-      }
-      if (customDbCfg != null) {
-        return customDbCfg; // return custom config from DB
-      } else if (defDbCfg != null) {
-        return defDbCfg; // return default config from DB
       }
 
       // load default config from file (as DB didn't have custom/default config)
@@ -242,16 +267,11 @@ public class NakshaHub implements INaksha {
         throw unchecked(new Exception(
             "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
       }
-      if (result instanceof ReadResult<?> rr) {
-        final Storage storage = readFeatureFromResult(rr, Storage.class);
-        rr.close();
-        if (storage == null) {
-          throw unchecked(new Exception("No storage found with id " + storageId));
-        }
-        return storage.newInstance(this);
+      final Storage storage = readFeatureFromResult(result, Storage.class);
+      if (storage == null) {
+        throw unchecked(new Exception("No storage found with id " + storageId));
       }
-      throw unchecked(new Exception("Unexpected result type "
-          + result.getClass().getName() + " while fetching storage for id " + storageId));
+      return storage.newInstance(this);
     }
   }
 }

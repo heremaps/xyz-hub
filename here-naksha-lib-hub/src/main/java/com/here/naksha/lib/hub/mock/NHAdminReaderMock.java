@@ -29,6 +29,7 @@ import com.here.naksha.lib.core.storage.IReadSession;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PSQLState;
 
@@ -57,6 +58,26 @@ public class NHAdminReaderMock implements IReadSession {
   @Override
   public @NotNull NakshaContext getNakshaContext() {
     return null;
+  }
+
+  /**
+   * Returns the amount of features to fetch at ones.
+   *
+   * @return the amount of features to fetch at ones.
+   */
+  @Override
+  public int getFetchSize() {
+    throw new NotImplementedException();
+  }
+
+  /**
+   * Changes the amount of features to fetch at ones.
+   *
+   * @param size The amount of features to fetch at ones.
+   */
+  @Override
+  public void setFetchSize(int size) {
+    throw new NotImplementedException();
   }
 
   /**

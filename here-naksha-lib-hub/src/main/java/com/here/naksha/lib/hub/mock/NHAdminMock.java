@@ -24,7 +24,9 @@ import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureR
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.naksha.Storage;
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
@@ -34,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Future;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -65,10 +68,11 @@ public class NHAdminMock implements IStorage {
 
     // Create all admin collections
     try (final IWriteSession admin = newWriteSession(ctx, true)) {
-      final List<WriteOp<StorageCollection>> collectionList = new ArrayList<>();
+      final List<WriteOp<XyzCollection>> collectionList = new ArrayList<>();
       for (final String name : NakshaAdminCollection.ALL) {
-        final StorageCollection collection = new StorageCollection(name);
-        final WriteOp<StorageCollection> writeOp = new WriteOp<>(EWriteOp.INSERT, collection, false);
+        final XyzCollection collection = new XyzCollection(name);
+        final WriteOp<XyzCollection> writeOp =
+            new WriteOp<>(EWriteOp.CREATE, name, null, collection, null, true);
         collectionList.add(writeOp);
       }
       final Result wrResult = admin.execute(new WriteCollections<>(collectionList));
@@ -144,5 +148,17 @@ public class NHAdminMock implements IStorage {
   @Override
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
     return new NHAdminReaderMock(mockCollection);
+  }
+
+  /**
+   * Shutdown the storage instance asynchronously. This method returns asynchronously whatever the given {@code onShutdown} handler returns.
+   * If no shutdown handler given, then {@code null} is returned.
+   *
+   * @param onShutdown The (optional) method to call when the shutdown is done.
+   * @return The future when the shutdown will be done.
+   */
+  @Override
+  public @NotNull <T> Future<T> shutdown(@Nullable Fe1<T, IStorage> onShutdown) {
+    return null;
   }
 }

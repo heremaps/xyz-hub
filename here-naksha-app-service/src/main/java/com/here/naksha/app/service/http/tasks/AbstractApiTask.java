@@ -18,22 +18,29 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeaturesFromResult;
+import static java.util.Collections.emptyList;
+
 import com.here.naksha.app.service.http.HttpResponseType;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.lambdas.F0;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import io.vertx.ext.web.RoutingContext;
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -41,7 +48,6 @@ import org.slf4j.LoggerFactory;
 
 /**
  * An abstract class that can be used for all Http API specific custom Task implementations.
- *
  */
 public abstract class AbstractApiTask<T extends XyzResponse>
     extends AbstractTask<XyzResponse, AbstractApiTask<XyzResponse>> {
@@ -70,6 +76,48 @@ public abstract class AbstractApiTask<T extends XyzResponse>
     return verticle.sendErrorResponse(routingContext, XyzError.NOT_IMPLEMENTED, "Unsupported operation!");
   }
 
+  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzFeatureResponse(
+      final @NotNull Result rdResult, final @NotNull Class<R> type) {
+    return transformResultToXyzFeatureResponse(
+        rdResult,
+        type,
+        () -> verticle.sendErrorResponse(
+            routingContext, XyzError.NOT_FOUND, "The desired feature does not exist."));
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzFeatureResponse(
+      final @Nullable Result wrResult, final @NotNull Class<R> type) {
+    return transformResultToXyzFeatureResponse(
+        wrResult,
+        type,
+        () -> verticle.sendErrorResponse(
+            routingContext,
+            XyzError.EXCEPTION,
+            "Unexpected error while saving feature, the result cursor is empty / does not exist"));
+  }
+
+  private <R extends XyzFeature> @NotNull XyzResponse transformResultToXyzFeatureResponse(
+      final @Nullable Result result,
+      final @NotNull Class<R> type,
+      final @NotNull F0<XyzResponse> onNoElementsReturned) {
+    if (result == null) {
+      logger.error("Unexpected null result!");
+      return verticle.sendErrorResponse(routingContext, XyzError.EXCEPTION, "Unexpected null result!");
+    } else if (result instanceof ErrorResult er) {
+      // In case of error, convert result to ErrorResponse
+      logger.error("Received error result {}", er);
+      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
+    } else {
+      try {
+        List<R> features = readFeaturesFromResult(result, type);
+        final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(features);
+        return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, featureResponse);
+      } catch (NoCursor | NoSuchElementException emptyException) {
+        return onNoElementsReturned.call();
+      }
+    }
+  }
+
   protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
       final @Nullable Result rdResult, final @NotNull Class<R> type) {
     if (rdResult == null) {
@@ -81,82 +129,19 @@ public abstract class AbstractApiTask<T extends XyzResponse>
       // In case of error, convert result to ErrorResponse
       logger.error("Received error result {}", er);
       return verticle.sendErrorResponse(routingContext, er.reason, er.message);
-    } else if (rdResult instanceof ReadResult<?> rr) {
-      // In case of success, convert result to success XyzResponse
-      final List<R> features = new ArrayList<>();
-      int cnt = 0;
-      for (final R feature : rr.withFeatureType(type)) {
-        features.add(feature);
-        if (++cnt >= 1000) {
-          break; // TODO : can be improved later (perhaps by accepting limit as an input)
-        }
+    } else {
+      try {
+        List<R> features = readFeaturesFromResult(rdResult, type, 1000);
+        return verticle.sendXyzResponse(
+            routingContext,
+            HttpResponseType.FEATURE_COLLECTION,
+            new XyzFeatureCollection().withInsertedFeatures(features));
+      } catch (NoCursor | NoSuchElementException emptyException) {
+        logger.info("No data found in ResultCursor, returning empty collection");
+        return verticle.sendXyzResponse(
+            routingContext, HttpResponseType.FEATURE_COLLECTION, emptyFeatureCollection());
       }
-      rr.close();
-      final XyzFeatureCollection response = new XyzFeatureCollection().withFeatures(features);
-      return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE_COLLECTION, response);
     }
-    // unexpected result type
-    logger.error("Unexpected result type {}", rdResult.getClass().getSimpleName());
-    return verticle.sendErrorResponse(
-        routingContext,
-        XyzError.EXCEPTION,
-        "Unsupported result type : " + rdResult.getClass().getSimpleName());
-  }
-
-  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzFeatureResponse(
-      final @NotNull Result rdResult, final @NotNull Class<R> type) {
-    if (rdResult == null) {
-      logger.error("Unexpected null result!");
-      return verticle.sendErrorResponse(routingContext, XyzError.EXCEPTION, "Unexpected null result!");
-    } else if (rdResult instanceof ErrorResult er) {
-      // In case of error, convert result to ErrorResponse
-      logger.error("Received error result {}", er);
-      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
-    } else if (rdResult instanceof ReadResult<?> rr) {
-      // In case of success, convert result to success XyzResponse
-      final Iterator<R> iterator = rr.withFeatureType(type).iterator();
-      if (!iterator.hasNext())
-        return verticle.sendErrorResponse(
-            routingContext, XyzError.NOT_FOUND, "The desired feature does not exist.");
-      final List<R> features = new ArrayList<>();
-      features.add(iterator.next());
-      rr.close();
-      final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(features);
-      return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, featureResponse);
-    }
-    // unexpected result type
-    logger.error("Unexpected result type {}", rdResult.getClass().getSimpleName());
-    return verticle.sendErrorResponse(
-        routingContext,
-        XyzError.EXCEPTION,
-        "Unsupported result type : " + rdResult.getClass().getSimpleName());
-  }
-
-  protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzFeatureResponse(
-      final @Nullable Result wrResult, final @NotNull Class<R> type) {
-    if (wrResult == null) {
-      // unexpected null response
-      logger.error("Unexpected null result!");
-      return verticle.sendErrorResponse(routingContext, XyzError.EXCEPTION, "Unexpected null result!");
-    } else if (wrResult instanceof ErrorResult er) {
-      // In case of error, convert result to ErrorResponse
-      logger.error("Received error result {}", er);
-      return verticle.sendErrorResponse(routingContext, er.reason, er.message);
-    } else if (wrResult instanceof WriteResult<?> wr) {
-      // In case of success, convert result to success XyzResponse
-      //noinspection unchecked
-      final WriteResult<R> featureWR = (WriteResult<R>) wr;
-      final List<R> features =
-          featureWR.results.stream().map(op -> op.object).toList();
-      final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(features);
-      return verticle.sendXyzResponse(routingContext, HttpResponseType.FEATURE, featureResponse);
-    }
-    // unexpected result type
-    logger.error("Unexpected result type {}", wrResult.getClass().getSimpleName());
-    return verticle.sendErrorResponse(
-        routingContext,
-        XyzError.EXCEPTION,
-        "Unsupported result type : " + wrResult.getClass().getSimpleName());
   }
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzCollectionResponse(
@@ -169,23 +154,18 @@ public abstract class AbstractApiTask<T extends XyzResponse>
       // In case of error, convert result to ErrorResponse
       logger.error("Received error result {}", er);
       return verticle.sendErrorResponse(routingContext, er.reason, er.message);
-    } else if (wrResult instanceof WriteResult<?> wr) {
-      // In case of success, convert result to success XyzResponse
-      //noinspection unchecked
-      final WriteResult<R> featureWR = (WriteResult<R>) wr;
-      final List<R> features =
-          featureWR.results.stream().map(op -> op.object).toList();
-      return verticle.sendXyzResponse(
-          routingContext,
-          HttpResponseType.FEATURE_COLLECTION,
-          new XyzFeatureCollection().withInsertedFeatures(features));
+    } else {
+      try {
+        List<R> features = readFeaturesFromResult(wrResult, type);
+        return verticle.sendXyzResponse(
+            routingContext,
+            HttpResponseType.FEATURE_COLLECTION,
+            new XyzFeatureCollection().withInsertedFeatures(features));
+      } catch (NoCursor | NoSuchElementException emptyException) {
+        return verticle.sendErrorResponse(
+            routingContext, XyzError.EXCEPTION, "Unexpected empty result from ResultCursor");
+      }
     }
-    // unexpected result type
-    logger.error("Unexpected result type {}", wrResult.getClass().getSimpleName());
-    return verticle.sendErrorResponse(
-        routingContext,
-        XyzError.EXCEPTION,
-        "Unsupported result type : " + wrResult.getClass().getSimpleName());
   }
 
   protected Result executeReadRequestFromSpaceStorage(ReadFeatures readRequest) {
@@ -198,5 +178,9 @@ public abstract class AbstractApiTask<T extends XyzResponse>
     try (final IWriteSession writer = naksha().getSpaceStorage().newWriteSession(context(), true)) {
       return writer.execute(writeRequest);
     }
+  }
+
+  private XyzFeatureCollection emptyFeatureCollection() {
+    return new XyzFeatureCollection().withFeatures(emptyList());
   }
 }

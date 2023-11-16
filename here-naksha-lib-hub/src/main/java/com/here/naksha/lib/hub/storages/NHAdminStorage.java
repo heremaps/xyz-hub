@@ -20,7 +20,9 @@ package com.here.naksha.lib.hub.storages;
 
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.storage.*;
+import java.util.concurrent.Future;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -45,6 +47,18 @@ public class NHAdminStorage implements IStorage {
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
     return new NHAdminStorageReader(this.psqlStorage.newReadSession(context, useMaster));
+  }
+
+  /**
+   * Shutdown the storage instance asynchronously. This method returns asynchronously whatever the given {@code onShutdown} handler returns.
+   * If no shutdown handler given, then {@code null} is returned.
+   *
+   * @param onShutdown The (optional) method to call when the shutdown is done.
+   * @return The future when the shutdown will be done.
+   */
+  @Override
+  public @NotNull <T> Future<T> shutdown(@Nullable Fe1<T, IStorage> onShutdown) {
+    return null;
   }
 
   /**
