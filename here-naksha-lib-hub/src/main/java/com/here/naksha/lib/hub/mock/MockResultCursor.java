@@ -107,7 +107,7 @@ class MockResultCursor<T extends XyzFeature> extends ResultCursor<T> {
    */
   @Override
   public boolean last() {
-    currentPos = items.size();
+    currentPos = items.size() - 1;
     return isPositionValid();
   }
 
