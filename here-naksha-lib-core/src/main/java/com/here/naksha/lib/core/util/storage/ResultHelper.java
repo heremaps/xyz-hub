@@ -64,7 +64,7 @@ public class ResultHelper {
       }
       List<R> features = new ArrayList<>();
       int cnt = 0;
-      while (resultCursor.hasNext() && cnt < limit) {
+      while (resultCursor.hasNext() && cnt++ < limit) {
         if (!resultCursor.next()) {
           throw new RuntimeException("Unexpected invalid result");
         }
