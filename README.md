@@ -193,6 +193,10 @@ The OpenAPI specification files are accessible under the following URIs:
 * Contract: [http://{host}:{port}/hub/static/openapi/contract.yaml](http://localhost:8080/hub/static/openapi/contract.yaml)
 * Connector: [http://{host}:{port}/psql/static/openapi/openapi-http-connector.yaml](http://localhost:8080/psql/static/openapi/openapi-http-connector.yaml)
 
+#### Swagger UI
+
+Currently to access the Swagger UI from a browser, use this URI [http://{host}:{port}/hub/static/index.html](http://localhost:8080/hub/static/index.html)
+
 # Acknowledgements
 
 XYZ Hub uses:
