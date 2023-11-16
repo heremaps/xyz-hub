@@ -58,6 +58,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.api.condition.EnabledIf;
+import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +86,7 @@ public class PsqlStorageTest {
   /**
    * The amount of features to write for the bulk insert test, zero or less to disable the test.
    */
-  public static final int BULK_SIZE = 0;
+  public static final int BULK_SIZE = 0; // 10 * 1000 * 1000;
 
   /**
    * Amount of threads to write features concurrently.
@@ -586,11 +587,6 @@ FROM bounds, generate_series(""")
   void singleFeatureDeleteVerify() throws NoCursor, SQLException {
     assertNotNull(storage);
     assertNotNull(session);
-    // TODO: Ensure that the feature is deleted (not found)
-    //       Ensure that the feature is available when reading including delete features, verify state (version 3)
-    // aso.
-    //       Directly query database in "del" table and review that the feature exists there in the correct staet.
-    // given
 
     // when
     /**
@@ -1244,36 +1240,41 @@ FROM bounds, generate_series(""")
   @Test
   @Order(120)
   @EnabledIf("hasTestDb")
-  void dropFooCollection() {
-    // TODO: First try to DELETE the test collection
-    //       Then try to PURGE the test collection
-    //       Finally try to read the test collection (it should not exist)
+  void dropFooCollection() throws NoCursor, SQLException {
     assertNotNull(storage);
     assertNotNull(session);
-    //    StorageCollection storageCollection = new StorageCollection(COLLECTION_ID);
-    //    WriteOp<StorageCollection> writeOp = new WriteOp<>(EWriteOp.DELETE, storageCollection, false);
-    //    WriteCollections<StorageCollection> writeRequest = new WriteCollections<>(List.of(writeOp));
-    //    final WriteResult<StorageCollection> dropResult =
-    //        (WriteResult<StorageCollection>) session.execute(writeRequest);
-    //    session.commit();
-    //    assertNotNull(dropResult);
-    //    StorageCollection dropped = dropResult.results.get(0).feature;
-    //    if (dropFinally()) {
-    //      assertNotSame(storageCollection, dropped);
-    //    } else {
-    //      assertNotSame(storageCollection, dropped);
-    //    }
-    //    assertEquals(storageCollection.getId(), dropped.getId());
-    //    //    assertEquals(storageCollection.getHistory(), dropped.getHistory());
-    //    assertEquals(storageCollection.getMaxAge(), dropped.getMaxAge());
-    //    ReadCollections readRequest =
-    //        new ReadCollections().withIds(COLLECTION_ID).withReadDeleted(false);
-    //    XyzFeatureReadResult result = (XyzFeatureReadResult) session.execute(readRequest);
-    //    if (dropFinally()) {
-    //      assertFalse(result.hasNext());
-    //    } else {
-    //      assertTrue(result.hasNext());
-    //    }
+
+    final WriteCollections<NakshaFeature> deleteRequest = new WriteCollections<>();
+
+    final NakshaFeature feature = new NakshaFeature(COLLECTION_ID);
+    deleteRequest.add(new WriteOp<>(EWriteOp.DELETE, COLLECTION_ID, null, feature, null, true));
+    try (final ResultCursor<XyzFeature> cursor =
+        session.execute(deleteRequest).cursor()) {
+      assertTrue(cursor.next());
+      session.commit();
+
+      PsqlReadSession readDeletedSession = storage.newReadSession(nakshaContext, false);
+      ResultSet readRs = getFeatureFromTable(readDeletedSession, COLLECTION_ID, SINGLE_FEATURE_ID);
+      // It should not have any data but table still exists.
+      assertFalse(readRs.next());
+      readDeletedSession.close();
+
+      // purge
+      final WriteCollections<NakshaFeature> purgeRequest = new WriteCollections<>();
+      purgeRequest.add(new WriteOp<>(EWriteOp.PURGE, COLLECTION_ID, null, feature, null, true));
+      try (final ResultCursor<XyzFeature> cursorPurge =
+          session.execute(purgeRequest).cursor()) {
+        session.commit();
+      }
+
+      // try readSession after purge, table doesn't exist anymore, so it should throw an exception.
+      PsqlReadSession readPurgedSession = storage.newReadSession(nakshaContext, false);
+      assertThrowsExactly(
+          PSQLException.class,
+          () -> getFeatureFromTable(readPurgedSession, COLLECTION_ID, SINGLE_FEATURE_ID),
+          "ERROR: relation \"foo\" does not exist");
+      readPurgedSession.close();
+    }
   }
 
   @EnabledIf("hasTestDb")
