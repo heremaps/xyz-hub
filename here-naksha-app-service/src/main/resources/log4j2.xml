@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN">
 <Properties>
-    <!--<Property name="Def.Pattern.Layout">%highlight{%d{yyyy-MM-dd HH:mm:ss.SSSZ}}{INFO=white} [%highlight{%p}{INFO=bright blue}] - %highlight{%m%xEx%n}{INFO=white}</Property>-->
-    <Property name="Def.Pattern.Layout">%highlight{%d{yyyy-MM-dd HH:mm:ss.SSS XX}}{INFO=white} [%highlight{%-5p}{INFO=bright blue}] %marker [%t] - %highlight{%c{-3} L:%L %X - %.-4096msg %enc{%ex}{JSON}%n}{INFO=white}</Property>
+    <!--<Property name="Def.Pattern.Layout">%highlight{%d{yyyy-MM-dd HH:mm:ss.SSS XX}}{INFO=white} [%highlight{%-5p}{INFO=bright blue}] %marker [%t] - %highlight{%c{-3} L:%L %X - %.-4096msg %enc{%ex}{JSON}%n}{INFO=white}</Property>-->
+    <Property name="Def.Pattern.Layout">%d{yyyy-MM-dd HH:mm:ss.SSS XX} [%-5p] %marker [%t] - %c{-3} L:%L %X - %.-4096msg %enc{%ex}{JSON}%n</Property>
 </Properties>
 
 <Appenders>
