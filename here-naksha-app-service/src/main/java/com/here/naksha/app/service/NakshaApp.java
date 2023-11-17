@@ -26,6 +26,7 @@ import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
 import com.here.naksha.app.service.metrics.OTelMetrics;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.IoHelp.LoadedBytes;
 import com.here.naksha.lib.hub.NakshaHubConfig;
@@ -118,6 +119,7 @@ public final class NakshaApp extends Thread {
    * @return The created Naksha-App instance.
    */
   public static @NotNull NakshaApp newInstance(@NotNull String... args) {
+    log.info("Naksha App v{}", NakshaVersion.latest);
 
     final String cfgId;
     final String url;
