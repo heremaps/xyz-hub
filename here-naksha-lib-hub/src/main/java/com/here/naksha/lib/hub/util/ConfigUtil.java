@@ -30,12 +30,18 @@ import org.slf4j.LoggerFactory;
 public class ConfigUtil {
 
   private static final Logger logger = LoggerFactory.getLogger(ConfigUtil.class);
+  public static final String DEF_CFG_PATH_ENV = "NAKSHA_CONFIG_PATH";
 
   public static NakshaHubConfig readConfigFile(final @NotNull String configId, final @NotNull String appName)
       throws IOException {
     NakshaHubConfig cfg = null;
     try (final Json json = Json.get()) {
-      final IoHelp.LoadedBytes loaded = IoHelp.readBytesFromHomeOrResource(configId + ".json", false, appName);
+      // use the path provided in NAKSHA_CONFIG_PATH (if it is set)
+      final String envVal = System.getenv(DEF_CFG_PATH_ENV);
+      final String path = envVal == null || envVal.isEmpty() || "null".equalsIgnoreCase(envVal) ? null : envVal;
+      // attempt loading config from file
+      final IoHelp.LoadedBytes loaded =
+          IoHelp.readBytesFromHomeOrResource(configId + ".json", false, appName, path);
       cfg = json.reader(ViewDeserialize.Storage.class)
           .forType(NakshaHubConfig.class)
           .readValue(loaded.bytes());

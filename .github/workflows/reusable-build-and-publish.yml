@@ -43,7 +43,7 @@ jobs:
           gradle-version: 8.2
       - name: List generated artifacts
         run: |
-          ls -l $SERVICE_JAR_DIR
+          ls -l $SERVICE_JAR_DIR/*
       ### TODO : Publish to central repository
       - name: Prepare CodeDeploy artifact content
         run: |

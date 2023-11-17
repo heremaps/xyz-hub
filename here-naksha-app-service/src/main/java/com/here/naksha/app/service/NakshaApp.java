@@ -191,7 +191,7 @@ public final class NakshaApp extends Thread {
     try {
       config = ConfigUtil.readConfigFile(configId, adminDbConfig.appName);
     } catch (Exception ex) {
-      log.warn("Error reading supplied custom config, will continue with default. ", ex);
+      log.warn("No external config available, will attempt using default. Error was [{}]", ex.getMessage());
     }
     // Instantiate NakshaHub instance
     this.hub = NakshaHubFactory.getInstance(adminDbConfig, config, configId);
