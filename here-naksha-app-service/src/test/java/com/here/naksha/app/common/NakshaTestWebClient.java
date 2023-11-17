@@ -84,7 +84,8 @@ public class NakshaTestWebClient {
   }
 
   private HttpRequest.Builder requestBuilder() {
-    return HttpRequest.newBuilder().version(Version.HTTP_1_1).timeout(SOCKET_TIMEOUT);
+    return HttpRequest.newBuilder().version(Version.HTTP_1_1);
+    // TODO: include in the future: .timeout(SOCKET_TIMEOUT);
   }
 
   private URI nakshaPath(String subPath) throws URISyntaxException {
