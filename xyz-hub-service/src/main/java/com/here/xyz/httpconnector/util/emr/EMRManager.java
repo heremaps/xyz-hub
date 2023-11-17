@@ -30,6 +30,8 @@ import com.amazonaws.services.emrserverless.model.JobRunState;
 import com.amazonaws.services.emrserverless.model.SparkSubmit;
 import com.amazonaws.services.emrserverless.model.StartJobRunRequest;
 import com.amazonaws.services.emrserverless.model.StartJobRunResult;
+import com.here.xyz.hub.util.di.ImplementationProvider;
+
 import java.util.List;
 
 public class EMRManager {
@@ -40,6 +42,27 @@ public class EMRManager {
             .withRegion(Regions.EU_WEST_1)
             .build();
     }
+    public static EMRManager getInstance() {
+        return EMRManager.Provider.provideInstance();
+    }
+
+    public static class Provider implements ImplementationProvider {
+
+        protected EMRManager getInstance() {
+            return new EMRManager();
+        }
+
+        private static EMRManager provideInstance() {
+            EMRManager emrManager =  ImplementationProvider.loadProvider(EMRManager.Provider.class).getInstance();
+            return emrManager;
+        }
+
+        @Override
+        public boolean chooseMe() {
+            return !"test".equals(System.getProperty("scope"));
+        }
+    }
+
 
     public String startJob(String applicationId, String jobName, String runtimeRoleARN, String jarUrl, List<String> scriptParams, String sparkParams) {
         SparkSubmit sparkSubmit = new SparkSubmit()
