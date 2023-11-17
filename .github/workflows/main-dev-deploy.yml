@@ -5,7 +5,8 @@ on:
   push:
     branches:
       - develop
-  workflow_dispatch:
+      - MCPODS-6260_dev_deployment
+  #workflow_dispatch:
   #pull_request:
     #types:
       #- opened
