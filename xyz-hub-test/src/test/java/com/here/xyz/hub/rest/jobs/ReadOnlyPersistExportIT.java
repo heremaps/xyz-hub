@@ -66,16 +66,19 @@ public class ReadOnlyPersistExportIT extends JobApiIT {
 
         List<URL> urls = performExport(job, testSpaceId1 , finalized, failed);
         assertNotEquals(-1, urls.get(0).toString().indexOf("persistent"));
+        assertEquals(0,((Export) loadJob(testSpaceId1, job.getId())).getSuperExportObjects().size());
 
         /** Same Export-Config - reuse existing persistent one */
         job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), Job.CSVFormat.JSON_WKB);
         List<URL> urls2 = performExport(job, testSpaceId1 , finalized, failed);
         assertEquals(urls.get(0).getPath(), urls2.get(0).getPath());
+        assertEquals(0,((Export) loadJob(testSpaceId1, job.getId())).getSuperExportObjects().size());
 
         /** Different Export-Config - need new Export */
         job = buildTestJob(testExportJobId, null, new Export.ExportTarget().withType(DOWNLOAD), GEOJSON);
         urls2 = performExport(job, testSpaceId1 , finalized, failed);
         assertNotEquals(urls.get(0).getPath(), urls2.get(0).getPath());
+        assertEquals(0,((Export) loadJob(testSpaceId1, job.getId())).getSuperExportObjects().size());
     }
 
     @Test
