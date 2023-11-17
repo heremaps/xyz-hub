@@ -203,6 +203,10 @@ public class DatabaseSettings extends Payload {
         return this;
     }
 
+    public boolean hasReplica() {
+        return replicaHost != null;
+    }
+
     public String getReplicaUser() {
         if (replicaUser == null)
             return user;

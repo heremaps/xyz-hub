@@ -4167,3 +4167,220 @@ BEGIN
 END
 $BODY$
 LANGUAGE plpgsql VOLATILE;
+
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_drop_all_space_idxs(schem text, tbl text, lables jsonb) RETURNS VOID AS
+$BODY$
+	DECLARE
+        idx record;
+		lbls text;
+    BEGIN
+		IF lables IS NOT NULL THEN
+			lbls := format('/*labels(%s)*/', lables);
+    END IF;
+
+    FOR idx IN
+        SELECT idx_name FROM xyz_index_list_all_available(schem, tbl)
+        LOOP
+            RAISE NOTICE '% DROP INDEX %.%;', lbls, schem, idx.idx_name;
+            execute format('%s DROP INDEX %I.%I;',  lbls , schem, idx.idx_name);
+    END LOOP;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION xyz_import_trigger_v2()
+ RETURNS trigger
+AS $BODY$
+	DECLARE
+        author text := TG_ARGV[0];
+        curVersion bigint := TG_ARGV[1];
+
+		fid text := NEW.jsondata->>'id';
+		createdAt BIGINT := FLOOR(EXTRACT(epoch FROM NOW()) * 1000);
+		meta jsonb := format(
+			'{
+                 "createdAt": %s,
+                 "updatedAt": %s
+			}', createdAt, createdAt
+        );
+    BEGIN
+            -- Inject id if not available
+            IF fid IS NULL THEN
+                fid = xyz_random_string(10);
+                NEW.jsondata := (NEW.jsondata || format('{"id": "%s"}', fid)::jsonb);
+            END IF;
+
+            -- remove bbox on root
+            NEW.jsondata := NEW.jsondata - 'bbox';
+
+            -- Inject type
+            NEW.jsondata := jsonb_set(NEW.jsondata, '{type}', '"Feature"');
+
+            -- Inject meta
+            NEW.jsondata := jsonb_set(NEW.jsondata, '{properties,@ns:com:here:xyz}', meta);
+
+            IF NEW.jsondata->'geometry' IS NOT NULL AND NEW.geo IS NULL THEN
+            --GeoJson Feature Import
+                NEW.geo := ST_Force3D(ST_GeomFromGeoJSON(NEW.jsondata->'geometry'));
+                NEW.jsondata := NEW.jsondata - 'geometry';
+            ELSE
+                NEW.geo := ST_Force3D(NEW.geo);
+            END IF;
+
+            NEW.operation := 'I';
+            NEW.version := curVersion;
+            NEW.id := fid;
+            NEW.author := author;
+    RETURN NEW;
+END;
+$BODY$
+LANGUAGE plpgsql VOLATILE;
+
+------------------------------------------------
+------------------------------------------------
+CREATE OR REPLACE FUNCTION public.import_into_space(schem text, temporary_tbl regclass, target_tbl regclass, format text, i integer)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+AS $BODY$
+	DECLARE
+        retry_count integer := 2;
+		import_config text := 'DELIMITER '','' CSV ENCODING  ''UTF8'' QUOTE  ''"'' ESCAPE '''''''' ';
+		locked_item record;
+		import_results record;
+		target_clomuns text;
+		import_statistics text;
+		exeception_msg text;
+		exeception_detail text;
+		exeception_hint text;
+    BEGIN
+		/** TODO:
+			- Check how to use labels of queries which are getting performed inside a function.
+			- Remove debug outputs
+		*/
+		format := lower(format);
+
+		IF format = 'jsonwkb' THEN
+			target_clomuns := 'jsondata,geo';
+		ELSEIF format = 'geojson'THEN
+			target_clomuns := 'jsondata';
+        ELSE
+			RAISE EXCEPTION 'Format ''%'' not supported! ',format
+			USING HINT = 'geojson | jsonwkb are available',
+				  ERRCODE = 'XYZ51';
+        END IF;
+
+        BEGIN
+            EXECUTE format('SELECT s3_uri, state, i, execution_count, data FROM %1$s '
+                       ||'WHERE state=%2$L AND i >= %3$L OR (state=%4$L AND execution_count < %5$L ) ORDER by i LIMIT 1 FOR UPDATE NOWAIT'
+                    , temporary_tbl, 'SUBMITTED',  i,  'FAILED', retry_count )
+            INTO locked_item;
+
+            IF locked_item is NULL THEN
+                RAISE NOTICE 'No work left!';
+
+                EXECUTE format('SELECT '
+                           || '   COUNT(*) FILTER (WHERE state = %1$L) AS finished_count,'
+                           || '   COUNT(*) FILTER (WHERE state = %2$L and execution_count=%3$L) AS failed_count,'
+                           || '   COUNT(*) AS total_count '
+                           || 'FROM %4$s;',
+                       'FINISHED',
+                       'FAILED',
+                       retry_count,
+                       temporary_tbl
+                ) INTO import_results;
+
+                IF  (import_results.finished_count+import_results.failed_count) = import_results.total_count THEN
+                    -- Will only be executed from last worker
+                    RAISE NOTICE 'Last Worker reports ... %',import_results;
+                    IF import_results.total_count = import_results.failed_count  THEN
+                        RAISE EXCEPTION 'All imports are failed!';
+                    ELSEIF import_results.failed_count > 0 AND (import_results.total_count > import_results.failed_count) THEN
+                        RAISE EXCEPTION '% of % imports are failed!',import_results.failed_count,import_results.total_count;
+                    END IF;
+                END IF;
+                RETURN;
+            END IF;
+
+            RAISE NOTICE 'Work on: i:% work_item:% retry_count:% s3_url:% ', i , locked_item.i, locked_item.execution_count, locked_item.s3_uri;
+
+            EXECUTE format(
+                'SELECT/*lables({"type": "ImortFilesToSpace","bytes":%1$L})*/ aws_s3.table_import_from_s3( '
+                    ||' ''%2$s.%3$s'', '
+                    ||'	%4$L, '
+                    ||'	%5$L, '
+                    ||'	%6$L) ',
+                locked_item.data->'filesize',
+                schem,
+                target_tbl,
+                target_clomuns,
+                import_config,
+                locked_item.s3_uri) INTO import_statistics;
+
+            RAISE NOTICE 'import_statistics %',import_statistics;
+
+            --TODO: REMOVE! Simiulates diffrent processing times!
+            --PERFORM pg_sleep((random() * 4)::INT);
+
+            --Update success
+            EXECUTE format('UPDATE %1$s '
+                               ||'set state = %2$L, '
+                               ||'execution_count = %3$L ,'
+                               ||'data = data || %4$L'
+                               ||'WHERE i = %5$L',temporary_tbl,
+                        'FINISHED',
+                        locked_item.execution_count+1 ,
+                        json_build_object('import_statistics', import_statistics),
+                        locked_item.i);
+
+             i := i+1;
+
+            --recursive call for next work-item
+            PERFORM import_into_space(schem, temporary_tbl, target_tbl, format, i);
+
+            EXCEPTION
+                WHEN SQLSTATE '55P03' THEN
+                    /**
+                        55P03 (rowlock detected) - try next next item
+                    */
+                    i := i+1;
+                    --recursive call for next work-item
+                    PERFORM import_into_space(schem, temporary_tbl, target_tbl, format , i);
+                WHEN SQLSTATE '55P03' OR  SQLSTATE '23505' OR  SQLSTATE '22P02' OR  SQLSTATE '22P04' THEN
+                    /** Retryable errors:
+                            23505 (duplicate key value violates unique constraint)
+                            22P02 (invalid input syntax for type json)
+                            22P04 (extra data after last expected column)
+                    */
+                    EXECUTE format('UPDATE %1$s '
+                        ||'set state = %2$L, '
+                        ||'execution_count = %3$L '
+                        ||'WHERE i = %4$L',
+                            temporary_tbl,
+                            'FAILED',
+                            locked_item.execution_count+1,
+                            locked_item.i);
+
+                    --recursive call for next work-item
+                    PERFORM import_into_space(schem, temporary_tbl, target_tbl, format, i);
+                    WHEN OTHERS THEN
+                        -- Unexpected Exception => no retry
+                        GET STACKED DIAGNOSTICS exeception_msg = MESSAGE_TEXT,
+                                  exeception_detail = PG_EXCEPTION_DETAIL,
+                                  exeception_hint = PG_EXCEPTION_HINT;
+
+                        EXECUTE format('UPDATE %1$s '
+                                       ||'set state = %2$L, '
+                                       ||'execution_count = %3$L '
+                                       ||'WHERE i = %4$L',
+                                            temporary_tbl,
+                                            'FAILED',
+                                            retry_count,
+                                            locked_item.i);
+
+                        RAISE EXCEPTION 'Import has failed % %', exeception_msg, exeception_detail;
+        END;
+END
+$BODY$;

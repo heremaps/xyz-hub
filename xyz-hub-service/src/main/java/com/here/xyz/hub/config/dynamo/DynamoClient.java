@@ -169,7 +169,7 @@ public class DynamoClient {
   }
 
   @FunctionalInterface
-  interface ThrowingSupplier<R> {
+  public interface ThrowingSupplier<R> {
     R supply() throws Exception;
   }
 
