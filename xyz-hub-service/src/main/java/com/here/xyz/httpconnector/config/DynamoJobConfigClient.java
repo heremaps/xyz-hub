@@ -341,13 +341,15 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 .put(attrName, ioObjects);
 
         Future<Void> resolvedFuture = Future.succeededFuture();
+        if (json.containsKey("children"))
+            resolvedFuture = resolveChildren(json);
         try {
             final Job job = XyzSerializable.deserialize(json.toString(), Job.class);
-            if (job instanceof Export export && export.getSuperId() != null)
-                resolvedFuture = resolveSuperExportObjects(export);
+            if (job instanceof Export export && export.getSuperId() != null && !export.readPersistExport())
+                resolvedFuture = resolvedFuture.compose(v -> resolveSuperExportObjects(export));
             else if (job instanceof CombinedJob combinedJob && combinedJob.getChildren().size() > 0)
-                resolvedFuture = Future.all(combinedJob.getChildren().stream().map(childJob -> resolveSuperExportObjects((Export) childJob))
-                    .collect(Collectors.toList())).mapEmpty();
+                resolvedFuture = resolvedFuture.compose(v -> Future.all(combinedJob.getChildren().stream().map(childJob -> resolveSuperExportObjects((Export) childJob))
+                    .collect(Collectors.toList())).mapEmpty());
             return resolvedFuture.map(v -> job);
         }
         catch (JsonProcessingException e) {
@@ -362,6 +364,19 @@ public class DynamoJobConfigClient extends JobConfigClient {
                     job.setSuperExportObjects(((Export) superJob).getExportObjects());
                 return Future.succeededFuture();
             });
+    }
+
+    private Future<Void> resolveChildren(JsonObject combinedJob) {
+        JsonArray children = combinedJob.getJsonArray("children");
+        if (!children.isEmpty() && children.getValue(0) instanceof String) {
+            List<Future<Job>> jobFutures = children.stream().map(childId -> getJob(null, (String) childId))
+                .collect(Collectors.toList());
+            return Future.all(jobFutures).compose(cf -> {
+                combinedJob.put("children", new JsonArray(cf.list()));
+                return Future.succeededFuture();
+            });
+        }
+        return Future.succeededFuture();
     }
 
     private static byte[] compressString(String input) {
