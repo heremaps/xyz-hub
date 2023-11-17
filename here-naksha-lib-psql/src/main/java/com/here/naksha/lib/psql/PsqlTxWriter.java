@@ -39,6 +39,7 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A Naksha PostgresQL database transaction that can be used to read and mutate data.
  */
+@Deprecated
 public class PsqlTxWriter extends PsqlTxReader implements IMasterTransaction {
 
   /**

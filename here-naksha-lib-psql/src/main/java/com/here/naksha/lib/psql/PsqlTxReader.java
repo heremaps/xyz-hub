@@ -42,6 +42,7 @@ import org.postgresql.util.PSQLState;
 /**
  * A Naksha PostgresQL transaction that can be used to read data, optionally using a read-replica, if opened as read-only transaction.
  */
+@Deprecated
 public class PsqlTxReader implements IReadTransaction {
 
   /**

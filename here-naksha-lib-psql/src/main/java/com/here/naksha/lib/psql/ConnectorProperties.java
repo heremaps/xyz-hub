@@ -27,29 +27,30 @@ import org.jetbrains.annotations.NotNull;
 
 /** A Connector properties holding database configuration as used by the {@link EventHandler}. */
 @AvailableSince(NakshaVersion.v2_0_6)
+@Deprecated
 public class ConnectorProperties extends XyzProperties {
 
   /** The configuration of the PostgresQL database. */
   @AvailableSince(NakshaVersion.v2_0_6)
-  public PsqlConfig dbConfig;
+  public PsqlStorageConfig dbConfig;
 
-  /** A list of {@link PsqlConfig}'s to be used as read-replicas (if available), for read operations. */
+  /** A list of {@link PsqlStorageConfig}'s to be used as read-replicas (if available), for read operations. */
   @AvailableSince(NakshaVersion.v2_0_6)
-  public List<PsqlConfig> dbReplicas;
+  public List<PsqlStorageConfig> dbReplicas;
 
-  public PsqlConfig getDbConfig() {
+  public PsqlStorageConfig getDbConfig() {
     return dbConfig;
   }
 
-  public void setDbConfig(@NotNull PsqlConfig dbConfig) {
+  public void setDbConfig(@NotNull PsqlStorageConfig dbConfig) {
     this.dbConfig = dbConfig;
   }
 
-  public List<PsqlConfig> getDbReplicas() {
+  public List<PsqlStorageConfig> getDbReplicas() {
     return dbReplicas;
   }
 
-  public void setDbReplicas(@NotNull List<PsqlConfig> dbReplicas) {
+  public void setDbReplicas(@NotNull List<PsqlStorageConfig> dbReplicas) {
     this.dbReplicas = dbReplicas;
   }
 }

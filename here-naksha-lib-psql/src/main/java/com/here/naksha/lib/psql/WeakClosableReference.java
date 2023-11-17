@@ -26,6 +26,7 @@ import java.lang.ref.WeakReference;
  *
  * @param <T> The referent type.
  */
+@Deprecated
 class WeakClosableReference<T> extends WeakReference<T> {
 
   WeakClosableReference(T referent) {

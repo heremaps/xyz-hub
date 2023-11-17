@@ -22,7 +22,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.storage.EExecutedOp;
-import com.here.naksha.lib.core.models.storage.ResultCursor;
+import com.here.naksha.lib.core.models.storage.ForwardCursor;
 import com.vividsolutions.jts.geom.Geometry;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> The feature-type; if any.
  */
-public class PsqlCursor<T> extends ResultCursor<T> {
+public class PsqlCursor<T> extends ForwardCursor<T> {
 
   private static final Logger log = LoggerFactory.getLogger(PsqlCursor.class);
 

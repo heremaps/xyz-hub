@@ -24,12 +24,14 @@ import com.here.naksha.lib.core.models.storage.Notification;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
 import com.here.naksha.lib.core.models.storage.Result;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.concurrent.NotThreadSafe;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * A storage session that can only read. Each session is backed by a single storage connection with a single transaction.
  */
+@NotThreadSafe
 @AvailableSince(NakshaVersion.v2_0_7)
 public interface IReadSession extends ISession {
 

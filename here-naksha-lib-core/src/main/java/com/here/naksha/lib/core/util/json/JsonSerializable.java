@@ -240,7 +240,7 @@ public interface JsonSerializable {
   static <TARGET extends JsonObject, OBJECT extends JsonObject> @NotNull TARGET convert(
       @NotNull OBJECT object, @NotNull Class<TARGET> targetClass) {
     try (final Json json = Json.get()) {
-      return json.mapper.convertValue(object, targetClass);
+      return json.convert(object, targetClass);
     }
   }
 }

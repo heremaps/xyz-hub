@@ -31,6 +31,7 @@ import java.util.NoSuchElementException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+@Deprecated
 class UtCollectionInfoResultSet implements ClosableIterator<CollectionInfo> {
 
   static final String STATEMENT = "SELECT id, jsondata FROM naksha_collection_get_all();";

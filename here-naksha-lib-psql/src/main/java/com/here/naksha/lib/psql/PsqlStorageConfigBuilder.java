@@ -18,15 +18,19 @@
  */
 package com.here.naksha.lib.psql;
 
-import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
-import org.jetbrains.annotations.NotNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfig, PsqlConfigBuilder> {
+import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
+import java.util.concurrent.TimeUnit;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+public final class PsqlStorageConfigBuilder extends PsqlAbstractConfigBuilder<PsqlStorageConfig, PsqlStorageConfigBuilder> {
 
   @SuppressWarnings("PatternVariableHidesField")
   @Override
-  protected void setFromUrlParams(@NotNull QueryParameterList params) {
-    super.setFromUrlParams(params);
+  protected void setParams(@NotNull QueryParameterList params) {
+    super.setParams(params);
     if (params.getValue("schema") instanceof String schema) {
       this.schema = schema;
     }
@@ -46,12 +50,12 @@ public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfi
     this.schema = schema;
   }
 
-  public @NotNull PsqlConfigBuilder withSchema(@NotNull String schema) {
+  public @NotNull PsqlStorageConfigBuilder withSchema(@NotNull String schema) {
     setSchema(schema);
     return this;
   }
 
-  public @NotNull PsqlConfigBuilder withDefaultSchema(@NotNull String schema) {
+  public @NotNull PsqlStorageConfigBuilder withSchemaIfAbsent(@NotNull String schema) {
     if (getSchema() == null) setSchema(schema);
     return this;
   }
@@ -64,20 +68,23 @@ public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfi
     this.appName = appName;
   }
 
-  public @NotNull PsqlConfigBuilder withAppName(@NotNull String appName) {
+  public @NotNull PsqlStorageConfigBuilder withAppName(@NotNull String appName) {
     setAppName(appName);
     return this;
   }
 
+  @Deprecated
   public String getRole() {
     return role;
   }
 
+  @Deprecated
   public void setRole(String role) {
     this.role = role;
   }
 
-  public @NotNull PsqlConfigBuilder withRole(String role) {
+  @Deprecated
+  public @NotNull PsqlStorageConfigBuilder withRole(String role) {
     setRole(role);
     return this;
   }
@@ -90,9 +97,62 @@ public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfi
     this.searchPath = searchPath;
   }
 
-  public @NotNull PsqlConfigBuilder withSearchPath(String searchPath) {
+  public @NotNull PsqlStorageConfigBuilder withSearchPath(String searchPath) {
     setSearchPath(searchPath);
     return this;
+  }
+
+
+  public long getConnTimeout(@NotNull TimeUnit timeUnit) {
+    return timeUnit.convert(connTimeout, MILLISECONDS);
+  }
+
+  public void setConnTimeout(long connTimeout, @NotNull TimeUnit timeUnit) {
+    this.connTimeout = MILLISECONDS.convert(connTimeout, timeUnit);
+  }
+
+  public @NotNull SELF withConnTimeout(long connTimeout, @NotNull TimeUnit timeUnit) {
+    setConnTimeout(connTimeout, timeUnit);
+    return self();
+  }
+
+  public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
+    return timeUnit.convert(stmtTimeout, MILLISECONDS);
+  }
+
+  public void setStatementTimeout(long stmtTimeout, @NotNull TimeUnit timeUnit) {
+    this.stmtTimeout = MILLISECONDS.convert(stmtTimeout, timeUnit);
+  }
+
+  public @NotNull SELF withStatementTimeout(long stmtTimeout, @NotNull TimeUnit timeUnit) {
+    setStatementTimeout(stmtTimeout, timeUnit);
+    return self();
+  }
+
+  public long getLockTimeout(@NotNull TimeUnit timeUnit) {
+    return timeUnit.convert(lockTimeout, MILLISECONDS);
+  }
+
+  public void setLockTimeout(long lockTimeout, @NotNull TimeUnit timeUnit) {
+    this.lockTimeout = MILLISECONDS.convert(lockTimeout, timeUnit);
+  }
+
+  public @NotNull SELF withLockTimeout(long lockTimeout, @NotNull TimeUnit timeUnit) {
+    setLockTimeout(lockTimeout, timeUnit);
+    return self();
+  }
+
+  public @Nullable EPsqlLogLevel getLogLevel() {
+    return logLevel;
+  }
+
+  public void setLogLevel(@Nullable EPsqlLogLevel logLevel) {
+    this.logLevel = logLevel;
+  }
+
+  public @NotNull SELF withLogLevel(@Nullable EPsqlLogLevel logLevel) {
+    setLogLevel(logLevel);
+    return self();
   }
 
   /** The database schema to use. */
@@ -102,13 +162,21 @@ public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfi
   private String appName;
 
   /** The role to use after connection; if {@code null}, then the {@link #user} is used. */
+  @Deprecated
   private String role;
 
   /** The search path to set; if {@code null}, automatically set. */
   private String searchPath;
 
+
+  // Hikari connection pool configuration
+  long connTimeout;
+  long stmtTimeout;
+  long lockTimeout;
+  EPsqlLogLevel logLevel;
+
   @Override
-  public @NotNull PsqlConfig build() {
+  public @NotNull PsqlStorageConfig build() {
     if (schema == null) {
       throw new NullPointerException("schema");
     }
@@ -124,7 +192,7 @@ public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfi
     if (password == null) {
       throw new NullPointerException("password");
     }
-    return new PsqlConfig(
+    return new PsqlStorageConfig(
         host,
         port,
         db,
@@ -135,10 +203,13 @@ public final class PsqlConfigBuilder extends PsqlAbstractConfigBuilder<PsqlConfi
         lockTimeout,
         minPoolSize,
         maxPoolSize,
+        maxBandwidthInGbit,
+        mediumLatencyInMillis,
         idleTimeout,
         schema,
         appName,
         role,
+        logLevel,
         searchPath);
   }
 }

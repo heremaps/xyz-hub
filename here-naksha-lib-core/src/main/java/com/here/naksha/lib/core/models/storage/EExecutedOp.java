@@ -19,7 +19,6 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
 /**
@@ -27,7 +26,8 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
  */
 @SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_7)
-public class EExecutedOp extends JsonEnum {
+public class EExecutedOp extends EStorageOp {
+
   /**
    * A read operation was executed.
    */
@@ -38,7 +38,7 @@ public class EExecutedOp extends JsonEnum {
    * A write operation was performed, but the existing state was retained.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static final EExecutedOp RETAIN = def(EExecutedOp.class, "RETAIN");
+  public static final EExecutedOp RETAINED = def(EExecutedOp.class, "RETAINED");
 
   /**
    * A new feature was created.

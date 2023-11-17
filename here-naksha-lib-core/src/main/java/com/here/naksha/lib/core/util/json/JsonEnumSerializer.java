@@ -36,7 +36,7 @@ public class JsonEnumSerializer extends StdSerializer<JsonEnum> {
 
   @Override
   public void serialize(JsonEnum enumValue, JsonGenerator g, SerializerProvider provider) throws IOException {
-    if (enumValue == null) {
+    if (enumValue == null || enumValue.isNull()) {
       g.writeNull();
       return;
     }

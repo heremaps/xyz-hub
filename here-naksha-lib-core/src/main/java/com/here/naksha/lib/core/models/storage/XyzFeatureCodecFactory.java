@@ -18,31 +18,18 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import com.here.naksha.lib.core.NakshaVersion;
-import org.jetbrains.annotations.ApiStatus.AvailableSince;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 /**
- * The result of a write-operation.
+ * The default codec factory for {@link XyzFeature}'s.
  */
-@AvailableSince(NakshaVersion.v2_0_7)
-public class WriteOpResult<T> {
+public class XyzFeatureCodecFactory extends XyzCodecFactory<XyzFeature, XyzFeatureCodec> {
 
-  public WriteOpResult(@NotNull EExecutedOp op, @Nullable T feature) {
-    this.op = op;
-    this.feature = feature;
+  XyzFeatureCodecFactory() {}
+
+  @Override
+  public @NotNull XyzFeatureCodec newInstance() {
+    return new XyzFeatureCodec();
   }
-
-  /**
-   * The operation that has been performed.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public final @NotNull EExecutedOp op;
-
-  /**
-   * The feature that is the result of the operation; will be {@code null}, if the {@code noResult} argument was set.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public final @Nullable T feature;
 }

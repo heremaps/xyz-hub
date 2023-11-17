@@ -23,13 +23,18 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.Notification;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.ReadRequest;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteCollections;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.util.CloseableResource;
 import com.here.naksha.lib.core.util.json.Json;
 import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.io.WKBWriter;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -37,6 +42,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
+import org.postgresql.jdbc.PgConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,7 +84,7 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
 
   final @NotNull Connection connection;
   final boolean readOnly;
-  final @NotNull PsqlConfig config;
+  final @NotNull PsqlStorageConfig config;
   private final @NotNull SQL sql;
   // Statement timeout in milliseconds.
   long stmtTimeout = -1;
@@ -119,14 +125,43 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
     return sql;
   }
 
+  @SuppressWarnings("SqlSourceToSinkFlow")
   @NotNull
-  PreparedStatement prepare(@NotNull CharSequence query) {
+  PreparedStatement prepareWithCursor(@NotNull CharSequence query) {
     try {
       PreparedStatement stmt = connection.prepareStatement(
           query.toString(),
           ResultSet.TYPE_SCROLL_INSENSITIVE,
           ResultSet.CONCUR_READ_ONLY,
           ResultSet.HOLD_CURSORS_OVER_COMMIT);
+      stmt.setFetchSize(fetchSize);
+      return stmt;
+    } catch (SQLException e) {
+      throw unchecked(e);
+    }
+  }
+
+  void commit(boolean autoCloseCursors) throws SQLException {
+
+  }
+
+  void rollback(boolean autoCloseCursors) throws SQLException {
+
+  }
+
+  void close(boolean autoCloseCursors) {
+
+  }
+
+  @SuppressWarnings("SqlSourceToSinkFlow")
+  @NotNull
+  PreparedStatement prepareWithoutCursor(@NotNull CharSequence query) {
+    try {
+      PreparedStatement stmt = connection.prepareStatement(
+          query.toString(),
+          ResultSet.TYPE_FORWARD_ONLY,
+          ResultSet.CONCUR_READ_ONLY,
+          ResultSet.CLOSE_CURSORS_AT_COMMIT);
       stmt.setFetchSize(fetchSize);
       return stmt;
     } catch (SQLException e) {
@@ -142,31 +177,9 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
     }
   }
 
-  private static byte[][] geometryListTo2DimByteArray(@NotNull List<Geometry> geometries) {
-    final byte[][] twoDArray = new byte[geometries.size()][];
-    final WKBWriter wkbWriter = new WKBWriter(3);
-    int idx = 0;
-    for (final Geometry geo : geometries) {
-      twoDArray[idx++] = (geo == null) ? null : wkbWriter.write(geo);
-    }
-    return twoDArray;
-  }
-
-  private void convert(
-      final @NotNull Json json, final @NotNull WriteOp<?> writeOp, final @NotNull PostgresWriteOp out) {
-    try {
-      out.op = writeOp.op;
-      out.id = writeOp.id;
-      out.uuid = writeOp.uuid;
-      out.feature = writeOp.feature;
-      if (writeOp.geometry != null) {
-        out.geometry = json.wkbWriter.write(writeOp.geometry);
-      } else {
-        out.geometry = null;
-      }
-    } catch (Throwable t) {
-      throw unchecked(t);
-    }
+  @NotNull
+  PgConnection pgConnection() {
+    return (PgConnection) connection;
   }
 
   @NotNull
@@ -203,12 +216,12 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
   @NotNull
   <T> Result executeWrite(@NotNull WriteRequest<T, ?> writeRequest) {
     if (writeRequest instanceof WriteCollections<?>) {
-      final PreparedStatement stmt = prepare(
+      final PreparedStatement stmt = prepareWithCursor(
           sql().add(
                   "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, r_geometry FROM naksha_write_collections(?);\n"));
       try (final Json json = Json.get()) {
-        final @NotNull List<? extends WriteOp<T>> queries = writeRequest.queries;
-        final int SIZE = writeRequest.queries.size();
+        final @NotNull List<? extends WriteOp<T>> queries = writeRequest.features;
+        final int SIZE = writeRequest.features.size();
         final String[] write_ops_json = new String[SIZE];
         final PostgresWriteOp out = new PostgresWriteOp();
         for (int i = 0; i < SIZE; i++) {
@@ -234,11 +247,11 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
       } else {
         partition_id = -1;
       }
-      final PreparedStatement stmt = prepare(
+      final PreparedStatement stmt = prepareWithCursor(
           "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, ST_AsEWKB(r_geometry) FROM nk_write_features(?,?,?,?,?);");
       try (final Json json = Json.get()) {
-        final @NotNull List<? extends WriteOp<T>> queries = writeRequest.queries;
-        final int SIZE = writeRequest.queries.size();
+        final @NotNull List<? extends WriteOp<T>> queries = writeRequest.features;
+        final int SIZE = writeRequest.features.size();
         final String[] write_ops_json = new String[SIZE];
         final byte[][] geometries = new byte[SIZE][];
         final PostgresWriteOp out = new PostgresWriteOp();

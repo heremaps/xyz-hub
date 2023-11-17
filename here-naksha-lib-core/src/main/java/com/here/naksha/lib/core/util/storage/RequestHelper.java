@@ -26,7 +26,6 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.*;
-import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -69,12 +68,12 @@ public class RequestHelper {
    * @param collectionName name of the storage collection
    * @param feature        feature object to be created
    * @param silentIfExists flag to turn on/off silent create operation
-   * @param <T>            any object extending XyzFeature
+   * @param <FEATURE>      any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeatureRequest(
-      final @NotNull String collectionName, final @NotNull T feature, final boolean silentIfExists) {
+  public static <FEATURE extends XyzFeature> @NotNull WriteXyzFeatures createFeatureRequest(
+      final @NotNull String collectionName, final @NotNull FEATURE feature, final boolean silentIfExists) {
     if (silentIfExists) {
       return createFeaturesRequest(collectionName, List.of(feature), IfExists.RETAIN, IfConflict.RETAIN);
     } else {
@@ -88,12 +87,12 @@ public class RequestHelper {
    *
    * @param collectionName name of the storage collection
    * @param feature        feature object to be created
-   * @param <T>            any object extending XyzFeature
+   * @param <FEATURE>      any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeatureRequest(
-      final @NotNull String collectionName, final @NotNull T feature) {
+  public static <FEATURE extends XyzFeature> @NotNull WriteXyzFeatures createFeatureRequest(
+      final @NotNull String collectionName, final @NotNull FEATURE feature) {
     return createFeaturesRequest(collectionName, List.of(feature), IfExists.FAIL, IfConflict.FAIL);
   }
 
@@ -102,13 +101,14 @@ public class RequestHelper {
    *
    * @param collectionName name of the storage collection
    * @param feature        feature object to be updated
-   * @param <T>            any object extending XyzFeature
+   * @param <FEATURE>      any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
    */
-  public static @NotNull <T extends XyzFeature> WriteFeatures<T> updateFeatureRequest(
-      final @NotNull String collectionName, final @NotNull T feature) {
-    WriteOp<T> updateOp = new WriteXyzOp<>(EWriteOp.UPDATE, feature);
-    return new WriteFeatures<>(collectionName, List.of(updateOp));
+  public static <FEATURE extends XyzFeature> @NotNull WriteXyzFeatures updateFeatureRequest(
+      final @NotNull String collectionName, final @NotNull FEATURE feature) {
+    final WriteXyzFeatures request = new WriteXyzFeatures(collectionName);
+    request.update(feature);
+    return request;
   }
 
   /**
@@ -119,13 +119,13 @@ public class RequestHelper {
    * @param collectionName name of the storage collection
    * @param featureList    list of features to be created
    * @param silentIfExists flag to turn on/off silent create operation
-   * @param <T>            any object extending XyzFeature
+   * @param <FEATURE>      any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeatureRequest(
+  public static <FEATURE extends XyzFeature> @NotNull WriteXyzFeatures createFeatureRequest(
       final @NotNull String collectionName,
-      final @NotNull List<@NotNull T> featureList,
+      final @NotNull List<FEATURE> featureList,
       final boolean silentIfExists) {
     if (silentIfExists) {
       return createFeaturesRequest(collectionName, featureList, IfExists.RETAIN, IfConflict.RETAIN);
@@ -140,12 +140,12 @@ public class RequestHelper {
    *
    * @param collectionName name of the storage collection
    * @param featureList    list of feature objects to be created
-   * @param <T>            any object extending XyzFeature
+   * @param <FEATURE>      any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeaturesRequest(
-      final @NotNull String collectionName, final @NotNull List<@NotNull T> featureList) {
+  public static <FEATURE extends XyzFeature> @NotNull WriteXyzFeatures createFeaturesRequest(
+      final @NotNull String collectionName, final @NotNull List<FEATURE> featureList) {
     return createFeaturesRequest(collectionName, featureList, IfExists.FAIL, IfConflict.FAIL);
   }
 
@@ -156,13 +156,13 @@ public class RequestHelper {
    * @param feature          feature object to be created
    * @param ifExistsAction   flag to indicate what to do if feature already found existing in database
    * @param ifConflictAction flag to indicate what to do if feature version in database conflicts with given feature version
-   * @param <T>              any object extending XyzFeature
+   * @param <FEATURE>        any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeatureRequest(
+  public static <FEATURE extends XyzFeature> @NotNull WriteXyzFeatures createFeatureRequest(
       final @NotNull String collectionName,
-      final @NotNull T feature,
+      final @NotNull FEATURE feature,
       final @NotNull IfExists ifExistsAction,
       final @NotNull IfConflict ifConflictAction) {
     return createFeaturesRequest(collectionName, List.of(feature), ifExistsAction, ifConflictAction);
@@ -175,28 +175,27 @@ public class RequestHelper {
    * @param featureList      list of feature objects to be created
    * @param ifExistsAction   flag to indicate what to do if feature already found existing in database
    * @param ifConflictAction flag to indicate what to do if feature version in database conflicts with given feature version
-   * @param <T>              any object extending XyzFeature
    * @return WriteFeatures request that can be used against IStorage methods
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static @NotNull <T extends XyzFeature> WriteFeatures<T> createFeaturesRequest(
+  public static @NotNull WriteXyzFeatures createFeaturesRequest(
       final @NotNull String collectionName,
-      final @NotNull List<@NotNull T> featureList,
+      final @NotNull List<? extends XyzFeature> featureList,
       final @NotNull IfExists ifExistsAction,
       final @NotNull IfConflict ifConflictAction) {
-    // TODO: Due to simplification and not yet supported advanced write ops, please adjust!
-    final List<@NotNull WriteOp<T>> opList = new ArrayList<>();
-    for (final T feature : featureList) {
-      opList.add(new WriteXyzOp<>(EWriteOp.CREATE, feature));
+    final WriteXyzFeatures request = new WriteXyzFeatures(collectionName);
+    for (final XyzFeature feature : featureList) {
+      assert feature != null;
+      request.add(EWriteOp.CREATE, feature);
     }
-    return new WriteFeatures<>(collectionName, opList);
+    return request;
   }
 
-  public static @NotNull WriteCollections<XyzCollection> createWriteCollectionsRequest(
+  public static @NotNull WriteXyzCollections createWriteCollectionsRequest(
       final @NotNull List<@NotNull String> collectionNames) {
-    WriteXyzCollections writeXyzCollections = new WriteXyzCollections();
+    final WriteXyzCollections writeXyzCollections = new WriteXyzCollections();
     for (final String collectionId : collectionNames) {
-      writeXyzCollections.add(new WriteXyzOp<>(EWriteOp.CREATE, new XyzCollection(collectionId)));
+      writeXyzCollections.add(EWriteOp.CREATE, new XyzCollection(collectionId));
     }
     return writeXyzCollections;
   }

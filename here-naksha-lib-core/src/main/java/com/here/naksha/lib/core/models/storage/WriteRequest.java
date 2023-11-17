@@ -18,36 +18,53 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import static com.here.naksha.lib.core.models.storage.EWriteOp.CREATE;
+import static com.here.naksha.lib.core.models.storage.EWriteOp.DELETE;
+import static com.here.naksha.lib.core.models.storage.EWriteOp.PURGE;
+import static com.here.naksha.lib.core.models.storage.EWriteOp.PUT;
+import static com.here.naksha.lib.core.models.storage.EWriteOp.UPDATE;
+
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
+import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * All write requests should extend this base class.
  *
- * @param <T>    the object-type to write.
- * @param <SELF> the self-type.
+ * @param <FEATURE> The feature-type to write.
+ * @param <CODEC>   The codec to use to encode features.
+ * @param <SELF>    The self-type.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
-public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extends Request<SELF> {
+public abstract class WriteRequest<
+        FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>, SELF extends WriteRequest<FEATURE, CODEC, SELF>>
+    extends Request<SELF> {
 
   /**
-   * Creates a new write request.
+   * Creates a new abstract write request.
    *
-   * @param queries the operations to execute.
+   * @param codecFactory The codec factory to use when creating new feature codecs.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  protected WriteRequest(@NotNull List<WriteOp<T>> queries) {
-    this.queries = queries;
+  protected WriteRequest(@NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) {
+    this.codecFactory = codecFactory;
+    this.features = new ArrayList<>();
   }
 
   /**
-   * The queries to execute.
+   * The codec factory to use, when adding new features.
+   */
+  protected @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory;
+
+  /**
+   * The features wrapped into codecs to allow encoding and decoding for the storage.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull List<@NotNull WriteOp<T>> queries;
+  public @NotNull List<@NotNull CODEC> features;
 
   /**
    * If the result-cursor should not hold the final feature and geometry, this saves IO, but does not provide back details about the new
@@ -57,13 +74,54 @@ public abstract class WriteRequest<T, SELF extends WriteRequest<T, SELF>> extend
   public boolean minResults;
 
   /**
-   * Add a modification and return this.
+   * Add a feature and operation.
    *
-   * @param writeOp the modification to add.
+   * @param op the operation to perform.
    * @return this.
    */
-  public @NotNull SELF add(@NotNull WriteOp<T> writeOp) {
-    queries.add(writeOp);
+  public @NotNull SELF add(@NotNull EWriteOp op, @NotNull FEATURE feature) {
+    CODEC codec = codecFactory.newInstance();
+    codec.setOp(op);
+    codec.setFeature(feature);
+    features.add(codec);
+    return self();
+  }
+
+  public @NotNull SELF create(@NotNull FEATURE feature) {
+    return add(CREATE, feature);
+  }
+
+  public @NotNull SELF put(@NotNull FEATURE feature) {
+    return add(PUT, feature);
+  }
+
+  public @NotNull SELF update(@NotNull FEATURE feature) {
+    return add(UPDATE, feature);
+  }
+
+  public @NotNull SELF delete(@NotNull FEATURE feature) {
+    return add(DELETE, feature);
+  }
+
+  public @NotNull SELF delete(@NotNull String id, @Nullable String uuid) {
+    CODEC codec = codecFactory.newInstance();
+    codec.setOp(DELETE);
+    codec.setId(id);
+    codec.setUuid(uuid);
+    features.add(codec);
+    return self();
+  }
+
+  public @NotNull SELF purge(@NotNull FEATURE feature) {
+    return add(PURGE, feature);
+  }
+
+  public @NotNull SELF purge(@NotNull String id, @Nullable String uuid) {
+    CODEC codec = codecFactory.newInstance();
+    codec.setOp(PURGE);
+    codec.setId(id);
+    codec.setUuid(uuid);
+    features.add(codec);
     return self();
   }
 }

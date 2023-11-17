@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+@Deprecated
 class WeakPsqlSession extends WeakClosableReference<PsqlSession> {
 
   WeakPsqlSession(PsqlSession referent) {

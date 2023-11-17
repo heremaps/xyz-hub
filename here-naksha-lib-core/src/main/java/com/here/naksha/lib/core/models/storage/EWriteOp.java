@@ -19,16 +19,15 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * The write operation to perform.
+ * The write operations that can be performed.
  */
 @SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_7)
-public class EWriteOp extends JsonEnum {
+public class EWriteOp extends EStorageOp {
 
   /**
    * Create a new feature or collection. Fails if the feature or collection exist.

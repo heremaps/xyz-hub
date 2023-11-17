@@ -25,14 +25,10 @@ import static com.here.naksha.lib.psql.SQL.shouldEscape;
 
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
-import com.here.naksha.lib.core.models.storage.WriteOp;
 import com.here.naksha.lib.core.util.CloseableResource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.postgresql.util.PSQLException;
@@ -77,9 +73,10 @@ final class PostgresStorage extends CloseableResource<PostgresStorage> {
   }
 
   @SuppressWarnings("SqlSourceToSinkFlow")
-  synchronized void initStorage(final boolean DEBUG) {
+  synchronized void initStorage() {
     assertNotClosed();
     String SQL;
+    final PsqlStorageConfig config = dataSource.getConfig();
     // Note: We need to open a "raw connection", so one, that is not initialized!
     //       The reason is, that the normal initialization would invoke naksha_init_plv8(),
     //       but init-storage is called to install exactly this method.
@@ -113,7 +110,7 @@ final class PostgresStorage extends CloseableResource<PostgresStorage> {
               .setMessage("Naksha schema and/or extension missing")
               .log();
         }
-        if (DEBUG || latest.toLong() > installed_version) {
+        if (config.logLevel == EPsqlLogLevel.VERBOSE || latest.toLong() > installed_version) {
           if (installed_version == 0L) {
             log.atInfo()
                 .setMessage("Install and initialize Naksha extension v{}")
@@ -127,14 +124,16 @@ final class PostgresStorage extends CloseableResource<PostgresStorage> {
                 .log();
           }
           SQL = readResource("naksha_plpgsql.sql");
-          if (DEBUG) {
+          if (config.logLevel == EPsqlLogLevel.VERBOSE) {
             SQL = SQL.replaceAll("--RAISE ", "RAISE ");
             SQL = SQL.replaceAll("--DEBUG ", " ");
           }
           SQL = SQL.replaceAll("\n--#", "\n");
           SQL = SQL.replaceAll("\nCREATE OR REPLACE FUNCTION nk__________.*;\n", "\n");
           SQL = SQL.replaceAll("\\$\\{schema}", getSchema());
-          SQL = SQL.replaceAll("\\$\\{version}", DEBUG ? "0" : Long.toString(latest.toLong(), 10));
+          SQL = SQL.replaceAll(
+              "\\$\\{version}",
+              config.logLevel == EPsqlLogLevel.VERBOSE ? "0" : Long.toString(latest.toLong(), 10));
           SQL = SQL.replaceAll("\\$\\{storage_id}", storageId);
           //noinspection SqlSourceToSinkFlow
           stmt.execute(SQL);
@@ -173,31 +172,6 @@ final class PostgresStorage extends CloseableResource<PostgresStorage> {
     } catch (Throwable t) {
       throw unchecked(t);
     }
-  }
-
-  <T> @NotNull List<@NotNull WriteFeatures<T>> toBulkWrite(@NotNull WriteFeatures<T> writeFeatures) {
-    //noinspection unchecked
-    final PostgresWriteFeaturesToPartition<T>[] children = new PostgresWriteFeaturesToPartition[64];
-    final String collectionId = writeFeatures.getCollectionId();
-    final List<? extends WriteOp<T>> queries = writeFeatures.queries;
-    for (final WriteOp<T> writeOp : queries) {
-      final int partitionId = PostgresWriteFeaturesToPartition.partitionIdOf(writeOp.id);
-      assert partitionId >= 0 && partitionId < children.length;
-      PostgresWriteFeaturesToPartition<T> writeRequest = children[partitionId];
-      if (writeRequest == null) {
-        writeRequest = new PostgresWriteFeaturesToPartition<>(collectionId, partitionId);
-        writeRequest.minResults = writeFeatures.minResults;
-        children[partitionId] = writeRequest;
-      }
-      writeRequest.queries.add(writeOp);
-    }
-    final ArrayList<@NotNull WriteFeatures<T>> bulk = new ArrayList<>(64);
-    for (final PostgresWriteFeaturesToPartition<T> request : children) {
-      if (request != null) {
-        bulk.add(request);
-      }
-    }
-    return bulk;
   }
 
   @NotNull

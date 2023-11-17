@@ -18,11 +18,15 @@
  */
 package com.here.naksha.lib.core.models.naksha;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.models.PluginCache.getEventHandlerConstructor;
+
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.lambdas.Fe3;
 import com.here.naksha.lib.core.models.PluginCache;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -93,15 +97,37 @@ public class EventHandler extends Plugin<IEventHandler, EventHandler> {
     this.extensionId = extensionId;
   }
 
+  /**
+   * Do not use anymore, please call {@link PluginCache#getEventHandlerConstructor(String, Class, Class)} and create the instance yourself.
+   */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_7)
   @Override
   public @NotNull IEventHandler newInstance(@NotNull INaksha naksha) {
-    return PluginCache.newInstance(getClassName(), IEventHandler.class, this, naksha);
+    final Fe3<IEventHandler, INaksha, EventHandler, Space> constructor =
+        getEventHandlerConstructor(getClassName(), EventHandler.class, Space.class);
+    try {
+      return constructor.call(naksha, this, null);
+    } catch (Exception e) {
+      throw unchecked(e);
+    }
   }
 
+  /**
+   * Do not use anymore, please call {@link PluginCache#getEventHandlerConstructor(String, Class, Class)} and create the instance yourself.
+   */
+  @Deprecated
   @AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IEventHandler newInstance(@NotNull INaksha naksha, @NotNull EventTarget<?> eventTarget) {
-    return PluginCache.newInstance(getClassName(), IEventHandler.class, this, naksha, eventTarget);
+    //noinspection unchecked
+    final Fe3<IEventHandler, INaksha, EventHandler, EventTarget<?>> constructor =
+        (Fe3<IEventHandler, INaksha, EventHandler, EventTarget<?>>)
+            getEventHandlerConstructor(getClassName(), EventHandler.class, eventTarget.getClass());
+    try {
+      return constructor.call(naksha, this, eventTarget);
+    } catch (Exception e) {
+      throw unchecked(e);
+    }
   }
 
   @AvailableSince(NakshaVersion.v2_0_7)

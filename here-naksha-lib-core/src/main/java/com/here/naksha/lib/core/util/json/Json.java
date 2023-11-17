@@ -323,6 +323,18 @@ public final class Json implements AutoCloseable {
     return simpleReader;
   }
 
+  /**
+   * Convert the given object into the target object. This normally returns a copy, but there is no guarantee how much is copied.
+   *
+   * @param object      the object to convert.
+   * @param targetClass the class of the target-type.
+   * @param <TARGET>    the target-type.
+   * @return the new instance converted.
+   */
+  public <TARGET> @NotNull TARGET convert(@NotNull Object object, @NotNull Class<TARGET> targetClass) {
+    return mapper.convertValue(object, targetClass);
+  }
+
   public @NotNull ObjectWriter writer() {
     return simpleWriter;
   }

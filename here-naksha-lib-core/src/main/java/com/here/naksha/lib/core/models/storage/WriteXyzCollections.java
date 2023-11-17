@@ -18,11 +18,16 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import static com.here.naksha.lib.core.models.storage.XyzCodecFactory.getFactory;
+
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 
 /**
  * Helper to simplify the usage of {@link WriteCollections}.
- *
- * @param <T> The concrete type of the Naksha feature.
  */
-public class WriteXyzCollections<T extends XyzCollection> extends WriteCollections<T> {}
+public class WriteXyzCollections extends WriteCollections<XyzCollection, XyzCollectionCodec, WriteXyzCollections> {
+
+  public WriteXyzCollections() {
+    super(getFactory(XyzCollectionCodecFactory.class));
+  }
+}

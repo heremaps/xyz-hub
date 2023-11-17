@@ -53,10 +53,10 @@ public final class PsqlPool implements AutoCloseable {
 
   private static final AtomicReference<Thread> cacheCleaner = new AtomicReference<>();
 
-  private static final ConcurrentHashMap<@NotNull PsqlPoolConfig, @NotNull PsqlConnPoolRef> cache =
+  private static final ConcurrentHashMap<@NotNull PsqlInstanceConfig, @NotNull PsqlConnPoolRef> cache =
       new ConcurrentHashMap<>();
 
-  private PsqlPool(@NotNull HikariDataSource dataSource, @NotNull PsqlPoolConfig config) {
+  private PsqlPool(@NotNull HikariDataSource dataSource, @NotNull PsqlInstanceConfig config) {
     this.config = config;
     this.dataSource = dataSource;
     Thread cleaner = cacheCleaner.get();
@@ -70,15 +70,15 @@ public final class PsqlPool implements AutoCloseable {
   }
 
   @JsonIgnore
-  public final @NotNull PsqlPoolConfig config;
+  public final @NotNull PsqlInstanceConfig config;
 
   @JsonIgnore
   public final @NotNull HikariDataSource dataSource;
 
   private static void clearCache() {
-    final Enumeration<@NotNull PsqlPoolConfig> keyEnum = cache.keys();
+    final Enumeration<@NotNull PsqlInstanceConfig> keyEnum = cache.keys();
     while (keyEnum.hasMoreElements()) {
-      final PsqlPoolConfig config = keyEnum.nextElement();
+      final PsqlInstanceConfig config = keyEnum.nextElement();
       final PsqlConnPoolRef poolRef = cache.get(config);
       final PsqlPool pool = poolRef.get();
       if (pool == null) {
@@ -99,7 +99,7 @@ public final class PsqlPool implements AutoCloseable {
    * @param config the configuration.
    * @return the pool.
    */
-  public static @NotNull PsqlPool get(final @NotNull PsqlPoolConfig config) {
+  public static @NotNull PsqlPool get(final @NotNull PsqlInstanceConfig config) {
     PsqlConnPoolRef poolRef;
     PsqlPool pool;
     do {
@@ -112,7 +112,7 @@ public final class PsqlPool implements AutoCloseable {
     return pool;
   }
 
-  private static synchronized @NotNull PsqlPool createAndCacheDataSource(final @NotNull PsqlPoolConfig config) {
+  private static synchronized @NotNull PsqlPool createAndCacheDataSource(final @NotNull PsqlInstanceConfig config) {
     PsqlConnPoolRef poolRef;
     PsqlPool pool;
     poolRef = cache.get(config);

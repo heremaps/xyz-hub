@@ -27,7 +27,9 @@ import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.Unauthorized;
 import com.here.naksha.lib.core.storage.ITransactionSettings;
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -56,6 +58,33 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("unused")
 public class PsqlDataSource implements DataSource {
 
+  private static final Logger log = LoggerFactory.getLogger(PostgresPool.class);
+
+  static final class SLF4JWriter extends Writer {
+
+    @Override
+    public void write(char @NotNull [] cbuf, int off, int len) throws IOException {
+      log.info(new String(cbuf, off, len));
+    }
+
+    @Override
+    public void flush() {
+    }
+
+    @Override
+    public void close() {
+    }
+  }
+
+  static final class SLF4JLogWriter extends PrintWriter {
+
+    public SLF4JLogWriter() {
+      super(new SLF4JLogWriter(), true);
+    }
+  }
+
+  private static final SLF4JLogWriter slf4jLogWriter = new SLF4JLogWriter();
+
   private static final Logger logger = LoggerFactory.getLogger(PsqlDataSource.class);
 
   /**
@@ -63,7 +92,7 @@ public class PsqlDataSource implements DataSource {
    *
    * @param config the configuration to use.
    */
-  public PsqlDataSource(@NotNull PsqlConfig config) {
+  public PsqlDataSource(@NotNull PsqlStorageConfig config) {
     this.pool = PsqlPool.get(config);
     this.config = config;
     this.applicationName = config.appName;
@@ -78,7 +107,7 @@ public class PsqlDataSource implements DataSource {
   /**
    * The PostgresQL configuration.
    */
-  private final @NotNull PsqlConfig config;
+  private final @NotNull PsqlStorageConfig config;
 
   /**
    * The bound application name.
@@ -94,7 +123,7 @@ public class PsqlDataSource implements DataSource {
     return pool;
   }
 
-  public @NotNull PsqlConfig getConfig() {
+  public @NotNull PsqlStorageConfig getConfig() {
     return config;
   }
 
@@ -182,8 +211,11 @@ public class PsqlDataSource implements DataSource {
     return props;
   }
 
-  private @NotNull PgConnection newConnection(boolean readOnly) throws SQLException {
-    return new PgConnection(new HostSpec[] {new HostSpec(config.host, config.port)}, properties(readOnly), null);
+  private @NotNull Connection newConnection(boolean readOnly) throws SQLException {
+    //noinspection UnnecessaryLocalVariable
+    final PgConnection pgConnection =
+        new PgConnection(new HostSpec[] {new HostSpec(config.host, config.port)}, properties(readOnly), null);
+    return pgConnection;
   }
   /**
    * Returns an initialized connection. This means the connection will have auto-commit being off, the current schema will be at the root of

@@ -29,11 +29,15 @@ import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.concurrent.Future;
+import javax.sql.DataSource;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -45,23 +49,76 @@ import org.slf4j.LoggerFactory;
  * collections. It as well grants access to transactions.
  */
 @SuppressWarnings({"unused", "SqlResolve"})
-public final class PsqlStorage implements IStorage {
+public final class PsqlStorage implements IStorage, DataSource {
 
   public static final String ADMIN_STORAGE_ID = "naksha-admin";
 
   private static final Logger log = LoggerFactory.getLogger(PsqlStorage.class);
 
+  @Override
+  public @NotNull PrintWriter getLogWriter() {
+    return logWriter;
+  }
+
+  @Override
+  public void setLogWriter(@NotNull PrintWriter out) {
+    logWriter = out;
+  }
+
+
+  static final class SLF4JWriter extends Writer {
+
+    @Override
+    public void write(char @NotNull [] cbuf, int off, int len) {
+      log.info(new String(cbuf, off, len));
+    }
+
+    @Override
+    public void flush() {
+    }
+
+    @Override
+    public void close() {
+    }
+  }
+
+  static final class SLF4JLogWriter extends PrintWriter {
+
+    public SLF4JLogWriter() {
+      super(new PsqlDataSource.SLF4JLogWriter(), true);
+    }
+  }
+
+  private static final PsqlDataSource.SLF4JLogWriter slf4jLogWriter = new PsqlDataSource.SLF4JLogWriter();
+
+  @Override
+  public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
+    throw new SQLFeatureNotSupportedException();
+  }
+
+  @Override
+  public <T> T unwrap(Class<T> iface) throws SQLException {
+    throw new SQLException("The interface " + iface.getName() + " is not wrapped by PsqlInstance");
+  }
+
+  @Override
+  public boolean isWrapperFor(Class<?> iface) throws SQLException {
+    return false;
+  }
+
+  @NotNull PrintWriter logWriter = slf4jLogWriter;
+
   private static @NotNull PsqlDataSource dataSourceFromStorage(final @NotNull Storage storage) {
     final PsqlStorageProperties properties =
         JsonSerializable.convert(storage.getProperties(), PsqlStorageProperties.class);
-    PsqlDataSource ds = null;
+    final PsqlDataSource ds;
     if (properties.getDbConfig() != null) {
       ds = new PsqlDataSource(properties.getDbConfig());
     } else if (properties.getUrl() != null) {
-      final PsqlConfig psqlConfig = new PsqlConfigBuilder()
+      final PsqlStorageConfig psqlConfig = new PsqlStorageConfigBuilder()
           .withAppName("naksha")
           .parseUrl(properties.getUrl())
-          .withDefaultSchema(NakshaAdminCollection.SCHEMA)
+          .withSchemaIfAbsent(NakshaAdminCollection.SCHEMA)
           .build();
       ds = new PsqlDataSource(psqlConfig);
     } else {
@@ -79,9 +136,9 @@ public final class PsqlStorage implements IStorage {
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
+  @Deprecated
   public PsqlStorage(@NotNull INaksha naksha, @NotNull Storage storage) throws SQLException, IOException {
     this(storage);
-    this.naksha = naksha;
   }
 
   /**
@@ -105,19 +162,19 @@ public final class PsqlStorage implements IStorage {
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
   @Deprecated
-  public PsqlStorage(@NotNull PsqlConfig config, long storageNumber) {
+  public PsqlStorage(@NotNull PsqlStorageConfig config, long storageNumber) {
     this(config, Long.toString(storageNumber, 10));
   }
 
   /**
    * Constructor to manually create a new PostgresQL storage client.
    *
-   * @param config    The PSQL configuration to use for this client; can be created using the {@link PsqlConfigBuilder}.
+   * @param config    The PSQL configuration to use for this client; can be created using the {@link PsqlStorageConfigBuilder}.
    * @param storageId The storage identifier.
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
-  public PsqlStorage(@NotNull PsqlConfig config, @NotNull String storageId) {
+  public PsqlStorage(@NotNull PsqlStorageConfig config, @NotNull String storageId) {
     this(storageId, new PsqlDataSource(config));
   }
 
@@ -208,16 +265,7 @@ public final class PsqlStorage implements IStorage {
    */
   @Override
   public void initStorage() {
-    storage().initStorage(false);
-  }
-
-  /**
-   * Special method that installs the extension again with the latest pl/pgsql code coming together with this code and enabling debugging,
-   * this will slow down the storage methods, but get a lot of debug information printed to PostgresQL logs (in DBeaver use Strg+Shit+O to
-   * open the debug log output).
-   */
-  public void initStorageWithDebugInfo() {
-    storage().initStorage(true);
+    storage().initStorage();
   }
 
   /**
@@ -356,6 +404,7 @@ public final class PsqlStorage implements IStorage {
     return new PsqlTxWriter(this, settings);
   }
 
+  @Deprecated
   private @Nullable INaksha naksha;
 
   @Override

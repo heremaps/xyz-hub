@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+@Deprecated
 class WeakPsqlCursor extends WeakClosableReference<PsqlCursor> {
 
   WeakPsqlCursor(PsqlCursor referent) {

@@ -24,42 +24,29 @@ import com.here.naksha.lib.core.exceptions.ParameterError;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 
-/** Configuration builder. */
+/**
+ * Base class for configuration builders with URL parsing support.
+ */
 @SuppressWarnings("unused")
 abstract class PsqlAbstractConfigBuilder<TARGET, SELF extends PsqlAbstractConfigBuilder<TARGET, SELF>> {
 
-  @SuppressWarnings("unchecked")
   protected final @NotNull SELF self() {
+    //noinspection unchecked
     return (SELF) this;
   }
-
-  String driverClass = "org.postgresql.Driver";
-  int port = 5432;
-  String host;
-  String db;
-  String user;
-  String password;
-
-  // Hikari connection pool configuration
-  long connTimeout;
-  long stmtTimeout;
-  long lockTimeout;
-  int minPoolSize;
-  int maxPoolSize;
-  long idleTimeout;
 
   /**
    * Parse the given <a href="https://jdbc.postgresql.org/documentation/use/">PostgresQL URL</a> to set up the builder.
    *
-   * @param postgresUrl the PostgresQL URL.
+   * @param postgresUrl the PostgresQL URL, for example
+   *                    <br/>{@code jdbc:postgresql://{HOST}[:{PORT}]/{DB}?user={USER}&password={PASSWORD}&schema={SCHEMA}}.
    * @return this.
    * @throws URISyntaxException If the given URL is invalid.
-   * @throws ParameterError If the given parameters are invalid.
+   * @throws ParameterError     If the given parameters are invalid.
    */
-  public @NotNull SELF parseUrl(@NotNull String postgresUrl) {
+  public final @NotNull SELF parseUrl(@NotNull String postgresUrl) {
     try {
       // Syntax: jdbc:postgresql://host[:port]/db
       final URI root = new URI(postgresUrl);
@@ -84,17 +71,27 @@ abstract class PsqlAbstractConfigBuilder<TARGET, SELF extends PsqlAbstractConfig
         throw new URISyntaxException(postgresUrl, "Invalid database name: " + path);
       }
 
+      final String host;
       if (uri.getHost() != null) {
-        this.host = uri.getHost();
+        host = uri.getHost();
+        if (host.length() == 0) {
+          throw new URISyntaxException(postgresUrl, "Hostname is empty");
+        }
+      } else {
+        throw new URISyntaxException(postgresUrl, "Hostname is empty");
       }
+
+      final int port;
       if (uri.getPort() >= 0) {
-        this.port = uri.getPort();
+        port = uri.getPort();
+      } else {
+        port = 5432;
       }
-      this.db = path;
+      setBasics(host, port, path);
 
       final String query = uri.getQuery();
       if (query != null && query.length() > 0) {
-        setFromUrlParams(new QueryParameterList(query));
+        setParams(new QueryParameterList(query));
       }
       return self();
     } catch (Throwable t) {
@@ -102,171 +99,28 @@ abstract class PsqlAbstractConfigBuilder<TARGET, SELF extends PsqlAbstractConfig
     }
   }
 
-  @SuppressWarnings("PatternVariableHidesField")
-  protected void setFromUrlParams(final @NotNull QueryParameterList params) {
-    if (params.getValue("user") instanceof String user) {
-      this.user = user;
-    }
-    if (params.getValue("password") instanceof String password) {
-      this.password = password;
-    }
-  }
+  /**
+   * Called by {@link #parseUrl(String)}.
+   *
+   * @param host The host to set.
+   * @param port The port to set.
+   * @param db   The database to set.
+   */
+  protected abstract void setBasics(@NotNull String host, int port, @NotNull String db);
 
-  public String getDriverClass() {
-    return driverClass;
-  }
+  /**
+   * Called by {@link #parseUrl(String)}.
+   *
+   * @param params The query string parameters.
+   */
+  protected abstract void setParams(final @NotNull QueryParameterList params);
 
-  public void setDriverClass(String driverClass) {
-    this.driverClass = driverClass;
-  }
-
-  public @NotNull SELF withDriveClass(String driveClass) {
-    setDriverClass(driveClass);
-    return self();
-  }
-
-  public String getHost() {
-    return host;
-  }
-
-  public void setHost(String host) {
-    this.host = host;
-  }
-
-  public @NotNull SELF withHost(String host) {
-    setHost(host);
-    return self();
-  }
-
-  public int getPort() {
-    return port;
-  }
-
-  public void setPort(int port) {
-    this.port = port;
-  }
-
-  public @NotNull SELF withPort(int port) {
-    setPort(port);
-    return self();
-  }
-
-  public String getDb() {
-    return db;
-  }
-
-  public void setDb(String db) {
-    this.db = db;
-  }
-
-  public @NotNull SELF withDb(String db) {
-    setDb(db);
-    return self();
-  }
-
-  public String getUser() {
-    return user;
-  }
-
-  public void setUser(String user) {
-    this.user = user;
-  }
-
-  public @NotNull SELF withUser(String user) {
-    setUser(user);
-    return self();
-  }
-
-  public String getPassword() {
-    return password;
-  }
-
-  public void setPassword(String password) {
-    this.password = password;
-  }
-
-  public @NotNull SELF withPassword(String password) {
-    setPassword(password);
-    return self();
-  }
-
-  public long getConnTimeout(@NotNull TimeUnit timeUnit) {
-    return timeUnit.convert(connTimeout, TimeUnit.MILLISECONDS);
-  }
-
-  public void setConnTimeout(long connTimeout, @NotNull TimeUnit timeUnit) {
-    this.connTimeout = TimeUnit.MILLISECONDS.convert(connTimeout, timeUnit);
-  }
-
-  public @NotNull SELF withConnTimeout(long connTimeout, @NotNull TimeUnit timeUnit) {
-    setConnTimeout(connTimeout, timeUnit);
-    return self();
-  }
-
-  public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
-    return timeUnit.convert(stmtTimeout, TimeUnit.MILLISECONDS);
-  }
-
-  public void setStatementTimeout(long stmtTimeout, @NotNull TimeUnit timeUnit) {
-    this.stmtTimeout = TimeUnit.MILLISECONDS.convert(stmtTimeout, timeUnit);
-  }
-
-  public @NotNull SELF withStatementTimeout(long stmtTimeout, @NotNull TimeUnit timeUnit) {
-    setStatementTimeout(stmtTimeout, timeUnit);
-    return self();
-  }
-
-  public long getLockTimeout(@NotNull TimeUnit timeUnit) {
-    return timeUnit.convert(lockTimeout, TimeUnit.MILLISECONDS);
-  }
-
-  public void setLockTimeout(long lockTimeout, @NotNull TimeUnit timeUnit) {
-    this.lockTimeout = TimeUnit.MILLISECONDS.convert(lockTimeout, timeUnit);
-  }
-
-  public @NotNull SELF withLockTimeout(long lockTimeout, @NotNull TimeUnit timeUnit) {
-    setLockTimeout(lockTimeout, timeUnit);
-    return self();
-  }
-
-  public int getMinPoolSize() {
-    return minPoolSize;
-  }
-
-  public void setMinPoolSize(int minPoolSize) {
-    this.minPoolSize = minPoolSize;
-  }
-
-  public @NotNull SELF withMinPoolSize(int minPoolSize) {
-    setMinPoolSize(minPoolSize);
-    return self();
-  }
-
-  public int getMaxPoolSize() {
-    return maxPoolSize;
-  }
-
-  public void setMaxPoolSize(int maxPoolSize) {
-    this.maxPoolSize = maxPoolSize;
-  }
-
-  public @NotNull SELF withMaxPoolSize(int maxPoolSize) {
-    setMaxPoolSize(maxPoolSize);
-    return self();
-  }
-
-  public long getIdleTimeout(@NotNull TimeUnit timeUnit) {
-    return timeUnit.convert(idleTimeout, TimeUnit.MILLISECONDS);
-  }
-
-  public void setIdleTimeout(long idleTimeout, @NotNull TimeUnit timeUnit) {
-    this.idleTimeout = TimeUnit.MILLISECONDS.convert(idleTimeout, timeUnit);
-  }
-
-  public @NotNull SELF withIdleTimeout(long idleTimeout, @NotNull TimeUnit timeUnit) {
-    setIdleTimeout(idleTimeout, timeUnit);
-    return self();
-  }
-
-  public abstract @NotNull TARGET build() throws NullPointerException;
+  /**
+   * Perform the build and return the target.
+   *
+   * @return the target.
+   * @throws NullPointerException  If any value is {@code null} that must not be null.
+   * @throws IllegalStateException If any value is not set, that must be set.
+   */
+  public abstract @NotNull TARGET build();
 }

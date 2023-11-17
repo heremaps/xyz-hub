@@ -27,8 +27,8 @@ import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewSerialize;
-import com.here.naksha.lib.psql.PsqlConfig;
-import com.here.naksha.lib.psql.PsqlConfigBuilder;
+import com.here.naksha.lib.psql.PsqlStorageConfig;
+import com.here.naksha.lib.psql.PsqlStorageConfigBuilder;
 import com.here.naksha.lib.psql.PsqlFeatureWriter;
 import com.here.naksha.lib.psql.PsqlStorage;
 import com.here.naksha.lib.psql.PsqlTxWriter;
@@ -38,7 +38,7 @@ public class DemoMain {
 
   public static void main(String... args) throws Exception {
     // Create config.
-    final PsqlConfig config = new PsqlConfigBuilder()
+    final PsqlStorageConfig config = new PsqlStorageConfigBuilder()
         .withAppName("Naksha-Psql-Test")
         .parseUrl("jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=demo")
         .build();

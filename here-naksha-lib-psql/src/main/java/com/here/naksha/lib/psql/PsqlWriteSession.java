@@ -56,21 +56,26 @@ public final class PsqlWriteSession extends PsqlSession implements IWriteSession
   }
 
   @Override
-  public void commit() {
+  public void commit(boolean autoCloseCursors) {
     try {
-      session().connection.commit();
+      session().commit(autoCloseCursors);
     } catch (final SQLException e) {
       throw unchecked(e);
     }
   }
 
   @Override
-  public void rollback() {
+  public void rollback(boolean autoCloseCursors) {
     try {
-      session().connection.rollback();
+      session().rollback(autoCloseCursors);
     } catch (final SQLException e) {
       throw unchecked(e);
     }
+  }
+
+  @Override
+  public void close(boolean autoCloseCursors) {
+    session().close(autoCloseCursors);
   }
 
   @Override
@@ -79,7 +84,7 @@ public final class PsqlWriteSession extends PsqlSession implements IWriteSession
   }
 
   @Override
-  public @NotNull Result execute(@NotNull WriteRequest<?, ?> writeRequest) {
+  public @NotNull Result execute(@NotNull WriteRequest<?, ?, ?> writeRequest) {
     return session().executeWrite(writeRequest);
   }
 

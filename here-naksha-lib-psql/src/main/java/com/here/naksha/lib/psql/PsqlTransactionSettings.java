@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+@Deprecated
 class PsqlTransactionSettings implements ITransactionSettings {
 
   /**

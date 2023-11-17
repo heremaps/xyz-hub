@@ -18,288 +18,333 @@
  */
 package com.here.naksha.lib.core.models;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
-import com.here.naksha.lib.core.exceptions.UncheckedException;
-import com.here.naksha.lib.core.lambdas.*;
+import com.here.naksha.lib.core.IEventHandler;
+import com.here.naksha.lib.core.INaksha;
+import com.here.naksha.lib.core.lambdas.Fe1;
+import com.here.naksha.lib.core.lambdas.Fe3;
+import com.here.naksha.lib.core.storage.IStorage;
 import java.lang.reflect.Constructor;
-import java.util.Enumeration;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
  * Cache for plug-ins.
  */
-@SuppressWarnings("StringOperationCanBeSimplified")
+@SuppressWarnings({"StringOperationCanBeSimplified", "DuplicatedCode"})
 public final class PluginCache {
 
-  private PluginCache() {
-    final Thread thread = new Thread(this::cleanup, "ConstructorCache");
-    thread.setDaemon(true);
-    thread.start();
-  }
+  static class EventHandlerConstructorByTarget
+      extends ConcurrentHashMap<Class<?>, Fe3<IEventHandler, INaksha, ?, ?>> {}
 
-  private static final @NotNull PluginCache instance = new PluginCache();
+  static class EventHandlerConstructorByConfig extends ConcurrentHashMap<Class<?>, EventHandlerConstructorByTarget> {}
 
-  private static final String CLASS_NOT_FOUND = new String("CLASS_NOT_FOUND");
-  private static final String NO_SUCH_METHOD = new String("NO_SUCH_METHOD");
-  private static final String API_NOT_SUPPORTED = new String("API_NOT_SUPPORTED");
-  private final ConcurrentHashMap<@NotNull String, @NotNull Object> cache = new ConcurrentHashMap<>();
+  static class EventHandlerConstructorByClassNameMap
+      extends ConcurrentHashMap<String, EventHandlerConstructorByConfig> {}
 
-  private static @Nullable Constructor<?> getConstructorIfAssignable(
-      final @NotNull Constructor<?> constructor, final int noOfParams, final @Nullable Class<?>... paramClasses) {
-    // actual number of constructor params
-    final Class<?>[] cParamTypes = constructor.getParameterTypes();
-    int noOfCParams = cParamTypes.length;
-    if (noOfParams != noOfCParams) return null;
-    // check if all parameters are assignable
-    boolean allParamMatches = true;
-    for (int i = 0; i < noOfParams; i++) {
-      if (paramClasses[i] == null || !cParamTypes[i].isAssignableFrom(paramClasses[i])) {
-        allParamMatches = false;
-        break;
-      }
+  static class StorageConstructorByConfig extends ConcurrentHashMap<Class<?>, Fe1<IStorage, ?>> {}
+
+  static class StorageConstructorByClassNameMap extends ConcurrentHashMap<String, StorageConstructorByConfig> {}
+
+  static final EventHandlerConstructorByClassNameMap eventHandlerConstructors =
+      new EventHandlerConstructorByClassNameMap();
+  static final StorageConstructorByClassNameMap storageConstructors = new StorageConstructorByClassNameMap();
+
+  /**
+   * Wraps the given constructor of an event-handler into a standard function call.
+   *
+   * @param constructor The constructor.
+   * @param configClass The configuration-type class.
+   * @param targetClass The target-type class.
+   * @param <CONFIG>    The config-type.
+   * @param <TARGET>    The target-type.
+   * @return the constructor or {@link null}, if this constructor can't be invoked for the given target.
+   */
+  static <CONFIG, TARGET> @Nullable Fe3<IEventHandler, INaksha, CONFIG, TARGET> wrapEventHandlerConstructor(
+      @NotNull Constructor<? extends IEventHandler> constructor,
+      @NotNull Class<CONFIG> configClass,
+      @NotNull Class<TARGET> targetClass) {
+    if (constructor.getParameterCount() > 3) {
+      return null;
     }
-    if (allParamMatches) return constructor; // we found matching constructor
+    final Class<?>[] parameterTypes = constructor.getParameterTypes();
+    assert parameterTypes.length <= 3;
+
+    if (parameterTypes.length == 0) {
+      return ((naksha, config, target) -> constructor.newInstance());
+    }
+
+    if (parameterTypes.length == 1) {
+      if (INaksha.class.isAssignableFrom(parameterTypes[0])) {
+        return ((naksha, config, target) -> constructor.newInstance(naksha));
+      }
+      if (configClass.isAssignableFrom(parameterTypes[0])) {
+        return ((naksha, config, target) -> constructor.newInstance(config));
+      }
+      if (targetClass.isAssignableFrom(parameterTypes[0])) {
+        return ((naksha, config, target) -> constructor.newInstance(target));
+      }
+      return null;
+    }
+
+    if (parameterTypes.length == 2) {
+      if (INaksha.class.isAssignableFrom(parameterTypes[0])) {
+        if (configClass.isAssignableFrom(parameterTypes[1])) {
+          return ((naksha, config, target) -> constructor.newInstance(naksha, config));
+        }
+        if (targetClass.isAssignableFrom(parameterTypes[1])) {
+          return ((naksha, config, target) -> constructor.newInstance(naksha, target));
+        }
+        return null;
+      }
+      if (configClass.isAssignableFrom(parameterTypes[0])) {
+        if (INaksha.class.isAssignableFrom(parameterTypes[1])) {
+          return ((naksha, config, target) -> constructor.newInstance(config, naksha));
+        }
+        if (targetClass.isAssignableFrom(parameterTypes[1])) {
+          return ((naksha, config, target) -> constructor.newInstance(config, target));
+        }
+        return null;
+      }
+      if (targetClass.isAssignableFrom(parameterTypes[0])) {
+        if (INaksha.class.isAssignableFrom(parameterTypes[1])) {
+          return ((naksha, config, target) -> constructor.newInstance(target, naksha));
+        }
+        if (configClass.isAssignableFrom(parameterTypes[1])) {
+          return ((naksha, config, target) -> constructor.newInstance(target, config));
+        }
+        return null;
+      }
+      return null;
+    }
+
+    if (INaksha.class.isAssignableFrom(parameterTypes[0])) {
+      if (configClass.isAssignableFrom(parameterTypes[1])) {
+        if (targetClass.isAssignableFrom(parameterTypes[2])) {
+          return (constructor::newInstance); // -> constructor.newInstance(naksha, config, target));
+        }
+        return null;
+      }
+      if (targetClass.isAssignableFrom(parameterTypes[1])) {
+        if (configClass.isAssignableFrom(parameterTypes[2])) {
+          return ((naksha, config, target) -> constructor.newInstance(naksha, target, config));
+        }
+      }
+      return null;
+    }
+    if (configClass.isAssignableFrom(parameterTypes[0])) {
+      if (INaksha.class.isAssignableFrom(parameterTypes[1])) {
+        if (targetClass.isAssignableFrom(parameterTypes[2])) {
+          return ((naksha, config, target) -> constructor.newInstance(config, naksha, target));
+        }
+        return null;
+      }
+      if (targetClass.isAssignableFrom(parameterTypes[1])) {
+        if (INaksha.class.isAssignableFrom(parameterTypes[2])) {
+          return ((naksha, config, target) -> constructor.newInstance(config, target, naksha));
+        }
+      }
+      return null;
+    }
+    if (targetClass.isAssignableFrom(parameterTypes[0])) {
+      if (INaksha.class.isAssignableFrom(parameterTypes[1])) {
+        if (configClass.isAssignableFrom(parameterTypes[2])) {
+          return ((naksha, config, target) -> constructor.newInstance(target, naksha, config));
+        }
+        return null;
+      }
+      if (configClass.isAssignableFrom(parameterTypes[1])) {
+        if (INaksha.class.isAssignableFrom(parameterTypes[2])) {
+          return ((naksha, config, target) -> constructor.newInstance(target, config, naksha));
+        }
+      }
+      return null;
+    }
     return null;
   }
 
-  private static Constructor<?> addConstructorToCache(
-      @NotNull String className, int noOfParams, @NotNull Constructor<?> constructor) {
-    instance.cache.putIfAbsent(className + ":" + noOfParams, constructor);
-    return constructor;
+  /**
+   * Wraps the given constructor of an event-handler into a standard function call.
+   *
+   * @param constructor The constructor.
+   * @param configClass The config-class.
+   * @param <CONFIG>    The config-type.
+   * @return the constructor or {@link null}, if this constructor can't be invoked for the given target.
+   */
+  static <CONFIG> @Nullable Fe1<IStorage, CONFIG> wrapStorageConstructor(
+      @NotNull Constructor<? extends IStorage> constructor, @NotNull Class<CONFIG> configClass) {
+    if (constructor.getParameterCount() > 1) {
+      return null;
+    }
+    final Class<?>[] parameterTypes = constructor.getParameterTypes();
+    assert parameterTypes.length <= 1;
+
+    if (parameterTypes.length == 0) {
+      return ((config) -> constructor.newInstance());
+    }
+
+    if (configClass.isAssignableFrom(parameterTypes[0])) {
+      return constructor::newInstance;
+    }
+    return null;
   }
 
-  private static <API> @NotNull Constructor<?> getMatchingConstructor(
-      final @NotNull String className,
-      final @NotNull Class<API> apiClass,
-      final int noOfParams,
-      final @Nullable Class<?>... paramClasses) {
-    // TODO : can be easily enhanced for additional arguments (when needed)
-    if (noOfParams > 4)
-      throw new UnsupportedOperationException("Unsupported value " + noOfParams + " for constructor arguments.");
-    // check if cache already has assignable constructor
-    Object raw = instance.cache.get(className + ":" + noOfParams);
-    if (raw instanceof Constructor<?> constructor) {
-      if (!apiClass.isAssignableFrom(constructor.getDeclaringClass())) {
-        raw = API_NOT_SUPPORTED;
-      } else {
-        constructor = getConstructorIfAssignable(constructor, noOfParams, paramClasses);
-        if (constructor != null) {
-          return addConstructorToCache(className, noOfParams, constructor);
-        }
+  static <CONFIG, TARGET> @NotNull
+      ConcurrentHashMap<Class<TARGET>, Fe3<IEventHandler, INaksha, CONFIG, TARGET>> eventHandlerConstructorMap(
+          @NotNull String className, @NotNull Class<CONFIG> configClass, @NotNull Class<TARGET> targetClass) {
+    EventHandlerConstructorByConfig byConfig = eventHandlerConstructors.get(className);
+    if (byConfig == null) {
+      byConfig = new EventHandlerConstructorByConfig();
+      final EventHandlerConstructorByConfig existing = eventHandlerConstructors.putIfAbsent(className, byConfig);
+      if (existing != null) {
+        byConfig = existing;
       }
     }
-    if (raw == null) {
-      // not found in cache. need to search for valid constructor
+    EventHandlerConstructorByTarget byTarget = byConfig.get(configClass);
+    if (byTarget == null) {
+      byTarget = new EventHandlerConstructorByTarget();
+      final EventHandlerConstructorByTarget existing = byConfig.putIfAbsent(configClass, byTarget);
+      if (existing != null) {
+        byTarget = existing;
+      }
+    }
+    //noinspection unchecked,rawtypes
+    return (ConcurrentHashMap<Class<TARGET>, Fe3<IEventHandler, INaksha, CONFIG, TARGET>>)
+        (ConcurrentHashMap) byTarget;
+  }
+
+  static <CONFIG> @NotNull ConcurrentHashMap<Class<CONFIG>, Fe1<IStorage, CONFIG>> storageConstructorMap(
+      @NotNull String className, @NotNull Class<CONFIG> configClass) {
+    StorageConstructorByConfig storageConstructorByConfig = storageConstructors.get(className);
+    if (storageConstructorByConfig == null) {
+      storageConstructorByConfig = new StorageConstructorByConfig();
+      StorageConstructorByConfig existing =
+          storageConstructors.putIfAbsent(className, storageConstructorByConfig);
+      if (existing != null) {
+        storageConstructorByConfig = existing;
+      }
+    }
+    //noinspection unchecked,rawtypes
+    return (@NotNull ConcurrentHashMap<Class<CONFIG>, Fe1<IStorage, CONFIG>>)
+        (ConcurrentHashMap) storageConstructorByConfig;
+  }
+
+  /**
+   * Returns the constructor for the space event handler.
+   *
+   * @param className   The classname to search for.
+   * @param configClass The configuration-type class, for example {@code EventHandler.class}.
+   * @param targetClass The target-type class, for example {@code Space.class}.
+   * @param <CONFIG>    The config-type.
+   * @param <TARGET>    The target-type.
+   * @return the constructor for the event handler.
+   * @throws ClassNotFoundException If no such class exists (invalid {@code className}).
+   * @throws ClassCastException     If the class does not implement the {@link IEventHandler} interface.
+   * @throws NoSuchMethodException  If the class does not have a matching constructor.
+   */
+  public static <CONFIG, TARGET> @NotNull Fe3<IEventHandler, INaksha, CONFIG, TARGET> getEventHandlerConstructor(
+      final @NotNull String className, Class<CONFIG> configClass, Class<TARGET> targetClass) {
+    final ConcurrentHashMap<Class<TARGET>, Fe3<IEventHandler, INaksha, CONFIG, TARGET>> constructorByTarget =
+        eventHandlerConstructorMap(className, configClass, targetClass);
+    Fe3<IEventHandler, INaksha, CONFIG, TARGET> c = constructorByTarget.get(targetClass);
+    if (c != null) {
+      return c;
+    }
+    synchronized (PluginCache.class) {
+      c = constructorByTarget.get(targetClass);
+      if (c != null) {
+        return c;
+      }
       try {
         final Class<?> theClass = Class.forName(className);
-        if (!apiClass.isAssignableFrom(theClass)) {
-          raw = API_NOT_SUPPORTED;
-        } else {
-          // first attempt finding direct parameter matching constructor (ignoring super interface/super class
-          // types)
-          try {
-            final Constructor<?> c =
-                switch (noOfParams) {
-                  case 4 -> theClass.getConstructor(
-                      paramClasses[0], paramClasses[1], paramClasses[2], paramClasses[3]);
-                  case 3 -> theClass.getConstructor(
-                      paramClasses[0], paramClasses[1], paramClasses[2]);
-                  case 2 -> theClass.getConstructor(paramClasses[0], paramClasses[1]);
-                  case 1 -> theClass.getConstructor(paramClasses[0]);
-                  case 0 -> theClass.getConstructor();
-                  default -> throw new UnsupportedOperationException(
-                      "Unsupported value " + noOfParams + " for constructor arguments.");
-                };
-            // if we reach here, then we got direct match
-            return addConstructorToCache(className, noOfParams, c);
-          } catch (NoSuchMethodException ignored) {
+        if (!IEventHandler.class.isAssignableFrom(theClass)) {
+          throw new ClassCastException(
+              "The class " + theClass.getName() + " does not implement the IEventHandler interface");
+        }
+        //noinspection unchecked
+        final Constructor<? extends IEventHandler>[] constructors =
+            (Constructor<IEventHandler>[]) theClass.getConstructors();
+        int cParameterCount = -1;
+        for (final Constructor<? extends IEventHandler> constructor : constructors) {
+          if (constructor.getParameterCount() < cParameterCount) {
+            continue;
           }
-
-          // now iterate through all other constructors for best suitable match for the given number of params
-          for (final Constructor<?> constructor : theClass.getConstructors()) {
-            if (noOfParams == constructor.getParameterCount()) {
-              final Constructor<?> c = getConstructorIfAssignable(constructor, noOfParams, paramClasses);
-              if (c != null) return addConstructorToCache(className, noOfParams, c);
-            }
+          if (constructor.getParameterCount() > 3) {
+            continue;
           }
-
-          // we reduce number of params to find next suitable constructor (in recursive manner)
-          if (noOfParams > 0) {
-            return getMatchingConstructor(className, apiClass, noOfParams - 1, paramClasses);
-          }
-
-          raw = NO_SUCH_METHOD;
-        }
-      } catch (ClassNotFoundException e) {
-        raw = CLASS_NOT_FOUND;
-      }
-      assert raw != null;
-      instance.cache.putIfAbsent(className, raw);
-    }
-    if (raw == NO_SUCH_METHOD) {
-      throw unchecked(new NoSuchMethodException(className + "(" + className + ")"));
-    }
-    if (raw == API_NOT_SUPPORTED) {
-      throw new ClassCastException(className + " does not implement " + apiClass.getName());
-    }
-    throw unchecked(new ClassNotFoundException(className));
-  }
-
-  /**
-   * Create a new instance of the given plugin class, implementing the given API.
-   *
-   * @param className the full qualified name of the class implementing the API.
-   * @param apiClass  the API that need to be implemented.
-   * @param parameter the first constructor parameter.
-   * @param <API>     the API-type.
-   * @return the instance.
-   * @throws ClassNotFoundException If no such class exists.
-   * @throws ClassCastException     If the class does not implement the requested API.
-   * @throws NoSuchMethodException  If the class does not have the required constructor.
-   * @throws UncheckedException     If the constructor has thrown an exception, use {@link UncheckedException#cause(Throwable)} to unpack.
-   */
-  @SuppressWarnings("JavadocDeclaration")
-  public static <API> API newInstance(
-      @NotNull String className, @NotNull Class<API> apiClass, @NotNull Object parameter) {
-    final Constructor<?> c = getMatchingConstructor(className, apiClass, 1, parameter.getClass());
-    return invokeConstructorWithParams(c, apiClass, parameter);
-  }
-
-  /**
-   * Create a new instance of the given plugin class, implementing the given API.
-   *
-   * @param className the full qualified name of the class implementing the API.
-   * @param apiClass  the API that need to be implemented.
-   * @param param     the first constructor parameter
-   * @param param2    the second constructor parameter
-   * @param <API>     the API-type.
-   * @return the instance.
-   * @throws ClassNotFoundException If no such class exists.
-   * @throws ClassCastException     If the class does not implement the requested API.
-   * @throws NoSuchMethodException  If the class does not have the required constructor.
-   * @throws UncheckedException     If the constructor has thrown an exception, use {@link UncheckedException#cause(Throwable)} to unpack.
-   */
-  @SuppressWarnings("JavadocDeclaration")
-  public static <API> API newInstance(
-      @NotNull String className, @NotNull Class<API> apiClass, @NotNull Object param, @NotNull Object param2) {
-    final Constructor<?> c = getMatchingConstructor(className, apiClass, 2, param.getClass(), param2.getClass());
-    return invokeConstructorWithParams(c, apiClass, param, param2);
-  }
-
-  /**
-   * Create a new instance of the given plugin class, implementing the given API.
-   *
-   * @param className the full qualified name of the class implementing the API.
-   * @param apiClass  the API that need to be implemented.
-   * @param param     the first constructor parameter
-   * @param param2    the second constructor parameter
-   * @param param3    the third constructor parameter
-   * @param <API>     the API-type.
-   * @return the instance.
-   * @throws ClassNotFoundException If no such class exists.
-   * @throws ClassCastException     If the class does not implement the requested API.
-   * @throws NoSuchMethodException  If the class does not have the required constructor.
-   * @throws UncheckedException     If the constructor has thrown an exception, use {@link UncheckedException#cause(Throwable)} to unpack.
-   */
-  @SuppressWarnings("JavadocDeclaration")
-  public static <API> API newInstance(
-      @NotNull String className,
-      @NotNull Class<API> apiClass,
-      @NotNull Object param,
-      @NotNull Object param2,
-      @NotNull Object param3) {
-    final Constructor<?> c =
-        getMatchingConstructor(className, apiClass, 3, param.getClass(), param2.getClass(), param3.getClass());
-    return invokeConstructorWithParams(c, apiClass, param, param2, param3);
-  }
-
-  /**
-   * Create a new instance of the given plugin class, implementing the given API.
-   *
-   * @param className the full qualified name of the class implementing the API.
-   * @param apiClass  the API that need to be implemented.
-   * @param param     the first constructor parameter
-   * @param param2    the second constructor parameter
-   * @param param3    the third constructor parameter
-   * @param param4    the forth constructor parameter
-   * @param <API>     the API-type.
-   * @return the instance.
-   * @throws ClassNotFoundException If no such class exists.
-   * @throws ClassCastException     If the class does not implement the requested API.
-   * @throws NoSuchMethodException  If the class does not have the required constructor.
-   * @throws UncheckedException     If the constructor has thrown an exception, use {@link UncheckedException#cause(Throwable)} to unpack.
-   */
-  @SuppressWarnings("JavadocDeclaration")
-  public static <API> API newInstance(
-      @NotNull String className,
-      @NotNull Class<API> apiClass,
-      @NotNull Object param,
-      @NotNull Object param2,
-      @NotNull Object param3,
-      @NotNull Object param4) {
-    final Constructor<?> c = getMatchingConstructor(
-        className, apiClass, 4, param.getClass(), param2.getClass(), param3.getClass(), param4.getClass());
-    return invokeConstructorWithParams(c, apiClass, param, param2, param3, param4);
-  }
-
-  private static <API> API invokeConstructorWithParams(
-      @NotNull Constructor<?> c, @NotNull Class<API> apiClass, @NotNull Object... params) {
-    final int noOfParams = c.getParameterCount();
-    try {
-      switch (noOfParams) {
-        case 4 -> {
-          //noinspection unchecked
-          return (API) c.newInstance(params[0], params[1], params[2], params[3]);
-        }
-        case 3 -> {
-          //noinspection unchecked
-          return (API) c.newInstance(params[0], params[1], params[2]);
-        }
-        case 2 -> {
-          //noinspection unchecked
-          return (API) c.newInstance(params[0], params[1]);
-        }
-        case 1 -> {
-          //noinspection unchecked
-          return (API) c.newInstance(params[0]);
-        }
-        case 0 -> {
-          //noinspection unchecked
-          return (API) c.newInstance();
-        }
-        default -> throw new UnsupportedOperationException(
-            "Unsupported value " + noOfParams + " for constructor arguments.");
-      }
-    } catch (Throwable t) {
-      throw unchecked(t);
-    }
-  }
-
-  private void cleanup() {
-    while (true) {
-      try {
-        final Enumeration<@NotNull String> keys = cache.keys();
-        while (keys.hasMoreElements()) {
-          final String key = keys.nextElement();
-          final Object o = cache.get(key);
-          if (!(o instanceof Constructor<?>)) {
-            cache.remove(key, o);
+          c = wrapEventHandlerConstructor(constructor, configClass, targetClass);
+          if (c != null) {
+            cParameterCount = constructor.getParameterCount();
           }
         }
-
-        //noinspection BusyWait
-        Thread.sleep(TimeUnit.MINUTES.toMillis(5));
-      } catch (InterruptedException ignore) {
+        if (c == null) {
+          throw new NoSuchMethodException(
+              "The class " + theClass.getName() + " does not valid a valid constructor");
+        }
+        constructorByTarget.put(targetClass, c);
+        return c;
       } catch (Throwable t) {
-        currentLogger()
-            .atError("Unexpected exception in plugin cache cleaner")
-            .setCause(t)
-            .log();
+        throw unchecked(t);
+      }
+    }
+  }
+
+  /**
+   * Returns the constructor for the storage.
+   *
+   * @param className   The classname to search for.
+   * @param configClass The configuration-type class, for example {@code Storage.class}.
+   * @param <CONFIG>    The config-type.
+   * @return the constructor for the storage.
+   * @throws ClassNotFoundException If no such class exists (invalid {@code className}).
+   * @throws ClassCastException     If the class does not implement the {@link IEventHandler} API.
+   * @throws NoSuchMethodException  If the class does not have the required constructor.
+   */
+  public static <CONFIG> @NotNull Fe1<IStorage, CONFIG> getStorageConstructor(
+      @NotNull String className, @NotNull Class<CONFIG> configClass) {
+    final ConcurrentHashMap<Class<CONFIG>, Fe1<IStorage, CONFIG>> map =
+        storageConstructorMap(className, configClass);
+    Fe1<IStorage, CONFIG> c = map.get(configClass);
+    if (c != null) {
+      return c;
+    }
+    synchronized (PluginCache.class) {
+      c = map.get(configClass);
+      if (c != null) {
+        return c;
+      }
+      try {
+        final Class<?> theClass = Class.forName(className);
+        if (!IStorage.class.isAssignableFrom(theClass)) {
+          throw new ClassCastException(
+              "The class " + theClass.getName() + " does not implement the IStorage interface");
+        }
+        //noinspection unchecked
+        final Constructor<? extends IStorage>[] constructors =
+            (Constructor<IStorage>[]) theClass.getConstructors();
+        int cParameterCount = -1;
+        for (final Constructor<? extends IStorage> constructor : constructors) {
+          if (constructor.getParameterCount() < cParameterCount) {
+            continue;
+          }
+          if (constructor.getParameterCount() > 1) {
+            continue;
+          }
+          c = wrapStorageConstructor(constructor, configClass);
+          if (c != null) {
+            cParameterCount = constructor.getParameterCount();
+          }
+        }
+        if (c == null) {
+          throw new NoSuchMethodException(
+              "The class " + theClass.getName() + " does not valid a valid constructor");
+        }
+        map.put(configClass, c);
+        return c;
+      } catch (Throwable t) {
+        throw unchecked(t);
       }
     }
   }

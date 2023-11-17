@@ -19,11 +19,13 @@
 package com.here.naksha.lib.core.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import javax.annotation.concurrent.NotThreadSafe;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
 /**
  * Base interface of all session.
  */
+@NotThreadSafe
 @AvailableSince(NakshaVersion.v2_0_7)
 public interface ISession extends AutoCloseable {
 

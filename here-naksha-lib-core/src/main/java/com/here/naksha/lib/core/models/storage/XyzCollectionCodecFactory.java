@@ -18,34 +18,15 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import org.jetbrains.annotations.NotNull;
 
-/**
- * The result of a modification.
- *
- * @param <T> the type of the object returned.
- */
-public class WriteResult<T> extends SuccessResult {
+public class XyzCollectionCodecFactory extends XyzCodecFactory<XyzCollection, XyzCollectionCodec> {
 
-  /**
-   * Create an empty result-set.
-   */
-  public WriteResult() {
-    this(new ArrayList<>());
+  XyzCollectionCodecFactory() {}
+
+  @Override
+  public @NotNull XyzCollectionCodec newInstance() {
+    return new XyzCollectionCodec();
   }
-
-  /**
-   * Create a result-set from the given modification result list.
-   * @param results the list to use.
-   */
-  public WriteResult(@NotNull List<WriteOpResult<T>> results) {
-    this.results = results;
-  }
-
-  /**
-   * The results.
-   */
-  public @NotNull List<WriteOpResult<T>> results;
 }

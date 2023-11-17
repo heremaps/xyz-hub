@@ -28,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A PostgresQL database configuration as used by the {@link PsqlStorage}.
  */
+@Deprecated
 @AvailableSince(NakshaVersion.v2_0_0)
 public class PsqlStorageProperties extends XyzProperties {
 
@@ -42,7 +43,7 @@ public class PsqlStorageProperties extends XyzProperties {
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @JsonProperty(DB_CONFIG)
-  private @Nullable PsqlConfig dbConfig;
+  private @Nullable PsqlStorageConfig dbConfig;
 
   /**
    * The JDBC URL of the PostgresQL database, for example
@@ -60,9 +61,9 @@ public class PsqlStorageProperties extends XyzProperties {
    */
   @AvailableSince(NakshaVersion.v2_0_0)
   @JsonCreator
-  protected PsqlStorageProperties(@JsonProperty(DB_CONFIG) PsqlConfig dbConfig, @JsonProperty(URL) String url) {
+  protected PsqlStorageProperties(@JsonProperty(DB_CONFIG) PsqlStorageConfig dbConfig, @JsonProperty(URL) String url) {
     if (url != null && dbConfig == null) {
-      dbConfig = new PsqlConfigBuilder().parseUrl(url).build();
+      dbConfig = new PsqlStorageConfigBuilder().parseUrl(url).build();
     }
     this.dbConfig = dbConfig;
   }
@@ -73,7 +74,7 @@ public class PsqlStorageProperties extends XyzProperties {
    * @param dbConfig the database configuration to use.
    */
   @AvailableSince(NakshaVersion.v2_0_0)
-  public PsqlStorageProperties(@Nullable PsqlConfig dbConfig) {
+  public PsqlStorageProperties(@Nullable PsqlStorageConfig dbConfig) {
     this(dbConfig, null);
   }
 
@@ -87,11 +88,11 @@ public class PsqlStorageProperties extends XyzProperties {
     this(null, jdbcUrl);
   }
 
-  public @Nullable PsqlConfig getDbConfig() {
+  public @Nullable PsqlStorageConfig getDbConfig() {
     return dbConfig;
   }
 
-  public void setDbConfig(@Nullable PsqlConfig dbConfig) {
+  public void setDbConfig(@Nullable PsqlStorageConfig dbConfig) {
     this.dbConfig = dbConfig;
   }
 

@@ -64,7 +64,7 @@ public class XyzCollection extends NakshaFeature {
   public static final String PARTITION_COUNT = "partitionCount";
 
   /**
-   * Create a new empty collection with default properties.
+   * Create a new empty default collection with default properties.
    *
    * @param id The identifier of the collection.
    */
@@ -84,7 +84,7 @@ public class XyzCollection extends NakshaFeature {
    * @param partition  If the collection should be partitioned for better performance to improve bulk operations.
    * @param pointsOnly If only points will be stored in the collection, which allows to use different indexing, and to reduce the storage
    *                   space consumed.
-   * @param unlogged If the collection should be unlogged, this makes it not crash-safe, but much faster.
+   * @param unlogged   If the collection should be unlogged, this makes it not crash-safe, but much faster.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public XyzCollection(@NotNull String id, boolean partition, boolean pointsOnly, boolean unlogged) {
@@ -157,8 +157,20 @@ public class XyzCollection extends NakshaFeature {
    * @return {@code true} if this collection is unlogged (optimized for performance); {@code false} otherwise, which means that it may come
    * to data loss, if the database crashes while writing to it.
    */
-  public boolean unlogged() {
+  public boolean isUnlogged() {
     return unlogged;
+  }
+
+  /**
+   * Changes the unlogged state.
+   *
+   * @param unlogged {@code true} if this collection should become unlogged (optimized for performance, but not crash safe).
+   * @return The previous log-state.
+   */
+  public boolean setUnlogged(boolean unlogged) {
+    final boolean old = this.unlogged;
+    this.unlogged = unlogged;
+    return old;
   }
 
   /**

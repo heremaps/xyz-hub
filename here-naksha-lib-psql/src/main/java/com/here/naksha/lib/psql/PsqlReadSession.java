@@ -25,6 +25,7 @@ import com.here.naksha.lib.core.models.storage.Result;
 import java.sql.Connection;
 import org.jetbrains.annotations.NotNull;
 
+@Deprecated
 public final class PsqlReadSession extends PsqlSession {
 
   PsqlReadSession(@NotNull PostgresStorage storage, @NotNull NakshaContext context, @NotNull Connection connection) {

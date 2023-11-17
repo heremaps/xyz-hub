@@ -331,7 +331,7 @@ public class JTSHelper {
   }
 
   @SuppressWarnings("unchecked")
-  public static <X extends XyzGeometry> X fromGeometry(Geometry jtsGeometry) {
+  public static <X extends XyzGeometry> @Nullable X fromGeometry(@Nullable Geometry jtsGeometry) {
     if (jtsGeometry == null) {
       return null;
     }

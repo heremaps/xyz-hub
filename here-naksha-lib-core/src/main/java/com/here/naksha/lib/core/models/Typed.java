@@ -29,7 +29,7 @@ import com.here.naksha.lib.core.models.payload.events.tweaks.Tweaks;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 
 /**
- * An base interface to be implemented by all types that are serializable and have a property "type" that holds the type of the object.
+ * A base interface to be implemented by all types that are serializable and have a property "type" that holds the type of the object.
  */
 @JsonTypeInfo(use = Id.NAME, property = "type")
 @JsonSubTypes({

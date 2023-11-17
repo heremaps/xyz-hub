@@ -32,6 +32,7 @@ import org.postgresql.util.PGobject;
 /**
  * The result reader implementation for PostgresQL. Expects that the result is ordered: ID, UUID, jsondata, geometry.
  */
+@Deprecated
 public class PsqlResultSet<FEATURE extends XyzFeature> extends AbstractResultSet<FEATURE> {
 
   PsqlResultSet(@NotNull PreparedStatement stmt, @NotNull ResultSet rs, @NotNull Class<FEATURE> featureClass) {

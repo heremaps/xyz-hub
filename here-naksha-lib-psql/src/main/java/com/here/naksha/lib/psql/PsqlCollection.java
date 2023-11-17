@@ -32,6 +32,7 @@ import org.jetbrains.annotations.NotNull;
  * same collection can have multiple space identifiers, but it only has one unique consistent
  * collection identifier.
  */
+@Deprecated
 public class PsqlCollection {
   // Note: Meta information attached JSON serialized to collection tables in PostgresQL.
   //       COMMENT ON TABLE test IS 'Some table';

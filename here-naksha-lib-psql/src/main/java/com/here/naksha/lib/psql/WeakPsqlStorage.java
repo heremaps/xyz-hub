@@ -20,6 +20,7 @@ package com.here.naksha.lib.psql;
 
 import org.jetbrains.annotations.NotNull;
 
+@Deprecated
 class WeakPsqlStorage extends WeakClosableReference<PsqlStorage> {
 
   WeakPsqlStorage(@NotNull PsqlStorage referent) {

@@ -18,6 +18,11 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-public class EAdvancedWriteOp extends EWriteOp {
-  public static final EAdvancedWriteOp ADVANCED = def(EAdvancedWriteOp.class, "ADVANCED");
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
+
+public class XyzCollectionCodec extends XyzCodec<XyzCollection, XyzCollectionCodec> {
+
+  XyzCollectionCodec() {
+    super(XyzCollection.class);
+  }
 }

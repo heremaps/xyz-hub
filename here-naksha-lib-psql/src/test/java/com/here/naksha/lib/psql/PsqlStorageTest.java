@@ -74,9 +74,14 @@ public class PsqlStorageTest {
    */
   @SuppressWarnings("unused")
   public static final String TEST_ADMIN_DB = (System.getenv("TEST_ADMIN_DB") != null
-          && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length())
+      && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length())
       ? System.getenv("TEST_ADMIN_DB")
       : null;
+
+  /**
+   * Logging level.
+   */
+  public static final EPsqlLogLevel LOG_LEVEL = EPsqlLogLevel.VERBOSE;
 
   /**
    * The name of the test-collection.
@@ -86,7 +91,12 @@ public class PsqlStorageTest {
   /**
    * The amount of features to write for the bulk insert test, zero or less to disable the test.
    */
-  public static final int BULK_SIZE = 0; // 10 * 1000 * 1000;
+  public static final int BULK_SIZE = 100 * 1000 * 1000;
+
+  /**
+   * The amount of parts each thread should handle; set to zero or less to skip bulk test. The value must be maximal 256.
+   */
+  public static final int BULK_PARTS_PER_THREAD = 1;
 
   /**
    * Amount of threads to write features concurrently.
@@ -133,10 +143,12 @@ public class PsqlStorageTest {
   public static final boolean DO_UPDATE = true;
 
   @Deprecated
-  record UpdateKey(String key, String[] values) {}
+  record UpdateKey(String key, String[] values) {
 
-  public static final UpdateKey[] UPDATE_KEYS = new UpdateKey[] {
-    new UpdateKey("name", new String[] {null, "Michael Schmidt", "Thomas Bar", "Alexander Foo"})
+  }
+
+  public static final UpdateKey[] UPDATE_KEYS = new UpdateKey[]{
+      new UpdateKey("name", new String[]{null, "Michael Schmidt", "Thomas Bar", "Alexander Foo"})
   };
 
   /**
@@ -146,8 +158,9 @@ public class PsqlStorageTest {
     return TEST_ADMIN_DB != null;
   }
 
+  @SuppressWarnings("ConstantValue")
   private boolean doBulk() {
-    return hasTestDb() && BULK_SIZE > 0;
+    return hasTestDb() && BULK_SIZE > 0 && BULK_PARTS_PER_THREAD > 0;
   }
 
   // This is only to disable tests not yet working!
@@ -231,11 +244,19 @@ public class PsqlStorageTest {
   @Order(10)
   @EnabledIf("hasTestDb")
   void createStorage() throws Exception {
-    final PsqlConfig config = new PsqlConfigBuilder()
+    final PsqlStorageConfigBuilder builder = new PsqlStorageConfigBuilder()
         .withAppName("Naksha-Psql-Test")
         .parseUrl(TEST_ADMIN_DB)
-        .withStatementTimeout(1, TimeUnit.HOURS)
-        .build();
+        .withStatementTimeout(1, TimeUnit.HOURS);
+    if (doBulk()) {
+      if (LOG_LEVEL.toLong() > 0) {
+        log.error("Log level " + LOG_LEVEL + " is not allowed for bulk load, reduce to "+EPsqlLogLevel.OFF);
+        builder.withLogLevel(EPsqlLogLevel.OFF);
+      } else {
+        builder.withLogLevel(LOG_LEVEL);
+      }
+    }
+    final PsqlStorageConfig config = builder.build();
     storage = new PsqlStorage(config, TEST_STORAGE_ID);
   }
 
@@ -252,8 +273,7 @@ public class PsqlStorageTest {
   @EnabledIf("hasTestDb")
   void initStorage() {
     assertNotNull(storage);
-    storage.initStorageWithDebugInfo();
-    // storage.initStorage();
+    storage.initStorage();
   }
 
   @Test
@@ -275,41 +295,42 @@ public class PsqlStorageTest {
           "CREATE TABLE IF NOT EXISTS test_data (id text, jsondata jsonb, geo geometry, i int8, part_id int);\n");
       sql.add(
           "CREATE UNIQUE INDEX IF NOT EXISTS test_data_id_idx ON test_data USING btree(part_id, id COLLATE \"C\" text_pattern_ops);\n");
-      try (PreparedStatement stmt = session.prepare(sql)) {
+      try (PreparedStatement stmt = session.prepareWithCursor(sql)) {
         stmt.execute();
         session.connection.commit();
       }
       int pos = 0;
       while (pos < BULK_SIZE) {
-        final int SIZE = Math.min(BULK_SIZE - pos, 100_000);
-        pos += SIZE;
+        final int SIZE = Math.min(BULK_SIZE - pos, 10_000_000);
         sql = session.sql();
         sql.add(
                 """
-WITH bounds AS (SELECT 0 AS origin_x, 0 AS origin_y, 360 AS width, 180 AS height)
-INSERT INTO test_data (jsondata, geo, i, id, part_id)
-SELECT ('{"id":"'||id||'","properties":{"value":'||((RANDOM() * 100000)::int)||',"@ns:com:here:xyz":{"tags":["'||substr(md5(random()::text),1,1)||'"]}}}')::jsonb,
-ST_PointZ(width * (random() - 0.5) + origin_x, height * (random() - 0.5) + origin_y, 0, 4326),
-id,
-id::text,
-nk_head_partition_id(id::text)::int
-FROM bounds, generate_series(""")
+                    WITH bounds AS (SELECT 0 AS origin_x, 0 AS origin_y, 360 AS width, 180 AS height)
+                    INSERT INTO test_data (jsondata, geo, i, id, part_id)
+                    SELECT ('{"id":"'||id||'","properties":{"value":'||((RANDOM() * 100000)::int)||',"@ns:com:here:xyz":{"tags":["'||substr(md5(random()::text),1,1)||'"]}}}')::jsonb,
+                    ST_PointZ(width * (random() - 0.5) + origin_x, height * (random() - 0.5) + origin_y, 0, 4326),
+                    id,
+                    id::text,
+                    nk_head_partition_id(id::text)::int
+                    FROM bounds, generate_series(""")
             .add(pos)
             .add(", ")
             .add(pos + SIZE - 1)
             .add(") id;");
         final String query = sql.toString();
         log.info("Bulk load: " + query);
-        try (PreparedStatement stmt = session.prepare(query)) {
+        pos += SIZE;
+        try (PreparedStatement stmt = session.prepareWithCursor(query)) {
           stmt.execute();
           session.connection.commit();
         } catch (Throwable raw) {
           final SQLException e = rethrowExcept(raw, SQLException.class);
           if ("23505".equals(e.getSQLState())) {
             // Duplicate key
-            log.info("Duplicate key, test data is already setup, continue");
-            break;
+            log.info("Values between " + (pos - SIZE) + " and " + pos + " exist already, continue");
           }
+          session.connection.rollback();
+          break;
         }
       }
     }
@@ -371,7 +392,7 @@ FROM bounds, generate_series(""")
     final XyzFeature feature = new XyzFeature(SINGLE_FEATURE_ID);
     feature.setGeometry(new XyzPoint(5.0d, 6.0d, 2.0d));
     request.add(new WriteXyzOp<>(EWriteOp.CREATE, feature));
-    try (final ResultCursor<XyzFeature> cursor = session.execute(request).cursor()) {
+    try (final ResultCursor<XyzFeature> cursor = session.execute(request).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
       final EExecutedOp op = cursor.getOp();
       assertSame(EExecutedOp.CREATED, op);
@@ -556,7 +577,7 @@ FROM bounds, generate_series(""")
     final XyzFeature feature = new XyzFeature(SINGLE_FEATURE_ID);
     feature.setGeometry(new XyzPoint(5.0d, 6.0d, 2.0d));
     request.add(new WriteXyzOp<>(EWriteOp.DELETE, feature));
-    try (final ResultCursor<XyzFeature> cursor = session.execute(request).cursor()) {
+    try (final ResultCursor<XyzFeature> cursor = session.execute(request).getXyzFeatureCursor()) {
       assertTrue(cursor.next());
       final EExecutedOp op = cursor.getOp();
       assertSame(EExecutedOp.DELETED, op);
@@ -972,30 +993,37 @@ FROM bounds, generate_series(""")
     }
   }
 
-  private static Boolean bulkWriteRandomData__(PsqlStorage storage, int part_id) {
+  private static Boolean bulkWriteRandomData__(PsqlStorage storage, int part_id, int parts) {
     try (final PsqlWriteSession session = storage.newWriteSession(null, true)) {
       final PostgresSession pgSession = session.session();
       final SQL sql = pgSession.sql();
-      final String COLLECTION_PART_NAME = COLLECTION_ID + "_p" + (part_id < 10 ? "0" + part_id : part_id);
-      sql.add("INSERT INTO ");
-      sql.addIdent(COLLECTION_PART_NAME);
-      sql.add(" (jsondata, geo) SELECT jsondata, geo FROM ");
-      sql.addIdent(BULK_SCHEMA);
-      sql.add(".test_data WHERE part_id = ");
-      sql.add(part_id);
-      sql.add(";");
-      final String query = sql.toString();
-      log.info("Bulk insert into partition {}: {}", COLLECTION_PART_NAME, query);
-      try (final PreparedStatement stmt = pgSession.prepare(query)) {
-        final int inserted = stmt.executeUpdate();
-        assertTrue(inserted > 0 && inserted < BULK_SIZE);
-        session.commit();
-        return Boolean.TRUE;
-      } catch (Exception e) {
-        log.error("Failed to bulk load", e);
-        return Boolean.FALSE;
+      while (parts > 0) {
+        final String COLLECTION_PART_NAME = COLLECTION_ID + "_p"
+            + (part_id < 10 ? "00" + part_id : part_id < 100 ? "0" + part_id : part_id);
+        sql.add("INSERT INTO ");
+        sql.addIdent(COLLECTION_PART_NAME);
+        sql.add(" (jsondata, geo) SELECT jsondata, geo FROM ");
+        sql.addIdent(BULK_SCHEMA);
+        sql.add(".test_data WHERE part_id = ");
+        sql.add(part_id);
+        sql.add(";");
+        final String query = sql.toString();
+        log.info("Bulk insert into partition {}: {}", COLLECTION_PART_NAME, query);
+        try (final PreparedStatement stmt = pgSession.prepareWithoutCursor(query)) {
+          stmt.setFetchSize(1);
+          final int inserted = stmt.executeUpdate();
+          assertTrue(inserted > 0 && inserted < BULK_SIZE);
+          session.commit();
+        } catch (Exception e) {
+          log.error("Failed to bulk load", e);
+          return Boolean.FALSE;
+        } finally {
+          part_id++;
+          parts--;
+        }
       }
     }
+    return Boolean.TRUE;
   }
 
   @Test
@@ -1003,15 +1031,25 @@ FROM bounds, generate_series(""")
   @EnabledIf("hasTestDb")
   void bulkWriteRandomData() throws Exception {
     assertNotNull(storage);
-    if (BULK_SIZE > 0) {
-      // Preparations are done, lets test how long the actual write takes.
+    if (BULK_SIZE > 0 && BULK_PARTS_PER_THREAD > 0) {
+      //noinspection ConstantValue
+      assertTrue(BULK_PARTS_PER_THREAD <= 256);
+      final Future<Boolean>[] futures = new Future[256];
       final long START = System.nanoTime();
-      final Future<Boolean>[] futures = new Future[64];
-      for (int i = 0; i < futures.length; i++) {
-        SimpleTask<Boolean> task = new SimpleTask<>();
-        futures[i] = task.start(PsqlStorageTest::bulkWriteRandomData__, storage, i);
+      int i = 0;
+      int startPart = 0;
+      while (startPart < 256) {
+        // Preparations are done, lets test how long the actual write takes.
+        final SimpleTask<Boolean> task = new SimpleTask<>();
+        int amount = BULK_PARTS_PER_THREAD;
+        //noinspection ConstantValue
+        if ((startPart + amount) > 256) {
+          amount = 256 - startPart;
+        }
+        futures[i++] = task.start(PsqlStorageTest::bulkWriteRandomData__, storage, startPart, amount);
+        startPart += amount;
       }
-      for (int i = 0; i < futures.length; i++) {
+      while (--i >= 0) {
         futures[i].get();
       }
       final long END = System.nanoTime();
@@ -1078,13 +1116,13 @@ FROM bounds, generate_series(""")
         final SimpleTask<Result> task = new SimpleTask<>(Integer.toString(i++));
         final Future<Result> future = task.start(
             (req) -> {
-              System.out.println("Write " + req.queries.size() + " features in task #" + task.id());
+              System.out.println("Write " + req.features.size() + " features in task #" + task.id());
               final IWriteSession session = storage.newWriteSession(null, true);
               NakshaContext.currentContext().with(task.id(), session);
               Result result;
               try {
                 result = session.execute(req);
-                try (final ResultCursor<XyzFeature> cursor = result.cursor()) {
+                try (final ResultCursor<XyzFeature> cursor = result.getXyzFeatureCursor()) {
                   while (cursor.next()) {
                     final String featureId = cursor.getId();
                     assertTrue(allFeatures.containsKey(featureId));
@@ -1170,6 +1208,7 @@ FROM bounds, generate_series(""")
   @Order(100)
   @EnabledIf("doUpdate")
   @DisabledIf("isTrue")
+  @Deprecated
   void updateManyFeatures() throws Exception {
     assertNotNull(storage);
     assertNotNull(session);
