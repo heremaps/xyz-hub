@@ -1026,7 +1026,7 @@ public class Export extends JDBCBasedJob<Export> {
 
     private EMRManager getEmrManager() {
         if (emrManager == null)
-            emrManager = new EMRManager();
+            emrManager = EMRManager.getInstance();
         return emrManager;
     }
 
