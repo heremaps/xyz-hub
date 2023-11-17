@@ -38,6 +38,8 @@ import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.CombinedJob;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.config.dynamo.DynamoClient;
@@ -48,7 +50,6 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,13 +65,13 @@ import org.apache.logging.log4j.Marker;
 public class DynamoJobConfigClient extends JobConfigClient {
 
     private static final Logger logger = LogManager.getLogger();
-
     private final Table jobs;
     private final DynamoClient dynamoClient;
     private Long expiration;
 
-    private static final String IO_IMPORT_ATTR_NAME = "importObjects";
-    private static final String IO_EXPORT_ATTR_NAME = "exportObjects";
+    private static final String IMPORT_OBJECTS = "importObjects";
+    private static final String EXPORT_OBJECTS = "exportObjects";
+    private static final String SUPER_EXPORT_OBJECTS = "superExportObjects";
 
     public DynamoJobConfigClient(String tableArn) {
         dynamoClient = new DynamoClient(tableArn, null);
@@ -100,35 +101,28 @@ public class DynamoJobConfigClient extends JobConfigClient {
     public Future<Job> getJob(Marker marker, String jobId) {
         if(jobId == null)
             return Future.succeededFuture(null);
-        return DynamoClient.dynamoWorkers.executeBlocking(p -> getJobSync(marker, jobId, p));
-    }
+        return DynamoClient.dynamoWorkers.executeBlocking(p -> {
+            try {
+                GetItemSpec spec = new GetItemSpec()
+                        .withPrimaryKey("id", jobId)
+                        .withConsistentRead(true);
 
-    private void getJobSync(Marker marker, String jobId, Promise<Job> p) {
-        try {
-            final Item jobItem = getJobItem(jobId);
+                Item jobItem = jobs.getItem(spec);
 
-            if (jobItem == null) {
-                logger.info(marker, "job[{}] not found!", jobId);
-                p.complete();
+                if (jobItem == null) {
+                    logger.info(marker, "job[{}] not found!", jobId);
+                    p.complete();
+                }
+                else {
+                    convertItemToJob(jobItem)
+                        .onSuccess(job -> p.complete(job))
+                        .onFailure(t -> p.fail(t));
+                }
             }
-            else {
-                convertItemToJob(jobItem)
-                    .onSuccess(job -> p.complete(job))
-                    .onFailure(t -> p.fail(t));
+            catch (Exception e) {
+                p.fail(e);
             }
-        }
-        catch (Exception e) {
-            p.fail(e);
-        }
-    }
-
-    private Item getJobItem(String jobId) {
-        GetItemSpec spec = new GetItemSpec()
-                .withPrimaryKey("id", jobId)
-                .withConsistentRead(true);
-
-        Item jobItem = jobs.getItem(spec);
-        return jobItem;
+        });
     }
 
     @Override
@@ -269,12 +263,7 @@ public class DynamoJobConfigClient extends JobConfigClient {
                 combinedJob.getChildren().stream().forEach(childJob -> childJob.setExp(job.getExp()));
         }
 
-        Future<Void> storeChildrenResult = Future.succeededFuture();
-        if (job instanceof CombinedJob combinedJob)
-            storeChildrenResult = Future.all(combinedJob.getChildren().stream().map(childJob -> storeJob(marker, childJob, isUpdate)).collect(
-                Collectors.toList())).mapEmpty();
-
-        return storeChildrenResult.compose(v -> DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p)));
+        return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
     private void storeJobSync(Job job, Promise<Job> p) {
@@ -290,26 +279,31 @@ public class DynamoJobConfigClient extends JobConfigClient {
         if(job.getTarget() != null)
             json.put("_targetKey", job.getTarget().getKey());
         //TODO: Remove the following hacks from the persistence layer!
-        if (json.containsKey(IO_IMPORT_ATTR_NAME))
-            return convertJobToItem(json, IO_IMPORT_ATTR_NAME);
-        else if (job instanceof CombinedJob && ((CombinedJob) job).getChildren().size() > 0)
+        if (job instanceof Import)
+            return convertImportJobToItem(json);
+        else if (job instanceof CombinedJob combinedJob && combinedJob.getChildren().size() > 0)
             sanitizeChildren(json);
-        else if (json.containsKey(IO_EXPORT_ATTR_NAME))
-            sanitizeJob(json);
+        else
+            sanitizeExportJob(json);
         return Item.fromJSON(json.toString());
     }
 
-    private static void sanitizeJob(JsonObject json) {
-        Map<String, Object> exportObjects = json.getJsonObject(IO_EXPORT_ATTR_NAME).getMap();
-        sanitizeUrls(exportObjects);
-        json.put(IO_EXPORT_ATTR_NAME, exportObjects);
+    private static void sanitizeExportJob(JsonObject jobJson) {
+        if (jobJson.containsKey(EXPORT_OBJECTS)) {
+            Map<String, Object> exportObjects = jobJson.getJsonObject(EXPORT_OBJECTS).getMap();
+            sanitizeUrls(exportObjects);
+            jobJson.put(EXPORT_OBJECTS, exportObjects);
+        }
+        if (jobJson.containsKey(SUPER_EXPORT_OBJECTS))
+            jobJson.remove(SUPER_EXPORT_OBJECTS);
     }
 
     private static void sanitizeChildren(JsonObject combinedJob) {
         JsonArray children = combinedJob.getJsonArray("children");
-        JsonArray childIds = new JsonArray(children.stream().map(child -> ((JsonObject) child).getString("id"))
-            .collect(Collectors.toList()));
-        combinedJob.put("children", childIds);
+        for (int i = 0; i < children.size(); i++) {
+            JsonObject childJob = children.getJsonObject(i);
+            sanitizeExportJob(childJob);
+        }
     }
 
     private static void sanitizeUrls(Map<String, Object> exportObjects) {
@@ -317,16 +311,19 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     private Future<Job> convertItemToJob(Item item){
-        if(item.isPresent(IO_IMPORT_ATTR_NAME))
-            return convertItemToJob(item, IO_IMPORT_ATTR_NAME);
-        return convertItemToJob(item, IO_EXPORT_ATTR_NAME);
+        if(item.isPresent(IMPORT_OBJECTS))
+            return convertItemToJob(item, IMPORT_OBJECTS);
+        return convertItemToJob(item, EXPORT_OBJECTS);
     }
 
-    private static Item convertJobToItem(JsonObject json, String attrName) {
-        String str = json.getJsonObject(attrName).encode();
-        json.remove(attrName);
-        Item item = Item.fromJSON(json.toString());
-        return item.withBinary(attrName, compressString(str));
+    private static Item convertImportJobToItem(JsonObject jobJson) {
+        if (jobJson.containsKey(IMPORT_OBJECTS)) {
+            String str = jobJson.getJsonObject(IMPORT_OBJECTS).encode();
+            jobJson.remove(IMPORT_OBJECTS);
+            Item item = Item.fromJSON(jobJson.toString());
+            return item.withBinary(IMPORT_OBJECTS, compressString(str));
+        }
+        return Item.fromJSON(jobJson.toString());
     }
 
     private Future<Job> convertItemToJob(Item item, String attrName) {
@@ -343,23 +340,28 @@ public class DynamoJobConfigClient extends JobConfigClient {
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
                 .put(attrName, ioObjects);
 
-        if (item.hasAttribute("children"))
-            resolveChildren(json);
+        Future<Void> resolvedFuture = Future.succeededFuture();
         try {
-            return Future.succeededFuture(XyzSerializable.deserialize(json.toString(), Job.class));
+            final Job job = XyzSerializable.deserialize(json.toString(), Job.class);
+            if (job instanceof Export export && export.getSuperId() != null)
+                resolvedFuture = resolveSuperExportObjects(export);
+            else if (job instanceof CombinedJob combinedJob && combinedJob.getChildren().size() > 0)
+                resolvedFuture = Future.all(combinedJob.getChildren().stream().map(childJob -> resolveSuperExportObjects((Export) childJob))
+                    .collect(Collectors.toList())).mapEmpty();
+            return resolvedFuture.map(v -> job);
         }
         catch (JsonProcessingException e) {
-            return Future.failedFuture(e);
+            throw new RuntimeException(e);
         }
     }
 
-    private void resolveChildren(JsonObject combinedJob) {
-        JsonArray children = combinedJob.getJsonArray("children");
-        if (!children.isEmpty() && children.getValue(0) instanceof String) {
-            List<JsonObject> jobJsons = children.stream().map(childId -> new JsonObject(getJobItem((String) childId).toJSON()))
-                .collect(Collectors.toList());
-            combinedJob.put("children", new JsonArray(jobJsons));
-        }
+    private Future<Void> resolveSuperExportObjects(Export job) {
+        return getJob(null, job.getSuperId())
+            .compose(superJob -> {
+                if (superJob != null) //If super job was not found (yet)
+                    job.setSuperExportObjects(((Export) superJob).getExportObjects());
+                return Future.succeededFuture();
+            });
     }
 
     private static byte[] compressString(String input) {
