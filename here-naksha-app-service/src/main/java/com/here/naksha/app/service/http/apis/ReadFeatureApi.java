@@ -23,6 +23,7 @@ import static com.here.naksha.app.service.http.tasks.ReadFeatureApiTask.ReadFeat
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.ReadFeatureApiTask;
+import com.here.naksha.app.service.http.tasks.ReadFeatureApiTask.ReadFeatureApiReqType;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -48,14 +49,16 @@ public class ReadFeatureApi extends Api {
   public void addManualRoutes(final @NotNull Router router) {}
 
   private void getFeaturesById(final @NotNull RoutingContext routingContext) {
-    new ReadFeatureApiTask<>(
-            GET_BY_IDS, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
-        .start();
+    startReadFeatureApiTask(GET_BY_IDS, routingContext);
   }
 
   private void getFeatureById(final @NotNull RoutingContext routingContext) {
+    startReadFeatureApiTask(GET_BY_ID, routingContext);
+  }
+
+  private void startReadFeatureApiTask(ReadFeatureApiReqType reqType, RoutingContext routingContext) {
     new ReadFeatureApiTask<>(
-            GET_BY_ID, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
+            reqType, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
         .start();
   }
 }

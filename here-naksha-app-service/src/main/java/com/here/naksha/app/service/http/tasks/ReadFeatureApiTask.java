@@ -29,7 +29,6 @@ import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import io.vertx.ext.web.RoutingContext;
 import java.util.List;
@@ -72,14 +71,11 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
   protected @NotNull XyzResponse execute() {
     // TODO : Add custom execute logic to process input API request based on reqType
     try {
-      switch (this.reqType) {
-        case GET_BY_ID:
-          return executeFeatureById();
-        case GET_BY_IDS:
-          return executeFeaturesById();
-        default:
-          return executeUnsupported();
-      }
+      return switch (this.reqType) {
+        case GET_BY_ID -> executeFeatureById();
+        case GET_BY_IDS -> executeFeaturesById();
+        default -> executeUnsupported();
+      };
     } catch (Exception ex) {
       // unexpected exception
       return verticle.sendErrorResponse(
@@ -87,7 +83,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     }
   }
 
-  private @NotNull XyzResponse executeFeaturesById() throws Exception {
+  private @NotNull XyzResponse executeFeaturesById() {
     // Parse parameters
     final String spaceId = pathParam(routingContext, SPACE_ID);
     final QueryParameterList queryParams = (routingContext.request().query() != null)
@@ -103,17 +99,15 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     if (featureIds == null || featureIds.isEmpty()) {
       return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing id parameter");
     }
+    final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdsRequest(spaceId, featureIds);
 
     // Forward request to NH Space Storage writer instance
-    try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), true)) {
-      final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdsRequest(spaceId, featureIds);
-      final Result result = reader.execute(rdRequest);
-      // transform Result to Http FeatureCollection response
-      return transformReadResultToXyzCollectionResponse(result, XyzFeature.class);
-    }
+    final Result result = executeReadRequestFromSpaceStorage(rdRequest);
+    // transform Result to Http FeatureCollection response
+    return transformReadResultToXyzCollectionResponse(result, XyzFeature.class);
   }
 
-  private @NotNull XyzResponse executeFeatureById() throws Exception {
+  private @NotNull XyzResponse executeFeatureById() {
     // Parse parameters
     final String spaceId = pathParam(routingContext, SPACE_ID);
     final String featureId = pathParam(routingContext, FEATURE_ID);
@@ -125,13 +119,11 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     if (featureId == null || featureId.isEmpty()) {
       return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing id parameter");
     }
+    final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdRequest(spaceId, featureId);
 
     // Forward request to NH Space Storage writer instance
-    try (final IReadSession reader = naksha().getSpaceStorage().newReadSession(context(), true)) {
-      final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdRequest(spaceId, featureId);
-      final Result result = reader.execute(rdRequest);
-      // transform Result to Http XyzFeature response
-      return transformReadResultToXyzFeatureResponse(result, XyzFeature.class);
-    }
+    final Result result = executeReadRequestFromSpaceStorage(rdRequest);
+    // transform Result to Http XyzFeature response
+    return transformReadResultToXyzFeatureResponse(result, XyzFeature.class);
   }
 }
