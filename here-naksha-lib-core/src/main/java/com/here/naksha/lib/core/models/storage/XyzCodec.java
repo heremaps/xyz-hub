@@ -24,6 +24,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.util.json.Json;
 import org.jetbrains.annotations.NotNull;
 
@@ -37,7 +39,7 @@ public class XyzCodec<FEATURE extends XyzFeature, SELF extends XyzCodec<FEATURE,
     this.featureClass = featureClass;
   }
 
-  protected final @NotNull Class<FEATURE> featureClass;
+  private final @NotNull Class<FEATURE> featureClass;
 
   @NotNull
   @Override
@@ -47,6 +49,34 @@ public class XyzCodec<FEATURE extends XyzFeature, SELF extends XyzCodec<FEATURE,
     }
     XyzGeometry xyzGeometry = feature.removeGeometry();
     try (final Json jp = Json.get()) {
+      op = EStorageOp.NULL;
+      id = feature.getId();
+      final XyzProperties properties = feature.getProperties();
+      final XyzNamespace xyz = properties.getXyzNamespace();
+      uuid = xyz.getUuid();
+      if (feature.get("type") instanceof String type) {
+        featureType = type;
+      } else if (feature.get("momType") instanceof String type) {
+        featureType = type;
+      } else {
+        // TODO: Let's tell Jackson, that we want to keep the "type" property to prevent this!
+        featureType = null;
+      }
+      if (feature.getProperties().get("type") instanceof String type) {
+        propertiesType = type;
+      } else if (feature.getProperties().get("featureType") instanceof String type) {
+        propertiesType = type;
+      } else if (feature.get("momType") instanceof String type) {
+        propertiesType = type;
+      } else {
+        propertiesType = null;
+      }
+      if (xyzGeometry != null) {
+        geometry = xyzGeometry.getJTSGeometry();
+      } else {
+        geometry = null;
+      }
+      wkb = null;
       json = jp.writer().writeValueAsString(feature);
     } catch (JsonProcessingException e) {
       throw unchecked(e);

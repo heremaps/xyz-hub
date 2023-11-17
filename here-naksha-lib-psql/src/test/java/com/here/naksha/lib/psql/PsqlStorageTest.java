@@ -74,7 +74,7 @@ public class PsqlStorageTest {
    */
   @SuppressWarnings("unused")
   public static final String TEST_ADMIN_DB = (System.getenv("TEST_ADMIN_DB") != null
-      && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length())
+          && System.getenv("TEST_ADMIN_DB").length() > "jdbc:postgresql://".length())
       ? System.getenv("TEST_ADMIN_DB")
       : null;
 
@@ -143,12 +143,10 @@ public class PsqlStorageTest {
   public static final boolean DO_UPDATE = true;
 
   @Deprecated
-  record UpdateKey(String key, String[] values) {
+  record UpdateKey(String key, String[] values) {}
 
-  }
-
-  public static final UpdateKey[] UPDATE_KEYS = new UpdateKey[]{
-      new UpdateKey("name", new String[]{null, "Michael Schmidt", "Thomas Bar", "Alexander Foo"})
+  public static final UpdateKey[] UPDATE_KEYS = new UpdateKey[] {
+    new UpdateKey("name", new String[] {null, "Michael Schmidt", "Thomas Bar", "Alexander Foo"})
   };
 
   /**
@@ -244,19 +242,19 @@ public class PsqlStorageTest {
   @Order(10)
   @EnabledIf("hasTestDb")
   void createStorage() throws Exception {
-    final PsqlStorageConfigBuilder builder = new PsqlStorageConfigBuilder()
+    final PsqlStorageConfigByUrl builder = new PsqlStorageConfigByUrl()
         .withAppName("Naksha-Psql-Test")
         .parseUrl(TEST_ADMIN_DB)
         .withStatementTimeout(1, TimeUnit.HOURS);
     if (doBulk()) {
       if (LOG_LEVEL.toLong() > 0) {
-        log.error("Log level " + LOG_LEVEL + " is not allowed for bulk load, reduce to "+EPsqlLogLevel.OFF);
+        log.error("Log level " + LOG_LEVEL + " is not allowed for bulk load, reduce to " + EPsqlLogLevel.OFF);
         builder.withLogLevel(EPsqlLogLevel.OFF);
       } else {
         builder.withLogLevel(LOG_LEVEL);
       }
     }
-    final PsqlStorageConfig config = builder.build();
+    final PsqlStorageConfigByUrl config = builder.build();
     storage = new PsqlStorage(config, TEST_STORAGE_ID);
   }
 
@@ -305,14 +303,14 @@ public class PsqlStorageTest {
         sql = session.sql();
         sql.add(
                 """
-                    WITH bounds AS (SELECT 0 AS origin_x, 0 AS origin_y, 360 AS width, 180 AS height)
-                    INSERT INTO test_data (jsondata, geo, i, id, part_id)
-                    SELECT ('{"id":"'||id||'","properties":{"value":'||((RANDOM() * 100000)::int)||',"@ns:com:here:xyz":{"tags":["'||substr(md5(random()::text),1,1)||'"]}}}')::jsonb,
-                    ST_PointZ(width * (random() - 0.5) + origin_x, height * (random() - 0.5) + origin_y, 0, 4326),
-                    id,
-                    id::text,
-                    nk_head_partition_id(id::text)::int
-                    FROM bounds, generate_series(""")
+WITH bounds AS (SELECT 0 AS origin_x, 0 AS origin_y, 360 AS width, 180 AS height)
+INSERT INTO test_data (jsondata, geo, i, id, part_id)
+SELECT ('{"id":"'||id||'","properties":{"value":'||((RANDOM() * 100000)::int)||',"@ns:com:here:xyz":{"tags":["'||substr(md5(random()::text),1,1)||'"]}}}')::jsonb,
+ST_PointZ(width * (random() - 0.5) + origin_x, height * (random() - 0.5) + origin_y, 0, 4326),
+id,
+id::text,
+nk_head_partition_id(id::text)::int
+FROM bounds, generate_series(""")
             .add(pos)
             .add(", ")
             .add(pos + SIZE - 1)

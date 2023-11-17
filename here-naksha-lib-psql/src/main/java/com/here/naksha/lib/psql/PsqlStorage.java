@@ -18,25 +18,29 @@
  */
 package com.here.naksha.lib.psql;
 
-import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.core.NakshaAdminCollection;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Fe1;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.naksha.Storage;
+import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.storage.*;
-import com.here.naksha.lib.core.util.json.JsonSerializable;
+import com.here.naksha.lib.core.util.json.Json;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.Writer;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
-import java.sql.Statement;
 import java.util.List;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -45,8 +49,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The Naksha PostgresQL storage client. This client does implement low level access to manage collections and the features within these
- * collections. It as well grants access to transactions.
+ * The Naksha PostgresQL storage represents a cluster of Postgres instances that are logically treated as a single Naksha storage. This
+ * client does implement low level access to manage collections and the features within these collections. It as well grants access to
+ * transactions.
+ *
+ * <p>If you serialize the storage, you effectively get back the {@link PsqlStorageProperties}.
  */
 @SuppressWarnings({"unused", "SqlResolve"})
 public final class PsqlStorage implements IStorage, DataSource {
@@ -54,6 +61,25 @@ public final class PsqlStorage implements IStorage, DataSource {
   public static final String ADMIN_STORAGE_ID = "naksha-admin";
 
   private static final Logger log = LoggerFactory.getLogger(PsqlStorage.class);
+  private static final PsqlStorageSlf4jLogWriter DEFAULT_SLF4J_LOG_WRITER = new PsqlStorageSlf4jLogWriter();
+
+  /**
+   * Attempts to establish a connection with the master node (mutable) that this DataSource object represents. This connection is
+   * initialized for the storage and uses the {@link NakshaContext} attached to the thread invoking this method.
+   *
+   * @return The PostgresQL connection.
+   * @throws SQLException If establishing the connection failed.
+   */
+  @Override
+  public @NotNull PsqlConnection getConnection() throws SQLException {
+    return storage().getConnection(true, false, true, NakshaContext.currentContext());
+  }
+
+  @Deprecated
+  @Override
+  public @Nullable Connection getConnection(String username, String password) throws SQLException {
+    throw new SQLFeatureNotSupportedException();
+  }
 
   @Override
   public @NotNull PrintWriter getLogWriter() {
@@ -65,31 +91,15 @@ public final class PsqlStorage implements IStorage, DataSource {
     logWriter = out;
   }
 
-
-  static final class SLF4JWriter extends Writer {
-
-    @Override
-    public void write(char @NotNull [] cbuf, int off, int len) {
-      log.info(new String(cbuf, off, len));
-    }
-
-    @Override
-    public void flush() {
-    }
-
-    @Override
-    public void close() {
-    }
+  @Override
+  public void setLoginTimeout(int seconds) throws SQLException {
+    throw new SQLFeatureNotSupportedException();
   }
 
-  static final class SLF4JLogWriter extends PrintWriter {
-
-    public SLF4JLogWriter() {
-      super(new PsqlDataSource.SLF4JLogWriter(), true);
-    }
+  @Override
+  public int getLoginTimeout() throws SQLException {
+    throw new SQLFeatureNotSupportedException();
   }
-
-  private static final PsqlDataSource.SLF4JLogWriter slf4jLogWriter = new PsqlDataSource.SLF4JLogWriter();
 
   @Override
   public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
@@ -106,80 +116,209 @@ public final class PsqlStorage implements IStorage, DataSource {
     return false;
   }
 
-  @NotNull PrintWriter logWriter = slf4jLogWriter;
+  private @NotNull PrintWriter logWriter = DEFAULT_SLF4J_LOG_WRITER;
 
-  private static @NotNull PsqlDataSource dataSourceFromStorage(final @NotNull Storage storage) {
-    final PsqlStorageProperties properties =
-        JsonSerializable.convert(storage.getProperties(), PsqlStorageProperties.class);
-    final PsqlDataSource ds;
-    if (properties.getDbConfig() != null) {
-      ds = new PsqlDataSource(properties.getDbConfig());
-    } else if (properties.getUrl() != null) {
-      final PsqlStorageConfig psqlConfig = new PsqlStorageConfigBuilder()
-          .withAppName("naksha")
-          .parseUrl(properties.getUrl())
-          .withSchemaIfAbsent(NakshaAdminCollection.SCHEMA)
-          .build();
-      ds = new PsqlDataSource(psqlConfig);
-    } else {
-      throw new UnsupportedOperationException(
-          "Psql DB configuration not available for storage id " + storage.getId());
+  public static long MIN_CONN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(1);
+  public static long DEFAULT_CONN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(5);
+
+  public static long MIN_STMT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(2);
+  public static long DEFAULT_STMT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(60);
+
+  public static long MIN_LOCK_TIMEOUT_MILLIS = 100;
+  public static long DEFAULT_LOCK_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(1);
+
+  private static long value(@Nullable Long value, long minValue, long defaultValue) {
+    if (value == null) {
+      return defaultValue;
     }
-    return ds;
+    return Math.max(value, minValue);
+  }
+
+  private static @NotNull PsqlStorageProperties p(@NotNull Storage storage) {
+    XyzProperties raw = storage.getProperties();
+    if (raw instanceof PsqlStorageProperties p) {
+      return p;
+    }
+    try (final Json jp = Json.get()) {
+      final PsqlStorageProperties props = jp.convert(raw, PsqlStorageProperties.class);
+      storage.setProperties(props);
+      return props;
+    }
+  }
+  /**
+   * A simple configuration object
+   */
+  private static class ConfigByUrl extends PsqlByUrlBuilder<ConfigByUrl> {
+
+    ConfigByUrl(@NotNull String url) {
+      parseUrl(url);
+    }
+
+    @Override
+    protected void setBasics(@NotNull String host, int port, @NotNull String db) {
+      this.host = host;
+      this.port = port;
+      this.db = db;
+    }
+
+    @Override
+    protected void setParams(@NotNull QueryParameterList params) {
+      if (params.getValue("user") instanceof String _user) {
+        user = _user;
+      } else {
+        throw new IllegalArgumentException("The URL must have a parameter '&user'");
+      }
+      if (params.getValue("password") instanceof String _password) {
+        password = _password;
+      } else {
+        throw new IllegalArgumentException("The URL must have a parameter '&password'");
+      }
+      if (params.getValue("appName") instanceof String _appName) {
+        appName = _appName;
+      } else if (params.getValue("appname") instanceof String _appName) {
+        appName = _appName;
+      } else if (params.getValue("app_name") instanceof String _appName) {
+        appName = _appName;
+      } else if (params.getValue("app") instanceof String _appName) {
+        appName = _appName;
+      } else {
+        throw new IllegalArgumentException("The URL must have a parameter '&app'");
+      }
+      if (params.getValue("schema") instanceof String _schema) {
+        schema = _schema;
+      } else {
+        throw new IllegalArgumentException("The URL must have a parameter '&schema'");
+      }
+      if (params.getValue("id") instanceof String _id) {
+        id = _id;
+      } else {
+        throw new IllegalArgumentException("The URL must have a parameter '&id'");
+      }
+      if (params.getValue("readOnly") instanceof Boolean _ro) {
+        readOnly = _ro;
+      }
+      if (params.getValue("readOnly") instanceof String _ro) {
+        readOnly = !"false".equalsIgnoreCase(_ro);
+      }
+      if (params.getValue("readonly") instanceof Boolean _ro) {
+        readOnly = _ro;
+      }
+      if (params.getValue("readonly") instanceof String _ro) {
+        readOnly = !"false".equalsIgnoreCase(_ro);
+      }
+      master = new PsqlInstanceConfigBuilder()
+          .withDb(db)
+          .withHost(host)
+          .withPort(port)
+          .withUser(user)
+          .withPassword(password)
+          .withReadOnly(readOnly)
+          .build();
+    }
+
+    String host;
+    int port;
+    String db;
+    String user;
+    String password;
+    String id;
+    String appName;
+    String schema;
+    boolean readOnly;
+    PsqlInstanceConfig master;
   }
 
   /**
-   * The constructor to create a new PostgresQL storage client using a storage configuration.
+   * The constructor to create a new PostgresQL storage from a JDBC URL. The URL should have the following format:
+   * <pre>{@code
+   * jdbc:postgresql://{HOST}[:{PORT}]/{DB}
+   *   ?user={USER}
+   *   &password={PASSWORD}
+   *   &id={STORAGE-ID}
+   *   &schema={SCHEMA}
+   *   &app={APPLICATION-NAME}
+   *   [&readOnly[=true|false]]
+   * }</pre>.
    *
-   * @param naksha  The Naksha-Hub reference.
-   * @param storage The storage configuration to use for this client.
-   * @throws SQLException If any error occurred while accessing the database.
-   * @throws IOException  If reading the SQL extensions from the resources fail.
+   * @param url The JDBC URL that configures the storage.
    */
-  @Deprecated
-  public PsqlStorage(@NotNull INaksha naksha, @NotNull Storage storage) throws SQLException, IOException {
-    this(storage);
+  public PsqlStorage(@NotNull String url) {
+    this(new ConfigByUrl(url));
+  }
+
+  private PsqlStorage(@NotNull ConfigByUrl config) {
+    this(config.id, config.appName, config.schema, config.master, null, null, null, null, null);
   }
 
   /**
-   * The constructor to create a new PostgresQL storage client using a storage configuration.
+   * The constructor to create a new PostgresQL storage from a Naksha {@link Storage storage configuration}.
    *
-   * @param storage the storage configuration to use for this client.
-   * @throws SQLException if any error occurred while accessing the database.
-   * @throws IOException  if reading the SQL extensions from the resources fail.
+   * @param storage the storage configuration to use.
    */
-  public PsqlStorage(@NotNull Storage storage) throws SQLException, IOException {
-    this(storage.getId(), dataSourceFromStorage(storage));
+  public PsqlStorage(@NotNull Storage storage) {
+    this(
+        storage.getId(),
+        p(storage).appName,
+        p(storage).schema,
+        p(storage).master,
+        p(storage).reader,
+        null,
+        null,
+        null,
+        null);
   }
 
   /**
-   * Constructor to manually create a new PostgresQL storage client.
+   * Create a new simple PostgresQL storage.
    *
-   * @param config        The PSQL configuration to use for this client.
-   * @param storageNumber The unique 40-bit unsigned integer storage number to use. Except for the main database (which always has the
-   *                      number 0), normally this number is given by the Naksha-Hub, when creating a storage.
-   * @throws SQLException If any error occurred while accessing the database.
-   * @throws IOException  If reading the SQL extensions from the resources fail.
+   * @param storageId    The storage identifier, this must match with the storage identifier in the database, if already initialized.
+   * @param masterConfig The configuration of the master instance.
+   * @param schema       The database schema to use.
+   * @param appName      The application name to set, when connecting to the database.
    */
-  @Deprecated
-  public PsqlStorage(@NotNull PsqlStorageConfig config, long storageNumber) {
-    this(config, Long.toString(storageNumber, 10));
+  public PsqlStorage(
+      @NotNull String storageId,
+      @NotNull String appName,
+      @NotNull String schema,
+      @Nullable PsqlInstanceConfig masterConfig) {
+    this(storageId, appName, schema, masterConfig, null, null, null, null, null);
   }
 
   /**
-   * Constructor to manually create a new PostgresQL storage client.
+   * Create a new PostgresQL configuration.
    *
-   * @param config    The PSQL configuration to use for this client; can be created using the {@link PsqlStorageConfigBuilder}.
-   * @param storageId The storage identifier.
-   * @throws SQLException If any error occurred while accessing the database.
-   * @throws IOException  If reading the SQL extensions from the resources fail.
+   * @param storageId     The storage identifier, this must match with the storage identifier in the database, if already initialized.
+   * @param masterConfig  The configuration of the master instance.
+   * @param readerConfigs The optional reader configurations.
+   * @param schema        The database schema to use.
+   * @param appName       The application name to set, when connecting to the database.
+   * @param connTimeout   The default connection timeout in milliseconds.
+   * @param stmtTimeout   The default statement timeout in milliseconds.
+   * @param lockTimeout   The default lock timeout in milliseconds.
+   * @param logLevel      The log-level for debugging; if any.
    */
-  public PsqlStorage(@NotNull PsqlStorageConfig config, @NotNull String storageId) {
-    this(storageId, new PsqlDataSource(config));
-  }
-
-  private PsqlStorage(@NotNull String storageId, @NotNull PsqlDataSource dataSource) {
-    this.storage = new PostgresStorage(this, storageId, dataSource);
+  @JsonCreator
+  public PsqlStorage(
+      @JsonProperty("id") @NotNull String storageId,
+      @JsonProperty("appName") @NotNull String appName,
+      @JsonProperty("schema") @NotNull String schema,
+      @JsonProperty("master") @Nullable PsqlInstanceConfig masterConfig,
+      @JsonProperty("reader") @Nullable List<@NotNull PsqlInstanceConfig> readerConfigs,
+      @JsonProperty("connTimeout") @Nullable Long connTimeout,
+      @JsonProperty("stmtTimeout") @Nullable Long stmtTimeout,
+      @JsonProperty("lockTimeout") @Nullable Long lockTimeout,
+      @JsonProperty("logLevel") @Nullable EPsqlLogLevel logLevel) {
+    this.storage = new PostgresStorage(
+        this,
+        storageId,
+        appName,
+        schema,
+        masterConfig,
+        readerConfigs,
+        connTimeout,
+        stmtTimeout,
+        lockTimeout,
+        logLevel);
   }
 
   /**
@@ -192,34 +331,118 @@ public final class PsqlStorage implements IStorage, DataSource {
     return storage.assertNotClosed();
   }
 
-  /**
-   * Returns the PostgresQL connection pool.
-   *
-   * @return the PostgresQL connection pool.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull PsqlPool getPsqlPool() {
-    return getDataSource().getPool();
-  }
-
-  /**
-   * Returns the PSQL data source.
-   *
-   * @return the PSQL data source.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull PsqlDataSource getDataSource() {
-    return storage().dataSource;
-  }
-
-  /**
-   * Returns the main schema to operate on.
-   *
-   * @return the main schema to operate on.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull String getSchema() {
+  @JsonGetter("schema")
+  public String getSchema() {
     return storage().getSchema();
+  }
+
+  @JsonSetter("schema")
+  public void setSchema(@NotNull String schema) {
+    storage().setSchema(schema);
+  }
+
+  public @NotNull PsqlStorage withSchema(@NotNull String schema) {
+    setSchema(schema);
+    return this;
+  }
+
+  @JsonGetter("appName")
+  public @NotNull String getAppName() {
+    return storage().getAppName();
+  }
+
+  @JsonSetter("appName")
+  public void setAppName(@NotNull String appName) {
+    storage().setAppName(appName);
+  }
+
+  public @NotNull PsqlStorage withAppName(@NotNull String appName) {
+    setAppName(appName);
+    return this;
+  }
+
+  @JsonGetter("connTimeout")
+  public long getConnTimeoutInMillis() {
+    return storage.getConnTimeout(MILLISECONDS);
+  }
+
+  @JsonSetter("connTimeout")
+  public void setConnTimeoutInMillis(long connTimeout) {
+    setConnTimeout(connTimeout, MILLISECONDS);
+  }
+
+  public long getConnTimeout(@NotNull TimeUnit timeUnit) {
+    return storage().getConnTimeout(timeUnit);
+  }
+
+  public void setConnTimeout(long connTimeout, @NotNull TimeUnit timeUnit) {
+    storage().setConnTimeout(connTimeout, timeUnit);
+  }
+
+  public @NotNull PsqlStorage withConnTimeout(long connTimeout, @NotNull TimeUnit timeUnit) {
+    setConnTimeout(connTimeout, timeUnit);
+    return this;
+  }
+
+  @JsonGetter("stmtTimeout")
+  public long getStatementTimeoutInMillis() {
+    return storage().getStatementTimeout(MILLISECONDS);
+  }
+
+  @JsonSetter("stmtTimeout")
+  public void setStatementTimeoutInMillis(long stmtTimeout) {
+    storage().setStatementTimeout(stmtTimeout, MILLISECONDS);
+  }
+
+  public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
+    return storage().getStatementTimeout(timeUnit);
+  }
+
+  public void setStatementTimeout(long stmtTimeout, @NotNull TimeUnit timeUnit) {
+    storage().setStatementTimeout(stmtTimeout, timeUnit);
+  }
+
+  public @NotNull PsqlStorage withStatementTimeout(long stmtTimeout, @NotNull TimeUnit timeUnit) {
+    setStatementTimeout(stmtTimeout, timeUnit);
+    return this;
+  }
+
+  @JsonGetter("lockTimeout")
+  public long getLockTimeoutInMillis() {
+    return storage().getLockTimeout(MILLISECONDS);
+  }
+
+  @JsonSetter("lockTimeout")
+  public void setLockTimeoutInMillis(long lockTimeout) {
+    storage().setLockTimeout(lockTimeout, MILLISECONDS);
+  }
+
+  public long getLockTimeout(@NotNull TimeUnit timeUnit) {
+    return storage().getLockTimeout(timeUnit);
+  }
+
+  public void setLockTimeout(long lockTimeout, @NotNull TimeUnit timeUnit) {
+    storage().setLockTimeout(lockTimeout, timeUnit);
+  }
+
+  public @NotNull PsqlStorage withLockTimeout(long lockTimeout, @NotNull TimeUnit timeUnit) {
+    setLockTimeout(lockTimeout, timeUnit);
+    return this;
+  }
+
+  @JsonGetter("logLevel")
+  public @NotNull EPsqlLogLevel getLogLevel() {
+    return storage().getLogLevel();
+  }
+
+  @JsonSetter("logLevel")
+  public void setLogLevel(@Nullable EPsqlLogLevel logLevel) {
+    storage().setLogLevel(logLevel);
+  }
+
+  public @NotNull PsqlStorage withLogLevel(@Nullable EPsqlLogLevel logLevel) {
+    setLogLevel(logLevel);
+    return this;
   }
 
   /**
@@ -227,19 +450,10 @@ public final class PsqlStorage implements IStorage, DataSource {
    *
    * @return the storage identifier.
    */
+  @JsonIgnore
   @AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull String getStorageId() {
     return storage().storageId;
-  }
-
-  /**
-   * Returns the connector identification number.
-   *
-   * @return the connector identification number.
-   */
-  @Deprecated
-  public long getStorageNumber() {
-    return 0L;
   }
 
   @Override
@@ -250,12 +464,6 @@ public final class PsqlStorage implements IStorage, DataSource {
 
   @Override
   public void stopMaintainer() {}
-
-  @Deprecated
-  @Override
-  public void init() {
-    initStorage();
-  }
 
   /**
    * Ensure that the administration tables exists, and the Naksha extension script installed in the latest version.
@@ -286,129 +494,8 @@ public final class PsqlStorage implements IStorage, DataSource {
     return storage().newReadSession(context, useMaster);
   }
 
-  @Deprecated
-  public static int maxHistoryAgeInDays = 30;
-
-  /**
-   * Review all collections and ensure that the history does have the needed partitions created. The method will as well garbage collect the
-   * history; if the history of a collection holds data that is too old (exceeds the maximum age), it deletes it.
-   *
-   * @throws SQLException If any error occurred.
-   */
-  @Deprecated
-  @Override
-  public void maintain(@NotNull List<CollectionInfo> collectionInfoList) {
-    for (CollectionInfo collectionInfo : collectionInfoList) {
-      try (final Connection conn = storage().dataSource.getConnection()) {
-        try (final Statement stmt = conn.createStatement()) {
-          stmt.execute(createHstPartitionOfOneDay(0, collectionInfo));
-          stmt.execute(createHstPartitionOfOneDay(1, collectionInfo));
-          stmt.execute(createHstPartitionOfOneDay(2, collectionInfo));
-          stmt.execute(createTxPartitionOfOneDay(0));
-          stmt.execute(createTxPartitionOfOneDay(1));
-          stmt.execute(createTxPartitionOfOneDay(2));
-          /*
-          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays, collectionInfo));
-          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 1, collectionInfo));
-          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 2, collectionInfo));
-          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 3, collectionInfo));
-          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 4, collectionInfo));
-          stmt.execute(deleteHstPartitionOfOneDay(maxHistoryAgeInDays + 5, collectionInfo));
-          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays));
-          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 1));
-          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 2));
-          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 3));
-          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 4));
-          stmt.execute(deleteTxPartitionOfOneDay(maxHistoryAgeInDays + 5));
-          */
-        }
-        // commit once for every single collection so that partial progress is saved in case
-        // something fails
-        // midway
-        conn.commit();
-      } catch (Throwable t) {
-        throw unchecked(t);
-      }
-    }
-  }
-
-  @Deprecated
-  private String createHstPartitionOfOneDay(int dayPlus, CollectionInfo collectionInfo) {
-    return new StringBuilder()
-        .append("SELECT ")
-        .append(getSchema())
-        .append(".__naksha_create_hst_partition_for_day('")
-        .append(collectionInfo.getId())
-        .append("',current_timestamp+'")
-        .append(dayPlus)
-        .append(" day'::interval);")
-        .toString();
-  }
-
-  @Deprecated
-  private String createTxPartitionOfOneDay(int dayPlus) {
-    return new StringBuilder()
-        .append("SELECT ")
-        .append(getSchema())
-        .append(".__naksha_create_tx_partition_for_day(current_timestamp+'")
-        .append(dayPlus)
-        .append(" day'::interval);")
-        .toString();
-  }
-
-  @Deprecated
-  private String deleteHstPartitionOfOneDay(int dayOld, CollectionInfo collectionInfo) {
-    return new StringBuilder()
-        .append("SELECT ")
-        .append(getSchema())
-        .append(".__naksha_delete_hst_partition_for_day('")
-        .append(collectionInfo.getId())
-        .append("',current_timestamp-'")
-        .append(dayOld)
-        .append(" day'::interval);")
-        .toString();
-  }
-
-  @Deprecated
-  private String deleteTxPartitionOfOneDay(int dayOld) {
-    return new StringBuilder()
-        .append("SELECT ")
-        .append(getSchema())
-        .append(".__naksha_delete_tx_partition_for_day(current_timestamp-'")
-        .append(dayOld)
-        .append(" day'::interval);")
-        .toString();
-  }
-
-  /**
-   * Create default transaction settings.
-   *
-   * @return New transaction settings.
-   */
-  @Deprecated
-  public @NotNull ITransactionSettings createSettings() {
-    final PostgresStorage storage = storage();
-    final PsqlPool pool = storage.dataSource.getPool();
-    return new PsqlTransactionSettings(pool.config.stmtTimeout, pool.config.lockTimeout);
-  }
-
-  @Deprecated
-  @Override
-  public @NotNull PsqlTxReader openReplicationTransaction(@NotNull ITransactionSettings settings) {
-    return new PsqlTxReader(this, settings);
-  }
-
-  @Deprecated
-  @Override
-  public @NotNull PsqlTxWriter openMasterTransaction(@NotNull ITransactionSettings settings) {
-    return new PsqlTxWriter(this, settings);
-  }
-
-  @Deprecated
-  private @Nullable INaksha naksha;
-
   @Override
   public @NotNull <T> Future<T> shutdown(@Nullable Fe1<T, IStorage> onShutdown) {
-    return new PsqlShutdownTask<>(this, onShutdown, naksha, NakshaContext.currentContext()).start();
+    return new PsqlShutdownTask<>(this, onShutdown, null, NakshaContext.currentContext()).start();
   }
 }

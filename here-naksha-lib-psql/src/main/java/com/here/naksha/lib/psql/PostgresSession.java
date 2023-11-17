@@ -19,11 +19,14 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.models.storage.XyzCodecFactory.getFactory;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.FeatureCodec;
 import com.here.naksha.lib.core.models.storage.Notification;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
@@ -31,26 +34,27 @@ import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteCollections;
 import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.models.storage.XyzCollectionCodecFactory;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import com.here.naksha.lib.core.storage.IStorageLock;
-import com.here.naksha.lib.core.util.CloseableResource;
+import com.here.naksha.lib.core.util.ClosableChildResource;
 import com.here.naksha.lib.core.util.json.Json;
 import com.vividsolutions.jts.geom.Coordinate;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
-import org.postgresql.jdbc.PgConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A PostgresQL session being backed by the PostgresQL data connection. It keeps track of all open cursors as resource children and
- * guarantees that all cursors are closed before the underlying connection is closed.
+ * A PostgresQL session being backed by the PostgresQL connection. It keeps track of all open cursors as resource children and guarantees
+ * that all cursors are closed before the underlying connection is closed.
  */
-final class PostgresSession extends CloseableResource<PostgresStorage> {
+final class PostgresSession extends ClosableChildResource<PostgresStorage> {
 
   private static final Logger log = LoggerFactory.getLogger(PostgresSession.class);
 
@@ -60,21 +64,15 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
       @NotNull PsqlSession proxy,
       @NotNull PostgresStorage storage,
       @NotNull NakshaContext context,
-      @NotNull Connection connection,
-      boolean readOnly) {
+      @NotNull PsqlConnection psqlConnection) {
     super(proxy, storage);
     this.context = context;
-    this.connection = connection;
-    this.readOnly = readOnly;
-    this.config = storage().dataSource.getConfig();
+    this.psqlConnection = psqlConnection;
+    this.readOnly = psqlConnection.connection.parent().config.readOnly;
     this.sql = new SQL();
-  }
-
-  @NotNull
-  PostgresStorage storage() {
-    final PostgresStorage storage = super.parent();
-    assert storage != null;
-    return storage;
+    this.fetchSize = storage.getFetchSize();
+    this.stmtTimeoutMillis = storage.getLockTimeout(MILLISECONDS);
+    this.lockTimeoutMillis = storage.getLockTimeout(MILLISECONDS);
   }
 
   /**
@@ -82,29 +80,18 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
    */
   final @NotNull NakshaContext context;
 
-  final @NotNull Connection connection;
+  int fetchSize;
+  long stmtTimeoutMillis;
+  long lockTimeoutMillis;
+
+  final @NotNull PsqlConnection psqlConnection;
   final boolean readOnly;
-  final @NotNull PsqlStorageConfig config;
   private final @NotNull SQL sql;
-  // Statement timeout in milliseconds.
-  long stmtTimeout = -1;
-  // Lock timeout in milliseconds.
-  long lockTimeout = -1;
-  // The amount of features to fetch at ones.
-  int fetchSize = 1000;
 
   @Override
   protected void destruct() {
     try {
-      connection.rollback();
-    } catch (SQLException e) {
-      log.atInfo()
-          .setMessage("Error while trying to rollback connection")
-          .setCause(e)
-          .log();
-    }
-    try {
-      connection.close();
+      psqlConnection.close();
     } catch (Exception e) {
       log.atInfo()
           .setMessage("Failed to close PostgresQL connection")
@@ -113,51 +100,68 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
     }
   }
 
+  int getFetchSize() {
+    return fetchSize;
+  }
+
+  void setFetchSize(int size) {
+    if (size <= 1) {
+      throw new IllegalArgumentException("The fetchSize must be greater than zero");
+    }
+    this.fetchSize = size;
+  }
+
+  long getStatementTimeout(@NotNull TimeUnit timeUnit) {
+    return timeUnit.convert(stmtTimeoutMillis, MILLISECONDS);
+  }
+
+  void setStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) throws SQLException {
+    if (timeout < 0) {
+      throw new IllegalArgumentException("The timeout must be greater/equal zero");
+    }
+    final long stmtTimeoutMillis = MILLISECONDS.convert(timeout, timeUnit);
+    if (stmtTimeoutMillis != this.stmtTimeoutMillis) {
+      this.stmtTimeoutMillis = stmtTimeoutMillis;
+      executeStatement(sql().add("SET SESSION statement_timeout TO ")
+          .add(stmtTimeoutMillis)
+          .add(";\n"));
+    }
+  }
+
+  long getLockTimeout(@NotNull TimeUnit timeUnit) {
+    return timeUnit.convert(lockTimeoutMillis, MILLISECONDS);
+  }
+
+  void setLockTimeout(long timeout, @NotNull TimeUnit timeUnit) throws SQLException {
+    if (timeout < 0) {
+      throw new IllegalArgumentException("The timeout must be greater/equal zero");
+    }
+    final long lockTimeoutMillis = MILLISECONDS.convert(timeout, timeUnit);
+    if (this.lockTimeoutMillis != lockTimeoutMillis) {
+      this.lockTimeoutMillis = lockTimeoutMillis;
+      executeStatement(sql().add("SET SESSION lock_timeout TO ")
+          .add(lockTimeoutMillis)
+          .add(";\n"));
+    }
+  }
+
   @NotNull
   SQL sql() {
     sql.setLength(0);
-    if (stmtTimeout >= 0) {
-      sql.add("SET LOCAL statement_timeout TO ").add(stmtTimeout).add(";\n");
-    }
-    if (lockTimeout >= 0) {
-      sql.add("SET LOCAL lock_timeout TO ").add(lockTimeout).add(";\n");
-    }
     return sql;
   }
 
-  @SuppressWarnings("SqlSourceToSinkFlow")
-  @NotNull
-  PreparedStatement prepareWithCursor(@NotNull CharSequence query) {
-    try {
-      PreparedStatement stmt = connection.prepareStatement(
-          query.toString(),
-          ResultSet.TYPE_SCROLL_INSENSITIVE,
-          ResultSet.CONCUR_READ_ONLY,
-          ResultSet.HOLD_CURSORS_OVER_COMMIT);
-      stmt.setFetchSize(fetchSize);
-      return stmt;
-    } catch (SQLException e) {
-      throw unchecked(e);
+  void executeStatement(@NotNull CharSequence query) throws SQLException {
+    try (final Statement stmt = psqlConnection.createStatement()) {
+      stmt.execute(query.toString());
     }
   }
 
-  void commit(boolean autoCloseCursors) throws SQLException {
-
-  }
-
-  void rollback(boolean autoCloseCursors) throws SQLException {
-
-  }
-
-  void close(boolean autoCloseCursors) {
-
-  }
-
   @SuppressWarnings("SqlSourceToSinkFlow")
   @NotNull
-  PreparedStatement prepareWithoutCursor(@NotNull CharSequence query) {
+  PreparedStatement prepareStatement(@NotNull CharSequence query) {
     try {
-      PreparedStatement stmt = connection.prepareStatement(
+      final PreparedStatement stmt = psqlConnection.prepareStatement(
           query.toString(),
           ResultSet.TYPE_FORWARD_ONLY,
           ResultSet.CONCUR_READ_ONLY,
@@ -169,17 +173,27 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
     }
   }
 
+  void commit(boolean autoCloseCursors) throws SQLException {
+    // TODO: Apply autoCloseCursors
+    psqlConnection.commit();
+  }
+
+  void rollback(boolean autoCloseCursors) throws SQLException {
+    // TODO: Apply autoCloseCursors
+    psqlConnection.rollback();
+  }
+
+  void close(boolean autoCloseCursors) {
+    // TODO: Apply autoCloseCursors
+    psqlConnection.close();
+  }
+
   private static void assure3d(@NotNull Coordinate @NotNull [] coords) {
     for (final @NotNull Coordinate coord : coords) {
       if (coord.z != coord.z) { // if coord.z is NaN
         coord.z = 0;
       }
     }
-  }
-
-  @NotNull
-  PgConnection pgConnection() {
-    return (PgConnection) connection;
   }
 
   @NotNull
@@ -214,22 +228,24 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
   }
 
   @NotNull
-  <T> Result executeWrite(@NotNull WriteRequest<T, ?> writeRequest) {
-    if (writeRequest instanceof WriteCollections<?>) {
-      final PreparedStatement stmt = prepareWithCursor(
-          sql().add(
-                  "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, r_geometry FROM naksha_write_collections(?);\n"));
+  <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> Result executeWrite(
+      @NotNull WriteRequest<FEATURE, CODEC, ?> writeRequest) {
+    if (writeRequest instanceof WriteCollections) {
+      final PreparedStatement stmt = prepareStatement(
+          "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, r_geometry FROM naksha_write_collections(?);\n");
       try (final Json json = Json.get()) {
-        final @NotNull List<? extends WriteOp<T>> queries = writeRequest.features;
+        final List<@NotNull CODEC> features = writeRequest.features;
         final int SIZE = writeRequest.features.size();
         final String[] write_ops_json = new String[SIZE];
         final PostgresWriteOp out = new PostgresWriteOp();
         for (int i = 0; i < SIZE; i++) {
-          convert(json, queries.get(i), out);
+          final CODEC codec = features.get(i);
+          out.decode(codec);
           write_ops_json[i] = json.writer().writeValueAsString(out);
         }
-        stmt.setArray(1, connection.createArrayOf("jsonb", write_ops_json));
-        return new PsqlSuccess(new PsqlCursor<>(this, stmt, stmt.executeQuery()));
+        stmt.setArray(1, psqlConnection.createArrayOf("jsonb", write_ops_json));
+        return new PsqlSuccess(
+            new PsqlCursor<>(getFactory(XyzCollectionCodecFactory.class), this, stmt, stmt.executeQuery()));
       } catch (Throwable e) {
         try {
           stmt.close();
@@ -239,33 +255,34 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
         throw unchecked(e);
       }
     }
-    if (writeRequest instanceof final WriteFeatures<?> writeFeatures) {
-      final int partition_id;
-      //noinspection rawtypes
-      if (writeFeatures instanceof PostgresWriteFeaturesToPartition writeToPartition) {
-        partition_id = writeToPartition.partitionId;
-      } else {
-        partition_id = -1;
-      }
-      final PreparedStatement stmt = prepareWithCursor(
+    if (writeRequest instanceof final WriteFeatures<?, ?, ?> writeFeatures) {
+      final int partition_id = -1;
+      //      if (writeFeatures instanceof PostgresWriteFeaturesToPartition<?> writeToPartition) {
+      //        partition_id = writeToPartition.partitionId;
+      //      } else {
+      //        partition_id = -1;
+      //      }
+      final PreparedStatement stmt = prepareStatement(
           "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, ST_AsEWKB(r_geometry) FROM nk_write_features(?,?,?,?,?);");
       try (final Json json = Json.get()) {
-        final @NotNull List<? extends WriteOp<T>> queries = writeRequest.features;
+        final List<@NotNull CODEC> features = writeRequest.features;
         final int SIZE = writeRequest.features.size();
         final String[] write_ops_json = new String[SIZE];
         final byte[][] geometries = new byte[SIZE][];
         final PostgresWriteOp out = new PostgresWriteOp();
         for (int i = 0; i < SIZE; i++) {
-          convert(json, queries.get(i), out);
+          final CODEC codec = features.get(i);
+          out.decode(codec);
           write_ops_json[i] = json.writer().writeValueAsString(out);
-          geometries[i] = out.geometry;
+          geometries[i] = codec.getWkb();
         }
         stmt.setString(1, writeFeatures.getCollectionId());
         stmt.setInt(2, partition_id);
-        stmt.setArray(3, connection.createArrayOf("jsonb", write_ops_json));
-        stmt.setArray(4, connection.createArrayOf("bytea", geometries));
+        stmt.setArray(3, psqlConnection.createArrayOf("jsonb", write_ops_json));
+        stmt.setArray(4, psqlConnection.createArrayOf("bytea", geometries));
         stmt.setBoolean(5, writeFeatures.minResults);
-        return new PsqlSuccess(new PsqlCursor<>(this, stmt, stmt.executeQuery()));
+        return new PsqlSuccess(
+            new PsqlCursor<>(getFactory(XyzFeatureCodecFactory.class), this, stmt, stmt.executeQuery()));
       } catch (Throwable e) {
         try {
           stmt.close();

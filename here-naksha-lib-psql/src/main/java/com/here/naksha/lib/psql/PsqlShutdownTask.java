@@ -58,7 +58,7 @@ class PsqlShutdownTask<T> extends AbstractTask<T, PsqlShutdownTask<T>> {
     T result = null;
     if (onShutdown != null) {
       try {
-        onShutdown.call(psqlStorage);
+        result = onShutdown.call(psqlStorage);
       } catch (Exception e) {
         log.atError()
             .setMessage("Unexpected error in shutdown handler, returning null")

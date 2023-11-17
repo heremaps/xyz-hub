@@ -1,18 +1,28 @@
+/*
+ * Copyright (C) 2017-2023 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.psql.PostgresInstance.allInstances;
 import static com.here.naksha.lib.psql.PostgresInstance.mutex;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import com.here.naksha.lib.psql.PsqlDataSource.SLF4JLogWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.Writer;
-import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
 import java.util.concurrent.TimeUnit;
-import javax.sql.DataSource;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,8 +85,14 @@ public final class PsqlInstance {
       int fetchSize,
       long connTimeoutInSeconds,
       long sockedReadTimeoutInSeconds,
-      long cancelSignalTimeoutInSeconds) throws SQLException {
-    return postgresInstance.getConnection(applicationName, schema, fetchSize, connTimeoutInSeconds, sockedReadTimeoutInSeconds,
+      long cancelSignalTimeoutInSeconds)
+      throws SQLException {
+    return postgresInstance.getConnection(
+        applicationName,
+        schema,
+        fetchSize,
+        connTimeoutInSeconds,
+        sockedReadTimeoutInSeconds,
         cancelSignalTimeoutInSeconds);
   }
 
@@ -108,7 +124,7 @@ public final class PsqlInstance {
    * @return this.
    */
   public @NotNull PsqlInstance withMediumLatency(long latency, @NotNull TimeUnit timeUnit) {
-    setMediumLatency(latency, timeUnit);
+    postgresInstance.setMediumLatency(latency, timeUnit);
     return this;
   }
 
@@ -137,8 +153,7 @@ public final class PsqlInstance {
    * @return this.
    */
   public @NotNull PsqlInstance withMaxBandwidthInGbit(long maxBandwidthInGbit) {
-    setMaxBandwidthInGbit(maxBandwidthInGbit);
+    postgresInstance.setMaxBandwidthInGbit(maxBandwidthInGbit);
     return this;
   }
-
 }

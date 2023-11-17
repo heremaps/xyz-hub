@@ -16,23 +16,30 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.psql;
+package com.here.naksha.lib.core.util;
 
-import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
+import java.util.concurrent.locks.ReentrantLock;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
-/**
- * Signals a PostgresQL error.
- */
-class PsqlError extends ErrorResult {
+public abstract class ClosableChildResource<PARENT extends CloseableResource<?>> extends CloseableResource<PARENT> {
 
-  PsqlError(@NotNull XyzError reason, @NotNull String message) {
-    super(reason, message);
+  protected ClosableChildResource(@NotNull Object proxy, @NotNull PARENT parent) {
+    super(proxy, parent);
   }
 
-  PsqlError(@NotNull XyzError reason, @NotNull String message, @Nullable Throwable exception) {
-    super(reason, message, exception);
+  protected ClosableChildResource(@NotNull Object proxy, @NotNull PARENT parent, @NotNull ReentrantLock mutex) {
+    super(proxy, parent, mutex);
+  }
+
+  /**
+   * Returns the parent.
+   *
+   * @return the parent.
+   */
+  @Override
+  protected @NotNull PARENT parent() {
+    final PARENT parent = super.parent();
+    assert parent != null;
+    return parent;
   }
 }

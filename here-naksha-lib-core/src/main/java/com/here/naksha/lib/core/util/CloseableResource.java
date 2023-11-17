@@ -93,7 +93,7 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
       }
       try {
         //noinspection BusyWait
-        Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+        Thread.sleep(500);
       } catch (InterruptedException ignore) {
       }
     }
@@ -273,7 +273,10 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
           // Detect a leak and log warning.
           if (isLeaked && logLeak() && logNextLeak.get() < System.currentTimeMillis()) {
             logNextLeak.set(System.currentTimeMillis() + PRINT_LEAK_EVERY_X_MILLIS);
-            log.atWarn().setMessage("Resource leaked").setCause(allocation).log();
+            log.atWarn()
+                .setMessage("Resource leaked")
+                .setCause(allocation)
+                .log();
           }
           try {
             destruct();
@@ -304,7 +307,10 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
         return true;
       }
     } catch (Exception e) {
-      log.atDebug().setMessage("Unexpected exception while trying to acquire mutex").setCause(e).log();
+      log.atDebug()
+          .setMessage("Unexpected exception while trying to acquire mutex")
+          .setCause(e)
+          .log();
     }
     return false;
   }

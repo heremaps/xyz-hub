@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2017-2023 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
@@ -41,40 +59,50 @@ public class PsqlConnection implements Connection {
       long sockedReadTimeoutInSeconds,
       long cancelSignalTimeoutInSeconds,
       long receiveBufferSize,
-      long sendBufferSize) throws SQLException {
+      long sendBufferSize)
+      throws SQLException {
     this.psqlInstance = psqlInstance;
-    this.ref = new PostgresConnection(this, psqlInstance.postgresInstance, applicationName, schema, fetchSize, connTimeoutInSeconds,
-        sockedReadTimeoutInSeconds, cancelSignalTimeoutInSeconds, receiveBufferSize, sendBufferSize);
+    this.connection = new PostgresConnection(
+        this,
+        psqlInstance.postgresInstance,
+        applicationName,
+        schema,
+        fetchSize,
+        connTimeoutInSeconds,
+        sockedReadTimeoutInSeconds,
+        cancelSignalTimeoutInSeconds,
+        receiveBufferSize,
+        sendBufferSize);
   }
 
   /**
    * The PostgresQL instance by which this connection was created.
    */
-  private @NotNull PsqlInstance psqlInstance;
+  private final @NotNull PsqlInstance psqlInstance;
 
   /**
    * The closable resource that wraps the real {@link PgConnection}.
    */
-  private @NotNull PostgresConnection ref;
+  final @NotNull PostgresConnection connection;
 
   @Override
   public @NotNull Statement createStatement() throws SQLException {
-    return ref.conn().createStatement();
+    return connection.get().createStatement();
   }
 
   @Override
   public @NotNull PreparedStatement prepareStatement(@NotNull String sql) throws SQLException {
-    return ref.conn().prepareStatement(sql);
+    return connection.get().prepareStatement(sql);
   }
 
   @Override
   public @NotNull CallableStatement prepareCall(@NotNull String sql) throws SQLException {
-    return ref.conn().prepareCall(sql);
+    return connection.get().prepareCall(sql);
   }
 
   @Override
   public @NotNull String nativeSQL(@NotNull String sql) throws SQLException {
-    return ref.conn().nativeSQL(sql);
+    return connection.get().nativeSQL(sql);
   }
 
   @Override
@@ -91,40 +119,40 @@ public class PsqlConnection implements Connection {
 
   @Override
   public void commit() throws SQLException {
-    ref.conn().commit();
+    connection.get().commit();
   }
 
   @Override
   public void rollback() throws SQLException {
-    ref.conn().rollback();
+    connection.get().rollback();
   }
 
   @Override
   public void close() {
-    ref.close();
+    connection.close();
   }
 
   @Override
   public boolean isClosed() {
-    return ref.isClosed();
+    return connection.isClosed();
   }
 
   @Override
   public @NotNull DatabaseMetaData getMetaData() throws SQLException {
-    return ref.conn().getMetaData();
+    return connection.get().getMetaData();
   }
 
   @Override
   public void setReadOnly(boolean readOnly) throws SQLException {
-    if (!readOnly && ref.parent().config.readOnly) {
+    if (!readOnly && connection.parent().config.readOnly) {
       throw new SQLException("The Postgres instance is a read-only instance, can't switch into write mode");
     }
-    ref.conn().setReadOnly(readOnly);
+    connection.get().setReadOnly(readOnly);
   }
 
   @Override
   public boolean isReadOnly() throws SQLException {
-    return ref.conn().isReadOnly();
+    return connection.get().isReadOnly();
   }
 
   @Override
@@ -136,146 +164,152 @@ public class PsqlConnection implements Connection {
   @Override
   public @NotNull String getCatalog() throws SQLException {
     // Should return the database name to which we're connected.
-    return ref.conn().getCatalog();
+    return connection.get().getCatalog();
   }
 
   @Override
   public void setTransactionIsolation(int level) throws SQLException {
-    ref.conn().setTransactionIsolation(level);
+    connection.get().setTransactionIsolation(level);
   }
 
   @Override
   public int getTransactionIsolation() throws SQLException {
-    return ref.conn().getTransactionIsolation();
+    return connection.get().getTransactionIsolation();
   }
 
   @Override
   public @Nullable SQLWarning getWarnings() throws SQLException {
-    return ref.conn().getWarnings();
+    return connection.get().getWarnings();
   }
 
   @Override
   public void clearWarnings() throws SQLException {
-    ref.conn().clearWarnings();
+    connection.get().clearWarnings();
   }
 
   @Override
   public @NotNull Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-    return ref.conn().createStatement(resultSetType, resultSetConcurrency);
+    return connection.get().createStatement(resultSetType, resultSetConcurrency);
   }
 
   @Override
-  public @NotNull PreparedStatement prepareStatement(@NotNull String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-    return ref.conn().prepareStatement(sql, resultSetType, resultSetConcurrency);
+  public @NotNull PreparedStatement prepareStatement(@NotNull String sql, int resultSetType, int resultSetConcurrency)
+      throws SQLException {
+    return connection.get().prepareStatement(sql, resultSetType, resultSetConcurrency);
   }
 
   @Override
-  public @NotNull CallableStatement prepareCall(@NotNull String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-    return ref.conn().prepareCall(sql, resultSetType, resultSetConcurrency);
+  public @NotNull CallableStatement prepareCall(@NotNull String sql, int resultSetType, int resultSetConcurrency)
+      throws SQLException {
+    return connection.get().prepareCall(sql, resultSetType, resultSetConcurrency);
   }
 
   @Override
   public @NotNull Map<String, Class<?>> getTypeMap() throws SQLException {
-    return ref.conn().getTypeMap();
+    return connection.get().getTypeMap();
   }
 
   @Override
   public void setTypeMap(@NotNull Map<String, Class<?>> map) throws SQLException {
-    ref.conn().setTypeMap(map);
+    connection.get().setTypeMap(map);
   }
 
   @Override
   public void setHoldability(int holdability) throws SQLException {
-    ref.conn().setHoldability(holdability);
+    connection.get().setHoldability(holdability);
   }
 
   @Override
   public int getHoldability() throws SQLException {
-    return ref.conn().getHoldability();
+    return connection.get().getHoldability();
   }
 
   @Override
   public @NotNull Savepoint setSavepoint() throws SQLException {
-    return ref.conn().setSavepoint();
+    return connection.get().setSavepoint();
   }
 
   @Override
   public @NotNull Savepoint setSavepoint(@NotNull String name) throws SQLException {
-    return ref.conn().setSavepoint(name);
+    return connection.get().setSavepoint(name);
   }
 
   @Override
   public void rollback(@NotNull Savepoint savepoint) throws SQLException {
-    ref.conn().rollback(savepoint);
+    connection.get().rollback(savepoint);
   }
 
   @Override
   public void releaseSavepoint(@NotNull Savepoint savepoint) throws SQLException {
-    ref.conn().releaseSavepoint(savepoint);
+    connection.get().releaseSavepoint(savepoint);
   }
 
   @Override
-  public @NotNull Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-    return ref.conn().createStatement(resultSetType, resultSetConcurrency, resultSetHoldability);
-  }
-
-  @Override
-  public @NotNull PreparedStatement prepareStatement(@NotNull String sql, int resultSetType, int resultSetConcurrency,
-      int resultSetHoldability)
+  public @NotNull Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability)
       throws SQLException {
-    return ref.conn().prepareStatement(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
+    return connection.get().createStatement(resultSetType, resultSetConcurrency, resultSetHoldability);
   }
 
   @Override
-  public @NotNull CallableStatement prepareCall(@NotNull String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
+  public @NotNull PreparedStatement prepareStatement(
+      @NotNull String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
       throws SQLException {
-    return ref.conn().prepareCall(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
+    return connection.get().prepareStatement(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
+  }
+
+  @Override
+  public @NotNull CallableStatement prepareCall(
+      @NotNull String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
+      throws SQLException {
+    return connection.get().prepareCall(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
   }
 
   @Override
   public @NotNull PreparedStatement prepareStatement(@NotNull String sql, int autoGeneratedKeys) throws SQLException {
-    return ref.conn().prepareStatement(sql, autoGeneratedKeys);
+    return connection.get().prepareStatement(sql, autoGeneratedKeys);
   }
 
   @Override
-  public @NotNull PreparedStatement prepareStatement(@NotNull String sql, int @NotNull [] columnIndexes) throws SQLException {
-    return ref.conn().prepareStatement(sql, columnIndexes);
+  public @NotNull PreparedStatement prepareStatement(@NotNull String sql, int @NotNull [] columnIndexes)
+      throws SQLException {
+    return connection.get().prepareStatement(sql, columnIndexes);
   }
 
   @Override
-  public @NotNull PreparedStatement prepareStatement(@NotNull String sql, @NotNull String @NotNull [] columnNames) throws SQLException {
-    return ref.conn().prepareStatement(sql, columnNames);
+  public @NotNull PreparedStatement prepareStatement(@NotNull String sql, @NotNull String @NotNull [] columnNames)
+      throws SQLException {
+    return connection.get().prepareStatement(sql, columnNames);
   }
 
   @Override
   public @NotNull Clob createClob() throws SQLException {
-    return ref.conn().createClob();
+    return connection.get().createClob();
   }
 
   @Override
   public @NotNull Blob createBlob() throws SQLException {
-    return ref.conn().createBlob();
+    return connection.get().createBlob();
   }
 
   @Override
   public @NotNull NClob createNClob() throws SQLException {
-    return ref.conn().createNClob();
+    return connection.get().createNClob();
   }
 
   @Override
   public @NotNull SQLXML createSQLXML() throws SQLException {
-    return ref.conn().createSQLXML();
+    return connection.get().createSQLXML();
   }
 
   @Override
   public boolean isValid(int timeout) throws SQLException {
-    return ref.conn().isValid(timeout);
+    return connection.get().isValid(timeout);
   }
 
   @Override
   public void setClientInfo(@NotNull String name, @NotNull String value) throws SQLClientInfoException {
     try {
-      ref.conn().setClientInfo(name, value);
+      connection.get().setClientInfo(name, value);
     } catch (SQLException e) {
       throw unchecked(e);
     }
@@ -284,7 +318,7 @@ public class PsqlConnection implements Connection {
   @Override
   public void setClientInfo(@NotNull Properties properties) throws SQLClientInfoException {
     try {
-      ref.conn().setClientInfo(properties);
+      connection.get().setClientInfo(properties);
     } catch (SQLException e) {
       throw unchecked(e);
     }
@@ -292,47 +326,49 @@ public class PsqlConnection implements Connection {
 
   @Override
   public @Nullable String getClientInfo(@NotNull String name) throws SQLException {
-    return ref.conn().getClientInfo(name);
+    return connection.get().getClientInfo(name);
   }
 
   @Override
   public @NotNull Properties getClientInfo() throws SQLException {
-    return ref.conn().getClientInfo();
+    return connection.get().getClientInfo();
   }
 
   @Override
-  public @NotNull Array createArrayOf(@NotNull String typeName, @Nullable Object @NotNull [] elements) throws SQLException {
-    return ref.conn().createArrayOf(typeName, elements);
+  public @NotNull Array createArrayOf(@NotNull String typeName, @Nullable Object @NotNull [] elements)
+      throws SQLException {
+    return connection.get().createArrayOf(typeName, elements);
   }
 
   @Override
-  public @NotNull Struct createStruct(@NotNull String typeName, @Nullable Object @NotNull [] attributes) throws SQLException {
-    return ref.conn().createStruct(typeName, attributes);
+  public @NotNull Struct createStruct(@NotNull String typeName, @Nullable Object @NotNull [] attributes)
+      throws SQLException {
+    return connection.get().createStruct(typeName, attributes);
   }
 
   @Override
   public void setSchema(@NotNull String schema) throws SQLException {
-    ref.conn().setSchema(schema);
+    connection.get().setSchema(schema);
   }
 
   @Override
   public String getSchema() throws SQLException {
-    return ref.conn().getSchema();
+    return connection.get().getSchema();
   }
 
   @Override
   public void abort(@NotNull Executor executor) throws SQLException {
-    ref.conn().abort(executor);
+    connection.get().abort(executor);
   }
 
   @Override
   public void setNetworkTimeout(@NotNull Executor executor, int milliseconds) throws SQLException {
-    ref.conn().setNetworkTimeout(executor, milliseconds);
+    connection.get().setNetworkTimeout(executor, milliseconds);
   }
 
   @Override
   public int getNetworkTimeout() throws SQLException {
-    return ref.conn().getNetworkTimeout();
+    return connection.get().getNetworkTimeout();
   }
 
   @Override
@@ -340,10 +376,10 @@ public class PsqlConnection implements Connection {
     if (iface.isInstance(this)) {
       return iface.cast(this);
     }
-    if (iface.isInstance(ref)) {
-      return iface.cast(ref);
+    if (iface.isInstance(connection)) {
+      return iface.cast(connection);
     }
-    final PgConnection conn = ref.conn();
+    final PgConnection conn = connection.get();
     if (iface.isInstance(conn)) {
       return iface.cast(conn);
     }

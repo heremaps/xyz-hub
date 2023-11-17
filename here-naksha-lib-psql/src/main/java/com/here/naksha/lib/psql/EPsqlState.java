@@ -19,6 +19,8 @@
 package com.here.naksha.lib.psql;
 
 import com.here.naksha.lib.core.util.json.JsonEnum;
+import java.sql.SQLException;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * The PSQL error states.
@@ -27,6 +29,13 @@ import com.here.naksha.lib.core.util.json.JsonEnum;
 public class EPsqlState extends JsonEnum {
   // https://www.postgresql.org/docs/current/errcodes-appendix.html
 
+  public static @NotNull EPsqlState get(@NotNull SQLException e) {
+    return get(EPsqlState.class, e.getSQLState());
+  }
+
+  public static @NotNull EPsqlState get(@NotNull String sqlState) {
+    return get(EPsqlState.class, sqlState);
+  }
 
   public static final EPsqlState OK = def(EPsqlState.class, "00000");
   public static final EPsqlState TOO_MANY_RESULTS = def(EPsqlState.class, "0100E");

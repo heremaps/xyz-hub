@@ -1,8 +1,26 @@
+/*
+ * Copyright (C) 2017-2023 HERE Europe B.V.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ * License-Filename: LICENSE
+ */
 package com.here.naksha.lib.psql;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-import com.here.naksha.lib.core.util.CloseableResource;
+import com.here.naksha.lib.core.util.ClosableRootResource;
 import java.sql.SQLException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -14,7 +32,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Represents a PostgresQL instance with an attached connection pool. This is automatically collected, when all connections are closed.
  */
-public class PostgresInstance extends CloseableResource<PostgresInstance> {
+public class PostgresInstance extends ClosableRootResource {
 
   private static final Logger log = LoggerFactory.getLogger(PostgresInstance.class);
 
@@ -29,7 +47,7 @@ public class PostgresInstance extends CloseableResource<PostgresInstance> {
   static final ReentrantLock mutex = new ReentrantLock();
 
   PostgresInstance(@NotNull PsqlInstance proxy, @NotNull PsqlInstanceConfig config) {
-    super(proxy, null, mutex);
+    super(proxy, mutex);
     this.config = config;
   }
 
@@ -46,7 +64,10 @@ public class PostgresInstance extends CloseableResource<PostgresInstance> {
   @Override
   protected void destruct() {
     if (!allInstances.remove(config, this)) {
-      log.atError().setMessage("Failed to remove PostgresInstance from cache: {}").addArgument(config).log();
+      log.atError()
+          .setMessage("Failed to remove PostgresInstance from cache: {}")
+          .addArgument(config)
+          .log();
     }
   }
 
@@ -74,7 +95,8 @@ public class PostgresInstance extends CloseableResource<PostgresInstance> {
   }
 
   // TODO: Add a pool for PgConnection's.
-  //       Ones done, fix PostgresConnection to release the underlying pgConnection into the pool, when it is destructed.
+  //       Ones done, fix PostgresConnection to release the underlying pgConnection into the pool, when it is
+  // destructed.
 
   /**
    * Returns a new connection from the pool.
@@ -88,17 +110,27 @@ public class PostgresInstance extends CloseableResource<PostgresInstance> {
    * @return The connection.
    * @throws SQLException If acquiring the connection failed.
    */
-  @NotNull PsqlConnection getConnection(
+  @NotNull
+  PsqlConnection getConnection(
       @NotNull String applicationName,
       @NotNull String schema,
       int fetchSize,
       long connTimeoutInSeconds,
       long sockedReadTimeoutInSeconds,
-      long cancelSignalTimeoutInSeconds) throws SQLException {
+      long cancelSignalTimeoutInSeconds)
+      throws SQLException {
     final Object proxy = getProxy();
     if (proxy instanceof PsqlInstance psqlInstance) {
-      return new PsqlConnection(psqlInstance, applicationName, schema, fetchSize, connTimeoutInSeconds, sockedReadTimeoutInSeconds,
-          cancelSignalTimeoutInSeconds, getOptimalBufferSize(), getOptimalBufferSize());
+      return new PsqlConnection(
+          psqlInstance,
+          applicationName,
+          schema,
+          fetchSize,
+          connTimeoutInSeconds,
+          sockedReadTimeoutInSeconds,
+          cancelSignalTimeoutInSeconds,
+          getOptimalBufferSize(),
+          getOptimalBufferSize());
     } else {
       throw new IllegalStateException("Proxy unreachable");
     }
@@ -107,22 +139,22 @@ public class PostgresInstance extends CloseableResource<PostgresInstance> {
   /**
    * Default maximum bandwidth.
    */
-  final static long DEFAULT_BANDWIDTH_GBIT = 20L * 1000L * 1000L * 1000L;
+  static final long DEFAULT_BANDWIDTH_GBIT = 20L * 1000L * 1000L * 1000L;
 
   /**
    * Minimal bandwidth to assume.
    */
-  final static long MIN_BANDWIDTH_GBIT = 10L * 1000L * 1000L;
+  static final long MIN_BANDWIDTH_GBIT = 10L * 1000L * 1000L;
 
   /**
    * Default expected medium latency to the database.
    */
-  final static long DEFAULT_LATENCY_MILLIS = 5;
+  static final long DEFAULT_LATENCY_MILLIS = 5;
 
   /**
    * Minimum latency to the database.
    */
-  final static long MIN_LATENCY_MILLIS = 1;
+  static final long MIN_LATENCY_MILLIS = 1;
 
   long getMediumLatency(@NotNull TimeUnit timeUnit) {
     return timeUnit.convert(mediumLatencyInMillis, MILLISECONDS);
@@ -132,7 +164,8 @@ public class PostgresInstance extends CloseableResource<PostgresInstance> {
     this.mediumLatencyInMillis = Math.min(MIN_LATENCY_MILLIS, MILLISECONDS.convert(latency, timeUnit));
   }
 
-  @NotNull PostgresInstance withMediumLatency(long latency, @NotNull TimeUnit timeUnit) {
+  @NotNull
+  PostgresInstance withMediumLatency(long latency, @NotNull TimeUnit timeUnit) {
     setMediumLatency(latency, timeUnit);
     return this;
   }
@@ -145,7 +178,8 @@ public class PostgresInstance extends CloseableResource<PostgresInstance> {
     this.maxBandwidthInGbit = Math.min(MIN_BANDWIDTH_GBIT, maxBandwidthInGbit);
   }
 
-  @NotNull PostgresInstance withMaxBandwidthInGbit(long maxBandwidthInGbit) {
+  @NotNull
+  PostgresInstance withMaxBandwidthInGbit(long maxBandwidthInGbit) {
     setMaxBandwidthInGbit(maxBandwidthInGbit);
     return this;
   }

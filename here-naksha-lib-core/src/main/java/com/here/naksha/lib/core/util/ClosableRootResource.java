@@ -16,23 +16,28 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.psql;
+package com.here.naksha.lib.core.util;
 
-import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
+import java.util.concurrent.locks.ReentrantLock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * Signals a PostgresQL error.
- */
-class PsqlError extends ErrorResult {
+public abstract class ClosableRootResource extends CloseableResource<ClosableRootResource> {
 
-  PsqlError(@NotNull XyzError reason, @NotNull String message) {
-    super(reason, message);
+  protected ClosableRootResource(@NotNull Object proxy) {
+    super(proxy, null);
   }
 
-  PsqlError(@NotNull XyzError reason, @NotNull String message, @Nullable Throwable exception) {
-    super(reason, message, exception);
+  protected ClosableRootResource(@NotNull Object proxy, @NotNull ReentrantLock mutex) {
+    super(proxy, null, mutex);
+  }
+
+  /**
+   * Returns {@code null}.
+   *
+   * @return {@code null}.
+   */
+  protected @Nullable ClosableRootResource parent() {
+    return null;
   }
 }

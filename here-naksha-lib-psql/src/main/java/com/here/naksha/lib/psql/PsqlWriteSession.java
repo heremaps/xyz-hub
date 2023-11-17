@@ -38,8 +38,9 @@ public final class PsqlWriteSession extends PsqlSession implements IWriteSession
 
   private static final Logger log = LoggerFactory.getLogger(PsqlWriteSession.class);
 
-  PsqlWriteSession(@NotNull PostgresStorage storage, @NotNull NakshaContext context, @NotNull Connection connection) {
-    super(storage, context, connection, false);
+  PsqlWriteSession(
+      @NotNull PostgresStorage storage, @NotNull NakshaContext context, @NotNull PsqlConnection connection) {
+    super(storage, context, connection);
   }
 
   @Override

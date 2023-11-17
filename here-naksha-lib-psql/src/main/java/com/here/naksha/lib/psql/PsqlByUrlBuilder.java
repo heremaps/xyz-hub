@@ -27,10 +27,10 @@ import java.net.URISyntaxException;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Base class for configuration builders with URL parsing support.
+ * Base class that supports in creating builders or instances from URLs.
  */
 @SuppressWarnings("unused")
-abstract class PsqlAbstractConfigBuilder<TARGET, SELF extends PsqlAbstractConfigBuilder<TARGET, SELF>> {
+abstract class PsqlByUrlBuilder<SELF extends PsqlByUrlBuilder<SELF>> {
 
   protected final @NotNull SELF self() {
     //noinspection unchecked
@@ -41,7 +41,7 @@ abstract class PsqlAbstractConfigBuilder<TARGET, SELF extends PsqlAbstractConfig
    * Parse the given <a href="https://jdbc.postgresql.org/documentation/use/">PostgresQL URL</a> to set up the builder.
    *
    * @param postgresUrl the PostgresQL URL, for example
-   *                    <br/>{@code jdbc:postgresql://{HOST}[:{PORT}]/{DB}?user={USER}&password={PASSWORD}&schema={SCHEMA}}.
+   *                    <br/>{@code jdbc:postgresql://{HOST}[:{PORT}]/{DB}?user={USER}&password={PASSWORD}&...={VALUE}}.
    * @return this.
    * @throws URISyntaxException If the given URL is invalid.
    * @throws ParameterError     If the given parameters are invalid.
@@ -114,13 +114,4 @@ abstract class PsqlAbstractConfigBuilder<TARGET, SELF extends PsqlAbstractConfig
    * @param params The query string parameters.
    */
   protected abstract void setParams(final @NotNull QueryParameterList params);
-
-  /**
-   * Perform the build and return the target.
-   *
-   * @return the target.
-   * @throws NullPointerException  If any value is {@code null} that must not be null.
-   * @throws IllegalStateException If any value is not set, that must be set.
-   */
-  public abstract @NotNull TARGET build();
 }

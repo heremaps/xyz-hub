@@ -25,18 +25,21 @@ import org.jetbrains.annotations.NotNull;
  * A builder for a PostgresQL database instance configuration.
  */
 @SuppressWarnings("unused")
-public final class PsqlInstanceConfigBuilder extends PsqlAbstractConfigBuilder<PsqlInstanceConfig, PsqlInstanceConfigBuilder> {
+public final class PsqlInstanceConfigBuilder extends PsqlByUrlBuilder<PsqlInstanceConfigBuilder> {
 
   // TODO: Auto-Adjust connections using:
   // SELECT setting FROM pg_settings WHERE name = 'max_connections'; <-- max allowed connections
   // SELECT count(*) FROM pg_stat_activity; <-- current open connections
   // Auto-Adjust the IDLE timeout based upon how much open connections there are, as more, as shorted the timeout!
 
-  public PsqlInstanceConfigBuilder() {
-  }
+  public PsqlInstanceConfigBuilder() {}
 
-  @Override
-  public @NotNull PsqlInstanceConfig build() throws NullPointerException {
+  /**
+   * Create the immutable instance configuration.
+   * @return The immutable instance configuration.
+   * @throws NullPointerException If a value is {@code null}, that must not be {@code null}.
+   */
+  public @NotNull PsqlInstanceConfig build() {
     if (db == null) {
       throw new NullPointerException("db");
     }
@@ -106,7 +109,11 @@ public final class PsqlInstanceConfigBuilder extends PsqlAbstractConfigBuilder<P
   }
 
   public void setPort(int port) {
-    this.port = port;
+    if (port <= 0 || port >= 65536) {
+      this.port = 5432;
+    } else {
+      this.port = port;
+    }
   }
 
   public @NotNull PsqlInstanceConfigBuilder withPort(int port) {
@@ -165,5 +172,4 @@ public final class PsqlInstanceConfigBuilder extends PsqlAbstractConfigBuilder<P
     setReadOnly(isReadOnly);
     return this;
   }
-
 }

@@ -28,7 +28,7 @@ import org.jetbrains.annotations.Nullable;
  * A simple cursor that allows to read the results forward only. This class comes with most of the needed default methods.
  *
  * @param <FEATURE> The feature type that the cursor returns.
- * @param <CODEC> The codec type.
+ * @param <CODEC>   The codec type.
  */
 @SuppressWarnings("unused")
 public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>>
@@ -167,7 +167,6 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
      */
     protected Row(@NotNull Row other) {
       codec = ForwardCursor.this.codecFactory.newInstance();
-      op = other.op;
       codec.withParts(other.codec);
       codec.setFeature(other.codec.getFeature());
       valid = other.valid;
@@ -179,7 +178,6 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
      * @return this.
      */
     public @NotNull Row clear() {
-      op = null;
       codec.clear();
       valid = false;
       return this;
@@ -203,7 +201,7 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
       } else {
         codec.clear();
       }
-      this.op = EExecutedOp.get(EExecutedOp.class, op);
+      codec.setOp(EExecutedOp.get(EExecutedOp.class, op));
       codec.setId(id);
       codec.setUuid(uuid);
       codec.setFeatureType(typeId);
@@ -212,11 +210,6 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
       codec.setWkb(wkb);
       return this;
     }
-
-    /**
-     * The executed operation.
-     */
-    public @Nullable EExecutedOp op;
 
     /**
      * The reference to the codec used to generate the {@code feature} and {@code geometry} from the raw data. It as well holds the raw data
@@ -306,8 +299,7 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
     if (!currentRow.valid) {
       throw new NoSuchElementException();
     }
-    assert currentRow.op != null;
-    return currentRow.op;
+    return (EExecutedOp) currentRow.codec.getOp();
   }
 
   /**

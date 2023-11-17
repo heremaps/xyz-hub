@@ -18,21 +18,11 @@
  */
 package com.here.naksha.lib.psql;
 
-import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import java.io.PrintWriter;
 
-/**
- * Signals a PostgresQL error.
- */
-class PsqlError extends ErrorResult {
+final class PsqlStorageSlf4jLogWriter extends PrintWriter {
 
-  PsqlError(@NotNull XyzError reason, @NotNull String message) {
-    super(reason, message);
-  }
-
-  PsqlError(@NotNull XyzError reason, @NotNull String message, @Nullable Throwable exception) {
-    super(reason, message, exception);
+  public PsqlStorageSlf4jLogWriter() {
+    super(new PsqlStorageSlf4jWriter(), true);
   }
 }

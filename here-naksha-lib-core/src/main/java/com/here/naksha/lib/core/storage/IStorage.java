@@ -28,7 +28,6 @@ import com.here.naksha.lib.core.models.TxSignalSet;
 import java.util.List;
 import java.util.concurrent.Future;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
-import org.jetbrains.annotations.ApiStatus.Experimental;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -97,7 +96,7 @@ public interface IStorage extends AutoCloseable {
    */
   @Deprecated
   default void init() {
-    throw new UnsupportedOperationException();
+    initStorage();
   }
 
   /**

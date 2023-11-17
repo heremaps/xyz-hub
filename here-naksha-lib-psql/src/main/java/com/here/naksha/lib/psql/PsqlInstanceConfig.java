@@ -32,6 +32,8 @@ import org.postgresql.util.HostSpec;
 /**
  * Immutable POJO for holding details about a single PostgresQL database instance.
  */
+// @JsonDeserialize(using = PsqlInstanceConfigDeserializer.class) // TODO: Fix it, so that it deserializes objects and
+// string (urls)!
 @JsonIgnoreProperties(ignoreUnknown = true)
 @SuppressWarnings("unused")
 public class PsqlInstanceConfig {
@@ -86,22 +88,51 @@ public class PsqlInstanceConfig {
   @JsonIgnore
   private final int hashCode;
 
+  /**
+   * The JSON creator or creator used by
+   *
+   * @param host     The host to connect to.
+   * @param port     The port to connect to, if {@code null}, then defaults to {@code 5432}.
+   * @param db       The database to connect to.
+   * @param user     The user for authentication.
+   * @param password The password for authentication.
+   * @param readOnly If the server is read-only (replica).
+   */
+  @SuppressWarnings("ConstantValue")
   @JsonCreator
   PsqlInstanceConfig(
-      @JsonProperty @NotNull String host,
-      @JsonProperty @Nullable Integer port,
-      @JsonProperty @NotNull String db,
-      @JsonProperty @NotNull String user,
-      @JsonProperty @NotNull String password,
-      @JsonProperty boolean readOnly
-  ) {
+      @JsonProperty("host") @NotNull String host,
+      @JsonProperty("port") @Nullable Integer port,
+      @JsonProperty("db") @NotNull String db,
+      @JsonProperty("user") @NotNull String user,
+      @JsonProperty("password") @NotNull String password,
+      @JsonProperty("readOnly") @Nullable Boolean readOnly) {
+    if (host == null || host.length() == 0) {
+      throw new IllegalArgumentException("host is empty");
+    }
+    if (db == null || db.length() == 0) {
+      throw new IllegalArgumentException("db is empty");
+    }
+    if (port == null) {
+      port = 5432;
+    }
+    if (port <= 0 || port >= 65536) {
+      throw new IllegalArgumentException("port is invalid (not between 1 and 65535)");
+    }
+    if (user == null || user.length() == 0) {
+      throw new IllegalArgumentException("user is empty");
+    }
+    if (password == null || password.length() == 0) {
+      throw new IllegalArgumentException("password is empty");
+    }
     this.host = host;
-    this.port = port == null ? 5432 : port;
+    this.port = port;
     this.db = db;
     this.user = user;
     this.password = password;
-    this.readOnly = readOnly;
-    this.url = "jdbc:postgresql://" + host + (this.port != 5432 ? "" : ":" + this.port) + "/" + db + (readOnly ? "?readOnly" : "");
+    this.readOnly = readOnly != null ? readOnly : false;
+    this.url = "jdbc:postgresql://" + host + (this.port != 5432 ? "" : ":" + this.port) + "/" + db
+        + (readOnly ? "?readOnly" : "");
     this.hashCode = Objects.hash(url, this.user, this.password);
     this.hostSpec = new HostSpec(this.host, this.port);
   }
@@ -115,7 +146,10 @@ public class PsqlInstanceConfig {
       return false;
     }
     final PsqlInstanceConfig that = (PsqlInstanceConfig) o;
-    return hashCode == that.hashCode && url.equals(that.url) && user.equals(that.user) && password.equals(that.password);
+    return hashCode == that.hashCode
+        && url.equals(that.url)
+        && user.equals(that.user)
+        && password.equals(that.password);
   }
 
   @Override
@@ -131,5 +165,6 @@ public class PsqlInstanceConfig {
   /**
    * The host specification for the PostgresQL driver.
    */
+  @JsonIgnore
   public final @NotNull HostSpec hostSpec;
 }

@@ -16,25 +16,24 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.psql.mapper;
+package com.here.naksha.lib.psql;
 
-import java.util.List;
+import java.io.Writer;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class FeatureWriteInputParameters {
+final class PsqlStorageSlf4jWriter extends Writer {
+  private static final Logger log = LoggerFactory.getLogger(PsqlStorageSlf4jWriter.class);
 
-  private final List<byte[]> geometries;
-  private final List<String> operationsJson;
-
-  public FeatureWriteInputParameters(List<byte[]> geometries, List<String> operationsJson) {
-    this.geometries = geometries;
-    this.operationsJson = operationsJson;
+  @Override
+  public void write(char @NotNull [] cbuf, int off, int len) {
+    log.info(new String(cbuf, off, len));
   }
 
-  public List<byte[]> getGeometries() {
-    return geometries;
-  }
+  @Override
+  public void flush() {}
 
-  public List<String> getOperationsJson() {
-    return operationsJson;
-  }
+  @Override
+  public void close() {}
 }
