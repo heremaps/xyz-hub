@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.Files;
 import com.here.xyz.hub.Service;
 import java.io.File;
@@ -132,9 +133,7 @@ public class OpenApiGenerator {
     JsonNode rootPathNode = rootNode.get("paths");
     JsonNode updatePathNode = updateNode.get("paths");
 
-    Iterator<String> fieldNames = updatePathNode.fieldNames();
-    while(fieldNames.hasNext()) {
-      String fieldName = fieldNames.next();
+    for(String fieldName : ImmutableList.copyOf( updatePathNode.fieldNames())) {
       if(rootPathNode.has(fieldName))
         throw new Exception("The path already exists in root yaml : " + fieldName);
 
@@ -152,18 +151,12 @@ public class OpenApiGenerator {
     rootNode = rootNode.get("components");
     updateNode = updateNode.get("components");
 
-    Iterator<String> fieldNames = updateNode.fieldNames();
-    while(fieldNames.hasNext()) {
-      String fieldName = fieldNames.next();
-
+    for(String fieldName : ImmutableList.copyOf(updateNode.fieldNames())) {
       JsonNode updateComponentNode = updateNode.get(fieldName);
       JsonNode rootComponentNode = rootNode.has(fieldName) ? rootNode.get(fieldName)
               : ((ObjectNode) rootNode).putObject(fieldName);
 
-      Iterator<String> componentFieldNames = updateComponentNode.fieldNames();
-      while (componentFieldNames.hasNext()) {
-        String componentFieldName = componentFieldNames.next();
-
+      for(String componentFieldName : ImmutableList.copyOf(updateComponentNode.fieldNames())) {
         if(rootComponentNode.has(componentFieldName)) {
           logger.warn("Ignoring already existing component : " + componentFieldName);
           continue;
