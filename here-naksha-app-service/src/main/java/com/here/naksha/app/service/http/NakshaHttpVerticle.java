@@ -146,7 +146,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
   @Override
   public void start(final @NotNull Promise<Void> startPromise) {
-    RouterBuilder.create(vertx, "static/openapi.yaml").onComplete(ar -> {
+    RouterBuilder.create(vertx, "swagger/openapi.yaml").onComplete(ar -> {
       try {
         if (ar.failed()) {
           throw ar.cause();
@@ -195,6 +195,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
 
         // Static resources route.
         router.route("/hub/static/*").handler(this::onResourceRequest);
+        // Swagger doc route.
+        router.route("/hub/swagger/*").handler(this::onResourceRequest);
 
         // Optional: Web server.
         if (staticHandler != null) {
@@ -266,7 +268,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       sendRawResponse(routingContext, OK, contentType(path), cachedBuffer);
       return;
     }
-    if (!path.startsWith("/hub/static/")) {
+    if (!path.startsWith("/hub/static/") && !path.startsWith("/hub/swagger/")) {
       routingContext.next();
       return;
     }

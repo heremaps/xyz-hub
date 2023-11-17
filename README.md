@@ -51,7 +51,7 @@ cd xyz-hub
 gradle clean build
 ```
 
-### Build standalone Jar
+### Run App
 
 The service could also be started directly from a fat jar. In this case Postgres and the other optional dependencies need to be started separately.
 
@@ -81,6 +81,10 @@ java -jar build/libs/naksha-2.0.6-all.jar mock-config
 ```
 
 Then use a web browser to connect to `localhost:8080`, an OK message should be displayed if the service is up and running.
+
+### OpenAPI specification
+
+Once application is UP, the OpenAPI specification is accessible at `http(s)://{host}:{port}/hub/swagger/index.html`, by default at [http://localhost:8080/hub/swagger/index.html](http://localhost:8080/hub/swagger/index.html)
 
 ### Configuration
 
@@ -185,15 +189,6 @@ The service will respond with the inserted geo features:
     ]
 }
 ```
-
-### OpenAPI specification
-
-The OpenAPI specification files are accessible under the following URIs:
-* Full: [http://{host}:{port}/hub/static/openapi/full.yaml](http://localhost:8080/hub/static/openapi/full.yaml)
-* Stable: [http://{host}:{port}/hub/static/openapi/stable.yaml](http://localhost:8080/hub/static/openapi/stable.yaml)
-* Experimental: [http://{host}:{port}/hub/static/openapi/experimental.yaml](http://localhost:8080/hub/static/openapi/experimental.yaml)
-* Contract: [http://{host}:{port}/hub/static/openapi/contract.yaml](http://localhost:8080/hub/static/openapi/contract.yaml)
-* Connector: [http://{host}:{port}/psql/static/openapi/openapi-http-connector.yaml](http://localhost:8080/psql/static/openapi/openapi-http-connector.yaml)
 
 # Acknowledgements
 
