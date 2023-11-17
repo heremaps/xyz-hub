@@ -74,7 +74,6 @@ public final class NakshaApp extends Thread {
    * @param args The console arguments given.
    */
   public static void main(@NotNull String... args) {
-    System.out.println("args: " + args);
     if (args.length < 1) {
       printUsage();
       System.exit(1);
@@ -121,8 +120,6 @@ public final class NakshaApp extends Thread {
 
     final String cfgId;
     final String url;
-
-    System.out.println("args: " + args);
     switch (args.length) {
       case 1 -> {
         cfgId = args[0];

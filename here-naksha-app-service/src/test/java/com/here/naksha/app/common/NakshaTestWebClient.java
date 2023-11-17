@@ -21,6 +21,10 @@ package com.here.naksha.app.common;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static java.net.http.HttpClient.Version.HTTP_1_1;
 
+import io.github.resilience4j.core.functions.CheckedFunction;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -29,21 +33,28 @@ import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class NakshaTestWebClient {
 
+  private static final Logger logger = LoggerFactory.getLogger(NakshaTestWebClient.class);
   private static final String NAKSHA_HTTP_URI = "http://localhost:8080/";
   private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
   private static final Duration SOCKET_TIMEOUT = Duration.ofSeconds(2);
 
   private final HttpClient httpClient;
 
+  private final RetryRegistry retryRegistry;
+
   public NakshaTestWebClient() {
     httpClient = HttpClient.newBuilder()
         .version(HTTP_1_1)
         .connectTimeout(CONNECT_TIMEOUT)
         .build();
+    retryRegistry = configureRetryRegistry();
   }
 
   public HttpResponse<String> get(String subPath, String streamId) throws URISyntaxException {
@@ -76,11 +87,18 @@ public class NakshaTestWebClient {
   }
 
   private HttpResponse<String> send(HttpRequest request) {
+    String retryId = retryIdForRequest(request);
+    CheckedFunction<HttpRequest, HttpResponse<String>> responseSupplier =
+        Retry.decorateCheckedFunction(retry(retryId), this::sendOnce);
     try {
-      return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-    } catch (IOException | InterruptedException e) {
-      throw new RequestException(request, e);
+      return responseSupplier.apply(request);
+    } catch (Throwable e) {
+      throw new RuntimeException("Applying retry (%s) failed".formatted(retryId), e);
     }
+  }
+
+  private HttpResponse<String> sendOnce(HttpRequest request) throws IOException, InterruptedException {
+    return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
   private HttpRequest.Builder requestBuilder() {
@@ -91,15 +109,21 @@ public class NakshaTestWebClient {
     return new URI(NAKSHA_HTTP_URI + subPath);
   }
 
-  static class RequestException extends RuntimeException {
+  private Retry retry(String name) {
+    Retry retry = retryRegistry.retry(name);
+    retry.getEventPublisher().onRetry(ev -> logger.info("Retry triggereed: {}", name));
+    return retry;
+  }
 
-    public RequestException(HttpRequest request, Throwable cause) {
-      super(msg(request), cause);
-    }
+  private static String retryIdForRequest(HttpRequest request) {
+    return "%s_%s_retry".formatted(request.method(), request.uri().toString());
+  }
 
-    private static String msg(HttpRequest request) {
-      return "Request to Naksha failed, method: %s, uri: %s"
-          .formatted(request.method(), request.uri().toString());
-    }
+  private static RetryRegistry configureRetryRegistry() {
+    RetryConfig config = RetryConfig.custom()
+        .maxAttempts(3)
+        .retryExceptions(HttpTimeoutException.class)
+        .build();
+    return RetryRegistry.of(config);
   }
 }

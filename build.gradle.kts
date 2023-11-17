@@ -1,8 +1,10 @@
 @file:Suppress("PropertyName")
 
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import java.net.URI
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import org.gradle.kotlin.dsl.KotlinClosure2
 
 repositories {
     maven {
@@ -30,7 +32,7 @@ version = rootProject.properties["version"] as String
 
 val jetbrains_annotations = "org.jetbrains:annotations:24.0.1"
 
-val vertx_version = "4.4.5"
+val vertx_version = "4.5.0"
 val vertx_core = "io.vertx:vertx-core:$vertx_version"
 val vertx_config = "io.vertx:vertx-config:$vertx_version"
 val vertx_auth_jwt = "io.vertx:vertx-auth-jwt:$vertx_version"
@@ -105,6 +107,7 @@ val mockito = "org.mockito:mockito-core:3.12.4"
 
 val flipkart_zjsonpatch = "com.flipkart.zjsonpatch:zjsonpatch:0.4.13"
 val json_assert = "org.skyscreamer:jsonassert:1.5.1"
+val resillience4j_retry = "io.github.resilience4j:resilience4j-retry:2.0.0"
 
 val mavenUrl = rootProject.properties["mavenUrl"] as String
 val mavenUser = rootProject.properties["mavenUser"] as String
@@ -185,7 +188,17 @@ subprojects {
         test {
             maxHeapSize = "4g"
             useJUnitPlatform()
-            testLogging.showStandardStreams = true
+            testLogging {
+                showStandardStreams = true
+                exceptionFormat = TestExceptionFormat.FULL
+                events("standardOut", "started", "passed", "skipped", "failed")
+            }
+            afterTest(KotlinClosure2(
+                    { descriptor: TestDescriptor, result: TestResult ->
+                        val totalTime = result.endTime - result.startTime
+                        println("Total time of $descriptor.name was $totalTime")
+                    }
+            ))
         }
 
         compileJava {
@@ -451,6 +464,7 @@ project(":here-naksha-lib-handlers") {
             implementation(vertx_web_openapi)
 
             testImplementation(json_assert)
+            testImplementation(resillience4j_retry)
         }
         setOverallCoverage(0.25) // only increasing allowed!
     }
