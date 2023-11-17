@@ -725,6 +725,10 @@ public class SQLQuery {
     kill(QUERY_ID, getQueryId(), 0);
   }
 
+  public static void killByQueryId(String queryId) throws SQLException {
+    kill(QUERY_ID, queryId, 0);
+  }
+
   public static void killByLabel(String labelIdentifier, String labelValue) throws SQLException {
     kill(labelIdentifier, labelValue, 0);
   }
@@ -815,7 +819,7 @@ public class SQLQuery {
    * @throws SQLException
    */
   public int write(DataSourceProvider dataSourceProvider) throws SQLException {
-    return (int) execute(dataSourceProvider, null, ExecutionOperation.UPDATE,
+    return (int) execute(dataSourceProvider, rs -> -1, ExecutionOperation.UPDATE,
         new ExecutionContext(getTimeout(), getMaximumRetries(), dataSourceProvider, false));
   }
 
@@ -856,6 +860,8 @@ public class SQLQuery {
               ? pooledDataSources.getDatabaseSettings().getId() : "unknown",
           replaceUnnamedParametersForLogging());
 
+      if (isAsync())
+        operation = ExecutionOperation.QUERY;
       return switch (operation) {
         case QUERY -> executeQuery(dataSource, executionContext, handler);
         case UPDATE -> executeUpdate(dataSource, executionContext);

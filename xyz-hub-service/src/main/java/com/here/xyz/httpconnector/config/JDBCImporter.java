@@ -24,6 +24,8 @@ import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_ABORTED;
 import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_FINALIZATION_FAILED;
 import static com.here.xyz.psql.query.ModifySpace.IDX_STATUS_TABLE;
 import static com.here.xyz.psql.query.ModifySpace.XYZ_CONFIG_SCHEMA;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildLoadSpaceTableIndicesQuery;
+import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableDropIndexQueries;
 import static com.here.xyz.util.db.pg.XyzSpaceTableHelper.buildSpaceTableIndexQueries;
 
 import com.here.xyz.httpconnector.CService;
@@ -35,7 +37,6 @@ import com.here.xyz.util.db.SQLQuery;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -73,10 +74,7 @@ public class JDBCImporter extends JdbcBasedHandler {
 
     private  Future<List<String>> listIndices(String clientID, String tableName){
         return getClient(clientID).compose(client -> {
-            SQLQuery q = new SQLQuery("SELECT * FROM xyz_index_list_all_available(#{schema}, #{table});")
-                .withNamedParameter("schema", getDbSettings(clientID).getSchema())
-                .withNamedParameter("table", tableName);
-
+            SQLQuery q = buildLoadSpaceTableIndicesQuery(getDbSettings(clientID).getSchema(), tableName);
             return client.run(q, rs -> {
                 List<String> idxList = new ArrayList<>();
                 while(rs.next())
@@ -90,15 +88,11 @@ public class JDBCImporter extends JdbcBasedHandler {
         if (indexNames.size() == 0)
             return Future.succeededFuture();
 
+        String schema = getDbSettings(clientID).getSchema();
+
         return getClient(clientID).compose(client -> {
-            List<SQLQuery> dropQueries = indexNames.stream().map(indexName ->
-                    new SQLQuery("DROP INDEX IF EXISTS ${schema}.${indexName} CASCADE;")
-                        .withVariable("indexName", indexName))
-                .collect(Collectors.toList());
-
-            SQLQuery q = SQLQuery.join(dropQueries, "")
-                .withVariable("schema", getDbSettings(clientID).getSchema());
-
+            List<SQLQuery> dropQueries = buildSpaceTableDropIndexQueries(schema, indexNames);
+            SQLQuery q = SQLQuery.join(dropQueries, ";");
             return client.write(q).mapEmpty();
         });
     }
