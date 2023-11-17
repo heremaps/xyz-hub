@@ -133,7 +133,13 @@ class MockResultCursor<T extends XyzFeature> extends ResultCursor<T> {
    */
   @Override
   public boolean absolute(long position) {
-    currentPos = (int) position;
+    if (position < -1) {
+      beforeFirst();
+    } else if (position > items.size()) {
+      afterLast();
+    } else {
+      currentPos = (int) position;
+    }
     return isPositionValid();
   }
 
