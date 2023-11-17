@@ -25,13 +25,11 @@ import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.storage.*;
 import com.here.naksha.lib.core.util.fib.FibSet;
-
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -106,8 +104,7 @@ public class HeapCache implements IStorage {
   protected final @NotNull FibSet<String, CacheEntry> cache = new FibSet<>(CacheEntry::new);
 
   @Override
-  public void init() {
-  }
+  public void init() {}
 
   @Override
   public void maintain(@NotNull List<CollectionInfo> collectionInfoList) {
@@ -134,8 +131,7 @@ public class HeapCache implements IStorage {
   }
 
   @Override
-  public void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
-  }
+  public void addListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {}
 
   @Override
   public boolean removeListener(@NotNull Pe1<@NotNull TxSignalSet> listener) {
@@ -143,36 +139,31 @@ public class HeapCache implements IStorage {
   }
 
   @Override
-  public void close() {
-  }
+  public void close() {}
 
   /**
    * Initializes the storage, create the transaction table, install needed scripts and extensions.
    */
   @Override
-  public void initStorage() {
-  }
+  public void initStorage() {}
 
   /**
    * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.
    */
   @Override
-  public void startMaintainer() {
-  }
+  public void startMaintainer() {}
 
   /**
    * Blocking call to perform maintenance tasks right now. One-time maintenance.
    */
   @Override
-  public void maintainNow() {
-  }
+  public void maintainNow() {}
 
   /**
    * Stops the maintainer thread.
    */
   @Override
-  public void stopMaintainer() {
-  }
+  public void stopMaintainer() {}
 
   /**
    * Open a new write-session, optionally to a master-node (when being in a multi-writer cluster).

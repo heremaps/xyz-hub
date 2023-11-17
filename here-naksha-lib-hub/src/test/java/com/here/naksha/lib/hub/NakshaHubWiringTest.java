@@ -226,7 +226,8 @@ public class NakshaHubWiringTest {
         ((Map) space.getProperties().get("storageCollection")).get("id").toString();
     // Verify: WriteFeature into collection got called
     assertTrue(
-        requests.get(0) instanceof WriteFeatures<?> wr && wr.collectionId.equals(collectionId),
+        requests.get(0) instanceof WriteFeatures<?> wr
+            && wr.getCollectionId().equals(collectionId),
         "WriteFeature into collection request mismatch " + requests.get(0));
     // Verify: WriteCollection got called (to create missing table)
     assertTrue(
@@ -235,7 +236,8 @@ public class NakshaHubWiringTest {
         "WriteCollection request mismatch " + requests.get(1));
     // Verify: WriteFeature into collectionId got called again
     assertTrue(
-        requests.get(2) instanceof WriteFeatures<?> wr && wr.collectionId.equals(collectionId),
+        requests.get(2) instanceof WriteFeatures<?> wr
+            && wr.getCollectionId().equals(collectionId),
         "WriteFeature into collection request mismatch " + requests.get(2));
   }
 }
