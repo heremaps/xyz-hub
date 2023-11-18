@@ -2,7 +2,7 @@
 # see: https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files
 #
 [Unit]
-Description=XYZ-Hub
+Description=Naksha-Hub
 # After=network.target
 # After=systemd-user-sessions.service
 # After=network-online.target

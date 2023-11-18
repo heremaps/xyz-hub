@@ -124,7 +124,7 @@ hooks:
 
   # During the ValidateService deployment lifecycle event, run the commands
   #   in the script specified in "location".
-  # NOTE : This section is disabled for Naksha, as ELB takes care checking application health before opening the traffic
+  # NOTE : This section is disabled for Naksha, as ELB takes care of checking application health before opening the traffic
   #ValidateService:
     #- location: scripts/ApplicationHealth.sh
       #timeout: 120

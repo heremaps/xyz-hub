@@ -1,9 +1,12 @@
 #!/bin/bash
 
+#### NOTE :
+#### This file is not used at present, as during deployment, ELB itself takes care of checking application health before opening up the traffic
+
 #### Wait for application to be healthy
 
 # set internal parameters
-APP_PORT=8080
+APP_PORT=7080
 MAX_TIMEOUT_SEC=120
 SLEEP_INTERVAL_SEC=2
 
