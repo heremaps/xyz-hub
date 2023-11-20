@@ -41,6 +41,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
       - name: Setup Gradle, execute tests & verify overall coverage
         uses: gradle/gradle-build-action@v2
         with:
