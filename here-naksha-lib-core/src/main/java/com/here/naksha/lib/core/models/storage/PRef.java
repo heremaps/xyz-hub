@@ -62,7 +62,7 @@ public class PRef {
    *
    * @return the full-qualified path to the property.
    */
-  public @NotNull List<@NotNull String> path() {
+  public @NotNull List<@NotNull String> getPath() {
     return propertyPath;
   }
 
@@ -71,7 +71,7 @@ public class PRef {
    *
    * @return the tag being referred, if this is a tag-reference.
    */
-  public @Nullable String tagName() {
+  public @Nullable String getTagName() {
     return tagName;
   }
 
@@ -136,9 +136,9 @@ public class PRef {
    * @return the reference to a specific tag from the {@code tags} array of the XYZ-Namespace.
    */
   public static @NotNull PRef tag(@NotNull CharSequence name) {
-    final String sName = string(name);
-    assert sName != null;
-    return new PRef(sName, "properties", "@ns:com:here:xyz", "tags").withTagName(sName);
+    final String tagName = string(name);
+    assert tagName != null;
+    return new PRef("properties", "@ns:com:here:xyz", "tags").withTagName(tagName);
   }
 
   /**

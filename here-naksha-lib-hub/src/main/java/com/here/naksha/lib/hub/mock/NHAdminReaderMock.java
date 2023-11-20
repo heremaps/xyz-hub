@@ -148,7 +148,7 @@ public class NHAdminReaderMock implements IReadSession {
         }
         features.addAll(mockCollection.get(collectionName).values());
       }
-    } else if (pOp.op() == OP_EQUALS && pOp.propertyRef() == PRef.id()) {
+    } else if (pOp.op() == OP_EQUALS && pOp.getPropertyRef() == PRef.id()) {
       // return features by Id from the given collections names
       for (final String collectionName : rf.getCollections()) {
         if (mockCollection.get(collectionName) == null) {
@@ -156,15 +156,15 @@ public class NHAdminReaderMock implements IReadSession {
               "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
         }
         // if feature not found, return empty list
-        if (mockCollection.get(collectionName).get(pOp.value()) == null) break;
-        features.add(mockCollection.get(collectionName).get(pOp.value()));
+        if (mockCollection.get(collectionName).get(pOp.getValue()) == null) break;
+        features.add(mockCollection.get(collectionName).get(pOp.getValue()));
       }
     } else if (pOp.op() == Op.OP_OR) {
       final List<POp> pOpList = pOp.children();
       final List<String> ids = new ArrayList<>();
       for (final POp orOp : pOpList) {
-        if (orOp.op() == OP_EQUALS && orOp.propertyRef() == PRef.id()) {
-          ids.add((String) orOp.value());
+        if (orOp.op() == OP_EQUALS && orOp.getPropertyRef() == PRef.id()) {
+          ids.add((String) orOp.getValue());
         } else {
           // TODO : Operation Not supported
         }

@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.psql.demo;
+package com.here.naksha.lib.psql;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
@@ -30,9 +30,9 @@ import org.jetbrains.annotations.NotNull;
 /**
  * A helper class to generate random {@link XyzFeature}'s.
  */
-public class XyzFeatureGenerator {
+public class PsqlFeatureGenerator {
 
-  public XyzFeatureGenerator() {}
+  public PsqlFeatureGenerator() {}
 
   public @NotNull String @NotNull [] adverbs = new String[] {
     "abnormally",
@@ -394,12 +394,12 @@ public class XyzFeatureGenerator {
     final XyzGeometry geometry = new XyzPoint(longitude, latitude);
     feature.setGeometry(geometry);
 
-    final String firstName = firstNames[rand.nextInt(0, firstNames.length) - 1];
-    final String lastName = lastNames[rand.nextInt(0, lastNames.length) - 1];
+    final String firstName = firstNames[rand.nextInt(0, firstNames.length)];
+    final String lastName = lastNames[rand.nextInt(0, lastNames.length)];
     final String name;
     final String middleName;
     if (rand.nextInt(0, 10) == 0) { // can be 0 .. 9, so 10% chance of middle name
-      middleName = firstNames[rand.nextInt(0, firstNames.length) - 1];
+      middleName = firstNames[rand.nextInt(0, firstNames.length)];
       name = firstName + " " + middleName + "-" + lastName;
     } else {
       middleName = null;
@@ -445,12 +445,12 @@ public class XyzFeatureGenerator {
           break;
         }
       }
-      tags.add("@firstName=" + firstName);
+      tags.add("@:firstName:" + firstName);
       if (middleName != null) {
-        tags.add("@middleName=" + middleName);
+        tags.add("@:middleName:" + middleName);
       }
-      tags.add("@lastName=" + lastName);
-      tags.add("@age=" + age);
+      tags.add("@:lastName:" + lastName);
+      tags.add("@:age:" + age);
       xyz.setTags(tags, false);
     }
     return feature;

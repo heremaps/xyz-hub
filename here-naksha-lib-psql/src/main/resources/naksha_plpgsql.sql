@@ -1189,7 +1189,7 @@ CREATE OR REPLACE FUNCTION nk_write_features(
   min_result bool,
   errors_only bool
 )
-  RETURNS TABLE (r_op text, r_id text, r_uuid text, r_type text, r_ptype text, r_feature jsonb, r_geo geometry, r_err jsonb)
+  RETURNS TABLE (r_op text, r_id text, r_uuid text, r_type text, r_ptype text, r_feature jsonb, r_geometry geometry, r_err jsonb)
   LANGUAGE 'plpgsql' VOLATILE STRICT AS $$
 DECLARE
   collection          jsonb;
@@ -1271,7 +1271,7 @@ BEGIN
     r_type = NULL;
     r_ptype = NULL;
     r_feature = NULL;
-    r_geo = NULL;
+    r_geometry = NULL;
     r_err = NULL;
 
     feature = features[i];
@@ -1301,7 +1301,7 @@ BEGIN
     r_ptype = naksha_feature_ptype(feature);
     IF NOT min_result THEN
       r_feature = feature;
-      r_geo = geo;
+      r_geometry = geo;
     END IF;
 
     op = ops[i];
@@ -1340,10 +1340,10 @@ BEGIN
         r_op = 'UPDATED';
       ELSEIF op = 'DELETE' OR op = 'PURGE' THEN
         IF uuid IS NOT NULL THEN
-          EXECUTE delete_atomic_stmt USING id, uuid INTO r_feature, r_geo;
+          EXECUTE delete_atomic_stmt USING id, uuid INTO r_feature, r_geometry;
           GET DIAGNOSTICS rows_affected = ROW_COUNT;
         ELSE
-          EXECUTE delete_stmt USING id INTO r_feature, r_geo;
+          EXECUTE delete_stmt USING id INTO r_feature, r_geometry;
           GET DIAGNOSTICS rows_affected = ROW_COUNT;
         END IF;
         e_uuid = NULL;
@@ -1358,7 +1358,7 @@ BEGIN
             r_ptype = naksha_feature_ptype(r_feature);
             IF min_result THEN
               r_feature = NULL;
-              r_geo = NULL;
+              r_geometry = NULL;
             END IF;
             RETURN NEXT;
           END IF;
@@ -1375,10 +1375,10 @@ BEGIN
             r_uuid = e_uuid;
           END IF;
           IF uuid IS NOT NULL THEN
-            EXECUTE purge_atomic_stmt USING id, uuid INTO r_feature, r_geo;
+            EXECUTE purge_atomic_stmt USING id, uuid INTO r_feature, r_geometry;
             GET DIAGNOSTICS rows_affected = ROW_COUNT;
           ELSE
-            EXECUTE purge_stmt USING id INTO r_feature, r_geo;
+            EXECUTE purge_stmt USING id INTO r_feature, r_geometry;
             GET DIAGNOSTICS rows_affected = ROW_COUNT;
           END IF;
           r_op = 'PURGED';
@@ -1387,7 +1387,7 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN
       -- Note: For errors we ignore min_results.
       r_op = 'ERROR';
-      EXECUTE select_head_stmt USING id INTO r_feature, r_geo;
+      EXECUTE select_head_stmt USING id INTO r_feature, r_geometry;
       r_uuid = naksha_feature_uuid(r_feature, uuid);
       r_type = naksha_feature_type(r_feature);
       r_ptype = naksha_feature_ptype(r_feature);
@@ -1413,11 +1413,11 @@ BEGIN
         r_err = nk_err_no_data(format('Operation failed, no feature with the id %L exists', id));
       ELSE
         -- Note: For errors we ignore min_results.
-        EXECUTE select_head_stmt USING id INTO r_feature, r_geo;
+        EXECUTE select_head_stmt USING id INTO r_feature, r_geometry;
         e_uuid = naksha_feature_uuid(r_feature);
         IF e_uuid IS NULL THEN
           IF op = 'PURGE' THEN
-            EXECUTE select_del_stmt USING id INTO r_feature, r_geo;
+            EXECUTE select_del_stmt USING id INTO r_feature, r_geometry;
             e_uuid = naksha_feature_uuid(r_feature);
           END IF;
         END IF;
@@ -1434,7 +1434,7 @@ BEGIN
       r_ptype = naksha_feature_ptype(r_feature);
       IF r_err IS NULL AND min_result THEN
         r_feature = NULL;
-        r_geo = NULL;
+        r_geometry = NULL;
       END IF;
       RETURN next;
     END IF;

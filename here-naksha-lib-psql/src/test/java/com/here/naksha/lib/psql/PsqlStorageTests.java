@@ -28,6 +28,8 @@ import com.here.naksha.lib.core.models.storage.*;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import java.sql.SQLException;
+import java.util.List;
+import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -35,7 +37,7 @@ import org.junit.jupiter.api.condition.EnabledIf;
 
 @SuppressWarnings({"CallToPrintStackTrace", "unchecked", "unused", "ConstantValue"})
 @TestMethodOrder(OrderAnnotation.class)
-public class PsqlBasicTests extends PsqlTests {
+public class PsqlStorageTests extends PsqlTests {
 
   @Override
   boolean enabled() {
@@ -44,6 +46,11 @@ public class PsqlBasicTests extends PsqlTests {
 
   final @NotNull String collectionId() {
     return "foo";
+  }
+
+  @Override
+  boolean partition() {
+    return false;
   }
 
   static final String SINGLE_FEATURE_ID = "TheFeature";
@@ -187,6 +194,88 @@ public class PsqlBasicTests extends PsqlTests {
     assertNotNull(storage);
     assertNotNull(session);
     // TODO: Ensure that the feature is no longer available in "_del" table.
+  }
+
+  @Test
+  @Order(70)
+  @EnabledIf("runTest")
+  void multipleFeaturesInsert() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    final WriteXyzFeatures request = new WriteXyzFeatures(collectionId());
+    int i = 0;
+    boolean firstNameAdded = false;
+    while (i < 1000 || !firstNameAdded) {
+      final XyzFeature feature = fg.newRandomFeature();
+      if (!firstNameAdded) {
+        firstNameAdded =
+            Objects.equals(fg.firstNames[0], feature.getProperties().get("firstName"));
+      }
+      request.add(EWriteOp.PUT, feature);
+      i++;
+    }
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+        session.execute(request).getXyzFeatureCursor()) {
+      for (int j = 0; j < i; j++) {
+        assertTrue(cursor.next());
+        final EExecutedOp op = cursor.getOp();
+        assertSame(EExecutedOp.CREATED, op);
+        final String id = cursor.getId();
+        assertNotNull(id);
+        final String uuid = cursor.getUuid();
+        assertNotNull(uuid);
+        final Geometry geometry = cursor.getGeometry();
+        assertNotNull(geometry);
+        final XyzFeature f = cursor.getFeature();
+        assertNotNull(f);
+        assertEquals(id, f.getId());
+        assertEquals(uuid, f.xyz().getUuid());
+        assertSame(EXyzAction.CREATE, f.xyz().getAction());
+      }
+      assertFalse(cursor.hasNext());
+    } finally {
+      session.commit(true);
+    }
+  }
+
+  @Test
+  @Order(71)
+  @EnabledIf("runTest")
+  void multipleFeaturesRead() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    final ReadFeatures request = new ReadFeatures(collectionId());
+    request.setPropertyOp(POp.or(
+        POp.exists(PRef.tag("@:firstName:" + fg.firstNames[0])),
+        POp.exists(PRef.tag("@:firstName:" + fg.firstNames[1]))));
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+        session.execute(request).getXyzFeatureCursor()) {
+      // We expect that at least one feature was found!
+      assertTrue(cursor.hasNext());
+      while (cursor.hasNext()) {
+        assertTrue(cursor.next());
+        final EExecutedOp op = cursor.getOp();
+        assertSame(EExecutedOp.READ, op);
+        final String id = cursor.getId();
+        assertNotNull(id);
+        final String uuid = cursor.getUuid();
+        assertNotNull(uuid);
+        final Geometry geometry = cursor.getGeometry();
+        assertNotNull(geometry);
+        final XyzFeature f = cursor.getFeature();
+        assertNotNull(f);
+        assertEquals(id, f.getId());
+        assertEquals(uuid, f.xyz().getUuid());
+        assertSame(EXyzAction.CREATE, f.xyz().getAction());
+        final List<@NotNull String> tags = f.xyz().getTags();
+        assertNotNull(tags);
+        assertTrue(tags.size() > 0);
+        assertTrue(tags.contains("@:firstName:" + fg.firstNames[0])
+            || tags.contains("@:firstName:" + fg.firstNames[1]));
+      }
+    } finally {
+      session.commit(true);
+    }
   }
 
   @Test

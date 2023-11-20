@@ -21,12 +21,24 @@ package com.here.naksha.lib.core.models;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * An enumeration of all possible error codes that can happen while processing a request.
  */
 @AvailableSince(NakshaVersion.v2_0_0)
 public class XyzError extends JsonEnum {
+
+  /**
+   * Returns the XYZ error for the given character sequence.
+   *
+   * @param chars The character sequence.
+   * @return The XYZ error for this.
+   */
+  public static @NotNull XyzError get(@Nullable CharSequence chars) {
+    return JsonEnum.get(XyzError.class, chars);
+  }
 
   /**
    * An unexpected error (not further specified) happened while processing the request.

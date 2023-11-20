@@ -100,6 +100,7 @@ abstract class PsqlTests {
   static @Nullable PsqlStorage storage;
   static @Nullable NakshaContext nakshaContext;
   static @Nullable PsqlWriteSession session;
+  static @NotNull PsqlFeatureGenerator fg;
 
   /**
    * Prints an arbitrary prefix, followed by the calculation of the features/second.
@@ -124,12 +125,18 @@ abstract class PsqlTests {
     NakshaContext.currentContext().setAuthor("PsqlStorageTest");
     NakshaContext.currentContext().setAppId("naksha-lib-psql-unit-tests");
     nakshaContext = new NakshaContext().withAppId(TEST_APP_ID).withAuthor(TEST_AUTHOR);
+    fg = new PsqlFeatureGenerator();
   }
 
   /**
    * The name of the test-collection.
    */
   abstract @NotNull String collectionId();
+
+  /**
+   * If the collection should be partitioned.
+   */
+  abstract boolean partition();
 
   /**
    * The test-schema to use, can be overridden to switch the schema.
@@ -185,7 +192,7 @@ abstract class PsqlTests {
     assertNotNull(storage);
     assertNotNull(session);
     final WriteXyzCollections request = new WriteXyzCollections();
-    request.add(EWriteOp.CREATE, new XyzCollection(collectionId(), true, false, true));
+    request.add(EWriteOp.CREATE, new XyzCollection(collectionId(), partition(), false, true));
     try (final ForwardCursor<XyzCollection, XyzCollectionCodec> cursor =
         session.execute(request).getXyzCollectionCursor()) {
       assertNotNull(cursor);
@@ -199,8 +206,13 @@ abstract class PsqlTests {
       assertNotNull(collection);
       assertEquals(collectionId(), collection.getId());
       assertFalse(collection.pointsOnly());
-      assertTrue(collection.isPartitioned());
-      assertEquals(64, collection.partitionCount());
+      if (partition()) {
+        assertTrue(collection.isPartitioned());
+        assertEquals(256, collection.partitionCount());
+      } else {
+        assertFalse(collection.isPartitioned());
+        assertEquals(0, collection.partitionCount());
+      }
       assertNotNull(collection.getProperties());
       assertNotNull(collection.getProperties().getXyzNamespace());
       assertSame(

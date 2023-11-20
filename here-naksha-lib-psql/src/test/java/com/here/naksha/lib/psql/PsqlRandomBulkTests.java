@@ -49,6 +49,11 @@ public class PsqlRandomBulkTests extends PsqlTests {
     return "bulk";
   }
 
+  @Override
+  boolean partition() {
+    return true;
+  }
+
   /**
    * The amount of features to write for the bulk insert test, zero or less to disable the test.
    */

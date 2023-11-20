@@ -56,11 +56,11 @@ public class POp extends Op<POp> {
    * Returns the property reference.
    * @return the property reference.
    */
-  public @Nullable PRef propertyRef() {
+  public @Nullable PRef getPropertyRef() {
     return propertyRef;
   }
 
-  public @Nullable Object value() {
+  public @Nullable Object getValue() {
     return value;
   }
 

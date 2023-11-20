@@ -45,6 +45,10 @@ public class SOp extends Op<SOp> {
 
   private final @Nullable Geometry geometry;
 
+  public @Nullable Geometry getGeometry() {
+    return geometry;
+  }
+
   public static @NotNull SOp and(@NotNull SOp... children) {
     return new SOp(AND, children);
   }

@@ -35,4 +35,18 @@ class PsqlError extends ErrorResult {
   PsqlError(@NotNull XyzError reason, @NotNull String message, @Nullable Throwable exception) {
     super(reason, message, exception);
   }
+
+  PsqlError(@NotNull XyzError reason, @NotNull String message, @Nullable PsqlCursor<?, ?> cursor) {
+    super(reason, message);
+    this.cursor = cursor;
+  }
+
+  PsqlError(
+      @NotNull XyzError reason,
+      @NotNull String message,
+      @Nullable Throwable exception,
+      @Nullable PsqlCursor<?, ?> cursor) {
+    super(reason, message, exception);
+    this.cursor = cursor;
+  }
 }
