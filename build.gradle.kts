@@ -32,7 +32,7 @@ version = rootProject.properties["version"] as String
 
 val jetbrains_annotations = "org.jetbrains:annotations:24.0.1"
 
-val vertx_version = "4.4.5"
+val vertx_version = "4.5.0"
 val vertx_core = "io.vertx:vertx-core:$vertx_version"
 val vertx_config = "io.vertx:vertx-config:$vertx_version"
 val vertx_auth_jwt = "io.vertx:vertx-auth-jwt:$vertx_version"
