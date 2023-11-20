@@ -588,6 +588,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       @NotNull RoutingContext routingContext,
       @Nullable HttpResponseType responseType,
       @NotNull XyzResponse response) {
+    log.info("SendXyzResponse start on path {}", routingContext.request().path()); // TODO(Kuba): remove this line
     try {
       final String etag = response.getEtag();
       if (etag != null) {
@@ -680,7 +681,9 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     final HttpServerResponse httpResponse = routingContext.response();
     httpResponse.setStatusCode(status.code()).setStatusMessage(status.reasonPhrase());
     httpResponse.putHeader(STREAM_ID, streamId(routingContext));
+    log.info("Sending raw response on path {}", routingContext.request().path()); // TODO(Kuba): remove this line
     if (content == null || content.length() == 0) {
+      log.info("Empty content served from path {}", routingContext.request().path()); // TODO(Kuba): remove this line
       httpResponse.end();
     } else {
       if (contentType != null) {
@@ -699,5 +702,17 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     // TODO : Author to be set based on JWT token.
     // ctx.setAuthor();
     return ctx;
+  }
+
+  @Override
+  public void stop() throws Exception {
+    log.info("Stop (no params) called on {}", this.getClass().getSimpleName()); // TODO(Kuba): remove this line
+    super.stop();
+  }
+
+  @Override
+  public void stop(Promise<Void> stopPromise) throws Exception {
+    log.info("Stop (with promise) called on {}", this.getClass().getSimpleName()); // TODO(Kuba): remove this line
+    super.stop(stopPromise);
   }
 }
