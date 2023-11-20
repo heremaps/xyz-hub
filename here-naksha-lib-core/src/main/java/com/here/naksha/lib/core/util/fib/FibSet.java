@@ -504,7 +504,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
           // We need to create a new sub-array that must be initialized with the existing key, so we can add
           // the new key.
           final Object[] sub_array = new Object[1 << CAPACITY_bits];
-          final int sub_index = indexOf(key_hash, CAPACITY_bits, depth + 1);
+          final int sub_index = indexOf(raw_ref.hashCode(), CAPACITY_bits, depth + 1);
           assert sub_index >= 0 && sub_index < sub_array.length;
           sub_array[sub_index] = raw_ref;
           if (ARRAY.compareAndSet(array, index, raw_ref, sub_array)) {

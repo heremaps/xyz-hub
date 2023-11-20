@@ -27,15 +27,11 @@ import static com.here.naksha.lib.core.util.fib.FibSet.indexOf;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.GET;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.PUT;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.REMOVE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
+import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class FibSetTest {
@@ -127,5 +123,111 @@ class FibSetTest {
     assertNull(foo);
     assertNull(fibSet.root[foo_INDEX]);
     assertEquals(0L, fibSet.size);
+  }
+
+  @Test
+  void test_collision() {
+    // given
+    final FibSet<String, FibMapEntry<String, String>> fibSet = new FibSet<>(FibMapEntry::new);
+
+    // when
+    fibSet.execute(PUT, "foo0", STRONG);
+    fibSet.execute(PUT, "foo10", STRONG);
+
+    // then
+    assertNotNull(fibSet.execute(GET, "foo0", STRONG));
+    assertNotNull(fibSet.execute(GET, "foo10", STRONG));
+
+    // also
+    Map<Integer, Stats> statsMap = new LinkedHashMap<>();
+    stats(fibSet.root, 0, statsMap);
+
+    assertEquals(0, statsMap.get(0).fibEntries);
+    assertEquals(2, statsMap.get(1).fibEntries);
+    assertFalse(statsMap.containsKey(3));
+  }
+
+  @Test
+  void test_load() {
+    // given
+    final FibSet<String, FibMapEntry<String, String>> fibSet = new FibSet<>(FibMapEntry::new);
+    long size = 2_621_440L;
+
+    long hit = 0;
+    long miss = 0;
+
+    // writes
+    for (int i = 0; i < size; i++) {
+      fibSet.execute(PUT, "foo" + i, STRONG);
+    }
+
+    // reads
+    for (int i = 0; i < size; i++) {
+      FibMapEntry fibEntry = fibSet.execute(GET, "foo" + i, STRONG);
+      hit += 1;
+      if (fibEntry == null) {
+        miss += 1;
+      }
+    }
+
+    // then
+    Double missRatio = Math.round(miss * 10000d / hit) / 100d;
+    System.out.printf("Hit: %s; Miss: %s; Misses ratio: %s%%;%n", hit, miss, missRatio);
+
+    Map<Integer, Stats> stats = new LinkedHashMap<>();
+    stats(fibSet.root, 0, stats);
+    printStats(stats);
+
+    assertEquals(size, fibSet.size);
+    assertEquals(0.0, missRatio);
+  }
+
+  private void stats(Object[] arr, int lvl, Map<Integer, Stats> statistics) {
+    long levelEntries = 0;
+    long lptCount = 0;
+    long arrEntriesCount = 0;
+
+    for (Object item : arr) {
+
+      if (item instanceof Object[] subarr) {
+        arrEntriesCount += 1;
+        stats(subarr, lvl + 1, statistics);
+      } else if (item instanceof final FibLinearProbeTable lpt) {
+        lptCount += Arrays.stream(lpt.entries).filter(Objects::nonNull).count();
+      } else if (item instanceof FibEntry) {
+        levelEntries += 1;
+      }
+    }
+    if (!statistics.containsKey(lvl)) {
+      statistics.put(lvl, new Stats());
+    }
+    Stats s = statistics.get(lvl);
+    s.arrayEntries += arrEntriesCount;
+    s.fibEntries += levelEntries;
+    s.total += 1 << CAPACITY_bits;
+    s.lptCount += lptCount;
+  }
+
+  private void printStats(Map<Integer, Stats> stats) {
+    System.out.println(
+        String.format(
+            "  Lvl   |     fibEntries    |   arrayEntries  |         lpt     |   total  cells  |   entries/total ratio "));
+    stats.entrySet().stream()
+        .sorted(Map.Entry.comparingByKey())
+        .forEach(entry -> System.out.printf("    %s   |  %s %n", entry.getKey(), entry.getValue()));
+  }
+
+  private static class Stats {
+    Long total = 0l;
+    Long fibEntries = 0l;
+    Long arrayEntries = 0l;
+    Long lptCount = 0l;
+
+    @Override
+    public String toString() {
+      return String.format(
+          "%1$15s  | %2$15s | %3$15s | %4$15s | %5$15s%%",
+          fibEntries, arrayEntries, lptCount, total, Math.round(fibEntries * 10000d / total) / 100d);
+    }
   }
 }
