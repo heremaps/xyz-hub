@@ -104,9 +104,9 @@ public class PostgresInstance extends ClosableRootResource {
    * @param applicationName              The application name to be used for the connection.
    * @param schema                       The schema to select.
    * @param fetchSize                    The default fetch-size to use.
-   * @param connTimeoutInSeconds         The connection timeout, if a new connection need to be established.
-   * @param sockedReadTimeoutInSeconds   The socket read-timeout to be used with the connection.
-   * @param cancelSignalTimeoutInSeconds The signal timeout to be used with the connection.
+   * @param connTimeoutInMillis         The connection timeout, if a new connection need to be established.
+   * @param sockedReadTimeoutInMillis   The socket read-timeout to be used with the connection.
+   * @param cancelSignalTimeoutInMillis The signal timeout to be used with the connection.
    * @return The connection.
    * @throws SQLException If acquiring the connection failed.
    */
@@ -115,9 +115,9 @@ public class PostgresInstance extends ClosableRootResource {
       @NotNull String applicationName,
       @NotNull String schema,
       int fetchSize,
-      long connTimeoutInSeconds,
-      long sockedReadTimeoutInSeconds,
-      long cancelSignalTimeoutInSeconds)
+      long connTimeoutInMillis,
+      long sockedReadTimeoutInMillis,
+      long cancelSignalTimeoutInMillis)
       throws SQLException {
     final Object proxy = getProxy();
     if (proxy instanceof PsqlInstance psqlInstance) {
@@ -126,9 +126,9 @@ public class PostgresInstance extends ClosableRootResource {
           applicationName,
           schema,
           fetchSize,
-          connTimeoutInSeconds,
-          sockedReadTimeoutInSeconds,
-          cancelSignalTimeoutInSeconds,
+          connTimeoutInMillis,
+          sockedReadTimeoutInMillis,
+          cancelSignalTimeoutInMillis,
           getOptimalBufferSize(),
           getOptimalBufferSize());
     } else {

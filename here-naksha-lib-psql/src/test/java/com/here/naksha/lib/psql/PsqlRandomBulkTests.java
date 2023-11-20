@@ -26,6 +26,7 @@ import com.here.naksha.lib.core.SimpleTask;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.Order;
@@ -62,16 +63,19 @@ public class PsqlRandomBulkTests extends PsqlTests {
   /**
    * The amount of parts each thread should handle; set to zero or less to skip bulk test. The value must be maximal 256.
    */
-  static final int BULK_PARTS_PER_THREAD = 1;
+  static final int BULK_PARTS_PER_THREAD = 2;
 
-  String BULK_SCHEMA;
+  static String BULK_SCHEMA;
 
   @Test
   @Order(50)
   @EnabledIf("runTest")
   void prepareStorageForBulk() {
     assertNotNull(storage);
+    storage.setStatementTimeout(60, TimeUnit.MINUTES);
+    storage.setSocketTimeout(60, TimeUnit.MINUTES);
     BULK_SCHEMA = storage.getSchema() + "_tmp";
+    assertNotNull(BULK_SCHEMA);
   }
 
   @Test
@@ -128,7 +132,6 @@ FROM bounds, generate_series(""")
             log.info("Values between " + (pos - SIZE) + " and " + pos + " exist already, continue");
           }
           session.rollback(true);
-          break;
         }
       }
     }

@@ -1159,7 +1159,7 @@ BEGIN
   --RAISE NOTICE '%', sql;
   EXECUTE sql;
 
-  sql = format('DROP TABLE IF EXISTS %I CASCADE', format('%s_del', _collection_id));
+  sql = format('DROP TABLE IF EXISTS %I CASCADE', format('%s_hst', _collection_id));
   --RAISE NOTICE '%', sql;
   EXECUTE sql;
 
@@ -1167,11 +1167,7 @@ BEGIN
   --RAISE NOTICE '%', sql;
   EXECUTE sql;
 
-  sql = format('DROP TABLE IF EXISTS %I', format('%s_meta', _collection_id));
-  --RAISE NOTICE '%', sql;
-  EXECUTE sql;
-
-  sql = format('DROP TABLE IF EXISTS %I', format('%s_hst', _collection_id));
+  sql = format('DROP TABLE IF EXISTS %I CASCADE', format('%s_meta', _collection_id));
   --RAISE NOTICE '%', sql;
   EXECUTE sql;
 END
@@ -1550,7 +1546,7 @@ BEGIN
   || ',SET_CONFIG(''enable_partitionwise_aggregate'', ''on'', false)'
   || ',SET_CONFIG(''random_page_cost'', ''1.0'', false)' -- default: 4.0
   || ',SET_CONFIG(''seq_page_cost'', ''1.0'', false)'
-  || ',SET_CONFIG(''max_parallel_workers_per_gather'', ''64'', false)'
+  || ',SET_CONFIG(''max_parallel_workers_per_gather'', ''256'', false)'
   || ',SET_CONFIG(''parallel_setup_cost'', ''10.0'', false)' -- default: 1000
   || ',SET_CONFIG(''parallel_tuple_cost'', ''0.01'', false)' -- default: 0.1
   -- When debugging is enabled
@@ -1739,7 +1735,7 @@ BEGIN
       IF jsonb_is(e_feature->'partition', 'boolean') THEN
         e_partition = (e_feature->'partition')::bool;
         IF e_partition THEN
-          e_partition_count = 64;
+          e_partition_count = 256;
         ELSE
           e_partition_count = 0;
         END IF;
@@ -1815,7 +1811,7 @@ BEGIN
         w_feature = jsonb_set_lax(w_feature, array['unlogged'], to_jsonb(w_unlogged), true, 'raise_exception');
         w_feature = jsonb_set_lax(w_feature, array['pointsOnly'], to_jsonb(w_points_only), true, 'raise_exception');
         IF w_partition THEN
-          w_feature = jsonb_set_lax(w_feature, array['partitionCount'], to_jsonb(64), true, 'raise_exception');
+          w_feature = jsonb_set_lax(w_feature, array['partitionCount'], to_jsonb(256), true, 'raise_exception');
         ELSE
           w_feature = jsonb_set_lax(w_feature, array['partitionCount'], to_jsonb(0), true, 'raise_exception');
         END IF;
@@ -1895,7 +1891,7 @@ BEGIN
         w_feature = jsonb_set_lax(w_feature, array['unlogged'], to_jsonb(e_unlogged), true, 'raise_exception');
         w_feature = jsonb_set_lax(w_feature, array['pointsOnly'], to_jsonb(e_points_only), true, 'raise_exception');
         IF e_partition THEN
-          w_feature = jsonb_set_lax(w_feature, array['partitionCount'], to_jsonb(64), true, 'raise_exception');
+          w_feature = jsonb_set_lax(w_feature, array['partitionCount'], to_jsonb(256), true, 'raise_exception');
         ELSE
           w_feature = jsonb_set_lax(w_feature, array['partitionCount'], to_jsonb(0), true, 'raise_exception');
         END IF;

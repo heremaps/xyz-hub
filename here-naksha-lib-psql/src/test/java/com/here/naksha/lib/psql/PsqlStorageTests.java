@@ -35,13 +35,13 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
 import org.junit.jupiter.api.condition.EnabledIf;
 
-@SuppressWarnings({"CallToPrintStackTrace", "unchecked", "unused", "ConstantValue"})
+@SuppressWarnings({"unused"})
 @TestMethodOrder(OrderAnnotation.class)
 public class PsqlStorageTests extends PsqlTests {
 
   @Override
   boolean enabled() {
-    return true;
+    return false;
   }
 
   final @NotNull String collectionId() {

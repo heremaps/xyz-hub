@@ -55,9 +55,9 @@ public class PsqlConnection implements Connection {
       @NotNull String applicationName,
       @NotNull String schema,
       int fetchSize,
-      long connTimeoutInSeconds,
-      long sockedReadTimeoutInSeconds,
-      long cancelSignalTimeoutInSeconds,
+      long connTimeoutInMillis,
+      long sockedReadTimeoutInMillis,
+      long cancelSignalTimeoutInMillis,
       long receiveBufferSize,
       long sendBufferSize)
       throws SQLException {
@@ -68,9 +68,9 @@ public class PsqlConnection implements Connection {
         applicationName,
         schema,
         fetchSize,
-        connTimeoutInSeconds,
-        sockedReadTimeoutInSeconds,
-        cancelSignalTimeoutInSeconds,
+        connTimeoutInMillis,
+        sockedReadTimeoutInMillis,
+        cancelSignalTimeoutInMillis,
         receiveBufferSize,
         sendBufferSize);
   }

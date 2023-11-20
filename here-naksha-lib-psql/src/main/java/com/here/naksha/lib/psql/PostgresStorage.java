@@ -128,6 +128,14 @@ final class PostgresStorage extends ClosableRootResource {
     this.connTimeout = MILLISECONDS.convert(connTimeout, timeUnit);
   }
 
+  public long getSocketTimeout(@NotNull TimeUnit timeUnit) {
+    return timeUnit.convert(sockedReadTimeout, MILLISECONDS);
+  }
+
+  public void setSocketTimeout(long timeout, @NotNull TimeUnit timeUnit) {
+    this.sockedReadTimeout = Math.max(2, MILLISECONDS.convert(timeout, timeUnit));
+  }
+
   public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
     return timeUnit.convert(stmtTimeout, MILLISECONDS);
   }
@@ -240,8 +248,8 @@ final class PostgresStorage extends ClosableRootResource {
     return fetchSize;
   }
 
-  private long sockedReadTimeoutInSeconds = 60;
-  private long cancelSignalTimeoutInSeconds = 10;
+  private long sockedReadTimeout = TimeUnit.SECONDS.toMillis(15);
+  private long cancelSignalTimeout = TimeUnit.SECONDS.toMillis(15);
 
   @Override
   protected void destruct() {}
@@ -328,7 +336,7 @@ final class PostgresStorage extends ClosableRootResource {
       throw new SQLException("Unable to find a valid server");
     }
     final PsqlConnection psqlConnection = psqlInstance.getConnection(
-        appName, schema, fetchSize, connTimeout, sockedReadTimeoutInSeconds, cancelSignalTimeoutInSeconds);
+        appName, schema, fetchSize, connTimeout, sockedReadTimeout, cancelSignalTimeout);
     if (!psqlConnection.connection.parent().config.readOnly) {
       // If this is a master connection, ensure that the read-only mode is set correctly.
       psqlConnection.connection.get().setReadOnly(readOnly);

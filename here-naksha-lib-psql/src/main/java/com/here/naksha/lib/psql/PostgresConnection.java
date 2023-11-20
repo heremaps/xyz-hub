@@ -45,9 +45,9 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
       @NotNull String applicationName,
       @NotNull String schema,
       int fetchSize,
-      long connTimeoutInSeconds,
-      long sockedReadTimeoutInSeconds,
-      long cancelSignalTimeoutInSeconds,
+      long connTimeoutInMillis,
+      long sockedReadTimeoutInMillis,
+      long cancelSignalTimeoutInMillis,
       long receiveBufferSize,
       long sendBufferSize)
       throws SQLException {
@@ -65,9 +65,15 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
     if (config.readOnly) {
       props.setProperty(PGProperty.READ_ONLY.getName(), "true");
     }
-    props.setProperty(PGProperty.CONNECT_TIMEOUT.getName(), Long.toString(connTimeoutInSeconds));
-    props.setProperty(PGProperty.SOCKET_TIMEOUT.getName(), Long.toString(sockedReadTimeoutInSeconds));
-    props.setProperty(PGProperty.CANCEL_SIGNAL_TIMEOUT.getName(), Long.toString(cancelSignalTimeoutInSeconds));
+    props.setProperty(
+        PGProperty.CONNECT_TIMEOUT.getName(),
+        Long.toString(Math.min(Integer.MAX_VALUE, connTimeoutInMillis / 1000L)));
+    props.setProperty(
+        PGProperty.SOCKET_TIMEOUT.getName(),
+        Long.toString(Math.min(Integer.MAX_VALUE, sockedReadTimeoutInMillis / 1000L)));
+    props.setProperty(
+        PGProperty.CANCEL_SIGNAL_TIMEOUT.getName(),
+        Long.toString(Math.min(Integer.MAX_VALUE, cancelSignalTimeoutInMillis / 1000L)));
     props.setProperty(PGProperty.RECEIVE_BUFFER_SIZE.getName(), Long.toString(receiveBufferSize));
     props.setProperty(PGProperty.SEND_BUFFER_SIZE.getName(), Long.toString(sendBufferSize));
     props.setProperty(PGProperty.REWRITE_BATCHED_INSERTS.getName(), "true");
