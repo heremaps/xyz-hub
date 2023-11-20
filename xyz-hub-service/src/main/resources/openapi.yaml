@@ -301,8 +301,9 @@ paths:
     get:
       tags:
         - Manage Changesets
-      summary: Get ChangesetStatistics
+      summary: Get ChangesetStatistics (deprecated)
       description: >-
+        NOTE: This endpoint is <b>deprecated</b>. Use <code>/spaces/{spaceId}/statistics</code> instead to gather information about the min / max version of a space.<br /><br />
         Returns statistics about changesets.
       operationId: getChangesetStatistics
       parameters:
@@ -3566,6 +3567,24 @@ components:
                 type: string
             estimated:
               $ref: '#/components/schemas/Estimated'
+        minVersion:
+          type: object
+          description: The version number of the oldest available version of the features within the space.
+          properties:
+            value:
+              type: integer
+              format: "int64"
+            estimated:
+              $ref: '#/components/schemas/Estimated'
+        maxVersion:
+          type: object
+          description: The version number of the newest available version of the features within the space.
+          properties:
+            value:
+              type: integer
+              format: "int64"
+            estimated:
+              $ref: '#/components/schemas/Estimated'
         properties:
           type: object
           description: The properties of the features of the space.
@@ -3607,6 +3626,12 @@ components:
         contentUpdatedAt:
           value: 1692368695049
           estimated: true
+        minVersion:
+          value: 0
+          estimated: false
+        maxVersion:
+          value: 27
+          estimated: false
         dataSize:
           value: 108364
           estimated: true
