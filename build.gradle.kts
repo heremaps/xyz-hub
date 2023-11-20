@@ -1,5 +1,6 @@
 @file:Suppress("PropertyName")
 
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import java.net.URI
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -185,7 +186,11 @@ subprojects {
         test {
             maxHeapSize = "4g"
             useJUnitPlatform()
-            testLogging.showStandardStreams = true
+            testLogging {
+                showStandardStreams = true
+                exceptionFormat = TestExceptionFormat.FULL
+                events("standardOut", "started", "passed", "skipped", "failed")
+            }
         }
 
         compileJava {

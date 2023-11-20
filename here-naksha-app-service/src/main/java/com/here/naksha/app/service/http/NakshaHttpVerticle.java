@@ -683,7 +683,9 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     httpResponse.putHeader(STREAM_ID, streamId(routingContext));
     log.info("Sending raw response on path {}", routingContext.request().path()); // TODO(Kuba): remove this line
     if (content == null || content.length() == 0) {
-      log.info("Empty content served from path {}", routingContext.request().path()); // TODO(Kuba): remove this line
+      log.info(
+          "Empty content served from path {}",
+          routingContext.request().path()); // TODO(Kuba): remove this line
       httpResponse.end();
     } else {
       if (contentType != null) {
