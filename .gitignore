@@ -1,7 +1,7 @@
 #gradlew
 gradlew.bat
-gradle
-gradle/
+#gradle
+#gradle/
 .gradle
 *.iml
 *.iws
