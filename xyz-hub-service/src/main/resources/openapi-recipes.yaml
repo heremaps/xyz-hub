@@ -45,6 +45,7 @@ recipes:
       - tags.name=Manage Jobs
       - paths.'/spaces/{spaceId}/tags'
       - paths.'/spaces/{spaceId}/tags/{tagId}'
+      - paths.'/spaces/{spaceId}/changesets/statistics'
       - paths.'/spaces'.get.parameters.name=includeConnectors
       - paths.'/spaces'.get.parameters.name=contentUpdatedAt
       - paths.'/spaces/{spaceId}/features'.post.parameters.$ref~=^.*Transactional$
