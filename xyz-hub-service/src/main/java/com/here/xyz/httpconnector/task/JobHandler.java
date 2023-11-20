@@ -30,6 +30,7 @@ import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JobConfigClient;
 import com.here.xyz.httpconnector.rest.HApiParam.HQuery.Command;
 import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.httpconnector.util.jobs.RuntimeStatus;
 import com.here.xyz.hub.rest.HttpException;
 import com.here.xyz.hub.util.diff.Difference;
 import com.here.xyz.hub.util.diff.Difference.DiffMap;
@@ -82,6 +83,18 @@ public class JobHandler {
                           .compose(j -> job.validate())
                           .compose(j3 -> CService.jobConfigClient.store(marker, job));
             });
+    }
+
+    public static Future<Job> tryExecuteAction(RuntimeStatus status, Job job) {
+      job.getRuntimeStatus().setDesiredAction(status.getDesiredAction());
+      return ((Future<Job>) switch (status.getDesiredAction()) {
+        case START -> job.executeStart();
+        case CANCEL -> job.executeAbort();
+        case RESUME -> job.executeRetry();
+      }).onSuccess(executedJob -> {
+        executedJob.getRuntimeStatus().setDesiredAction(null);
+        executedJob.store();
+      });
     }
 
   public static Future<Job> patchJob(Job job, Marker marker) {

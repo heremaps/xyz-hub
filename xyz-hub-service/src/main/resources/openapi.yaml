@@ -1235,7 +1235,7 @@ paths:
   '/spaces/{spaceId}/job/{jobId}':
     get:
       tags:
-        - Manage Jobs
+        - Manage Jobs (deprecated)
       summary: Get job
       description: Retrieve job
       operationId: getJob
@@ -1255,7 +1255,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     patch:
       tags:
-        - Manage Jobs
+        - Manage Jobs (deprecated)
       summary: Update Job
       operationId: patchJob
       parameters:
@@ -1276,7 +1276,7 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     delete:
       tags:
-        - Manage Jobs
+        - Manage Jobs (deprecated)
       summary: Delete job
       description: Delete job
       operationId: deleteJob
@@ -1298,7 +1298,7 @@ paths:
   '/spaces/{spaceId}/job/{jobId}/execute':
     post:
       tags:
-        - Manage Jobs
+        - Manage Jobs (deprecated)
       summary: Run Command
       description: Run Command on Job
       operationId: postExecute

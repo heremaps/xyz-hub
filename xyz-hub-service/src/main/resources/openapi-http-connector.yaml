@@ -163,12 +163,129 @@ paths:
           description : OK
         '400':
           $ref: '#/components/responses/ErrorResponse400'
+  '/spaces/{spaceId}/jobs':
+    post:
+      tags:
+        - Manage Jobs
+      summary: Create Job
+      operationId: postJob
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/JobRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/JobResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+    get:
+      tags:
+        - Manage Jobs
+      summary: Get jobs
+      description: Retrieve jobs
+      operationId: getJobs
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/JobStatus'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobsResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  '/spaces/{spaceId}/jobs/{jobId}':
+    get:
+      tags:
+        - Manage Jobs
+      summary: Get job
+      description: Retrieve job
+      operationId: getJob
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    patch:
+      tags:
+        - Manage Jobs
+      summary: Update Job
+      operationId: patchJob
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/JobId'
+      requestBody:
+        $ref: '#/components/requestBodies/JobRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+    delete:
+      tags:
+        - Manage Jobs
+      summary: Delete job
+      description: Delete job
+      operationId: deleteJob
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/JobId'
+        - $ref: '#/components/parameters/DeleteData'
+      responses:
+        '200':
+          $ref: '#/components/responses/JobResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+  /spaces/{spaceId}/jobs/{jobId}/status:
+    patch:
+      tags:
+        - "Manage Jobs"
+      summary: "Update job status"
+      description: "Update job status using provided action"
+      operationId: "patchJobStatus"
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: "#/components/parameters/JobId"
+      requestBody:
+        $ref: "#/components/requestBodies/JobStatusRequest"
+      responses:
+        "202":
+          $ref: "#/components/responses/JobStatusResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse400"
+        "404":
+          $ref: "#/components/responses/ErrorResponse404"
+    get:
+      tags:
+        - "Manage Jobs"
+      summary: "Get job status"
+      description: "Retrieve job status"
+      operationId: "getJobStatus"
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          $ref: "#/components/responses/JobStatusResponse"
+        "400":
+          $ref: "#/components/responses/ErrorResponse400"
+        "404":
+          $ref: "#/components/responses/ErrorResponse404"
   '/psql/jobs':
     post:
       tags:
-        - Jobs
+        - Jobs (deprecated)
       summary: Create Job
-      operationId: postJob
+      operationId: postJobLegacy
       requestBody:
         description: Creates a new job.
         required: true
@@ -185,10 +302,10 @@ paths:
           $ref: '#/components/responses/ErrorResponse409'
     get:
       tags:
-        - Jobs
+        - Jobs (deprecated)
       summary: Get jobs
       description: Reteive jobs
-      operationId: getJobs
+      operationId: getJobsLegacy
       parameters:
         - $ref: '#/components/parameters/JobType'
         - $ref: '#/components/parameters/JobStatus'
@@ -201,10 +318,10 @@ paths:
   '/psql/jobs/{jobId}':
     get:
       tags:
-        - Jobs
+        - Jobs (deprecated)
       summary: Get job
       description: Reteive job
-      operationId: getJob
+      operationId: getJobLegacy
       parameters:
         - $ref: '#/components/parameters/JobId'
       responses:
@@ -216,9 +333,9 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     patch:
       tags:
-        - Jobs
+        - Jobs (deprecated)
       summary: Update Job
-      operationId: patchJob
+      operationId: patchJobLegacy
       parameters:
         - $ref: '#/components/parameters/JobId'
       requestBody:
@@ -237,10 +354,10 @@ paths:
           $ref: '#/components/responses/ErrorResponse404'
     delete:
       tags:
-        - Jobs
+        - Jobs (deprecated)
       summary: Delete job
       description: Delete job
-      operationId: deleteJob
+      operationId: deleteJobLegacy
       parameters:
         - $ref: '#/components/parameters/JobId'
         - $ref: '#/components/parameters/DeleteData'
@@ -254,10 +371,10 @@ paths:
   '/psql/jobs/{jobId}/execute':
     post:
       tags:
-        - Jobs
+        - Jobs (deprecated)
       summary: Run Command
       description: Run Command on Job
-      operationId: postExecute
+      operationId: postExecuteLegacy
       parameters:
         - $ref: '#/components/parameters/JobId'
         - $ref: '#/components/parameters/UrlCount'
@@ -480,6 +597,27 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ConnectorStatus'
+    JobStatusResponse:
+      description: "The Job's runtime status"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/JobStatus"
+  requestBodies:
+    JobRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Job'
+    JobStatusRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/JobStatus"
+          example:
+            desiredAction: "START"
   schemas:
     Error:
       type: object
@@ -570,3 +708,45 @@ components:
             maintainedAt: 1622531941945
             maintenanceRunning:
               - 1622531941945
+    JobStatus:
+      type: "object"
+      description: "The runtime status of a job contains information about the job's execution and its results"
+      properties:
+        desiredAction:
+          type: "string"
+          enum:
+            - "START"
+            - "ABORT"
+            - "RESUME"
+        state:
+          type: "string"
+          enum:
+            - "NOT_READY"
+            - "SUBMITTED"
+            - "PENDING"
+            - "RESUMING"
+            - "RUNNING"
+            - "CANCELLING"
+            - "CANCELLED"
+            - "FAILED"
+            - "SUCCEEDED"
+        lastUpdatedAt:
+          type: "integer"
+          format: "int64"
+        startedAt:
+          type: "integer"
+          format: "int64"
+        estimatedProgress:
+          type: "number"
+          format: "float"
+          minimum: 0
+          maximum: 1
+        estimatedEndTime:
+          type: "integer"
+          format: "int64"
+      example:
+        state: "RUNNING"
+        lastUpdatedAt: 123456789
+        startedAt: 123456789,
+        estimatedProgress: 0.5
+        estimatedEndTime: 123456789
