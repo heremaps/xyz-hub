@@ -21,6 +21,9 @@ package com.here.naksha.app.common;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static java.net.http.HttpClient.Version.HTTP_1_1;
 
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -29,6 +32,7 @@ import java.net.http.HttpClient.Version;
 import java.net.http.HttpRequest;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 
 public class NakshaTestWebClient {
@@ -39,11 +43,14 @@ public class NakshaTestWebClient {
 
   private final HttpClient httpClient;
 
+  private final Retry retry;
+
   public NakshaTestWebClient() {
     httpClient = HttpClient.newBuilder()
         .version(HTTP_1_1)
         .connectTimeout(CONNECT_TIMEOUT)
         .build();
+    retry = configureRetry();
   }
 
   public HttpResponse<String> get(String subPath, String streamId) throws URISyntaxException {
@@ -76,6 +83,10 @@ public class NakshaTestWebClient {
   }
 
   private HttpResponse<String> send(HttpRequest request) {
+    return retry.executeSupplier(() -> sendOnce(request));
+  }
+
+  private HttpResponse<String> sendOnce(HttpRequest request) {
     try {
       return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     } catch (IOException | InterruptedException e) {
@@ -84,12 +95,20 @@ public class NakshaTestWebClient {
   }
 
   private HttpRequest.Builder requestBuilder() {
-    return HttpRequest.newBuilder().version(Version.HTTP_1_1);
-    // TODO: include in the future: .timeout(SOCKET_TIMEOUT);
+    return HttpRequest.newBuilder().version(Version.HTTP_1_1).timeout(SOCKET_TIMEOUT);
   }
 
   private URI nakshaPath(String subPath) throws URISyntaxException {
     return new URI(NAKSHA_HTTP_URI + subPath);
+  }
+
+  private static Retry configureRetry() {
+    RetryConfig config = RetryConfig.custom()
+        .maxAttempts(3)
+        .retryExceptions(HttpTimeoutException.class)
+        .build();
+    RetryRegistry registry = RetryRegistry.of(config);
+    return registry.retry("nakshaRequest");
   }
 
   static class RequestException extends RuntimeException {

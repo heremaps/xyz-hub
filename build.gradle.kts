@@ -107,6 +107,7 @@ val mockito = "org.mockito:mockito-core:3.12.4"
 
 val flipkart_zjsonpatch = "com.flipkart.zjsonpatch:zjsonpatch:0.4.13"
 val json_assert = "org.skyscreamer:jsonassert:1.5.1"
+val resillience4j_retry = "io.github.resilience4j:resilience4j-retry:2.0.0"
 
 val mavenUrl = rootProject.properties["mavenUrl"] as String
 val mavenUser = rootProject.properties["mavenUser"] as String
@@ -463,6 +464,7 @@ project(":here-naksha-lib-handlers") {
             implementation(vertx_web_openapi)
 
             testImplementation(json_assert)
+            testImplementation(resillience4j_retry)
         }
         setOverallCoverage(0.25) // only increasing allowed!
     }
