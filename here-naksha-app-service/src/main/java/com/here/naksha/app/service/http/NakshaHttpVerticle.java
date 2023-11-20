@@ -42,7 +42,13 @@ import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.naksha.app.service.AbstractNakshaHubVerticle;
 import com.here.naksha.app.service.NakshaApp;
-import com.here.naksha.app.service.http.apis.*;
+import com.here.naksha.app.service.http.apis.Api;
+import com.here.naksha.app.service.http.apis.EventHandlerApi;
+import com.here.naksha.app.service.http.apis.HealthApi;
+import com.here.naksha.app.service.http.apis.ReadFeatureApi;
+import com.here.naksha.app.service.http.apis.SpaceApi;
+import com.here.naksha.app.service.http.apis.StorageApi;
+import com.here.naksha.app.service.http.apis.WriteFeatureApi;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
@@ -216,21 +222,29 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         // round-robin strategy.
         //
         // https://vertx.io/docs/vertx-core/java/#_server_sharing
-        vertx.createHttpServer(SERVER_OPTIONS).requestHandler(router).listen(hubConfig.httpPort, result -> {
-          if (result.succeeded()) {
-            log.atInfo()
-                .setMessage("HTTP Server started on port {}")
-                .addArgument(hubConfig.httpPort)
-                .log();
-            startPromise.complete();
-          } else {
-            log.atError()
-                .setMessage("An error occurred, during the initialization of the server.")
-                .setCause(result.cause())
-                .log();
-            startPromise.fail(result.cause());
-          }
-        });
+        vertx.createHttpServer(SERVER_OPTIONS)
+            .requestHandler(router)
+            .connectionHandler(connHandler -> // TODO(Kuba): clean up after debug
+                connHandler
+                    .closeHandler(v -> log.info("Closing connection!"))
+                    .exceptionHandler(t -> log.info("Connection exception", t))
+                    .shutdownHandler(v -> log.info("Connection shut down"))
+            )
+            .listen(hubConfig.httpPort, result -> {
+              if (result.succeeded()) {
+                log.atInfo()
+                    .setMessage("HTTP Server started on port {}")
+                    .addArgument(hubConfig.httpPort)
+                    .log();
+                startPromise.complete();
+              } else {
+                log.atError()
+                    .setMessage("An error occurred, during the initialization of the server.")
+                    .setCause(result.cause())
+                    .log();
+                startPromise.fail(result.cause());
+              }
+            });
       } catch (Throwable t) {
         log.atError()
             .setMessage(
@@ -327,7 +341,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
    *
    * @param routingContext The routing context.
    */
-  private void onHeadersEnd(final @NotNull RoutingContext routingContext) {}
+  private void onHeadersEnd(final @NotNull RoutingContext routingContext) {
+  }
 
   /**
    * An end handler for the response. This will be called when the response is disposed to allow consistent cleanup of the response.
@@ -553,7 +568,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   /**
    * Prepare XyzFeatureCollection response by extracting feature results from ModifyFeaturesResp object
    *
-   * @param modifyResponse       The object to extract feature results from
+   * @param modifyResponse The object to extract feature results from
    * @return The XyzFeatureCollection response containing list of inserted/updated/delete features
    */
   public XyzFeatureCollection transformModifyResponse(@NotNull ModifyFeaturesResp modifyResponse) {

@@ -4,6 +4,7 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import java.net.URI
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import org.gradle.kotlin.dsl.KotlinClosure2
 
 repositories {
     maven {
@@ -191,6 +192,12 @@ subprojects {
                 exceptionFormat = TestExceptionFormat.FULL
                 events("standardOut", "started", "passed", "skipped", "failed")
             }
+            afterTest(KotlinClosure2(
+                    { descriptor: TestDescriptor, result: TestResult ->
+                        val totalTime = result.endTime - result.startTime
+                        println("Total time of $descriptor.name was $totalTime")
+                    }
+            ))
         }
 
         compileJava {
