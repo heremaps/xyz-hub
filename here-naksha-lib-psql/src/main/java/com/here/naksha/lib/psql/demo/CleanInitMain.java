@@ -35,6 +35,7 @@ public class CleanInitMain {
       return;
     }
     try (final PsqlStorage storage = new PsqlStorage(args[0])) {
+      storage.setLogLevel(EPsqlLogLevel.DEBUG);
       // Connect and initialize the database.
       storage.dropSchema();
       storage.initStorage();

@@ -43,13 +43,15 @@ public class XyzCodec<FEATURE extends XyzFeature, SELF extends XyzCodec<FEATURE,
 
   @NotNull
   @Override
-  public final SELF decodeParts() {
+  public final SELF decodeParts(boolean force) {
+    if (!force && isDecoded) {
+      return self();
+    }
     if (feature == null) {
       throw new NullPointerException();
     }
     XyzGeometry xyzGeometry = feature.removeGeometry();
     try (final Json jp = Json.get()) {
-      op = EStorageOp.NULL;
       id = feature.getId();
       final XyzProperties properties = feature.getProperties();
       final XyzNamespace xyz = properties.getXyzNamespace();
@@ -88,7 +90,10 @@ public class XyzCodec<FEATURE extends XyzFeature, SELF extends XyzCodec<FEATURE,
 
   @NotNull
   @Override
-  public final SELF encodeFeature() {
+  public final SELF encodeFeature(boolean force) {
+    if (!force && isEncoded) {
+      return self();
+    }
     if (json == null) {
       throw new NullPointerException();
     }

@@ -19,15 +19,33 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The write operations that can be performed.
  */
 @SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_7)
-public class EWriteOp extends EStorageOp {
+public class EWriteOp extends JsonEnum {
+
+  /**
+   * Returns the write operation that matches the given character sequence.
+   *
+   * @param chars The character sequence to translate.
+   * @return The write operation.
+   */
+  public static @NotNull EWriteOp get(@Nullable CharSequence chars) {
+    return get(EWriteOp.class, chars);
+  }
+
+  /**
+   * A helper to detect {@code null} values, which are not allowed.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final EWriteOp NULL = def(EWriteOp.class, null);
 
   /**
    * Create a new feature or collection. Fails if the feature or collection exist.

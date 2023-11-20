@@ -16,12 +16,8 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.psql;
+package com.here.naksha.lib.core.models.geojson.implementation.namespaces;
 
-@Deprecated
-class WeakPsqlSession extends WeakClosableReference<PsqlSession> {
+import com.here.naksha.lib.core.util.json.JsonObject;
 
-  WeakPsqlSession(PsqlSession referent) {
-    super(referent);
-  }
-}
+public class HereMetaNs extends JsonObject {}

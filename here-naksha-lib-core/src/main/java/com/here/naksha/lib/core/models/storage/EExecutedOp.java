@@ -19,14 +19,32 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The operation that was actually executed.
  */
 @SuppressWarnings("unused")
 @AvailableSince(NakshaVersion.v2_0_7)
-public class EExecutedOp extends EStorageOp {
+public class EExecutedOp extends JsonEnum {
+
+  /**
+   * Returns the execution operation that matches the given character sequence.
+   * @param chars The character sequence to translate.
+   * @return The execution operation.
+   */
+  public static @NotNull EExecutedOp get(@Nullable CharSequence chars) {
+    return get(EExecutedOp.class, chars);
+  }
+
+  /**
+   * A helper to detect {@code null} values, which are not allowed.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final EExecutedOp NULL = def(EExecutedOp.class, null);
 
   /**
    * A read operation was executed.
@@ -65,10 +83,16 @@ public class EExecutedOp extends EStorageOp {
   public static final EExecutedOp PURGED = def(EExecutedOp.class, "PURGED");
 
   /**
-   * The collection was restored, only possible for collections.
+   * A collection was restored, only possible for collections.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final EExecutedOp RESTORED = def(EExecutedOp.class, "RESTORED");
+
+  /**
+   * The operation failed. The reason is encoded in the JSON and will be a {@link CodecError}.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final EExecutedOp ERROR = def(EExecutedOp.class, "ERROR");
 
   @Override
   protected void init() {

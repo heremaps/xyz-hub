@@ -16,12 +16,15 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.psql;
+package com.here.naksha.lib.core.models.storage;
 
-@Deprecated
-class WeakPsqlCursor extends WeakClosableReference<PsqlCursor> {
+public class POpType extends OpType {
 
-  WeakPsqlCursor(PsqlCursor referent) {
-    super(referent);
-  }
+  public static final POpType EXISTS = defIgnoreCase(POpType.class, "exists");
+  public static final POpType STARTS_WITH = defIgnoreCase(POpType.class, "startsWith");
+  public static final POpType EQ = defIgnoreCase(POpType.class, "eq");
+  public static final POpType GT = defIgnoreCase(POpType.class, "gt");
+  public static final POpType GTE = defIgnoreCase(POpType.class, "gte");
+  public static final POpType LT = defIgnoreCase(POpType.class, "lt");
+  public static final POpType LTE = defIgnoreCase(POpType.class, "lte");
 }

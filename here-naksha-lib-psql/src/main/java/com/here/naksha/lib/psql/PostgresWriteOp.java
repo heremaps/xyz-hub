@@ -21,7 +21,6 @@ package com.here.naksha.lib.psql;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonRawValue;
-import com.here.naksha.lib.core.models.storage.EStorageOp;
 import com.here.naksha.lib.core.models.storage.FeatureCodec;
 import org.jetbrains.annotations.NotNull;
 
@@ -30,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
  */
 class PostgresWriteOp {
   @JsonProperty("op")
-  EStorageOp op;
+  String op;
 
   @JsonProperty("id")
   String id;
@@ -44,7 +43,7 @@ class PostgresWriteOp {
 
   @JsonIgnore
   <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> @NotNull PostgresWriteOp decode(@NotNull CODEC codec) {
-    codec.decodeParts();
+    codec.decodeParts(false);
     this.op = codec.getOp();
     this.id = codec.getId();
     this.uuid = codec.getUuid();

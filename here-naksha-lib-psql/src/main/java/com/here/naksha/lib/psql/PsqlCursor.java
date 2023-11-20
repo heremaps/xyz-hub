@@ -20,7 +20,6 @@ package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
-import com.here.naksha.lib.core.models.storage.EStorageOp;
 import com.here.naksha.lib.core.models.storage.FeatureCodec;
 import com.here.naksha.lib.core.models.storage.FeatureCodecFactory;
 import com.here.naksha.lib.core.models.storage.ForwardCursor;
@@ -67,7 +66,7 @@ public class PsqlCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> ext
         // Note: Only r_ptype, r_feature and r_geo may be null!
         assert r_op != null && r_id != null && r_uuid != null && r_type != null;
 
-        row.codec.setOp(EStorageOp.get(EStorageOp.class, r_op));
+        row.codec.setOp(r_op);
         row.codec.setId(r_id);
         row.codec.setUuid(r_uuid);
         row.codec.setFeatureType(r_type);

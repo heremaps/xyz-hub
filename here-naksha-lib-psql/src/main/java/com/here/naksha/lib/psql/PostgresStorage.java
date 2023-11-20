@@ -21,7 +21,7 @@ package com.here.naksha.lib.psql;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.IoHelp.readResource;
 import static com.here.naksha.lib.psql.SQL.quote_ident;
-import static com.here.naksha.lib.psql.SQL.shouldEscape;
+import static com.here.naksha.lib.psql.SQL.shouldEscapeIdent;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -354,7 +354,7 @@ final class PostgresStorage extends ClosableRootResource {
             final StringBuilder sb = new StringBuilder();
             sb.append("SELECT ");
             final String schema = getSchema();
-            if (shouldEscape(schema)) {
+            if (shouldEscapeIdent(schema)) {
               quote_ident(sb, getSchema());
             } else {
               sb.append(schema);
@@ -377,7 +377,7 @@ final class PostgresStorage extends ClosableRootResource {
                 .setMessage("Naksha schema and/or extension missing")
                 .log();
           }
-          if (logLevel == EPsqlLogLevel.VERBOSE || latest.toLong() > installed_version) {
+          if (logLevel.toLong() > EPsqlLogLevel.OFF.toLong() || latest.toLong() > installed_version) {
             if (installed_version == 0L) {
               log.atInfo()
                   .setMessage("Install and initialize Naksha extension v{}")
@@ -391,16 +391,21 @@ final class PostgresStorage extends ClosableRootResource {
                   .log();
             }
             SQL = readResource("naksha_plpgsql.sql");
-            if (logLevel == EPsqlLogLevel.VERBOSE) {
+            if (logLevel.toLong() >= EPsqlLogLevel.DEBUG.toLong()) {
               SQL = SQL.replaceAll("--RAISE ", "RAISE ");
               SQL = SQL.replaceAll("--DEBUG ", " ");
+            }
+            if (logLevel.toLong() >= EPsqlLogLevel.VERBOSE.toLong()) {
+              SQL = SQL.replaceAll("--VERBOSE ", " ");
             }
             SQL = SQL.replaceAll("\n--#", "\n");
             SQL = SQL.replaceAll("\nCREATE OR REPLACE FUNCTION nk__________.*;\n", "\n");
             SQL = SQL.replaceAll("\\$\\{schema}", getSchema());
             SQL = SQL.replaceAll(
                 "\\$\\{version}",
-                logLevel == EPsqlLogLevel.VERBOSE ? "0" : Long.toString(latest.toLong(), 10));
+                logLevel.toLong() > EPsqlLogLevel.OFF.toLong()
+                    ? "0"
+                    : Long.toString(latest.toLong(), 10));
             SQL = SQL.replaceAll("\\$\\{storage_id}", storageId);
             //noinspection SqlSourceToSinkFlow
             stmt.execute(SQL);

@@ -19,10 +19,12 @@
 package com.here.naksha.lib.core.util.json;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.util.StringCache.string;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.lambdas.P1;
 import com.here.naksha.lib.core.util.Unsafe;
 import java.util.Locale;
 import java.util.Objects;
@@ -169,7 +171,9 @@ public abstract class JsonEnum implements CharSequence {
       }
     }
     if (value instanceof CharSequence chars) {
-      return chars.toString();
+      final String string = string(chars);
+      assert string != null;
+      return string;
     }
     return value;
   }
@@ -358,6 +362,18 @@ public abstract class JsonEnum implements CharSequence {
    * method prevents this kind of error.
    */
   protected abstract void init();
+
+  /**
+   * Runs a lambda against this enumeration instance.
+   *
+   * @param selfClass Reference to the class of this enumeration-type.
+   * @param lamba     The lambda to run against this instance.
+   * @param <SELF>    The type of this.
+   * @return this.
+   */
+  protected @NotNull <SELF extends JsonEnum> SELF with(@NotNull Class<SELF> selfClass, @NotNull P1<SELF> lamba) {
+    return (SELF) this;
+  }
 
   /**
    * Can be used with defined values to add aliases.

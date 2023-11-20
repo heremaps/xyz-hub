@@ -30,6 +30,9 @@ import com.here.naksha.lib.core.util.fib.FibEntry;
 import com.here.naksha.lib.core.util.fib.FibRefType;
 import com.here.naksha.lib.core.util.fib.FibSet;
 import com.here.naksha.lib.core.util.fib.FibSetOp;
+import com.here.naksha.lib.core.util.json.JsonEnum;
+import java.text.Normalizer;
+import java.text.Normalizer.Form;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -46,6 +49,39 @@ import org.jetbrains.annotations.Nullable;
 public final class StringCache {
 
   private StringCache() {}
+
+  /**
+   * A helper method to convert a character sequence, which may be {@code null}, into a string or {@code null again}.
+   *
+   * @param chars The character sequence to convert.
+   * @return the string representing the character sequence or {@code null}, if the character sequence was {@code null}.
+   */
+  @SuppressWarnings("DataFlowIssue")
+  public static @Nullable String string(@Nullable CharSequence chars) {
+    return string(chars, null);
+  }
+
+  /**
+   * A helper method to convert a character sequence, which may be {@code null}, into a string.
+   *
+   * @param chars       The character sequence to convert.
+   * @param alternative The string to return, when the character sequence is {@code null}.
+   * @return the string representing the character sequence or the given alternative.
+   */
+  public static @NotNull String string(@Nullable CharSequence chars, @NotNull String alternative) {
+    if (chars == null) {
+      return alternative;
+    }
+    if (chars instanceof String string) {
+      return string;
+    }
+    if (chars instanceof JsonEnum jsonEnum) {
+      // We know, the values of JSON enumerations are already interned!
+      return jsonEnum.toString();
+    }
+    // Technically, we assume there are now only very few cases left, where a CharSequence is already interned.
+    return intern(chars);
+  }
 
   /**
    * Tries to find a cached {@link String} for the given character sequence, but does not create a new {@link StringCache} internally, if
@@ -177,9 +213,18 @@ public final class StringCache {
     if (chars == null || chars.length() == 0) {
       return EMPTY;
     }
-
     final FibSet<CharSequence, FibEntry<CharSequence>> cache = StringCache.cache;
+
+    // Cheap try.
     FibEntry<CharSequence> entry = cache.execute(GET, chars, refType);
+    if (entry != null) {
+      assert entry.key instanceof String;
+      return (String) entry.key;
+    }
+    // We need everything to be eventually NFKC normalized (Compatibility decomposition, followed by canonical
+    // composition)!
+    final String string = Normalizer.normalize(chars, Form.NFKC);
+    entry = cache.execute(GET, string, refType);
     if (entry != null) {
       assert entry.key instanceof String;
       return (String) entry.key;
@@ -189,7 +234,6 @@ public final class StringCache {
       return null;
     }
     assert op == PUT || op == REMOVE;
-    final String string = chars.toString();
     entry = cache.execute(op, string, refType);
     if (entry == null) {
       assert op == REMOVE;

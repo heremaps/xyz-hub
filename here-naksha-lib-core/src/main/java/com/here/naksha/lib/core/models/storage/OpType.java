@@ -21,17 +21,29 @@ package com.here.naksha.lib.core.models.storage;
 import com.here.naksha.lib.core.util.json.JsonEnum;
 
 /**
- * All operations supported by storages.
+ * The basic operation type.
  */
-public class EStorageOp extends JsonEnum {
+public class OpType extends JsonEnum {
 
   /**
-   * A constant for {@code null}.
+   * Combine all children via logical AND operator.
    */
-  public static final EStorageOp NULL = def(EStorageOp.class, null);
+  public static final OpType AND = defIgnoreCase(OpType.class, "and");
+
+  /**
+   * Combine all children via logical OR operator.
+   */
+  public static final OpType OR = defIgnoreCase(OpType.class, "or");
+
+  /**
+   * Negate the logical state of the child operation, requires exactly one child.
+   */
+  public static final OpType NOT = defIgnoreCase(OpType.class, "not");
 
   @Override
   protected void init() {
-    register(EStorageOp.class);
+    register(OpType.class);
+    register(POpType.class);
+    register(SOpType.class);
   }
 }

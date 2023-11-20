@@ -19,6 +19,7 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import javax.annotation.concurrent.NotThreadSafe;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
  * @param <FEATURE> The feature-type.
  * @param <SELF>    The implementation type.
  */
+@NotThreadSafe
 @AvailableSince(NakshaVersion.v2_0_7)
 public class FeatureBox<FEATURE, SELF extends FeatureBox<FEATURE, SELF>> {
 
@@ -36,11 +38,6 @@ public class FeatureBox<FEATURE, SELF extends FeatureBox<FEATURE, SELF>> {
    * The stored feature.
    */
   protected @Nullable FEATURE feature;
-
-  /**
-   * The operation linked to the feature.
-   */
-  protected @NotNull EStorageOp op = EStorageOp.NULL;
 
   /**
    * Returns this.
@@ -59,7 +56,6 @@ public class FeatureBox<FEATURE, SELF extends FeatureBox<FEATURE, SELF>> {
    */
   public @NotNull SELF clear() {
     this.feature = null;
-    this.op = EStorageOp.NULL;
     return self();
   }
 
@@ -92,38 +88,6 @@ public class FeatureBox<FEATURE, SELF extends FeatureBox<FEATURE, SELF>> {
    */
   public final @NotNull SELF withFeature(@Nullable FEATURE feature) {
     setFeature(feature);
-    return self();
-  }
-
-  /**
-   * Returns the operation linked to the boxed feature.
-   *
-   * @return the operation linked to the boxed feature.
-   */
-  public @NotNull EStorageOp getOp() {
-    return op;
-  }
-
-  /**
-   * Sets the operation linked to the boxed feature.
-   *
-   * @param op The operation to set.
-   * @return The previously set operation.
-   */
-  public @NotNull EStorageOp setOp(@NotNull EStorageOp op) {
-    final EStorageOp old = this.op;
-    this.op = op;
-    return old;
-  }
-
-  /**
-   * Sets the operation linked to the boxed feature.
-   *
-   * @param op The operation to set.
-   * @return this.
-   */
-  public final @NotNull SELF withFeature(@NotNull EStorageOp op) {
-    setOp(op);
     return self();
   }
 }

@@ -28,20 +28,20 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
-class PsqlStorageConfigByUrlTest {
+class PsqlInstanceConfigBuilderTest {
 
   @Test
   void withUrl() throws URISyntaxException, ParameterError, UnsupportedEncodingException {
-    PsqlStorageConfigByUrl builder = new PsqlStorageConfigByUrl();
-    builder.parseUrl("jdbc:postgresql://localhost/test?user=foo&password=foobar&schema=bar");
+    PsqlInstanceConfigBuilder builder = new PsqlInstanceConfigBuilder();
+    builder.parseUrl("jdbc:postgresql://localhost/test?user=foo&password=foobar&schema=bar&readOnly");
     assertEquals("localhost", builder.getHost());
     assertEquals(5432, builder.getPort());
     assertEquals("test", builder.getDb());
     assertEquals("foo", builder.getUser());
     assertEquals("foobar", builder.getPassword());
-    assertEquals("bar", builder.getSchema());
+    assertTrue(builder.isReadOnly());
 
-    builder = new PsqlStorageConfigByUrl();
+    builder = new PsqlInstanceConfigBuilder();
     builder.parseUrl("jdbc:postgresql://foobar:1234/" + URLEncoder.encode("test:colon", StandardCharsets.UTF_8));
     assertEquals("foobar", builder.getHost());
     assertEquals(1234, builder.getPort());

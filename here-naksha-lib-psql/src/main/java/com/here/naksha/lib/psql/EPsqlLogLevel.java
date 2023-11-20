@@ -31,6 +31,11 @@ public class EPsqlLogLevel extends JsonEnum {
   public static final EPsqlLogLevel OFF = def(EPsqlLogLevel.class, 0).alias(EPsqlLogLevel.class, null);
 
   /**
+   * Debug logging, without pg_hint, but everything else.
+   */
+  public static final EPsqlLogLevel DEBUG = def(EPsqlLogLevel.class, 5);
+
+  /**
    * Verbose logging, most detailed.
    */
   public static final EPsqlLogLevel VERBOSE = def(EPsqlLogLevel.class, 6);

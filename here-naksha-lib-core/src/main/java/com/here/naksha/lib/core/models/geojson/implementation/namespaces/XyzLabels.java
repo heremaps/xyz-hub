@@ -16,14 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.psql;
+package com.here.naksha.lib.core.models.geojson.implementation.namespaces;
 
-import org.jetbrains.annotations.NotNull;
-
-@Deprecated
-class WeakPsqlStorage extends WeakClosableReference<PsqlStorage> {
-
-  WeakPsqlStorage(@NotNull PsqlStorage referent) {
-    super(referent);
-  }
-}
+// TODO: Add support for key-value pairs that are indexed.
+public class XyzLabels {}

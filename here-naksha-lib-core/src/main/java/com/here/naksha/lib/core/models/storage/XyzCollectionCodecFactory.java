@@ -21,9 +21,21 @@ package com.here.naksha.lib.core.models.storage;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * The standard XYZ collection codec factory.
+ */
 public class XyzCollectionCodecFactory extends XyzCodecFactory<XyzCollection, XyzCollectionCodec> {
 
   XyzCollectionCodecFactory() {}
+
+  /**
+   * Returns the standard XYZ collection codec factory.
+   *
+   * @return the standard XYZ collection codec factory.
+   */
+  public static @NotNull XyzCollectionCodecFactory get() {
+    return XyzCodecFactory.getFactory(XyzCollectionCodecFactory.class);
+  }
 
   @Override
   public @NotNull XyzCollectionCodec newInstance() {

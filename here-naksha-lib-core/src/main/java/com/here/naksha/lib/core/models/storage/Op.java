@@ -23,20 +23,25 @@ import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * Base class for all operations. Only operations of the same type can be combined.
+ *
+ * @param <SELF> The type of the operation itself.
+ */
 @SuppressWarnings("unchecked")
-public abstract class Op<T extends Op<T>> {
+public abstract class Op<SELF extends Op<SELF>> {
 
-  protected Op(int op) {
+  Op(@NotNull OpType op) {
     this.op = op;
     this.children = null;
   }
 
   @SuppressWarnings({"ManualArrayToCollectionCopy", "UseBulkOperation"})
-  protected Op(int op, @NotNull T... children) {
+  Op(@NotNull OpType op, @NotNull SELF... children) {
     this.op = op;
     if (children != null && children.length > 0) {
       this.children = new ArrayList<>(children.length);
-      for (final T child : children) {
+      for (final SELF child : children) {
         this.children.add(child);
       }
     } else {
@@ -44,24 +49,34 @@ public abstract class Op<T extends Op<T>> {
     }
   }
 
-  public static final int OP_AND = 1;
-  public static final int OP_OR = 2;
-  public static final int OP_NOT = 3;
+  final @NotNull OpType op;
+  final @Nullable List<@NotNull SELF> children;
 
-  final int op;
-  final @Nullable List<@NotNull T> children;
-
-  public int op() {
+  /**
+   * Returns the operation.
+   * @return the operation.
+   */
+  public @NotNull OpType op() {
     return op;
   }
 
-  public @Nullable List<@NotNull T> children() {
+  /**
+   * Returns all children of this operation.
+   *
+   * @return all children of this operation.
+   */
+  public @Nullable List<@NotNull SELF> children() {
     return children;
   }
 
-  public @NotNull T add(@NotNull T child) {
+  /**
+   * Adds the given children.
+   * @param child The children to add.
+   * @return this.
+   */
+  public @NotNull SELF add(@NotNull SELF child) {
     assert children != null;
     children.add(child);
-    return (T) this;
+    return (SELF) this;
   }
 }

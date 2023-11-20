@@ -54,7 +54,7 @@ public class SQL implements CharSequence {
    * @param id the identifier to test.
    * @return true if the identifier must be escaped; false otherwise.
    */
-  public static boolean shouldEscape(@NotNull CharSequence id) {
+  public static boolean shouldEscapeIdent(@NotNull CharSequence id) {
     for (int i = 0; i < id.length(); i++) {
       final char c = id.charAt(i);
       // We signal that every less than the space must be escaped. The escape method then will throw
@@ -344,7 +344,11 @@ public class SQL implements CharSequence {
    * @throws SQLException If the identifier contains illegal characters, for example the ASCII-0.
    */
   public @NotNull SQL addIdent(@NotNull CharSequence id) {
-    quote_ident(sb, id);
+    if (!shouldEscapeIdent(id)) {
+      sb.append(id);
+    } else {
+      quote_ident(sb, id);
+    }
     return this;
   }
 
@@ -372,10 +376,6 @@ public class SQL implements CharSequence {
    * @return this.
    */
   public @NotNull SQL addLiteral(@NotNull CharSequence literal) {
-    if (!shouldEscape(literal)) {
-      sb.append(literal);
-      return this;
-    }
     open_literal(sb);
     write_literal(sb, literal);
     close_literal(sb);

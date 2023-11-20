@@ -299,7 +299,7 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
     if (!currentRow.valid) {
       throw new NoSuchElementException();
     }
-    return (EExecutedOp) currentRow.codec.getOp();
+    return EExecutedOp.get(currentRow.codec.getOp());
   }
 
   /**
@@ -412,10 +412,7 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
       throw new NoSuchElementException();
     }
     final FeatureCodec<FEATURE, ?> codec = currentRow.codec;
-    FEATURE feature = codec.getFeature();
-    if (feature == null) {
-      feature = codec.encodeFeature().getFeature();
-    }
+    FEATURE feature = codec.encodeFeature(false).getFeature();
     assert feature != null;
     return feature;
   }

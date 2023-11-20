@@ -28,6 +28,15 @@ public class XyzFeatureCodecFactory extends XyzCodecFactory<XyzFeature, XyzFeatu
 
   XyzFeatureCodecFactory() {}
 
+  /**
+   * Returns the standard XYZ feature codec factory.
+   *
+   * @return the standard XYZ feature codec factory.
+   */
+  public static @NotNull XyzFeatureCodecFactory get() {
+    return XyzCodecFactory.getFactory(XyzFeatureCodecFactory.class);
+  }
+
   @Override
   public @NotNull XyzFeatureCodec newInstance() {
     return new XyzFeatureCodec();

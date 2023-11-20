@@ -19,6 +19,7 @@
 package com.here.naksha.lib.core.models.storage;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.util.StringCache.string;
 
 import com.here.naksha.lib.core.util.json.Json;
 import com.vividsolutions.jts.geom.Geometry;
@@ -28,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * A codec that is able to encode and decode a feature from its basic parts. The implementation is not thread safe.
+ * A codec that is able to encode a feature from its parts and to decode a feature into its parts. The implementation is not thread safe.
  *
  * @param <FEATURE> The feature type that can be processed by this codec.
  * @param <SELF>    The implementation type.
@@ -44,9 +45,10 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    *
    * <p>If the method raises an exception, the state is undefined and should be {@link #clear()}ed.
    *
+   * @param force If {@code true}, re-encodes in any case; if false double decoding is avoided.
    * @return this.
    */
-  public abstract @NotNull SELF decodeParts();
+  public abstract @NotNull SELF decodeParts(boolean force);
 
   /**
    * Tries to encode (assemble) a new feature from the currently set parts. Unless encoding fails (raising an exception),
@@ -54,9 +56,10 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    *
    * <p>If the method raises an exception, the state is undefined and should be {@link #clear()}ed.
    *
+   * @param force If {@code true}, re-encodes in any case; if false double decoding is avoided.
    * @return this.
    */
-  public abstract @NotNull SELF encodeFeature();
+  public abstract @NotNull SELF encodeFeature(boolean force);
 
   /**
    * Load the raw values (feature parts) for the given foreign codec into this code to re-encode.
@@ -77,13 +80,48 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
   }
 
   /**
-   * Clears the feature codec, that means all parts and the feature.
+   * Returns the operation linked to the codec.
+   *
+   * @return the operation linked to the boxed feature.
+   */
+  public @Nullable String getOp() {
+    return op;
+  }
+
+  /**
+   * Sets the operation linked to the codec.
+   *
+   * @param op The operation to set.
+   * @return The previously set operation.
+   */
+  public @Nullable String setOp(@Nullable CharSequence op) {
+    final String old = this.op;
+    this.op = string(op);
+    return old;
+  }
+
+  /**
+   * Sets the operation linked to the codec.
+   *
+   * @param op The operation to set.
+   * @return this.
+   */
+  public @NotNull SELF withOp(@Nullable CharSequence op) {
+    setOp(op);
+    return self();
+  }
+
+  /**
+   * Clears the feature codec, that means all parts, the decoder, the feature and the encoder.
    *
    * @return this.
    */
   @Override
   public @NotNull SELF clear() {
-    super.clear();
+    isDecoded = false;
+    isEncoded = false;
+    err = null;
+    feature = null;
     id = null;
     uuid = null;
     featureType = null;
@@ -94,11 +132,13 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
   }
 
   /**
-   * Clears all feature parts, but leaves the feature alive.
+   * Clears all feature parts and the decoder, but leaves the feature alive.
    *
    * @return this.
    */
   public @NotNull SELF clearParts() {
+    isDecoded = false;
+    err = null;
     id = null;
     uuid = null;
     featureType = null;
@@ -107,6 +147,38 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
     geometry = null;
     return self();
   }
+
+  /**
+   * Clears the feature and the encoder, but leaves the parts alive.
+   *
+   * @return this.
+   */
+  public @NotNull SELF clearFeature() {
+    isDecoded = false;
+    err = null;
+    feature = null;
+    return self();
+  }
+
+  /**
+   * If the feature was decoded.
+   */
+  protected boolean isDecoded;
+
+  /**
+   * If the feature was encoded.
+   */
+  protected boolean isEncoded;
+
+  /**
+   * If the decoder or encoder have detected an error.
+   */
+  protected @Nullable CodecError err;
+
+  /**
+   * The operation to be applied.
+   */
+  protected @Nullable String op;
 
   /**
    * The {@code id} of the feature.
@@ -241,9 +313,9 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @param json The JSON to set.
    * @return The previously set feature JSON.
    */
-  public @Nullable String setJson(@Nullable String json) {
+  public @Nullable String setJson(@Nullable CharSequence json) {
     final String old = this.json;
-    this.json = json;
+    this.json = string(json);
     return old;
   }
 
@@ -274,9 +346,9 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @param id The {@code id} to set.
    * @return The previously set id.
    */
-  public @Nullable String setId(@Nullable String id) {
+  public @Nullable String setId(@Nullable CharSequence id) {
     final String old = this.id;
-    this.id = id;
+    this.id = string(id);
     return old;
   }
 
@@ -287,7 +359,7 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @param id The {@code id} to set.
    * @return this.
    */
-  public final @NotNull SELF withId(@Nullable String id) {
+  public final @NotNull SELF withId(@Nullable CharSequence id) {
     setId(id);
     return self();
   }
@@ -307,9 +379,9 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @param uuid The new {@code uuid} to be set.
    * @return the previously set {@code uuid}.
    */
-  public @Nullable String setUuid(@Nullable String uuid) {
+  public @Nullable String setUuid(@Nullable CharSequence uuid) {
     final String old = this.uuid;
-    this.uuid = uuid;
+    this.uuid = string(uuid);
     return old;
   }
 
@@ -319,7 +391,7 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @param uuid The new {@code uuid} to be set.
    * @return this.
    */
-  public final @NotNull SELF withUuid(@Nullable String uuid) {
+  public final @NotNull SELF withUuid(@Nullable CharSequence uuid) {
     setUuid(uuid);
     return self();
   }
@@ -339,9 +411,9 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @param typeId The feature type identifier, normally stored in the root of the feature ({@code "type"}).
    * @return the previously set feature type identifier.
    */
-  public @Nullable String setFeatureType(@Nullable String typeId) {
+  public @Nullable String setFeatureType(@Nullable CharSequence typeId) {
     final String old = this.featureType;
-    this.featureType = typeId;
+    this.featureType = string(typeId);
     return old;
   }
 
@@ -351,7 +423,7 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @param type The feature type identifier, normally stored in the root of the feature ({@code "type"}).
    * @return this.
    */
-  public final @NotNull SELF withFeatureType(@Nullable String type) {
+  public final @NotNull SELF withFeatureType(@Nullable CharSequence type) {
     setFeatureType(type);
     return self();
   }
@@ -371,9 +443,9 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @param type The properties type identifier, normally stored in the properties of the feature ({@code "properties.type"}).
    * @return the previously set properties type identifier.
    */
-  public @Nullable String setPropertiesType(@Nullable String type) {
+  public @Nullable String setPropertiesType(@Nullable CharSequence type) {
     final String old = this.propertiesType;
-    this.propertiesType = type;
+    this.propertiesType = string(type);
     return old;
   }
 
@@ -383,8 +455,26 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @param type The properties type identifier, normally stored in the properties of the feature ({@code "properties.type"}).
    * @return this.
    */
-  public final @NotNull SELF withPropertiesType(@Nullable String type) {
+  public final @NotNull SELF withPropertiesType(@Nullable CharSequence type) {
     setPropertiesType(type);
     return self();
+  }
+
+  /**
+   * Tests if the codec has an error from the last encoding or decoding.
+   *
+   * @return {@code true} if the codec has an error; {@code false} otherwise.
+   */
+  public boolean hasError() {
+    return err != null;
+  }
+
+  /**
+   * Returns the encoder or decoder error, if any.
+   *
+   * @return the encoder or decoder error, if any.
+   */
+  public @Nullable CodecError getError() {
+    return err;
   }
 }

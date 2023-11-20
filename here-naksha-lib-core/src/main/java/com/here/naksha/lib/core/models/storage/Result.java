@@ -18,8 +18,6 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import static com.here.naksha.lib.core.models.storage.XyzCodecFactory.getFactory;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.Typed;
@@ -40,9 +38,9 @@ public abstract class Result implements Typed {
   protected @Nullable ForwardCursor<?, ?> cursor;
 
   /**
-   * Return the cursor using the given custom codec factory. If no cursor is available, throws an exception to handle result. This is
+   * Return the cursor using a custom codec. If no cursor is available, throws an exception to handle result. This is
    * to simplify result processing when needed: <pre>{@code
-   * try (ForwardCursor<Foo> cursor = session.execute(request).cursor(FooFactory.get())) {
+   * try (ForwardCursor<Foo, FooCodec> cursor = session.execute(request).cursor(FooFactory.get())) {
    *   for (Foo feature : cursor) {
    *     ...
    *   }
@@ -53,7 +51,7 @@ public abstract class Result implements Typed {
    *
    * @param codecFactory The factory of the codec to use.
    * @param <FEATURE>    The feature-type the codec produces.
-   * @param <CODEC>      The codec to use.
+   * @param <CODEC>      The codec-type to use.
    * @return the cursor.
    */
   @JsonIgnore
@@ -68,7 +66,7 @@ public abstract class Result implements Typed {
   /**
    * Return the cursor using the {@link XyzFeatureCodecFactory}, if any cursor is available. If no cursor is available, throws an exception
    * to handle result. This is to simplify result processing when needed: <pre>{@code
-   * try (ForwardCursor<XyzFeature> cursor = session.execute(request).getXyzFeatureCursor()) {
+   * try (ForwardCursor<XyzFeature, XyzFeatureCodec> cursor = session.execute(request).getXyzFeatureCursor()) {
    *   for (XyzFeature feature : cursor) {
    *     ...
    *   }
@@ -82,7 +80,7 @@ public abstract class Result implements Typed {
   @JsonIgnore
   public @NotNull ForwardCursor<XyzFeature, XyzFeatureCodec> getXyzFeatureCursor() throws NoCursor {
     if (cursor != null) {
-      return cursor.withCodecFactory(getFactory(XyzFeatureCodecFactory.class), false);
+      return cursor.withCodecFactory(XyzFeatureCodecFactory.get(), false);
     }
     throw new NoCursor(this);
   }
@@ -90,7 +88,7 @@ public abstract class Result implements Typed {
   /**
    * Return the cursor using the {@link XyzCollectionCodecFactory}, if any cursor is available. If no cursor is available, throws an
    * exception to handle result. This is to simplify result processing when needed: <pre>{@code
-   * try (ForwardCursor<XyzCollection> cursor = session.execute(request).getXyzCollectionCursor()) {
+   * try (ForwardCursor<XyzCollection, XyzCollectionCodec> cursor = session.execute(request).getXyzCollectionCursor()) {
    *   for (XyzCollection collections : cursor) {
    *     ...
    *   }
@@ -104,7 +102,7 @@ public abstract class Result implements Typed {
   @JsonIgnore
   public @NotNull ForwardCursor<XyzCollection, XyzCollectionCodec> getXyzCollectionCursor() throws NoCursor {
     if (cursor != null) {
-      return cursor.withCodecFactory(getFactory(XyzCollectionCodecFactory.class), false);
+      return cursor.withCodecFactory(XyzCollectionCodecFactory.get(), false);
     }
     throw new NoCursor(this);
   }

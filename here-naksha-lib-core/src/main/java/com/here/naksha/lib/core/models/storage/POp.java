@@ -18,31 +18,32 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import static com.here.naksha.lib.core.models.storage.POp.Constants.*;
+import static com.here.naksha.lib.core.models.storage.OpType.AND;
+import static com.here.naksha.lib.core.models.storage.OpType.NOT;
+import static com.here.naksha.lib.core.models.storage.OpType.OR;
+import static com.here.naksha.lib.core.models.storage.POpType.EQ;
+import static com.here.naksha.lib.core.models.storage.POpType.EXISTS;
+import static com.here.naksha.lib.core.models.storage.POpType.GT;
+import static com.here.naksha.lib.core.models.storage.POpType.GTE;
+import static com.here.naksha.lib.core.models.storage.POpType.LT;
+import static com.here.naksha.lib.core.models.storage.POpType.LTE;
+import static com.here.naksha.lib.core.models.storage.POpType.STARTS_WITH;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * All property operations.
+ */
 public class POp extends Op<POp> {
 
-  public static class Constants {
-
-    public static final int OP_EXISTS = 10;
-    public static final int OP_STARTS_WITH = 11;
-    public static final int OP_EQUALS = 12;
-    public static final int OP_GT = 13;
-    public static final int OP_GTE = 14;
-    public static final int OP_LT = 15;
-    public static final int OP_LTE = 16;
-  }
-
-  POp(int op, @NotNull POp... children) {
+  POp(@NotNull OpType op, @NotNull POp... children) {
     super(op, children);
     this.propertyRef = null;
     this.value = null;
   }
 
-  POp(int op, @NotNull PRef propertyRef, @Nullable Object value) {
+  POp(@NotNull OpType op, @NotNull PRef propertyRef, @Nullable Object value) {
     super(op);
     this.propertyRef = propertyRef;
     this.value = value;
@@ -51,6 +52,10 @@ public class POp extends Op<POp> {
   private final @Nullable PRef propertyRef;
   private final @Nullable Object value;
 
+  /**
+   * Returns the property reference.
+   * @return the property reference.
+   */
   public @Nullable PRef propertyRef() {
     return propertyRef;
   }
@@ -60,50 +65,50 @@ public class POp extends Op<POp> {
   }
 
   public static @NotNull POp and(@NotNull POp... children) {
-    return new POp(OP_AND, children);
+    return new POp(AND, children);
   }
 
   public static @NotNull POp or(@NotNull POp... children) {
-    return new POp(OP_OR, children);
+    return new POp(OR, children);
   }
 
   public static @NotNull POp not(@NotNull POp op) {
-    return new POp(OP_NOT, op);
+    return new POp(NOT, op);
   }
 
   public static @NotNull POp exists(@NotNull PRef propertyRef) {
-    return new POp(OP_EXISTS, propertyRef, null);
+    return new POp(EXISTS, propertyRef, null);
   }
 
   public static @NotNull POp startsWith(@NotNull PRef propertyRef, @NotNull String prefix) {
-    return new POp(OP_STARTS_WITH, propertyRef, prefix);
+    return new POp(STARTS_WITH, propertyRef, prefix);
   }
 
   public static @NotNull POp eq(@NotNull PRef propertyRef, @NotNull String value) {
-    return new POp(OP_EQUALS, propertyRef, value);
+    return new POp(EQ, propertyRef, value);
   }
 
   public static @NotNull POp eq(@NotNull PRef propertyRef, @NotNull Number value) {
-    return new POp(OP_EQUALS, propertyRef, value);
+    return new POp(EQ, propertyRef, value);
   }
 
   public static @NotNull POp eq(@NotNull PRef propertyRef, @NotNull Boolean value) {
-    return new POp(OP_EQUALS, propertyRef, value);
+    return new POp(EQ, propertyRef, value);
   }
 
   public static @NotNull POp gt(@NotNull PRef propertyRef, @NotNull Number value) {
-    return new POp(OP_GT, propertyRef, value);
+    return new POp(GT, propertyRef, value);
   }
 
   public static @NotNull POp gte(@NotNull PRef propertyRef, @NotNull Number value) {
-    return new POp(OP_GTE, propertyRef, value);
+    return new POp(GTE, propertyRef, value);
   }
 
   public static @NotNull POp lt(@NotNull PRef propertyRef, @NotNull Number value) {
-    return new POp(OP_LT, propertyRef, value);
+    return new POp(LT, propertyRef, value);
   }
 
   public static @NotNull POp lte(@NotNull PRef propertyRef, @NotNull Number value) {
-    return new POp(OP_LTE, propertyRef, value);
+    return new POp(LTE, propertyRef, value);
   }
 }

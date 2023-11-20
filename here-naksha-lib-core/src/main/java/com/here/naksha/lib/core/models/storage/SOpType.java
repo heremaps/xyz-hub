@@ -16,30 +16,12 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.psql;
+package com.here.naksha.lib.core.models.storage;
 
-import java.lang.ref.WeakReference;
+public class SOpType extends OpType {
 
-/**
- * A weak reference that should be closed, but when not done, the closing through the garbage collector can be detected and resources can be
- * released.
- *
- * @param <T> The referent type.
- */
-@Deprecated
-class WeakClosableReference<T> extends WeakReference<T> {
-
-  WeakClosableReference(T referent) {
-    super(referent);
-  }
-
-  void close() {
-    isClosed = true;
-  }
-
-  private boolean isClosed;
-
-  boolean isClosed() {
-    return isClosed || get() == null;
-  }
+  /**
+   * Test if the feature in the database intersects with the parameter geometry.
+   */
+  public static final SOpType INTERSECTS = defIgnoreCase(SOpType.class, "intersects");
 }

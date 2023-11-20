@@ -23,8 +23,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import org.jetbrains.annotations.NotNull;
 
-@Deprecated
-class PostgresWriteFeaturesToPartition<T> {
+/**
+ * A collection of helper functions.
+ */
+public class PsqlHelper {
 
   private static @NotNull MessageDigest newMd5() {
     try {
@@ -34,19 +36,39 @@ class PostgresWriteFeaturesToPartition<T> {
     }
   }
 
-  private static final ThreadLocal<MessageDigest> md5ThreadLocal =
-      ThreadLocal.withInitial(PostgresWriteFeaturesToPartition::newMd5);
+  /**
+   * A thread local MD5 digest.
+   */
+  public static final @NotNull ThreadLocal<@NotNull MessageDigest> md5 = ThreadLocal.withInitial(PsqlHelper::newMd5);
 
-  static int partitionIdOf(@NotNull String id) {
-    final MessageDigest md5 = md5ThreadLocal.get();
+  private static final String[] partExtension = new String[256];
+
+  static {
+    for (int i = 0; i < 256; i++) {
+      partExtension[i] = (i < 10 ? "00" + i : i < 100 ? "0" + i : "" + i);
+    }
+  }
+
+  /**
+   * Returns the partition ID
+   *
+   * @param id The feature-id.
+   * @return The partition identifier.
+   */
+  public static int partitionId(@NotNull String id) {
+    final MessageDigest md5 = PsqlHelper.md5.get();
     md5.reset();
     final byte[] digest = md5.digest(id.getBytes(StandardCharsets.UTF_8));
     return ((int) digest[0]) & 63;
   }
 
-  PostgresWriteFeaturesToPartition(@NotNull String collectionId, int partitionId) {
-    this.partitionId = partitionId;
+  /**
+   * Returns the partition extension for the given partition identifier.
+   *
+   * @param part_id The partition identifier (0-255).
+   * @return The partition name.
+   */
+  public static @NotNull String partitionExtension(int part_id) {
+    return partExtension[part_id];
   }
-
-  final int partitionId;
 }
