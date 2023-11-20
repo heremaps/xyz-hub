@@ -83,15 +83,17 @@ public class NakshaTestWebClient {
   }
 
   private HttpResponse<String> send(HttpRequest request) {
-    return retry.executeSupplier(() -> sendOnce(request));
+    return retry.executeSupplier(() -> {
+      try {
+        return sendOnce(request);
+      } catch (IOException | InterruptedException e) {
+        throw new RequestException(request, e);
+      }
+    });
   }
 
-  private HttpResponse<String> sendOnce(HttpRequest request) {
-    try {
-      return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-    } catch (IOException | InterruptedException e) {
-      throw new RequestException(request, e);
-    }
+  private HttpResponse<String> sendOnce(HttpRequest request) throws IOException, InterruptedException {
+    return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
   }
 
   private HttpRequest.Builder requestBuilder() {
