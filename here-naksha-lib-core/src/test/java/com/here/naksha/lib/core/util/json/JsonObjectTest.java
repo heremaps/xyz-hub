@@ -172,7 +172,7 @@ class JsonObjectTest {
     assertFalse(mapIt.hasNext());
   }
 
-  private static final String SERIALIZED = "{\"foo\":\"test\",\"bar\":\"xyz\",\"newKey\":\"newValue\"}";
+  private static final String SERIALIZED = "{\"bar\":\"xyz\",\"foo\":\"test\",\"newKey\":\"newValue\"}";
 
   @Test
   void test_serialization() throws JsonProcessingException {

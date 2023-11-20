@@ -21,7 +21,9 @@ package com.here.naksha.lib.core.util.diff;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
+import com.here.naksha.lib.core.models.geojson.implementation.EXyzAction;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.EChangeState;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
@@ -104,8 +106,8 @@ class PatcherTest {
     final MapDiff xyzNs = assertInstanceOf(MapDiff.class, properties.get("@ns:com:here:xyz"));
     assertEquals(2, xyzNs.size());
     final UpdateOp action = assertInstanceOf(UpdateOp.class, xyzNs.get("action"));
-    assertEquals("CREATE", action.oldValue());
-    assertEquals("UPDATE", action.newValue());
+    assertEquals(EXyzAction.CREATE, action.oldValue());
+    assertEquals(EXyzAction.UPDATE, action.newValue());
     final ListDiff tags = assertInstanceOf(ListDiff.class, xyzNs.get("tags"));
     assertEquals(23, tags.size());
     for (int i = 0; i < 22; i++) {
