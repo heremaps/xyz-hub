@@ -25,6 +25,7 @@ import static com.here.xyz.httpconnector.util.jobs.Job.ERROR_TYPE_FINALIZATION_F
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.prepared;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.util.jobs.CombinedJob;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
@@ -59,6 +60,11 @@ public class ExportQueue extends JobQueue {
                     all stages can end up in failed
                      */
                     switch (currentJob.getStatus()) {
+                        case aborted:
+                            //Abort has happened on other node
+                            removeJob(job);
+                            JDBCClients.abortJobsByJobId(job);
+                            break;
                         case waiting:
                             updateJobStatus(currentJob, Job.Status.queued);
                             break;

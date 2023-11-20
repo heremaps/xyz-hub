@@ -222,13 +222,7 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     public Future<Job> executeAbort() {
-      try {
-        isValidForAbort();
-      }
-      catch (HttpException e) {
-        return Future.failedFuture(e);
-      }
-      return Future.succeededFuture(this);
+      return updateJobStatus(this, aborted);
     }
 
     public Future<Job> prepareStart() {
@@ -237,12 +231,6 @@ public abstract class Job<T extends Job> extends Payload {
     }
 
     public abstract Future<Job> executeStart();
-
-    public Future<Void> abortIfPossible() {
-        //Target: we want to terminate all running sqlQueries
-        return executeAbort()
-            .compose(job -> Future.succeededFuture(), t -> Future.succeededFuture()); //Job is not in state "executing" ignore
-    }
 
     public Future<Job> executeRetry() {
       try {
@@ -349,18 +337,6 @@ public abstract class Job<T extends Job> extends Payload {
             return Future.failedFuture(new HttpException(PRECONDITION_FAILED, "Invalid state: " + getStatus()
                 + " execution is only allowed on status = waiting"));
         return Future.succeededFuture(this);
-    }
-
-    @JsonIgnore
-    public void isValidForAbort() throws HttpException {
-        /*
-        It is only allowed to abort a job inside executing state, because we have multiple nodes running.
-        During the execution we have running SQL-Statements - due to the abortion of them, the client which
-        has executed the Query will handle the abortion.
-         */
-        //TODO: Allow abortion also in other states (e.g. queued), because it could be the user started a job accidentally and wants to stop & recreate
-        if (getStatus() != executing && getStatus() != finalizing)
-            throw new HttpException(PRECONDITION_FAILED, "Invalid state: [" + getStatus() + "] for abort!");
     }
 
     @JsonIgnore
