@@ -1,24 +1,68 @@
-name: Run XYZ Hub tests
+name: Run Naksha tests
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  pull_request:
+    types:
+      - opened       # run whenever PR is opened
+      - synchronize  # run whenever PR is updated
+      - reopened     # run whenever PR is reopoened
+  workflow_dispatch: # manual run
+
+
+permissions:
+  checks: write         # for junit reporting
+  pull-requests: write  # for jacoco PR comments
+
+env:
+  MIN_COVERAGE_OVERALL: 25
+  MIN_COVERAGE_CHANGED_FILES: 65
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis # Postgres with PostGIS extension
+        env:
+          POSTGRES_PASSWORD: password
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
-      - uses: actions/checkout@v2
-      - name: Cache local Maven repository
-        uses: actions/cache@v2
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+      - uses: actions/checkout@v4
       - name: Setup Java
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v3
         with:
-          java-version: '8'
-      - name: Start the XYZ Hub stack
-        run: mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
-      - name: Run tests
-        run: mvn verify -DskipTests=false
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: 8.2
+      - name: Execute tests & verify overall coverage
+        run: gradle test jacocoTestReport jacocoTestCoverageVerification
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: success() || failure() # always run even if the previous step fails
+        with:
+          report_paths: '**/build/test-results/test/TEST-*.xml'
+      - name: Publish code coverage report as PR comment
+        id: jacoco
+        uses: madrapps/jacoco-report@v1.6.1
+        with:
+          paths: '**/build/reports/jacoco/test/jacocoTestReport.xml'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          min-coverage-overall: $MIN_COVERAGE_OVERALL
+          min-coverage-changed-files: $MIN_COVERAGE_CHANGED_FILES
+          title: Code Coverage
+      - name: Fail when coverage of changed files is too low
+        run: |
+          CHANGED_FILES_FAILED=$(echo '${{ steps.jacoco.outputs.coverage-changed-files }} < ${{ env.MIN_COVERAGE_CHANGED_FILES }}' | bc)
+          [[ $CHANGED_FILES_FAILED -ne 0 ]] && echo 'Changed files coverage ${{ steps.jacoco.outputs.coverage-changed-files }}% is smaller than required ${{ env.MIN_COVERAGE_CHANGED_FILES }}%'
+          [[ $CHANGED_FILES_FAILED -ne 0 ]] && exit 1 || exit 0
