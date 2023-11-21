@@ -19,7 +19,9 @@
 
 package com.here.xyz.httpconnector.util.jobs;
 
-import static com.here.xyz.events.ContextAwareEvent.SpaceContext.*;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
+import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.httpconnector.util.Futures.futurify;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.CHANGES;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
@@ -67,6 +69,7 @@ import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +105,9 @@ public class Export extends JDBCBasedJob<Export> {
 
     @JsonView({Public.class})
     private String superId;
+
+    @JsonIgnore
+    private Export superJob;
 
     @JsonView({Public.class})
     private ExportTarget exportTarget;
@@ -147,6 +153,9 @@ public class Export extends JDBCBasedJob<Export> {
     private EMRManager emrManager;
     private boolean emrTransformation;
     private String emrType;
+
+    @JsonView({Static.class})
+    private String s3Key;
 
     private static String PARAM_COMPOSITE_MODE = "compositeMode";
     private static String PARAM_PERSIST_EXPORT = "persistExport";
@@ -226,12 +235,12 @@ public class Export extends JDBCBasedJob<Export> {
                 if (readParamExtends() != null && context == null)
                     addParam(PARAM_CONTEXT, DEFAULT);
 
-                SpaceContext ctx = (   job.readParamContext() == EXTENSION   
-                                    || job.readParamCompositeMode() == CHANGES 
-                                    || job.readParamCompositeMode() == FULL_OPTIMIZED 
+                SpaceContext ctx = (   job.readParamContext() == EXTENSION
+                                    || job.readParamCompositeMode() == CHANGES
+                                    || job.readParamCompositeMode() == FULL_OPTIMIZED
                                     ? EXTENSION : null
                                    );
-                                   
+
                 return HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx );
             })
             .compose(statistics -> {
@@ -382,6 +391,21 @@ public class Export extends JDBCBasedJob<Export> {
         return this.superId;
     }
 
+    @JsonIgnore
+    public Export getSuperJob() {
+        return superJob;
+    }
+
+    @JsonIgnore
+    public void setSuperJob(Export superJob) {
+        this.superJob = superJob;
+    }
+
+    public Export withSuperJob(Export superJob) {
+        setSuperJob(superJob);
+        return this;
+    }
+
     public void setStatistic(ExportStatistic statistic) {
         this.statistic = statistic;
     }
@@ -400,10 +424,17 @@ public class Export extends JDBCBasedJob<Export> {
         }
     }
 
+    @JsonView({Public.class})
     public Map<String,ExportObject> getSuperExportObjects() {
-        if(superExportObjects == null)
-            superExportObjects = new HashMap<>();
-        return superExportObjects;
+        if (CService.jobS3Client == null) //If being used as a model on the client side
+            return this.superExportObjects == null ? Collections.emptyMap() : this.superExportObjects;
+
+        Map<String, ExportObject> superExportObjects = null;
+
+        if (getSuperId() != null && !readPersistExport())
+            superExportObjects = getSuperJob() != null ? getSuperJob().getExportObjects() : null;
+
+        return superExportObjects == null ? Collections.emptyMap() : superExportObjects;
     }
 
     public void setSuperExportObjects(Map<String, ExportObject> superExportObjects) {
@@ -414,27 +445,31 @@ public class Export extends JDBCBasedJob<Export> {
     public List<ExportObject> getExportObjectsAsList() {
         List<ExportObject> exportObjectList = new ArrayList<>();
 
-        if (superExportObjects != null)
-            exportObjectList.addAll(superExportObjects.values());
-        if (exportObjects != null)
-            exportObjectList.addAll(exportObjects.values());
+        if (getSuperExportObjects() != null)
+            exportObjectList.addAll(getSuperExportObjects().values());
+        if (getExportObjects() != null)
+            exportObjectList.addAll(getExportObjects().values());
 
         return exportObjectList;
     }
 
+    @JsonView({Public.class})
     public Map<String,ExportObject> getExportObjects() {
-        if(exportObjects == null)
-            exportObjects = new HashMap<>();
-        return exportObjects;
+        if (CService.jobS3Client == null) //If being used as a model on the client side
+            return this.exportObjects == null ? Collections.emptyMap() : this.exportObjects;
+
+        Map<String, ExportObject> exportObjects = null;
+
+        if (getSuperId() != null && readPersistExport())
+            return getSuperJob() != null ? getSuperJob().getExportObjects() : Collections.emptyMap();
+        else if (getS3Key() != null)
+            exportObjects = CService.jobS3Client.scanExportPath(getS3Key());
+
+        return exportObjects == null ? Collections.emptyMap() : exportObjects;
     }
 
     public void setExportObjects(Map<String, ExportObject> exportObjects) {
         this.exportObjects = exportObjects;
-    }
-
-    public Export withExportObjects(Map<String, ExportObject> exportObjects) {
-        setExportObjects(exportObjects);
-        return this;
     }
 
     /**
@@ -889,7 +924,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //Export is available - use it and skip jdbc-export
                         logger.info("job[{}] found persistent export files of {}", getId(), existingJob.getId());
                         setSuperId(existingJob.getId());
-                        setExportObjects(existingJob.getExportObjects());
+                        setSuperJob(existingJob);
                         setStatistic(existingJob.getStatistic());
 
                         return updateJobStatus(this, finalized);
@@ -945,6 +980,7 @@ public class Export extends JDBCBasedJob<Export> {
                         .compose(newBaseExport -> {
                             logger.info("job[{}] Need to wait for finalization of persist Export {} of base-layer!", getId(), newBaseExport.getId());
                             setSuperId(newBaseExport.getId());
+                            setSuperJob((Export) newBaseExport);
 
                             return updateJobStatus(this,queued);
                         })
@@ -959,7 +995,7 @@ public class Export extends JDBCBasedJob<Export> {
                     if (superId == null)
                         setSuperId(existingJob.getId());
 
-                    setSuperExportObjects(existingJob.getExportObjects());
+                    setSuperJob(existingJob);
                     setSuperStatistic(existingJob.getStatistic());
 
                     return updateJobStatus(this, prepared);
@@ -991,7 +1027,7 @@ public class Export extends JDBCBasedJob<Export> {
                     //Everything is processed
                     logger.info("job[{}] Export of '{}' completely succeeded!", getId(), getTargetSpaceId());
                     addStatistic(statistic);
-                    scanAndRegisterExportObjects(this, "");
+                    setS3Key(CService.jobS3Client.getS3Path(this, false));
                     updateJobStatus(this, executed);
                 }
             )
@@ -1004,15 +1040,6 @@ public class Export extends JDBCBasedJob<Export> {
                     setJobFailed(this, null, Job.ERROR_TYPE_EXECUTION_FAILED);
                 }}
             );
-    }
-
-    protected void scanAndRegisterExportObjects(Job j, String emrSuffix) {
-        Export export = ((Export) j); //TODO: Use this instance once scheduler is fixed
-
-        //Add file statistics and downloadLinks
-        Map<String, ExportObject> exportObjects = CService.jobS3Client.scanExportPath(
-            CService.jobS3Client.getS3Path(j, false) + emrSuffix);
-        export.setExportObjects(exportObjects);
     }
 
     private static class EMRConfig {
@@ -1058,6 +1085,19 @@ public class Export extends JDBCBasedJob<Export> {
     @Deprecated
     public Export withEmrType(String emrType) {
         setEmrType(emrType);
+        return this;
+    }
+
+    public String getS3Key() {
+        return s3Key;
+    }
+
+    public void setS3Key(String s3Key) {
+        this.s3Key = s3Key;
+    }
+
+    public Export withS3Key(String s3Key) {
+        setS3Key(s3Key);
         return this;
     }
 
@@ -1128,7 +1168,7 @@ public class Export extends JDBCBasedJob<Export> {
                     switch (jobState) {
                         case SUCCESS:
                             logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
-                            scanAndRegisterExportObjects(this, EMRConfig.S3_PATH_SUFFIX);
+                            setS3Key(CService.jobS3Client.getS3Path(this, false) + EMRConfig.S3_PATH_SUFFIX);
                             //Update this job's state finally to "finalized"
                             updateJobStatus(this, finalized);
                             //Stop this thread
