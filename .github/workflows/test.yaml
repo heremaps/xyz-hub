@@ -1,4 +1,4 @@
-name: Run Naksha tests
+name: test-workflow
 
 on:
   pull_request:
