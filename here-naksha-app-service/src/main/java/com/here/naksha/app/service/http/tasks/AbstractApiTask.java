@@ -180,7 +180,7 @@ public abstract class AbstractApiTask<T extends XyzResponse>
     }
   }
 
-  protected Result executeWriteRequestFromSpaceStorage(WriteFeatures<?> writeRequest) {
+  protected Result executeWriteRequestFromSpaceStorage(WriteFeatures writeRequest) {
     try (final IWriteSession writer = naksha().getSpaceStorage().newWriteSession(context(), true)) {
       return writer.execute(writeRequest);
     }

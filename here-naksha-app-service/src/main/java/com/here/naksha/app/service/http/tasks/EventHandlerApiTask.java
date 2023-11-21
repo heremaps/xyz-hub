@@ -117,7 +117,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
       return verticle.sendErrorResponse(
           routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(handlerIdFromPath, handlerToUpdate));
     } else {
-      final WriteFeatures<EventHandler> updateHandlerReq =
+      final WriteFeatures updateHandlerReq =
           RequestHelper.updateFeatureRequest(EVENT_HANDLERS, handlerToUpdate);
       final Result updateHandlerResult = executeWriteRequestFromSpaceStorage(updateHandlerReq);
       return transformWriteResultToXyzFeatureResponse(updateHandlerResult, EventHandler.class);

@@ -20,8 +20,9 @@ package com.here.naksha.lib.core.util.storage;
 
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.storage.ForwardCursor;
 import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.ResultCursor;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -58,7 +59,7 @@ public class ResultHelper {
    */
   public static <R extends XyzFeature> List<R> readFeaturesFromResult(Result result, Class<R> featureType, long limit)
       throws NoCursor, NoSuchElementException {
-    try (ResultCursor<R> resultCursor = result.cursor(featureType)) {
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> resultCursor = result.getXyzFeatureCursor()) {
       if (!resultCursor.hasNext()) {
         throw new NoSuchElementException("Result Cursor is empty");
       }
@@ -68,7 +69,7 @@ public class ResultHelper {
         if (!resultCursor.next()) {
           throw new RuntimeException("Unexpected invalid result");
         }
-        features.add(resultCursor.getFeature());
+        features.add(featureType.cast(resultCursor.getFeature()));
       }
       return features;
     }
@@ -83,9 +84,9 @@ public class ResultHelper {
    * @return the feature of type T if found, else null
    */
   public static <T> @Nullable T readFeatureFromResult(final @NotNull Result result, final @NotNull Class<T> type) {
-    try (ResultCursor<T> resultCursor = result.cursor(type)) {
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> resultCursor = result.getXyzFeatureCursor()) {
       if (resultCursor.hasNext() && resultCursor.next()) {
-        return resultCursor.getFeature();
+        return type.cast(resultCursor.getFeature());
       }
       return null;
     } catch (NoCursor e) {
