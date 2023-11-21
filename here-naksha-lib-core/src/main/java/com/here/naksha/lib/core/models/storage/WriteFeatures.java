@@ -24,7 +24,8 @@ import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * A request to modify features into a collection of the storage.
+ * A request to modify features in a collection of a storage. All feature added to the request have to be boxed into a {@link FeatureCodec},
+ * which defines the {@link EWriteOp operation} to be performed and the parameters of the operation.
  *
  * @param <FEATURE> The feature-type to write.
  * @param <CODEC>   The codec to use to encode features.

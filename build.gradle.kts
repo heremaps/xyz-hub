@@ -18,7 +18,7 @@ plugins {
     `maven-publish`
     // https://github.com/diffplug/spotless
     // gradle spotlessApply
-    id("com.diffplug.spotless").version("6.11.0")
+    id("com.diffplug.spotless").version("6.22.0")
     // https://github.com/johnrengelman/shadow
     id("com.github.johnrengelman.shadow") version "8.1.1"
     // Don't apply for all projects, we individually only apply where Kotlin is used.
