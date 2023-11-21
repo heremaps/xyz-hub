@@ -174,7 +174,7 @@ public class AccessLogUtil {
     final AccessLog accessLog = getAccessLog(context);
     if (accessLog == null) return;
 
-    logger.trace(accessLog.serialize());
+    logger.info(accessLog.serialize());
 
     // Log relevant details for generating API metrics
     final AccessLog.RequestInfo req = accessLog.reqInfo;

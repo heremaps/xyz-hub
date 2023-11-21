@@ -87,7 +87,7 @@ class AccessLogExtended {
   public String streamId;
   public long unixtime;
   public String time;
-  public long us;
+  public long ns;
   public long ms;
 
   public AccessLogExtended() {
@@ -100,8 +100,8 @@ class AccessLogExtended {
 
     unixtime = now.toEpochMilli();
     time = dtFormatter.format(now);
-    us = end - start;
-    ms = us / 1000 / 1000;
+    ns = end - start;
+    ms = ns / 1000 / 1000;
   }
 }
 
