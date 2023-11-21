@@ -38,7 +38,6 @@ import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.CombinedJob;
-import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
@@ -345,25 +344,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
             resolvedFuture = resolveChildren(json);
         try {
             final Job job = XyzSerializable.deserialize(json.toString(), Job.class);
-            if (job instanceof Export export && export.getSuperId() != null && !export.readPersistExport())
-                resolvedFuture = resolvedFuture.compose(v -> resolveSuperExportObjects(export));
-            else if (job instanceof CombinedJob combinedJob && combinedJob.getChildren().size() > 0)
-                resolvedFuture = resolvedFuture.compose(v -> Future.all(combinedJob.getChildren().stream().map(childJob -> resolveSuperExportObjects((Export) childJob))
-                    .collect(Collectors.toList())).mapEmpty());
             return resolvedFuture.map(v -> job);
         }
         catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private Future<Void> resolveSuperExportObjects(Export job) {
-        return getJob(null, job.getSuperId())
-            .compose(superJob -> {
-                if (superJob != null) //If super job was not found (yet)
-                    job.setSuperExportObjects(((Export) superJob).getExportObjects());
-                return Future.succeededFuture();
-            });
     }
 
     private Future<Void> resolveChildren(JsonObject combinedJob) {

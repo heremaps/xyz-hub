@@ -20,6 +20,7 @@
 package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.Core;
@@ -53,12 +54,18 @@ public abstract class JobConfigClient implements Initializable {
 
     public Future<Job> get(Marker marker, String jobId) {
         return getJob(marker, jobId)
-                .onSuccess(job -> {
-                    if (job == null) {
-                        logger.debug(marker, "job[{}]: not found!", jobId);
-                    }
-                })
-                .onFailure(e -> logger.error(marker, "job[{}]: failed to load! ", jobId, e));
+            .compose(job -> {
+              if (job instanceof Export export && export.getSuperId() != null)
+                //Resolve super job if (already) existing
+                return get(marker, export.getSuperId()).map(superJob -> export.withSuperJob((Export) superJob));
+              return Future.succeededFuture(job);
+            })
+            .onSuccess(job -> {
+                if (job == null) {
+                    logger.debug(marker, "job[{}]: not found!", jobId);
+                }
+            })
+            .onFailure(e -> logger.error(marker, "job[{}]: failed to load! ", jobId, e));
     }
 
     public Future<List<Job>> getList(Marker marker, String type, Status status, String targetSpaceId) {
