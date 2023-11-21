@@ -338,8 +338,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
    *
    * @param routingContext The routing context.
    */
-  private void onHeadersEnd(final @NotNull RoutingContext routingContext) {
-  }
+  private void onHeadersEnd(final @NotNull RoutingContext routingContext) {}
 
   /**
    * An end handler for the response. This will be called when the response is disposed to allow consistent cleanup of the response.

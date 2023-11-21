@@ -21,7 +21,6 @@ package com.here.naksha.app.common;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static java.net.http.HttpClient.Version.HTTP_1_1;
 
-import io.github.resilience4j.core.functions.CheckedFunction;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
@@ -87,14 +86,21 @@ public class NakshaTestWebClient {
   }
 
   private HttpResponse<String> send(HttpRequest request) {
+    try {
+      return this.sendOnce(request);
+    } catch (Exception ex) {
+      throw new RuntimeException("Http request submission failed", ex);
+    }
+    /*
     String retryId = retryIdForRequest(request);
     CheckedFunction<HttpRequest, HttpResponse<String>> responseSupplier =
-        Retry.decorateCheckedFunction(retry(retryId), this::sendOnce);
+    Retry.decorateCheckedFunction(retry(retryId), this::sendOnce);
     try {
-      return responseSupplier.apply(request);
+    return responseSupplier.apply(request);
     } catch (Throwable e) {
-      throw new RuntimeException("Applying retry (%s) failed".formatted(retryId), e);
+    throw new RuntimeException("Applying retry (%s) failed".formatted(retryId), e);
     }
+    */
   }
 
   private HttpResponse<String> sendOnce(HttpRequest request) throws IOException, InterruptedException {
