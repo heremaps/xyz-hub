@@ -1,4 +1,4 @@
-name: Run Naksha tests
+name: test-workflow
 
 on:
   pull_request:
@@ -7,6 +7,9 @@ on:
       - synchronize  # run whenever PR is updated
       - reopened     # run whenever PR is reopoened
   workflow_dispatch: # manual run
+  push:
+    branches:
+      - test-unit
 
 
 permissions:
@@ -41,6 +44,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
         with:
