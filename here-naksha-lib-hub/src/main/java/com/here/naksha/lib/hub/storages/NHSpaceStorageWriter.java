@@ -72,7 +72,9 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
   }
 
   private @NotNull Result executeWriteFeatures(final @NotNull WriteFeatures wf) {
-    if (virtualSpaces.containsKey(wf.getCollectionId())) {
+    final String spaceId = wf.getCollectionId();
+    addSpaceIdToStreamInfo(spaceId);
+    if (virtualSpaces.containsKey(spaceId)) {
       // Request is to write to Naksha Admin space
       return executeWriteFeaturesToAdminSpaces(wf);
     } else {

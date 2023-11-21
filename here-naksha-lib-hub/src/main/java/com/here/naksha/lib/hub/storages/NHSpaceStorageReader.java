@@ -30,6 +30,7 @@ import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Space;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.core.util.StreamInfo;
 import com.here.naksha.lib.handlers.AuthorizationEventHandler;
 import com.here.naksha.lib.hub.EventPipelineFactory;
 import java.util.ArrayList;
@@ -190,7 +191,9 @@ public class NHSpaceStorageReader implements IReadSession {
     if (rf.getCollections().size() > 1) {
       throw new UnsupportedOperationException("Reading from multiple spaces not supported!");
     }
-    if (virtualSpaces.containsKey(rf.getCollections().get(0))) {
+    final String spaceId = rf.getCollections().get(0);
+    addSpaceIdToStreamInfo(spaceId);
+    if (virtualSpaces.containsKey(spaceId)) {
       // Request is to read from Naksha Admin space
       return executeReadFeaturesFromAdminSpaces(rf);
     } else {
@@ -301,4 +304,9 @@ public class NHSpaceStorageReader implements IReadSession {
   @Override
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void close() {}
+
+  protected void addSpaceIdToStreamInfo(final @Nullable String spaceId) {
+    final StreamInfo streamInfo = context.getStreamInfo();
+    if (streamInfo != null) streamInfo.setSpaceIdIfMissing(spaceId);
+  }
 }

@@ -44,6 +44,8 @@ import com.here.naksha.app.service.AbstractNakshaHubVerticle;
 import com.here.naksha.app.service.NakshaApp;
 import com.here.naksha.app.service.http.apis.*;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
+import com.here.naksha.app.service.util.logging.AccessLog;
+import com.here.naksha.app.service.util.logging.AccessLogUtil;
 import com.here.naksha.lib.core.AbstractTask;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
@@ -58,6 +60,7 @@ import com.here.naksha.lib.core.models.payload.responses.NotModifiedResponse;
 import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.MIMEType;
+import com.here.naksha.lib.core.util.StreamInfo;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.MultiMap;
@@ -85,7 +88,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
@@ -213,6 +215,10 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         // If any error happened that was not handled otherwise.
         router.route().failureHandler(this::failureHandler);
 
+        // starts at the 2nd route, since the first one is automatically added from openapi's
+        // RouterBuilder.createRouter
+        router.route().order(1).handler(this::onNewRequest);
+
         // Add the HTTP server.
         // When several HTTP servers listen on the same port, vert.x orchestrates the request handling using a
         // round-robin strategy.
@@ -329,7 +335,12 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
    *
    * @param routingContext The routing context.
    */
-  private void onHeadersEnd(final @NotNull RoutingContext routingContext) {}
+  private void onHeadersEnd(final @NotNull RoutingContext routingContext) {
+    final StreamInfo streamInfo = AccessLogUtil.getStreamInfo(routingContext);
+    if (streamInfo != null) {
+      routingContext.response().putHeader(STREAM_INFO, streamInfo.toColonSeparatedString());
+    }
+  }
 
   /**
    * An end handler for the response. This will be called when the response is disposed to allow consistent cleanup of the response.
@@ -340,11 +351,10 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       log.info("The request was cancelled. No response has been sent.");
       onRequestCancelled(routingContext);
     }
-    // TODO: We need to rewrite the LogUtil, because we now (with SLF4J) have structured logs:
-    //       log.atInfo().setMessage("foo").addKeyValue("reqInfo", reqInfo)...
-    // routingContextLogger(routingContext).info("{}", LogUtil.responseToLogEntry(routingContext));
-    // LogUtil.addResponseInfo(routingContext).end();
-    // LogUtil.writeAccessLog(routingContext);
+    final AccessLog accessLog = AccessLogUtil.addResponseInfo(routingContext);
+    if (accessLog == null) return;
+    accessLog.end();
+    AccessLogUtil.writeAccessLog(routingContext);
   }
 
   private static final HttpResponseStatus CLIENT_CLOSED_REQUEST =
@@ -389,10 +399,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
    * @param routingContext The routing context.
    */
   private void onNewRequest(final @NotNull RoutingContext routingContext) {
-    routingContext.response().putHeader(STREAM_ID, streamId(routingContext));
-    routingContext.response().putHeader(STRICT_TRANSPORT_SECURITY, "max-age=" + TimeUnit.MINUTES.toSeconds(1));
-    // TODO: Add request information, first read in onResponseEnd.
-    // LogUtil.addRequestInfo(routingContext);
+    // Add request information, first read in onResponseEnd.
+    AccessLogUtil.addRequestInfo(routingContext);
     routingContext.response().endHandler(v -> onResponseEnd(routingContext));
     routingContext.addHeadersEndHandler(v -> onHeadersEnd(routingContext));
     routingContext.next();
@@ -698,6 +706,8 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   public @NotNull NakshaContext createNakshaContext(final @NotNull RoutingContext routingContext) {
     final NakshaContext ctx = new NakshaContext(streamId(routingContext));
     ctx.setAppId(hubConfig.appId);
+    // add streamInfo object to NakshaContext, which will be populated later during pipeline execution
+    ctx.attachStreamInfo(AccessLogUtil.getStreamInfo(routingContext));
     // TODO : Author to be set based on JWT token.
     // ctx.setAuthor();
     return ctx;

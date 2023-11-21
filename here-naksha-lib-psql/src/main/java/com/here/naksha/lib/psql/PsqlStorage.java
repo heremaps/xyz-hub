@@ -47,6 +47,8 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings({"unused", "SqlResolve"})
 public final class PsqlStorage implements IStorage {
 
+  public static final String ADMIN_STORAGE_ID = "naksha-admin";
+
   private static final Logger log = LoggerFactory.getLogger(PsqlStorage.class);
 
   private static @NotNull PsqlDataSource dataSourceFromStorage(final @NotNull Storage storage) {

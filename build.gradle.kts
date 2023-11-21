@@ -403,7 +403,7 @@ project(":here-naksha-lib-handlers") {
             implementation(project(":here-naksha-lib-core"))
             implementation(project(":here-naksha-lib-psql"))
             //implementation(project(":here-naksha-lib-extension"))
-            implementation(project(":here-naksha-handler-psql"))
+            //implementation(project(":here-naksha-handler-psql"))
             implementation(project(":here-naksha-lib-hub"))
 
             implementation(log4j_slf4j)
