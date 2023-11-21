@@ -295,10 +295,8 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
         }
         if (AbstractTask.threadCount.compareAndSet(threadCount, threadCount + 1)) {
           try {
-            final Future<RESULT> future = threadPool.submit(this::init_and_execute);
-            // TODO HP_QUERY : Wouldn't setting this flag, after submitting task, have concurrency failure
-            // risk?
             state.set(State.START);
+            final Future<RESULT> future = threadPool.submit(this::init_and_execute);
             return future;
           } catch (RejectedExecutionException e) {
             throw new TooManyTasks();
