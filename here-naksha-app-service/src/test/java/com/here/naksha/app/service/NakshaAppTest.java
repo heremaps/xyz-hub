@@ -122,7 +122,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(4)
+  @Order(2)
   void tc0004_testInvalidUrlPath() throws Exception {
     // Test API : GET /hub/invalid_storages
     final HttpResponse<String> response =
@@ -133,7 +133,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(5)
+  @Order(2)
   void tc0020_testGetStorageById() throws Exception {
     // Test API : GET /hub/storages/{storageId}
     // 1. Load test data
@@ -151,7 +151,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(6)
+  @Order(2)
   void tc0021_testGetStorageByWrongId() throws Exception {
     // Test API : GET /hub/storages/{storageId}
     // 1. Load test data
@@ -166,7 +166,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(7)
+  @Order(2)
   void tc0040_testGetStorages() throws Exception {
     // Test API : GET /hub/storages
     // 1. Load test data
@@ -184,7 +184,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(8)
+  @Order(2)
   void tc0060_testUpdateStorage() throws Exception {
     // Test API : PUT /hub/storages/{storageId}
     // Given:
@@ -202,7 +202,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(9)
+  @Order(2)
   void tc0061_testUpdateNonexistentStorage() throws Exception {
     // Test API : PUT /hub/storages/{storageId}
     // Given:
@@ -221,7 +221,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(10)
+  @Order(3)
   void tc0062_testUpdateStorageWithoutClassName() throws Exception {
     // Test API : PUT /hub/storages/{storageId}
     // Given:
@@ -239,7 +239,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(11)
+  @Order(3)
   void tc0063_testUpdateStorageWithWithMismatchingId() throws Exception {
     // Test API : PUT /hub/storages/{storageId}
     // Given:
@@ -259,7 +259,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(12)
+  @Order(2)
   void tc0100_testCreateEventHandler() throws Exception {
     // Test API : POST /hub/handlers
     // 1. Load test data
@@ -281,7 +281,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(13)
+  @Order(3)
   void tc0101_testDuplicateEventHandler() throws Exception {
     // Test API : POST /hub/handlers
     // 1. Load test data
@@ -302,7 +302,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(14)
+  @Order(3)
   void tc0102_testCreateHandlerMissingClassName() throws Exception {
     // Test API : POST /hub/handlers
     // 1. Load test data
@@ -321,7 +321,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(15)
+  @Order(3)
   void tc0120_testGetHandlerById() throws Exception {
     // Test API : GET /hub/handlers/{handlerId}
     // 1. Load test data
@@ -339,7 +339,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(16)
+  @Order(3)
   void tc0121_testGetHandlerByWrongId() throws Exception {
     // Test API : GET /hub/handlers/{handlerId}
     // 1. Load test data
@@ -354,7 +354,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(17)
+  @Order(3)
   void tc0140_testGetHandlers() throws Exception {
     // Test API : GET /hub/handlers
     // 1. Load test data
@@ -372,7 +372,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(18)
+  @Order(3)
   void tc0160_testUpdateEventHandler() throws Exception {
     // Test API : PUT /hub/handlers/{handlerId}
     // Given:
@@ -391,7 +391,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(19)
+  @Order(3)
   void tc0161_testUpdateNonexistentEventHandler() throws Exception {
     // Test API : PUT /hub/handlers/{handlerId}
     // Given:
@@ -411,7 +411,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(20)
+  @Order(3)
   void tc0162_testUpdateEventHandlerWithMismatchingId() throws Exception {
     // Test API : PUT /hub/handlers/{handlerId}
     // Given:
@@ -431,7 +431,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(21)
+  @Order(3)
   void tc0200_testCreateSpace() throws Exception {
     // Test API : POST /hub/spaces
     // 1. Load test data
@@ -450,7 +450,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(22)
+  @Order(4)
   void tc0201_testCreateDuplicateSpace() throws Exception {
     // Test API : POST /hub/spaces
     // 1. Load test data
@@ -469,7 +469,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(23)
+  @Order(4)
   void tc0220_testGetSpaceById() throws Exception {
     // Test API : GET /hub/spaces/{spaceId}
     // 1. Load test data
@@ -486,7 +486,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(24)
+  @Order(4)
   void tc0221_testGetSpaceByWrongId() throws Exception {
     // Test API : GET /hub/spaces/{spaceId}
     // 1. Load test data
@@ -501,7 +501,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(25)
+  @Order(4)
   void tc0240_testGetSpaces() throws Exception {
     // Test API : GET /hub/spaces
     // 1. Load test data
@@ -519,7 +519,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(26)
+  @Order(5)
   void tc0260_testUpdateSpace() throws Exception {
     // Test API : PUT /hub/spaces/{spaceId}
     // Given:
@@ -537,7 +537,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(27)
+  @Order(5)
   void tc0261_testUpdateNonexistentSpace() throws Exception {
     // Test API : PUT /hub/spaces/{spaceId}
     // Given:
@@ -556,7 +556,7 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(28)
+  @Order(5)
   void tc0263_testUpdateSpaceWithWithMismatchingId() throws Exception {
     // Test API : PUT /hub/spaces/{spaceId}
     // Given:
@@ -575,43 +575,43 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(29)
+  @Order(6)
   void tc0300_testCreateFeaturesWithNewIds() throws Exception {
     createFeatureTests.tc0300_testCreateFeaturesWithNewIds();
   }
 
   @Test
-  @Order(43)
+  @Order(7)
   void tc0301_testCreateFeaturesWithGivenIds() throws Exception {
     createFeatureTests.tc0301_testCreateFeaturesWithGivenIds();
   }
 
   @Test
-  @Order(30)
+  @Order(7)
   void tc0302_testCreateFeaturesWithPrefixId() throws Exception {
     createFeatureTests.tc0302_testCreateFeaturesWithPrefixId();
   }
 
   @Test
-  @Order(31)
+  @Order(7)
   void tc0303_testCreateFeaturesWithAddTags() throws Exception {
     createFeatureTests.tc0303_testCreateFeaturesWithAddTags();
   }
 
   @Test
-  @Order(32)
+  @Order(7)
   void tc0304_testCreateFeaturesWithRemoveTags() throws Exception {
     createFeatureTests.tc0304_testCreateFeaturesWithRemoveTags();
   }
 
   @Test
-  @Order(33)
+  @Order(7)
   void tc0305_testCreateFeaturesWithDupIds() throws Exception {
     createFeatureTests.tc0305_testCreateFeaturesWithDupIds();
   }
 
   @Test
-  @Order(34)
+  @Order(7)
   void tc0307_testCreateFeaturesWithNoHandler() throws Exception {
     createFeatureTests.tc0307_testCreateFeaturesWithNoHandler();
   }
@@ -623,49 +623,49 @@ class NakshaAppTest {
   }
 
   @Test
-  @Order(35)
+  @Order(8)
   void tc0400_testReadFeaturesWithIds() throws Exception {
     readFeaturesByIdsTests.tc0400_testReadFeaturesByIds();
   }
 
   @Test
-  @Order(36)
+  @Order(9)
   void tc0401_testReadFeaturesForMissingIds() throws Exception {
     readFeaturesByIdsTests.tc0401_testReadFeaturesForMissingIds();
   }
 
   @Test
-  @Order(37)
+  @Order(9)
   void tc0402_testReadFeaturesWithoutIds() throws Exception {
     readFeaturesByIdsTests.tc0402_testReadFeaturesWithoutIds();
   }
 
   @Test
-  @Order(38)
+  @Order(9)
   void tc0403_testReadFeaturesByIdsFromMissingSpace() throws Exception {
     readFeaturesByIdsTests.tc0403_testReadFeaturesByIdsFromMissingSpace();
   }
 
   @Test
-  @Order(39)
+  @Order(9)
   void tc0404_testReadFeatureById() throws Exception {
     readFeaturesByIdsTests.tc0404_testReadFeatureById();
   }
 
   @Test
-  @Order(40)
+  @Order(9)
   void tc0405_testReadFeatureForMissingId() throws Exception {
     readFeaturesByIdsTests.tc0405_testReadFeatureForMissingId();
   }
 
   @Test
-  @Order(41)
+  @Order(9)
   void tc0406_testReadFeatureByIdFromMissingSpace() throws Exception {
     readFeaturesByIdsTests.tc0406_testReadFeatureByIdFromMissingSpace();
   }
 
   @Test
-  @Order(42)
+  @Order(9)
   void tc0407_testReadFeaturesWithCommaSeparatedIds() throws Exception {
     readFeaturesByIdsTests.tc0407_testReadFeaturesWithCommaSeparatedIds();
   }

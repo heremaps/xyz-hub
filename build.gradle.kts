@@ -85,7 +85,7 @@ val slf4j_console = "org.slf4j:slf4j-simple:2.0.6";
 val log4j_core = "org.apache.logging.log4j:log4j-core:2.20.0"
 val log4j_api = "org.apache.logging.log4j:log4j-api:2.20.0"
 val log4j_jcl = "org.apache.logging.log4j:log4j-jcl:2.20.0"
-val log4j_slf4j = "org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0"
+val log4j_slf4j = "org.apache.logging.log4j:log4j-slf4j-impl:2.20.0"
 
 val postgres = "org.postgresql:postgresql:42.5.4"
 val zaxxer_hikari = "com.zaxxer:HikariCP:5.1.0"
@@ -238,11 +238,11 @@ subprojects {
         targetCompatibility = JavaVersion.VERSION_17
     }
     
-    /*testing {
+    testing {
         dependencies {
-            //implementation(slf4j_console)
+            implementation(slf4j_console)
         } 
-    }*/
+    }
 
     // Fix transitive dependencies.
 
@@ -412,10 +412,6 @@ project(":here-naksha-handler-psql") {
     }
 }
 
-configurations.implementation {
-    exclude(module = "commons-logging")
-}
-
 project(":here-naksha-lib-handlers") {
     description = "Naksha Handlers library"
     dependencies {
@@ -455,12 +451,9 @@ project(":here-naksha-lib-handlers") {
             implementation(project(":here-naksha-lib-core"))
             implementation(project(":here-naksha-lib-psql"))
             //implementation(project(":here-naksha-lib-extension"))
-            //implementation(project(":here-naksha-handler-psql"))
+            implementation(project(":here-naksha-handler-psql"))
             implementation(project(":here-naksha-lib-hub"))
 
-            implementation(log4j_slf4j)
-            implementation(log4j_api)
-            implementation(log4j_core)
             implementation(commons_lang3)
             implementation(vividsolutions_jts_core)
             implementation(postgres)
