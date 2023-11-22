@@ -32,6 +32,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
 import java.util.*;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.Test;
 
 class FibSetTest {
@@ -150,28 +153,28 @@ class FibSetTest {
   @Test
   void test_load() {
     // given
-    final FibSet<String, FibMapEntry<String, String>> fibSet = new FibSet<>(FibMapEntry::new);
+    final FibSet<Long, FibMapEntry<Long, String>> fibSet = new FibSet<>(FibMapEntry::new);
     long size = 2_621_440L;
 
-    long hit = 0;
-    long miss = 0;
-
+    AtomicLong hit = new AtomicLong();
+    AtomicLong miss = new AtomicLong();
+    System.out.printf(
+        "Available Cores for parallelism: %s%n",
+        ForkJoinPool.commonPool().getParallelism());
     // writes
-    for (int i = 0; i < size; i++) {
-      fibSet.execute(PUT, "foo" + i, STRONG);
-    }
+    LongStream.range(0, size).parallel().forEach(i -> fibSet.execute(PUT, i, STRONG));
 
     // reads
-    for (int i = 0; i < size; i++) {
-      FibMapEntry fibEntry = fibSet.execute(GET, "foo" + i, STRONG);
-      hit += 1;
+    LongStream.range(0, size).parallel().forEach(i -> {
+      FibMapEntry fibEntry = fibSet.execute(GET, i, STRONG);
+      hit.addAndGet(1);
       if (fibEntry == null) {
-        miss += 1;
+        miss.addAndGet(1);
       }
-    }
+    });
 
     // then
-    Double missRatio = Math.round(miss * 10000d / hit) / 100d;
+    Double missRatio = Math.round(miss.get() * 10000d / hit.get()) / 100d;
     System.out.printf("Hit: %s; Miss: %s; Misses ratio: %s%%;%n", hit, miss, missRatio);
 
     Map<Integer, Stats> stats = new LinkedHashMap<>();
