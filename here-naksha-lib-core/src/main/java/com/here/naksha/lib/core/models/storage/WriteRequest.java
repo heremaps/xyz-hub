@@ -33,7 +33,20 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * All write requests should extend this base class.
+ * All write requests should extend this base class and follow the principles described here.
+ *
+ * <p>The storage may re-order the feature codecs before execution, so execute them in a different order, if needed. The response to a
+ * {@code WriteFeatures} request will be either a {@link SuccessResult} or a {@link ErrorResult}. If no error happened, the storage will
+ * return a {@link SuccessResult}, if any error happened, it will return an {@link ErrorResult}.
+ *
+ * <p>In the cases of a {@link SuccessResult} the storage <b>must</b> return a {@link ForwardCursor cursor} to review the results. For an
+ * {@link ErrorResult} the storage <b>must</b>> return a {@link ForwardCursor cursor} only, if the request succeeded partially. It will not
+ * return a {@link ForwardCursor cursor}, if the whole {@link WriteRequest} failed.
+ *
+ * <p>If a {@link ForwardCursor cursor} is returned, for every write operation at least one result will be available. Currently only the
+ * {@link EWriteOp#PURGE} will result in two results being returned. All results will return an {@link EExecutedOp}, clarifying the
+ * operation that was performed. The details about what each execution means for the result can be read at the {@link EExecutedOp}
+ * documentation.
  *
  * @param <FEATURE> The feature-type to write.
  * @param <CODEC>   The codec to use to encode features.
@@ -41,7 +54,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @AvailableSince(NakshaVersion.v2_0_7)
 public abstract class WriteRequest<
-        FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>, SELF extends WriteRequest<FEATURE, CODEC, SELF>>
+    FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>, SELF extends WriteRequest<FEATURE, CODEC, SELF>>
     extends Request<SELF> {
 
   /**

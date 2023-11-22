@@ -50,9 +50,12 @@ public class ReadFeatures extends ReadRequest<ReadFeatures> {
     this.collections = collections != null ? collections : new ArrayList<>();
   }
 
+  /**
+   * Weather to return deleted features, normally {@code false}.
+   */
   @JsonProperty
   @AvailableSince(NakshaVersion.v2_0_7)
-  private boolean returnDeleted;
+  protected boolean returnDeleted;
 
   @JsonProperty
   @AvailableSince(NakshaVersion.v2_0_7)

@@ -25,7 +25,8 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * A request to modify features in a collection of a storage. All feature added to the request have to be boxed into a {@link FeatureCodec},
- * which defines the {@link EWriteOp operation} to be performed and the parameters of the operation.
+ * which defines the {@link EWriteOp operation} to be performed and the parameters of the operation. For more details about the behaviour,
+ * please refer to the documentation of the {@link WriteRequest}.
  *
  * @param <FEATURE> The feature-type to write.
  * @param <CODEC>   The codec to use to encode features.
@@ -33,7 +34,7 @@ import org.jetbrains.annotations.NotNull;
  */
 @AvailableSince(NakshaVersion.v2_0_7)
 public class WriteFeatures<
-        FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>, SELF extends WriteFeatures<FEATURE, CODEC, SELF>>
+    FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>, SELF extends WriteFeatures<FEATURE, CODEC, SELF>>
     extends WriteRequest<FEATURE, CODEC, SELF> {
 
   /**

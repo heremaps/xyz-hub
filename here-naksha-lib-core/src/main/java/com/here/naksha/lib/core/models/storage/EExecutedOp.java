@@ -19,8 +19,12 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.geojson.implementation.EXyzAction;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
+import org.jetbrains.annotations.ApiStatus.Experimental;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,6 +37,7 @@ public class EExecutedOp extends JsonEnum {
 
   /**
    * Returns the execution operation that matches the given character sequence.
+   *
    * @param chars The character sequence to translate.
    * @return The execution operation.
    */
@@ -54,49 +59,50 @@ public class EExecutedOp extends JsonEnum {
   public static final EExecutedOp RETAINED = def(EExecutedOp.class, "RETAINED");
 
   /**
-   * A read operation was executed.
+   * A read operation was executed. The read version is returned in the {@link FeatureCodec#feature}. Note that features that do not exist,
+   * are simply not returned from the storage. Therefore, {@link FeatureCodec#feature} should never be {@code null}, when this executed
+   * operation is returned.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final EExecutedOp READ = def(EExecutedOp.class, "READ");
 
   /**
-   * A write operation was performed, but the existing state was retained.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public static final EExecutedOp RETAINED = def(EExecutedOp.class, "RETAINED");
-
-  /**
-   * A new feature was created.
+   * A new feature was created. The created feature is returned in the {@link FeatureCodec#feature}.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final EExecutedOp CREATED = def(EExecutedOp.class, "CREATED");
 
   /**
-   * A feature was updated.
+   * A feature was updated. The new version, after the update, is returned in the {@link FeatureCodec#feature}.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final EExecutedOp UPDATED = def(EExecutedOp.class, "UPDATED");
 
   /**
-   * The feature was deleted.
+   * The feature was deleted. The new (deleted) version is returned in the {@link FeatureCodec#feature}, with must have the
+   * {@link XyzNamespace#getAction()} set to {@link EXyzAction#DELETE}.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final EExecutedOp DELETED = def(EExecutedOp.class, "DELETED");
 
   /**
-   * The feature was purged (eventually deleted, so that there is no further trace in the HEAD).
+   * The feature was purged. The purged version is returned in the {@link FeatureCodec#feature}, this feature must have the
+   * {@link XyzNamespace#getAction()} set to {@link EXyzAction#DELETE}. Note that purge does not create a new state, it just removes the
+   * deleted version from a deleted features cache of the storage.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final EExecutedOp PURGED = def(EExecutedOp.class, "PURGED");
 
   /**
-   * A collection was restored, only possible for collections.
+   * A feature was restored. The restored version is returned in {@link FeatureCodec#feature}.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
+  @Experimental
   public static final EExecutedOp RESTORED = def(EExecutedOp.class, "RESTORED");
 
   /**
-   * The operation failed. The reason is encoded in the JSON and will be a {@link CodecError}.
+   * The operation failed. The error details are encoded in the {@link FeatureCodec#err}, which will hold a {@link XyzError} that may be
+   * used for more details. For example, if a conflict occurred in an atomic operation, the {@link XyzError#CONFLICT} will be returned.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final EExecutedOp ERROR = def(EExecutedOp.class, "ERROR");
