@@ -21,6 +21,7 @@ package com.here.naksha.app.common;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static java.net.http.HttpClient.Version.HTTP_1_1;
 
+import io.github.resilience4j.core.functions.CheckedFunction;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
 import io.github.resilience4j.retry.RetryRegistry;
@@ -63,7 +64,7 @@ public class NakshaTestWebClient {
         .GET()
         .header(HDR_STREAM_ID, streamId)
         .build();
-    return send(getRequest);
+    return sendOnce(getRequest);
   }
 
   public HttpResponse<String> post(String subPath, String jsonBody, String streamId)
@@ -74,7 +75,7 @@ public class NakshaTestWebClient {
         .header("Content-Type", "application/json")
         .header(HDR_STREAM_ID, streamId)
         .build();
-    return send(postRequest);
+    return sendOnce(postRequest);
   }
 
   public HttpResponse<String> put(String subPath, String jsonBody, String streamId)
@@ -85,21 +86,27 @@ public class NakshaTestWebClient {
         .header("Content-Type", "application/json")
         .header(HDR_STREAM_ID, streamId)
         .build();
-    return send(putRequest);
+    return sendOnce(putRequest);
   }
 
-  private HttpResponse<String> send(HttpRequest request) throws IOException, InterruptedException {
-    return this.sendOnce(request);
-    /*
+  // TODO : Remove this function once JUnit pipeline has got multiple stable executions
+  /**
+   * This Http retry function was temporarily introduced as a workaround to resolve JUnit test hanging
+   * issue, which is resolved now. This function will be removed soon.
+   *
+   * @param request http request to be submitted
+   * @return actual http response
+   * @deprecated use sendOnce() instead
+   */
+  private HttpResponse<String> send(HttpRequest request) {
     String retryId = retryIdForRequest(request);
     CheckedFunction<HttpRequest, HttpResponse<String>> responseSupplier =
-    Retry.decorateCheckedFunction(retry(retryId), this::sendOnce);
+        Retry.decorateCheckedFunction(retry(retryId), this::sendOnce);
     try {
-    return responseSupplier.apply(request);
+      return responseSupplier.apply(request);
     } catch (Throwable e) {
-    throw new RuntimeException("Applying retry (%s) failed".formatted(retryId), e);
+      throw new RuntimeException("Applying retry (%s) failed".formatted(retryId), e);
     }
-    */
   }
 
   private HttpResponse<String> sendOnce(HttpRequest request) throws IOException, InterruptedException {
