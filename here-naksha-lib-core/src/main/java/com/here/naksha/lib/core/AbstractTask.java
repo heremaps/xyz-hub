@@ -362,7 +362,6 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
     log.warn("The task failed with an exception. ", throwable);
     return result;
   }
-  ;
 
   /**
    * Initializes this task.
