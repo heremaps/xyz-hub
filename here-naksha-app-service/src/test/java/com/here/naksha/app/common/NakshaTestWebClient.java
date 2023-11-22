@@ -56,7 +56,8 @@ public class NakshaTestWebClient {
     retryRegistry = configureRetryRegistry();
   }
 
-  public HttpResponse<String> get(String subPath, String streamId) throws URISyntaxException {
+  public HttpResponse<String> get(String subPath, String streamId)
+      throws URISyntaxException, IOException, InterruptedException {
     HttpRequest getRequest = requestBuilder()
         .uri(nakshaPath(subPath))
         .GET()
@@ -65,7 +66,8 @@ public class NakshaTestWebClient {
     return send(getRequest);
   }
 
-  public HttpResponse<String> post(String subPath, String jsonBody, String streamId) throws URISyntaxException {
+  public HttpResponse<String> post(String subPath, String jsonBody, String streamId)
+      throws URISyntaxException, IOException, InterruptedException {
     HttpRequest postRequest = requestBuilder()
         .uri(nakshaPath(subPath))
         .POST(BodyPublishers.ofString(jsonBody))
@@ -75,7 +77,8 @@ public class NakshaTestWebClient {
     return send(postRequest);
   }
 
-  public HttpResponse<String> put(String subPath, String jsonBody, String streamId) throws URISyntaxException {
+  public HttpResponse<String> put(String subPath, String jsonBody, String streamId)
+      throws URISyntaxException, IOException, InterruptedException {
     HttpRequest putRequest = requestBuilder()
         .uri(nakshaPath(subPath))
         .PUT(BodyPublishers.ofString(jsonBody))
@@ -85,12 +88,8 @@ public class NakshaTestWebClient {
     return send(putRequest);
   }
 
-  private HttpResponse<String> send(HttpRequest request) {
-    try {
-      return this.sendOnce(request);
-    } catch (Exception ex) {
-      throw new RuntimeException("Http request submission failed", ex);
-    }
+  private HttpResponse<String> send(HttpRequest request) throws IOException, InterruptedException {
+    return this.sendOnce(request);
     /*
     String retryId = retryIdForRequest(request);
     CheckedFunction<HttpRequest, HttpResponse<String>> responseSupplier =
