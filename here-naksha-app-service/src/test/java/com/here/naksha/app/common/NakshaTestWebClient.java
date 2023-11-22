@@ -57,35 +57,47 @@ public class NakshaTestWebClient {
     retryRegistry = configureRetryRegistry();
   }
 
-  public HttpResponse<String> get(String subPath, String streamId) throws URISyntaxException {
+  public HttpResponse<String> get(String subPath, String streamId)
+      throws URISyntaxException, IOException, InterruptedException {
     HttpRequest getRequest = requestBuilder()
         .uri(nakshaPath(subPath))
         .GET()
         .header(HDR_STREAM_ID, streamId)
         .build();
-    return send(getRequest);
+    return sendOnce(getRequest);
   }
 
-  public HttpResponse<String> post(String subPath, String jsonBody, String streamId) throws URISyntaxException {
+  public HttpResponse<String> post(String subPath, String jsonBody, String streamId)
+      throws URISyntaxException, IOException, InterruptedException {
     HttpRequest postRequest = requestBuilder()
         .uri(nakshaPath(subPath))
         .POST(BodyPublishers.ofString(jsonBody))
         .header("Content-Type", "application/json")
         .header(HDR_STREAM_ID, streamId)
         .build();
-    return send(postRequest);
+    return sendOnce(postRequest);
   }
 
-  public HttpResponse<String> put(String subPath, String jsonBody, String streamId) throws URISyntaxException {
+  public HttpResponse<String> put(String subPath, String jsonBody, String streamId)
+      throws URISyntaxException, IOException, InterruptedException {
     HttpRequest putRequest = requestBuilder()
         .uri(nakshaPath(subPath))
         .PUT(BodyPublishers.ofString(jsonBody))
         .header("Content-Type", "application/json")
         .header(HDR_STREAM_ID, streamId)
         .build();
-    return send(putRequest);
+    return sendOnce(putRequest);
   }
 
+  // TODO : Remove this function once JUnit pipeline has got multiple stable executions
+  /**
+   * This Http retry function was temporarily introduced as a workaround to resolve JUnit test hanging
+   * issue, which is resolved now. This function will be removed soon.
+   *
+   * @param request http request to be submitted
+   * @return actual http response
+   * @deprecated use sendOnce() instead
+   */
   private HttpResponse<String> send(HttpRequest request) {
     String retryId = retryIdForRequest(request);
     CheckedFunction<HttpRequest, HttpResponse<String>> responseSupplier =
