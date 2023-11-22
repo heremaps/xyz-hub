@@ -7,9 +7,6 @@ on:
       - synchronize  # run whenever PR is updated
       - reopened     # run whenever PR is reopoened
   workflow_dispatch: # manual run
-  push:
-    branches:
-      - fix-junit-pipeline
 
 
 permissions:
