@@ -285,6 +285,8 @@ subprojects {
 project(":here-naksha-lib-core") {
     description = "Naksha Core Library"
     java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
         withJavadocJar()
         withSourcesJar()
     }
@@ -315,6 +317,8 @@ project(":here-naksha-lib-heapcache") {
 project(":here-naksha-lib-psql") {
     description = "Naksha PostgresQL Storage Library"
     java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
         withJavadocJar()
         withSourcesJar()
     }

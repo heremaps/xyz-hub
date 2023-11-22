@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.core.models.geojson.implementation;
 
+import static java.util.stream.Collectors.toList;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -176,9 +178,11 @@ public class XyzFeatureCollection extends XyzResponse {
   @JsonDeserialize(using = RawDeserializer.class)
   @JsonProperty("features")
   public void setLazyParsableFeatureList(Object features) {
-    if (features instanceof String string) {
+    if (features instanceof String) {
+      String string = (String) features;
       this.features.set(string);
-    } else if (features instanceof List<?> list) {
+    } else if (features instanceof List<?>) {
+      List<?> list = (List<?>) features;
       this.features.set((List<XyzFeature>) list);
     }
   }
@@ -454,7 +458,7 @@ public class XyzFeatureCollection extends XyzResponse {
   public @NotNull XyzFeatureCollection withInsertedFeatures(
       final @NotNull List<? extends @NotNull XyzFeature> insertedFeatures) {
     ((List<XyzFeature>) this.features.get()).addAll(insertedFeatures); // append features
-    withInserted(insertedFeatures.stream().map(XyzFeature::getId).toList()); // overwrite inserted
+    withInserted(insertedFeatures.stream().map(XyzFeature::getId).collect(toList())); // overwrite inserted
     return this;
   }
 

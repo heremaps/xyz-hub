@@ -322,7 +322,8 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
     }
     final Object value = propertyOp.getValue();
     if (op == POpType.STARTS_WITH) {
-      if (value instanceof String text) {
+      if (value instanceof String) {
+        String text = (String) value;
         sql.add("(");
         addJsonPath(sql, path, path.size());
         sql.add("::text) LIKE ?");
@@ -358,7 +359,8 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
 
   @NotNull
   Result executeRead(@NotNull ReadRequest<?> readRequest) {
-    if (readRequest instanceof final ReadFeatures readFeatures) {
+    if (readRequest instanceof ReadFeatures) {
+      final ReadFeatures readFeatures = (ReadFeatures) readRequest;
       final List<@NotNull String> collections = readFeatures.getCollections();
       if (collections.size() == 0) {
         return new PsqlSuccess(null);
@@ -381,16 +383,13 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
       for (final String collection : collections) {
         // r_op text, r_id text, r_uuid text, r_type text, r_ptype text, r_feature jsonb, r_geometry geometry,
         // r_err jsonb
-        sql.add(
-                """
-SELECT 'READ',
-naksha_feature_id(jsondata),
-naksha_feature_uuid(jsondata),
-naksha_feature_type(jsondata),
-naksha_feature_ptype(jsondata),
-jsondata,
-ST_AsEWKB(geo),
-null FROM\s""")
+        sql.add("SELECT 'READ',\n" + "naksha_feature_id(jsondata),\n"
+                + "naksha_feature_uuid(jsondata),\n"
+                + "naksha_feature_type(jsondata),\n"
+                + "naksha_feature_ptype(jsondata),\n"
+                + "jsondata,\n"
+                + "ST_AsEWKB(geo),\n"
+                + "null FROM ")
             .addIdent(collection);
         if (spatial_where.length() > 0 || props_where.length() > 0) {
           sql.add(" WHERE");
@@ -413,22 +412,22 @@ null FROM\s""")
         for (final Object value : parameters) {
           if (value == null) {
             stmt.setString(i++, null);
-          } else if (value instanceof PGobject v) {
-            stmt.setObject(i++, v);
-          } else if (value instanceof String v) {
-            stmt.setString(i++, v);
-          } else if (value instanceof Double v) {
-            stmt.setDouble(i++, v);
-          } else if (value instanceof Float v) {
-            stmt.setFloat(i++, v);
-          } else if (value instanceof Long v) {
-            stmt.setLong(i++, v);
-          } else if (value instanceof Integer v) {
-            stmt.setInt(i++, v);
-          } else if (value instanceof Short v) {
-            stmt.setShort(i++, v);
-          } else if (value instanceof Boolean v) {
-            stmt.setBoolean(i++, v);
+          } else if (value instanceof PGobject) {
+            stmt.setObject(i++, value);
+          } else if (value instanceof String) {
+            stmt.setString(i++, (String) value);
+          } else if (value instanceof Double) {
+            stmt.setDouble(i++, (Double) value);
+          } else if (value instanceof Float) {
+            stmt.setFloat(i++, (Float) value);
+          } else if (value instanceof Long) {
+            stmt.setLong(i++, (Long) value);
+          } else if (value instanceof Integer) {
+            stmt.setInt(i++, (Integer) value);
+          } else if (value instanceof Short) {
+            stmt.setShort(i++, (Short) value);
+          } else if (value instanceof Boolean) {
+            stmt.setBoolean(i++, (Boolean) value);
           } else {
             throw new IllegalArgumentException("Invalid value at index " + i + ": " + value);
           }
@@ -483,7 +482,8 @@ null FROM\s""")
         throw unchecked(e);
       }
     }
-    if (writeRequest instanceof final WriteFeatures<?, ?, ?> writeFeatures) {
+    if (writeRequest instanceof WriteFeatures<?, ?, ?>) {
+      final WriteFeatures<?, ?, ?> writeFeatures = (WriteFeatures<?, ?, ?>) writeRequest;
       final int partition_id = -1;
       //      if (writeFeatures instanceof PostgresWriteFeaturesToPartition<?> writeToPartition) {
       //        partition_id = writeToPartition.partitionId;
@@ -491,9 +491,8 @@ null FROM\s""")
       //        partition_id = -1;
       //      }
       final PreparedStatement stmt = prepareStatement(
-          """
-SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, ST_AsEWKB(r_geometry), r_err
-FROM nk_write_features(?,?,?,?,?,?,?,?,?);""");
+          "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, ST_AsEWKB(r_geometry), r_err\n"
+              + "FROM nk_write_features(?,?,?,?,?,?,?,?,?);");
       // nk_write_features(col_id, part_id, ops, ids, uuids, features, geometries, min_result, errors_only
       try (final Json json = Json.get()) {
         final List<@NotNull CODEC> features = writeRequest.features;

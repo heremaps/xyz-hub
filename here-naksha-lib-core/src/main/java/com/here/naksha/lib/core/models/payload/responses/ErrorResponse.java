@@ -72,7 +72,8 @@ public class ErrorResponse extends XyzResponse {
    */
   public ErrorResponse(@NotNull Throwable t, @Nullable String streamId) {
     super(streamId);
-    if (t instanceof XyzErrorException e) {
+    if (t instanceof XyzErrorException) {
+      XyzErrorException e = (XyzErrorException) t;
       setError(e.xyzError);
       setErrorMessage(t.getMessage());
     } else if (t instanceof ParameterError) {
@@ -81,7 +82,7 @@ public class ErrorResponse extends XyzResponse {
     } else if (t instanceof TooManyTasks) {
       setError(XyzError.TOO_MANY_REQUESTS);
       setErrorMessage(t.getMessage());
-    } else if (t instanceof SQLException se && "22023".equals(se.getSQLState())) {
+    } else if (t instanceof SQLException && "22023".equals(((SQLException) t).getSQLState())) {
       // TODO : To check other standard PSQL errors
       setError(XyzError.CONFLICT);
       setErrorMessage(t.getMessage());

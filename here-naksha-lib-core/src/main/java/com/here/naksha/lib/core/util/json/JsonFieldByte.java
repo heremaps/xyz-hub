@@ -50,13 +50,14 @@ public final class JsonFieldByte<OBJECT> extends JsonField<OBJECT, Byte> {
 
   @Override
   public @NotNull Byte value(@Nullable Object value) {
-    if (value instanceof Byte v) {
-      return v;
+    if (value instanceof Byte) {
+      return (Byte) value;
     }
     if (value == null) {
       return nullValue();
     }
-    if (value instanceof Number n) {
+    if (value instanceof Number) {
+      Number n = (Number) value;
       return n.byteValue();
     }
     throw new IllegalArgumentException("value is no instance of " + valueClass.getName());

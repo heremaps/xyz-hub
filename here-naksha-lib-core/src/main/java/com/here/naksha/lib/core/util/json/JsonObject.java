@@ -348,7 +348,8 @@ public class JsonObject
    */
   @Override
   public @Nullable Object getOrDefault(@Nullable Object key, @Nullable Object alternative) {
-    if (key instanceof CharSequence name) {
+    if (key instanceof CharSequence) {
+      CharSequence name = (CharSequence) key;
       final JsonClass<?> jsonClass = getJsonClass();
       final JsonField<?, ?> field = jsonClass.getField(name);
       if (field != null) {

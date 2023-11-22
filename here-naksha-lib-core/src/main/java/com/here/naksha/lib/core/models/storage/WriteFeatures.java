@@ -34,7 +34,7 @@ import org.jetbrains.annotations.NotNull;
  */
 @AvailableSince(NakshaVersion.v2_0_7)
 public class WriteFeatures<
-    FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>, SELF extends WriteFeatures<FEATURE, CODEC, SELF>>
+        FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>, SELF extends WriteFeatures<FEATURE, CODEC, SELF>>
     extends WriteRequest<FEATURE, CODEC, SELF> {
 
   /**

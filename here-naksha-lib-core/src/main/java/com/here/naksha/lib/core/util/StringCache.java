@@ -72,12 +72,12 @@ public final class StringCache {
     if (chars == null) {
       return alternative;
     }
-    if (chars instanceof String string) {
-      return string;
+    if (chars instanceof String) {
+      return (String) chars;
     }
-    if (chars instanceof JsonEnum jsonEnum) {
+    if (chars instanceof JsonEnum) {
       // We know, the values of JSON enumerations are already interned!
-      return jsonEnum.toString();
+      return ((JsonEnum) chars).toString();
     }
     // Technically, we assume there are now only very few cases left, where a CharSequence is already interned.
     return intern(chars);

@@ -161,7 +161,8 @@ public abstract class JsonEnum implements CharSequence {
     // Note: Byte, Short, Integer will be converted to Long
     //       Float is converted to Double.
     // This simplifies usage and avoids that a number parsed into a short is not found when being pre-defined.
-    if (value instanceof final Number number) {
+    if (value instanceof Number) {
+      final Number number = (Number) value;
       final Class<? extends Number> numberClass = number.getClass();
       if (numberClass == Byte.class || numberClass == Short.class || numberClass == Integer.class) {
         return number.longValue();
@@ -170,7 +171,8 @@ public abstract class JsonEnum implements CharSequence {
         return number.doubleValue();
       }
     }
-    if (value instanceof CharSequence chars) {
+    if (value instanceof CharSequence) {
+      CharSequence chars = (CharSequence) value;
       final String string = string(chars);
       assert string != null;
       return string;
@@ -191,7 +193,8 @@ public abstract class JsonEnum implements CharSequence {
         return enumClass.cast(existing);
       }
     }
-    if (tryLowerCase && value instanceof final String stringValue) {
+    if (tryLowerCase && value instanceof String) {
+      final String stringValue = (String) value;
       final JsonEnum existing = values.get(stringValue.toLowerCase(Locale.ROOT));
       if (enumClass.isInstance(existing)) {
         // Fast path, happens when only well-known values are used.
@@ -458,7 +461,8 @@ public abstract class JsonEnum implements CharSequence {
     if (this == other) {
       return true;
     }
-    if (other instanceof final JsonEnum otherEnum) {
+    if (other instanceof JsonEnum) {
+      final JsonEnum otherEnum = (JsonEnum) other;
       if (otherEnum.getClass() != this.getClass()) {
         return false;
       }
@@ -473,7 +477,8 @@ public abstract class JsonEnum implements CharSequence {
    * @return the enumeration integer value or {@code -1}.
    */
   public long toLong() {
-    if (value instanceof Number number) {
+    if (value instanceof Number) {
+      Number number = (Number) value;
       return number.longValue();
     }
     return -1L;

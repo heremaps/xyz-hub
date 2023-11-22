@@ -49,13 +49,14 @@ public final class JsonFieldFloat<OBJECT> extends JsonField<OBJECT, Float> {
 
   @Override
   public @NotNull Float value(@Nullable Object value) {
-    if (value instanceof Float v) {
-      return v;
+    if (value instanceof Float) {
+      return (Float) value;
     }
     if (value == null) {
       return nullValue();
     }
-    if (value instanceof Number n) {
+    if (value instanceof Number) {
+      Number n = (Number) value;
       return n.floatValue();
     }
     throw new IllegalArgumentException("value is no instance of " + valueClass.getName());

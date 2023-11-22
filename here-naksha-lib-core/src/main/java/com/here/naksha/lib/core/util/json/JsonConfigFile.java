@@ -137,17 +137,17 @@ public abstract class JsonConfigFile<SELF extends JsonConfigFile<SELF>> extends 
     LoadedBytes loaded = null;
     try {
       loaded = IoHelp.readBytesFromHomeOrResource(filename(), false, appName(), searchPath());
-      configValues = JsonSerializable.deserialize(loaded.bytes(), MAP_TYPE);
+      configValues = JsonSerializable.deserialize(loaded.getBytes(), MAP_TYPE);
     } catch (Throwable t) {
       logger.error(
           "Failed to load configuration file: {} (path={})",
           filename,
-          loaded != null ? loaded.path() : "",
+          loaded != null ? loaded.getPath() : "",
           t);
       loaded = null;
     }
     loadFromMap(configValues, getEnv);
-    this.loadPath = loaded != null ? loaded.path() : null;
+    this.loadPath = loaded != null ? loaded.getPath() : null;
     return (SELF) this;
   }
 

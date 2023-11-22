@@ -27,20 +27,36 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Creates a modify features request.
  *
- * @param insert       the feature to insert.
- * @param update       the features to update.
- * @param upsert       the features to insert or update.
- * @param delete       the features to delete.
- * @param read_results {@code true} to request results from the database; {@code false} if the database should not send back results.
- * @param <FEATURE>    the feature type store.
+ * @param <FEATURE> the feature type store.
  */
 @Deprecated
-public record ModifyFeaturesReq<FEATURE extends XyzFeature>(
-    @NotNull List<@NotNull FEATURE> insert,
-    @NotNull List<@NotNull FEATURE> update,
-    @NotNull List<@NotNull FEATURE> upsert,
-    @NotNull List<@NotNull DeleteOp> delete,
-    boolean read_results) {
+public class ModifyFeaturesReq<FEATURE extends XyzFeature> {
+
+  private final List<FEATURE> insert;
+  private final List<FEATURE> update;
+  private final List<FEATURE> upsert;
+  private final boolean readResults;
+  private final List<DeleteOp> delete;
+
+  /**
+   * @param insert       the feature to insert.
+   * @param update       the features to update.
+   * @param upsert       the features to insert or update.
+   * @param delete       the features to delete.
+   * @param read_results {@code true} to request results from the database; {@code false} if the database should not send back results.
+   */
+  public ModifyFeaturesReq(
+      @NotNull List<@NotNull FEATURE> insert,
+      @NotNull List<@NotNull FEATURE> update,
+      @NotNull List<@NotNull FEATURE> upsert,
+      @NotNull List<@NotNull DeleteOp> delete,
+      boolean read_results) {
+    this.insert = insert;
+    this.update = update;
+    this.delete = delete;
+    this.upsert = upsert;
+    readResults = read_results;
+  }
 
   /**
    * Create an empty modify features request reading the results.
@@ -51,10 +67,31 @@ public record ModifyFeaturesReq<FEATURE extends XyzFeature>(
 
   /**
    * Create a modify features request reading or not reading results.
+   *
    * @param read_results {@code true} to request results from the database; {@code false} if the database should not send back results.
    */
   public ModifyFeaturesReq(boolean read_results) {
     this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), read_results);
+  }
+
+  public List<FEATURE> getInsert() {
+    return insert;
+  }
+
+  public List<FEATURE> getUpdate() {
+    return update;
+  }
+
+  public List<FEATURE> getUpsert() {
+    return upsert;
+  }
+
+  public boolean isReadResults() {
+    return readResults;
+  }
+
+  public List<DeleteOp> getDelete() {
+    return delete;
   }
 
   /**

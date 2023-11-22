@@ -124,18 +124,12 @@ class JsonEnumTest {
     Truck truck;
     Car car;
     try (final Json jp = Json.get()) {
-      raw = jp.reader().forType(TestObject.class).readValue("""
-{
-"vehicle": "TRUCK"
-}""");
+      raw = jp.reader().forType(TestObject.class).readValue("{\n" + "\"vehicle\": \"TRUCK\"\n" + "}");
       object = assertInstanceOf(TestObject.class, raw);
       truck = assertInstanceOf(Truck.class, object.vehicle);
       assertSame(Truck.TRUCK, truck);
 
-      raw = jp.reader().forType(TestObject.class).readValue("""
-{
-"vehicle": 5
-}""");
+      raw = jp.reader().forType(TestObject.class).readValue("{\n" + "\"vehicle\": 5\n" + "}");
       object = assertInstanceOf(TestObject.class, raw);
       car = assertInstanceOf(Car.class, object.vehicle);
       assertSame(Car.CAR, car);

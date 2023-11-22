@@ -20,6 +20,8 @@ package com.here.naksha.lib.core.util;
 
 import com.here.naksha.lib.core.lambdas.F1;
 import com.here.naksha.lib.core.lambdas.F4;
+import com.here.naksha.lib.core.util.fib.FibSet;
+import java.util.Objects;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,12 +31,67 @@ import org.jetbrains.annotations.Nullable;
  * be passed as last argument to {@link FibMap#put(Object, Object, Object, boolean, Object[], F1,
  * F4)}.
  *
- * @param key The key, that should be modified.
- * @param expected_value The value expected.
- * @param new_value The value to be set.
- * @param value The value found (will not the expected).
- * @deprecated Replaced with {@link com.here.naksha.lib.core.util.fib.FibSet}.
+ * @deprecated Replaced with {@link FibSet}.
  */
 @Deprecated
-public record FibMapConflict(
-    @NotNull Object key, @Nullable Object expected_value, @Nullable Object new_value, @Nullable Object value) {}
+public final class FibMapConflict {
+  private final Object key;
+  private final Object expacted_value;
+  private final Object new_value;
+  private final Object value;
+
+  /**
+   * @param key            The key, that should be modified.
+   * @param expected_value The value expected.
+   * @param new_value      The value to be set.
+   * @param value          The value found (will not the expected).
+   */
+  public FibMapConflict(
+      @NotNull Object key, @Nullable Object expected_value, @Nullable Object new_value, @Nullable Object value) {
+    this.key = key;
+    this.expacted_value = expected_value;
+    this.new_value = new_value;
+    this.value = value;
+  }
+
+  public Object getKey() {
+    return key;
+  }
+
+  public Object getExpacted_value() {
+    return expacted_value;
+  }
+
+  public Object getNew_value() {
+    return new_value;
+  }
+
+  public Object getValue() {
+    return value;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    FibMapConflict that = (FibMapConflict) o;
+    return Objects.equals(key, that.key)
+        && Objects.equals(expacted_value, that.expacted_value)
+        && Objects.equals(new_value, that.new_value)
+        && Objects.equals(value, that.value);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(key, expacted_value, new_value, value);
+  }
+
+  @Override
+  public String toString() {
+    return "FibMapConflict{" + "key="
+        + key + ", expacted_value="
+        + expacted_value + ", new_value="
+        + new_value + ", value="
+        + value + '}';
+  }
+}

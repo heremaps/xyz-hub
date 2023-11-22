@@ -41,11 +41,14 @@ public class JsonEnumSerializer extends StdSerializer<JsonEnum> {
       return;
     }
     final Object value = enumValue.value;
-    if (value instanceof Long l) {
+    if (value instanceof Long) {
+      Long l = (Long) value;
       g.writeNumber(l);
-    } else if (value instanceof Double d) {
+    } else if (value instanceof Double) {
+      Double d = (Double) value;
       g.writeNumber(d);
-    } else if (value instanceof String s) {
+    } else if (value instanceof String) {
+      String s = (String) value;
       g.writeString(s);
     } else {
       g.writeObject(value);

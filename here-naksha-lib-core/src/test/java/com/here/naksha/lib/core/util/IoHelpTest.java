@@ -44,7 +44,7 @@ class IoHelpTest {
     final LoadedConfig<ConfigTest> loadedConfig =
         readConfigFromHomeOrResource("iohelp_config_test.json", false, APP_NAME, ConfigTest.class);
     assertNotNull(loadedConfig);
-    final ConfigTest config = loadedConfig.config();
+    final ConfigTest config = loadedConfig.getConfig();
     assertNotNull(config);
     assertEquals(100, config.theInt);
     assertTrue(config.theBool);

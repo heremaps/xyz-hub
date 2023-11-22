@@ -31,6 +31,6 @@ public enum NakshaOp implements ILike {
 
   @Override
   public boolean isLike(@Nullable Object other) {
-    return this == other || ((other instanceof CharSequence chars) && StringHelper.equals(name(), chars));
+    return this == other || ((other instanceof CharSequence) && StringHelper.equals(name(), (CharSequence) other));
   }
 }

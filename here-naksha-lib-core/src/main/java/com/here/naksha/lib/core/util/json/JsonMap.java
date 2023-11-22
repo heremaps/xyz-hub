@@ -144,7 +144,7 @@ public class JsonMap
    */
   public @Nullable String findValue(@Nullable String startKey, @Nullable Object value) {
     final FibMapEntry entry = FibMap.searchValue(startKey, value, root, null);
-    return entry != null && entry.getKey() instanceof String stringKey ? stringKey : null;
+    return entry != null && entry.getKey() instanceof String ? (String) entry.getKey() : null;
   }
 
   @Override
@@ -176,7 +176,8 @@ public class JsonMap
    */
   @Override
   public @Nullable Object getOrDefault(@Nullable Object key, @Nullable Object alternative) {
-    if (key instanceof CharSequence name) {
+    if (key instanceof CharSequence) {
+      CharSequence name = (CharSequence) key;
       if (root == EMPTY) {
         return alternative;
       }
@@ -226,8 +227,9 @@ public class JsonMap
       SIZE.getAndAdd(this, -1);
       return null;
     }
-    if (old instanceof FibMapConflict conflict) {
-      return conflict.value();
+    if (old instanceof FibMapConflict) {
+      FibMapConflict conflict = (FibMapConflict) old;
+      return conflict.getValue();
     }
     // This must not happen!
     assert false;
@@ -241,8 +243,9 @@ public class JsonMap
       final Object newValue = fn.apply(key);
       if (newValue != null && newValue != UNDEFINED) {
         oldValue = FibMap.put(key, UNDEFINED, newValue, true, rootMutable(), this::intern, this::conflict);
-        if (oldValue instanceof FibMapConflict conflict) {
-          return conflict.value();
+        if (oldValue instanceof FibMapConflict) {
+          FibMapConflict conflict = (FibMapConflict) oldValue;
+          return conflict.getValue();
         }
         assert oldValue == UNDEFINED;
         SIZE.getAndAdd(this, 1);

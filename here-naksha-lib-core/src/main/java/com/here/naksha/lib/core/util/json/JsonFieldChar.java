@@ -49,13 +49,14 @@ public final class JsonFieldChar<OBJECT> extends JsonField<OBJECT, Character> {
 
   @Override
   public @NotNull Character value(@Nullable Object value) {
-    if (value instanceof Character v) {
-      return v;
+    if (value instanceof Character) {
+      return (Character) value;
     }
     if (value == null) {
       return nullValue();
     }
-    if (value instanceof Number n) {
+    if (value instanceof Number) {
+      Number n = (Number) value;
       return (char) n.intValue();
     }
     throw new IllegalArgumentException("value is no instance of " + valueClass.getName());

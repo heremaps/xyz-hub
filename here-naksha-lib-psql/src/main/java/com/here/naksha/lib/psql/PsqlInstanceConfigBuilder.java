@@ -68,20 +68,22 @@ public final class PsqlInstanceConfigBuilder extends PsqlByUrlBuilder<PsqlInstan
 
   @Override
   protected void setParams(@NotNull QueryParameterList params) {
-    if (params.getValue("user") instanceof String _user) {
-      user = _user;
+    if (params.getValue("user") instanceof String) {
+      user = (String) params.getValue("user");
     }
-    if (params.getValue("password") instanceof String _password) {
-      password = _password;
+    if (params.getValue("password") instanceof String) {
+      password = (String) params.getValue("password");
     }
     if (params.contains("readOnly")) {
       final Object raw = params.getValue("readOnly");
-      if (raw instanceof Boolean bool) {
-        readOnly = bool;
-      } else if (raw instanceof String string) {
+      if (raw instanceof Boolean) {
+        readOnly = (Boolean) raw;
+      } else if (raw instanceof String) {
+        String string = (String) raw;
         // This is read-only, except "&readOnly=false" or "&readOnly=no".
         readOnly = !"false".equalsIgnoreCase(string) && !"no".equalsIgnoreCase(string);
-      } else if (raw instanceof Number number) {
+      } else if (raw instanceof Number) {
+        Number number = (Number) raw;
         // This is read-only, except "&readOnly=0".
         readOnly = number.longValue() != 0L;
       } else {

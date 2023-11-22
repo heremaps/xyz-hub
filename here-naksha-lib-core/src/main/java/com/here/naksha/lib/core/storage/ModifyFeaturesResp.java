@@ -25,11 +25,34 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 @Deprecated
-public record ModifyFeaturesResp(
-    @NotNull List<@Nullable XyzFeature> inserted,
-    @NotNull List<@Nullable XyzFeature> updated,
-    @NotNull List<@Nullable XyzFeature> deleted) {
+public class ModifyFeaturesResp {
+
+  private final List<@Nullable XyzFeature> inserted;
+  private final List<@Nullable XyzFeature> updated;
+  private final List<@Nullable XyzFeature> deleted;
+
+  public ModifyFeaturesResp(
+      @NotNull List<@Nullable XyzFeature> inserted,
+      @NotNull List<@Nullable XyzFeature> updated,
+      @NotNull List<@Nullable XyzFeature> deleted) {
+    this.inserted = inserted;
+    this.updated = updated;
+    this.deleted = deleted;
+  }
+
   public ModifyFeaturesResp() {
     this(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+  }
+
+  public List<XyzFeature> getInserted() {
+    return inserted;
+  }
+
+  public List<XyzFeature> getUpdated() {
+    return updated;
+  }
+
+  public List<XyzFeature> getDeleted() {
+    return deleted;
   }
 }

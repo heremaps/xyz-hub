@@ -120,7 +120,8 @@ public class PostgresInstance extends ClosableRootResource {
       long cancelSignalTimeoutInMillis)
       throws SQLException {
     final Object proxy = getProxy();
-    if (proxy instanceof PsqlInstance psqlInstance) {
+    if (proxy instanceof PsqlInstance) {
+      PsqlInstance psqlInstance = (PsqlInstance) proxy;
       return new PsqlConnection(
           psqlInstance,
           applicationName,

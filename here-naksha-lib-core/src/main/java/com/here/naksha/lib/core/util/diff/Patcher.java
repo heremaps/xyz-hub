@@ -38,10 +38,10 @@ public class Patcher {
    * Returns the difference of the two entities or null, if both entities are equal.
    *
    * @param sourceState first object with the source state to be compared against second target
-   *     state.
+   *                    state.
    * @param targetState the target state against which to compare the source state.
    * @return either null if both objects are equal or the difference that contains what was changed
-   *     in the target state compared to the source state.
+   * in the target state compared to the source state.
    */
   public static @Nullable Difference getDifference(
       final @Nullable Object sourceState, final @Nullable Object targetState) {
@@ -56,9 +56,9 @@ public class Patcher {
    * but none of them is null and not both of them are {@link Map} or {@link List}.
    *
    * @param sourceState first object with the source state to be compared against second target
-   *     state.
+   *                    state.
    * @param targetState the target state against which to compare the source state.
-   * @param ignoreKey a method to test for keys to ignore while creating the difference.
+   * @param ignoreKey   a method to test for keys to ignore while creating the difference.
    * @return the difference between the two states or null, if both states are equal.
    */
   @SuppressWarnings("WeakerAccess")
@@ -78,15 +78,17 @@ public class Patcher {
       return new RemoveOp(sourceState);
     }
 
-    if (sourceState instanceof Map sourceMap && targetState instanceof Map targetMap) {
-      return getMapDifference(sourceMap, targetMap, ignoreKey);
+    if (sourceState instanceof Map && targetState instanceof Map) {
+      return getMapDifference((Map) sourceState, (Map) targetState, ignoreKey);
     }
 
-    if (sourceState instanceof List sourceList && targetState instanceof List targetList) {
-      return getListDifference(sourceList, targetList, ignoreKey);
+    if (sourceState instanceof List && targetState instanceof List) {
+      return getListDifference((List) sourceState, (List) targetState, ignoreKey);
     }
 
-    if ((sourceState instanceof Number sourceNumber) && (targetState instanceof Number targetNumber)) {
+    if ((sourceState instanceof Number) && (targetState instanceof Number)) {
+      Number targetNumber = (Number) targetState;
+      Number sourceNumber = (Number) sourceState;
       if ((sourceState instanceof Float)
           || (sourceState instanceof Double)
           || (targetState instanceof Float)
@@ -113,9 +115,9 @@ public class Patcher {
    *
    * @param sourceState first object to be compared against object B.
    * @param targetState the object against which to compare object A.
-   * @param ignoreKey a method to test for keys to ignore while creating the difference.
+   * @param ignoreKey   a method to test for keys to ignore while creating the difference.
    * @return either null if both objects are equal or Difference instance that shows the difference
-   *     between object A and object B.
+   * between object A and object B.
    * @throws NullPointerException if the sourceState or targetState is null.
    */
   private static MapDiff getMapDifference(
@@ -160,9 +162,9 @@ public class Patcher {
    *
    * @param sourceList first list to be compared against list B.
    * @param targetList the list against which to compare list A.
-   * @param ignoreKey a method to test for keys to ignore while creating the difference.
+   * @param ignoreKey  a method to test for keys to ignore while creating the difference.
    * @return either null if both lists are equal or Difference instance that shows the difference
-   *     between list A and list B.
+   * between list A and list B.
    * @throws NullPointerException if the sourceList or targetList is null.
    */
   private static ListDiff getListDifference(
@@ -215,7 +217,7 @@ public class Patcher {
    *
    * @param diffA the first difference.
    * @param diffB the second difference.
-   * @param cr The conflict resolution strategy.
+   * @param cr    The conflict resolution strategy.
    * @return a merged difference.
    * @throws MergeConflictException if a conflict that is not automatically solvable occurred.
    */
@@ -251,12 +253,16 @@ public class Patcher {
             || valueB == null
             || valueA.getClass() != valueB.getClass()
             || !valueA.equals(valueB)) {
-          return switch (cr) {
-            case ERROR -> throw new MergeConflictException(
-                "Conflict while merging " + diffA + " with " + diffB);
-            case RETAIN -> diffA;
-            case REPLACE -> diffB;
-          };
+          switch (cr) {
+            case ERROR:
+              throw new MergeConflictException("Conflict while merging " + diffA + " with " + diffB);
+            case RETAIN:
+              return diffA;
+            case REPLACE:
+              return diffB;
+            default:
+              throw new IllegalArgumentException();
+          }
         }
       }
     }
@@ -269,7 +275,7 @@ public class Patcher {
    *
    * @param diffA an object difference.
    * @param diffB another object difference.
-   * @param cr The conflict resolution strategy.
+   * @param cr    The conflict resolution strategy.
    * @return the merged object difference.
    * @throws MergeConflictException if a conflict that is not automatically solvable occurred.
    * @throws MergeConflictException if any error related to JSON occurred.
@@ -298,10 +304,10 @@ public class Patcher {
    *
    * @param diffA a list difference.
    * @param diffB another list difference.
-   * @param cr The conflict resolution strategy.
+   * @param cr    The conflict resolution strategy.
    * @return the merged list difference.
    * @throws MergeConflictException if a conflict that is not automatically solvable occurred.
-   * @throws NullPointerException if either diffA or diffB are null.
+   * @throws NullPointerException   if either diffA or diffB are null.
    */
   private static ListDiff mergeListDifferences(ListDiff diffA, ListDiff diffB, ConflictResolution cr)
       throws MergeConflictException {
@@ -451,30 +457,33 @@ public class Patcher {
    * Patches the map with the provided difference object.
    *
    * @param object The object to be patched.
-   * @param diff The difference object; if {@code null}, then the unmodified object is returned.
+   * @param diff   The difference object; if {@code null}, then the unmodified object is returned.
    */
   public static <T> @NotNull T patch(@NotNull T object, final @Nullable Difference diff) {
     if (diff == null) {
       return object;
     }
 
-    if (object instanceof Map map) {
-      if (!(diff instanceof MapDiff mapDiff)) {
+    if (object instanceof Map) {
+      Map map = (Map) object;
+      if (!(diff instanceof MapDiff)) {
         throw new IllegalArgumentException(
             "Patch failed, the object is a Map, but the difference is no DiffMap");
       }
+      MapDiff mapDiff = (MapDiff) diff;
       //noinspection unchecked
       patchMap(map, mapDiff);
       return object;
     }
 
-    if (object instanceof List list) {
-      if (!(diff instanceof ListDiff listDiff)) {
+    if (object instanceof List) {
+      List list = (List) object;
+      if (!(diff instanceof ListDiff)) {
         throw new IllegalArgumentException(
             "Patch failed, the object is a List, but the difference is no DiffList");
       }
       //noinspection unchecked
-      patchList(list, listDiff);
+      patchList(list, (ListDiff) diff);
       return object;
     }
 
@@ -485,8 +494,8 @@ public class Patcher {
    * Patches a JSON object with the provided difference object.
    *
    * @param targetMap the map to be patched.
-   * @param mapDiff the difference to be applied to the provided object.
-   * @throws NullPointerException if the provided targetMap is null.
+   * @param mapDiff   the difference to be applied to the provided object.
+   * @throws NullPointerException     if the provided targetMap is null.
    * @throws IllegalArgumentException if the provided map is no valid Map or MutableMap instance.
    */
   private static void patchMap(final Map<Object, Object> targetMap, final MapDiff mapDiff) {
@@ -518,9 +527,9 @@ public class Patcher {
   /**
    * Patches a list with the provided difference object.
    *
-   * @param list the array to become merged.
+   * @param list     the array to become merged.
    * @param listDiff the difference to be merged into the provided list.
-   * @throws NullPointerException if the provided list is null.
+   * @throws NullPointerException     if the provided list is null.
    * @throws IllegalArgumentException if the provided list is no valid List or MutableList instance.
    */
   private static void patchList(final List<Object> list, final ListDiff listDiff)
@@ -561,9 +570,9 @@ public class Patcher {
   /**
    * Converts a partial update object into a difference object.
    *
-   * @param sourceObject the source object.
+   * @param sourceObject  the source object.
    * @param partialUpdate the partial update object.
-   * @param ignoreKey a method to test for keys to ignore while creating the difference.
+   * @param ignoreKey     a method to test for keys to ignore while creating the difference.
    * @return the created difference object; {@code null} if no difference found.
    */
   public static @Nullable Difference calculateDifferenceOfPartialUpdate(
@@ -586,11 +595,9 @@ public class Patcher {
         }
       } else if (sourceObjectVal == null) {
         diff.put(key, new InsertOp(partialUpdateVal));
-      } else if (recursive
-          && sourceObjectVal instanceof Map sourceObjectMap
-          && partialUpdateVal instanceof Map partialUpdateMap) {
-        final Difference childDiff =
-            calculateDifferenceOfPartialUpdate(sourceObjectMap, partialUpdateMap, ignoreKey, true);
+      } else if (recursive && sourceObjectVal instanceof Map && partialUpdateVal instanceof Map) {
+        final Difference childDiff = calculateDifferenceOfPartialUpdate(
+            (Map) sourceObjectVal, (Map) partialUpdateVal, ignoreKey, true);
         if (childDiff != null) {
           diff.put(key, childDiff);
         }

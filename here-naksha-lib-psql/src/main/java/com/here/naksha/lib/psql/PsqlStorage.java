@@ -136,8 +136,8 @@ public final class PsqlStorage implements IStorage, DataSource {
 
   private static @NotNull PsqlStorageProperties p(@NotNull Storage storage) {
     XyzProperties raw = storage.getProperties();
-    if (raw instanceof PsqlStorageProperties p) {
-      return p;
+    if (raw instanceof PsqlStorageProperties) {
+      return (PsqlStorageProperties) raw;
     }
     try (final Json jp = Json.get()) {
       final PsqlStorageProperties props = jp.convert(raw, PsqlStorageProperties.class);
@@ -163,47 +163,49 @@ public final class PsqlStorage implements IStorage, DataSource {
 
     @Override
     protected void setParams(@NotNull QueryParameterList params) {
-      if (params.getValue("user") instanceof String _user) {
-        user = _user;
+      if (params.getValue("user") instanceof String) {
+        user = (String) params.getValue("user");
       } else {
         throw new IllegalArgumentException("The URL must have a parameter '&user'");
       }
-      if (params.getValue("password") instanceof String _password) {
-        password = _password;
+      if (params.getValue("password") instanceof String) {
+        password = (String) params.getValue("password");
       } else {
         throw new IllegalArgumentException("The URL must have a parameter '&password'");
       }
-      if (params.getValue("appName") instanceof String _appName) {
-        appName = _appName;
-      } else if (params.getValue("appname") instanceof String _appName) {
-        appName = _appName;
-      } else if (params.getValue("app_name") instanceof String _appName) {
-        appName = _appName;
-      } else if (params.getValue("app") instanceof String _appName) {
-        appName = _appName;
+      if (params.getValue("appName") instanceof String) {
+        appName = (String) params.getValue("appName");
+      } else if (params.getValue("appname") instanceof String) {
+        appName = (String) params.getValue("appname");
+      } else if (params.getValue("app_name") instanceof String) {
+        appName = (String) params.getValue("app_name");
+      } else if (params.getValue("app") instanceof String) {
+        appName = (String) params.getValue("app");
       } else {
         throw new IllegalArgumentException("The URL must have a parameter '&app'");
       }
-      if (params.getValue("schema") instanceof String _schema) {
-        schema = _schema;
+      if (params.getValue("schema") instanceof String) {
+        schema = (String) params.getValue("schema");
       } else {
         throw new IllegalArgumentException("The URL must have a parameter '&schema'");
       }
-      if (params.getValue("id") instanceof String _id) {
-        id = _id;
+      if (params.getValue("id") instanceof String) {
+        id = (String) params.getValue("id");
       } else {
         throw new IllegalArgumentException("The URL must have a parameter '&id'");
       }
-      if (params.getValue("readOnly") instanceof Boolean _ro) {
-        readOnly = _ro;
+      if (params.getValue("readOnly") instanceof Boolean) {
+        readOnly = (Boolean) params.getValue("readOnly");
       }
-      if (params.getValue("readOnly") instanceof String _ro) {
+      if (params.getValue("readOnly") instanceof String) {
+        String _ro = (String) params.getValue("readOnly");
         readOnly = !"false".equalsIgnoreCase(_ro);
       }
-      if (params.getValue("readonly") instanceof Boolean _ro) {
-        readOnly = _ro;
+      if (params.getValue("readonly") instanceof Boolean) {
+        readOnly = (Boolean) params.getValue("readonly");
       }
-      if (params.getValue("readonly") instanceof String _ro) {
+      if (params.getValue("readonly") instanceof String) {
+        String _ro = (String) params.getValue("readonly");
         readOnly = !"false".equalsIgnoreCase(_ro);
       }
       master = new PsqlInstanceConfigBuilder()

@@ -298,8 +298,8 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
   public static <T extends AbstractTask<?, ?>> @Nullable T currentTask() {
     final Thread thread = Thread.currentThread();
     final UncaughtExceptionHandler uncaughtExceptionHandler = thread.getUncaughtExceptionHandler();
-    if (uncaughtExceptionHandler instanceof AbstractTask<?, ?> task) {
-      return (T) task;
+    if (uncaughtExceptionHandler instanceof AbstractTask<?, ?>) {
+      return (T) uncaughtExceptionHandler;
     }
     return null;
   }
@@ -469,10 +469,15 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
    * @param throwable an actual error that has been encountered
    * @return RESULT should represent error response
    */
-  protected @NotNull RESULT errorResponse(@NotNull Throwable throwable) {
-    RESULT result = null;
-    log.warn("The task failed with an exception. ", throwable);
-    return result;
+  protected @NotNull RESULT errorResponse(@NotNull Throwable throwable) throws Exception {
+    log.atWarn()
+        .setMessage("The task failed with an exception")
+        .setCause(throwable)
+        .log();
+    if (throwable instanceof Exception) {
+      throw (Exception) throwable;
+    }
+    throw unchecked(throwable);
   }
 
   /**

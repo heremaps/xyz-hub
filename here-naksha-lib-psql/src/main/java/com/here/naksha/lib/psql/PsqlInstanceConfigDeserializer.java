@@ -45,7 +45,8 @@ public class PsqlInstanceConfigDeserializer extends StdDeserializer<PsqlInstance
     assert mapper != null;
     final TreeNode node = mapper.readTree(p);
     assert node != null;
-    if (node.isValueNode() && node instanceof JsonNode jsonNode) {
+    if (node.isValueNode() && node instanceof JsonNode) {
+      JsonNode jsonNode = (JsonNode) node;
       if (jsonNode.isTextual()) {
         final String url = jsonNode.asText();
         final PsqlInstanceConfigBuilder builder = new PsqlInstanceConfigBuilder();

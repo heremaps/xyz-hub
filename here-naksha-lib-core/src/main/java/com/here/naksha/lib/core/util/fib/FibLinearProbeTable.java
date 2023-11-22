@@ -79,7 +79,8 @@ class FibLinearProbeTable<KEY, ENTRY extends FibEntry<KEY>> {
         while (i < array.length) {
           final Object raw = array[i];
           final ENTRY entry;
-          if (raw instanceof Reference<?> ref) {
+          if (raw instanceof Reference<?>) {
+            Reference<?> ref = (Reference<?>) raw;
             entry = (ENTRY) ref.get();
             if (entry == null && lock.tryLock()) {
               locked = true;
@@ -111,7 +112,8 @@ class FibLinearProbeTable<KEY, ENTRY extends FibEntry<KEY>> {
       while (index < array.length) {
         final Object raw_ref = array[index];
         final ENTRY raw_entry;
-        if (raw_ref instanceof Reference ref) {
+        if (raw_ref instanceof Reference) {
+          Reference ref = (Reference) raw_ref;
           raw_entry = (ENTRY) ref.get();
           if (raw_entry == null) {
             // We have a lock and can remove the pending reference.

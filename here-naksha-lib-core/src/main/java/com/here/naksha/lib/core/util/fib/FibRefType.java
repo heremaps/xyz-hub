@@ -38,10 +38,12 @@ public interface FibRefType {
   @AvailableSince(NakshaVersion.v2_0_5)
   @SuppressWarnings({"rawtypes", "unchecked"})
   default boolean upgradeRaw(@NotNull Object raw) {
-    if (raw instanceof Reference ref) {
+    if (raw instanceof Reference) {
+      Reference ref = (Reference) raw;
       return upgradeRef(ref);
     }
-    if (raw instanceof FibEntry entry) {
+    if (raw instanceof FibEntry) {
+      FibEntry entry = (FibEntry) raw;
       return upgradeStrong(entry);
     }
     // This must not happen!

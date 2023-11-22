@@ -99,11 +99,14 @@ public class JsonModule extends SimpleModule {
         throws IOException, JacksonException {
       final TreeNode node = p.getCodec().readTree(p);
       final String s;
-      if (node instanceof NumericNode numericNode) {
+      if (node instanceof NumericNode) {
+        NumericNode numericNode = (NumericNode) node;
         s = numericNode.asText();
-      } else if (node instanceof BooleanNode booleanNode) {
+      } else if (node instanceof BooleanNode) {
+        BooleanNode booleanNode = (BooleanNode) node;
         s = booleanNode.toString();
-      } else if (node instanceof TextNode textNode) {
+      } else if (node instanceof TextNode) {
+        TextNode textNode = (TextNode) node;
         s = textNode.asText();
       } else {
         s = null;

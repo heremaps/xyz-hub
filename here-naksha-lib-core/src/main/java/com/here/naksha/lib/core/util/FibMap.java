@@ -216,7 +216,7 @@ public final class FibMap {
       final Object @NotNull [] array,
       @Nullable FibMapEntry entry) {
     final Object result = _searchValue(startKey, value, array, entry);
-    return result instanceof FibMapEntry e ? e : null;
+    return result instanceof FibMapEntry ? (FibMapEntry) result : null;
   }
 
   /**
@@ -243,10 +243,11 @@ public final class FibMap {
       final Object existing_key = array[i++];
       final Object existing_value = array[i++];
 
-      if (existing_key instanceof Object[] sub_array) {
+      if (existing_key instanceof Object[]) {
+        Object[] sub_array = (Object[]) existing_key;
         final Object result = _searchValue(startKey, value, sub_array, entry);
-        if (result instanceof FibMapEntry found) {
-          return found;
+        if (result instanceof FibMapEntry) {
+          return (FibMapEntry) result;
         }
         if (result == START_KEY_IS_NULL) {
           startKey = null;
@@ -276,8 +277,8 @@ public final class FibMap {
    * @return The internalized key.
    */
   public static @NotNull Object intern(@NotNull Object key) {
-    if (key instanceof String string) {
-      return StringCache.intern(string);
+    if (key instanceof String) {
+      return StringCache.intern((String) key);
     }
     return key;
   }
@@ -345,9 +346,11 @@ public final class FibMap {
         continue;
       }
 
-      if (existing_key instanceof Object[] sub_array) {
+      if (existing_key instanceof Object[]) {
+        Object[] sub_array = (Object[]) existing_key;
         if (sub_array.length > LPT_HEADER_SIZE && sub_array[LPT_ID] == LPT_ID_OBJECT) {
-          assert sub_array[LPT_HASH_CODE] instanceof Integer hashCode && hashCode == key_hash;
+          assert sub_array[LPT_HASH_CODE] instanceof Integer
+              && (Integer) sub_array[LPT_HASH_CODE] == key_hash;
           int j = LPT_HEADER_SIZE;
           while (j < sub_array.length) {
             final Object sub_value = sub_array[j + 1];
@@ -395,7 +398,8 @@ public final class FibMap {
         continue;
       }
 
-      if (existing_key instanceof Object[] sub_array) {
+      if (existing_key instanceof Object[]) {
+        Object[] sub_array = (Object[]) existing_key;
         size += count(sub_array);
       } else if (existing_key != null) {
         size++;
@@ -427,7 +431,8 @@ public final class FibMap {
         continue;
       }
 
-      if (existing_key instanceof Object[] sub_array) {
+      if (existing_key instanceof Object[]) {
+        Object[] sub_array = (Object[]) existing_key;
         collectLPT(sub_array, lptList);
       }
       i += 2;
@@ -558,11 +563,12 @@ public final class FibMap {
         continue;
       }
 
-      if (existing_key instanceof Object[] segment) {
+      if (existing_key instanceof Object[]) {
+        Object[] segment = (Object[]) existing_key;
         if (segment.length > LPT_HEADER_SIZE && segment[LPT_ID] == LPT_ID_OBJECT) {
           assert depth + 1 == MAX_DEPTH
-              && segment[LPT_HASH_CODE] instanceof Integer hashCode
-              && hashCode == key_hash;
+              && segment[LPT_HASH_CODE] instanceof Integer
+              && (Integer) segment[LPT_HASH_CODE] == key_hash;
           // Lock the key and perform a linear insertion.
           if (ARRAY.compareAndSet(array, ki, segment, LOCK_OBJECT)) {
             // We know that no other thread is mutating this array the same time, but:

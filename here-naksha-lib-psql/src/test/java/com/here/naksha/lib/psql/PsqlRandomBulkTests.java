@@ -105,16 +105,14 @@ public class PsqlRandomBulkTests extends PsqlTests {
       while (pos < BULK_SIZE) {
         final int SIZE = Math.min(BULK_SIZE - pos, 10_000_000);
         sql = session.sql();
-        sql.add(
-                """
-WITH bounds AS (SELECT 0 AS origin_x, 0 AS origin_y, 360 AS width, 180 AS height)
-INSERT INTO test_data (jsondata, geo, i, id, part_id)
-SELECT ('{"id":"'||id||'","properties":{"value":'||((RANDOM() * 100000)::int)||',"@ns:com:here:xyz":{"tags":["'||substr(md5(random()::text),1,1)||'"]}}}')::jsonb,
-ST_PointZ(width * (random() - 0.5) + origin_x, height * (random() - 0.5) + origin_y, 0, 4326),
-id,
-id::text,
-nk_head_partition_id(id::text)::int
-FROM bounds, generate_series(""")
+        sql.add("WITH bounds AS (SELECT 0 AS origin_x, 0 AS origin_y, 360 AS width, 180 AS height)\n"
+                + "INSERT INTO test_data (jsondata, geo, i, id, part_id)\n"
+                + "SELECT ('{\"id\":\"'||id||'\",\"properties\":{\"value\":'||((RANDOM() * 100000)::int)||',\"@ns:com:here:xyz\":{\"tags\":[\"'||substr(md5(random()::text),1,1)||'\"]}}}')::jsonb,\n"
+                + "ST_PointZ(width * (random() - 0.5) + origin_x, height * (random() - 0.5) + origin_y, 0, 4326),\n"
+                + "id,\n"
+                + "id::text,\n"
+                + "nk_head_partition_id(id::text)::int\n"
+                + "FROM bounds, generate_series(")
             .add(pos)
             .add(", ")
             .add(pos + SIZE - 1)

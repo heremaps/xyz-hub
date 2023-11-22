@@ -66,7 +66,8 @@ public abstract class MapEntrySet<K, V, M extends Map<@NotNull K, V>>
 
   @Override
   public boolean contains(Object o) {
-    if (o instanceof Map.Entry<?, ?> entry) {
+    if (o instanceof Map.Entry<?, ?>) {
+      Entry<?, ?> entry = (Entry<?, ?>) o;
       final Object raw_key = entry.getKey();
       final Object value = entry.getValue();
       if (!keyClass.isInstance(raw_key)) { // or raw_key == null!
@@ -97,7 +98,8 @@ public abstract class MapEntrySet<K, V, M extends Map<@NotNull K, V>>
 
   @Override
   public boolean remove(Object o) {
-    if (o instanceof Map.Entry<?, ?> entry && entry.getKey() instanceof CharSequence key) {
+    if (o instanceof Map.Entry<?, ?> && ((Entry<?, ?>) o).getKey() instanceof CharSequence) {
+      CharSequence key = (CharSequence) ((Entry<?, ?>) o).getKey();
       map.remove(key);
       return true;
     }
@@ -107,7 +109,8 @@ public abstract class MapEntrySet<K, V, M extends Map<@NotNull K, V>>
   @Override
   public boolean containsAll(@NotNull Collection<?> c) {
     for (Object e : c) {
-      if (e instanceof Map.Entry<?, ?> entry) {
+      if (e instanceof Map.Entry<?, ?>) {
+        Entry<?, ?> entry = (Entry<?, ?>) e;
         final Object raw_key = entry.getKey();
         if (!keyClass.isInstance(raw_key)) {
           return false;
@@ -145,7 +148,8 @@ public abstract class MapEntrySet<K, V, M extends Map<@NotNull K, V>>
   public boolean removeAll(@NotNull Collection<?> c) {
     boolean modified = false;
     for (final Object o : c) {
-      if (o instanceof Map.Entry<?, ?> entry) {
+      if (o instanceof Map.Entry<?, ?>) {
+        Entry<?, ?> entry = (Entry<?, ?>) o;
         final Object raw_key = entry.getKey();
         final Object raw_value = entry.getValue();
         if (!keyClass.isInstance(raw_key)) {

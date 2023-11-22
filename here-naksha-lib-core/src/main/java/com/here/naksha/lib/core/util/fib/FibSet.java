@@ -138,7 +138,7 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
 
     @Override
     public boolean upgradeRef(@NotNull Reference<FibEntry<?>> reference) {
-      return reference instanceof WeakReference<FibEntry<?>>;
+      return reference instanceof WeakReference<?>;
     }
 
     @Override
@@ -309,11 +309,12 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
 
   void getAllLPTs(@NotNull List<@NotNull FibLinearProbeTable<KEY, ENTRY>> list, Object @NotNull [] array) {
     for (final Object raw : array) {
-      if (raw instanceof Object[] children) {
+      if (raw instanceof Object[]) {
+        Object[] children = (Object[]) raw;
         getAllLPTs(list, children);
-      } else if (raw instanceof FibLinearProbeTable<?, ?> lpt) {
+      } else if (raw instanceof FibLinearProbeTable<?, ?>) {
         //noinspection unchecked
-        list.add((FibLinearProbeTable<KEY, ENTRY>) lpt);
+        list.add((FibLinearProbeTable<KEY, ENTRY>) raw);
       }
     }
   }
@@ -445,7 +446,8 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
     while (true) {
       final Object raw_ref = array[index];
       final Object raw_entry;
-      if (raw_ref instanceof Reference<?> ref) {
+      if (raw_ref instanceof Reference<?>) {
+        Reference<?> ref = (Reference<?>) raw_ref;
         raw_entry = ref.get();
         if (raw_entry == null) {
           if (!ARRAY.compareAndSet(array, index, ref, null)) {
@@ -458,17 +460,20 @@ public class FibSet<KEY, ENTRY extends FibEntry<KEY>> {
         raw_entry = raw_ref;
       }
 
-      if (raw_entry instanceof final Object[] children) {
+      if (raw_entry instanceof Object[]) {
+        final Object[] children = (Object[]) raw_entry;
         return _execute(op, key, key_hash, refType, children, depth + 1);
       }
 
-      if (raw_entry instanceof final FibLinearProbeTable lpt) {
+      if (raw_entry instanceof FibLinearProbeTable) {
+        final FibLinearProbeTable lpt = (FibLinearProbeTable) raw_entry;
         assert lpt.hashCode() == key_hash;
         //noinspection unchecked
         return (ENTRY) lpt.execute(op, key, refType);
       }
 
-      if (raw_entry instanceof final FibEntry entry) {
+      if (raw_entry instanceof FibEntry) {
+        final FibEntry entry = (FibEntry) raw_entry;
         if (ILike.equals(entry, key)) {
           if (op == GET) {
             return (ENTRY) entry;

@@ -35,11 +35,11 @@ public final class UncheckedException extends RuntimeException {
    * @return Either the given throwable or an unchecked wrapper exception.
    */
   public static @NotNull RuntimeException unchecked(@NotNull Throwable t) {
-    if (t instanceof RuntimeException e) {
-      return e;
+    if (t instanceof RuntimeException) {
+      return (RuntimeException) t;
     }
-    if (t instanceof IOException e) {
-      return new UncheckedIOException(e);
+    if (t instanceof IOException) {
+      return new UncheckedIOException((IOException) t);
     }
     return new UncheckedException(t);
   }

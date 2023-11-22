@@ -212,10 +212,12 @@ public class CollectionInfo {
     if (other == this) {
       return true;
     }
-    if (other instanceof CollectionInfo otherInfo) {
+    if (other instanceof CollectionInfo) {
+      CollectionInfo otherInfo = (CollectionInfo) other;
       return number == otherInfo.number && id.equals(otherInfo.id);
     }
-    if (other instanceof CharSequence chars) {
+    if (other instanceof CharSequence) {
+      CharSequence chars = (CharSequence) other;
       return StringHelper.equals(id, chars);
     }
     return false;

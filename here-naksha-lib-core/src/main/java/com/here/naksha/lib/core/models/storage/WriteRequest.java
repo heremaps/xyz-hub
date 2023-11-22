@@ -54,7 +54,7 @@ import org.jetbrains.annotations.Nullable;
  */
 @AvailableSince(NakshaVersion.v2_0_7)
 public abstract class WriteRequest<
-    FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>, SELF extends WriteRequest<FEATURE, CODEC, SELF>>
+        FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>, SELF extends WriteRequest<FEATURE, CODEC, SELF>>
     extends Request<SELF> {
 
   /**

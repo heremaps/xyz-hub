@@ -26,13 +26,30 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * Delete the entity with the given identifier in the given state. The delete will fail, if the entity is not in the desired state.
- *
- * @param id   the identifier of the feature to delete.
- * @param uuid the UUID of the state to delete, {@code null}, if any state is acceptable.
  */
 @Deprecated
 @AvailableSince(v2_0_5)
-public record DeleteOp(@NotNull String id, @Nullable String uuid) {
+public class DeleteOp {
+
+  private final String id;
+  private final String uuid;
+
+  /**
+   * @param id   the identifier of the feature to delete.
+   * @param uuid the UUID of the state to delete, {@code null}, if any state is acceptable.
+   */
+  public DeleteOp(@NotNull String id, @Nullable String uuid) {
+    this.id = id;
+    this.uuid = uuid;
+  }
+
+  public String getId() {
+    return id;
+  }
+
+  public String getUuid() {
+    return uuid;
+  }
 
   @AvailableSince(v2_0_5)
   public DeleteOp(@NotNull String id) {

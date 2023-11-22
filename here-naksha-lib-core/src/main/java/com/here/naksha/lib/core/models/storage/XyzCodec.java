@@ -56,20 +56,20 @@ public class XyzCodec<FEATURE extends XyzFeature, SELF extends XyzCodec<FEATURE,
       final XyzProperties properties = feature.getProperties();
       final XyzNamespace xyz = properties.getXyzNamespace();
       uuid = xyz.getUuid();
-      if (feature.get("type") instanceof String type) {
-        featureType = type;
-      } else if (feature.get("momType") instanceof String type) {
-        featureType = type;
+      if (feature.get("type") instanceof String) {
+        featureType = (String) feature.get("type");
+      } else if (feature.get("momType") instanceof String) {
+        featureType = (String) feature.get("momType");
       } else {
         // TODO: Let's tell Jackson, that we want to keep the "type" property to prevent this!
         featureType = null;
       }
-      if (feature.getProperties().get("type") instanceof String type) {
-        propertiesType = type;
-      } else if (feature.getProperties().get("featureType") instanceof String type) {
-        propertiesType = type;
-      } else if (feature.get("momType") instanceof String type) {
-        propertiesType = type;
+      if (feature.getProperties().get("type") instanceof String) {
+        propertiesType = (String) feature.getProperties().get("type");
+      } else if (feature.getProperties().get("featureType") instanceof String) {
+        propertiesType = (String) feature.getProperties().get("featureType");
+      } else if (feature.get("momType") instanceof String) {
+        propertiesType = (String) feature.get("momType");
       } else {
         propertiesType = null;
       }
