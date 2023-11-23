@@ -90,8 +90,8 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
    */
   @Override
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
-  public void commit() {
-    session.commit();
+  public void commit(boolean autoCloseCursors) {
+    session.commit(autoCloseCursors);
   }
 
   /**
@@ -99,7 +99,22 @@ public class NHAdminStorageWriter extends NHAdminStorageReader implements IWrite
    */
   @Override
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
-  public void rollback() {
-    session.rollback();
+  public void rollback(boolean autoCloseCursors) {
+    session.rollback(autoCloseCursors);
+  }
+
+  /**
+   * Closes the session and, when necessary invokes {@link #rollback(boolean)}.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
+   */
+  @Override
+  public void close(boolean autoCloseCursors) {
+    session.close(autoCloseCursors);
   }
 }

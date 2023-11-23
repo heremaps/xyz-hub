@@ -30,11 +30,10 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
@@ -130,11 +129,11 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
         feature.getProperties().getXyzNamespace().addTags(addTags, true).removeTags(removeTags, true);
       }
     }
-    final WriteFeatures<XyzFeature> wrRequest = RequestHelper.createFeaturesRequest(spaceId, features);
+    final WriteXyzFeatures wrRequest = RequestHelper.createFeaturesRequest(spaceId, features);
 
     // Forward request to NH Space Storage writer instance
     final Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest);
     // transform WriteResult to Http FeatureCollection response
-    return transformWriteResultToXyzCollectionResponse(wrResult, Storage.class);
+    return transformWriteResultToXyzCollectionResponse(wrResult, XyzFeature.class);
   }
 }

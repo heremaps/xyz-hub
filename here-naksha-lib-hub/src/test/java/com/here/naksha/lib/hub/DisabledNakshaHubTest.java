@@ -20,14 +20,24 @@ package com.here.naksha.lib.hub;
 
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.ForwardCursor;
+import com.here.naksha.lib.core.models.storage.IfConflict;
+import com.here.naksha.lib.core.models.storage.IfExists;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.core.util.json.Json;
@@ -35,12 +45,11 @@ import com.here.naksha.lib.core.util.storage.ResultHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.core.view.ViewSerialize;
 import com.here.naksha.lib.hub.util.ConfigUtil;
-import com.here.naksha.lib.psql.PsqlConfig;
-import com.here.naksha.lib.psql.PsqlConfigBuilder;
+import com.here.naksha.lib.psql.PsqlInstanceConfig;
+import com.here.naksha.lib.psql.PsqlInstanceConfigBuilder;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
@@ -61,17 +70,18 @@ class DisabledNakshaHubTest {
   static void prepare() throws Exception {
     String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
-    if (password == null) password = "password";
-    if (dbUrl == null)
+    if (password == null) {
+      password = "password";
+    }
+    if (dbUrl == null) {
       dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
           + "&schema=naksha_test_maint_hub";
+    }
 
-    final PsqlConfig psqlCfg = new PsqlConfigBuilder()
-        .withAppName(NakshaHubConfig.defaultAppName())
-        .parseUrl(dbUrl)
-        .build();
+    final PsqlInstanceConfig psqlInstanceCfg =
+        new PsqlInstanceConfigBuilder().parseUrl(dbUrl).build();
     final NakshaHubConfig customCfg = ConfigUtil.readConfigFile("mock-config");
-    hub = NakshaHubFactory.getInstance(psqlCfg, customCfg, null);
+    hub = NakshaHubFactory.getInstance(NakshaHubConfig.defaultAppName(), psqlInstanceCfg, customCfg, null);
     config = hub.getConfig();
   }
 
@@ -111,22 +121,22 @@ class DisabledNakshaHubTest {
       final Result wrResult = admin.execute(createFeatureRequest(
           NakshaAdminCollection.STORAGES, storage, IfExists.REPLACE, IfConflict.REPLACE));
       // check result
-      if (wrResult instanceof WriteResult<?> wr) {
-        assertEquals(1, wr.results.size(), "Expected 1 storage in result");
-        final List<Storage> storageResultList = new ArrayList<>();
-        for (final WriteOpResult<?> wOpResult : wr.results) {
-          storageResultList.add((Storage) wOpResult.feature);
-        }
+      if (wrResult instanceof SuccessResult) {
+        ForwardCursor<XyzFeature, XyzFeatureCodec> resultCursor = wrResult.getXyzFeatureCursor();
+        assertTrue(resultCursor.hasNext());
+        resultCursor.next();
+        Storage resultStorage = (Storage) resultCursor.getFeature();
+        assertFalse(resultCursor.hasNext());
         JSONAssert.assertEquals(
             "Mismatch in Storage WriteResult",
             expectedBodyPart,
-            toJson(storageResultList),
+            toJson(resultStorage),
             JSONCompareMode.LENIENT);
       } else {
-        admin.rollback();
+        admin.rollback(true);
         fail("Unexpected result while creating storage!" + wrResult);
       }
-      admin.commit();
+      admin.commit(true);
     }
   }
 
@@ -144,7 +154,7 @@ class DisabledNakshaHubTest {
       final Result wrResult = admin.execute(createFeatureRequest(
           NakshaAdminCollection.STORAGES, storage, IfExists.REPLACE, IfConflict.REPLACE));
       // we expect exception
-      admin.rollback();
+      admin.rollback(true);
       if (wrResult instanceof ErrorResult er) {
         assertEquals(
             XyzError.CONFLICT.value(), er.reason.value(), "Expecting conflict error on duplicate storage!");

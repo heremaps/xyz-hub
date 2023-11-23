@@ -239,7 +239,7 @@ subprojects {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    
+
     // Fix transitive dependencies.
 
     dependencies {
@@ -384,6 +384,7 @@ project(":here-naksha-handler-http") {
 }
 */
 
+/*
 project(":here-naksha-handler-psql") {
     description = "Naksha PostgresQL Handler"
     dependencies {
@@ -411,6 +412,7 @@ project(":here-naksha-handler-psql") {
         }
     }
 }
+*/
 
 configurations.implementation {
     exclude(module = "commons-logging")

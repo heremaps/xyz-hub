@@ -136,10 +136,10 @@ public final class PluginCache {
     }
     if (configClass.isAssignableFrom(parameterTypes[0])) {
       if (INaksha.class.isAssignableFrom(parameterTypes[1])) {
-        if (targetClass.isAssignableFrom(parameterTypes[2])) {
+        if (parameterTypes[2].isAssignableFrom(targetClass)) { // target: Space, param[2]: EventTarget
           return ((naksha, config, target) -> constructor.newInstance(config, naksha, target));
         }
-        return null;
+        return null; // TODO() tutaj
       }
       if (targetClass.isAssignableFrom(parameterTypes[1])) {
         if (INaksha.class.isAssignableFrom(parameterTypes[2])) {

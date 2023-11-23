@@ -44,8 +44,8 @@ public class ConfigUtil {
           IoHelp.readBytesFromHomeOrResource(configId + ".json", false, appName, path);
       cfg = json.reader(ViewDeserialize.Storage.class)
           .forType(NakshaHubConfig.class)
-          .readValue(loaded.bytes());
-      logger.info("Fetched supplied server config from {}", loaded.path());
+          .readValue(loaded.getBytes());
+      logger.info("Fetched supplied server config from {}", loaded.getPath());
     }
     return cfg;
   }

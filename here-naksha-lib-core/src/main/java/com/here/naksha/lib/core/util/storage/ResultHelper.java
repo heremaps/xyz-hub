@@ -69,7 +69,11 @@ public class ResultHelper {
         if (!resultCursor.next()) {
           throw new RuntimeException("Unexpected invalid result");
         }
-        features.add(featureType.cast(resultCursor.getFeature()));
+        try {
+          features.add(featureType.cast(resultCursor.getFeature()));
+        } catch (ClassCastException e) {
+          throw new RuntimeException(e);
+        }
       }
       return features;
     }

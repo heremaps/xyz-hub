@@ -85,8 +85,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
   private @NotNull XyzResponse executeCreateHandler() throws Exception {
     // Read request JSON
     final EventHandler newHandler = handlerFromRequestBody();
-    final WriteFeatures<EventHandler> writeRequest =
-        RequestHelper.createFeatureRequest(EVENT_HANDLERS, newHandler, false);
+    final WriteXyzFeatures writeRequest = RequestHelper.createFeatureRequest(EVENT_HANDLERS, newHandler, false);
     // persist new handler in Admin DB (if doesn't exist already)
     final Result writeResult = executeWriteRequestFromSpaceStorage(writeRequest);
     return transformWriteResultToXyzFeatureResponse(writeResult, EventHandler.class);
@@ -117,7 +116,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
       return verticle.sendErrorResponse(
           routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(handlerIdFromPath, handlerToUpdate));
     } else {
-      final WriteFeatures updateHandlerReq =
+      final WriteXyzFeatures updateHandlerReq =
           RequestHelper.updateFeatureRequest(EVENT_HANDLERS, handlerToUpdate);
       final Result updateHandlerResult = executeWriteRequestFromSpaceStorage(updateHandlerReq);
       return transformWriteResultToXyzFeatureResponse(updateHandlerResult, EventHandler.class);

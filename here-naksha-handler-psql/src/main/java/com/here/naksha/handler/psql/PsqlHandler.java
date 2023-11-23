@@ -96,13 +96,16 @@ import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.psql.PsqlCollection;
-import com.here.naksha.lib.psql.PsqlDataSource;
 import com.here.naksha.lib.psql.sql.DhString;
 import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.psql.sql.TweaksSQL;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
-import java.sql.*;
+import java.sql.BatchUpdateException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -143,7 +146,6 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
   private final @NotNull PsqlHandlerParams connectorParams;
   private @NotNull Event event;
   private @NotNull String applicationName;
-  private @NotNull PsqlDataSource adminDataSource;
   private @NotNull PsqlSpaceMasterDataSource masterDataSource;
   private @NotNull PsqlSpaceReplicaDataSource replicaDataSource;
   private @NotNull String spaceId;
@@ -419,7 +421,7 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
 
           String rTuples = TupleTime.rTuplesMap.get(event.getSpaceId());
           final XyzFeature estimateFtr = executeQueryWithRetry(
-                  SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples))
+              SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples))
               .getFeatures()
               .get(0);
           final int rCount = (int) estimateFtr.get("rcount");
@@ -563,7 +565,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     }
   }
 
-  /** Check if request parameters are valid. In case of invalidity throw an Exception */
+  /**
+   * Check if request parameters are valid. In case of invalidity throw an Exception
+   */
   private void checkQuadbinInput(
       @Nullable CountMode countMode, int relResolution, @NotNull GetFeaturesByBBoxEvent event, String streamId)
       throws XyzErrorException {
@@ -624,7 +628,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     }
   }
 
-  /** Kept for backwards compatibility. Will be removed after refactoring. */
+  /**
+   * Kept for backwards compatibility. Will be removed after refactoring.
+   */
   @Deprecated
   public static boolean isOrderByEvent(IterateFeaturesEvent event) {
     return event.getSort() != null
@@ -809,7 +815,8 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     return executeIterateVersions(event);
   }
 
-  private void validateModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception {}
+  private void validateModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception {
+  }
 
   private static final Pattern
       ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
@@ -946,9 +953,8 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
   public static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
 
   /**
-   * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
-   * So if we receive a timeout prior 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from
-   * outside.
+   * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS So if we receive a timeout prior
+   * 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from outside.
    */
   private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
 
@@ -960,7 +966,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
 
   private boolean retryAttempted;
 
-  /** Executes the given query and returns the processed by the handler result. */
+  /**
+   * Executes the given query and returns the processed by the handler result.
+   */
   protected <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
     return executeQuery(query, handler, readDataSource());
   }
@@ -985,7 +993,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     return executeBinQueryWithRetry(query, true);
   }
 
-  /** Executes the query and reattempt to execute the query, after */
+  /**
+   * Executes the query and reattempt to execute the query, after
+   */
   protected <T> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler, boolean useReadReplica)
       throws SQLException {
     try {
@@ -1038,9 +1048,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     if (e instanceof SQLException
         && ((SQLException) e).getSQLState() != null
         && (((SQLException) e).getSQLState().equalsIgnoreCase("57014")
-            || ((SQLException) e).getSQLState().equalsIgnoreCase("57P01")
-            || ((SQLException) e).getSQLState().equalsIgnoreCase("08003")
-            || ((SQLException) e).getSQLState().equalsIgnoreCase("08006"))) {
+        || ((SQLException) e).getSQLState().equalsIgnoreCase("57P01")
+        || ((SQLException) e).getSQLState().equalsIgnoreCase("08003")
+        || ((SQLException) e).getSQLState().equalsIgnoreCase("08006"))) {
       final long remainingSeconds = event.remaining(TimeUnit.SECONDS);
       if (!isRemainingTimeSufficient(remainingSeconds)) {
         return false;
@@ -1055,8 +1065,7 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
   }
 
   /**
-   * Executes the given query and returns the processed by the handler result using the provided
-   * dataSource.
+   * Executes the given query and returns the processed by the handler result using the provided dataSource.
    */
   private <T> T executeQuery(
       @NotNull SQLQuery query, @Nullable ResultSetHandler<T> handler, @NotNull DataSource dataSource)
@@ -1258,7 +1267,7 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
         // Transform the incoming deletes into upserts with deleted flag for features which don't
         // exist in the extended layer (base)
         List<String> existingIdsInBase = new FetchExistingIds(
-                new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes), this)
+            new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes), this)
             .run();
 
         for (String featureId : originalDeletes) {
@@ -1558,8 +1567,8 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
   }
 
   /**
-   * A helper method that will ensure that the tables for the space of this event do exist and is up
-   * to date, if not it will alter the table.
+   * A helper method that will ensure that the tables for the space of this event do exist and is up to date, if not it will alter the
+   * table.
    *
    * @throws SQLException if the table does not exist and can't be created or alter failed.
    */
@@ -1847,14 +1856,13 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
             setReplIdSql = SQLQueryBuilder.setReplicaIdentity(spaceSchema(), tableName);
 
         try (Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery(infoSql); ) {
+            ResultSet rs = stmt.executeQuery(infoSql);) {
           if (!rs.next()) {
             createSpaceStatement(stmt, tableName);
             /** Create Space-Table */
             stmt.addBatch(setReplIdSql);
           } else if (!"f".equals(rs.getString(1)))
-          /** Table exists, but wrong replic identity */
-          {
+          /** Table exists, but wrong replic identity */ {
             stmt.addBatch(setReplIdSql);
           } else {
             return;
@@ -2206,13 +2214,17 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     try {
       rs.next();
       StatisticsResponse.Value<Long> tablesize =
-          JsonSerializable.deserialize(rs.getString("tablesize"), new TypeReference<Value<Long>>() {});
+          JsonSerializable.deserialize(rs.getString("tablesize"), new TypeReference<Value<Long>>() {
+          });
       StatisticsResponse.Value<Long> count = JsonSerializable.deserialize(
-          rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {});
+          rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {
+          });
       StatisticsResponse.Value<Integer> maxversion = JsonSerializable.deserialize(
-          rs.getString("maxversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {});
+          rs.getString("maxversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {
+          });
       StatisticsResponse.Value<Integer> minversion = JsonSerializable.deserialize(
-          rs.getString("minversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {});
+          rs.getString("minversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {
+          });
 
       return new HistoryStatisticsResponse()
           .withByteSize(tablesize)
@@ -2239,18 +2251,23 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
       rs.next();
 
       StatisticsResponse.Value<Long> tablesize = JsonSerializable.deserialize(
-          rs.getString("tablesize"), new TypeReference<StatisticsResponse.Value<Long>>() {});
+          rs.getString("tablesize"), new TypeReference<StatisticsResponse.Value<Long>>() {
+          });
       StatisticsResponse.Value<List<String>> geometryTypes = JsonSerializable.deserialize(
-          rs.getString("geometryTypes"), new TypeReference<StatisticsResponse.Value<List<String>>>() {});
+          rs.getString("geometryTypes"), new TypeReference<StatisticsResponse.Value<List<String>>>() {
+          });
       StatisticsResponse.Value<List<StatisticsResponse.PropertyStatistics>> tags = JsonSerializable.deserialize(
           rs.getString("tags"),
-          new TypeReference<StatisticsResponse.Value<List<StatisticsResponse.PropertyStatistics>>>() {});
+          new TypeReference<StatisticsResponse.Value<List<StatisticsResponse.PropertyStatistics>>>() {
+          });
       StatisticsResponse.PropertiesStatistics properties = JsonSerializable.deserialize(
           rs.getString("properties"), StatisticsResponse.PropertiesStatistics.class);
       StatisticsResponse.Value<Long> count = JsonSerializable.deserialize(
-          rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {});
+          rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {
+          });
       Map<String, Object> bboxMap =
-          JsonSerializable.deserialize(rs.getString("bbox"), new TypeReference<Map<String, Object>>() {});
+          JsonSerializable.deserialize(rs.getString("bbox"), new TypeReference<Map<String, Object>>() {
+          });
 
       final String searchable = rs.getString("searchable");
       properties.setSearchable(StatisticsResponse.PropertiesStatistics.Searchable.valueOf(searchable));

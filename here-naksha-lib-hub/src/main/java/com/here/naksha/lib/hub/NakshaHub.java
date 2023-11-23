@@ -18,11 +18,20 @@
  */
 package com.here.naksha.lib.hub;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.models.PluginCache.getStorageConstructor;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.createWriteCollectionsRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdRequest;
+import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdsRequest;
+import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFromResult;
+
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
@@ -40,16 +49,12 @@ import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
 import com.here.naksha.lib.psql.PsqlInstanceConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.util.List;
-import java.util.NoSuchElementException;
-
-import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-import static com.here.naksha.lib.core.util.storage.RequestHelper.*;
-import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFromResult;
 
 public class NakshaHub implements INaksha {
 
@@ -77,11 +82,12 @@ public class NakshaHub implements INaksha {
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NakshaHub(
+      final @NotNull String appName,
       final @NotNull PsqlInstanceConfig config,
       final @Nullable NakshaHubConfig customCfg,
       final @Nullable String configId) {
     // create storage instance upfront
-    this.psqlStorage = new PsqlStorage("naksha-admin-db", "TODO", "TODO", config);
+    this.psqlStorage = new PsqlStorage("naksha-admin-db", appName, "TODO", config);
     this.adminStorageInstance = new NHAdminStorage(this.psqlStorage);
     this.spaceStorageInstance = new NHSpaceStorage(this, new NakshaEventPipelineFactory(this));
     // setup backend storage DB and Hub config
@@ -265,11 +271,19 @@ public class NakshaHub implements INaksha {
         throw unchecked(new Exception(
             "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
       }
-      final Storage storage = readFeatureFromResult(result, Storage.class);
-      if (storage == null) {
-        throw unchecked(new Exception("No storage found with id " + storageId));
-      }
-      return storage.newInstance(this);
+      final Storage storage =
+          Objects.requireNonNull(readFeatureFromResult(result, Storage.class), "Storage not found in result");
+      return psqlStorage(storage);
+    }
+  }
+
+  private IStorage psqlStorage(@NotNull Storage storage) {
+    Fe1<IStorage, Storage> constructor =
+        getStorageConstructor("com.here.naksha.lib.psql.PsqlStorage", Storage.class);
+    try {
+      return constructor.call(storage);
+    } catch (Exception e) {
+      throw unchecked(e);
     }
   }
 }

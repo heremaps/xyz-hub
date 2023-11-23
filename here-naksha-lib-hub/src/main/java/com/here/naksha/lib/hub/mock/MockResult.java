@@ -20,12 +20,13 @@ package com.here.naksha.lib.hub.mock;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
-public class MockReadResult<T extends XyzFeature> extends SuccessResult {
+public class MockResult<T extends XyzFeature> extends SuccessResult {
 
-  public MockReadResult(@NotNull Class<T> featureType, @NotNull List<Object> featureList) {
-    this.cursor = new MockResultCursor<>(featureType, featureList);
+  public MockResult(@NotNull Class<T> featureType, @NotNull List<XyzFeatureCodec> results) {
+    this.cursor = new MockResultCursor<T>(featureType, results);
   }
 }

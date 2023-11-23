@@ -83,7 +83,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
     }
   }
 
-  private @NotNull Result executeWriteFeaturesToAdminSpaces(final @NotNull WriteFeatures wf) {
+  private @NotNull Result executeWriteFeaturesToAdminSpaces(final @NotNull WriteFeatures<?, ?, ?> wf) {
     // Run pipeline against virtual space
     final EventPipeline pipeline = pipelineFactory.eventPipeline();
     // add internal Admin resource specific event handlers
@@ -93,7 +93,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
     return pipeline.sendEvent(wf);
   }
 
-  private @NotNull Result executeWriteFeaturesToCustomSpaces(final @NotNull WriteFeatures<?> wf) {
+  private @NotNull Result executeWriteFeaturesToCustomSpaces(final @NotNull WriteFeatures<?, ?, ?> wf) {
     final String spaceId = wf.getCollectionId();
     final EventPipeline eventPipeline = pipelineFactory.eventPipeline();
     final Result result = setupEventPipelineForSpaceId(spaceId, eventPipeline);
@@ -137,15 +137,40 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
 
   /**
    * Commit all changes.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
    */
   @Override
-  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
-  public void commit() {}
+  public void commit(boolean autoCloseCursors) {}
 
   /**
    * Abort the transaction, revert all pending changes.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
    */
   @Override
-  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
-  public void rollback() {}
+  public void rollback(boolean autoCloseCursors) {}
+
+  /**
+   * Closes the session and, when necessary invokes {@link #rollback(boolean)}.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
+   */
+  @Override
+  public void close(boolean autoCloseCursors) {}
 }

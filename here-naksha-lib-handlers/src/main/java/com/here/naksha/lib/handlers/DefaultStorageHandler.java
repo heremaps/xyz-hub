@@ -114,7 +114,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final @Nullable String customCollectionId) {
     if (request instanceof ReadFeatures rf) {
       return forwardReadFeaturesToStorage(ctx, storageImpl, customCollectionId, rf, false);
-    } else if (request instanceof WriteFeatures<?> wf) {
+    } else if (request instanceof WriteFeatures<?, ?, ?> wf) {
       return forwardWriteFeaturesToStorage(ctx, storageImpl, customCollectionId, wf, false);
     } else {
       return notImplemented(event);
@@ -143,8 +143,12 @@ public class DefaultStorageHandler extends AbstractEventHandler {
               rf.getCollections());
           createStorageCollections(ctx, storageImpl, rf.getCollections());
           return forwardReadFeaturesToStorage(ctx, storageImpl, customCollectionId, rf, true);
-        } else throw re;
-      } else throw re;
+        } else {
+          throw re;
+        }
+      } else {
+        throw re;
+      }
     }
   }
 
@@ -152,7 +156,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final @NotNull NakshaContext ctx,
       final @NotNull IStorage storageImpl,
       final @Nullable String customCollectionId,
-      final @NotNull WriteFeatures<?> wf,
+      final @NotNull WriteFeatures<?, ?, ?> wf,
       final boolean isReattempt) {
     // overwrite collectionId with custom one if available
     if (customCollectionId != null) {
@@ -162,7 +166,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     try (final IWriteSession writer = storageImpl.newWriteSession(ctx, true)) {
       final Result result = writer.execute(wf);
       if (result instanceof SuccessResult) {
-        writer.commit();
+        writer.commit(true);
       }
       return result;
     } catch (RuntimeException re) {
@@ -190,7 +194,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     try (final IWriteSession writer = storageImpl.newWriteSession(ctx, true)) {
       final Result result = writer.execute(createWriteCollectionsRequest(collectionIds));
       if (result instanceof SuccessResult) {
-        writer.commit();
+        writer.commit(true);
       } else {
         logger.error("Unexpected result while creating collection {}. Result - {}", collectionIds, result);
         throw unchecked(new Exception("Failed creating collection " + collectionIds));

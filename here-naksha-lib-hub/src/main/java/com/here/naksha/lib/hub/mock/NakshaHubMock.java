@@ -19,12 +19,15 @@
 package com.here.naksha.lib.hub.mock;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.models.PluginCache.getStorageConstructor;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdRequest;
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeatureFromResult;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.lambdas.Fe1;
+import com.here.naksha.lib.core.models.PluginCache;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
@@ -34,7 +37,7 @@ import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.hub.NakshaEventPipelineFactory;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
-import com.here.naksha.lib.psql.PsqlConfig;
+import com.here.naksha.lib.psql.PsqlInstanceConfig;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jetbrains.annotations.NotNull;
@@ -73,7 +76,8 @@ public class NakshaHubMock implements INaksha {
   protected final @NotNull IStorage spaceStorageInstance;
 
   public NakshaHubMock(
-      final @NotNull PsqlConfig config,
+      final @NotNull String appName,
+      final @NotNull PsqlInstanceConfig config,
       final @NotNull NakshaHubConfig customCfg,
       final @Nullable String configId) {
     mockCollection = new ConcurrentHashMap<>();
@@ -122,7 +126,23 @@ public class NakshaHubMock implements INaksha {
       if (storage == null) {
         throw unchecked(new Exception("No storage found with id " + storageId));
       }
-      return storage.newInstance(this);
+      // stare flow:
+      // return storage.newInstance(this); <-- stare
+      //    return PluginCache.newInstance(className, IStorage.class, this, naksha); <-- className ze storage
+      return PluginCache.getStorageConstructor(storage.getClassName(), Storage.class)
+          .call(storage);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private IStorage psqlStorage(@NotNull Storage storage) {
+    Fe1<IStorage, Storage> constructor =
+        getStorageConstructor("com.here.naksha.lib.psql.PsqlStorage", Storage.class);
+    try {
+      return constructor.call(storage);
+    } catch (Exception e) {
+      throw unchecked(e);
     }
   }
 

@@ -589,17 +589,17 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   public XyzFeatureCollection transformModifyResponse(@NotNull ModifyFeaturesResp modifyResponse) {
     final XyzFeatureCollection response = new XyzFeatureCollection();
     // add feature objects
-    response.getFeatures().addAll(modifyResponse.inserted());
-    response.getFeatures().addAll(modifyResponse.updated());
-    response.getFeatures().addAll(modifyResponse.deleted());
+    response.getFeatures().addAll(modifyResponse.getInserted());
+    response.getFeatures().addAll(modifyResponse.getUpdated());
+    response.getFeatures().addAll(modifyResponse.getDeleted());
     // add feature IDs
-    for (final XyzFeature f : modifyResponse.inserted()) {
+    for (final XyzFeature f : modifyResponse.getInserted()) {
       response.appendInsertId(f.getId());
     }
-    for (final XyzFeature f : modifyResponse.updated()) {
+    for (final XyzFeature f : modifyResponse.getUpdated()) {
       response.appendUpdateId(f.getId());
     }
-    for (final XyzFeature f : modifyResponse.deleted()) {
+    for (final XyzFeature f : modifyResponse.getDeleted()) {
       response.appendDeleteId(f.getId());
     }
 
