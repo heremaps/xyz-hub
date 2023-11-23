@@ -101,6 +101,10 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
       @NotNull FeatureCodecFactory<NF, NC> codecFactory, boolean reEncode) {
     this.codecFactory = (FeatureCodecFactory<FEATURE, CODEC>) codecFactory;
     this.reEncode = reEncode;
+    if (reEncode) {
+      this.currentRow.codec = ForwardCursor.this.codecFactory.newInstance();
+      this.nextRow.codec = ForwardCursor.this.codecFactory.newInstance();
+    }
     return (ForwardCursor<NF, NC>) this;
   }
 

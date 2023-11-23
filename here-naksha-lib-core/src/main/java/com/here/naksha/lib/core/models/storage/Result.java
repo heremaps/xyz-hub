@@ -58,7 +58,7 @@ public abstract class Result implements Typed {
   public <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> @NotNull ForwardCursor<FEATURE, CODEC> cursor(
       @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) throws NoCursor {
     if (cursor != null) {
-      return cursor.withCodecFactory(codecFactory, false);
+      return cursor.withCodecFactory(codecFactory, true);
     }
     throw new NoCursor(this);
   }
