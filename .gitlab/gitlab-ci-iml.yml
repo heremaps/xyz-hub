@@ -1,3 +1,0 @@
-include:
-  - project: xyz/data-hub/ci
-    file: interactiveapi-handler.yml

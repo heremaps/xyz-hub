@@ -1,3 +1,0 @@
-include:
-  - project: xyz/data-hub/ci
-    file: datahub-handler.yml

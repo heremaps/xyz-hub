@@ -1,6 +1,6 @@
 name: Prod Workflow
 
-# Trigger for push of a tag Naksha_*
+# Trigger Prod deployment pipeline for push of a tag Naksha_*
 on:
   push:
     tags:

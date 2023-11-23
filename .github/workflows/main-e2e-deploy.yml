@@ -1,6 +1,6 @@
 name: E2E Workflow
 
-# Trigger for commit on int branch (i.e. integration)
+# Trigger E2E Deployment for commit on int branch (i.e. integration)
 on:
   push:
     branches:
