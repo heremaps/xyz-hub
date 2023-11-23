@@ -108,12 +108,16 @@ public class DynamoClient {
       for (String s : attributes.split(",")) {
         attList.add(new AttributeDefinition(s.split(":")[0], s.split(":")[1]));
       }
+      if(tableName.equals("xyz-hub-local-spaces")) {
+        attList.add(new AttributeDefinition("contentUpdatedAt", "N"));
+      }
 
       // required
       final List<KeySchemaElement> keyList = new ArrayList<>();
       for (String s : keys.split(",")) {
         keyList.add(new KeySchemaElement(s, keyList.isEmpty() ? KeyType.HASH : KeyType.RANGE));
       }
+
 
       CreateTableRequest req = new CreateTableRequest()
           .withTableName(tableName)
@@ -125,13 +129,23 @@ public class DynamoClient {
       if (indexes != null) {
         final List<GlobalSecondaryIndex> gsiList = new ArrayList<>();
         for (String s : indexes.split(",")) {
-          gsiList.add(
-              new GlobalSecondaryIndex()
-                  .withIndexName(s.concat("-index"))
-                  .withKeySchema(new KeySchemaElement(s, KeyType.HASH))
-                  .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-                  .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L))
-          );
+          if(s.equals("type") && tableName.equals("xyz-hub-local-spaces")) {
+            gsiList.add(
+                    new GlobalSecondaryIndex()
+                            .withIndexName(s.concat("-index"))
+                            .withKeySchema(List.of(new KeySchemaElement(s, KeyType.HASH), new KeySchemaElement("contentUpdatedAt", KeyType.RANGE)))
+                            .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
+                            .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L))
+            );
+          } else {
+            gsiList.add(
+                    new GlobalSecondaryIndex()
+                            .withIndexName(s.concat("-index"))
+                            .withKeySchema(new KeySchemaElement(s, KeyType.HASH))
+                            .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
+                            .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L))
+            );
+          }
         }
 
         req = req.withGlobalSecondaryIndexes(gsiList);
