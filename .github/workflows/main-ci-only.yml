@@ -15,6 +15,10 @@ on:
       - Naksha_maintenance
       - MCPODS-6260_dev_deployment
 
+permissions:
+  checks: write         # for junit reporting
+  pull-requests: write  # for jacoco PR comments
+
 jobs:
   ### Job to Build and Publish artifacts
   Build-and-Publish:

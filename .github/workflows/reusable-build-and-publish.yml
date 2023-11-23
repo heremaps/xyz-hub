@@ -12,10 +12,6 @@ on:
         value: ${{ jobs.main.outputs.codedeploy-artifact-version }}
 
 
-permissions:
-  checks: write         # for junit reporting
-  pull-requests: write  # for jacoco PR comments
-
 env:
   MIN_COVERAGE_OVERALL: 25
   MIN_COVERAGE_CHANGED_FILES: 65

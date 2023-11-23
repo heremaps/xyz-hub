@@ -6,6 +6,10 @@ on:
     tags:
       - Naksha_*
 
+permissions:
+  checks: write         # for junit reporting
+  pull-requests: write  # for jacoco PR comments
+
 jobs:
   ### Job to Build and Publish artifacts
   # Output

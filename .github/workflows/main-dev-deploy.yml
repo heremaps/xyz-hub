@@ -8,6 +8,11 @@ on:
       - Naksha_maintenance
       - MCPODS-6260_dev_deployment
 
+permissions:
+  checks: write         # for junit reporting
+  pull-requests: write  # for jacoco PR comments
+
+
 # let the run-name get picked up dynamically from most recent commit
 #run-name: '[${{ github.event_name }}] event on ${{ github.ref_type }}/PR# [${{ github.ref_name }}]'
 
