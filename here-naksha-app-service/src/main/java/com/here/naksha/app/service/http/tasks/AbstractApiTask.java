@@ -72,6 +72,12 @@ public abstract class AbstractApiTask<T extends XyzResponse>
     this.routingContext = routingContext;
   }
 
+  protected @NotNull XyzResponse errorResponse(@NotNull Throwable throwable) {
+    logger.warn("The task failed with an exception. ", throwable);
+    return verticle.sendErrorResponse(
+        routingContext, XyzError.EXCEPTION, "Task failed processing! " + throwable.getMessage());
+  }
+
   public @NotNull XyzResponse executeUnsupported() {
     return verticle.sendErrorResponse(routingContext, XyzError.NOT_IMPLEMENTED, "Unsupported operation!");
   }

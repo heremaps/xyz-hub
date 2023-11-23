@@ -19,6 +19,7 @@
 package com.here.naksha.lib.heapcache;
 
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -27,6 +28,8 @@ import com.here.naksha.lib.core.util.fib.FibSet;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -184,5 +187,18 @@ public class HeapCache implements IStorage {
   @Override
   public @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
     return IStorage.super.newReadSession(context, useMaster);
+  }
+
+  /**
+   * Shutdown the storage instance asynchronously. This method returns asynchronously whatever the given {@code onShutdown} handler returns.
+   * If no shutdown handler given, then {@code null} is returned.
+   *
+   * @param onShutdown The (optional) method to call when the shutdown is done.
+   * @return The future when the shutdown will be done.
+   */
+  @Override
+  public @NotNull <T> Future<T> shutdown(@Nullable Fe1<T, IStorage> onShutdown) {
+    // actually the method is never called in HeapCache, but I don't want to return null in @NotNull tagged method.
+    return Executors.newSingleThreadExecutor().submit(() -> null);
   }
 }

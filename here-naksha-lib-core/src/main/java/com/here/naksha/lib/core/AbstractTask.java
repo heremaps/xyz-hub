@@ -18,8 +18,6 @@
  */
 package com.here.naksha.lib.core;
 
-import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-
 import com.here.naksha.lib.core.exceptions.TooManyTasks;
 import com.here.naksha.lib.core.util.NanoTime;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -295,10 +293,8 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
         }
         if (AbstractTask.threadCount.compareAndSet(threadCount, threadCount + 1)) {
           try {
-            final Future<RESULT> future = threadPool.submit(this::init_and_execute);
-            // TODO HP_QUERY : Wouldn't setting this flag, after submitting task, have concurrency failure
-            // risk?
             state.set(State.START);
+            final Future<RESULT> future = threadPool.submit(this::init_and_execute);
             return future;
           } catch (RejectedExecutionException e) {
             throw new TooManyTasks();
@@ -321,21 +317,13 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
   private static final AtomicLong threadCount = new AtomicLong();
 
   private @NotNull RESULT init_and_execute() {
-    assert state.get() == State.START;
-    state.set(State.EXECUTE);
-    attachToCurrentThread();
+    @NotNull RESULT RESULT;
     try {
-      @NotNull RESULT RESULT;
-      try {
-        init();
-        RESULT = execute();
-      } catch (final Throwable t) {
-        try {
-          RESULT = errorResponse(t);
-        } catch (final Throwable ignore) {
-          throw t;
-        }
-      }
+      state.set(State.EXECUTE);
+      attachToCurrentThread();
+      init();
+      RESULT = execute();
+
       state.set(State.CALLING_LISTENER);
       for (final @NotNull Consumer<@NotNull RESULT> listener : listeners) {
         try {
@@ -347,35 +335,32 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
               .log();
         }
       }
-      return RESULT;
+    } catch (Throwable t) {
+      RESULT = errorResponse(t);
     } finally {
-      state.set(State.DONE);
-      final long newValue = AbstractTask.threadCount.decrementAndGet();
-      assert newValue >= 0L;
-      detachFromCurrentThread();
+      try {
+        state.set(State.DONE);
+        final long newValue = AbstractTask.threadCount.decrementAndGet();
+        assert newValue >= 0L;
+        detachFromCurrentThread();
+      } catch (Throwable t) {
+        RESULT = errorResponse(t);
+      }
     }
-    /* TODO HP_QUERY : As this function doesn't return response in case of exception, it gets suppressed under
-     * thread.submit() function, and API client endlessly waits for response.
-     * How do we return errorResponse from here? (return type doesn't match)
-     */
+    return RESULT;
   }
 
   /**
-   * A method that creates an error-response from the given exception, being thrown by either {@link #init()} or {@link #execute()}. The
-   * default implementation will simply throw the exception again.
+   * Function should be overridden to return custom response when an exception is encountered during
+   * execution of task functions init() / execute()
    *
-   * @param throwable The exception caught.
-   * @return The error-response.
+   * @param throwable an actual error that has been encountered
+   * @return RESULT should represent error response
    */
-  protected @NotNull RESULT errorResponse(@NotNull Throwable throwable) throws Exception {
-    log.atWarn()
-        .setMessage("The task failed with an exception")
-        .setCause(throwable)
-        .log();
-    if (throwable instanceof Exception e) {
-      throw e;
-    }
-    throw unchecked(throwable);
+  protected @NotNull RESULT errorResponse(@NotNull Throwable throwable) {
+    RESULT result = null;
+    log.warn("The task failed with an exception. ", throwable);
+    return result;
   }
 
   /**

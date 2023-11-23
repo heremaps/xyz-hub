@@ -42,7 +42,13 @@ import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.naksha.app.service.AbstractNakshaHubVerticle;
 import com.here.naksha.app.service.NakshaApp;
-import com.here.naksha.app.service.http.apis.*;
+import com.here.naksha.app.service.http.apis.Api;
+import com.here.naksha.app.service.http.apis.EventHandlerApi;
+import com.here.naksha.app.service.http.apis.HealthApi;
+import com.here.naksha.app.service.http.apis.ReadFeatureApi;
+import com.here.naksha.app.service.http.apis.SpaceApi;
+import com.here.naksha.app.service.http.apis.StorageApi;
+import com.here.naksha.app.service.http.apis.WriteFeatureApi;
 import com.here.naksha.app.service.http.auth.NakshaJwtAuthHandler;
 import com.here.naksha.app.service.util.logging.AccessLog;
 import com.here.naksha.app.service.util.logging.AccessLogUtil;
@@ -63,9 +69,11 @@ import com.here.naksha.lib.core.util.MIMEType;
 import com.here.naksha.lib.core.util.StreamInfo;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpConnection;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.HttpServerResponse;
@@ -224,21 +232,24 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         // round-robin strategy.
         //
         // https://vertx.io/docs/vertx-core/java/#_server_sharing
-        vertx.createHttpServer(SERVER_OPTIONS).requestHandler(router).listen(hubConfig.httpPort, result -> {
-          if (result.succeeded()) {
-            log.atInfo()
-                .setMessage("HTTP Server started on port {}")
-                .addArgument(hubConfig.httpPort)
-                .log();
-            startPromise.complete();
-          } else {
-            log.atError()
-                .setMessage("An error occurred, during the initialization of the server.")
-                .setCause(result.cause())
-                .log();
-            startPromise.fail(result.cause());
-          }
-        });
+        vertx.createHttpServer(SERVER_OPTIONS)
+            .requestHandler(router)
+            .connectionHandler(loggingConnectionHandler())
+            .listen(hubConfig.httpPort, result -> {
+              if (result.succeeded()) {
+                log.atInfo()
+                    .setMessage("HTTP Server started on port {}")
+                    .addArgument(hubConfig.httpPort)
+                    .log();
+                startPromise.complete();
+              } else {
+                log.atError()
+                    .setMessage("An error occurred, during the initialization of the server.")
+                    .setCause(result.cause())
+                    .log();
+                startPromise.fail(result.cause());
+              }
+            });
       } catch (Throwable t) {
         log.atError()
             .setMessage(
@@ -406,6 +417,15 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
     routingContext.next();
   }
 
+  /**
+   * @return simple http connection handler that logs closing and failing connections
+   */
+  private Handler<HttpConnection> loggingConnectionHandler() {
+    return httpConnection -> httpConnection
+        .closeHandler(v -> log.info("Closing connection"))
+        .exceptionHandler(t -> log.info("Connection exception", t));
+  }
+
   private static final Pattern FATAL_ERROR_MSG_PATTERN = Pattern.compile("^[0-9a-zA-Z.-_\\-]+$");
 
   /**
@@ -563,7 +583,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   /**
    * Prepare XyzFeatureCollection response by extracting feature results from ModifyFeaturesResp object
    *
-   * @param modifyResponse       The object to extract feature results from
+   * @param modifyResponse The object to extract feature results from
    * @return The XyzFeatureCollection response containing list of inserted/updated/delete features
    */
   public XyzFeatureCollection transformModifyResponse(@NotNull ModifyFeaturesResp modifyResponse) {

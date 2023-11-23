@@ -1225,6 +1225,7 @@ components:
         extensionId:
           description: If this handler is running on an external Naksha extention, the ID will be specified, null otherwise.
           type: string
+          nullable: true
         properties:
           $ref: '#/components/schemas/HandlerProperties'
     HandlerProperties:

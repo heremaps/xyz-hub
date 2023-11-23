@@ -190,6 +190,25 @@ The service will respond with the inserted geo features:
 }
 ```
 
+# Testing locally
+
+To run tests locally run Gradle `test` task:
+```bash
+./gradlew test
+```
+
+Code coverage report is generated with use of [jacoco](https://www.jacoco.org/)
+To generate coverage use Gradle task `jacocoTestReport`:
+```bash
+./gradlew test jacocoTestReport
+```
+Outputs for each subproject will be stored in `/[module]/build/reports/jacoco/test/html/index.html`
+
+To validate test coverage, run `jacocoTestCoverageVerification` Gradle task:
+```bash
+./gradlew test jacocoTestReport jacocoTestCoverageVerification
+```
+
 # Acknowledgements
 
 XYZ Hub uses:

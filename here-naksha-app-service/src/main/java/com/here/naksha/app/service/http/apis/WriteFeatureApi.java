@@ -22,6 +22,7 @@ import static com.here.naksha.app.service.http.tasks.WriteFeatureApiTask.WriteFe
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.WriteFeatureApiTask;
+import com.here.naksha.app.service.http.tasks.WriteFeatureApiTask.WriteFeatureApiReqType;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.RouterBuilder;
@@ -46,12 +47,12 @@ public class WriteFeatureApi extends Api {
   public void addManualRoutes(final @NotNull Router router) {}
 
   private void createFeatures(final @NotNull RoutingContext routingContext) {
+    startWriteFeatureApiTask(CREATE_FEATURES, routingContext);
+  }
+
+  private void startWriteFeatureApiTask(WriteFeatureApiReqType reqType, RoutingContext routingContext) {
     new WriteFeatureApiTask<>(
-            CREATE_FEATURES,
-            verticle,
-            naksha(),
-            routingContext,
-            verticle.createNakshaContext(routingContext))
+            reqType, verticle, naksha(), routingContext, verticle.createNakshaContext(routingContext))
         .start();
   }
 }

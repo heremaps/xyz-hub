@@ -1,8 +1,10 @@
 @file:Suppress("PropertyName")
 
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import java.net.URI
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import org.gradle.kotlin.dsl.KotlinClosure2
 
 repositories {
     maven {
@@ -21,6 +23,8 @@ plugins {
     id("com.github.johnrengelman.shadow") version "8.1.1"
     // Don't apply for all projects, we individually only apply where Kotlin is used.
     kotlin("jvm") version "1.8.21" apply false
+    // overall code coverage
+    jacoco
 }
 
 group = "com.here.naksha"
@@ -28,15 +32,16 @@ version = rootProject.properties["version"] as String
 
 val jetbrains_annotations = "org.jetbrains:annotations:24.0.1"
 
-val vertx_core = "io.vertx:vertx-core:4.4.4"
-val vertx_config = "io.vertx:vertx-config:4.4.4"
-val vertx_auth_jwt = "io.vertx:vertx-auth-jwt:4.4.4"
-val vertx_redis_client = "io.vertx:vertx-redis-client:4.4.4"
-val vertx_jdbc_client = "io.vertx:vertx-jdbc-client:4.4.4"
-val vertx_web = "io.vertx:vertx-web:4.4.4"
-val vertx_web_openapi = "io.vertx:vertx-web-openapi:4.4.4"
-val vertx_web_client = "io.vertx:vertx-web-client:4.4.4"
-val vertx_web_templ = "io.vertx:vertx-web-templ-handlebars:4.4.4"
+val vertx_version = "4.5.0"
+val vertx_core = "io.vertx:vertx-core:$vertx_version"
+val vertx_config = "io.vertx:vertx-config:$vertx_version"
+val vertx_auth_jwt = "io.vertx:vertx-auth-jwt:$vertx_version"
+val vertx_redis_client = "io.vertx:vertx-redis-client:$vertx_version"
+val vertx_jdbc_client = "io.vertx:vertx-jdbc-client:$vertx_version"
+val vertx_web = "io.vertx:vertx-web:$vertx_version"
+val vertx_web_openapi = "io.vertx:vertx-web-openapi:$vertx_version"
+val vertx_web_client = "io.vertx:vertx-web-client:$vertx_version"
+val vertx_web_templ = "io.vertx:vertx-web-templ-handlebars:$vertx_version"
 
 val netty_transport_native_kqueue = "io.netty:netty-transport-native-kqueue:4.1.90.Final"
 val netty_transport_native_epoll = "io.netty:netty-transport-native-epoll:4.1.90.Final"
@@ -102,12 +107,20 @@ val mockito = "org.mockito:mockito-core:3.12.4"
 
 val flipkart_zjsonpatch = "com.flipkart.zjsonpatch:zjsonpatch:0.4.13"
 val json_assert = "org.skyscreamer:jsonassert:1.5.1"
+val resillience4j_retry = "io.github.resilience4j:resilience4j-retry:2.0.0"
 
 val otel = "io.opentelemetry:opentelemetry-api:1.28.0"
 
 val mavenUrl = rootProject.properties["mavenUrl"] as String
 val mavenUser = rootProject.properties["mavenUser"] as String
 val mavenPassword = rootProject.properties["mavenPassword"] as String
+
+/*
+    Overall coverage of subproject - it might be different for different subprojects
+    Configurable per project - see `setOverallCoverage`
+ */
+val minOverallCoverageKey: String = "minOverallCoverage"
+val defaultOverallMinCoverage: Double = 0.8 // Don't decrease me!
 
 /*
 
@@ -130,6 +143,7 @@ subprojects {
     apply(plugin = "java")
     apply(plugin = "com.diffplug.spotless")
     apply(plugin = "java-library")
+    apply(plugin = "jacoco")
 
     repositories {
         maven(uri("https://repo.osgeo.org/repository/release/"))
@@ -176,7 +190,17 @@ subprojects {
         test {
             maxHeapSize = "4g"
             useJUnitPlatform()
-            testLogging.showStandardStreams = true
+            testLogging {
+                showStandardStreams = true
+                exceptionFormat = TestExceptionFormat.FULL
+                events("standardOut", "started", "passed", "skipped", "failed")
+            }
+            afterTest(KotlinClosure2(
+                    { descriptor: TestDescriptor, result: TestResult ->
+                        val totalTime = result.endTime - result.startTime
+                        println("Total time of $descriptor.name was $totalTime")
+                    }
+            ))
         }
 
         compileJava {
@@ -189,6 +213,24 @@ subprojects {
                 this as StandardJavadocDocletOptions
                 addBooleanOption("Xdoclint:none", true)
                 addStringOption("Xmaxwarns", "1")
+            }
+        }
+
+        jacocoTestReport {
+            dependsOn(test)
+            reports {
+                xml.required = true
+            }
+        }
+
+        jacocoTestCoverageVerification {
+            dependsOn(jacocoTestReport)
+            violationRules {
+                rule {
+                    limit {
+                        minimum = getOverallCoverage().toBigDecimal()
+                    }
+                }
             }
         }
     }
@@ -253,6 +295,7 @@ project(":here-naksha-lib-core") {
         implementation(vividsolutions_jts_core)
         implementation(google_flatbuffers)
     }
+    setOverallCoverage(0.3) // only increasing allowed!
 }
 
 project(":here-naksha-lib-heapcache") {
@@ -266,6 +309,7 @@ project(":here-naksha-lib-heapcache") {
         testImplementation(mockito)
         implementation(vividsolutions_jts_core)
     }
+    setOverallCoverage(0.5) // only increasing allowed!
 }
 
 project(":here-naksha-lib-psql") {
@@ -286,6 +330,7 @@ project(":here-naksha-lib-psql") {
         testImplementation(mockito)
         testImplementation(spatial4j)
     }
+    setOverallCoverage(0.0) // only increasing allowed!
 }
 
 /*
@@ -294,6 +339,7 @@ project(":here-naksha-lib-extension") {
     dependencies {
         api(project(":here-naksha-lib-core"))
     }
+    setOverallCoverage(0.4) // only increasing allowed!
 }
 */
 
@@ -307,6 +353,7 @@ project(":here-naksha-handler-activitylog") {
         implementation(flipkart_zjsonpatch)
         testImplementation(jayway_jsonpath)
     }
+    setOverallCoverage(0.4) // only increasing allowed!
 }
 */
 
@@ -392,6 +439,7 @@ project(":here-naksha-lib-handlers") {
             testImplementation(json_assert)
             testImplementation(mockito)
         }
+        setOverallCoverage(0.3) // only increasing allowed!
     }
 //} catch (ignore: UnknownProjectException) {
 //}
@@ -420,7 +468,9 @@ project(":here-naksha-lib-handlers") {
             implementation(vertx_web_openapi)
 
             testImplementation(json_assert)
+            testImplementation(resillience4j_retry)
         }
+        setOverallCoverage(0.25) // only increasing allowed!
     }
 //} catch (ignore: UnknownProjectException) {
 //}
@@ -477,4 +527,17 @@ rootProject.tasks.shadowJar {
 // print app version
 rootProject.tasks.register("printAppVersion") {
     println(rootProject.version)
+}
+
+fun Project.setOverallCoverage(minOverallCoverage: Double) {
+    ext.set(minOverallCoverageKey, minOverallCoverage)
+}
+
+fun Project.getOverallCoverage(): Double {
+    return if (ext.has(minOverallCoverageKey)) {
+        ext.get(minOverallCoverageKey) as? Double
+                ?: throw IllegalStateException("Property '$minOverallCoverageKey' is expected to be Double")
+    } else {
+        defaultOverallMinCoverage
+    }
 }
