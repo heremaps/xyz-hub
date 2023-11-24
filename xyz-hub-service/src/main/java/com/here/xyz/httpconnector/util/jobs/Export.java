@@ -70,10 +70,12 @@ import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -886,7 +888,12 @@ public class Export extends JDBCBasedJob<Export> {
                 .compose(jobs -> {
                     Export existingJob = null;
 
-                    for (Job jobCandidate :jobs) {
+                    //Sort the candidates in reverse order by updated TS to get the oldest candidate
+                    final List<Job> sortedJobs = jobs
+                        .stream()
+                        .sorted(Comparator.comparingLong(job -> job.getUpdatedAt()))
+                        .collect(Collectors.toList());
+                    for (Job jobCandidate : sortedJobs) {
                         if(jobCandidate instanceof Import)
                             continue;
 
@@ -984,7 +991,10 @@ public class Export extends JDBCBasedJob<Export> {
 
                             return updateJobStatus(this,queued);
                         })
-                        .onFailure(f -> setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED));
+                        .onFailure(t -> {
+                            logger.error(t);
+                            setJobFailed(this, ERROR_DESCRIPTION_PERSISTENT_EXPORT_FAILED, ERROR_TYPE_EXECUTION_FAILED);
+                        });
                 }
                 else if (existingJob.getStatus() == failed) {
                     logger.info("job[{}] Persist Export {} of Super-Layer has failed!", getId(), superSpaceId);

@@ -258,7 +258,7 @@ public class JobS3Client extends AwsS3Client{
 
     private static Cache<String, Map<String, ExportObject>> s3ScanningCache = CacheBuilder
         .newBuilder()
-        .maximumSize(300)
+        .maximumSize(0)
         .expireAfterWrite(1, TimeUnit.MINUTES)
         .build();
 

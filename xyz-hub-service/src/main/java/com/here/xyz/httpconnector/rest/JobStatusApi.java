@@ -18,6 +18,12 @@
  */
 package com.here.xyz.httpconnector.rest;
 
+import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
+import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.OK;
+import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
+
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCClients;
 import com.here.xyz.httpconnector.config.JDBCImporter;
@@ -33,18 +39,11 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.JSONObject;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
-import static io.netty.handler.codec.http.HttpResponseStatus.OK;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
-import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
-import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 public class JobStatusApi {
     private static final Logger logger = LogManager.getLogger();
@@ -69,7 +68,6 @@ public class JobStatusApi {
 
         this.system.put("SUPPORTED_CONNECTORS", CService.supportedConnectors);
         this.system.put("JOB_QUEUE_INTERVAL", CService.configuration.JOB_CHECK_QUEUE_INTERVAL_MILLISECONDS);
-        this.system.put("JOB_DYNAMO_EXP_IN_DAYS", CService.configuration.JOB_DYNAMO_EXP_IN_DAYS);
         this.system.put("HOST_ID", CService.HOST_ID);
         this.system.put("NODE_EXECUTED_IMPORT_MEMORY", ImportQueue.NODE_EXECUTED_IMPORT_MEMORY);
 

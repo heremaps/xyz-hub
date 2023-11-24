@@ -119,7 +119,7 @@ public abstract class Job<T extends Job> extends Payload {
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonView({Public.class})
-    private Long exp;
+    private long exp = System.currentTimeMillis() / 1000L + 14 * 24 * 60 * 60;
 
     /**
      * The job ID
