@@ -226,9 +226,6 @@ public class Space {
   @JsonView({Public.class, Static.class})
   private List<List<Object>> sortableProperties;
 
-  @JsonView({Public.class, Static.class})
-  private String type = "SPACE";
-
   public String getId() {
     return id;
   }
@@ -539,14 +536,6 @@ public class Space {
   public Space withSortableProperties(final List<List<Object>> sortableProperties) {
     setSortableProperties(sortableProperties);
     return this;
-  }
-
-  public String getType() {
-    return type;
-  }
-
-  public void setType(String type) {
-    this.type = type;
   }
 
   public Map<String, Tag> getTags() {

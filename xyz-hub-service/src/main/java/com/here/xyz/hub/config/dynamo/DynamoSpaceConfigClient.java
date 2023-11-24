@@ -165,6 +165,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   private void storeSpaceSync(Space space, Promise<Void> p) {
     final Map<String, Object> itemData = XyzSerializable.toMap(space, Static.class);
     itemData.put("shared", space.isShared() ? 1 : 0); //Shared value must be a number because it's also used as index
+    itemData.put("type", "SPACE");
     sanitize(itemData);
     spaces.putItem(Item.fromMap(itemData));
     p.complete();
@@ -336,7 +337,10 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   private void getSelectedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition,
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, Promise<List<Space>> p) {
 
-    boolean hasAdminAccess = authorizedCondition.anonymous || authorizedCondition.ownerIds.isEmpty() || authorizedCondition.spaceIds.isEmpty();
+    boolean hasAdminAccess = authorizedCondition.anonymous ||
+            (CollectionUtils.isNullOrEmpty(authorizedCondition.spaceIds) &&
+                    CollectionUtils.isNullOrEmpty(authorizedCondition.ownerIds) &&
+                    CollectionUtils.isNullOrEmpty(authorizedCondition.packages));
     try {
       var result = hasAdminAccess ? getAdminSpaces(selectedCondition, propsQuery) : getNonAdminSpaces(marker, authorizedCondition, selectedCondition, propsQuery);
       p.complete(result);
@@ -351,12 +355,12 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     String operator;
     if (propsQuery != null) {
       var contentUpdatedAt = propsQuery.get(0).get(0).getValues().get(0);
-      valueMap.put(":typeValue", "space");
+      valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
       operator = SQLQuery.getOperation(propsQuery.get(0).get(0).getOperation());
     } else {
       // if there's no filtering condition we need to fetch all spaces, we can do that with type index + contentUpdated > 0
-      valueMap.put(":typeValue", "space");
+      valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", 0L);
       operator = SQLQuery.getOperation(GREATER_THAN);
     }
@@ -383,7 +387,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
     // Filter by region
     if(selectedCondition.region != null) {
-      adminSpaces.removeIf(space -> !space.getRegion().equals(selectedCondition.region));
+      adminSpaces.removeIf(space -> space.getRegion() == null || !space.getRegion().equals(selectedCondition.region));
     }
 
     // Filter by owner
@@ -392,6 +396,11 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
               space -> selectedCondition.ownerIds.contains(space.getOwner()) :
               space -> !selectedCondition.ownerIds.contains(space.getOwner());
       adminSpaces.removeIf(condition);
+    }
+
+    // Filter by selected spaces
+    if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
+      adminSpaces.removeIf(space -> !selectedCondition.spaceIds.contains(space.getId()));
     }
   }
 
@@ -414,6 +423,11 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
     // Filter by contentUpdatedAt
     filterByContentUpdatedAt(propsQuery, allSpaceIds);
+
+    // Filter by selected spaces
+    if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
+      allSpaceIds.removeIf(id -> !selectedCondition.spaceIds.contains(id));
+    }
 
     logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", allSpaceIds.size());
 
@@ -448,13 +462,11 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   private Set<String> getOwnersSpaceIds(SpaceSelectionCondition selectedCondition, SpaceAuthorizationCondition authorizedCondition) {
     var ownersSpaceIds = new HashSet<String>();
-    if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds)) {
-      authorizedCondition.ownerIds.forEach(ownerId ->
-              spaces.getIndex("owner-index")
-                      .query(new QuerySpec().withHashKey("owner", ownerId).withProjectionExpression("id"))
-                      .pages()
-                      .forEach(page -> page.forEach(i -> ownersSpaceIds.add(i.getString("id")))));
-    }
+    authorizedCondition.ownerIds.forEach(ownerId ->
+            spaces.getIndex("owner-index")
+                    .query(new QuerySpec().withHashKey("owner", ownerId).withProjectionExpression("id"))
+                    .pages()
+                    .forEach(page -> page.forEach(i -> ownersSpaceIds.add(i.getString("id")))));
     return ownersSpaceIds;
   }
 
@@ -464,7 +476,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       authorizedCondition.packages.forEach(packageName ->
               packages.query("packageName", packageName)
                       .pages()
-                      .forEach(page -> page.forEach(i -> packageSpaceIds.add(i.getString("id"))))
+                      .forEach(page -> page.forEach(i -> packageSpaceIds.add(i.getString("spaceId"))))
       );
     }
     return packageSpaceIds;
@@ -515,7 +527,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     if (propsQuery != null) {
       var contentUpdatedAt = propsQuery.get(0).get(0).getValues().get(0);
       var valueMap = new HashMap<String, Object>();
-      valueMap.put(":typeValue", "space");
+      valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
       String operator = SQLQuery.getOperation(propsQuery.get(0).get(0).getOperation());
       var contentUpdatedAtSpaceIds = new HashSet<String>();
