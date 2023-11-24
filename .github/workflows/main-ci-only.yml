@@ -13,7 +13,6 @@ on:
       - int
       - develop
       - Naksha_maintenance
-      - MCPODS-6260_dev_deployment
 
 permissions:
   checks: write         # for junit reporting
