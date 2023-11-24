@@ -239,9 +239,7 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
         addSpatialQuery(sql, child, wkbs);
       }
       sql.add(")");
-      return;
-    }
-    if (SOpType.INTERSECTS == op) {
+    } else if (SOpType.INTERSECTS == op) {
       final Geometry geometry = spatialOp.getGeometry();
       if (geometry == null) {
         throw new IllegalArgumentException("Missing geometry");
@@ -251,8 +249,9 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
         final byte[] wkb = jp.wkbWriter.write(geometry);
         wkbs.add(wkb);
       }
+    } else {
+      throw new IllegalArgumentException("Unknown operation: " + op);
     }
-    throw new IllegalArgumentException("Unknown operation: " + op);
   }
 
   private static void addJsonPath(@NotNull SQL sql, @NotNull List<@NotNull String> path, int end) {
@@ -395,7 +394,9 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
           sql.add(" WHERE");
           if (spatial_where.length() > 0) {
             sql.add(spatial_where);
-            sql.add(" AND");
+            if (props_where.length() > 0) {
+              sql.add(" AND");
+            }
           }
           if (props_where.length() > 0) {
             sql.add(props_where);
