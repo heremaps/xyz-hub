@@ -1,0 +1,34 @@
+{
+  "configuration": {
+    "status": "info",
+    "name": "Default Log Config",
+    "packages": "com.here.xyz",
+    "appenders": {
+      "RollingFile": {
+        "name": "RollingFile",
+        "fileName": "log/xyz_stdout.txt",
+        "filePattern": "log/xyz_stdout.txt.%i",
+        "PatternLayout": {
+          "pattern": "%d %-5p %c %marker %.-4096msg %enc{%ex}{JSON}%n%xEx{none}"
+        },
+        "Policies": {
+          "SizeBasedTriggeringPolicy": {
+            "size": "200 MB"
+          }
+        },
+        "DefaultRolloverStrategy": {
+          "fileIndex": "min",
+          "max": "50"
+        }
+      }
+    },
+    "loggers": {
+      "root": {
+        "level": "info",
+        "AppenderRef": {
+          "ref": "RollingFile"
+        }
+      }
+    }
+  }
+}

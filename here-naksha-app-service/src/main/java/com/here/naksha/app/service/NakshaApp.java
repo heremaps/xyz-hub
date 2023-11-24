@@ -23,8 +23,10 @@ import static java.lang.System.err;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
+import com.here.naksha.app.service.metrics.OTelMetrics;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.IoHelp.LoadedBytes;
 import com.here.naksha.lib.hub.NakshaHubConfig;
@@ -117,6 +119,7 @@ public final class NakshaApp extends Thread {
    * @return The created Naksha-App instance.
    */
   public static @NotNull NakshaApp newInstance(@NotNull String... args) {
+    log.info("Naksha App v{}", NakshaVersion.latest);
 
     final String cfgId;
     final String url;
@@ -190,7 +193,7 @@ public final class NakshaApp extends Thread {
     try {
       config = ConfigUtil.readConfigFile(configId, adminDbConfig.appName);
     } catch (Exception ex) {
-      log.warn("Error reading supplied custom config, will continue with default. ", ex);
+      log.warn("No external config available, will attempt using default. Error was [{}]", ex.getMessage());
     }
     // Instantiate NakshaHub instance
     this.hub = NakshaHubFactory.getInstance(adminDbConfig, config, configId);
@@ -356,6 +359,9 @@ public final class NakshaApp extends Thread {
     }
 
     final Thread appThread = this;
+
+    // initialize OTel metrics collector
+    OTelMetrics.init();
 
     // Add verticles
     final int processors = Runtime.getRuntime().availableProcessors();

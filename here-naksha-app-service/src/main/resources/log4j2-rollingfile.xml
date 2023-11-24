@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+<Properties>
+    <Property name="Def.Pattern.Layout">%d{yyyy-MM-dd HH:mm:ss.SSS XX} [%-5p] %marker [%t] - %c{-3} (%M:%L) %X - %.-4096msg %enc{%ex}{JSON}%n</Property>
+</Properties>
+
+<Appenders>
+    <RollingFile name="RollingFile" fileName="logs/naksha_stdout.txt" filePattern="logs/naksha_stdout.txt.%i">
+        <PatternLayout pattern="${Def.Pattern.Layout}"/>
+        <Policies>
+            <SizeBasedTriggeringPolicy size="200 MB"/>
+        </Policies>
+        <DefaultRolloverStrategy fileIndex="min" max="50" />
+    </RollingFile>
+</Appenders>
+
+<Loggers>
+    <!-- log to all Appenders based on level -->
+    <Root level="debug" includeLocation="true">
+        <AppenderRef ref="RollingFile" level="INFO" />
+    </Root>
+</Loggers>
+
+</Configuration>

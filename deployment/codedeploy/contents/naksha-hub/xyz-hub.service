@@ -1,0 +1,26 @@
+#
+# see: https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files
+#
+[Unit]
+Description=Naksha-Hub
+# After=network.target
+# After=systemd-user-sessions.service
+# After=network-online.target
+
+[Service]
+User=admin
+Type=simple
+PIDFile=/run/xyz-hub.pid
+WorkingDirectory=/home/admin/naksha-hub
+ExecStart=/home/admin/naksha-hub/start-app.sh
+# ExecReload=/home/transang/startup.sh reload
+# ExecStop=/home/transang/startup.sh stop
+# TimeoutSec=30
+Restart=always
+#on-failure
+RestartSec=5s
+# StartLimitInterval=350
+# StartLimitBurst=10
+
+[Install]
+WantedBy=multi-user.target

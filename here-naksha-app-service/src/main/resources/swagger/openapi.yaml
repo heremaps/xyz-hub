@@ -3,10 +3,10 @@ openapi: "3.0.2"
 servers:
   - url: "http://localhost:8080/"
     description: "Local"
-  - url: "https://naksha.ext.mapcreator.here.com/"
-    description: "PRD"
-  - url: "https://naksha-e2e.ext.mapcreator.here.com/"
-    description: "E2E"
+  #- url: "https://naksha.ext.mapcreator.here.com/"
+  #  description: "PRD"
+  #- url: "https://naksha-e2e.ext.mapcreator.here.com/"
+  #  description: "E2E"
   - url: "https://naksha-dev.ext.mapcreator.here.com/"
     description: "DEV"
 
@@ -168,6 +168,29 @@ paths:
         '513':
           $ref: '#/components/responses/ErrorResponse513'
   '/hub/handlers':
+    get:
+      tags:
+        - Manage Event Handlers
+      summary: List event handlers
+      description: Lists the event handlers, which the current authenticated user has access to.
+      operationId: getHandlers
+      responses:
+        '200':
+          $ref: '#/components/responses/HandlersResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
     post:
       tags:
         - Manage Event Handlers
@@ -185,29 +208,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
-        '429':
-          $ref: '#/components/responses/ErrorResponse429'
-        '500':
-          $ref: '#/components/responses/ErrorResponse500'
-        '502':
-          $ref: '#/components/responses/ErrorResponse502'
-        '504':
-          $ref: '#/components/responses/ErrorResponse504'
-        '513':
-          $ref: '#/components/responses/ErrorResponse513'
-    get:
-      tags:
-        - Manage Event Handlers
-      summary: List event handlers
-      description: Lists the event handlers, which the current authenticated user has access to.
-      operationId: getHandlers
-      responses:
-        '200':
-          $ref: '#/components/responses/HandlersResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
         '429':
           $ref: '#/components/responses/ErrorResponse429'
         '500':
@@ -286,6 +286,29 @@ paths:
         '513':
           $ref: '#/components/responses/ErrorResponse513'
   '/hub/spaces':
+    get:
+      tags:
+        - Manage Spaces
+      summary: List spaces
+      description: Lists the spaces, which the current authenticated user has access to.
+      operationId: getSpaces
+      responses:
+        '200':
+          $ref: '#/components/responses/SpacesResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
     post:
       tags:
         - Manage Spaces
@@ -313,19 +336,29 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+  '/hub/spaces/{spaceId}':
     get:
       tags:
         - Manage Spaces
-      summary: List spaces
-      description: Lists the spaces, which the current authenticated user has access to.
-      operationId: getSpaces
+      summary: Get the space with the specific ID.
+      description: Return the space detail corresponding to the given ID if the current authenticated user has access to.
+      operationId: getSpaceById
+      parameters:
+        - name: spaceId
+          in: path
+          description: ID of space to fetch
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          $ref: '#/components/responses/SpacesResponse'
+          $ref: '#/components/responses/SpaceResponse'
         '401':
           $ref: '#/components/responses/ErrorResponse401'
         '403':
           $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
         '429':
           $ref: '#/components/responses/ErrorResponse429'
         '500':
@@ -336,7 +369,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
-  '/hub/spaces/{spaceId}':
     put:
       tags:
         - Manage Spaces
@@ -361,38 +393,6 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
-        '429':
-          $ref: '#/components/responses/ErrorResponse429'
-        '500':
-          $ref: '#/components/responses/ErrorResponse500'
-        '502':
-          $ref: '#/components/responses/ErrorResponse502'
-        '504':
-          $ref: '#/components/responses/ErrorResponse504'
-        '513':
-          $ref: '#/components/responses/ErrorResponse513'
-    get:
-      tags:
-        - Manage Spaces
-      summary: Get the space with the specific ID.
-      description: Return the space detail corresponding to the given ID if the current authenticated user has access to.
-      operationId: getSpaceById
-      parameters:
-        - name: spaceId
-          in: path
-          description: ID of space to fetch
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          $ref: '#/components/responses/SpaceResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse401'
-        '403':
-          $ref: '#/components/responses/ErrorResponse403'
-        '404':
-          $ref: '#/components/responses/ErrorResponse404'
         '429':
           $ref: '#/components/responses/ErrorResponse429'
         '500':

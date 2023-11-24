@@ -42,39 +42,26 @@ Naksha uses [GeoJSON](https://tools.ietf.org/html/rfc79460) as the main geospati
 * Postgres 10+ with PostGIS 2.5+
 
 # Getting started
+
 Clone and install the project using:
 
 ```bash
-git clone https://github.com/heremaps/xyz-hub.git
+git clone https://github.com/xeus2001/xyz-hub.git
 cd xyz-hub
-mvn clean install
+gradle clean build
 ```
 
-### With docker
+### Run App
 
-The service and all dependencies could be started locally using Docker compose.
-```bash
-docker-compose up -d
-```
-
-Alternatively, you can start freshly from the sources by using this command after cloning the project:
-```bash
-mvn clean install -Pdocker
-```
-
-*Hint: Postgres with PostGIS will be automatically started if you use 'docker-compose up -d' to start the service.*
-
-### Without docker
-
-The service could also be started directly as a fat jar. In this case Postgres and the other optional dependencies need to be started separately.
+The service could also be started directly from a fat jar. In this case Postgres and the other optional dependencies need to be started separately.
 
 To build the fat jar, at the root project directory, run one of the following:
 
 ```bash
- #Using machine installed gradle (through apt, brew,... package managers)
- gradle shadowJar
- #Using gradle wrapper
- ./gradlew shadowJar
+# Using machine installed gradle (through apt, brew,... package managers)
+gradle shadowJar
+# Using gradle wrapper
+./gradlew shadowJar
 ```
 
 The jar can be found under `build/libs/`.
@@ -95,22 +82,41 @@ java -jar build/libs/naksha-2.0.6-all.jar mock-config
 
 Then use a web browser to connect to `localhost:8080`, an OK message should be displayed if the service is up and running.
 
+### OpenAPI specification
+
+Once application is UP, the OpenAPI specification is accessible at `http(s)://{host}:{port}/hub/swagger/index.html`, by default at [http://localhost:8080/hub/swagger/index.html](http://localhost:8080/hub/swagger/index.html)
+
 ### Configuration
 
-The service persists out of modules with a bootstrap code to start the service. All configuration is done in the [config.json](here-naksha-app-service/src/main/resources/config.json).
+The service persists out of modules with a bootstrap code to start the service. Service provides default configuration in [default-config.json](here-naksha-lib-hub/src/main/resources/config/default-config.json).
 
-The bootstrap code could be used to run only the `hub-verticle` or only the `connector-verticle` or it can be used to run both as a single monolith. In a microservice deployment you run one cluster with only `hub-verticle` deployment and another cluster with only `connector-verticle` deployment. It is as well possible to mix this, so running a monolith deployment that optionally can use connector configurations to use foreign connectors for individual spaces.
+The custom (external) configuration file can be supplied by modifying environment variable or by creating the `default-config.json` file in the corresponding configuration folder.
+The exact configuration folder is platform dependent, but generally follows the [XGD user configuration directory](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), standard, so on Linux being by default `~/.config/naksha/v{x.x.x}/`. For Windows the files will reside in the [CSIDL_PROFILE](https://learn.microsoft.com/en-us/windows/win32/shell/csidl?redirectedfrom=MSDN) folder, by default `C:\Users\{username}\.config\naksha\v{x.x.x}\`.
+Here `{x.x.x}` is the Naksha application version (for example, if version is `2.0.7`, then path will be `...\.config\naksha\v2.0.7`)
 
-**Warning**: The `connector-verticle` does not perform security checks, so open it to external access will bypass all security restrictions!
+Next to this, an explicit location can be specified via the environment variable `NAKSHA_CONFIG_PATH`, this path will not be extended by the `naksha/v{x.x.x}` folder, so you can directly specify where to keep the config files. This is important when you want to start multiple versions of the service: `NAKSHA_CONFIG_PATH=~/.config/naksha/ java -jar naksha.jar {arguments}`.
 
-The location of the configuration file could be modified using environment variables or by creating the `config.json` file in the corresponding configuration folder. The exact configuration folder is platform dependent, but generally follows the [XGD user configuration directory](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html), standard, so on Linux being by default `~/.config/xyz-hub/`. For Windows the files will reside in the [CSIDL_PROFILE](https://learn.microsoft.com/en-us/windows/win32/shell/csidl?redirectedfrom=MSDN) folder, by default `C:\Users\{username}\.config\xyz-hub`. This path could be changed via environment variable `XDG_CONFIG_HOME`, which will result in the location `$XDG_CONFIG_HOME/xyz-hub/`. Next to this, an explicit location can be specified via the environment variable `XYZ_CONFIG_PATH`, this path will not be extended by the `xyz-hub` folder, so you can directly specify where to keep the config files. This is important when you want to start multiple versions of the service: `XYZ_CONFIG_PATH=~/.config/xyz-hub/a/ java -jar xyz-hub-service.jar`.
+In the custom config file, the name of the individual properties can be set as per source code here [NakshaHubConfig](here-naksha-lib-hub/src/main/java/com/here/naksha/lib/hub/NakshaHubConfig.java).
+All properties annotated with `@JsonProperty` can be set in custom config file.
 
-The individual environment variable names can be found in the source code of the configuration files being [CoreConfig](xyz-models/src/main/java/com/here/xyz/config/CoreConfig.java), [HubConfig](xyz-models/src/main/java/com/here/xyz/config/HubConfig.java) and [ConnectorConfig](xyz-models/src/main/java/com/here/xyz/config/ConnectorConfig.java). All properties annotated with `@JsonProperty` can always be set as well as environment variable, prefixed with `XYZ_` unless they are always starting with that prefix, for example `XYZ_HUB_REMOTE_SERVICE_URLS`. If the environment variable name is different you will find an additional annotation `@EnvName`. If the name within the configuration file is different, then either `@JsonProperty` or `@JsonName` annotations can be found.
+Config file is loaded using `{config-id}` supplied as CLI argument, as per following precedence on file location (first match wins):
+1. using env variable `NAKSHA_CONFIG_PATH` (full path will be `$NAKSHA_CONFIG_PATH/{config-id}.json`)
+2. as per user's home directory `user.home` (full path will be `{user-home}/.config/naksha/v{x.x.x}/{config-id}.json` )
+3. as per config previously loaded in Naksha Admin Storage (PostgreSQL database)
+4. default config loaded from jar (`here-naksha-lib-hub/src/main/resources/config/default-config.json`)
 
 ```bash
-mkdir ~/.config/xyz-hub
-cp xyz-hub-service/src/main/resources/config.json ~/.config/xyz-hub/
-cp xyz-hub-service/src/main/resources/config-db.json ~/.config/xyz-hub/
+# Example of env variable NAKSHA_CONFIG_PATH
+
+# First, copy default config to custom location
+export NAKSHA_CONFIG_PATH=/my-location/naksha
+cp here-naksha-lib-hub/src/main/resources/config/default-config.json $NAKSHA_CONFIG_PATH/
+
+# Modify config as per need
+vi $NAKSHA_CONFIG_PATH/default-config.json
+
+# Start application using above config
+java -jar naksha.jar default-config
 ```
 
 # Usage
@@ -183,19 +189,6 @@ The service will respond with the inserted geo features:
     ]
 }
 ```
-
-### OpenAPI specification
-
-The OpenAPI specification files are accessible under the following URIs:
-* Full: [http://{host}:{port}/hub/static/openapi/full.yaml](http://localhost:8080/hub/static/openapi/full.yaml)
-* Stable: [http://{host}:{port}/hub/static/openapi/stable.yaml](http://localhost:8080/hub/static/openapi/stable.yaml)
-* Experimental: [http://{host}:{port}/hub/static/openapi/experimental.yaml](http://localhost:8080/hub/static/openapi/experimental.yaml)
-* Contract: [http://{host}:{port}/hub/static/openapi/contract.yaml](http://localhost:8080/hub/static/openapi/contract.yaml)
-* Connector: [http://{host}:{port}/psql/static/openapi/openapi-http-connector.yaml](http://localhost:8080/psql/static/openapi/openapi-http-connector.yaml)
-
-#### Swagger UI
-
-Currently to access the Swagger UI from a browser, use this URI [http://{host}:{port}/hub/static/index.html](http://localhost:8080/hub/static/index.html)
 
 # Testing locally
 

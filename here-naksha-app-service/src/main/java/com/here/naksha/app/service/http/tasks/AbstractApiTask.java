@@ -141,7 +141,7 @@ public abstract class AbstractApiTask<T extends XyzResponse>
         return verticle.sendXyzResponse(
             routingContext,
             HttpResponseType.FEATURE_COLLECTION,
-            new XyzFeatureCollection().withInsertedFeatures(features));
+            new XyzFeatureCollection().withFeatures(features));
       } catch (NoCursor | NoSuchElementException emptyException) {
         logger.info("No data found in ResultCursor, returning empty collection");
         return verticle.sendXyzResponse(

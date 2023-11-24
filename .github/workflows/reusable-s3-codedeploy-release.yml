@@ -1,0 +1,93 @@
+on:
+  workflow_call:
+    inputs:
+      aws-region:
+        type: string
+        description: 'AWS region the S3 bucket is associated with'
+        required: true
+      pipeline-artifact-name:
+        type: string
+        description: 'Github pipeline artifact name, which can be downloaded using actions/download-artifact'
+        required: true
+      s3-bucket-name:
+        type: string
+        description: 'AWS S3 bucket name, where artifact is to be released to'
+        required: true
+      s3-bucket-dir-path:
+        type: string
+        description: 'AWS S3 bucket directory path, where artifact is to be uploaded into'
+        required: true
+      s3-artifact-version:
+        type: string
+        description: 'A version (or suffix) to be used in artifact name while uploading it to AWS S3 bucket'
+        required: true
+    secrets:
+      aws-key:
+        description: 'AWS Access key of a user, who is allowed to upload artifact to S3 bucket'
+        required: true
+      aws-secret:
+        description: 'AWS Access secret of a user, who is allowed to upload artifact to S3 bucket'
+        required: true
+    outputs:
+      s3-artifact-path:
+        description: 'AWS S3 artifact path, which was used for release (e.g. 1.1.1/deployment.tar.gz)'
+        value: ${{ jobs.main.outputs.s3-artifact-path }}
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    outputs:
+      # S3 bucket artifact path (e.g. 1.1.1/deployment.tar.gz)
+      s3-artifact-path: ${{ steps.s3-artifact-path.outputs.path }}
+    steps:
+      # create directory to download artifacts
+      - run: mkdir download
+      - name: Fetch CodeDeploy artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ inputs.pipeline-artifact-name }}
+          path: download
+      - name: List CodeDeploy artifacts
+        run: |
+          ls -lR download/
+      - name: Preparing S3 artifact name
+        id: s3-artifact-name
+        run: |
+          BUNDLE_NAME=deployment_${{ inputs.s3-artifact-version }}.tar.gz
+          echo "name=$BUNDLE_NAME" >> "$GITHUB_OUTPUT"
+      - name: Preparing S3 artifact bundle
+        run: |
+          cd download
+          echo $BUNDLE_NAME
+          tar -cvzf ../$BUNDLE_NAME .
+        env:
+          BUNDLE_NAME: ${{ steps.s3-artifact-name.outputs.name }}
+      - name: List artifact bundle content
+        run: |
+          tar -tvf $BUNDLE_NAME
+        env:
+          BUNDLE_NAME: ${{ steps.s3-artifact-name.outputs.name }}
+      - name: Preparing S3 artifact path
+        id: s3-artifact-path
+        run: |
+          S3_ARTIFACT_PATH="${{ inputs.s3-bucket-dir-path }}/$BUNDLE_NAME"
+          echo "S3 Artifact path is $S3_ARTIFACT_PATH"
+          echo "path=$S3_ARTIFACT_PATH" >> "$GITHUB_OUTPUT"
+        env:
+          BUNDLE_NAME: ${{ steps.s3-artifact-name.outputs.name }}
+      # Upload artifact to S3 bucket
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.aws-key }}
+          aws-secret-access-key: ${{ secrets.aws-secret }}
+          aws-region: ${{ inputs.aws-region }}
+      - name: Upload artifact to S3 bucket s3://${{ inputs.s3-bucket-name }}
+        run: |
+          FULL_S3_PATH=s3://${{ inputs.s3-bucket-name }}/$S3_ARTIFACT_PATH
+          echo "Full S3 artifact path is [$FULL_S3_PATH]"
+          aws s3 cp $BUNDLE_NAME $FULL_S3_PATH
+        env:
+          BUNDLE_NAME: ${{ steps.s3-artifact-name.outputs.name }}
+          S3_ARTIFACT_PATH: ${{ steps.s3-artifact-path.outputs.path }}
+      - run: echo "🍏 This job's status is ${{ job.status }}."

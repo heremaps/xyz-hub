@@ -25,6 +25,7 @@ import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.psql.PsqlStorage;
 import org.jetbrains.annotations.NotNull;
 
 public class IntHandlerForStorages extends AbstractEventHandler {
@@ -44,6 +45,7 @@ public class IntHandlerForStorages extends AbstractEventHandler {
     final NakshaContext ctx = NakshaContext.currentContext();
     final Request<?> request = event.getRequest();
     // process request using Naksha Admin Storage instance
+    addStorageIdToStreamInfo(PsqlStorage.ADMIN_STORAGE_ID, ctx);
     if (request instanceof ReadRequest<?> rr) {
       try (final IReadSession reader = nakshaHub().getAdminStorage().newReadSession(ctx, false)) {
         return reader.execute(rr);

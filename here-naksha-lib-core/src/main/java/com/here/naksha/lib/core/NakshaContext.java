@@ -22,6 +22,7 @@ import static java.lang.ThreadLocal.withInitial;
 
 import com.here.naksha.lib.core.exceptions.Unauthorized;
 import com.here.naksha.lib.core.util.NanoTime;
+import com.here.naksha.lib.core.util.StreamInfo;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -278,6 +279,28 @@ public final class NakshaContext {
     }
     attachments().put(key, value);
     return this;
+  }
+
+  /**
+   * Sets the given streamInfo object in the {@link #attachments()}, if it is not null.
+   *
+   * @param streamInfo the streamInfo object to be added
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public void attachStreamInfo(final @Nullable StreamInfo streamInfo) {
+    if (streamInfo == null) return;
+    attachments().put(StreamInfo.class.getSimpleName(), streamInfo);
+  }
+
+  /**
+   * Returns streamInfo object from {@link #attachments()}.
+   *
+   * @return the StreamInfo object if available, otherwise null
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public @Nullable StreamInfo getStreamInfo() {
+    final Object o = attachments().get(StreamInfo.class.getSimpleName());
+    return (o == null) ? null : (StreamInfo) o;
   }
 
   /**

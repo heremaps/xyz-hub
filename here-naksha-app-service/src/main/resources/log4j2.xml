@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+<Properties>
+    <!--<Property name="Def.Pattern.Layout">%highlight{%d{yyyy-MM-dd HH:mm:ss.SSS XX}}{INFO=white} [%highlight{%-5p}{INFO=bright blue}] %marker [%t] - %highlight{%c{-3} L:%L %X - %.-4096msg %enc{%ex}{JSON}%n}{INFO=white}</Property>-->
+    <Property name="Def.Pattern.Layout">%d{yyyy-MM-dd HH:mm:ss.SSS XX} [%-5p] %marker [%t] - %c{-3} (%M:%L) %X - %.-4096msg %enc{%ex}{JSON}%n</Property>
+</Properties>
+
+<Appenders>
+    <!-- STDOUT to NOT log anything at or above ERROR level -->
+    <Console name="STDOUT" target="SYSTEM_OUT">
+        <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="ACCEPT"/>
+        <PatternLayout pattern="${Def.Pattern.Layout}"/>
+    </Console>
+    <!-- STDERR to log at or above ERROR level -->
+    <Console name="STDERR" target="SYSTEM_ERR">
+        <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+        <PatternLayout pattern="${Def.Pattern.Layout}"/>
+    </Console>
+</Appenders>
+
+<Loggers>
+    <!-- log to all Appenders based on level -->
+    <Root level="debug" includeLocation="true">
+        <AppenderRef ref="STDOUT" level="INFO" />
+        <AppenderRef ref="STDERR" level="ERROR" />
+    </Root>
+</Loggers>
+
+</Configuration>

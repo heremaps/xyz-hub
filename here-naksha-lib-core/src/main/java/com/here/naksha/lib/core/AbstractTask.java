@@ -219,7 +219,7 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
     this.thread = thread;
     this.oldName = threadName;
     this.oldUncaughtExceptionHandler = threadUncaughtExceptionHandler;
-    thread.setName(context.getStreamId());
+    // thread.setName(context.getStreamId());
     thread.setUncaughtExceptionHandler(this);
     MDC.put("streamId", context.getStreamId());
   }
@@ -238,7 +238,7 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
       throw new IllegalStateException("Can't unbind from foreign thread");
     }
     assert oldName != null;
-    thread.setName(oldName);
+    // thread.setName(oldName);
     thread.setUncaughtExceptionHandler(oldUncaughtExceptionHandler);
     this.thread = null;
     this.oldName = null;

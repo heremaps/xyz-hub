@@ -1,0 +1,57 @@
+name: Prod Workflow
+
+# Trigger Prod deployment pipeline for push of a tag Naksha_*
+on:
+  push:
+    tags:
+      - Naksha_*
+
+permissions:
+  checks: write         # for junit reporting
+  pull-requests: write  # for jacoco PR comments
+
+jobs:
+  ### Job to Build and Publish artifacts
+  # Output
+  #   - pipeline-artifact-name = Name of the pipeline artifact to be used in release step (e.g. codedeploy-artifact)
+  #   - app-version = Application version to be used in release step as S3 bucket directory (e.g. 1.1.1-SNAPSHOT, 1.2.0)
+  #   - codedeploy-artifact-version = CodeDeploy artifact version to be used in uniquely naming deployment bundle (e.g. 20230528-144100_d63fd762704ef242d9827662b872b305744f753e)
+  Build-and-Publish:
+    uses: ./.github/workflows/reusable-build-and-publish.yml
+
+
+
+  ### Job to Release CodeDeploy artifact to S3 bucket
+  # Output
+  #   - s3-artifact-path = s3 bucket artifact path to be used for codedeploy (e.g. 1.1.1/deployment.tar.gz)
+  S3-CodeDeploy-Release:
+    needs: Build-and-Publish
+    uses: ./.github/workflows/reusable-s3-codedeploy-release.yml
+    with:
+      aws-region: ${{ vars.AWS_REGION }}
+      pipeline-artifact-name: ${{ needs.Build-and-Publish.outputs.pipeline-artifact-name }}
+      s3-bucket-name: ${{ vars.RELEASE_S3_BUCKET_NAME }}
+      s3-bucket-dir-path: ${{ needs.Build-and-Publish.outputs.app-version }}
+      s3-artifact-version: ${{ needs.Build-and-Publish.outputs.codedeploy-artifact-version }}
+    secrets:
+      aws-key: ${{ secrets.AWS_KEY }}
+      aws-secret: ${{ secrets.AWS_SECRET }}
+
+
+
+  ### Job to Deploy CodeDeploy artifact to Production environment
+  Prd-Deploy:
+    needs: S3-CodeDeploy-Release
+    uses: ./.github/workflows/reusable-codedeploy-deployment.yml
+    with:
+      aws-region: ${{ vars.PRD_AWS_REGION }}
+      codedeploy-app-name: ${{ vars.CODEDEPLOY_APP_NAME }}
+      codedeploy-group-name: ${{ vars.CODEDEPLOY_PRD_GROUP_NAME }}
+      deployment-description: 'Deployment triggered by ${{ github.triggering_actor }} from Github repo [${{ github.repository }}], ${{ github.ref_type }} [${{ github.ref_name }}], commit sha [${{ github.sha }}]'
+      # we use Prod access point (eu-west-1) to fetch deployment artifacts from E2E S3 bucket (us-east-1)
+      s3-bucket-name: ${{ vars.PRD_RELEASE_S3_BUCKET_NAME }}
+      s3-artifact-path: ${{ needs.S3-CodeDeploy-Release.outputs.s3-artifact-path }}
+      s3-artifact-type: tgz
+    secrets:
+      aws-key: ${{ secrets.PRD_AWS_KEY }}
+      aws-secret: ${{ secrets.PRD_AWS_SECRET }}

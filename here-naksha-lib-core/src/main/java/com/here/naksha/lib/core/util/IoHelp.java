@@ -273,7 +273,7 @@ public final class IoHelp {
         if (path == null) {
           continue;
         }
-        filePath = Paths.get(path).toAbsolutePath();
+        filePath = Paths.get(path, filename).toAbsolutePath();
         final File file = filePath.toFile();
         if (file.exists() && file.isFile() && file.canRead()) {
           return new LoadedBytes(filePath.toString(), Files.readAllBytes(filePath));
