@@ -34,6 +34,7 @@ import com.here.naksha.lib.core.EndPipelineHandler;
 import com.here.naksha.lib.core.EventPipeline;
 import com.here.naksha.lib.core.IEventHandler;
 import com.here.naksha.lib.core.NakshaAdminCollection;
+import com.here.naksha.lib.core.models.PluginCache;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Space;
@@ -188,7 +189,8 @@ public class NakshaHubWiringTest {
     final EventHandler eventHandler =
         parseJsonFileOrFail("createFeature/create_event_handler.json", EventHandler.class);
     final Space space = parseJsonFileOrFail("createFeature/create_space.json", Space.class);
-    final IStorage storageImpl = storage.newInstance(hub);
+    final IStorage storageImpl = PluginCache.getStorageConstructor(storage.getClassName(), Storage.class)
+        .call(storage);
 
     // And: mock in place to return given Storage, EventHandler and Space objects, when requested from Admin Storage
     final IStorage spyStorageImpl = spy(storageImpl);

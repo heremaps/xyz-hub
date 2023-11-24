@@ -30,21 +30,21 @@ public class HeapFeatureWriter<F extends XyzFeature> extends HeapFeatureReader<F
 
   @Override
   public @NotNull ModifyFeaturesResp modifyFeatures(@NotNull ModifyFeaturesReq<F> req) {
-    for (final F feature : req.insert()) {
+    for (final F feature : req.getInsert()) {
       final CacheEntry entry = cache.cache.putWeak(feature.getId());
       entry.setValue(feature);
     }
-    for (final F feature : req.update()) {
+    for (final F feature : req.getUpdate()) {
       final CacheEntry entry = cache.cache.putWeak(feature.getId());
       entry.setValue(feature);
     }
-    for (final F feature : req.upsert()) {
+    for (final F feature : req.getUpsert()) {
       final CacheEntry entry = cache.cache.putWeak(feature.getId());
       entry.setValue(feature);
     }
-    for (final @NotNull DeleteOp feature : req.delete()) {
-      if (cache.cache.get(feature.id()) != null) {
-        cache.cache.remove(feature.id());
+    for (final @NotNull DeleteOp feature : req.getDelete()) {
+      if (cache.cache.get(feature.getId()) != null) {
+        cache.cache.remove(feature.getId());
       }
     }
     return null;

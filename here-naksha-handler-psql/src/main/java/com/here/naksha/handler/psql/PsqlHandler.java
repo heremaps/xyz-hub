@@ -421,7 +421,7 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
 
           String rTuples = TupleTime.rTuplesMap.get(event.getSpaceId());
           final XyzFeature estimateFtr = executeQueryWithRetry(
-              SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples))
+                  SQLQueryBuilder.buildEstimateSamplingStrengthQuery(event, bbox, rTuples))
               .getFeatures()
               .get(0);
           final int rCount = (int) estimateFtr.get("rcount");
@@ -815,8 +815,7 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     return executeIterateVersions(event);
   }
 
-  private void validateModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception {
-  }
+  private void validateModifySpaceEvent(@NotNull ModifySpaceEvent event) throws Exception {}
 
   private static final Pattern
       ERRVALUE_22P02 = Pattern.compile("invalid input syntax for type numeric:\\s+\"([^\"]*)\"\\s+Query:"),
@@ -1048,9 +1047,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     if (e instanceof SQLException
         && ((SQLException) e).getSQLState() != null
         && (((SQLException) e).getSQLState().equalsIgnoreCase("57014")
-        || ((SQLException) e).getSQLState().equalsIgnoreCase("57P01")
-        || ((SQLException) e).getSQLState().equalsIgnoreCase("08003")
-        || ((SQLException) e).getSQLState().equalsIgnoreCase("08006"))) {
+            || ((SQLException) e).getSQLState().equalsIgnoreCase("57P01")
+            || ((SQLException) e).getSQLState().equalsIgnoreCase("08003")
+            || ((SQLException) e).getSQLState().equalsIgnoreCase("08006"))) {
       final long remainingSeconds = event.remaining(TimeUnit.SECONDS);
       if (!isRemainingTimeSufficient(remainingSeconds)) {
         return false;
@@ -1267,7 +1266,7 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
         // Transform the incoming deletes into upserts with deleted flag for features which don't
         // exist in the extended layer (base)
         List<String> existingIdsInBase = new FetchExistingIds(
-            new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes), this)
+                new FetchIdsInput(ExtendedSpace.getExtendedTable(event, this), originalDeletes), this)
             .run();
 
         for (String featureId : originalDeletes) {
@@ -1856,13 +1855,14 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
             setReplIdSql = SQLQueryBuilder.setReplicaIdentity(spaceSchema(), tableName);
 
         try (Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery(infoSql);) {
+            ResultSet rs = stmt.executeQuery(infoSql); ) {
           if (!rs.next()) {
             createSpaceStatement(stmt, tableName);
             /** Create Space-Table */
             stmt.addBatch(setReplIdSql);
           } else if (!"f".equals(rs.getString(1)))
-          /** Table exists, but wrong replic identity */ {
+          /** Table exists, but wrong replic identity */
+          {
             stmt.addBatch(setReplIdSql);
           } else {
             return;
@@ -2214,17 +2214,13 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     try {
       rs.next();
       StatisticsResponse.Value<Long> tablesize =
-          JsonSerializable.deserialize(rs.getString("tablesize"), new TypeReference<Value<Long>>() {
-          });
+          JsonSerializable.deserialize(rs.getString("tablesize"), new TypeReference<Value<Long>>() {});
       StatisticsResponse.Value<Long> count = JsonSerializable.deserialize(
-          rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {
-          });
+          rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {});
       StatisticsResponse.Value<Integer> maxversion = JsonSerializable.deserialize(
-          rs.getString("maxversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {
-          });
+          rs.getString("maxversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {});
       StatisticsResponse.Value<Integer> minversion = JsonSerializable.deserialize(
-          rs.getString("minversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {
-          });
+          rs.getString("minversion"), new TypeReference<StatisticsResponse.Value<Integer>>() {});
 
       return new HistoryStatisticsResponse()
           .withByteSize(tablesize)
@@ -2251,23 +2247,18 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
       rs.next();
 
       StatisticsResponse.Value<Long> tablesize = JsonSerializable.deserialize(
-          rs.getString("tablesize"), new TypeReference<StatisticsResponse.Value<Long>>() {
-          });
+          rs.getString("tablesize"), new TypeReference<StatisticsResponse.Value<Long>>() {});
       StatisticsResponse.Value<List<String>> geometryTypes = JsonSerializable.deserialize(
-          rs.getString("geometryTypes"), new TypeReference<StatisticsResponse.Value<List<String>>>() {
-          });
+          rs.getString("geometryTypes"), new TypeReference<StatisticsResponse.Value<List<String>>>() {});
       StatisticsResponse.Value<List<StatisticsResponse.PropertyStatistics>> tags = JsonSerializable.deserialize(
           rs.getString("tags"),
-          new TypeReference<StatisticsResponse.Value<List<StatisticsResponse.PropertyStatistics>>>() {
-          });
+          new TypeReference<StatisticsResponse.Value<List<StatisticsResponse.PropertyStatistics>>>() {});
       StatisticsResponse.PropertiesStatistics properties = JsonSerializable.deserialize(
           rs.getString("properties"), StatisticsResponse.PropertiesStatistics.class);
       StatisticsResponse.Value<Long> count = JsonSerializable.deserialize(
-          rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {
-          });
+          rs.getString("count"), new TypeReference<StatisticsResponse.Value<Long>>() {});
       Map<String, Object> bboxMap =
-          JsonSerializable.deserialize(rs.getString("bbox"), new TypeReference<Map<String, Object>>() {
-          });
+          JsonSerializable.deserialize(rs.getString("bbox"), new TypeReference<Map<String, Object>>() {});
 
       final String searchable = rs.getString("searchable");
       properties.setSearchable(StatisticsResponse.PropertiesStatistics.Searchable.valueOf(searchable));

@@ -31,7 +31,7 @@ public class NakshaHubFactoryTest {
   @Test
   public void testNakshaHubMockInstantiation() throws Exception {
     final NakshaHubConfig cfg = parseJsonFileOrFail("mock_config.json", NakshaHubConfig.class);
-    final INaksha hub = NakshaHubFactory.getInstance(null, cfg, null);
+    final INaksha hub = NakshaHubFactory.getInstance(null, null, cfg, null);
     assertFalse((hub instanceof NakshaHub), "NakshaHub instance was not expected!");
     assertTrue((hub instanceof NakshaHubMock), "Not a NakshaHubMock instance!");
   }

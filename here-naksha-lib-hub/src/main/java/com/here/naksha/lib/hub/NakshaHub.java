@@ -273,13 +273,12 @@ public class NakshaHub implements INaksha {
       }
       final Storage storage =
           Objects.requireNonNull(readFeatureFromResult(result, Storage.class), "Storage not found in result");
-      return psqlStorage(storage);
+      return storageInstance(storage);
     }
   }
 
-  private IStorage psqlStorage(@NotNull Storage storage) {
-    Fe1<IStorage, Storage> constructor =
-        getStorageConstructor("com.here.naksha.lib.psql.PsqlStorage", Storage.class);
+  private IStorage storageInstance(@NotNull Storage storage) {
+    Fe1<IStorage, Storage> constructor = getStorageConstructor(storage.getClassName(), Storage.class);
     try {
       return constructor.call(storage);
     } catch (Exception e) {
