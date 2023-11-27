@@ -20,7 +20,6 @@ package com.here.naksha.lib.handlers;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.naksha.Space;
-import com.here.naksha.lib.core.models.storage.*;
 import org.jetbrains.annotations.NotNull;
 
 public class IntHandlerForSpaces extends XyzFeatureEventHandler<Space> {

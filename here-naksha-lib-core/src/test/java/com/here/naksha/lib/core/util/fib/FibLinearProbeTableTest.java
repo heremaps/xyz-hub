@@ -24,7 +24,11 @@ import static com.here.naksha.lib.core.util.fib.FibSet.WEAK;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.GET;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.PUT;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.REMOVE;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;

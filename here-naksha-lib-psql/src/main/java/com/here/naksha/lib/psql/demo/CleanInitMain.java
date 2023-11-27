@@ -18,7 +18,8 @@
  */
 package com.here.naksha.lib.psql.demo;
 
-import com.here.naksha.lib.psql.*;
+import com.here.naksha.lib.psql.EPsqlLogLevel;
+import com.here.naksha.lib.psql.PsqlStorage;
 
 public class CleanInitMain {
 

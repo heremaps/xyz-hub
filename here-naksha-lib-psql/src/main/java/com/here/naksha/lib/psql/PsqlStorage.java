@@ -31,7 +31,7 @@ import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
-import com.here.naksha.lib.core.storage.*;
+import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.util.json.Json;
 import java.io.IOException;
 import java.io.PrintWriter;

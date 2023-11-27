@@ -18,8 +18,13 @@
  */
 package com.here.naksha.lib.core.bin;
 
-import com.google.flatbuffers.*;
-import java.nio.*;
+import com.google.flatbuffers.BaseVector;
+import com.google.flatbuffers.ByteVector;
+import com.google.flatbuffers.Constants;
+import com.google.flatbuffers.FlatBufferBuilder;
+import com.google.flatbuffers.Table;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 @Deprecated
 @SuppressWarnings("unused")

@@ -18,9 +18,10 @@
  */
 package com.here.naksha.lib.core;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+
 import com.here.naksha.lib.core.exceptions.TooManyTasks;
 import com.here.naksha.lib.core.util.NanoTime;
-import java.lang.Thread.State;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -350,7 +351,7 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
       throw new IllegalStateException("Can't unbind from foreign thread");
     }
     assert oldName != null;
-    // thread.setName(oldName);
+    thread.setName(oldName);
     thread.setUncaughtExceptionHandler(oldUncaughtExceptionHandler);
     this.thread = null;
     this.oldName = null;
@@ -428,7 +429,7 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
 
   private static final AtomicLong threadCount = new AtomicLong();
 
-  private @NotNull RESULT init_and_execute() {
+  private @NotNull RESULT init_and_execute() throws Exception {
     @NotNull RESULT RESULT;
     try {
       state.set(State.EXECUTE);

@@ -19,7 +19,11 @@
 package com.here.naksha.lib.heapcache;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.storage.*;
+import com.here.naksha.lib.core.storage.CollectionInfo;
+import com.here.naksha.lib.core.storage.DeleteOp;
+import com.here.naksha.lib.core.storage.IFeatureWriter;
+import com.here.naksha.lib.core.storage.ModifyFeaturesReq;
+import com.here.naksha.lib.core.storage.ModifyFeaturesResp;
 import org.jetbrains.annotations.NotNull;
 
 public class HeapFeatureWriter<F extends XyzFeature> extends HeapFeatureReader<F> implements IFeatureWriter<F> {

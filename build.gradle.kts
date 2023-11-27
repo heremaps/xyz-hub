@@ -4,7 +4,6 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import java.net.URI
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import org.gradle.kotlin.dsl.KotlinClosure2
 
 repositories {
     maven {

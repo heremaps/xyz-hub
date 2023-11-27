@@ -19,7 +19,7 @@
 package com.here.naksha.lib.core.util.json;
 
 import static com.here.naksha.lib.core.util.json.Json.toJsonString;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;

@@ -18,7 +18,10 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
-import static com.here.naksha.app.service.http.apis.ApiParams.*;
+import static com.here.naksha.app.service.http.apis.ApiParams.FEATURE_ID;
+import static com.here.naksha.app.service.http.apis.ApiParams.FEATURE_IDS;
+import static com.here.naksha.app.service.http.apis.ApiParams.SPACE_ID;
+import static com.here.naksha.app.service.http.apis.ApiParams.pathParam;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.lib.core.INaksha;

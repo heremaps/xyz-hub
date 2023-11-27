@@ -39,7 +39,7 @@ import com.here.naksha.lib.core.models.storage.IfConflict;
 import com.here.naksha.lib.core.models.storage.IfExists;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;

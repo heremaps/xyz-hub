@@ -20,7 +20,9 @@ package com.here.naksha.lib.core.models;
 
 import static com.here.naksha.lib.core.models.PluginCache.eventHandlerConstructors;
 import static com.here.naksha.lib.core.models.PluginCache.storageConstructors;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.IEventHandler;
