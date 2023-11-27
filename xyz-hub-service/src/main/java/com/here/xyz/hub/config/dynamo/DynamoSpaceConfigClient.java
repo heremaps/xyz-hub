@@ -337,12 +337,27 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   private void getSelectedSpacesSync(Marker marker, SpaceAuthorizationCondition authorizedCondition,
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, Promise<List<Space>> p) {
 
-    boolean hasAdminAccess = authorizedCondition.anonymous ||
+    if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
+      get(marker, selectedCondition.spaceIds.iterator().next())
+              .onSuccess(space -> {
+                if(space != null) {
+                  p.complete(Collections.singletonList(space));
+                } else {
+                  p.complete(Collections.emptyList());
+                }
+              })
+              .onFailure(e ->
+                      p.fail(e)
+              );
+      return;
+    }
+
+    boolean hasAnonymousAccess = authorizedCondition.anonymous ||
             (CollectionUtils.isNullOrEmpty(authorizedCondition.spaceIds) &&
                     CollectionUtils.isNullOrEmpty(authorizedCondition.ownerIds) &&
                     CollectionUtils.isNullOrEmpty(authorizedCondition.packages));
     try {
-      var result = hasAdminAccess ? getAdminSpaces(selectedCondition, propsQuery) : getNonAdminSpaces(marker, authorizedCondition, selectedCondition, propsQuery);
+      var result = hasAnonymousAccess ? getAnonymousSpaces(selectedCondition, propsQuery) : getNonAnonymousSpaces(marker, authorizedCondition, selectedCondition, propsQuery);
       p.complete(result);
     }
     catch (Exception e) {
@@ -350,39 +365,50 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     }
   }
 
-  private List<Space> getAdminSpaces(SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+  private List<Space> getAnonymousSpaces(SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     var valueMap = new HashMap<String, Object>();
     String operator;
+    var adminSpaces = new ArrayList<Space>();
     if (propsQuery != null) {
       var contentUpdatedAt = propsQuery.get(0).get(0).getValues().get(0);
       valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
       operator = SQLQuery.getOperation(propsQuery.get(0).get(0).getOperation());
+
+      spaces.getIndex("type-index").query(new QuerySpec()
+              .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " + operator + " :contentUpdatedAtValue")
+              .withNameMap(Map.of("#type", "type"))
+              .withValueMap(valueMap)
+      ).pages().forEach(page -> page.forEach(i -> {
+        adminSpaces.add(mapItemToSpace(i));
+      }));
+    } else if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds) && !selectedCondition.negateOwnerIds) {
+      selectedCondition.ownerIds.forEach(ownerId ->
+              spaces.getIndex("owner-index")
+                      .query(new QuerySpec().withHashKey("owner", ownerId))
+                      .pages()
+                      .forEach(page -> page.forEach(i -> {
+                        adminSpaces.add(mapItemToSpace(i));
+                      })));
+    } else if (selectedCondition.region != null) {
+      spaces.getIndex("region-index")
+              .query(new QuerySpec().withHashKey("region", selectedCondition.region))
+              .pages()
+              .forEach(page -> page.forEach(i -> {
+                adminSpaces.add(mapItemToSpace(i));
+              }));
     } else {
-      // if there's no filtering condition we need to fetch all spaces, we can do that with type index + contentUpdated > 0
+      // if there are no filtering conditions we need to fetch all spaces, we can do that with type index + contentUpdated > 0
       valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", 0L);
-      operator = SQLQuery.getOperation(GREATER_THAN);
-    }
 
-    var adminSpaces = new ArrayList<Space>();
-    spaces.getIndex("type-index").query(new QuerySpec()
-            .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " + operator + " :contentUpdatedAtValue")
-            .withNameMap(Map.of("#type", "type"))
-            .withValueMap(valueMap)
-    ).pages().forEach(page -> page.forEach(i -> {
-      adminSpaces.add(mapItemToSpace(i));
-    }));
-
-    filterAdminSpaces(selectedCondition, adminSpaces);
-
-    return adminSpaces;
-  }
-
-  private void filterAdminSpaces(SpaceSelectionCondition selectedCondition, List<Space> adminSpaces) {
-    // Filter by prefix
-    if (selectedCondition.prefix != null) {
-      adminSpaces.removeIf(space -> !space.getId().startsWith(selectedCondition.prefix));
+      spaces.getIndex("type-index").query(new QuerySpec()
+              .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt > :contentUpdatedAtValue")
+              .withNameMap(Map.of("#type", "type"))
+              .withValueMap(valueMap)
+      ).pages().forEach(page -> page.forEach(i -> {
+        adminSpaces.add(mapItemToSpace(i));
+      }));
     }
 
     // Filter by region
@@ -391,21 +417,27 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     }
 
     // Filter by owner
-    if(selectedCondition.ownerIds != null) {
+    if(!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds)) {
       Predicate<Space> condition = selectedCondition.negateOwnerIds ?
               space -> selectedCondition.ownerIds.contains(space.getOwner()) :
               space -> !selectedCondition.ownerIds.contains(space.getOwner());
       adminSpaces.removeIf(condition);
     }
 
+    // Filter by prefix
+    if (selectedCondition.prefix != null) {
+      adminSpaces.removeIf(space -> !space.getId().startsWith(selectedCondition.prefix));
+    }
+
     // Filter by selected spaces
     if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
       adminSpaces.removeIf(space -> !selectedCondition.spaceIds.contains(space.getId()));
     }
+    return adminSpaces;
   }
 
-  private List<Space> getNonAdminSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-                                        SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+  private List<Space> getNonAnonymousSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
+                                            SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     List<Space> result = new ArrayList<>();
 
     Set<String> allSpaceIds = getAllSpaceIds(authorizedCondition, selectedCondition);
@@ -440,7 +472,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
   private Set<String> getAllSpaceIds(SpaceAuthorizationCondition authorizedCondition,
                                      SpaceSelectionCondition selectedCondition) {
     var sharedSpaceIds = getSharedSpaceIds(selectedCondition);
-    var ownersSpaceIds = getOwnersSpaceIds(selectedCondition, authorizedCondition);
+    var ownersSpaceIds = getOwnersSpaceIds(authorizedCondition);
     var packageSpaceIds = getPackageSpaceIds(authorizedCondition);
 
     return Stream.of(authorizedCondition.spaceIds, sharedSpaceIds, ownersSpaceIds, packageSpaceIds)
@@ -460,7 +492,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     return sharedSpaceIds;
   }
 
-  private Set<String> getOwnersSpaceIds(SpaceSelectionCondition selectedCondition, SpaceAuthorizationCondition authorizedCondition) {
+  private Set<String> getOwnersSpaceIds(SpaceAuthorizationCondition authorizedCondition) {
     var ownersSpaceIds = new HashSet<String>();
     authorizedCondition.ownerIds.forEach(ownerId ->
             spaces.getIndex("owner-index")
