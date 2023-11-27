@@ -54,6 +54,13 @@ services:
         ports:
             - "8000:8000"
         command: ["-jar", "DynamoDBLocal.jar", "-sharedDb"]
+    dynamodb-admin:
+        image: aaronshaf/dynamodb-admin
+        container_name: "dynamodb-admin"
+        ports:
+            - "8001:8001"
+        environment:
+            - DYNAMO_ENDPOINT=http://dynamodb:8000
     swagger-ui:
         image: "swaggerapi/swagger-ui"
         container_name: "swagger-ui"
@@ -78,3 +85,8 @@ services:
             - AWS_DEFAULT_REGION=eu-west-1
         volumes:
             - ./mock-servers/localstack/docker-entrypoint-initaws.d/01-create-bucket.sh:/etc/localstack/init/ready.d/init-aws.sh
+    s3-explorer:
+        image: deskoh/aws-js-s3-explorer
+        container_name: s3-explorer
+        ports:
+            - "5001:8080"
