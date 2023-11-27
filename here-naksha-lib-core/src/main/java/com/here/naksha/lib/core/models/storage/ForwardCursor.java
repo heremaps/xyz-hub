@@ -421,6 +421,14 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
     return feature;
   }
 
+  public @NotNull MutableCursor<FEATURE, CODEC> toMutableCursor(long limit, boolean reOrder) {
+    throw new UnsupportedOperationException();
+  }
+
+  public @NotNull SeekableCursor<FEATURE, CODEC> asSeekableCursor(long limit, boolean reOrder) {
+    throw new UnsupportedOperationException();
+  }
+
   /**
    * Close the cursor and drop all resources allocated for it.
    */

@@ -44,7 +44,7 @@ import org.jetbrains.annotations.Nullable;
  * return a {@link ForwardCursor cursor}, if the whole {@link WriteRequest} failed.
  *
  * <p>If a {@link ForwardCursor cursor} is returned, for every write operation at least one result will be available. Currently only the
- * {@link EWriteOp#PURGE} will result in two results being returned. All results will return an {@link EExecutedOp}, clarifying the
+ * {@link EWriteOp#PURGE} operation may result in two results being returned. All results will return an {@link EExecutedOp}, clarifying the
  * operation that was performed. The details about what each execution means for the result can be read at the {@link EExecutedOp}
  * documentation.
  *

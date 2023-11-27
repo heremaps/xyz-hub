@@ -52,8 +52,8 @@ public class EExecutedOp extends JsonEnum {
   public static final EExecutedOp NULL = def(EExecutedOp.class, null);
 
   /**
-   * A helper to detect that the state in the database was not changed by the operation. The returned {@link FeatureCodec#feature} will
-   * reflect the current version being in the database, which may actually be {@code null}, when the feature does not exist.
+   * The state in the database was not changed by the operation. The returned {@link FeatureCodec#feature} will reflect the current version
+   * being in the database, which may actually be {@code null}, when the feature does not exist.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   public static final EExecutedOp RETAINED = def(EExecutedOp.class, "RETAINED");

@@ -41,6 +41,11 @@ public class XyzError extends JsonEnum {
   }
 
   /**
+   * The collection accessed does not exist.
+   */
+  public static final XyzError COLLECTION_NOT_FOUND = defIgnoreCase(XyzError.class, "CollectionNotFound");
+
+  /**
    * An unexpected error (not further specified) happened while processing the request.
    *
    * <p>This can result in a 500 Internal Server Error.

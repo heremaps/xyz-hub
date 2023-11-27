@@ -19,6 +19,7 @@
 package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.util.json.JsonEnum;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.ApiStatus.Experimental;
@@ -50,10 +51,11 @@ public class EWriteOp extends JsonEnum {
 
   /**
    * Create a new feature. Requires that the {@link FeatureCodec#feature} is provided as parameter. Before being executed by the storage,
-   * the storage will invoke {@link FeatureCodec#decodeParts(boolean)} to disassemble the feature into its parts.
+   * the storage will invoke {@link FeatureCodec#decodeParts(boolean)} to disassemble the feature into its parts. If no
+   * {@link FeatureCodec#id} is decoded, the storage will generate a random identifier for the feature.
    * <p>
-   * If no {@link FeatureCodec#id} is decoded, the storage will generate a random identifier for the feature. If a feature with this
-   * {@code id} exists, the operation will fail.
+   *  If a feature with this {@code id} exists, the operation will fail with {@link EExecutedOp#ERROR} and the error detail will be
+   *  {@link XyzError#CONFLICT}.
    */
   public static final @NotNull EWriteOp CREATE = def(EWriteOp.class, "CREATE");
 
@@ -68,6 +70,9 @@ public class EWriteOp extends JsonEnum {
    * version.
    */
   public static final @NotNull EWriteOp UPDATE = def(EWriteOp.class, "UPDATE");
+  // When not exists: ERROR + XyzError.NOT_FOUND
+  // When conflict: ERROR + XyzError.CONFLICT
+  // When other: ERROR + XyzError.EXCEPTION
 
   /**
    * Create or update a feature. Requires that the {@link FeatureCodec#feature} is provided as parameter. Before being executed by the
@@ -88,7 +93,9 @@ public class EWriteOp extends JsonEnum {
    *
    * <p>If not being atomic, so no {@link FeatureCodec#uuid} ({@code null}) given, the feature with the given {@link FeatureCodec#id} will
    * be deleted, no matter in which version it exists. If being atomic, so a {@link FeatureCodec#uuid} was given, then the feature with the
-   * given {@link FeatureCodec#id} will only be deleted, if it exists in the requested version.
+   * given {@link FeatureCodec#id} will only be deleted, if it exists in the requested version. If it does not exist, the atomic delete
+   * will not fail, but return a {@link EExecutedOp#RETAINED} with the feature being {@code null}, the same way the none-atomic version
+   * would do.
    *
    * <p>The operation is generally treated as successful, when the outcome of the operation is that the feature is eventually deleted. So,
    * if the feature did not exist (was already deleted), the operation will return as the executed operation {@link EExecutedOp#RETAINED}
@@ -99,6 +106,9 @@ public class EWriteOp extends JsonEnum {
    * current version stored in the storage.
    */
   public static final @NotNull EWriteOp DELETE = def(EWriteOp.class, "DELETE");
+  // When okay: RETAINED (feature = null)
+  // When okay: DELETED (feature = set)
+  // When conflict: ERROR + XyzError.CONFLICT
 
   /**
    * Eventually delete a feature. If a {@link FeatureCodec#feature} is provided as parameter, then before being executed by the storage, the
