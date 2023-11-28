@@ -28,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
  * Just an abstraction for Naksha versioning.
  *
  */
+@SuppressWarnings("unused")
 @AvailableSince(v2_0_3)
 public class NakshaVersion implements Comparable<NakshaVersion> {
   /**
@@ -41,13 +42,13 @@ public class NakshaVersion implements Comparable<NakshaVersion> {
   public static final String v2_0_5 = "2.0.5";
   public static final String v2_0_6 = "2.0.6";
   public static final String v2_0_7 = "2.0.7";
+  public static final String v2_0_8 = "2.0.8";
 
   /**
    * The latest version of the naksha-extension stored in the resources.
    */
-  // TODO: Need to be generated and read from gradle.build.kts or gradle.properties!
   @AvailableSince(v2_0_5)
-  public static final NakshaVersion latest = of(v2_0_7);
+  public static final NakshaVersion latest = of(v2_0_8);
 
   private final int major;
   private final int minor;
