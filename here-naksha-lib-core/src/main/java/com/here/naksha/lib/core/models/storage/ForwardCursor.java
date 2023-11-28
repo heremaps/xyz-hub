@@ -421,6 +421,22 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
     return feature;
   }
 
+  /**
+   * Returns true if current row has error, otherwise false.
+   * @return
+   */
+  public boolean hasError() {
+    return currentRow.codec.hasError();
+  }
+
+  /**
+   * Returns current row error or null.
+   * @return
+   */
+  public @Nullable CodecError getError() {
+    return currentRow.codec.getError();
+  }
+
   public @NotNull MutableCursor<FEATURE, CODEC> toMutableCursor(long limit, boolean reOrder) {
     throw new UnsupportedOperationException();
   }

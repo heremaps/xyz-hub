@@ -19,6 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import static com.spatial4j.core.io.GeohashUtils.encodeLatLon;
+import static java.lang.String.format;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -42,6 +43,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.XyzPoint;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
+import com.here.naksha.lib.core.models.storage.CodecError;
 import com.here.naksha.lib.core.models.storage.EExecutedOp;
 import com.here.naksha.lib.core.models.storage.EWriteOp;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
@@ -345,6 +347,51 @@ public class PsqlStorageTests extends PsqlTests {
       assertEquals(
           new Coordinate(5d, 6d, 2d),
           cursor.getFeature().getGeometry().getJTSGeometry().getCoordinate());
+    }
+  }
+
+  @Test
+  @Order(61)
+  @EnabledIf("runTest")
+  void testMultiOperationPartialFail() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+
+    final String UNIQUE_VIOLATION_CODE = "23505";
+    final String UNIQUE_VIOLATION_MSG =
+        format("The feature with the id '%s' does exist already", SINGLE_FEATURE_ID);
+
+    // given
+    final WriteXyzFeatures request = new WriteXyzFeatures(collectionId());
+    final XyzFeature featureToSucceed = new XyzFeature("123");
+    request.add(EWriteOp.CREATE, featureToSucceed);
+    final XyzFeature featureToFail = new XyzFeature(SINGLE_FEATURE_ID);
+    request.add(EWriteOp.CREATE, featureToFail);
+
+    // when
+    final Result result = session.execute(request);
+
+    // then
+    assertInstanceOf(ErrorResult.class, result);
+    ErrorResult errorResult = (ErrorResult) result;
+    assertEquals(UNIQUE_VIOLATION_CODE, errorResult.reason.value());
+    assertEquals(UNIQUE_VIOLATION_MSG, errorResult.message);
+    try (ForwardCursor<XyzFeature, XyzFeatureCodec> cursor = result.getXyzFeatureCursor()) {
+      assertTrue(cursor.next());
+      assertEquals(featureToSucceed.getId(), cursor.getFeature().getId());
+
+      // error row check
+      assertTrue(cursor.next());
+      assertTrue(cursor.hasError());
+      assertSame(EExecutedOp.ERROR, cursor.getOp());
+      CodecError rowError = cursor.getError();
+      assertNotNull(rowError);
+      assertEquals(UNIQUE_VIOLATION_CODE, rowError.err.value());
+      assertEquals(UNIQUE_VIOLATION_MSG, rowError.msg);
+      // we still should be able to read the feature
+      assertEquals(featureToFail.getId(), cursor.getFeature().getId());
+    } finally {
+      session.commit(true);
     }
   }
 

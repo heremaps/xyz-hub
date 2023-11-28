@@ -24,6 +24,7 @@ import static com.here.naksha.lib.core.util.StringCache.string;
 import com.here.naksha.lib.core.util.json.Json;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.ParseException;
+import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -209,6 +210,10 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * The JTS geometry build from the {@link #wkb}.
    */
   protected @Nullable Geometry geometry;
+  /**
+   * The JSON of the error.
+   */
+  protected @Nullable String errorJson;
 
   /**
    * Sets the given geometry and clears the WKB.
@@ -328,6 +333,22 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
   public @NotNull SELF withJson(@Nullable String json) {
     setJson(json);
     return self();
+  }
+
+  /**
+   * Sets the JSON of the error.
+   *
+   * @param json The JSON to set.
+   */
+  public void setRawError(@Nullable String json) {
+    this.errorJson = json;
+    if (json != null) {
+      try (final Json jp = Json.get()) {
+        this.err = jp.reader().readValue(errorJson, CodecError.class);
+      } catch (IOException e) {
+        throw unchecked(e);
+      }
+    }
   }
 
   /**
