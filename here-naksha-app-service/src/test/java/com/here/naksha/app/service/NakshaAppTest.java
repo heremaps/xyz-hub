@@ -19,9 +19,7 @@
 package com.here.naksha.app.service;
 
 import static com.here.naksha.app.common.NakshaAppInitializer.mockedNakshaApp;
-import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
-import static com.here.naksha.app.common.TestUtil.getHeader;
-import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
+import static com.here.naksha.app.common.TestUtil.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.naksha.app.common.NakshaTestWebClient;
@@ -30,12 +28,7 @@ import com.here.naksha.lib.psql.PsqlStorage;
 import java.net.URISyntaxException;
 import java.net.http.HttpResponse;
 import java.util.UUID;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.MethodOrderer;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.*;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
@@ -49,6 +42,7 @@ class NakshaAppTest {
 
   static CreateFeatureTestHelper createFeatureTests;
   static ReadFeaturesByIdsTestHelper readFeaturesByIdsTests;
+  static UpdateFeatureTestHelper updateFeatureTestHelper;
 
   @BeforeAll
   static void prepare() throws InterruptedException, URISyntaxException {
@@ -62,6 +56,7 @@ class NakshaAppTest {
     // create test helpers
     createFeatureTests = new CreateFeatureTestHelper(app, nakshaClient);
     readFeaturesByIdsTests = new ReadFeaturesByIdsTestHelper(app, nakshaClient);
+    updateFeatureTestHelper = new UpdateFeatureTestHelper(app, nakshaClient);
   }
 
   @Test
@@ -215,7 +210,7 @@ class NakshaAppTest {
         nakshaClient.put("hub/storages/this-id-does-not-exist", updateStorageJson, streamId);
 
     // Then:
-    assertEquals(409, response.statusCode());
+    assertEquals(404, response.statusCode());
     JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
     assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
   }
@@ -405,7 +400,7 @@ class NakshaAppTest {
         nakshaClient.put("hub/handlers/non-existent-test-handler", updateEventHandlerJson, streamId);
 
     // Then:
-    assertEquals(409, response.statusCode());
+    assertEquals(404, response.statusCode());
     JSONAssert.assertEquals(expectedRespBody, response.body(), JSONCompareMode.LENIENT);
     assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
   }
@@ -550,7 +545,7 @@ class NakshaAppTest {
         nakshaClient.put("hub/spaces/non-existent-space", updateSpaceJson, streamId);
 
     // Then:
-    assertEquals(409, response.statusCode());
+    assertEquals(404, response.statusCode());
     JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
     assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
   }
@@ -668,6 +663,48 @@ class NakshaAppTest {
   @Order(9)
   void tc0407_testReadFeaturesWithCommaSeparatedIds() throws Exception {
     readFeaturesByIdsTests.tc0407_testReadFeaturesWithCommaSeparatedIds();
+  }
+
+  @Test
+  @Order(10)
+  void tc0500_testUpdateFeatures() throws Exception {
+    updateFeatureTestHelper.tc0500_testUpdateFeatures();
+  }
+
+  @Test
+  @Order(11)
+  void tc0501_testUpdateFeatureById() throws Exception {
+    updateFeatureTestHelper.tc0501_testUpdateFeatureById();
+  }
+
+  @Test
+  @Order(11)
+  void tc0502_testUpdateFeatureByWrongUriId() throws Exception {
+    updateFeatureTestHelper.tc0502_testUpdateFeatureByWrongUriId();
+  }
+
+  @Test
+  @Order(11)
+  void tc0503_testUpdateFeatureWithMismatchingId() throws Exception {
+    updateFeatureTestHelper.tc0503_testUpdateFeatureWithMismatchingId();
+  }
+
+  @Test
+  @Order(11)
+  void tc0504_testUpdateFeaturesNoId() throws Exception {
+    updateFeatureTestHelper.tc0504_testUpdateFeaturesNoId();
+  }
+
+  @Test
+  @Order(12)
+  void tc0505_testUpdateFeaturesWithUuid() throws Exception {
+    updateFeatureTestHelper.tc0505_testUpdateFeaturesWithUuid();
+  }
+
+  @Test
+  @Order(12)
+  void tc0506_testUpdateFeatureWithUuid() throws Exception {
+    updateFeatureTestHelper.tc0506_testUpdateFeatureWithUuid();
   }
 
   @AfterAll

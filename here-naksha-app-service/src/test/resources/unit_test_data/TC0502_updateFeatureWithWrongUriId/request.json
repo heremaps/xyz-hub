@@ -1,0 +1,7 @@
+{
+  "id": "wrong-id",
+  "type": "Feature",
+  "properties": {
+    "speedLimit": "30"
+  }
+}

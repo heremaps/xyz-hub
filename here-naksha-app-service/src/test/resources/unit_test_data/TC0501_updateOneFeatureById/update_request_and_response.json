@@ -1,0 +1,7 @@
+{
+  "id": "my-custom-feature-1",
+  "type": "Feature",
+  "properties": {
+    "speedLimit": "30"
+  }
+}

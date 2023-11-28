@@ -139,6 +139,8 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     final String state = sqe.getSQLState();
     if (PSQLState.UNIQUE_VIOLATION.getState().equals(state)) {
       error = XyzError.CONFLICT;
+    } else if (PSQLState.NO_DATA.getState().equals(state)) {
+      error = XyzError.NOT_FOUND;
     }
     return new ErrorResult(error, sqe.getMessage(), sqe);
   }
@@ -159,15 +161,14 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     mockCollection.get(collectionId).compute(feature.getId(), (fId, oldF) -> {
       // no existing feature to update
       if (oldF == null) {
-        exception.set(
-            new SQLException("No feature found for id " + fId, PSQLState.UNIQUE_VIOLATION.getState()));
+        exception.set(new SQLException("No feature found for id " + fId, PSQLState.NO_DATA.getState()));
         return oldF;
       }
       // update if UUID matches (or overwrite if new uuid is missing)
       final XyzFeature ef = (XyzFeature) oldF;
-      if (uuidOf(ef).equals(uuidOf(feature)) || uuidOf(feature) == null) {
+      if ((Objects.equals(uuidOf(ef), uuidOf(feature)) && uuidOf(feature) != null) || uuidOf(feature) == null) {
         result.set(featureCodec(feature, EExecutedOp.UPDATED));
-        return feature;
+        return setUuidFor(feature);
       } else {
         // throw error if UUID mismatches
         exception.set(new SQLException(
@@ -189,14 +190,17 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     mockCollection.get(collectionId).compute(feature.getId(), (fId, oldF) -> {
       // insert if missing
       if (oldF == null) {
+        if (uuidOf(feature) == null) {
+          setUuidFor(feature);
+        }
         result.set(featureCodec(feature, EExecutedOp.CREATED));
         return feature;
       }
       // update if UUID matches (or overwrite if new uuid is missing)
       final XyzFeature ef = (XyzFeature) oldF;
-      if (uuidOf(ef).equals(uuidOf(feature)) || uuidOf(feature) == null) {
+      if ((Objects.equals(uuidOf(ef), uuidOf(feature)) && uuidOf(feature) != null) || uuidOf(feature) == null) {
         result.set(featureCodec(feature, EExecutedOp.UPDATED));
-        return feature;
+        return setUuidFor(feature);
       } else {
         // throw error if UUID mismatches
         exception.set(new SQLException(
@@ -226,7 +230,7 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
       }
       // delete if UUID matches
       final XyzFeature ef = (XyzFeature) oldF;
-      if (uuidOf(ef).equals(uuid)) {
+      if (Objects.equals(uuidOf(ef), uuid)) {
         result.set(featureCodec(ef, EExecutedOp.DELETED));
         return null;
       } else {

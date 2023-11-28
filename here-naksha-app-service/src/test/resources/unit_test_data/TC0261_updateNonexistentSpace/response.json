@@ -1,5 +1,5 @@
 {
   "type": "ErrorResponse",
-  "error": "Conflict",
+  "error": "NotFound",
   "errorMessage": "No feature found for id non-existent-space"
 }

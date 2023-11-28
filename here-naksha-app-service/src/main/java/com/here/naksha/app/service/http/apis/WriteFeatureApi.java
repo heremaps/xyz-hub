@@ -18,7 +18,7 @@
  */
 package com.here.naksha.app.service.http.apis;
 
-import static com.here.naksha.app.service.http.tasks.WriteFeatureApiTask.WriteFeatureApiReqType.CREATE_FEATURES;
+import static com.here.naksha.app.service.http.tasks.WriteFeatureApiTask.WriteFeatureApiReqType.*;
 
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.tasks.WriteFeatureApiTask;
@@ -41,6 +41,8 @@ public class WriteFeatureApi extends Api {
   @Override
   public void addOperations(final @NotNull RouterBuilder rb) {
     rb.operation("postFeatures").handler(this::createFeatures);
+    rb.operation("putFeatures").handler(this::upsertFeatures);
+    rb.operation("putFeature").handler(this::updateFeature);
   }
 
   @Override
@@ -48,6 +50,14 @@ public class WriteFeatureApi extends Api {
 
   private void createFeatures(final @NotNull RoutingContext routingContext) {
     startWriteFeatureApiTask(CREATE_FEATURES, routingContext);
+  }
+
+  private void upsertFeatures(final @NotNull RoutingContext routingContext) {
+    startWriteFeatureApiTask(UPSERT_FEATURES, routingContext);
+  }
+
+  private void updateFeature(final @NotNull RoutingContext routingContext) {
+    startWriteFeatureApiTask(UPDATE_BY_ID, routingContext);
   }
 
   private void startWriteFeatureApiTask(WriteFeatureApiReqType reqType, RoutingContext routingContext) {

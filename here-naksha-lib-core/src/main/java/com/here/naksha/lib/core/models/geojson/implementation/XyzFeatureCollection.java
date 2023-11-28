@@ -462,6 +462,20 @@ public class XyzFeatureCollection extends XyzResponse {
     return this;
   }
 
+  public @NotNull XyzFeatureCollection withUpdatedFeatures(
+      final @NotNull List<? extends @NotNull XyzFeature> updatedFeatures) {
+    ((List<XyzFeature>) this.features.get()).addAll(updatedFeatures); // append features
+    withUpdated(updatedFeatures.stream().map(XyzFeature::getId).toList()); // overwrite updated
+    return this;
+  }
+
+  public @NotNull XyzFeatureCollection withDeletedFeatures(
+      final @NotNull List<? extends @NotNull XyzFeature> deletedFeatures) {
+    ((List<XyzFeature>) this.features.get()).addAll(deletedFeatures); // append features
+    withDeleted(deletedFeatures.stream().map(XyzFeature::getId).toList()); // overwrite deleted
+    return this;
+  }
+
   public static class ModificationFailure {
 
     private String id;

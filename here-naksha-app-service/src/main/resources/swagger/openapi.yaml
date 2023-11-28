@@ -155,6 +155,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse401'
         '403':
           $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
         '429':
@@ -273,6 +275,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse401'
         '403':
           $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
         '429':
@@ -391,6 +395,8 @@ paths:
           $ref: '#/components/responses/ErrorResponse401'
         '403':
           $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
         '409':
           $ref: '#/components/responses/ErrorResponse409'
         '429':
@@ -476,16 +482,58 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+    put:
+      tags:
+        - Write Features
+      summary: Upsert features in the space
+      description: >
+        This method allows to upsert features in the storage associated (directly or via event handler) with the space.
+        If a feature does not exist yet, it is created, if it is already available, it will be updated.
+        For each existing feature, if UUID is not provided OR if provided UUID matches with what is stored in Naksha, the feature will be updated. 
+        Recommendation is to always provide correct UUID to avoid inconsistency due to concurrency.     
+        In the JSON feature content, UUID is a string located at "properties -> @ns:com:here:xyz -> uuid".
+        If the UUID does not match, HTTP code 409 will be returned.
+        It ensures an atomic operation, so either all features will be updated or none (in case of failure).
+      operationId: putFeatures
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/AddTags'
+        - $ref: '#/components/parameters/RemoveTags'
+      requestBody:
+        $ref: '#/components/requestBodies/FeatureCollectionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureCollectionModificationResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
   '/hub/spaces/{spaceId}/features/{featureId}':
+    parameters:
+      - $ref: '#/components/parameters/SpaceId'
+      - $ref: '#/components/parameters/FeatureId'
     get:
       tags:
         - Read Features
       summary: Get a feature by ID
       description: Retrieves the feature with the provided identifier.
       operationId: getFeature
-      parameters:
-        - $ref: '#/components/parameters/SpaceId'
-        - $ref: '#/components/parameters/FeatureId'
       responses:
         '200':
           $ref: '#/components/responses/FeatureResponse'
@@ -495,6 +543,44 @@ paths:
           $ref: '#/components/responses/ErrorResponse403'
         '404':
           $ref: '#/components/responses/ErrorResponse404'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+    put:
+      tags:
+        - Write Features
+      summary: Update feature with specified ID in the space
+      description: >
+        This method allows to update one feature in the storage associated (directly or via event handler) with the space.
+        If the feature with that ID does not exist, HTTP code 404 is returned.
+        If UUID is specified and matches the current UUID stored in Naksha, the feature will be updated.
+        If the UUID does not match, HTTP code 409 will be returned.
+      operationId: putFeature
+      parameters:
+        - $ref: '#/components/parameters/AddTags'
+        - $ref: '#/components/parameters/RemoveTags'
+      requestBody:
+        $ref: '#/components/requestBodies/FeatureRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
 components:
@@ -563,8 +649,32 @@ components:
       schema:
         type: string
   requestBodies:
+    FeatureRequest:
+      description: A request detailing one specific feature
+      required: true
+      content:
+        application/geo+json:
+          schema:
+            $ref: '#/components/schemas/Feature'
+          example:
+            type: "Feature"
+            geometry:
+              type: "Point"
+              coordinates:
+                - 8.68872
+                - 50.0561
+                - 292.94377758
+            properties:
+              name: Anfield
+              '@ns:com:here:xyz':
+                tags:
+                  - football
+                  - stadium
+              amenity: Football Stadium
+              capacity: 54074
+              description: Home of Liverpool Football Club
     FeatureCollectionRequest:
-      description: An FeatureCollection request holding list of Feature objects.
+      description: A FeatureCollection request holding list of Feature objects.
       required: true
       content:
         application/geo+json:

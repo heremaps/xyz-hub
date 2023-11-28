@@ -1,0 +1,15 @@
+{
+  "id": "feature-update-space",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "feature-update-handler"
+  ],
+  "properties": {
+    "storageCollection": {
+      "id": "um-mod-dev:topology",
+      "type": "StorageCollection"
+    }
+  }
+}

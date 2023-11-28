@@ -1,0 +1,18 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "50"
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "100",
+        "uuid": "whachamacallit"
+      }
+    }
+  ]
+}

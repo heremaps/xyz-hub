@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "IllegalArgument",
+  "errorMessage": "URI path parameter featureId is not the same as id in feature request body."
+}
