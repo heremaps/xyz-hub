@@ -19,8 +19,6 @@
 
 package com.here.xyz.hub.config.dynamo;
 
-import static com.here.xyz.hub.Service.configuration;
-
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.dynamodbv2.document.BatchGetItemOutcome;
 import com.amazonaws.services.dynamodbv2.document.Item;
@@ -51,7 +49,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static com.here.xyz.events.PropertyQuery.QueryOperation.GREATER_THAN;
+import static com.here.xyz.hub.Service.configuration;
 import static io.vertx.core.json.jackson.DatabindCodec.mapper;
 
 public class DynamoSpaceConfigClient extends SpaceConfigClient {
@@ -89,7 +87,13 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       logger.info("DynamoDB running locally, initializing tables.");
 
       try {
-        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S", "id", "owner,shared,region,type", "exp");
+        List<IndexDefinition> indexes = List.of(
+                new IndexDefinition("owner"),
+                new IndexDefinition("shared"),
+                new IndexDefinition("region"),
+                new IndexDefinition("type", "contentUpdatedAt")
+        );
+        dynamoClient.createTable(spaces.getTableName(), "id:S,owner:S,shared:N,region:S,type:S,contentUpdatedAt:N", "id", indexes, "exp");
         dynamoClient.createTable(packages.getTableName(), "packageName:S,spaceId:S", "packageName,spaceId", null, null);
       }
       catch (AmazonDynamoDBException e) {
@@ -352,12 +356,11 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       return;
     }
 
-    boolean hasAnonymousAccess = authorizedCondition.anonymous ||
-            (CollectionUtils.isNullOrEmpty(authorizedCondition.spaceIds) &&
-                    CollectionUtils.isNullOrEmpty(authorizedCondition.ownerIds) &&
-                    CollectionUtils.isNullOrEmpty(authorizedCondition.packages));
+    boolean hasFullAccess = CollectionUtils.isNullOrEmpty(authorizedCondition.spaceIds) &&
+            CollectionUtils.isNullOrEmpty(authorizedCondition.ownerIds) &&
+            CollectionUtils.isNullOrEmpty(authorizedCondition.packages);
     try {
-      var result = hasAnonymousAccess ? getAnonymousSpaces(selectedCondition, propsQuery) : getNonAnonymousSpaces(marker, authorizedCondition, selectedCondition, propsQuery);
+      var result = hasFullAccess ? getSpacesWithFullAccess(selectedCondition, propsQuery) : getSpacesWithoutFullAccess(marker, authorizedCondition, selectedCondition, propsQuery);
       p.complete(result);
     }
     catch (Exception e) {
@@ -365,7 +368,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     }
   }
 
-  private List<Space> getAnonymousSpaces(SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+  private List<Space> getSpacesWithFullAccess(SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     var valueMap = new HashMap<String, Object>();
     String operator;
     var adminSpaces = new ArrayList<Space>();
@@ -436,8 +439,8 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
     return adminSpaces;
   }
 
-  private List<Space> getNonAnonymousSpaces(Marker marker, SpaceAuthorizationCondition authorizedCondition,
-                                            SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
+  private List<Space> getSpacesWithoutFullAccess(Marker marker, SpaceAuthorizationCondition authorizedCondition,
+                                                 SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     List<Space> result = new ArrayList<>();
 
     Set<String> allSpaceIds = getAllSpaceIds(authorizedCondition, selectedCondition);
@@ -455,11 +458,6 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
     // Filter by contentUpdatedAt
     filterByContentUpdatedAt(propsQuery, allSpaceIds);
-
-    // Filter by selected spaces
-    if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
-      allSpaceIds.removeIf(id -> !selectedCondition.spaceIds.contains(id));
-    }
 
     logger.info(marker, "Final number of space IDs to be retrieved from DynamoDB: {}", allSpaceIds.size());
 

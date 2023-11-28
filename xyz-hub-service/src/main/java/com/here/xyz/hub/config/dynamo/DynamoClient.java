@@ -43,6 +43,7 @@ import com.amazonaws.services.dynamodbv2.model.ResourceInUseException;
 import com.amazonaws.services.dynamodbv2.model.TimeToLiveSpecification;
 import com.amazonaws.services.dynamodbv2.model.UpdateTimeToLiveRequest;
 import com.amazonaws.services.s3.model.Region;
+import com.amazonaws.util.CollectionUtils;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.util.ARN;
 import io.vertx.core.Future;
@@ -57,6 +58,11 @@ import org.apache.logging.log4j.Logger;
 public class DynamoClient {
 
   private static final Logger logger = LogManager.getLogger();
+  private static final Long READ_CAPACITY_UNITS = 5L;
+  private static final Long WRITE_CAPACITY_UNITS = 5L;
+  private static final String INDEX_SUFFIX = "-index";
+
+
   public static final WorkerExecutor dynamoWorkers = Service.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
   static AWSCredentialsProvider customCredentialsProvider;
 
@@ -101,15 +107,12 @@ public class DynamoClient {
     return db.getTable(tableName);
   }
 
-  public void createTable(String tableName, String attributes, String keys, String indexes, String ttl) {
+  public void createTable(String tableName, String attributes, String keys, List<IndexDefinition> indexes, String ttl) {
     try {
       // required
       final List<AttributeDefinition> attList = new ArrayList<>();
       for (String s : attributes.split(",")) {
         attList.add(new AttributeDefinition(s.split(":")[0], s.split(":")[1]));
-      }
-      if(tableName.equals("xyz-hub-local-spaces")) {
-        attList.add(new AttributeDefinition("contentUpdatedAt", "N"));
       }
 
       // required
@@ -126,28 +129,8 @@ public class DynamoClient {
           .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L));
 
       // optional
-      if (indexes != null) {
-        final List<GlobalSecondaryIndex> gsiList = new ArrayList<>();
-        for (String s : indexes.split(",")) {
-          if(s.equals("type") && tableName.equals("xyz-hub-local-spaces")) {
-            gsiList.add(
-                    new GlobalSecondaryIndex()
-                            .withIndexName(s.concat("-index"))
-                            .withKeySchema(List.of(new KeySchemaElement(s, KeyType.HASH), new KeySchemaElement("contentUpdatedAt", KeyType.RANGE)))
-                            .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-                            .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L))
-            );
-          } else {
-            gsiList.add(
-                    new GlobalSecondaryIndex()
-                            .withIndexName(s.concat("-index"))
-                            .withKeySchema(new KeySchemaElement(s, KeyType.HASH))
-                            .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-                            .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L))
-            );
-          }
-        }
-
+      if (!CollectionUtils.isNullOrEmpty(indexes)) {
+        final List<GlobalSecondaryIndex> gsiList = indexes.stream().map(this::createGSI).toList();
         req = req.withGlobalSecondaryIndexes(gsiList);
       }
 
@@ -182,5 +165,18 @@ public class DynamoClient {
         future.fail(e);
       }
     });
+  }
+
+  private GlobalSecondaryIndex createGSI(IndexDefinition indexDefinition) {
+    List<KeySchemaElement> keySchema = new ArrayList<>();
+    keySchema.add(new KeySchemaElement(indexDefinition.getHashKey(), KeyType.HASH));
+    if(indexDefinition.getRangeKey() != null) {
+      keySchema.add(new KeySchemaElement(indexDefinition.getRangeKey(), KeyType.RANGE));
+    }
+    return new GlobalSecondaryIndex()
+            .withIndexName(indexDefinition.getHashKey().concat(INDEX_SUFFIX))
+            .withKeySchema(keySchema)
+            .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
+            .withProvisionedThroughput(new ProvisionedThroughput(READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS));
   }
 }

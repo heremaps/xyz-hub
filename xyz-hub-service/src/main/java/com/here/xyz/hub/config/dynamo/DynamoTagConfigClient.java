@@ -61,7 +61,7 @@ public class DynamoTagConfigClient extends TagConfigClient {
   @Override
   public Future<Void> init() {
     if (dynamoClient.isLocal()) {
-      dynamoClient.createTable(tagTable.getTableName(), "id:S,spaceId:S", "id,spaceId", "spaceId", null);
+      dynamoClient.createTable(tagTable.getTableName(), "id:S,spaceId:S", "id,spaceId", List.of(new IndexDefinition("spaceId")), null);
     }
 
     return Future.succeededFuture();
