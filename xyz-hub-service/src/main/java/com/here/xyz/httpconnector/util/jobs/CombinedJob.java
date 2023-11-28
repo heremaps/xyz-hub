@@ -203,8 +203,9 @@ public class CombinedJob extends Job<CombinedJob> {
     if (executing.compareAndSet(false, true)) {
       setExecutedAt(Core.currentTimeMillis() / 1000L);
       new Thread(() -> {
+        Future<Void> executedFuture = Future.succeededFuture();
         while (children.stream().anyMatch(childJob -> !childJob.getStatus().isFinal())) {
-          reloadChildren()
+          executedFuture = reloadChildren()
               .compose(reloadedChildren -> {
                 children = reloadedChildren;
                 return store();
@@ -215,7 +216,8 @@ public class CombinedJob extends Job<CombinedJob> {
           }
           catch (InterruptedException ignored) {}
         }
-        checkForNonSucceededChildren()
+        executedFuture
+            .compose(v -> checkForNonSucceededChildren())
             .compose(v -> {
               Future<Void> f = Future.succeededFuture();
               if (!getStatus().isFinal())

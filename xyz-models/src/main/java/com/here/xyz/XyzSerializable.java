@@ -258,6 +258,7 @@ public interface XyzSerializable {
 
   @SuppressWarnings("unchecked")
   default <T extends XyzSerializable> T copy() {
+    //TODO: Use maps instead of a String for cloning!
     try {
       //noinspection unchecked
       return (T) XyzSerializable.deserialize(serialize(), getClass());

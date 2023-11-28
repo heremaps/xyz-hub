@@ -20,12 +20,16 @@
 package com.here.xyz.httpconnector.config;
 
 import com.here.xyz.httpconnector.CService;
+import com.here.xyz.httpconnector.util.jobs.CombinedJob;
+import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.config.Initializable;
+import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -53,12 +57,37 @@ public abstract class JobConfigClient implements Initializable {
 
     public Future<Job> get(Marker marker, String jobId) {
         return getJob(marker, jobId)
-                .onSuccess(job -> {
-                    if (job == null) {
-                        logger.debug(marker, "job[{}]: not found!", jobId);
-                    }
-                })
-                .onFailure(e -> logger.error(marker, "job[{}]: failed to load! ", jobId, e));
+            .compose(job -> {
+              if (job instanceof Export export)
+                return resolveSuperJob(marker, export);
+              else if (job instanceof CombinedJob combinedJob)
+                return CompositeFuture.all(combinedJob.getChildren()
+                    .stream()
+                    .map(child -> resolveSuperJob(marker, (Export) child))
+                    .collect(Collectors.toList()))
+                    .map(cf -> job);
+              return Future.succeededFuture(job);
+            })
+            .onSuccess(job -> {
+                if (job == null) {
+                    logger.debug(marker, "job[{}]: not found!", jobId);
+                }
+            })
+            .onFailure(e -> logger.error(marker, "job[{}]: failed to load! ", jobId, e));
+    }
+
+  /**
+   * Resolve super job if (already) existing
+   * @param marker
+   * @param spawningJob
+   * @return
+   */
+    private Future<Job> resolveSuperJob(Marker marker, Export spawningJob) {
+      if (spawningJob.getSuperId() != null)
+        //Resolve super job if (already) existing
+        return get(marker, spawningJob.getSuperId()).map(superJob -> spawningJob.withSuperJob((Export) superJob));
+      else
+        return Future.succeededFuture(spawningJob);
     }
 
     public Future<List<Job>> getList(Marker marker, String type, Status status, String targetSpaceId) {

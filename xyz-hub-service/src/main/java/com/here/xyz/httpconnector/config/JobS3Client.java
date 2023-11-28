@@ -26,6 +26,8 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.ExportObject;
@@ -43,6 +45,8 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 import org.apache.logging.log4j.LogManager;
@@ -252,28 +256,41 @@ public class JobS3Client extends AwsS3Client{
             throw new UnsupportedEncodingException("Not able to find EOL!");
     }
 
+    private static Cache<String, Map<String, ExportObject>> s3ScanningCache = CacheBuilder
+        .newBuilder()
+        .maximumSize(0)
+        .expireAfterWrite(1, TimeUnit.MINUTES)
+        .build();
+
     public Map<String,ExportObject> scanExportPath(String prefix) {
-        String bucketName = CService.configuration.JOBS_S3_BUCKET;
-        Map<String, ExportObject> exportObjectList = new HashMap<>();
-        ListObjectsRequest listObjects = new ListObjectsRequest()
-                .withPrefix(prefix)
-                .withBucketName(bucketName);
+        try {
+            return s3ScanningCache.get(prefix, () -> {
+                String bucketName = CService.configuration.JOBS_S3_BUCKET;
+                Map<String, ExportObject> exportObjectList = new HashMap<>();
+                ListObjectsRequest listObjects = new ListObjectsRequest()
+                    .withPrefix(prefix)
+                    .withBucketName(bucketName);
 
-        ObjectListing objectListing = client.listObjects(listObjects);
+                ObjectListing objectListing = client.listObjects(listObjects);
 
-        for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
-            //Skip empty files
-            if(objectSummary.getSize() == 0)
-                continue;
+                for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+                    //Skip empty files
+                    if(objectSummary.getSize() == 0)
+                        continue;
 
-            ExportObject eo = new ExportObject(objectSummary.getKey(), objectSummary.getSize());
-            if (eo.getFilename().equalsIgnoreCase("manifest.json"))
-                continue;;
+                    ExportObject eo = new ExportObject(objectSummary.getKey(), objectSummary.getSize());
+                    if (eo.getFilename().equalsIgnoreCase("manifest.json"))
+                        continue;;
 
-            exportObjectList.put(eo.getFilename(prefix), eo);
+                    exportObjectList.put(eo.getFilename(prefix), eo);
+                }
+
+                return exportObjectList;
+            });
         }
-
-        return exportObjectList;
+        catch (ExecutionException e) {
+            throw new RuntimeException(e.getCause());
+        }
     }
 
     public String getPersistentS3ExportOfSuperLayer(String superLayer, Export sourceJob) {

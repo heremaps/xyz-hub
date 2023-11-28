@@ -36,9 +36,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.here.xyz.Payload;
 import com.here.xyz.XyzSerializable;
-import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.util.jobs.CombinedJob;
-import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
@@ -67,8 +65,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
     private static final Logger logger = LogManager.getLogger();
     private final Table jobs;
     private final DynamoClient dynamoClient;
-    private Long expiration;
-
     private static final String IMPORT_OBJECTS = "importObjects";
     private static final String EXPORT_OBJECTS = "exportObjects";
     private static final String SUPER_EXPORT_OBJECTS = "superExportObjects";
@@ -77,8 +73,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
         dynamoClient = new DynamoClient(tableArn, null);
         logger.debug("Instantiating a reference to Dynamo Table {}", dynamoClient.tableName);
         jobs = dynamoClient.db.getTable(dynamoClient.tableName);
-        if(CService.configuration != null && CService.configuration.JOB_DYNAMO_EXP_IN_DAYS != null)
-            expiration = CService.configuration.JOB_DYNAMO_EXP_IN_DAYS;
     }
 
     @Override
@@ -255,14 +249,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
 
     @Override
     protected Future<Job> storeJob(Marker marker, Job job, boolean isUpdate) {
-        //If exp is set we take it
-        if (!isUpdate && this.expiration != null && job.getExp() == null) {
-            job.setExp(System.currentTimeMillis() / 1000L + expiration * 24 * 60 * 60);
-
-            if (job instanceof CombinedJob combinedJob)
-                combinedJob.getChildren().stream().forEach(childJob -> childJob.setExp(job.getExp()));
-        }
-
         return DynamoClient.dynamoWorkers.executeBlocking(p -> storeJobSync(job, p));
     }
 
@@ -289,11 +275,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
     }
 
     private static void sanitizeExportJob(JsonObject jobJson) {
-        if (jobJson.containsKey(EXPORT_OBJECTS)) {
-            Map<String, Object> exportObjects = jobJson.getJsonObject(EXPORT_OBJECTS).getMap();
-            sanitizeUrls(exportObjects);
-            jobJson.put(EXPORT_OBJECTS, exportObjects);
-        }
+        if (jobJson.containsKey(EXPORT_OBJECTS))
+            jobJson.remove(EXPORT_OBJECTS);
         if (jobJson.containsKey(SUPER_EXPORT_OBJECTS))
             jobJson.remove(SUPER_EXPORT_OBJECTS);
     }
@@ -304,10 +287,6 @@ public class DynamoJobConfigClient extends JobConfigClient {
             JsonObject childJob = children.getJsonObject(i);
             sanitizeExportJob(childJob);
         }
-    }
-
-    private static void sanitizeUrls(Map<String, Object> exportObjects) {
-        exportObjects.forEach((fileName, exportObject) -> ((Map<String, Object>) exportObject).remove("downloadUrl"));
     }
 
     private Future<Job> convertItemToJob(Item item){
@@ -345,25 +324,11 @@ public class DynamoJobConfigClient extends JobConfigClient {
             resolvedFuture = resolveChildren(json);
         try {
             final Job job = XyzSerializable.deserialize(json.toString(), Job.class);
-            if (job instanceof Export export && export.getSuperId() != null && !export.readPersistExport())
-                resolvedFuture = resolvedFuture.compose(v -> resolveSuperExportObjects(export));
-            else if (job instanceof CombinedJob combinedJob && combinedJob.getChildren().size() > 0)
-                resolvedFuture = resolvedFuture.compose(v -> Future.all(combinedJob.getChildren().stream().map(childJob -> resolveSuperExportObjects((Export) childJob))
-                    .collect(Collectors.toList())).mapEmpty());
             return resolvedFuture.map(v -> job);
         }
         catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private Future<Void> resolveSuperExportObjects(Export job) {
-        return getJob(null, job.getSuperId())
-            .compose(superJob -> {
-                if (superJob != null) //If super job was not found (yet)
-                    job.setSuperExportObjects(((Export) superJob).getExportObjects());
-                return Future.succeededFuture();
-            });
     }
 
     private Future<Void> resolveChildren(JsonObject combinedJob) {
