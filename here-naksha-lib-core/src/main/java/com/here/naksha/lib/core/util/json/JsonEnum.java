@@ -370,11 +370,12 @@ public abstract class JsonEnum implements CharSequence {
    * Runs a lambda against this enumeration instance.
    *
    * @param selfClass Reference to the class of this enumeration-type.
-   * @param lamba     The lambda to run against this instance.
+   * @param lambda     The lambda to run against this instance.
    * @param <SELF>    The type of this.
    * @return this.
    */
-  protected @NotNull <SELF extends JsonEnum> SELF with(@NotNull Class<SELF> selfClass, @NotNull P1<SELF> lamba) {
+  protected @NotNull <SELF extends JsonEnum> SELF with(@NotNull Class<SELF> selfClass, @NotNull P1<SELF> lambda) {
+    lambda.call((SELF) this);
     return (SELF) this;
   }
 

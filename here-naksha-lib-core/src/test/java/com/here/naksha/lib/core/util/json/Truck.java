@@ -20,8 +20,12 @@ package com.here.naksha.lib.core.util.json;
 
 public class Truck extends Vehicle {
 
-  public static final Truck TRUCK = def(Truck.class, "TRUCK");
+  public static final Truck TRUCK = def(Truck.class, "TRUCK").with(Truck.class, (self) -> {
+    self.isTruck = true;
+  });
 
   public static final Truck CASE_INSENSITIVE =
       defIgnoreCase(Truck.class, "FooTruck").aliasIgnoreCase(Truck.class, "fOO");
+
+  boolean isTruck;
 }
