@@ -21,19 +21,24 @@ package com.here.naksha.lib.hub.mock;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
 
-import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.EWriteOp;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.IfConflict;
+import com.here.naksha.lib.core.models.storage.IfExists;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
+import com.here.naksha.lib.core.models.storage.XyzCodecFactory;
+import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
+import com.here.naksha.lib.core.models.storage.XyzCollectionCodecFactory;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.hub.NakshaHubConfig;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
@@ -45,7 +50,7 @@ public class NHAdminMock implements IStorage {
   protected static @NotNull Map<String, Map<String, Object>> mockCollection;
   protected static @NotNull NakshaHubConfig nakshaHubConfig;
 
-  public NHAdminMock(final @NotNull Storage storage, final @NotNull INaksha naksha) {
+  public NHAdminMock(final @NotNull Storage storage) {
     // this constructor is only to support IStorage instantiation
     if (this.mockCollection == null) {
       this.mockCollection = new ConcurrentHashMap<>();
@@ -68,23 +73,21 @@ public class NHAdminMock implements IStorage {
 
     // Create all admin collections
     try (final IWriteSession admin = newWriteSession(ctx, true)) {
-      final List<WriteOp<XyzCollection>> collectionList = new ArrayList<>();
+      WriteXyzCollections writeXyzCollections = new WriteXyzCollections();
       for (final String name : NakshaAdminCollection.ALL) {
         final XyzCollection collection = new XyzCollection(name);
-        final WriteOp<XyzCollection> writeOp =
-            new WriteOp<>(EWriteOp.CREATE, name, null, collection, null, true);
-        collectionList.add(writeOp);
+        writeXyzCollections.add(EWriteOp.CREATE, collection);
       }
-      final Result wrResult = admin.execute(new WriteCollections<>(collectionList));
+      final Result wrResult = admin.execute(writeXyzCollections);
       if (wrResult == null) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(new Exception("Unable to create Admin collections in Mock storage. Null result!"));
       } else if (wrResult instanceof ErrorResult er) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(new Exception(
             "Unable to create Admin collections in Mock storage. " + er.toString(), er.exception));
       }
-      admin.commit();
+      admin.commit(true);
     }
   }
 
@@ -97,15 +100,22 @@ public class NHAdminMock implements IStorage {
       final Result wrResult = admin.execute(createFeatureRequest(
           NakshaAdminCollection.CONFIGS, nakshaHubConfig, IfExists.REPLACE, IfConflict.REPLACE));
       if (wrResult == null) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(new Exception("Unable to add custom config in Mock storage. Null result!"));
       } else if (wrResult instanceof ErrorResult er) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(
             new Exception("Unable to add custom config in Mock storage. " + er.toString(), er.exception));
       }
-      admin.commit();
+      admin.commit(true);
     }
+  }
+
+  private XyzCollectionCodec collectionCodec(XyzCollection collection, EWriteOp op) {
+    return XyzCodecFactory.getFactory(XyzCollectionCodecFactory.class)
+        .newInstance()
+        .withFeature(collection)
+        .withOp(op);
   }
 
   /**

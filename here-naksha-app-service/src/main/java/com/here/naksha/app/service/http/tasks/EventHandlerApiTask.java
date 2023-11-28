@@ -27,7 +27,11 @@ import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.PRef;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
@@ -85,8 +89,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
   private @NotNull XyzResponse executeCreateHandler() throws Exception {
     // Read request JSON
     final EventHandler newHandler = handlerFromRequestBody();
-    final WriteFeatures<EventHandler> writeRequest =
-        RequestHelper.createFeatureRequest(EVENT_HANDLERS, newHandler, false);
+    final WriteXyzFeatures writeRequest = RequestHelper.createFeatureRequest(EVENT_HANDLERS, newHandler, false);
     // persist new handler in Admin DB (if doesn't exist already)
     final Result writeResult = executeWriteRequestFromSpaceStorage(writeRequest);
     return transformWriteResultToXyzFeatureResponse(writeResult, EventHandler.class);
@@ -117,7 +120,7 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
       return verticle.sendErrorResponse(
           routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(handlerIdFromPath, handlerToUpdate));
     } else {
-      final WriteFeatures<EventHandler> updateHandlerReq =
+      final WriteXyzFeatures updateHandlerReq =
           RequestHelper.updateFeatureRequest(EVENT_HANDLERS, handlerToUpdate);
       final Result updateHandlerResult = executeWriteRequestFromSpaceStorage(updateHandlerReq);
       return transformWriteResultToXyzFeatureResponse(updateHandlerResult, EventHandler.class);

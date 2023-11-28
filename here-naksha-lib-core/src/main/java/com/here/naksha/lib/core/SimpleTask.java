@@ -188,28 +188,29 @@ public class SimpleTask<RESULT> extends AbstractTask<RESULT, SimpleTask<RESULT>>
   protected @NotNull RESULT execute() {
     if (lambda != null) {
       try {
-        if (lambda instanceof Fe0 l) {
-          return ((Fe0<RESULT>) l).call();
+        if (lambda instanceof Fe0) {
+          return ((Fe0<RESULT>) lambda).call();
         }
-        if (lambda instanceof Fe1 l) {
+        if (lambda instanceof Fe1) {
           assert args != null && args.length == 1;
-          return ((Fe1<RESULT, Object>) l).call(args[0]);
+          return ((Fe1<RESULT, Object>) lambda).call(args[0]);
         }
-        if (lambda instanceof Fe2 l) {
+        if (lambda instanceof Fe2) {
           assert args != null && args.length == 2;
-          return ((Fe2<RESULT, Object, Object>) l).call(args[0], args[1]);
+          return ((Fe2<RESULT, Object, Object>) lambda).call(args[0], args[1]);
         }
-        if (lambda instanceof Fe3 l) {
+        if (lambda instanceof Fe3) {
           assert args != null && args.length == 3;
-          return ((Fe3<RESULT, Object, Object, Object>) l).call(args[0], args[1], args[2]);
+          return ((Fe3<RESULT, Object, Object, Object>) lambda).call(args[0], args[1], args[2]);
         }
-        if (lambda instanceof Fe4 l) {
+        if (lambda instanceof Fe4) {
           assert args != null && args.length == 4;
-          return ((Fe4<RESULT, Object, Object, Object, Object>) l).call(args[0], args[1], args[2], args[3]);
+          return ((Fe4<RESULT, Object, Object, Object, Object>) lambda)
+              .call(args[0], args[1], args[2], args[3]);
         }
-        if (lambda instanceof Fe5 l) {
+        if (lambda instanceof Fe5) {
           assert args != null && args.length == 5;
-          return ((Fe5<RESULT, Object, Object, Object, Object, Object>) l)
+          return ((Fe5<RESULT, Object, Object, Object, Object, Object>) lambda)
               .call(args[0], args[1], args[2], args[3], args[4]);
         }
       } catch (Exception e) {

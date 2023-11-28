@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -197,20 +198,70 @@ public final class IoHelp {
 
   /**
    * The loaded bytes.
-   *
-   * @param path  The path loaded.
-   * @param bytes The bytes loaded.
    */
-  public record LoadedBytes(@NotNull String path, byte @NotNull [] bytes) {}
+  public static class LoadedBytes {
+    private final String path;
+    private final byte[] bytes;
+
+    /**
+     * @param path  The path loaded.
+     * @param bytes The bytes loaded.     */
+    LoadedBytes(@NotNull String path, byte @NotNull [] bytes) {
+      this.path = path;
+      this.bytes = bytes;
+    }
+
+    public String getPath() {
+      return path;
+    }
+
+    public byte[] getBytes() {
+      return bytes;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) return true;
+      if (o == null || getClass() != o.getClass()) return false;
+      LoadedBytes that = (LoadedBytes) o;
+      return Objects.equals(path, that.path) && Arrays.equals(bytes, that.bytes);
+    }
+
+    @Override
+    public int hashCode() {
+      int result = Objects.hash(path);
+      result = 31 * result + Arrays.hashCode(bytes);
+      return result;
+    }
+  }
 
   /**
    * The loaded config.
    *
-   * @param path     The path loaded.
-   * @param config   The loaded config.
    * @param <CONFIG> The config-type.
    */
-  public record LoadedConfig<CONFIG>(@NotNull String path, CONFIG config) {}
+  public static class LoadedConfig<CONFIG> {
+
+    private final CONFIG config;
+    private final String path;
+
+    /**
+     * @param path     The path loaded.
+     * @param config   The loaded config.
+     */
+    LoadedConfig(@NotNull String path, CONFIG config) {
+      this.path = path;
+      this.config = config;
+    }
+
+    public CONFIG getConfig() {
+      return config;
+    }
+
+    public String getPath() {
+      return path;
+    }
+  }
 
   /**
    * Read a file either from the given search paths or when not found there from "~/.config/{appName}", and eventually from the resources.
@@ -383,7 +434,8 @@ public final class IoHelp {
       return type.cast(value);
     }
 
-    if (value instanceof String string) {
+    if (value instanceof String) {
+      String string = (String) value;
       if (type == Boolean.class) {
         if ("true".equalsIgnoreCase(string)) {
           return type.cast(Boolean.TRUE);
@@ -457,7 +509,8 @@ public final class IoHelp {
         }
       }
     }
-    if (value instanceof Number number) {
+    if (value instanceof Number) {
+      Number number = (Number) value;
       if (type == Byte.class) {
         return type.cast(number.byteValue());
       }

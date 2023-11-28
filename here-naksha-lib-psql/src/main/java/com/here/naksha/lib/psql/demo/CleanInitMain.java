@@ -18,7 +18,8 @@
  */
 package com.here.naksha.lib.psql.demo;
 
-import com.here.naksha.lib.psql.*;
+import com.here.naksha.lib.psql.EPsqlLogLevel;
+import com.here.naksha.lib.psql.PsqlStorage;
 
 public class CleanInitMain {
 
@@ -29,18 +30,16 @@ public class CleanInitMain {
     if (args.length == 0) {
       System.err.println("Missing argument, please call with JDBC connect string, example: ");
       System.err.println(
-          "    jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=plv_test");
+          "    jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=test&id=test&app=test");
+      // TEST_ADMIN_DB=jdbc:postgresql://naksha-moderation-db-perftest.ccmrakfzvsi3.us-east-1.rds.amazonaws.com/unimap?user=postgres&password=vDiGjAIRWFhh7KXzQy6v&schema=alweber_junit&id=alweber_junit&app=alweber
       System.exit(1);
       return;
     }
-    final PsqlConfig config = new PsqlConfigBuilder()
-        .withAppName("Naksha-Psql-Init")
-        .parseUrl(args[0])
-        .build();
-    try (final PsqlStorage storage = new PsqlStorage(config, config.schema)) {
+    try (final PsqlStorage storage = new PsqlStorage(args[0])) {
+      storage.setLogLevel(EPsqlLogLevel.DEBUG);
       // Connect and initialize the database.
       storage.dropSchema();
-      storage.initStorageWithDebugInfo();
+      storage.initStorage();
     }
     System.out.println("DONE");
     System.out.flush();

@@ -20,14 +20,16 @@ package com.here.naksha.lib.psql;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.here.naksha.lib.core.models.storage.EWriteOp;
+import com.fasterxml.jackson.annotation.JsonRawValue;
+import com.here.naksha.lib.core.models.storage.FeatureCodec;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Internally used object to serialize operations for invoking the database pl/pgsql functions.
  */
 class PostgresWriteOp {
   @JsonProperty("op")
-  EWriteOp op;
+  String op;
 
   @JsonProperty("id")
   String id;
@@ -35,9 +37,17 @@ class PostgresWriteOp {
   @JsonProperty("uuid")
   String uuid;
 
+  @JsonRawValue
   @JsonProperty("feature")
-  Object feature;
+  String feature;
 
   @JsonIgnore
-  byte[] geometry;
+  <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> @NotNull PostgresWriteOp decode(@NotNull CODEC codec) {
+    codec.decodeParts(false);
+    this.op = codec.getOp();
+    this.id = codec.getId();
+    this.uuid = codec.getUuid();
+    this.feature = codec.getJson();
+    return this;
+  }
 }

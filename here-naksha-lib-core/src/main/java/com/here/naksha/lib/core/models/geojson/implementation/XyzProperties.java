@@ -21,29 +21,44 @@ package com.here.naksha.lib.core.models.geojson.implementation;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.HereDeltaNs;
+import com.here.naksha.lib.core.models.geojson.implementation.namespaces.HereMetaNs;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.util.json.JsonObject;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /** The standard properties of the standard feature store in the Naksha-Hub. */
+@SuppressWarnings({"UnusedReturnValue", "unused"})
 public class XyzProperties extends JsonObject {
 
   /**
-   * The internal management properties of the Naksha-Hub.
-   *
-   * @since 0.1.0
+   * The internal management properties of the Naksha-Hub, XYZ-Hub and other XYZ derivatives.
    */
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final String XYZ_NAMESPACE = "@ns:com:here:xyz";
 
   /**
    * Properties used by the deprecated Activity-Log service, just here to allow downward
    * compatibility.
-   *
-   * @since 0.6.0
    */
+  @AvailableSince(NakshaVersion.v2_0_0)
   public static final String XYZ_ACTIVITY_LOG_NS = "@ns:com:here:xyz:log";
+
+  /**
+   * Properties used for the base layer (used in consistent store).
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final String HERE_META_NS = "@ns:com:here:meta";
+
+  /**
+   * Properties used for the delta layer (only within the moderation sub-process).
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public static final String HERE_DELTA_NS = "@ns:com:here:delta";
 
   public XyzProperties() {}
 
@@ -65,9 +80,9 @@ public class XyzProperties extends JsonObject {
   }
 
   /**
-   * Sets the XYZ namespace.
+   * Sets the XYZ namespace, must never be {@code null}!
    *
-   * @param xyzNamespace The namespace.
+   * @param xyzNamespace The namespace, must not be {@code null}!
    */
   public void setXyzNamespace(@NotNull XyzNamespace xyzNamespace) {
     this.xyzNamespace = xyzNamespace;
@@ -99,10 +114,67 @@ public class XyzProperties extends JsonObject {
    * Removes the activity log namespace.
    *
    * @return The activity log namespace; if there was any.
+   * @deprecated Can be replaced with {@code setXyzActivityLog(null);}.
    */
+  @Deprecated
   public @Nullable XyzActivityLog removeActivityLog() {
     final XyzActivityLog xyzActivityLog = this.xyzActivityLog;
     this.xyzActivityLog = null;
     return xyzActivityLog;
+  }
+
+  @JsonProperty(HERE_META_NS)
+  @JsonInclude(Include.NON_NULL)
+  private @Nullable HereMetaNs __meta;
+
+  public @NotNull HereMetaNs useMetaNamespace() {
+    HereMetaNs meta = __meta;
+    if (meta == null) {
+      this.__meta = meta = new HereMetaNs();
+      // TODO: Initialize it correctly, e.g. change counter, streamId, change-state and more!
+    }
+    return meta;
+  }
+
+  public @Nullable HereMetaNs getMetaNamespace() {
+    return __meta;
+  }
+
+  public @Nullable HereMetaNs setMetaNamespace(@Nullable HereMetaNs ns) {
+    final HereMetaNs old = this.__meta;
+    __meta = ns;
+    return old;
+  }
+
+  public @NotNull XyzProperties withMetaNamespace(@Nullable HereMetaNs ns) {
+    setMetaNamespace(ns);
+    return this;
+  }
+
+  @JsonProperty(HERE_DELTA_NS)
+  @JsonInclude(Include.NON_NULL)
+  private @Nullable HereDeltaNs __delta;
+
+  public @NotNull HereDeltaNs useDeltaNamespace() {
+    HereDeltaNs delta = __delta;
+    if (delta == null) {
+      this.__delta = delta = new HereDeltaNs();
+    }
+    return delta;
+  }
+
+  public @Nullable HereDeltaNs getDeltaNamespace() {
+    return __delta;
+  }
+
+  public @Nullable HereDeltaNs setDeltaNamespace(@Nullable HereDeltaNs ns) {
+    final HereDeltaNs old = this.__delta;
+    __delta = ns;
+    return old;
+  }
+
+  public @NotNull XyzProperties withDeltaNamespace(@Nullable HereDeltaNs ns) {
+    setDeltaNamespace(ns);
+    return this;
   }
 }

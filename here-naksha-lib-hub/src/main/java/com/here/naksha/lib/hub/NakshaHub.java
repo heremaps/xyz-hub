@@ -19,6 +19,7 @@
 package com.here.naksha.lib.hub;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.models.PluginCache.getStorageConstructor;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createWriteCollectionsRequest;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.readFeaturesByIdRequest;
@@ -30,6 +31,7 @@ import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
@@ -45,10 +47,11 @@ import com.here.naksha.lib.core.util.storage.ResultHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
-import com.here.naksha.lib.psql.PsqlConfig;
+import com.here.naksha.lib.psql.PsqlInstanceConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -79,11 +82,12 @@ public class NakshaHub implements INaksha {
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public NakshaHub(
-      final @NotNull PsqlConfig config,
+      final @NotNull String appName,
+      final @NotNull PsqlInstanceConfig config,
       final @Nullable NakshaHubConfig customCfg,
       final @Nullable String configId) {
     // create storage instance upfront
-    this.psqlStorage = new PsqlStorage(config, PsqlStorage.ADMIN_STORAGE_ID);
+    this.psqlStorage = new PsqlStorage("naksha-admin-db", appName, "TODO", config);
     this.adminStorageInstance = new NHAdminStorage(this.psqlStorage);
     this.spaceStorageInstance = new NHSpaceStorage(this, new NakshaEventPipelineFactory(this));
     // setup backend storage DB and Hub config
@@ -112,14 +116,14 @@ public class NakshaHub implements INaksha {
     try (final IWriteSession admin = getAdminStorage().newWriteSession(nakshaContext, true)) {
       final Result wrResult = admin.execute(createWriteCollectionsRequest(NakshaAdminCollection.ALL));
       if (wrResult == null) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(new Exception("Unable to create Admin collections in Admin DB. Null result!"));
       } else if (wrResult instanceof ErrorResult er) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(new Exception(
             "Unable to create Admin collections in Admin DB. " + er.toString(), er.exception));
       }
-      admin.commit();
+      admin.commit(true);
     } // close Admin DB connection
 
     // 3. run one-time maintenance on Admin DB to ensure history partitions are available
@@ -141,14 +145,14 @@ public class NakshaHub implements INaksha {
       final Result wrResult =
           admin.execute(createFeatureRequest(NakshaAdminCollection.STORAGES, defStorage, true));
       if (wrResult == null) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(new Exception("Unable to add default storage in Admin DB. Null result!"));
       } else if (wrResult instanceof ErrorResult er) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(
             new Exception("Unable to add default storage in Admin DB. " + er.toString(), er.exception));
       }
-      admin.commit();
+      admin.commit(true);
     } // close Admin DB connection
 
     // 4. fetch / add latest config
@@ -173,14 +177,14 @@ public class NakshaHub implements INaksha {
         final Result wrResult = admin.execute(createFeatureRequest(
             NakshaAdminCollection.CONFIGS, customCfg, IfExists.REPLACE, IfConflict.REPLACE));
         if (wrResult == null) {
-          admin.rollback();
+          admin.rollback(true);
           throw unchecked(new Exception("Unable to add custom config in Admin DB. Null result!"));
         } else if (wrResult instanceof ErrorResult er) {
-          admin.rollback();
+          admin.rollback(true);
           throw unchecked(
               new Exception("Unable to add custom config in Admin DB. " + er.toString(), er.exception));
         }
-        admin.commit();
+        admin.commit(true);
         return customCfg;
       }
 
@@ -228,14 +232,14 @@ public class NakshaHub implements INaksha {
       // Persist default config in Admin DB
       final Result wrResult = admin.execute(createFeatureRequest(NakshaAdminCollection.CONFIGS, defCfg, true));
       if (wrResult == null) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(new Exception("Unable to add default config in Admin DB. Null result!"));
       } else if (wrResult instanceof ErrorResult er) {
-        admin.rollback();
+        admin.rollback(true);
         throw unchecked(
             new Exception("Unable to add default config in Admin DB. " + er.toString(), er.exception));
       }
-      admin.commit();
+      admin.commit(true);
       return defCfg; // return default config obtained from file
     }
   }
@@ -267,11 +271,18 @@ public class NakshaHub implements INaksha {
         throw unchecked(new Exception(
             "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
       }
-      final Storage storage = readFeatureFromResult(result, Storage.class);
-      if (storage == null) {
-        throw unchecked(new Exception("No storage found with id " + storageId));
-      }
-      return storage.newInstance(this);
+      final Storage storage = Objects.requireNonNull(
+          readFeatureFromResult(result, Storage.class), "No storage found with id: " + storageId);
+      return storageInstance(storage);
+    }
+  }
+
+  private IStorage storageInstance(@NotNull Storage storage) {
+    Fe1<IStorage, Storage> constructor = getStorageConstructor(storage.getClassName(), Storage.class);
+    try {
+      return constructor.call(storage);
+    } catch (Exception e) {
+      throw unchecked(e);
     }
   }
 }

@@ -35,13 +35,14 @@ public final class StringHelper {
    */
   @AvailableSince("2.0.0")
   public static @NotNull String toString(@Nullable Object o) {
-    while (o instanceof Reference<?> ref) {
+    while (o instanceof Reference<?>) {
+      Reference<?> ref = (Reference<?>) o;
       o = ref.get();
     }
-    if (o instanceof String string) {
-      return string;
+    if (o instanceof String) {
+      return (String) o;
     }
-    if (o == null || (o instanceof CharSequence chars && chars.length() == 0)) {
+    if (o == null || (o instanceof CharSequence && ((CharSequence) o).length() == 0)) {
       return "";
     }
     return o.toString();
@@ -57,17 +58,18 @@ public final class StringHelper {
    */
   @AvailableSince("2.0.0")
   public static @NotNull CharSequence toCharSequence(@Nullable Object o) {
-    while (o instanceof Reference<?> ref) {
-      if (o instanceof CharSequence chars) {
-        return chars;
+    while (o instanceof Reference<?>) {
+      Reference<?> ref = (Reference<?>) o;
+      if (o instanceof CharSequence) {
+        return (CharSequence) o;
       }
       o = ref.get();
     }
     if (o == null) {
       return "";
     }
-    if (o instanceof CharSequence cs) {
-      return cs;
+    if (o instanceof CharSequence) {
+      return (CharSequence) o;
     }
     return o.toString();
   }

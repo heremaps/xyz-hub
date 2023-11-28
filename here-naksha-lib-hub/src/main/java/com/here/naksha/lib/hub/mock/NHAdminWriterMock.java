@@ -28,22 +28,25 @@ import static com.here.naksha.lib.core.models.storage.EWriteOp.UPDATE;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.EExecutedOp;
+import com.here.naksha.lib.core.models.storage.EWriteOp;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteCollections;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
-import com.here.naksha.lib.core.models.storage.WriteOp;
-import com.here.naksha.lib.core.models.storage.WriteOpResult;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
+import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
+import com.here.naksha.lib.core.models.storage.XyzCodecFactory;
+import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -65,10 +68,10 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
    * @return the result.
    */
   @Override
-  public @NotNull Result execute(@NotNull WriteRequest writeRequest) {
-    if (writeRequest instanceof WriteCollections<?> wc) {
+  public @NotNull Result execute(@NotNull WriteRequest<?, ?, ?> writeRequest) {
+    if (writeRequest instanceof WriteXyzCollections wc) {
       return executeWriteCollection(wc);
-    } else if (writeRequest instanceof WriteFeatures<?> wf) {
+    } else if (writeRequest instanceof WriteXyzFeatures wf) {
       return executeWriteFeatures(wf);
     }
     return new ErrorResult(
@@ -76,58 +79,59 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
         "WriteRequest type " + writeRequest.getClass().getName() + " not supported");
   }
 
-  protected @NotNull <T extends NakshaFeature> Result executeWriteCollection(@NotNull WriteCollections<T> wc) {
-    final @NotNull List<WriteOpResult<XyzCollection>> wOpResults = new ArrayList<>();
-    for (final WriteOp<T> wOp : wc.queries) {
-      final XyzCollection c = (XyzCollection) wOp.feature;
+  protected @NotNull Result executeWriteCollection(@NotNull WriteXyzCollections wc) {
+    final @NotNull List<XyzCollectionCodec> results = new ArrayList<>();
+    for (final XyzCollectionCodec collectionCodec : wc.features) {
       // persist collection (if not already)
-      EExecutedOp execOp = EExecutedOp.RETAIN;
-      if (mockCollection.putIfAbsent(c.getId(), new ConcurrentHashMap<>()) == null) {
+      EExecutedOp execOp = EExecutedOp.RETAINED;
+      if (mockCollection.putIfAbsent(collectionCodec.getFeature().getId(), new ConcurrentHashMap<>()) == null) {
         execOp = EExecutedOp.CREATED;
       }
+      collectionCodec.setOp(execOp);
       // add to output list
-      wOpResults.add(new WriteOpResult<>(execOp, c));
+      results.add(collectionCodec);
     }
-    return new MockWriteResult<>(XyzCollection.class, wOpResults);
+    return new MockResult(XyzCollection.class, results);
   }
 
-  protected @NotNull <T> Result executeWriteFeatures(@NotNull WriteFeatures<T> wf) {
-    final @NotNull List<WriteOpResult<XyzFeature>> wOpResults = new ArrayList<>();
+  protected @NotNull Result executeWriteFeatures(@NotNull WriteXyzFeatures wf) {
+    final @NotNull List<XyzFeatureCodec> results = new ArrayList<>();
     // Raise exception if collection doesn't exist already
     if (mockCollection.get(wf.getCollectionId()) == null) {
       throw unchecked(new SQLException(
           "Collection " + wf.getCollectionId() + " doesn't exist.", PSQLState.UNDEFINED_TABLE.getState()));
     }
     // Perform write operation for each feature
-    for (final WriteOp<T> wOp : wf.queries) {
+    for (final XyzFeatureCodec featureCodec : wf.features) {
       // generate new feature Id, if not already provided
-      final XyzFeature f = (XyzFeature) wOp.feature;
-      if (wOp.op == CREATE && (f.getId() == null || f.getId().isEmpty())) {
-        f.setId(UUID.randomUUID().toString());
+      final XyzFeature feature = Objects.requireNonNull(featureCodec.getFeature(), "Codec's feature is null");
+      final EWriteOp op = EWriteOp.get(featureCodec.getOp());
+      if (op == CREATE && (feature.getId() == null || feature.getId().isEmpty())) {
+        feature.setId(UUID.randomUUID().toString());
       }
       // persist feature in a space
       try {
-        WriteOpResult<XyzFeature> result = null;
-        if (wOp.op.equals(CREATE)) {
-          result = insertFeature(wf.getCollectionId(), wOp);
-        } else if (wOp.op.equals(UPDATE)) {
-          result = updateFeature(wf.getCollectionId(), wOp);
-        } else if (wOp.op.equals(PUT)) {
-          result = upsertFeature(wf.getCollectionId(), wOp);
-        } else if (wOp.op.equals(DELETE)) {
-          result = deleteFeature(wf.getCollectionId(), wOp);
-        } else if (wOp.op.equals(PURGE)) {
+        XyzFeatureCodec result = null;
+        if (op.equals(CREATE)) {
+          result = insertFeature(wf.getCollectionId(), feature);
+        } else if (op.equals(UPDATE)) {
+          result = updateFeature(wf.getCollectionId(), feature);
+        } else if (op.equals(PUT)) {
+          result = upsertFeature(wf.getCollectionId(), feature);
+        } else if (op.equals(DELETE)) {
+          result = deleteFeature(wf.getCollectionId(), feature);
+        } else if (op.equals(PURGE)) {
           return new ErrorResult(XyzError.NOT_IMPLEMENTED, "PurgeFeature not mocked yet");
         } else {
-          return new ErrorResult(XyzError.NOT_IMPLEMENTED, wOp.op + " not mocked yet");
+          return new ErrorResult(XyzError.NOT_IMPLEMENTED, op + " not mocked yet");
         }
         // add to output list
-        wOpResults.add(result);
+        results.add(result);
       } catch (SQLException ex) {
         return mapExceptionToErrorResult(ex);
       }
     }
-    return new MockWriteResult<>(XyzFeature.class, wOpResults);
+    return new MockResult<>(XyzFeature.class, results);
   }
 
   protected @NotNull ErrorResult mapExceptionToErrorResult(final @NotNull SQLException sqe) {
@@ -139,22 +143,20 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     return new ErrorResult(error, sqe.getMessage(), sqe);
   }
 
-  protected <T> @NotNull WriteOpResult<XyzFeature> insertFeature(
-      final @NotNull String collectionId, final @NotNull WriteOp<T> wOp) throws SQLException {
-    final XyzFeature f = (XyzFeature) wOp.feature;
-    if (mockCollection.get(collectionId).putIfAbsent(f.getId(), setUuidFor(f)) == null) {
-      return new WriteOpResult<>(EExecutedOp.CREATED, f);
+  protected <T> @NotNull XyzFeatureCodec insertFeature(
+      final @NotNull String collectionId, final @NotNull XyzFeature feature) throws SQLException {
+    if (mockCollection.get(collectionId).putIfAbsent(feature.getId(), setUuidFor(feature)) == null) {
+      return featureCodec(feature, EExecutedOp.CREATED);
     }
-    throw new SQLException("Feature already exists " + f.getId(), PSQLState.UNIQUE_VIOLATION.getState());
+    throw new SQLException("Feature already exists " + feature.getId(), PSQLState.UNIQUE_VIOLATION.getState());
   }
 
-  protected @NotNull <T> WriteOpResult<XyzFeature> updateFeature(
-      final @NotNull String collectionId, final @NotNull WriteOp<T> wOp) throws SQLException {
-    final XyzFeature newF = (XyzFeature) wOp.feature;
-    final AtomicReference<WriteOpResult<XyzFeature>> result = new AtomicReference<>();
+  protected @NotNull XyzFeatureCodec updateFeature(
+      final @NotNull String collectionId, final @NotNull XyzFeature feature) throws SQLException {
+    final AtomicReference<XyzFeatureCodec> result = new AtomicReference<>();
     final AtomicReference<SQLException> exception = new AtomicReference<>();
 
-    mockCollection.get(collectionId).compute(newF.getId(), (fId, oldF) -> {
+    mockCollection.get(collectionId).compute(feature.getId(), (fId, oldF) -> {
       // no existing feature to update
       if (oldF == null) {
         exception.set(
@@ -163,9 +165,9 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
       }
       // update if UUID matches (or overwrite if new uuid is missing)
       final XyzFeature ef = (XyzFeature) oldF;
-      if (uuidOf(ef).equals(uuidOf(newF)) || uuidOf(newF) == null) {
-        result.set(new WriteOpResult<>(EExecutedOp.UPDATED, setUuidFor(newF)));
-        return newF;
+      if (uuidOf(ef).equals(uuidOf(feature)) || uuidOf(feature) == null) {
+        result.set(featureCodec(feature, EExecutedOp.UPDATED));
+        return feature;
       } else {
         // throw error if UUID mismatches
         exception.set(new SQLException(
@@ -179,27 +181,26 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     return result.get();
   }
 
-  protected @NotNull <T> WriteOpResult<XyzFeature> upsertFeature(
-      final @NotNull String collectionId, final @NotNull WriteOp<T> wOp) throws SQLException {
-    final XyzFeature newF = (XyzFeature) wOp.feature;
-    final AtomicReference<WriteOpResult<XyzFeature>> result = new AtomicReference<>();
+  protected @NotNull XyzFeatureCodec upsertFeature(
+      final @NotNull String collectionId, final @NotNull XyzFeature feature) throws SQLException {
+    final AtomicReference<XyzFeatureCodec> result = new AtomicReference<>();
     final AtomicReference<SQLException> exception = new AtomicReference<>();
 
-    mockCollection.get(collectionId).compute(newF.getId(), (fId, oldF) -> {
+    mockCollection.get(collectionId).compute(feature.getId(), (fId, oldF) -> {
       // insert if missing
       if (oldF == null) {
-        result.set(new WriteOpResult<>(EExecutedOp.CREATED, setUuidFor(newF)));
-        return newF;
+        result.set(featureCodec(feature, EExecutedOp.CREATED));
+        return feature;
       }
       // update if UUID matches (or overwrite if new uuid is missing)
       final XyzFeature ef = (XyzFeature) oldF;
-      if (uuidOf(ef).equals(uuidOf(newF)) || uuidOf(newF) == null) {
-        result.set(new WriteOpResult<>(EExecutedOp.UPDATED, setUuidFor(newF)));
-        return newF;
+      if (uuidOf(ef).equals(uuidOf(feature)) || uuidOf(feature) == null) {
+        result.set(featureCodec(feature, EExecutedOp.UPDATED));
+        return feature;
       } else {
         // throw error if UUID mismatches
         exception.set(new SQLException(
-            "Uuid " + uuidOf(ef) + " mismatch for id " + newF.getId(),
+            "Uuid " + uuidOf(ef) + " mismatch for id " + feature.getId(),
             PSQLState.UNIQUE_VIOLATION.getState()));
         return oldF;
       }
@@ -210,29 +211,28 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     return result.get();
   }
 
-  protected @NotNull <T> WriteOpResult<XyzFeature> deleteFeature(
-      final @NotNull String collectionId, final @NotNull WriteOp<T> wOp) throws SQLException {
-    final XyzFeature newF = (wOp.feature != null) ? ((XyzFeature) wOp.feature) : null;
-    final String id = (newF != null) ? newF.getId() : wOp.id;
-    final String uuid = (newF != null) ? uuidOf(newF) : wOp.uuid;
-    final AtomicReference<WriteOpResult<XyzFeature>> result = new AtomicReference<>();
+  protected @NotNull XyzFeatureCodec deleteFeature(
+      final @NotNull String collectionId, final @NotNull XyzFeature feature) throws SQLException {
+    final String id = feature.getId();
+    final String uuid = uuidOf(feature);
+    final AtomicReference<XyzFeatureCodec> result = new AtomicReference<>();
     final AtomicReference<SQLException> exception = new AtomicReference<>();
 
     mockCollection.get(collectionId).compute(id, (fId, oldF) -> {
       // nothing to delete if it is already absent
       if (oldF == null) {
-        result.set(new WriteOpResult<>(EExecutedOp.DELETED, null));
+        result.set(featureCodec(feature, EExecutedOp.DELETED));
         return oldF;
       }
       // delete if UUID matches
       final XyzFeature ef = (XyzFeature) oldF;
       if (uuidOf(ef).equals(uuid)) {
-        result.set(new WriteOpResult<>(EExecutedOp.DELETED, ef));
+        result.set(featureCodec(ef, EExecutedOp.DELETED));
         return null;
       } else {
         // throw error if UUID mismatches
         exception.set(new SQLException(
-            "Uuid " + uuidOf(ef) + " mismatch for id " + newF.getId(),
+            "Uuid " + uuidOf(ef) + " mismatch for id " + feature.getId(),
             PSQLState.UNIQUE_VIOLATION.getState()));
         return oldF;
       }
@@ -250,6 +250,13 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
   private XyzFeature setUuidFor(final @NotNull XyzFeature feature) {
     feature.getProperties().getXyzNamespace().setUuid(UUID.randomUUID().toString());
     return feature;
+  }
+
+  private XyzFeatureCodec featureCodec(XyzFeature feature, EExecutedOp op) {
+    return XyzCodecFactory.getFactory(XyzFeatureCodecFactory.class)
+        .newInstance()
+        .withFeature(feature)
+        .withOp(op);
   }
 
   /**
@@ -286,13 +293,40 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
 
   /**
    * Commit all changes.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
    */
   @Override
-  public void commit() {}
+  public void commit(boolean autoCloseCursors) {}
 
   /**
    * Abort the transaction, revert all pending changes.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
    */
   @Override
-  public void rollback() {}
+  public void rollback(boolean autoCloseCursors) {}
+
+  /**
+   * Closes the session and, when necessary invokes {@link #rollback(boolean)}.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
+   */
+  @Override
+  public void close(boolean autoCloseCursors) {}
 }

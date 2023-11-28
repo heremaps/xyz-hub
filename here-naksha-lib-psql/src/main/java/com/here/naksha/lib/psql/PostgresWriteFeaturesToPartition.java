@@ -18,13 +18,13 @@
  */
 package com.here.naksha.lib.psql;
 
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import org.jetbrains.annotations.NotNull;
 
-class PostgresWriteFeaturesToPartition<T> extends WriteFeatures<T> {
+@Deprecated
+class PostgresWriteFeaturesToPartition<T> {
 
   private static @NotNull MessageDigest newMd5() {
     try {
@@ -45,7 +45,6 @@ class PostgresWriteFeaturesToPartition<T> extends WriteFeatures<T> {
   }
 
   PostgresWriteFeaturesToPartition(@NotNull String collectionId, int partitionId) {
-    super(collectionId);
     this.partitionId = partitionId;
   }
 

@@ -28,7 +28,7 @@ import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
-import java.sql.*;
+import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -38,8 +38,9 @@ public final class PsqlWriteSession extends PsqlSession implements IWriteSession
 
   private static final Logger log = LoggerFactory.getLogger(PsqlWriteSession.class);
 
-  PsqlWriteSession(@NotNull PostgresStorage storage, @NotNull NakshaContext context, @NotNull Connection connection) {
-    super(storage, context, connection, false);
+  PsqlWriteSession(
+      @NotNull PostgresStorage storage, @NotNull NakshaContext context, @NotNull PsqlConnection connection) {
+    super(storage, context, connection);
   }
 
   @Override
@@ -56,21 +57,26 @@ public final class PsqlWriteSession extends PsqlSession implements IWriteSession
   }
 
   @Override
-  public void commit() {
+  public void commit(boolean autoCloseCursors) {
     try {
-      session().connection.commit();
+      session().commit(autoCloseCursors);
     } catch (final SQLException e) {
       throw unchecked(e);
     }
   }
 
   @Override
-  public void rollback() {
+  public void rollback(boolean autoCloseCursors) {
     try {
-      session().connection.rollback();
+      session().rollback(autoCloseCursors);
     } catch (final SQLException e) {
       throw unchecked(e);
     }
+  }
+
+  @Override
+  public void close(boolean autoCloseCursors) {
+    session().close(autoCloseCursors);
   }
 
   @Override
@@ -79,7 +85,7 @@ public final class PsqlWriteSession extends PsqlSession implements IWriteSession
   }
 
   @Override
-  public @NotNull Result execute(@NotNull WriteRequest<?, ?> writeRequest) {
+  public @NotNull Result execute(@NotNull WriteRequest<?, ?, ?> writeRequest) {
     return session().executeWrite(writeRequest);
   }
 

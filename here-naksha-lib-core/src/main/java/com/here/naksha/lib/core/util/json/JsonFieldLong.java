@@ -49,14 +49,14 @@ public final class JsonFieldLong<OBJECT> extends JsonField<OBJECT, Long> {
 
   @Override
   public @NotNull Long value(@Nullable Object value) {
-    if (value instanceof Long v) {
-      return v;
+    if (value instanceof Long) {
+      return (Long) value;
     }
     if (value == null) {
       return nullValue();
     }
-    if (value instanceof Number n) {
-      return n.longValue();
+    if (value instanceof Number) {
+      return ((Number) value).longValue();
     }
     throw new IllegalArgumentException("value is no instance of " + valueClass.getName());
   }

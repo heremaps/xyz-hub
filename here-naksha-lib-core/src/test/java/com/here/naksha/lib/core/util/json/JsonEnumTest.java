@@ -20,11 +20,13 @@ package com.here.naksha.lib.core.util.json;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.junit.jupiter.api.Test;
 
@@ -108,5 +110,29 @@ class JsonEnumTest {
     assertThrowsExactly(Error.class, () -> {
       JsonEnum.def(Car.class, 5);
     });
+  }
+
+  public static class TestObject {
+    @JsonProperty
+    public Vehicle vehicle;
+  }
+
+  @Test
+  void testObject() throws JsonProcessingException {
+    Object raw;
+    TestObject object;
+    Truck truck;
+    Car car;
+    try (final Json jp = Json.get()) {
+      raw = jp.reader().forType(TestObject.class).readValue("{\n" + "\"vehicle\": \"TRUCK\"\n" + "}");
+      object = assertInstanceOf(TestObject.class, raw);
+      truck = assertInstanceOf(Truck.class, object.vehicle);
+      assertSame(Truck.TRUCK, truck);
+
+      raw = jp.reader().forType(TestObject.class).readValue("{\n" + "\"vehicle\": 5\n" + "}");
+      object = assertInstanceOf(TestObject.class, raw);
+      car = assertInstanceOf(Car.class, object.vehicle);
+      assertSame(Car.CAR, car);
+    }
   }
 }

@@ -22,13 +22,13 @@ import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.storage.Notification;
 import com.here.naksha.lib.core.models.storage.ReadRequest;
 import com.here.naksha.lib.core.models.storage.Result;
-import java.sql.Connection;
 import org.jetbrains.annotations.NotNull;
 
 public final class PsqlReadSession extends PsqlSession {
 
-  PsqlReadSession(@NotNull PostgresStorage storage, @NotNull NakshaContext context, @NotNull Connection connection) {
-    super(storage, context, connection, true);
+  PsqlReadSession(
+      @NotNull PostgresStorage storage, @NotNull NakshaContext context, @NotNull PsqlConnection connection) {
+    super(storage, context, connection);
   }
 
   @Override

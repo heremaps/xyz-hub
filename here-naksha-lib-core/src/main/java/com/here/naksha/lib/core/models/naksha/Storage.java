@@ -18,11 +18,15 @@
  */
 package com.here.naksha.lib.core.models.naksha;
 
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.models.PluginCache.getStorageConstructor;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.PluginCache;
 import com.here.naksha.lib.core.storage.IStorage;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
@@ -71,15 +75,18 @@ public class Storage extends Plugin<IStorage, Storage> {
   private long number;
 
   /**
-   * Initialize the storage engine, invoked from the Naksha-Hub when creating a new instance of the storage. This should ensure that the
-   * storage is accessible and in a good state. If the method fails, it is invoked again after a couple of minutes. This method is invoked
-   * at least ones for every service start and therefore must be concurrency safe, because it may be called in parallel by multiple
-   * Naksha-Hub instances.
+   * Do not use anymore, please call {@link PluginCache#getStorageConstructor(String, Class)} and create the instance yourself.
    */
+  @Deprecated
   @Override
   public @NotNull IStorage newInstance(@NotNull INaksha naksha) {
-    // TODO: Keep storage engines in memory and only instantiate the same storage ones!
-    return PluginCache.newInstance(className, IStorage.class, this, naksha);
+    Fe1<IStorage, Storage> constructor =
+        getStorageConstructor("com.here.naksha.lib.psql.PsqlStorage", Storage.class);
+    try {
+      return constructor.call(null);
+    } catch (Exception e) {
+      throw unchecked(e);
+    }
   }
 
   @Deprecated

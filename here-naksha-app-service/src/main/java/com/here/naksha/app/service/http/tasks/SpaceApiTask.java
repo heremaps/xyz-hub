@@ -31,7 +31,7 @@ import com.here.naksha.lib.core.models.storage.POp;
 import com.here.naksha.lib.core.models.storage.PRef;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
@@ -94,7 +94,7 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
 
   private @NotNull XyzResponse executeCreateSpace() throws JsonProcessingException {
     final Space newSpace = spaceFromRequestBody();
-    final WriteFeatures<Space> wrRequest = RequestHelper.createFeatureRequest(SPACES, newSpace, false);
+    final WriteXyzFeatures wrRequest = RequestHelper.createFeatureRequest(SPACES, newSpace, false);
     final Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest);
     return transformWriteResultToXyzFeatureResponse(wrResult, Space.class);
   }
@@ -106,7 +106,7 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
       return verticle.sendErrorResponse(
           routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(spaceIdFromPath, spaceFromBody));
     } else {
-      final WriteFeatures<Space> updateSpaceReq = RequestHelper.updateFeatureRequest(SPACES, spaceFromBody);
+      final WriteXyzFeatures updateSpaceReq = RequestHelper.updateFeatureRequest(SPACES, spaceFromBody);
       final Result updateSpaceResult = executeWriteRequestFromSpaceStorage(updateSpaceReq);
       return transformWriteResultToXyzFeatureResponse(updateSpaceResult, Space.class);
     }

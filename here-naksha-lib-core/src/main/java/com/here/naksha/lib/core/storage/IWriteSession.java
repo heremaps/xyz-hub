@@ -23,12 +23,14 @@ import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.WriteRequest;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.concurrent.NotThreadSafe;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * A storage session that can perform changes.
  */
+@NotThreadSafe
 @AvailableSince(NakshaVersion.v2_0_7)
 public interface IWriteSession extends IReadSession {
 
@@ -40,10 +42,13 @@ public interface IWriteSession extends IReadSession {
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   @NotNull
-  Result execute(@NotNull WriteRequest<?, ?> writeRequest);
+  Result execute(@NotNull WriteRequest<?, ?, ?> writeRequest);
 
   /**
    * Acquire a lock to a specific feature in the HEAD state.
+   *
+   * <p>Any {@link #commit(boolean)}, {@link #rollback(boolean)} or {@link #close(boolean)}ing will release the lock
+   * instantly.
    *
    * @param collectionId the collection in which the feature is stored.
    * @param featureId    the identifier of the feature to lock.
@@ -61,6 +66,9 @@ public interface IWriteSession extends IReadSession {
   /**
    * Acquire an advisory lock.
    *
+   * <p>Any {@link #commit(boolean)}, {@link #rollback(boolean)} or {@link #close(boolean)}ing will release the lock
+   * instantly.
+   *
    * @param lockId   the unique identifier of the lock to acquire.
    * @param timeout  the maximum time to wait for the lock.
    * @param timeUnit the time-unit in which the wait-time was provided.
@@ -74,13 +82,49 @@ public interface IWriteSession extends IReadSession {
 
   /**
    * Commit all changes.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  void commit();
+  void commit(boolean autoCloseCursors);
 
   /**
    * Abort the transaction, revert all pending changes.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  void rollback();
+  void rollback(boolean autoCloseCursors);
+
+  /**
+   * Closes the session and, when necessary invokes {@link #rollback(boolean)}.
+   * <p>
+   * Beware setting {@code autoCloseCursors} to {@code true} is often very suboptimal. To keep cursors alive, most of the time the
+   * implementation requires to read all results synchronously from all open cursors in an in-memory cache and to close the underlying
+   * network resources. This can lead to {@link OutOfMemoryError}'s or other issues. It is strictly recommended to first read from all open
+   * cursors before closing, committing or rolling-back a session.
+   *
+   * @param autoCloseCursors If {@code true}, all open cursors are closed; otherwise all pending cursors are kept alive.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  void close(boolean autoCloseCursors);
+
+  /**
+   * This basically just invokes {@link #close(boolean) close(true)}.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  @Override
+  default void close() {
+    close(true);
+  }
 }

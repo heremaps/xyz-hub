@@ -18,79 +18,143 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import static com.here.naksha.lib.core.models.storage.PRef.Constants.*;
+import static com.here.naksha.lib.core.util.StringCache.string;
 
 import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+/**
+ * The property references, basically addresses all properties that can be searched.
+ */
 public class PRef {
 
-  public PRef(@NotNull String... path) {
+  /**
+   * Create a references to an arbitrary property at the given JSON path.
+   *
+   * @param path The path to the property.
+   */
+  PRef(@NotNull String... path) {
     this.propertyPath = List.of(path);
   }
 
-  private @NotNull PRef withTagName(@NotNull String tagName) {
+  @NotNull
+  PRef withTagName(@NotNull String tagName) {
     this.tagName = tagName;
     return this;
   }
 
-  public static class Constants {
-
-    public static final PRef ID = new PRef("id");
-    public static final PRef APP_ID = new PRef("properties", "@ns:com:here:xyz", "app_id");
-    public static final PRef AUTHOR = new PRef("properties", "@ns:com:here:xyz", "author");
-    public static final PRef UUID = new PRef("properties", "@ns:com:here:xyz", "uuid");
-    public static final PRef MRID = new PRef("properties", "@ns:com:here:xyz", "mrid");
-    public static final PRef QRID = new PRef("properties", "@ns:com:here:xyz", "qrid");
-    public static final PRef TXN = new PRef("properties", "@ns:com:here:xyz", "txn");
-    public static final PRef TXN_NEXT = new PRef("properties", "@ns:com:here:xyz", "txn_next");
-  }
+  static final PRef ID = new PRef("id");
+  static final PRef APP_ID = new PRef("properties", "@ns:com:here:xyz", "app_id");
+  static final PRef AUTHOR = new PRef("properties", "@ns:com:here:xyz", "author");
+  static final PRef UUID = new PRef("properties", "@ns:com:here:xyz", "uuid");
+  static final PRef MRID = new PRef("properties", "@ns:com:here:xyz", "mrid");
+  static final PRef GRID = new PRef("properties", "@ns:com:here:xyz", "qrid");
+  static final PRef TXN = new PRef("properties", "@ns:com:here:xyz", "txn");
+  static final PRef TXN_NEXT = new PRef("properties", "@ns:com:here:xyz", "txn_next");
 
   private @Nullable String tagName;
 
   private final @NotNull List<@NotNull String> propertyPath;
 
-  public @NotNull List<@NotNull String> propertyPath() {
+  /**
+   * Returns the full-qualified path to the property.
+   *
+   * @return the full-qualified path to the property.
+   */
+  public @NotNull List<@NotNull String> getPath() {
     return propertyPath;
   }
 
-  public @Nullable String tagName() {
+  /**
+   * If this is a tag-reference, returns the tag that is referred.
+   *
+   * @return the tag being referred, if this is a tag-reference.
+   */
+  public @Nullable String getTagName() {
     return tagName;
   }
 
+  /**
+   * Returns the reference to the {@code id} property.
+   *
+   * @return the reference to the {@code id} property.
+   */
   public static @NotNull PRef id() {
     return ID;
   }
 
+  /**
+   * Returns the reference to the {@code app_id} property from the XYZ-Namespace.
+   *
+   * @return the reference to the {@code app_id} property from the XYZ-Namespace.
+   */
   public static @NotNull PRef app_id() {
     return APP_ID;
   }
 
+  /**
+   * Returns the reference to the {@code author} property from the XYZ-Namespace.
+   *
+   * @return the reference to the {@code author} property from the XYZ-Namespace.
+   */
   public static @NotNull PRef author() {
     return AUTHOR;
   }
 
+  /**
+   * Returns the reference to the virtual {@code mrid} XYZ property, which is a combination between {@code crid} and {@code grid}, with
+   * {@code crid} overriding the {@code grid}.
+   *
+   * @return the reference to the virtual {@code mrid} property.
+   */
   public static @NotNull PRef mrid() {
     return MRID;
   }
 
-  public static @NotNull PRef qrid() {
-    return QRID;
+  /**
+   * Returns the reference to the {@code grid} property from the XYZ-Namespace.
+   *
+   * @return the reference to the {@code grid} property from the XYZ-Namespace.
+   */
+  public static @NotNull PRef grid() {
+    return GRID;
   }
 
+  /**
+   * Returns the reference to the {@code uuid} property from the XYZ-Namespace.
+   *
+   * @return the reference to the {@code uuid} property from the XYZ-Namespace.
+   */
   public static @NotNull PRef uuid() {
     return UUID;
   }
 
-  public static @NotNull PRef tag(@NotNull String name) {
-    return new PRef(name, "properties", "@ns:com:here:xyz", "tags").withTagName(name);
+  /**
+   * Returns the reference to a specific tag from the {@code tags} array of the XYZ-Namespace.
+   *
+   * @return the reference to a specific tag from the {@code tags} array of the XYZ-Namespace.
+   */
+  public static @NotNull PRef tag(@NotNull CharSequence name) {
+    final String tagName = string(name);
+    assert tagName != null;
+    return new PRef("properties", "@ns:com:here:xyz", "tags").withTagName(tagName);
   }
 
+  /**
+   * Returns the reference to the {@code txn} property from the XYZ-Namespace.
+   *
+   * @return the reference to the {@code txn} property from the XYZ-Namespace.
+   */
   public static @NotNull PRef txn() {
     return TXN;
   }
 
+  /**
+   * Returns the reference to the {@code txn_next} property from the XYZ-Namespace.
+   *
+   * @return the reference to the {@code txn_next} property from the XYZ-Namespace.
+   */
   public static @NotNull PRef txn_next() {
     return TXN_NEXT;
   }

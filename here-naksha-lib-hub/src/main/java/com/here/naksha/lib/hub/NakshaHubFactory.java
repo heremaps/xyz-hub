@@ -21,7 +21,7 @@ package com.here.naksha.lib.hub;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.lib.core.INaksha;
-import com.here.naksha.lib.psql.PsqlConfig;
+import com.here.naksha.lib.psql.PsqlInstanceConfig;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import org.jetbrains.annotations.NotNull;
@@ -30,16 +30,17 @@ import org.jetbrains.annotations.Nullable;
 public class NakshaHubFactory {
 
   /**
-   * Instantiate NakshaHub (INaksha compliant) instance by loading given {@link NakshaHubConfig#hubClassName hubClassName}.
-   * If config or hubClassName is not provided (i.e. null), then default NakshaHub implementation will be used.
+   * Instantiate NakshaHub (INaksha compliant) instance by loading given {@link NakshaHubConfig#hubClassName hubClassName}. If config or
+   * hubClassName is not provided (i.e. null), then default NakshaHub implementation will be used.
    *
-   * @param psqlConfig  PostgreSQL configuration to be used for instantiating NakshaHub storage instance
-   * @param config      The custom NakshaHub Config to be used
-   * @param configId    The configId to be used for loading config from Storage (if custom config not provided)
+   * @param instanceConfig configuration to be used for instantiating NakshaHub storage instance
+   * @param config         The custom NakshaHub Config to be used
+   * @param configId       The configId to be used for loading config from Storage (if custom config not provided)
    * @return NakshaHub (INaksha compliant) instance
    */
   public static @NotNull INaksha getInstance(
-      final @Nullable PsqlConfig psqlConfig,
+      final @Nullable String appName,
+      final @Nullable PsqlInstanceConfig instanceConfig,
       final @Nullable NakshaHubConfig config,
       final @Nullable String configId) {
     final String hubClassName = (config != null) ? config.hubClassName : NakshaHubConfig.defaultHubClassName();
@@ -47,9 +48,9 @@ public class NakshaHubFactory {
     try {
       final Class<?> theClass = Class.forName(hubClassName);
       if (INaksha.class.isAssignableFrom(theClass)) {
-        final Constructor<?> constructor =
-            theClass.getConstructor(PsqlConfig.class, NakshaHubConfig.class, String.class);
-        hub = (INaksha) constructor.newInstance(psqlConfig, config, configId);
+        final Constructor<?> constructor = theClass.getConstructor(
+            String.class, PsqlInstanceConfig.class, NakshaHubConfig.class, String.class);
+        hub = (INaksha) constructor.newInstance(appName, instanceConfig, config, configId);
       } else {
         throw unchecked(new Exception("Class '" + hubClassName + "' not INaksha compliant"));
       }

@@ -18,22 +18,17 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
+import static com.here.naksha.lib.core.models.storage.XyzCodecFactory.getFactory;
+
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import java.util.List;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * Helper to simplify the usage of standard {@link XyzFeature}'s as provided by normal users.
- *
- * @param <T> The concrete type of the feature.
  */
-public class WriteXyzFeatures<T extends XyzFeature> extends WriteFeatures<T> {
+public class WriteXyzFeatures extends WriteFeatures<XyzFeature, XyzFeatureCodec, WriteXyzFeatures> {
 
   public WriteXyzFeatures(@NotNull String collectionId) {
-    super(collectionId);
-  }
-
-  public WriteXyzFeatures(@NotNull String collectionId, @NotNull List<WriteOp<T>> modifies) {
-    super(collectionId, modifies);
+    super(getFactory(XyzFeatureCodecFactory.class), collectionId);
   }
 }

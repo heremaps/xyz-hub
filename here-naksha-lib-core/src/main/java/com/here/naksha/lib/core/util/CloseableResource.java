@@ -24,6 +24,7 @@ import java.util.Enumeration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -92,7 +93,7 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
       }
       try {
         //noinspection BusyWait
-        Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+        Thread.sleep(500);
       } catch (InterruptedException ignore) {
       }
     }
@@ -106,12 +107,25 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
 
   /**
    * Create a new resource with the given public facade. This will create a weak-reference to the public facade to detect if the user has
-   * forgotten to invoke {@link #close()}.
+   * forgotten to invoke {@link #close()}. This constructor synchronizes the destruction only within this resource instance.
    *
    * @param proxy  The public facade that holds a strong reference to this implementation and acts as a proxy.
    * @param parent If this resource does have a parent and therefore is a child resource.
    */
   protected CloseableResource(@NotNull Object proxy, @Nullable PARENT parent) {
+    this(proxy, parent, new ReentrantLock());
+  }
+
+  /**
+   * Create a new resource with the given public facade. This will create a weak-reference to the public facade to detect if the user has
+   * forgotten to invoke {@link #close()}.
+   *
+   * @param proxy  The public facade that holds a strong reference to this implementation and acts as a proxy.
+   * @param parent If this resource does have a parent and therefore is a child resource.
+   * @param mutex  The mutex to synchronize destruction at.
+   */
+  protected CloseableResource(@NotNull Object proxy, @Nullable PARENT parent, @NotNull ReentrantLock mutex) {
+    this.mutex = mutex;
     this.proxy = new WeakReference<>(proxy);
     this.name = proxy.getClass().getName();
     this.allocation = new RuntimeException();
@@ -124,6 +138,11 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
     }
     this.parent = parent;
   }
+
+  /**
+   * The lock that is used to synchronize the destruction.
+   */
+  protected final @NotNull ReentrantLock mutex;
 
   /**
    * The reference to the parent PSQL resource (the ones that created this as child).
@@ -185,11 +204,16 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
    * Closes this resource intentionally, only called (redirected) from the public facade. If this resource does not have any more living
    * children, then it will be destructed, otherwise destruction is delayed until all children are closed.
    */
-  public final synchronized void close() {
-    if (!isClosed) {
-      isClosed = true;
-      isLeaked = false;
-      tryDestruct();
+  public final void close() {
+    mutex.lock();
+    try {
+      if (!isClosed) {
+        isClosed = true;
+        isLeaked = false;
+        tryDestruct();
+      }
+    } finally {
+      mutex.unlock();
     }
   }
 
@@ -210,13 +234,22 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
   private volatile boolean destructed;
 
   /**
+   * Can be overridden if leaks (garbage collection) should not be logged (it is normal and expected).
+   *
+   * @return {@code true} if leaks (invocation of {@link #close()} was forgotten) should be logged; {@code false} otherwise.
+   */
+  protected boolean logLeak() {
+    return true;
+  }
+
+  /**
    * Tries to destruct this resource. If the resource is already destructed, just returns {@code true} without doing anything. If one child
    * resource is still alive, returns {@code false}. If all child resources are closed, it invokes {@link #destruct()} and then returns
    * {@code true}.
    *
    * @return {@code true} if the resource is destructed; {@code false} if there are still living children.
    */
-  private synchronized boolean tryDestruct() {
+  private boolean tryDestruct() {
     if (!isClosed()) {
       return false;
     }
@@ -231,35 +264,55 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
       }
     }
     assert children.isEmpty();
-    // Detect a leak and log warning.
-    if (isLeaked && logNextLeak.get() < System.currentTimeMillis()) {
-      logNextLeak.set(System.currentTimeMillis() + PRINT_LEAK_EVERY_X_MILLIS);
-      log.warn("Resource leaked", allocation);
-    }
+
+    // We should not wait forever to prevent deadlocks.
+    // It should be realistic that no thread should hold the lock for more than 5 seconds.
     try {
-      destruct();
-    } catch (Throwable t) {
-      log.atError()
-          .setMessage("Unexpected exception in destructor of {}")
-          .addArgument(getClass().getName())
-          .setCause(t)
-          .log();
-    } finally {
-      this.destructed = true;
-    }
-    final CloseableResource<?> parent = this.parent;
-    if (parent != null) {
-      parent.children.remove(this, this);
-      try {
-        parent.tryDestruct();
-      } catch (Throwable t) {
-        log.warn("Unexpected exception caught when calling parent.tryDestruct", t);
+      if (mutex.tryLock(5, TimeUnit.SECONDS)) {
+        try {
+          // Detect a leak and log warning.
+          if (isLeaked && logLeak() && logNextLeak.get() < System.currentTimeMillis()) {
+            logNextLeak.set(System.currentTimeMillis() + PRINT_LEAK_EVERY_X_MILLIS);
+            log.atWarn()
+                .setMessage("Resource leaked")
+                .setCause(allocation)
+                .log();
+          }
+          try {
+            destruct();
+          } catch (Throwable t) {
+            log.atError()
+                .setMessage("Unexpected exception in destructor of {}")
+                .addArgument(getClass().getName())
+                .setCause(t)
+                .log();
+          } finally {
+            this.destructed = true;
+          }
+          final CloseableResource<?> parent = this.parent;
+          if (parent != null) {
+            parent.children.remove(this, this);
+            try {
+              parent.tryDestruct();
+            } catch (Throwable t) {
+              log.warn("Unexpected exception caught when calling parent.tryDestruct", t);
+            }
+          } else { // Root resource
+            rootResources.remove(this, this);
+            // root resource is not destructed.
+          }
+        } finally {
+          mutex.unlock();
+        }
+        return true;
       }
-    } else { // Root resource
-      rootResources.remove(this, this);
-      // root resource is not destructed.
+    } catch (Exception e) {
+      log.atDebug()
+          .setMessage("Unexpected exception while trying to acquire mutex")
+          .setCause(e)
+          .log();
     }
-    return true;
+    return false;
   }
 
   /**

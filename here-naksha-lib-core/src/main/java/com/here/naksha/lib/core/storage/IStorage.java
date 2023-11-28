@@ -96,7 +96,7 @@ public interface IStorage extends AutoCloseable {
    */
   @Deprecated
   default void init() {
-    throw new UnsupportedOperationException();
+    initStorage();
   }
 
   /**

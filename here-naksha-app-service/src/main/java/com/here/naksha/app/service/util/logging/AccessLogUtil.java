@@ -18,8 +18,14 @@
  */
 package com.here.naksha.app.service.util.logging;
 
-import static io.vertx.core.http.HttpHeaders.*;
-import static io.vertx.core.http.HttpMethod.*;
+import static io.vertx.core.http.HttpHeaders.ACCEPT;
+import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
+import static io.vertx.core.http.HttpHeaders.ORIGIN;
+import static io.vertx.core.http.HttpHeaders.REFERER;
+import static io.vertx.core.http.HttpHeaders.USER_AGENT;
+import static io.vertx.core.http.HttpMethod.PATCH;
+import static io.vertx.core.http.HttpMethod.POST;
+import static io.vertx.core.http.HttpMethod.PUT;
 
 import com.here.naksha.app.service.http.auth.JWTPayload;
 import com.here.naksha.lib.core.util.StreamInfo;

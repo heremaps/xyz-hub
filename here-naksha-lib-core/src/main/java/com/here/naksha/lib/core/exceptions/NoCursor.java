@@ -19,7 +19,6 @@
 package com.here.naksha.lib.core.exceptions;
 
 import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.ResultCursor;
 import org.jetbrains.annotations.NotNull;
 
 /**

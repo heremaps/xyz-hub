@@ -4,7 +4,6 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import java.net.URI
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import org.gradle.kotlin.dsl.KotlinClosure2
 
 repositories {
     maven {
@@ -18,7 +17,7 @@ plugins {
     `maven-publish`
     // https://github.com/diffplug/spotless
     // gradle spotlessApply
-    id("com.diffplug.spotless").version("6.11.0")
+    id("com.diffplug.spotless").version("6.22.0")
     // https://github.com/johnrengelman/shadow
     id("com.github.johnrengelman.shadow") version "8.1.1"
     // Don't apply for all projects, we individually only apply where Kotlin is used.
@@ -88,7 +87,7 @@ val log4j_jcl = "org.apache.logging.log4j:log4j-jcl:2.20.0"
 val log4j_slf4j = "org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0"
 
 val postgres = "org.postgresql:postgresql:42.5.4"
-val zaxxer_hikari = "com.zaxxer:HikariCP:5.1.0"
+//val zaxxer_hikari = "com.zaxxer:HikariCP:5.1.0"
 val commons_dbutils = "commons-dbutils:commons-dbutils:1.7"
 
 val commons_lang3 = "org.apache.commons:commons-lang3:3.12.0"
@@ -111,9 +110,9 @@ val resillience4j_retry = "io.github.resilience4j:resilience4j-retry:2.0.0"
 
 val otel = "io.opentelemetry:opentelemetry-api:1.28.0"
 
-val mavenUrl = rootProject.properties["mavenUrl"] as String
-val mavenUser = rootProject.properties["mavenUser"] as String
-val mavenPassword = rootProject.properties["mavenPassword"] as String
+val mavenUrl = getRequiredPropertyFromRootProject("mavenUrl")
+val mavenUser = getRequiredPropertyFromRootProject("mavenUser")
+val mavenPassword = getRequiredPropertyFromRootProject("mavenPassword")
 
 /*
     Overall coverage of subproject - it might be different for different subprojects
@@ -239,7 +238,7 @@ subprojects {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    
+
     // Fix transitive dependencies.
 
     dependencies {
@@ -285,6 +284,8 @@ subprojects {
 project(":here-naksha-lib-core") {
     description = "Naksha Core Library"
     java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
         withJavadocJar()
         withSourcesJar()
     }
@@ -315,6 +316,8 @@ project(":here-naksha-lib-heapcache") {
 project(":here-naksha-lib-psql") {
     description = "Naksha PostgresQL Storage Library"
     java {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
         withJavadocJar()
         withSourcesJar()
     }
@@ -323,7 +326,7 @@ project(":here-naksha-lib-psql") {
 
         implementation(commons_lang3)
         implementation(postgres)
-        implementation(zaxxer_hikari)
+        //implementation(zaxxer_hikari)
         implementation(commons_dbutils)
         implementation(vividsolutions_jts_core)
 
@@ -380,6 +383,7 @@ project(":here-naksha-handler-http") {
 }
 */
 
+/*
 project(":here-naksha-handler-psql") {
     description = "Naksha PostgresQL Handler"
     dependencies {
@@ -393,7 +397,7 @@ project(":here-naksha-handler-psql") {
         implementation(mchange_commons)
         implementation(mchange_c3p0)
         implementation(postgres)
-        implementation(zaxxer_hikari)
+        //implementation(zaxxer_hikari)
         implementation(google_tink)
         implementation(google_protobuf)
         implementation(vertx_core)
@@ -407,6 +411,7 @@ project(":here-naksha-handler-psql") {
         }
     }
 }
+*/
 
 configurations.implementation {
     exclude(module = "commons-logging")
@@ -424,54 +429,54 @@ project(":here-naksha-lib-handlers") {
 }
 
 //try {
-    project(":here-naksha-lib-hub") {
-        description = "NakshaHub library"
-        dependencies {
-            implementation(project(":here-naksha-lib-core"))
-            implementation(project(":here-naksha-lib-psql"))
-            //implementation(project(":here-naksha-lib-extension"))
-            implementation(project(":here-naksha-lib-handlers"))
+project(":here-naksha-lib-hub") {
+    description = "NakshaHub library"
+    dependencies {
+        implementation(project(":here-naksha-lib-core"))
+        implementation(project(":here-naksha-lib-psql"))
+        //implementation(project(":here-naksha-lib-extension"))
+        implementation(project(":here-naksha-lib-handlers"))
 
-            implementation(commons_lang3)
-            implementation(vividsolutions_jts_core)
-            implementation(postgres)
+        implementation(commons_lang3)
+        implementation(vividsolutions_jts_core)
+        implementation(postgres)
 
-            testImplementation(json_assert)
-            testImplementation(mockito)
-        }
-        setOverallCoverage(0.3) // only increasing allowed!
+        testImplementation(json_assert)
+        testImplementation(mockito)
     }
+    setOverallCoverage(0.3) // only increasing allowed!
+}
 //} catch (ignore: UnknownProjectException) {
 //}
 
 //try {
-    project(":here-naksha-app-service") {
-        description = "Naksha Service"
-        dependencies {
-            implementation(project(":here-naksha-lib-core"))
-            implementation(project(":here-naksha-lib-psql"))
-            //implementation(project(":here-naksha-lib-extension"))
-            //implementation(project(":here-naksha-handler-psql"))
-            implementation(project(":here-naksha-lib-hub"))
+project(":here-naksha-app-service") {
+    description = "Naksha Service"
+    dependencies {
+        implementation(project(":here-naksha-lib-core"))
+        implementation(project(":here-naksha-lib-psql"))
+        //implementation(project(":here-naksha-lib-extension"))
+        //implementation(project(":here-naksha-handler-psql"))
+        implementation(project(":here-naksha-lib-hub"))
 
-            implementation(log4j_slf4j)
-            implementation(log4j_api)
-            implementation(log4j_core)
-            implementation(otel)
-            implementation(commons_lang3)
-            implementation(vividsolutions_jts_core)
-            implementation(postgres)
-            implementation(vertx_core)
-            implementation(vertx_auth_jwt)
-            implementation(vertx_web)
-            implementation(vertx_web_client)
-            implementation(vertx_web_openapi)
+        implementation(log4j_slf4j)
+        implementation(log4j_api)
+        implementation(log4j_core)
+        implementation(otel)
+        implementation(commons_lang3)
+        implementation(vividsolutions_jts_core)
+        implementation(postgres)
+        implementation(vertx_core)
+        implementation(vertx_auth_jwt)
+        implementation(vertx_web)
+        implementation(vertx_web_client)
+        implementation(vertx_web_openapi)
 
-            testImplementation(json_assert)
-            testImplementation(resillience4j_retry)
-        }
-        setOverallCoverage(0.25) // only increasing allowed!
+        testImplementation(json_assert)
+        testImplementation(resillience4j_retry)
     }
+    setOverallCoverage(0.25) // only increasing allowed!
+}
 //} catch (ignore: UnknownProjectException) {
 //}
 
@@ -540,4 +545,12 @@ fun Project.getOverallCoverage(): Double {
     } else {
         defaultOverallMinCoverage
     }
+}
+
+fun getRequiredPropertyFromRootProject(propertyKey: String): String {
+    return rootProject.properties[propertyKey] as? String ?: throw IllegalArgumentException("""
+        Not found required property: $propertyKey. 
+        Check your 'gradle.properties' file (in both project and ~/.gradle directory)
+        """.trimIndent()
+    )
 }

@@ -19,10 +19,12 @@
 package com.here.naksha.lib.core.util.json;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static com.here.naksha.lib.core.util.StringCache.string;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.lambdas.P1;
 import com.here.naksha.lib.core.util.Unsafe;
 import java.util.Locale;
 import java.util.Objects;
@@ -56,14 +58,50 @@ public abstract class JsonEnum implements CharSequence {
     }
   }
 
+  private static final class TheNullValue implements CharSequence {
+
+    private TheNullValue() {}
+
+    @Override
+    protected Object clone() throws CloneNotSupportedException {
+      return super.clone();
+    }
+
+    public boolean equals(@Nullable Object other) {
+      return this == other;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    @Override
+    public int length() {
+      return "null".length();
+    }
+
+    @Override
+    public char charAt(int index) {
+      return "null".charAt(index);
+    }
+
+    @NotNull
+    @Override
+    public CharSequence subSequence(int start, int end) {
+      return "null".subSequence(start, end);
+    }
+
+    @Override
+    public @NotNull String toString() {
+      return "null";
+    }
+  }
+
   /**
    * Because we can't store {@code null} in a concurrent hash-map as key, we use this alias.
    */
-  private static final Object NULL = new Object();
-
-  static @NotNull Object key(@Nullable Object value) {
-    return value == null ? NULL : value;
-  }
+  private static final TheNullValue NULL = new TheNullValue();
 
   /**
    * All registered values of a namespace. The first level is the namespace (the class that directly extending {@link JsonEnum}), the second
@@ -116,11 +154,15 @@ public abstract class JsonEnum implements CharSequence {
     return rootClass;
   }
 
-  private static @Nullable Object align(@Nullable Object value) {
+  private static @NotNull Object value(@Nullable Object value) {
+    if (value == null) {
+      return NULL;
+    }
     // Note: Byte, Short, Integer will be converted to Long
     //       Float is converted to Double.
     // This simplifies usage and avoids that a number parsed into a short is not found when being pre-defined.
-    if (value instanceof final Number number) {
+    if (value instanceof Number) {
+      final Number number = (Number) value;
       final Class<? extends Number> numberClass = number.getClass();
       if (numberClass == Byte.class || numberClass == Short.class || numberClass == Integer.class) {
         return number.longValue();
@@ -129,23 +171,30 @@ public abstract class JsonEnum implements CharSequence {
         return number.doubleValue();
       }
     }
+    if (value instanceof CharSequence) {
+      CharSequence chars = (CharSequence) value;
+      final String string = string(chars);
+      assert string != null;
+      return string;
+    }
     return value;
   }
 
   private static @NotNull <T extends JsonEnum> T __new(
       final @NotNull Class<T> enumClass, @Nullable Object value, boolean tryLowerCase) {
-    value = align(value);
+    value = value(value);
     final Class<? extends JsonEnum> rootClass = rootClass(enumClass);
     final ConcurrentHashMap<Object, JsonEnum> values = registry.get(rootClass);
     assert values != null;
     {
-      final JsonEnum existing = values.get(key(value));
+      final JsonEnum existing = values.get(value);
       if (enumClass.isInstance(existing)) {
         // Fast path, happens when only well-known values are used.
         return enumClass.cast(existing);
       }
     }
-    if (tryLowerCase && value instanceof final String stringValue) {
+    if (tryLowerCase && value instanceof String) {
+      final String stringValue = (String) value;
       final JsonEnum existing = values.get(stringValue.toLowerCase(Locale.ROOT));
       if (enumClass.isInstance(existing)) {
         // Fast path, happens when only well-known values are used.
@@ -170,11 +219,7 @@ public abstract class JsonEnum implements CharSequence {
       }
       enumValue.value = value;
       enumValue.isDefined = false;
-      if (value != null) {
-        enumValue.string = value.toString();
-      } else {
-        enumValue.string = "null";
-      }
+      enumValue.string = value.toString();
       return enumValue;
     } catch (final Throwable t) {
       throw unchecked(t);
@@ -200,7 +245,7 @@ public abstract class JsonEnum implements CharSequence {
     final Class<? extends JsonEnum> rootClass = rootClass(enumClass);
     final ConcurrentHashMap<Object, JsonEnum> values = registry.get(rootClass);
     assert values != null;
-    final JsonEnum existing = values.putIfAbsent(key(enumValue.value), enumValue);
+    final JsonEnum existing = values.putIfAbsent(enumValue.value, enumValue);
     if (existing != null) {
       throw new Error("The value " + value + " is already defined as "
           + existing.getClass().getName() + ", failed to define as " + enumClass.getName());
@@ -258,7 +303,8 @@ public abstract class JsonEnum implements CharSequence {
   /**
    * The value, either {@link String}, {@link Long}, {@link Double} or {@link Boolean}.
    */
-  @Nullable
+  @SuppressWarnings("NotNullFieldNotInitialized")
+  @NotNull
   Object value;
 
   /**
@@ -280,6 +326,15 @@ public abstract class JsonEnum implements CharSequence {
    */
   public boolean isDefined() {
     return isDefined;
+  }
+
+  /**
+   * Tests if this enumeration value represents {@code null}.
+   *
+   * @return {@code true} if this enumeration value represents {@code null}; false otherwise.
+   */
+  public boolean isNull() {
+    return value == NULL;
   }
 
   /**
@@ -312,6 +367,18 @@ public abstract class JsonEnum implements CharSequence {
   protected abstract void init();
 
   /**
+   * Runs a lambda against this enumeration instance.
+   *
+   * @param selfClass Reference to the class of this enumeration-type.
+   * @param lamba     The lambda to run against this instance.
+   * @param <SELF>    The type of this.
+   * @return this.
+   */
+  protected @NotNull <SELF extends JsonEnum> SELF with(@NotNull Class<SELF> selfClass, @NotNull P1<SELF> lamba) {
+    return (SELF) this;
+  }
+
+  /**
    * Can be used with defined values to add aliases.
    *
    * @param selfClass Reference to the class of this enumeration-type.
@@ -324,8 +391,7 @@ public abstract class JsonEnum implements CharSequence {
     if (this.getClass() != selfClass) {
       throw new Error("selfClass must refer to this class");
     }
-    value = align(value);
-    assert value != null;
+    value = value(value);
     synchronized (JsonEnum.class) {
       final Class<? extends JsonEnum> rootClass = rootClass(selfClass);
       final ConcurrentHashMap<Object, JsonEnum> values = registry.get(rootClass);
@@ -395,13 +461,27 @@ public abstract class JsonEnum implements CharSequence {
     if (this == other) {
       return true;
     }
-    if (other instanceof final JsonEnum otherEnum) {
+    if (other instanceof JsonEnum) {
+      final JsonEnum otherEnum = (JsonEnum) other;
       if (otherEnum.getClass() != this.getClass()) {
         return false;
       }
       return Objects.equals(this.value, otherEnum.value);
     }
     return false;
+  }
+
+  /**
+   * Returns the enumeration integer value. If the enumeration is a string, {@code -1} is returned.
+   *
+   * @return the enumeration integer value or {@code -1}.
+   */
+  public long toLong() {
+    if (value instanceof Number) {
+      Number number = (Number) value;
+      return number.longValue();
+    }
+    return -1L;
   }
 
   /**

@@ -48,8 +48,8 @@ public final class JsonFieldBool<OBJECT> extends JsonField<OBJECT, Boolean> {
 
   @Override
   public @NotNull Boolean value(@Nullable Object value) {
-    if (value instanceof Boolean v) {
-      return v;
+    if (value instanceof Boolean) {
+      return (Boolean) value;
     }
     if (value == null) {
       return nullValue();

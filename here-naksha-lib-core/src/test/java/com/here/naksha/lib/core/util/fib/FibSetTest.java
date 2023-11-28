@@ -27,11 +27,20 @@ import static com.here.naksha.lib.core.util.fib.FibSet.indexOf;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.GET;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.PUT;
 import static com.here.naksha.lib.core.util.fib.FibSetOp.REMOVE;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import java.lang.ref.SoftReference;
 import java.lang.ref.WeakReference;
-import java.util.*;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.LongStream;
@@ -192,10 +201,12 @@ class FibSetTest {
 
     for (Object item : arr) {
 
-      if (item instanceof Object[] subarr) {
+      if (item instanceof Object[]) {
+        final Object[] subarr = (Object[]) item;
         arrEntriesCount += 1;
         stats(subarr, lvl + 1, statistics);
-      } else if (item instanceof final FibLinearProbeTable lpt) {
+      } else if (item instanceof FibLinearProbeTable) {
+        final FibLinearProbeTable lpt = (FibLinearProbeTable) item;
         lptCount += Arrays.stream(lpt.entries).filter(Objects::nonNull).count();
       } else if (item instanceof FibEntry) {
         levelEntries += 1;
@@ -221,6 +232,7 @@ class FibSetTest {
   }
 
   private static class Stats {
+
     Long total = 0l;
     Long fibEntries = 0l;
     Long arrayEntries = 0l;

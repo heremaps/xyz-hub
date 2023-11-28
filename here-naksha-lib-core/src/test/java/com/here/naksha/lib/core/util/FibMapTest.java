@@ -31,7 +31,11 @@ import static com.here.naksha.lib.core.util.FibMap.capacityBitsOf;
 import static com.here.naksha.lib.core.util.FibMap.count;
 import static com.here.naksha.lib.core.util.FibMap.get;
 import static com.here.naksha.lib.core.util.FibMap.newFibMap;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

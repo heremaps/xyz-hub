@@ -82,7 +82,8 @@ public class FibMapIterator implements Iterator<Entry<@NotNull Object, @Nullable
         final Object raw_value = array[index + 1];
         index += 2;
 
-        if (raw_key instanceof Object[] sub_array) {
+        if (raw_key instanceof Object[]) {
+          Object[] sub_array = (Object[]) raw_key;
           indices[depth++] = index;
           arrays[depth] = array = sub_array;
           indices[depth] = index = 0;

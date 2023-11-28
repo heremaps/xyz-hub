@@ -26,7 +26,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public class PsqlSuccess extends SuccessResult {
 
-  PsqlSuccess(@Nullable PsqlCursor<?> cursor) {
+  PsqlSuccess(@Nullable PsqlCursor<?, ?> cursor) {
     this.cursor = cursor;
   }
 }

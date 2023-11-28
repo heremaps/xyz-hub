@@ -32,20 +32,27 @@ import org.jetbrains.annotations.NotNull;
 @SuppressWarnings("unused")
 public class SQL implements CharSequence {
 
-  private static final boolean[] ESCAPE = new boolean[128];
+  private static final boolean[] ESCAPE_IDENT = new boolean[128];
+  private static final boolean[] ESCAPE_LITERAL = new boolean[128];
 
   static {
-    Arrays.fill(ESCAPE, true);
+    Arrays.fill(ESCAPE_IDENT, true);
     for (int c = '0'; c <= '9'; c++) {
-      ESCAPE[c] = false;
+      ESCAPE_IDENT[c] = false;
     }
     for (int c = 'a'; c <= 'z'; c++) {
-      ESCAPE[c] = false;
+      ESCAPE_IDENT[c] = false;
     }
     for (int c = 'A'; c <= 'Z'; c++) {
-      ESCAPE[c] = false;
+      ESCAPE_IDENT[c] = false;
     }
-    ESCAPE['_'] = false;
+    ESCAPE_IDENT['_'] = false;
+
+    Arrays.fill(ESCAPE_LITERAL, false);
+    for (int i = 0; i < 32; i++) {
+      ESCAPE_LITERAL[i] = true;
+    }
+    ESCAPE_LITERAL['\''] = true;
   }
 
   /**
@@ -54,12 +61,12 @@ public class SQL implements CharSequence {
    * @param id the identifier to test.
    * @return true if the identifier must be escaped; false otherwise.
    */
-  public static boolean shouldEscape(@NotNull CharSequence id) {
+  public static boolean shouldEscapeIdent(@NotNull CharSequence id) {
     for (int i = 0; i < id.length(); i++) {
       final char c = id.charAt(i);
       // We signal that every less than the space must be escaped. The escape method then will throw
       // an SQLException!
-      if (c < 32 || c > 126 || ESCAPE[c]) {
+      if (c < 32 || c > 126 || ESCAPE_IDENT[c]) {
         return true;
       }
     }
@@ -99,7 +106,7 @@ public class SQL implements CharSequence {
       if (codePoint == 0) {
         throw new IllegalArgumentException("ASCII zero is not allowed in a literal");
       }
-      if (codePoint < 128 && !ESCAPE[codePoint]) {
+      if (codePoint < 128 && !ESCAPE_LITERAL[codePoint]) {
         sb.append((char) codePoint);
         continue;
       }
@@ -344,7 +351,11 @@ public class SQL implements CharSequence {
    * @throws SQLException If the identifier contains illegal characters, for example the ASCII-0.
    */
   public @NotNull SQL addIdent(@NotNull CharSequence id) {
-    quote_ident(sb, id);
+    if (!shouldEscapeIdent(id)) {
+      sb.append(id);
+    } else {
+      quote_ident(sb, id);
+    }
     return this;
   }
 
@@ -372,12 +383,22 @@ public class SQL implements CharSequence {
    * @return this.
    */
   public @NotNull SQL addLiteral(@NotNull CharSequence literal) {
-    if (!shouldEscape(literal)) {
-      sb.append(literal);
-      return this;
-    }
     open_literal(sb);
     write_literal(sb, literal);
+    close_literal(sb);
+    return this;
+  }
+
+  /**
+   * Add the given literal, optionally quoted.
+   * @param parts The literal parts to add as one literal.
+   * @return this.
+   */
+  public @NotNull SQL addLiteral(@NotNull CharSequence... parts) {
+    open_literal(sb);
+    for (final CharSequence part : parts) {
+      write_literal(sb, part);
+    }
     close_literal(sb);
     return this;
   }

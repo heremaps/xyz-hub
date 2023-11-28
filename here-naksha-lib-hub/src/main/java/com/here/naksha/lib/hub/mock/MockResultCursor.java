@@ -20,7 +20,10 @@ package com.here.naksha.lib.hub.mock;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.storage.EExecutedOp;
-import com.here.naksha.lib.core.models.storage.ResultCursor;
+import com.here.naksha.lib.core.models.storage.ForwardCursor;
+import com.here.naksha.lib.core.models.storage.XyzCodecFactory;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import com.vividsolutions.jts.geom.Geometry;
 import java.util.Iterator;
 import java.util.List;
@@ -29,13 +32,14 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-class MockResultCursor<T extends XyzFeature> extends ResultCursor<T> {
+class MockResultCursor<T extends XyzFeature> extends ForwardCursor<XyzFeature, XyzFeatureCodec> {
 
   private final @NotNull Class<T> featureType;
-  private final @NotNull List<Object> items;
+  private final @NotNull List<XyzFeatureCodec> items;
   protected int currentPos;
 
-  MockResultCursor(@NotNull Class<T> featureType, @NotNull List<Object> items) {
+  MockResultCursor(@NotNull Class<T> featureType, @NotNull List<XyzFeatureCodec> items) {
+    super(XyzCodecFactory.getFactory(XyzFeatureCodecFactory.class));
     this.featureType = featureType;
     this.items = items;
     currentPos = -1;
@@ -63,87 +67,6 @@ class MockResultCursor<T extends XyzFeature> extends ResultCursor<T> {
   }
 
   /**
-   * Moves the cursor to the previous result.
-   *
-   * @return {@code true}, if the cursor is on a valid result; {@code false} otherwise.
-   */
-  @Override
-  public boolean previous() {
-    currentPos--;
-    return isPositionValid();
-  }
-
-  /**
-   * Moves the cursor before the first result, so that calling {@link #next()} will load the first result.
-   */
-  @Override
-  public void beforeFirst() {
-    currentPos = -1;
-  }
-
-  /**
-   * Moves the cursor to the first result.
-   *
-   * @return {@code true}, if the cursor is on a valid result; {@code false} otherwise.
-   */
-  @Override
-  public boolean first() {
-    currentPos = 0;
-    return isPositionValid();
-  }
-
-  /**
-   * Moves the cursor behind the last result, so that calling {@link #previous()} will load the last result.
-   */
-  @Override
-  public void afterLast() {
-    currentPos = items.size();
-  }
-
-  /**
-   * Moves the cursor to the last result.
-   *
-   * @return {@code true}, if the cursor is on a valid result; {@code false} otherwise.
-   */
-  @Override
-  public boolean last() {
-    currentPos = items.size() - 1;
-    return isPositionValid();
-  }
-
-  /**
-   * Moves the cursor forward or backward from the current position by the given {@code amount}.
-   *
-   * @param amount The amount of results to move.
-   * @return {@code true}, if the cursor is on a valid result; {@code false} otherwise.
-   */
-  @Override
-  public boolean relative(long amount) {
-    currentPos += amount;
-    return isPositionValid();
-  }
-
-  /**
-   * Moves the cursor to the given position in the result-set. Setting the position to a negative number (for example to {@code -1}) has
-   * the same effect as calling {@link #beforeFirst()}. Moving to any position being behind the last result has the same effect as calling
-   * {@link #afterLast()}.
-   *
-   * @param position The absolute position with the first result being at position zero.
-   * @return {@code true}, if the cursor is on a valid result; {@code false} otherwise.
-   */
-  @Override
-  public boolean absolute(long position) {
-    if (position < -1) {
-      beforeFirst();
-    } else if (position > items.size()) {
-      afterLast();
-    } else {
-      currentPos = (int) position;
-    }
-    return isPositionValid();
-  }
-
-  /**
    * Returns the operation that was executed.
    *
    * @return the operation that was executed.
@@ -151,7 +74,10 @@ class MockResultCursor<T extends XyzFeature> extends ResultCursor<T> {
    */
   @Override
   public @NotNull EExecutedOp getOp() throws NoSuchElementException {
-    return null;
+    if (isPositionValid()) {
+      return EExecutedOp.get(items.get(currentPos).getOp());
+    }
+    throw new NoSuchElementException();
   }
 
   /**
@@ -199,28 +125,6 @@ class MockResultCursor<T extends XyzFeature> extends ResultCursor<T> {
   }
 
   /**
-   * Returns the raw JSON string of the feature without the geometry.
-   *
-   * @return the raw JSON string of the feature without the geometry.
-   * @throws NoSuchElementException If the cursor currently is not at a valid result.
-   */
-  @Override
-  public @Nullable String getJson() throws NoSuchElementException {
-    throw new NotImplementedException();
-  }
-
-  /**
-   * Returns the geometry as raw WKB. This value is always returned from cache and must not be modified to avoid cache pollution.
-   *
-   * @return the geometry as raw WKB.
-   * @throws NoSuchElementException If the cursor currently is not at a valid result.
-   */
-  @Override
-  public byte @Nullable [] rawGeometry() throws NoSuchElementException {
-    throw new NotImplementedException();
-  }
-
-  /**
    * Returns the JTS geometry.
    *
    * @return the JTS geometry.
@@ -242,19 +146,7 @@ class MockResultCursor<T extends XyzFeature> extends ResultCursor<T> {
     if (!isPositionValid()) {
       throw new NoSuchElementException();
     }
-    return featureType.cast(items.get(currentPos));
-  }
-
-  /**
-   * Returns the full feature including the geometry as POJO. This method forces the parse to explicitly produce the given feature-class.
-   *
-   * @param featureClass The class of the feature-type to return.
-   * @return the full feature including the geometry as POJO.
-   * @throws NoSuchElementException If the cursor currently is not at a valid result.
-   */
-  @Override
-  public <NT> @Nullable NT getFeature(@NotNull Class<NT> featureClass) throws NoSuchElementException {
-    return withType(featureClass).getFeature();
+    return featureType.cast(items.get(currentPos).getFeature());
   }
 
   /**
@@ -278,19 +170,31 @@ class MockResultCursor<T extends XyzFeature> extends ResultCursor<T> {
    * forward; so the iterator will modify the underlying cursor.
    */
   @Override
-  public @NotNull Iterator<@Nullable T> iterator() {
-    return new Iterator<T>() {
+  public @NotNull Iterator<@Nullable XyzFeature> iterator() {
+    return new Iterator<>() {
       @Override
       public boolean hasNext() {
         return MockResultCursor.this.hasNext();
       }
 
       @Override
-      public T next() {
+      public XyzFeature next() {
         MockResultCursor.this.next();
         return MockResultCursor.this.getFeature();
       }
     };
+  }
+
+  /**
+   * Loads the next row into the given one.
+   *
+   * @param row
+   * @return {@code true} if the next row was loaded successfully and is valid; {@code false} if there is no more row, the given row should
+   * be invalid.
+   */
+  @Override
+  protected boolean loadNextRow(@NotNull ForwardCursor.Row row) {
+    throw new NotImplementedException("Not needed in mock");
   }
 
   /**

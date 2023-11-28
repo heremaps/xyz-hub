@@ -18,11 +18,11 @@
  */
 package com.here.naksha.lib.psql;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.storage.IReadSession;
-import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 
@@ -31,19 +31,15 @@ import org.jetbrains.annotations.NotNull;
  */
 abstract class PsqlSession implements IReadSession, AutoCloseable {
 
-  PsqlSession(
-      @NotNull PostgresStorage storage,
-      @NotNull NakshaContext context,
-      @NotNull Connection connection,
-      boolean readOnly) {
-    this.session = new PostgresSession(this, storage, context, connection, readOnly);
+  PsqlSession(@NotNull PostgresStorage storage, @NotNull NakshaContext context, @NotNull PsqlConnection connection) {
+    this.session = new PostgresSession(this, storage, context, connection);
   }
 
-  private PostgresSession session;
+  private final @NotNull PostgresSession session;
 
   final @NotNull PostgresSession session() {
     final PostgresSession session = this.session;
-    if (session == null || session.isClosed()) {
+    if (session.isClosed()) {
       throw new IllegalStateException("Session is closed");
     }
     return session;
@@ -55,55 +51,46 @@ abstract class PsqlSession implements IReadSession, AutoCloseable {
   }
 
   @Override
-  public synchronized void close() {
-    final PostgresSession session = this.session;
-    if (session != null) {
-      session.close();
-      this.session = null;
-    }
+  public void close() {
+    session.close();
   }
 
   @Override
   public int getFetchSize() {
-    return session().fetchSize;
+    return session().getFetchSize();
   }
 
   @Override
   public void setFetchSize(int size) {
-    if (size <= 1) {
-      throw new IllegalArgumentException("The fetchSize must be greater than zero");
-    }
-    session().fetchSize = size;
+    session().setFetchSize(size);
   }
 
   @Override
   public long getStatementTimeout(@NotNull TimeUnit timeUnit) {
-    final PostgresSession session = session();
-    return timeUnit.convert(
-        session.stmtTimeout > -1 ? session.stmtTimeout : session.config.stmtTimeout, MILLISECONDS);
+    return session().getStatementTimeout(timeUnit);
   }
 
   @Override
   public void setStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) {
-    if (timeout < 0) {
-      throw new IllegalArgumentException("The timeout must be greater/equal zero");
+    try {
+      session().setStatementTimeout(timeout, timeUnit);
+    } catch (SQLException e) {
+      throw unchecked(e);
     }
-    session().stmtTimeout = MILLISECONDS.convert(timeout, timeUnit);
   }
 
   @Override
   public long getLockTimeout(@NotNull TimeUnit timeUnit) {
-    final PostgresSession session = session();
-    return timeUnit.convert(
-        session.lockTimeout > -1 ? session.lockTimeout : session.config.lockTimeout, MILLISECONDS);
+    return session().getLockTimeout(timeUnit);
   }
 
   @Override
   public void setLockTimeout(long timeout, @NotNull TimeUnit timeUnit) {
-    if (timeout < 0) {
-      throw new IllegalArgumentException("The timeout must be greater/equal zero");
+    try {
+      session().setLockTimeout(timeout, timeUnit);
+    } catch (SQLException e) {
+      throw unchecked(e);
     }
-    session().lockTimeout = MILLISECONDS.convert(timeout, timeUnit);
   }
 
   @Override

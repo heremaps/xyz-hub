@@ -28,7 +28,15 @@ import org.jetbrains.annotations.Nullable;
  */
 class PsqlError extends ErrorResult {
 
-  PsqlError(@NotNull XyzError reason, @NotNull String message, @Nullable PsqlCursor<?> cursor) {
+  PsqlError(@NotNull XyzError reason, @NotNull String message) {
+    super(reason, message);
+  }
+
+  PsqlError(@NotNull XyzError reason, @NotNull String message, @Nullable Throwable exception) {
+    super(reason, message, exception);
+  }
+
+  PsqlError(@NotNull XyzError reason, @NotNull String message, @Nullable PsqlCursor<?, ?> cursor) {
     super(reason, message);
     this.cursor = cursor;
   }
@@ -37,7 +45,7 @@ class PsqlError extends ErrorResult {
       @NotNull XyzError reason,
       @NotNull String message,
       @Nullable Throwable exception,
-      @Nullable PsqlCursor<?> cursor) {
+      @Nullable PsqlCursor<?, ?> cursor) {
     super(reason, message, exception);
     this.cursor = cursor;
   }

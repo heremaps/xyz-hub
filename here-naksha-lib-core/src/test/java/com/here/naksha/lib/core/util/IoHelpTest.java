@@ -19,7 +19,9 @@
 package com.here.naksha.lib.core.util;
 
 import static com.here.naksha.lib.core.util.IoHelp.readConfigFromHomeOrResource;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.lib.core.util.IoHelp.LoadedConfig;
 import java.io.IOException;
@@ -44,7 +46,7 @@ class IoHelpTest {
     final LoadedConfig<ConfigTest> loadedConfig =
         readConfigFromHomeOrResource("iohelp_config_test.json", false, APP_NAME, ConfigTest.class);
     assertNotNull(loadedConfig);
-    final ConfigTest config = loadedConfig.config();
+    final ConfigTest config = loadedConfig.getConfig();
     assertNotNull(config);
     assertEquals(100, config.theInt);
     assertTrue(config.theBool);

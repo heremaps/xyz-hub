@@ -100,8 +100,8 @@ public class IoEventPipeline extends EventPipeline {
         throw new NullPointerException();
       }
       final long parsedInMillis = NanoTime.timeSince(START, TimeUnit.MILLISECONDS);
-      if (rawRequest instanceof Request<?> req) {
-        request = req;
+      if (rawRequest instanceof Request<?>) {
+        request = (Request<?>) rawRequest;
         log.atInfo()
             .setMessage("Event parsed in {}ms")
             .addArgument(parsedInMillis)

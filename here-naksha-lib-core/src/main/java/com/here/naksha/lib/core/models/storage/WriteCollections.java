@@ -20,34 +20,28 @@ package com.here.naksha.lib.core.models.storage;
 
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.naksha.NakshaFeature;
-import java.util.ArrayList;
-import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * A request to modify collections of the storage.
  *
- * @param <T> the collection-type to write.
+ * @param <FEATURE> The feature-type to write.
+ * @param <CODEC>   The codec to use to encode features.
+ * @param <SELF>    The self-type.
  */
 @AvailableSince(NakshaVersion.v2_0_7)
-public class WriteCollections<T extends NakshaFeature> extends WriteRequest<T, WriteCollections<T>> {
+public class WriteCollections<
+        FEATURE extends NakshaFeature,
+        CODEC extends FeatureCodec<FEATURE, CODEC>,
+        SELF extends WriteCollections<FEATURE, CODEC, SELF>>
+    extends WriteRequest<FEATURE, CODEC, SELF> {
 
   /**
    * Creates a new empty write collections request.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteCollections() {
-    this(new ArrayList<>());
-  }
-
-  /**
-   * Creates a new write collections request.
-   *
-   * @param modifies the operations to execute.
-   */
-  @AvailableSince(NakshaVersion.v2_0_7)
-  public WriteCollections(@NotNull List<@NotNull WriteOp<T>> modifies) {
-    super(modifies);
+  public WriteCollections(@NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) {
+    super(codecFactory);
   }
 }

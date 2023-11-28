@@ -77,7 +77,8 @@ public class JsonEnumDeserializer extends StdDeserializer<JsonEnum> implements C
     assert mapper != null;
     final TreeNode node = mapper.readTree(p);
     assert node != null;
-    if (node.isValueNode() && node instanceof JsonNode jsonNode) {
+    if (node.isValueNode() && node instanceof JsonNode) {
+      JsonNode jsonNode = (JsonNode) node;
       if (jsonNode.isTextual()) {
         return JsonEnum.get(targetClass, jsonNode.asText());
       } else if (jsonNode.isNumber()) {

@@ -42,14 +42,14 @@ public interface ILike {
     if (a == b) {
       return true;
     }
-    if (a instanceof ILike al && al.isLike(b)) {
+    if (a instanceof ILike && ((ILike) a).isLike(b)) {
       return true;
     }
-    if (b instanceof ILike bl && bl.isLike(a)) {
+    if (b instanceof ILike && ((ILike) b).isLike(a)) {
       return true;
     }
-    if (a instanceof CharSequence a_chars && b instanceof CharSequence b_chars) {
-      return StringHelper.equals(a_chars, b_chars);
+    if (a instanceof CharSequence && b instanceof CharSequence) {
+      return StringHelper.equals((CharSequence) a, (CharSequence) b);
     }
     return Objects.equals(a, b);
   }

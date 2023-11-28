@@ -39,7 +39,7 @@ import com.here.naksha.lib.core.models.storage.IfConflict;
 import com.here.naksha.lib.core.models.storage.IfExists;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -103,25 +103,25 @@ public class ReadFeaturesByIdsTestHelper {
     // Given: EventHandler (uses above Storage) configured in Admin storage
     final EventHandler eventHandler = parseJsonFileOrFail(
         "ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/create_event_handler.json", EventHandler.class);
-    final WriteFeatures<?> ehRequest = createFeatureRequest(
+    final WriteXyzFeatures ehRequest = createFeatureRequest(
         NakshaAdminCollection.EVENT_HANDLERS, eventHandler, IfExists.REPLACE, IfConflict.REPLACE);
     try (final IWriteSession writer =
         app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
       final Result result = writer.execute(ehRequest);
       assertTrue(result instanceof SuccessResult, "Failed creating EventHandler");
-      writer.commit();
+      writer.commit(true);
     }
 
     // Given: Space (uses above EventHandler) configured in Admin storage
     final Space space =
         parseJsonFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/create_space.json", Space.class);
-    final WriteFeatures<?> spRequest =
+    final WriteXyzFeatures spRequest =
         createFeatureRequest(NakshaAdminCollection.SPACES, space, IfExists.REPLACE, IfConflict.REPLACE);
     try (final IWriteSession writer =
         app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
       final Result result = writer.execute(spRequest);
       assertTrue(result instanceof SuccessResult, "Failed creating Space");
-      writer.commit();
+      writer.commit(true);
     }
 
     // Given: New Features persisted in above Space

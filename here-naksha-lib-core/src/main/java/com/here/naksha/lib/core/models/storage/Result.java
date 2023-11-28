@@ -21,6 +21,8 @@ package com.here.naksha.lib.core.models.storage;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.Typed;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,50 +35,74 @@ public abstract class Result implements Typed {
    * Member variable that can be set to the cursor.
    */
   @JsonIgnore
-  protected @Nullable ResultCursor<?> cursor;
+  protected @Nullable ForwardCursor<?, ?> cursor;
 
   /**
-   * Return the {@link ResultCursor}, if any is available. If no result-cursor is available, throws an exception to handle result. This is
+   * Return the cursor using a custom codec. If no cursor is available, throws an exception to handle result. This is
    * to simplify result processing when needed: <pre>{@code
-   * try (ResultCursor<XyzFeature> cursor = session.execute(request).cursor(XyzFeature.class)) {
-   *   for (XyzFeature feature : cursor) {
+   * try (ForwardCursor<Foo, FooCodec> cursor = session.execute(request).cursor(FooFactory.get())) {
+   *   for (Foo feature : cursor) {
    *     ...
    *   }
    * } catch (NoCursor e) {
    *   if (e.result instanceof SuccessResult) ...
+   *   if (e.result instanceof ErrorResult) ...
    * }}</pre>
    *
-   * @param featureClass The class of the feature-type to be expected from the cursor; {@code null} for auto-detect.
-   * @param <T>          The feature-type the cursor should return.
+   * @param codecFactory The factory of the codec to use.
+   * @param <FEATURE>    The feature-type the codec produces.
+   * @param <CODEC>      The codec-type to use.
    * @return the cursor.
    */
   @JsonIgnore
-  public <T> @NotNull ResultCursor<T> cursor(@Nullable Class<T> featureClass) throws NoCursor {
+  public <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> @NotNull ForwardCursor<FEATURE, CODEC> cursor(
+      @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) throws NoCursor {
     if (cursor != null) {
-      return cursor.withType(featureClass);
+      return cursor.withCodecFactory(codecFactory, true);
     }
     throw new NoCursor(this);
   }
 
   /**
-   * Return the {@link ResultCursor}, if any is available. If no result-cursor is available, throws an exception to handle result. This is
-   * to simplify result processing when needed: <pre>{@code
-   * try (ResultCursor<XyzFeature> cursor = session.execute(request).cursor()) {
+   * Return the cursor using the {@link XyzFeatureCodecFactory}, if any cursor is available. If no cursor is available, throws an exception
+   * to handle result. This is to simplify result processing when needed: <pre>{@code
+   * try (ForwardCursor<XyzFeature, XyzFeatureCodec> cursor = session.execute(request).getXyzFeatureCursor()) {
    *   for (XyzFeature feature : cursor) {
    *     ...
    *   }
    * } catch (NoCursor e) {
    *   if (e.result instanceof SuccessResult) ...
+   *   if (e.result instanceof ErrorResult) ...
    * }}</pre>
    *
-   * @param <T> The feature-type the cursor should return.
    * @return the cursor.
    */
-  @SuppressWarnings("unchecked")
   @JsonIgnore
-  public <T> @NotNull ResultCursor<T> cursor() throws NoCursor {
+  public @NotNull ForwardCursor<XyzFeature, XyzFeatureCodec> getXyzFeatureCursor() throws NoCursor {
     if (cursor != null) {
-      return (ResultCursor<T>) cursor;
+      return cursor.withCodecFactory(XyzFeatureCodecFactory.get(), false);
+    }
+    throw new NoCursor(this);
+  }
+
+  /**
+   * Return the cursor using the {@link XyzCollectionCodecFactory}, if any cursor is available. If no cursor is available, throws an
+   * exception to handle result. This is to simplify result processing when needed: <pre>{@code
+   * try (ForwardCursor<XyzCollection, XyzCollectionCodec> cursor = session.execute(request).getXyzCollectionCursor()) {
+   *   for (XyzCollection collections : cursor) {
+   *     ...
+   *   }
+   * } catch (NoCursor e) {
+   *   if (e.result instanceof SuccessResult) ...
+   *   if (e.result instanceof ErrorResult) ...
+   * }}</pre>
+   *
+   * @return the cursor.
+   */
+  @JsonIgnore
+  public @NotNull ForwardCursor<XyzCollection, XyzCollectionCodec> getXyzCollectionCursor() throws NoCursor {
+    if (cursor != null) {
+      return cursor.withCodecFactory(XyzCollectionCodecFactory.get(), false);
     }
     throw new NoCursor(this);
   }

@@ -18,7 +18,12 @@
  */
 package com.here.naksha.lib.core.util.json;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -172,7 +177,7 @@ class JsonObjectTest {
     assertFalse(mapIt.hasNext());
   }
 
-  private static final String SERIALIZED = "{\"foo\":\"test\",\"bar\":\"xyz\",\"newKey\":\"newValue\"}";
+  private static final String SERIALIZED = "{\"bar\":\"xyz\",\"foo\":\"test\",\"newKey\":\"newValue\"}";
 
   @Test
   void test_serialization() throws JsonProcessingException {

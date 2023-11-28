@@ -19,15 +19,28 @@
 package com.here.naksha.lib.hub.mock;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-import static com.here.naksha.lib.core.models.storage.POp.Constants.OP_EQUALS;
 
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.Notification;
+import com.here.naksha.lib.core.models.storage.OpType;
+import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.POpType;
+import com.here.naksha.lib.core.models.storage.PRef;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.ReadRequest;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.XyzCodecFactory;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import com.here.naksha.lib.core.storage.IReadSession;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.NotNull;
@@ -40,6 +53,7 @@ public class NHAdminReaderMock implements IReadSession {
   public NHAdminReaderMock(final @NotNull Map<String, Map<String, Object>> mockCollection) {
     this.mockCollection = mockCollection;
   }
+
   /**
    * Tests whether this session is connected to the master-node.
    *
@@ -148,7 +162,7 @@ public class NHAdminReaderMock implements IReadSession {
         }
         features.addAll(mockCollection.get(collectionName).values());
       }
-    } else if (pOp.op() == OP_EQUALS && pOp.propertyRef() == PRef.id()) {
+    } else if (pOp.op() == POpType.EQ && pOp.getPropertyRef() == PRef.id()) {
       // return features by Id from the given collections names
       for (final String collectionName : rf.getCollections()) {
         if (mockCollection.get(collectionName) == null) {
@@ -156,15 +170,17 @@ public class NHAdminReaderMock implements IReadSession {
               "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
         }
         // if feature not found, return empty list
-        if (mockCollection.get(collectionName).get(pOp.value()) == null) break;
-        features.add(mockCollection.get(collectionName).get(pOp.value()));
+        if (mockCollection.get(collectionName).get(pOp.getValue()) == null) {
+          break;
+        }
+        features.add(mockCollection.get(collectionName).get(pOp.getValue()));
       }
-    } else if (pOp.op() == Op.OP_OR) {
+    } else if (pOp.op() == OpType.OR) {
       final List<POp> pOpList = pOp.children();
       final List<String> ids = new ArrayList<>();
       for (final POp orOp : pOpList) {
-        if (orOp.op() == OP_EQUALS && orOp.propertyRef() == PRef.id()) {
-          ids.add((String) orOp.value());
+        if (orOp.op() == POpType.EQ && orOp.getPropertyRef() == PRef.id()) {
+          ids.add((String) orOp.getValue());
         } else {
           // TODO : Operation Not supported
         }
@@ -183,7 +199,11 @@ public class NHAdminReaderMock implements IReadSession {
     } else {
       // TODO : Operation Not supported
     }
-    return new MockReadResult<>(XyzFeature.class, features);
+    XyzFeatureCodecFactory codecFactory = XyzCodecFactory.getFactory(XyzFeatureCodecFactory.class);
+    List<XyzFeatureCodec> featuresAsXyzCodecs = features.stream()
+        .map(feature -> codecFactory.newInstance().withFeature((XyzFeature) feature))
+        .toList();
+    return new MockResult<>(XyzFeature.class, featuresAsXyzCodecs);
   }
 
   /**

@@ -50,13 +50,14 @@ public final class JsonFieldShort<OBJECT> extends JsonField<OBJECT, Short> {
 
   @Override
   public @NotNull Short value(@Nullable Object value) {
-    if (value instanceof Short v) {
-      return v;
+    if (value instanceof Short) {
+      return (Short) value;
     }
     if (value == null) {
       return nullValue();
     }
-    if (value instanceof Number n) {
+    if (value instanceof Number) {
+      Number n = (Number) value;
       return n.shortValue();
     }
     throw new IllegalArgumentException("value is no instance of " + valueClass.getName());

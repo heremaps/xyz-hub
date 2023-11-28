@@ -52,13 +52,14 @@ public final class JsonFieldDouble<OBJECT> extends JsonField<OBJECT, Double> {
 
   @Override
   public @NotNull Double value(@Nullable Object value) {
-    if (value instanceof Double v) {
-      return v;
+    if (value instanceof Double) {
+      return (Double) value;
     }
     if (value == null) {
       return nullValue();
     }
-    if (value instanceof Number n) {
+    if (value instanceof Number) {
+      Number n = (Number) value;
       return n.doubleValue();
     }
     throw new IllegalArgumentException("value is no instance of " + valueClass.getName());

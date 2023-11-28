@@ -639,14 +639,17 @@ public class XyzNamespace extends JsonObject {
     return space;
   }
 
+  @Deprecated
   public void setSpace(@Nullable String space) {
     this.space = space;
   }
 
+  @Deprecated
   public void setSpace(@Nullable Space space) {
     this.space = space != null ? space.getId() : null;
   }
 
+  @Deprecated
   public @NotNull XyzNamespace withSpace(@Nullable String space) {
     setSpace(space);
     return this;

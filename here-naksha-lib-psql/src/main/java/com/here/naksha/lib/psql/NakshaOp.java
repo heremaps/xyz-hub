@@ -22,6 +22,7 @@ import com.here.naksha.lib.core.util.ILike;
 import com.here.naksha.lib.core.util.StringHelper;
 import org.jetbrains.annotations.Nullable;
 
+@Deprecated
 public enum NakshaOp implements ILike {
   INSERT,
   UPDATE,
@@ -30,6 +31,6 @@ public enum NakshaOp implements ILike {
 
   @Override
   public boolean isLike(@Nullable Object other) {
-    return this == other || ((other instanceof CharSequence chars) && StringHelper.equals(name(), chars));
+    return this == other || ((other instanceof CharSequence) && StringHelper.equals(name(), (CharSequence) other));
   }
 }

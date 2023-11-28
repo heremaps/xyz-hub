@@ -19,32 +19,54 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.storage.*;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import com.here.naksha.lib.core.models.storage.ErrorResult;
+import com.here.naksha.lib.core.models.storage.FeatureCodec;
+import com.here.naksha.lib.core.models.storage.Notification;
+import com.here.naksha.lib.core.models.storage.OpType;
+import com.here.naksha.lib.core.models.storage.POp;
+import com.here.naksha.lib.core.models.storage.POpType;
+import com.here.naksha.lib.core.models.storage.PRef;
+import com.here.naksha.lib.core.models.storage.ReadFeatures;
+import com.here.naksha.lib.core.models.storage.ReadRequest;
+import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.storage.SOp;
+import com.here.naksha.lib.core.models.storage.SOpType;
+import com.here.naksha.lib.core.models.storage.WriteCollections;
+import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.models.storage.WriteRequest;
+import com.here.naksha.lib.core.models.storage.XyzCollectionCodecFactory;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
+import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import com.here.naksha.lib.core.storage.IStorageLock;
-import com.here.naksha.lib.core.util.CloseableResource;
+import com.here.naksha.lib.core.util.ClosableChildResource;
 import com.here.naksha.lib.core.util.json.Json;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.io.WKBWriter;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
+import org.postgresql.util.PGobject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A PostgresQL session being backed by the PostgresQL data connection. It keeps track of all open cursors as resource children and
- * guarantees that all cursors are closed before the underlying connection is closed.
+ * A PostgresQL session being backed by the PostgresQL connection. It keeps track of all open cursors as resource children and guarantees
+ * that all cursors are closed before the underlying connection is closed.
  */
-final class PostgresSession extends CloseableResource<PostgresStorage> {
+@SuppressWarnings("DuplicatedCode")
+final class PostgresSession extends ClosableChildResource<PostgresStorage> {
 
   private static final Logger log = LoggerFactory.getLogger(PostgresSession.class);
 
@@ -54,21 +76,15 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
       @NotNull PsqlSession proxy,
       @NotNull PostgresStorage storage,
       @NotNull NakshaContext context,
-      @NotNull Connection connection,
-      boolean readOnly) {
+      @NotNull PsqlConnection psqlConnection) {
     super(proxy, storage);
     this.context = context;
-    this.connection = connection;
-    this.readOnly = readOnly;
-    this.config = storage().dataSource.getConfig();
+    this.psqlConnection = psqlConnection;
+    this.readOnly = psqlConnection.connection.parent().config.readOnly;
     this.sql = new SQL();
-  }
-
-  @NotNull
-  PostgresStorage storage() {
-    final PostgresStorage storage = super.parent();
-    assert storage != null;
-    return storage;
+    this.fetchSize = storage.getFetchSize();
+    this.stmtTimeoutMillis = storage.getLockTimeout(MILLISECONDS);
+    this.lockTimeoutMillis = storage.getLockTimeout(MILLISECONDS);
   }
 
   /**
@@ -76,29 +92,18 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
    */
   final @NotNull NakshaContext context;
 
-  final @NotNull Connection connection;
+  int fetchSize;
+  long stmtTimeoutMillis;
+  long lockTimeoutMillis;
+
+  final @NotNull PsqlConnection psqlConnection;
   final boolean readOnly;
-  final @NotNull PsqlConfig config;
   private final @NotNull SQL sql;
-  // Statement timeout in milliseconds.
-  long stmtTimeout = -1;
-  // Lock timeout in milliseconds.
-  long lockTimeout = -1;
-  // The amount of features to fetch at ones.
-  int fetchSize = 1000;
 
   @Override
   protected void destruct() {
     try {
-      connection.rollback();
-    } catch (SQLException e) {
-      log.atInfo()
-          .setMessage("Error while trying to rollback connection")
-          .setCause(e)
-          .log();
-    }
-    try {
-      connection.close();
+      psqlConnection.close();
     } catch (Exception e) {
       log.atInfo()
           .setMessage("Failed to close PostgresQL connection")
@@ -107,31 +112,92 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
     }
   }
 
-  @NotNull
-  SQL sql() {
-    sql.setLength(0);
-    if (stmtTimeout >= 0) {
-      sql.add("SET LOCAL statement_timeout TO ").add(stmtTimeout).add(";\n");
+  int getFetchSize() {
+    return fetchSize;
+  }
+
+  void setFetchSize(int size) {
+    if (size <= 1) {
+      throw new IllegalArgumentException("The fetchSize must be greater than zero");
     }
-    if (lockTimeout >= 0) {
-      sql.add("SET LOCAL lock_timeout TO ").add(lockTimeout).add(";\n");
+    this.fetchSize = size;
+  }
+
+  long getStatementTimeout(@NotNull TimeUnit timeUnit) {
+    return timeUnit.convert(stmtTimeoutMillis, MILLISECONDS);
+  }
+
+  void setStatementTimeout(long timeout, @NotNull TimeUnit timeUnit) throws SQLException {
+    if (timeout < 0) {
+      throw new IllegalArgumentException("The timeout must be greater/equal zero");
     }
-    return sql;
+    final long stmtTimeoutMillis = MILLISECONDS.convert(timeout, timeUnit);
+    if (stmtTimeoutMillis != this.stmtTimeoutMillis) {
+      this.stmtTimeoutMillis = stmtTimeoutMillis;
+      executeStatement(sql().add("SET SESSION statement_timeout TO ")
+          .add(stmtTimeoutMillis)
+          .add(";\n"));
+    }
+  }
+
+  long getLockTimeout(@NotNull TimeUnit timeUnit) {
+    return timeUnit.convert(lockTimeoutMillis, MILLISECONDS);
+  }
+
+  void setLockTimeout(long timeout, @NotNull TimeUnit timeUnit) throws SQLException {
+    if (timeout < 0) {
+      throw new IllegalArgumentException("The timeout must be greater/equal zero");
+    }
+    final long lockTimeoutMillis = MILLISECONDS.convert(timeout, timeUnit);
+    if (this.lockTimeoutMillis != lockTimeoutMillis) {
+      this.lockTimeoutMillis = lockTimeoutMillis;
+      executeStatement(sql().add("SET SESSION lock_timeout TO ")
+          .add(lockTimeoutMillis)
+          .add(";\n"));
+    }
   }
 
   @NotNull
-  PreparedStatement prepare(@NotNull CharSequence query) {
+  SQL sql() {
+    sql.setLength(0);
+    return sql;
+  }
+
+  void executeStatement(@NotNull CharSequence query) throws SQLException {
+    try (final Statement stmt = psqlConnection.createStatement()) {
+      stmt.execute(query.toString());
+    }
+  }
+
+  @SuppressWarnings("SqlSourceToSinkFlow")
+  @NotNull
+  PreparedStatement prepareStatement(@NotNull CharSequence query) {
     try {
-      PreparedStatement stmt = connection.prepareStatement(
+      final PreparedStatement stmt = psqlConnection.prepareStatement(
           query.toString(),
-          ResultSet.TYPE_SCROLL_INSENSITIVE,
+          ResultSet.TYPE_FORWARD_ONLY,
           ResultSet.CONCUR_READ_ONLY,
-          ResultSet.HOLD_CURSORS_OVER_COMMIT);
+          ResultSet.CLOSE_CURSORS_AT_COMMIT);
       stmt.setFetchSize(fetchSize);
       return stmt;
     } catch (SQLException e) {
       throw unchecked(e);
     }
+  }
+
+  void commit(boolean autoCloseCursors) throws SQLException {
+    // TODO: Apply autoCloseCursors
+    psqlConnection.commit();
+  }
+
+  void rollback(boolean autoCloseCursors) throws SQLException {
+    // TODO: Apply autoCloseCursors
+    psqlConnection.rollback();
+  }
+
+  void close(boolean autoCloseCursors) {
+    // TODO: Apply autoCloseCursors
+    psqlConnection.close();
   }
 
   private static void assure3d(@NotNull Coordinate @NotNull [] coords) {
@@ -142,57 +208,243 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
     }
   }
 
-  private static byte[][] geometryListTo2DimByteArray(@NotNull List<Geometry> geometries) {
-    final byte[][] twoDArray = new byte[geometries.size()][];
-    final WKBWriter wkbWriter = new WKBWriter(3);
-    int idx = 0;
-    for (final Geometry geo : geometries) {
-      twoDArray[idx++] = (geo == null) ? null : wkbWriter.write(geo);
-    }
-    return twoDArray;
-  }
-
-  private void convert(
-      final @NotNull Json json, final @NotNull WriteOp<?> writeOp, final @NotNull PostgresWriteOp out) {
-    try {
-      out.op = writeOp.op;
-      out.id = writeOp.id;
-      out.uuid = writeOp.uuid;
-      out.feature = writeOp.feature;
-      if (writeOp.geometry != null) {
-        out.geometry = json.wkbWriter.write(writeOp.geometry);
-      } else {
-        out.geometry = null;
-      }
-    } catch (Throwable t) {
-      throw unchecked(t);
-    }
-  }
-
   @NotNull
   Result process(@NotNull Notification<?> notification) {
     return new ErrorResult(XyzError.NOT_IMPLEMENTED, "process");
   }
 
+  private static void addSpatialQuery(@NotNull SQL sql, @NotNull SOp spatialOp, @NotNull List<byte[]> wkbs) {
+    final OpType op = spatialOp.op();
+    if (SOpType.AND == op || SOpType.OR == op || SOpType.NOT == op) {
+      final List<@NotNull SOp> children = spatialOp.children();
+      if (children == null || children.size() == 0) {
+        return;
+      }
+      final String op_literal;
+      if (SOpType.AND == op) {
+        op_literal = " AND";
+      } else if (SOpType.OR == op) {
+        op_literal = " OR";
+      } else {
+        op_literal = " NOT";
+      }
+      boolean first = true;
+      sql.add('(');
+      for (final @NotNull SOp child : children) {
+        if (first) {
+          first = false;
+        } else {
+          sql.add(op_literal);
+        }
+        addSpatialQuery(sql, child, wkbs);
+      }
+      sql.add(")");
+    } else if (SOpType.INTERSECTS == op) {
+      final Geometry geometry = spatialOp.getGeometry();
+      if (geometry == null) {
+        throw new IllegalArgumentException("Missing geometry");
+      }
+      sql.add(" ST_Intersects(geo, ST_Force3D(?))");
+      try (final Json jp = Json.get()) {
+        final byte[] wkb = jp.wkbWriter.write(geometry);
+        wkbs.add(wkb);
+      }
+    } else {
+      throw new IllegalArgumentException("Unknown operation: " + op);
+    }
+  }
+
+  private static void addJsonPath(@NotNull SQL sql, @NotNull List<@NotNull String> path, int end) {
+    sql.add("(jsondata");
+    for (int i = 0; i < end; i++) {
+      final String pname = path.get(i);
+      sql.add("->");
+      sql.addLiteral(pname);
+    }
+    sql.add(')');
+  }
+
+  private static class ToJsonB {
+    ToJsonB(Object value) {
+      this.value = value;
+    }
+
+    final Object value;
+  }
+
+  private static void addPropertyQuery(@NotNull SQL sql, @NotNull POp propertyOp, @NotNull List<Object> parameter) {
+    final OpType op = propertyOp.op();
+    if (POpType.AND == op || POpType.OR == op || POpType.NOT == op) {
+      final List<@NotNull POp> children = propertyOp.children();
+      if (children == null || children.size() == 0) {
+        return;
+      }
+      final String op_literal;
+      if (POpType.AND == op) {
+        op_literal = " AND";
+      } else if (POpType.OR == op) {
+        op_literal = " OR";
+      } else {
+        op_literal = " NOT";
+      }
+      boolean first = true;
+      sql.add('(');
+      for (final @NotNull POp child : children) {
+        if (first) {
+          first = false;
+        } else {
+          sql.add(op_literal);
+        }
+        addPropertyQuery(sql, child, parameter);
+      }
+      sql.add(")");
+      return;
+    }
+    sql.add(' ');
+    final PRef pref = propertyOp.getPropertyRef();
+    assert pref != null;
+    final List<@NotNull String> path = pref.getPath();
+    if (pref.getTagName() != null) {
+      if (op != POpType.EXISTS) {
+        throw new IllegalArgumentException("Tags do only support EXISTS operation, not " + op);
+      }
+      addJsonPath(sql, path, path.size());
+      sql.add(" ?? ?");
+      parameter.add(pref.getTagName());
+      return;
+    }
+    if (op == POpType.EXISTS) {
+      addJsonPath(sql, path, path.size() - 1);
+      sql.add(" ?? ?");
+      parameter.add(path.get(path.size() - 1));
+      return;
+    }
+    final Object value = propertyOp.getValue();
+    if (op == POpType.STARTS_WITH) {
+      if (value instanceof String) {
+        String text = (String) value;
+        sql.add("(");
+        addJsonPath(sql, path, path.size());
+        sql.add("::text) LIKE ?");
+        parameter.add(text + '%');
+        return;
+      }
+      throw new IllegalArgumentException("STARTS_WITH operator requires a string as value");
+    }
+    addJsonPath(sql, path, path.size());
+    if (op == POpType.EQ) {
+      sql.add(" = ");
+    } else if (op == POpType.GT) {
+      sql.add(" > ");
+    } else if (op == POpType.GTE) {
+      sql.add(" >= ");
+    } else if (op == POpType.LT) {
+      sql.add(" < ");
+    } else if (op == POpType.LTE) {
+      sql.add(" <= ");
+    } else {
+      throw new IllegalArgumentException("Unknown operation: " + op);
+    }
+    sql.add("?::jsonb");
+    try (final Json jp = Json.get()) {
+      final PGobject jsonb = new PGobject();
+      jsonb.setType("jsonb");
+      jsonb.setValue(jp.writer().writeValueAsString(value));
+      parameter.add(jsonb);
+    } catch (SQLException | JsonProcessingException e) {
+      throw unchecked(e);
+    }
+  }
+
   @NotNull
   Result executeRead(@NotNull ReadRequest<?> readRequest) {
-    if (readRequest instanceof final ReadFeatures readFeatures) {
+    if (readRequest instanceof ReadFeatures) {
+      final ReadFeatures readFeatures = (ReadFeatures) readRequest;
       final List<@NotNull String> collections = readFeatures.getCollections();
-      // TODO read multiple collections
-      final PreparedStatement stmt = prepare(sql().add(
-              "SELECT jsondata->'properties'->'@ns:com:here:xyz'->>'action', jsondata->>'id', jsondata->'properties'->'@ns:com:here:xyz'->>'uuid', jsondata->>'type', 'TODO' as r_ptype, jsondata::jsonb, ST_AsEWKB(geo)")
-          .add(" FROM ")
-          .addIdent(collections.get(0))
-          .add("  WHERE jsondata->>'id' = ?;"));
+      if (collections.size() == 0) {
+        return new PsqlSuccess(null);
+      }
+      final SQL sql = sql();
+      final ArrayList<byte[]> wkbs = new ArrayList<>();
+      final ArrayList<Object> parameters = new ArrayList<>();
+      SOp spatialOp = readFeatures.getSpatialOp();
+      if (spatialOp != null) {
+        addSpatialQuery(sql, spatialOp, wkbs);
+      }
+      final String spatial_where = sql.toString();
+      sql.setLength(0);
+      POp propertyOp = readFeatures.getPropertyOp();
+      if (propertyOp != null) {
+        addPropertyQuery(sql, propertyOp, parameters);
+      }
+      final String props_where = sql.toString();
+      sql.setLength(0);
+      for (final String collection : collections) {
+        // r_op text, r_id text, r_uuid text, r_type text, r_ptype text, r_feature jsonb, r_geometry geometry,
+        // r_err jsonb
+        sql.add("SELECT 'READ',\n" + "naksha_feature_id(jsondata),\n"
+                + "naksha_feature_uuid(jsondata),\n"
+                + "naksha_feature_type(jsondata),\n"
+                + "naksha_feature_ptype(jsondata),\n"
+                + "jsondata,\n"
+                + "ST_AsEWKB(geo),\n"
+                + "null FROM ")
+            .addIdent(collection);
+        if (spatial_where.length() > 0 || props_where.length() > 0) {
+          sql.add(" WHERE");
+          if (spatial_where.length() > 0) {
+            sql.add(spatial_where);
+            if (props_where.length() > 0) {
+              sql.add(" AND");
+            }
+          }
+          if (props_where.length() > 0) {
+            sql.add(props_where);
+          }
+        }
+      }
+      final String query = sql.toString();
+      final PreparedStatement stmt = prepareStatement(query);
       try {
-        // TODO create dynamic where section
-        stmt.setString(1, readFeatures.getPropertyOp().value().toString());
-        return new PsqlSuccess(new PsqlCursor<>(this, stmt, stmt.executeQuery()));
+        int i = 1;
+        for (final byte[] wkb : wkbs) {
+          stmt.setBytes(i++, wkb);
+        }
+        for (final Object value : parameters) {
+          if (value == null) {
+            stmt.setString(i++, null);
+          } else if (value instanceof PGobject) {
+            stmt.setObject(i++, value);
+          } else if (value instanceof String) {
+            stmt.setString(i++, (String) value);
+          } else if (value instanceof Double) {
+            stmt.setDouble(i++, (Double) value);
+          } else if (value instanceof Float) {
+            stmt.setFloat(i++, (Float) value);
+          } else if (value instanceof Long) {
+            stmt.setLong(i++, (Long) value);
+          } else if (value instanceof Integer) {
+            stmt.setInt(i++, (Integer) value);
+          } else if (value instanceof Short) {
+            stmt.setShort(i++, (Short) value);
+          } else if (value instanceof Boolean) {
+            stmt.setBoolean(i++, (Boolean) value);
+          } else {
+            throw new IllegalArgumentException("Invalid value at index " + i + ": " + value);
+          }
+        }
+        final ResultSet rs = stmt.executeQuery();
+        final PsqlCursor<XyzFeature, XyzFeatureCodec> cursor =
+            new PsqlCursor<>(XyzFeatureCodecFactory.get(), this, stmt, rs);
+        return new PsqlSuccess(cursor);
       } catch (SQLException e) {
         try {
           stmt.close();
-        } catch (Throwable ce) {
-          log.info("Failed to close statement", ce);
+        } catch (SQLException ce) {
+          log.atInfo()
+              .setMessage("Failed to close statement")
+              .setCause(ce)
+              .log();
         }
         throw unchecked(e);
       }
@@ -201,58 +453,93 @@ final class PostgresSession extends CloseableResource<PostgresStorage> {
   }
 
   @NotNull
-  <T> Result executeWrite(@NotNull WriteRequest<T, ?> writeRequest) {
-    if (writeRequest instanceof WriteCollections<?>) {
-      final PreparedStatement stmt = prepare(
-          sql().add(
-                  "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, r_geometry FROM naksha_write_collections(?);\n"));
+  <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> Result executeWrite(
+      @NotNull WriteRequest<FEATURE, CODEC, ?> writeRequest) {
+    if (writeRequest instanceof WriteCollections) {
+      final PreparedStatement stmt = prepareStatement(
+          "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, r_geometry, r_err FROM naksha_write_collections(?);\n");
       try (final Json json = Json.get()) {
-        final @NotNull List<? extends WriteOp<T>> queries = writeRequest.queries;
-        final int SIZE = writeRequest.queries.size();
+        final List<@NotNull CODEC> features = writeRequest.features;
+        final int SIZE = writeRequest.features.size();
         final String[] write_ops_json = new String[SIZE];
         final PostgresWriteOp out = new PostgresWriteOp();
         for (int i = 0; i < SIZE; i++) {
-          convert(json, queries.get(i), out);
+          final CODEC codec = features.get(i);
+          out.decode(codec);
           write_ops_json[i] = json.writer().writeValueAsString(out);
         }
-        stmt.setArray(1, connection.createArrayOf("jsonb", write_ops_json));
-        return new PsqlSuccess(new PsqlCursor<>(this, stmt, stmt.executeQuery()));
+        stmt.setArray(1, psqlConnection.createArrayOf("jsonb", write_ops_json));
+        final ResultSet rs = stmt.executeQuery();
+        return new PsqlSuccess(new PsqlCursor<>(XyzCollectionCodecFactory.get(), this, stmt, rs));
       } catch (Throwable e) {
         try {
           stmt.close();
         } catch (Throwable ce) {
-          log.info("Failed to close statement", ce);
+          log.atInfo()
+              .setMessage("Failed to close statement")
+              .setCause(ce)
+              .log();
         }
         throw unchecked(e);
       }
     }
-    if (writeRequest instanceof final WriteFeatures<?> writeFeatures) {
-      final int partition_id;
-      //noinspection rawtypes
-      if (writeFeatures instanceof PostgresWriteFeaturesToPartition writeToPartition) {
-        partition_id = writeToPartition.partitionId;
-      } else {
-        partition_id = -1;
-      }
-      final PreparedStatement stmt = prepare(
-          "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, ST_AsEWKB(r_geometry) FROM nk_write_features(?,?,?,?,?);");
+    if (writeRequest instanceof WriteFeatures<?, ?, ?>) {
+      final WriteFeatures<?, ?, ?> writeFeatures = (WriteFeatures<?, ?, ?>) writeRequest;
+      final int partition_id = -1;
+      //      if (writeFeatures instanceof PostgresWriteFeaturesToPartition<?> writeToPartition) {
+      //        partition_id = writeToPartition.partitionId;
+      //      } else {
+      //        partition_id = -1;
+      //      }
+      final PreparedStatement stmt = prepareStatement(
+          "SELECT r_op, r_id, r_uuid, r_type, r_ptype, r_feature, ST_AsEWKB(r_geometry), r_err\n"
+              + "FROM nk_write_features(?,?,?,?,?,?,?,?,?);");
+      // nk_write_features(col_id, part_id, ops, ids, uuids, features, geometries, min_result, errors_only
       try (final Json json = Json.get()) {
-        final @NotNull List<? extends WriteOp<T>> queries = writeRequest.queries;
-        final int SIZE = writeRequest.queries.size();
-        final String[] write_ops_json = new String[SIZE];
-        final byte[][] geometries = new byte[SIZE][];
+        final List<@NotNull CODEC> features = writeRequest.features;
+        final int SIZE = writeRequest.features.size();
+        final String collection_id = writeFeatures.getCollectionId();
+        // partition_id
+        final String[] op_arr = new String[SIZE];
+        final String[] id_arr = new String[SIZE];
+        final String[] uuid_arr = new String[SIZE];
+        final String[] json_arr = new String[SIZE];
+        final byte[][] geo_arr = new byte[SIZE][];
+        final boolean min_result = writeFeatures.minResults;
+        final boolean err_only = false;
+
         final PostgresWriteOp out = new PostgresWriteOp();
         for (int i = 0; i < SIZE; i++) {
-          convert(json, queries.get(i), out);
-          write_ops_json[i] = json.writer().writeValueAsString(out);
-          geometries[i] = out.geometry;
+          final CODEC codec = features.get(i);
+          codec.decodeParts(false);
+          op_arr[i] = codec.getOp();
+          id_arr[i] = codec.getId();
+          uuid_arr[i] = codec.getUuid();
+          json_arr[i] = codec.getJson();
+          geo_arr[i] = codec.getWkb();
         }
-        stmt.setString(1, writeFeatures.getCollectionId());
+        stmt.setString(1, collection_id);
         stmt.setInt(2, partition_id);
-        stmt.setArray(3, connection.createArrayOf("jsonb", write_ops_json));
-        stmt.setArray(4, connection.createArrayOf("bytea", geometries));
-        stmt.setBoolean(5, writeFeatures.minResults);
-        return new PsqlSuccess(new PsqlCursor<>(this, stmt, stmt.executeQuery()));
+        stmt.setArray(3, psqlConnection.createArrayOf("text", op_arr));
+        stmt.setArray(4, psqlConnection.createArrayOf("text", id_arr));
+        stmt.setArray(5, psqlConnection.createArrayOf("text", uuid_arr));
+        stmt.setArray(6, psqlConnection.createArrayOf("jsonb", json_arr));
+        stmt.setArray(7, psqlConnection.createArrayOf("bytea", geo_arr));
+        stmt.setBoolean(8, min_result);
+        stmt.setBoolean(9, err_only);
+        final ResultSet rs = stmt.executeQuery();
+        final PsqlCursor<XyzFeature, XyzFeatureCodec> cursor =
+            new PsqlCursor<>(XyzFeatureCodecFactory.get(), this, stmt, rs);
+        try (final PreparedStatement err_stmt = prepareStatement("SELECT naksha_err_no(), naksha_err_msg();")) {
+          final ResultSet err_rs = err_stmt.executeQuery();
+          err_rs.next();
+          final String errNo = err_rs.getString(1);
+          final String errMsg = err_rs.getString(2);
+          if (errNo != null) {
+            return new PsqlError(XyzError.get(errNo), errMsg, cursor);
+          }
+        }
+        return new PsqlSuccess(cursor);
       } catch (Throwable e) {
         try {
           stmt.close();

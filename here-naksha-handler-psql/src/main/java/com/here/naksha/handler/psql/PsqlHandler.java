@@ -96,13 +96,16 @@ import com.here.naksha.lib.core.storage.CollectionInfo;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.util.NanoTime;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
-import com.here.naksha.lib.psql.PsqlCollection;
-import com.here.naksha.lib.psql.PsqlDataSource;
 import com.here.naksha.lib.psql.sql.DhString;
 import com.here.naksha.lib.psql.sql.SQLQuery;
 import com.here.naksha.lib.psql.sql.TweaksSQL;
 import com.mchange.v2.c3p0.AbstractConnectionCustomizer;
-import java.sql.*;
+import java.sql.BatchUpdateException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -143,7 +146,6 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
   private final @NotNull PsqlHandlerParams connectorParams;
   private @NotNull Event event;
   private @NotNull String applicationName;
-  private @NotNull PsqlDataSource adminDataSource;
   private @NotNull PsqlSpaceMasterDataSource masterDataSource;
   private @NotNull PsqlSpaceReplicaDataSource replicaDataSource;
   private @NotNull String spaceId;
@@ -563,7 +565,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     }
   }
 
-  /** Check if request parameters are valid. In case of invalidity throw an Exception */
+  /**
+   * Check if request parameters are valid. In case of invalidity throw an Exception
+   */
   private void checkQuadbinInput(
       @Nullable CountMode countMode, int relResolution, @NotNull GetFeaturesByBBoxEvent event, String streamId)
       throws XyzErrorException {
@@ -624,7 +628,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     }
   }
 
-  /** Kept for backwards compatibility. Will be removed after refactoring. */
+  /**
+   * Kept for backwards compatibility. Will be removed after refactoring.
+   */
   @Deprecated
   public static boolean isOrderByEvent(IterateFeaturesEvent event) {
     return event.getSort() != null
@@ -946,9 +952,8 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
   public static final String APPLICATION_VND_MAPBOX_VECTOR_TILE = "application/vnd.mapbox-vector-tile";
 
   /**
-   * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS
-   * So if we receive a timeout prior 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from
-   * outside.
+   * Lambda Execution Time = 25s. We are actively canceling queries after STATEMENT_TIMEOUT_SECONDS So if we receive a timeout prior
+   * 25s-STATEMENT_TIMEOUT_SECONDS the cancellation comes from outside.
    */
   private static final int MIN_REMAINING_TIME_FOR_RETRY_SECONDS = 3;
 
@@ -960,7 +965,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
 
   private boolean retryAttempted;
 
-  /** Executes the given query and returns the processed by the handler result. */
+  /**
+   * Executes the given query and returns the processed by the handler result.
+   */
   protected <T> T executeQuery(SQLQuery query, ResultSetHandler<T> handler) throws SQLException {
     return executeQuery(query, handler, readDataSource());
   }
@@ -985,7 +992,9 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
     return executeBinQueryWithRetry(query, true);
   }
 
-  /** Executes the query and reattempt to execute the query, after */
+  /**
+   * Executes the query and reattempt to execute the query, after
+   */
   protected <T> T executeQueryWithRetry(SQLQuery query, ResultSetHandler<T> handler, boolean useReadReplica)
       throws SQLException {
     try {
@@ -1055,8 +1064,7 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
   }
 
   /**
-   * Executes the given query and returns the processed by the handler result using the provided
-   * dataSource.
+   * Executes the given query and returns the processed by the handler result using the provided dataSource.
    */
   private <T> T executeQuery(
       @NotNull SQLQuery query, @Nullable ResultSetHandler<T> handler, @NotNull DataSource dataSource)
@@ -1558,8 +1566,8 @@ public class PsqlHandler extends ExtendedEventHandler<EventHandler> {
   }
 
   /**
-   * A helper method that will ensure that the tables for the space of this event do exist and is up
-   * to date, if not it will alter the table.
+   * A helper method that will ensure that the tables for the space of this event do exist and is up to date, if not it will alter the
+   * table.
    *
    * @throws SQLException if the table does not exist and can't be created or alter failed.
    */

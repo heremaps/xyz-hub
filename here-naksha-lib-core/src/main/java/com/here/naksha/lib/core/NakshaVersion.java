@@ -27,13 +27,9 @@ import org.jetbrains.annotations.Nullable;
 /**
  * Just an abstraction for Naksha versioning.
  *
- * @param major    the major version (0-65535).
- * @param minor    the minor version (0-65535).
- * @param revision the revision (0-65535).
  */
 @AvailableSince(v2_0_3)
-public record NakshaVersion(int major, int minor, int revision) implements Comparable<NakshaVersion> {
-
+public class NakshaVersion implements Comparable<NakshaVersion> {
   /**
    * Naksha version constant. The last version compatible with XYZ-Hub.
    */
@@ -52,6 +48,21 @@ public record NakshaVersion(int major, int minor, int revision) implements Compa
   // TODO: Need to be generated and read from gradle.build.kts or gradle.properties!
   @AvailableSince(v2_0_5)
   public static final NakshaVersion latest = of(v2_0_7);
+
+  private final int major;
+  private final int minor;
+  private final int revision;
+
+  /**
+   * @param major    the major version (0-65535).
+   * @param minor    the minor version (0-65535).
+   * @param revision the revision (0-65535).
+   */
+  public NakshaVersion(int major, int minor, int revision) {
+    this.major = major;
+    this.minor = minor;
+    this.revision = revision;
+  }
 
   /**
    * Parses the given version string and returns the Naksha version.
@@ -76,6 +87,21 @@ public record NakshaVersion(int major, int minor, int revision) implements Compa
   }
 
   @AvailableSince(v2_0_3)
+  public int getMajor() {
+    return major;
+  }
+
+  @AvailableSince(v2_0_3)
+  public int getMinor() {
+    return minor;
+  }
+
+  @AvailableSince(v2_0_3)
+  public int getRevision() {
+    return revision;
+  }
+
+  @AvailableSince(v2_0_3)
   public long toLong() {
     return ((major & 0xffffL) << 32) | ((minor & 0xffffL) << 16) | (revision & 0xffffL);
   }
@@ -96,7 +122,8 @@ public record NakshaVersion(int major, int minor, int revision) implements Compa
     if (this == other) {
       return true;
     }
-    if (other instanceof NakshaVersion o) {
+    if (other instanceof NakshaVersion) {
+      NakshaVersion o = (NakshaVersion) other;
       return this.toLong() == o.toLong();
     }
     return false;
