@@ -23,16 +23,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.storage.FeatureCodec;
-import com.here.naksha.lib.core.models.storage.FeatureCodecFactory;
 import com.here.naksha.lib.core.models.storage.ForwardCursor;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -57,32 +53,5 @@ public class PsqlCursorTest {
     assertEquals(stringCodecFactory, cursor.getCodecFactory());
     assertTrue(forwardCursor.next());
     assertEquals("feature", forwardCursor.getFeature());
-  }
-
-  static class StringCodec extends FeatureCodec<String, StringCodec> {
-
-    @Override
-    public @NotNull StringCodec decodeParts(boolean force) {
-      return this;
-    }
-
-    @Override
-    public @NotNull StringCodec encodeFeature(boolean force) {
-      feature = json;
-      return this;
-    }
-  }
-
-  static class StringCodecFactory implements FeatureCodecFactory<String, StringCodec> {
-
-    @Override
-    public @NotNull StringCodec newInstance() {
-      return new StringCodec();
-    }
-
-    @Override
-    public boolean isInstance(@Nullable FeatureCodec<?, ?> codec) {
-      return codec instanceof StringCodec;
-    }
   }
 }

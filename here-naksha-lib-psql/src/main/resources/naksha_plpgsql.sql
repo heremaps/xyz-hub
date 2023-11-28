@@ -1270,6 +1270,7 @@ BEGIN
     r_geometry = NULL;
     r_err = NULL;
 
+    op = ops[i];
     feature = features[i];
     id = naksha_feature_id(feature);
     IF id IS NULL THEN
@@ -1300,7 +1301,6 @@ BEGIN
       r_geometry = geo;
     END IF;
 
-    op = ops[i];
     IF op = 'INSERT' THEN
       op = 'CREATE';
     ELSIF op = 'UPSERT' THEN
@@ -1316,7 +1316,7 @@ BEGIN
 
     BEGIN
       --RAISE NOTICE 'op=''%'', id=''%'', feature=''%'', uuid=''%''', op, id, feature, uuid;
-      IF op = 'CREATE' OR op = 'PUT' THEN
+      IF op = 'PUT' THEN
         BEGIN
           EXECUTE insert_stmt USING feature, geo INTO r_feature;
           GET DIAGNOSTICS rows_affected = ROW_COUNT;
@@ -1324,6 +1324,11 @@ BEGIN
         EXCEPTION WHEN unique_violation THEN
           op = 'UPDATE';
         END;
+      END IF;
+      IF op = 'CREATE' THEN
+        EXECUTE insert_stmt USING feature, geo INTO r_feature;
+        GET DIAGNOSTICS rows_affected = ROW_COUNT;
+        r_op = 'CREATED';
       END IF;
       IF op = 'UPDATE' THEN
         IF uuid IS NOT NULL THEN
