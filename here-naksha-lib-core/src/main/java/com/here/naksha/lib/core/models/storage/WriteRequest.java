@@ -137,4 +137,8 @@ public abstract class WriteRequest<
     features.add(codec);
     return self();
   }
+
+  public FeatureCodecFactory<FEATURE, CODEC> getCodecFactory() {
+    return codecFactory;
+  }
 }
