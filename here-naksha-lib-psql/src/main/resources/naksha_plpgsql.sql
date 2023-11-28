@@ -14,14 +14,14 @@ CREATE EXTENSION IF NOT EXISTS btree_gin SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS postgis_topology SCHEMA topology;
 -- Restore search_path, because postgis_topology modifies it.
-SET SESSION search_path TO "${schema}", public, topology;
-CREATE EXTENSION IF NOT EXISTS pg_hint_plan SCHEMA hint_plan;
+--pg_hint_plan:SET SESSION search_path TO "${schema}", public, topology;
+--pg_hint_plan:CREATE EXTENSION IF NOT EXISTS pg_hint_plan SCHEMA hint_plan;
 -- Restore search_path, because hint_plan modifies it.
 SET SESSION search_path TO "${schema}", public, topology;
 --CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
 --CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
 CREATE EXTENSION IF NOT EXISTS hstore SCHEMA public;
-CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA public;
+--pg_stat_statements:CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA public;
 COMMIT;
 SET SESSION search_path TO "${schema}", public, topology;
 
@@ -4011,8 +4011,6 @@ BEGIN
     --CREATE EXTENSION IF NOT EXISTS tsm_system_rows SCHEMA public;
     --CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public;
     CREATE EXTENSION IF NOT EXISTS hstore SCHEMA public;
-    CREATE EXTENSION IF NOT EXISTS pg_hint_plan SCHEMA public;
-    CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA public;
 
     IF __naksha_pg_version() < 14 THEN
         -- feature_not_supported

@@ -34,6 +34,7 @@ import com.here.naksha.lib.core.models.storage.EWriteOp;
 import com.here.naksha.lib.core.models.storage.ForwardCursor;
 import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
 import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
+import com.here.naksha.lib.psql.PsqlStorage.Params;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.AfterAll;
@@ -173,7 +174,7 @@ abstract class PsqlTests {
   @EnabledIf("runTest")
   void initStorage() {
     assertNotNull(storage);
-    storage.initStorage();
+    storage.initStorage(new Params().pg_hint_plan(false).pg_stat_statements(false));
   }
 
   @Test
