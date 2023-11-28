@@ -18,8 +18,6 @@
  */
 package com.here.naksha.lib.core;
 
-import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-
 import com.here.naksha.lib.core.exceptions.TooManyTasks;
 import com.here.naksha.lib.core.util.NanoTime;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -351,7 +349,7 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
       throw new IllegalStateException("Can't unbind from foreign thread");
     }
     assert oldName != null;
-    thread.setName(oldName);
+    // thread.setName(oldName);
     thread.setUncaughtExceptionHandler(oldUncaughtExceptionHandler);
     this.thread = null;
     this.oldName = null;
@@ -429,7 +427,7 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
 
   private static final AtomicLong threadCount = new AtomicLong();
 
-  private @NotNull RESULT init_and_execute() throws Exception {
+  private @NotNull RESULT init_and_execute() {
     @NotNull RESULT RESULT;
     try {
       state.set(State.EXECUTE);
@@ -470,15 +468,13 @@ public abstract class AbstractTask<RESULT, SELF extends AbstractTask<RESULT, SEL
    * @param throwable an actual error that has been encountered
    * @return RESULT should represent error response
    */
-  protected @NotNull RESULT errorResponse(@NotNull Throwable throwable) throws Exception {
+  protected @NotNull RESULT errorResponse(@NotNull Throwable throwable) {
+    RESULT result = null;
     log.atWarn()
         .setMessage("The task failed with an exception")
         .setCause(throwable)
         .log();
-    if (throwable instanceof Exception) {
-      throw (Exception) throwable;
-    }
-    throw unchecked(throwable);
+    return result;
   }
 
   /**

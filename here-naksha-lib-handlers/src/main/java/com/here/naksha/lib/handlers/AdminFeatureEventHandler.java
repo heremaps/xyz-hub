@@ -33,11 +33,16 @@ import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import org.jetbrains.annotations.NotNull;
 
-abstract class XyzFeatureEventHandler<FEATURE extends XyzFeature> extends AbstractEventHandler {
+/**
+ * Abstract event handler responsible for processing admin resources (like Storage or EventHandler)
+ *
+ * @param <FEATURE> type of admin resource handled by this handler
+ */
+abstract class AdminFeatureEventHandler<FEATURE extends XyzFeature> extends AbstractEventHandler {
 
   private final Class<FEATURE> featureClass;
 
-  public XyzFeatureEventHandler(@NotNull INaksha hub, @NotNull Class<FEATURE> featureClass) {
+  AdminFeatureEventHandler(@NotNull INaksha hub, @NotNull Class<FEATURE> featureClass) {
     super(hub);
     this.featureClass = featureClass;
   }

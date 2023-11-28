@@ -26,7 +26,7 @@ import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
 import org.jetbrains.annotations.NotNull;
 
-public class IntHandlerForStorages extends XyzFeatureEventHandler<Storage> {
+public class IntHandlerForStorages extends AdminFeatureEventHandler<Storage> {
 
   // TODO: addStorageIdToStreamInfo(PsqlStorage.ADMIN_STORAGE_ID, ctx);
 

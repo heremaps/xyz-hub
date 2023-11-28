@@ -110,9 +110,9 @@ val resillience4j_retry = "io.github.resilience4j:resilience4j-retry:2.0.0"
 
 val otel = "io.opentelemetry:opentelemetry-api:1.28.0"
 
-val mavenUrl = rootProject.properties["mavenUrl"] as String
-val mavenUser = rootProject.properties["mavenUser"] as String
-val mavenPassword = rootProject.properties["mavenPassword"] as String
+val mavenUrl = getRequiredPropertyFromRootProject("mavenUrl")
+val mavenUser = getRequiredPropertyFromRootProject("mavenUser")
+val mavenPassword = getRequiredPropertyFromRootProject("mavenPassword")
 
 /*
     Overall coverage of subproject - it might be different for different subprojects
@@ -429,54 +429,54 @@ project(":here-naksha-lib-handlers") {
 }
 
 //try {
-    project(":here-naksha-lib-hub") {
-        description = "NakshaHub library"
-        dependencies {
-            implementation(project(":here-naksha-lib-core"))
-            implementation(project(":here-naksha-lib-psql"))
-            //implementation(project(":here-naksha-lib-extension"))
-            implementation(project(":here-naksha-lib-handlers"))
+project(":here-naksha-lib-hub") {
+    description = "NakshaHub library"
+    dependencies {
+        implementation(project(":here-naksha-lib-core"))
+        implementation(project(":here-naksha-lib-psql"))
+        //implementation(project(":here-naksha-lib-extension"))
+        implementation(project(":here-naksha-lib-handlers"))
 
-            implementation(commons_lang3)
-            implementation(vividsolutions_jts_core)
-            implementation(postgres)
+        implementation(commons_lang3)
+        implementation(vividsolutions_jts_core)
+        implementation(postgres)
 
-            testImplementation(json_assert)
-            testImplementation(mockito)
-        }
-        setOverallCoverage(0.3) // only increasing allowed!
+        testImplementation(json_assert)
+        testImplementation(mockito)
     }
+    setOverallCoverage(0.3) // only increasing allowed!
+}
 //} catch (ignore: UnknownProjectException) {
 //}
 
 //try {
-    project(":here-naksha-app-service") {
-        description = "Naksha Service"
-        dependencies {
-            implementation(project(":here-naksha-lib-core"))
-            implementation(project(":here-naksha-lib-psql"))
-            //implementation(project(":here-naksha-lib-extension"))
-            //implementation(project(":here-naksha-handler-psql"))
-            implementation(project(":here-naksha-lib-hub"))
+project(":here-naksha-app-service") {
+    description = "Naksha Service"
+    dependencies {
+        implementation(project(":here-naksha-lib-core"))
+        implementation(project(":here-naksha-lib-psql"))
+        //implementation(project(":here-naksha-lib-extension"))
+        //implementation(project(":here-naksha-handler-psql"))
+        implementation(project(":here-naksha-lib-hub"))
 
-            implementation(log4j_slf4j)
-            implementation(log4j_api)
-            implementation(log4j_core)
-            implementation(otel)
-            implementation(commons_lang3)
-            implementation(vividsolutions_jts_core)
-            implementation(postgres)
-            implementation(vertx_core)
-            implementation(vertx_auth_jwt)
-            implementation(vertx_web)
-            implementation(vertx_web_client)
-            implementation(vertx_web_openapi)
+        implementation(log4j_slf4j)
+        implementation(log4j_api)
+        implementation(log4j_core)
+        implementation(otel)
+        implementation(commons_lang3)
+        implementation(vividsolutions_jts_core)
+        implementation(postgres)
+        implementation(vertx_core)
+        implementation(vertx_auth_jwt)
+        implementation(vertx_web)
+        implementation(vertx_web_client)
+        implementation(vertx_web_openapi)
 
-            testImplementation(json_assert)
-            testImplementation(resillience4j_retry)
-        }
-        setOverallCoverage(0.25) // only increasing allowed!
+        testImplementation(json_assert)
+        testImplementation(resillience4j_retry)
     }
+    setOverallCoverage(0.25) // only increasing allowed!
+}
 //} catch (ignore: UnknownProjectException) {
 //}
 
@@ -545,4 +545,12 @@ fun Project.getOverallCoverage(): Double {
     } else {
         defaultOverallMinCoverage
     }
+}
+
+fun getRequiredPropertyFromRootProject(propertyKey: String): String {
+    return rootProject.properties[propertyKey] as? String ?: throw IllegalArgumentException("""
+        Not found required property: $propertyKey. 
+        Check your 'gradle.properties' file (in both project and ~/.gradle directory)
+        """.trimIndent()
+    )
 }

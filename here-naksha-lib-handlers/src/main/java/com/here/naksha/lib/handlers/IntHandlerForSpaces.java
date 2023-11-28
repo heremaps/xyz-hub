@@ -22,7 +22,7 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.models.naksha.Space;
 import org.jetbrains.annotations.NotNull;
 
-public class IntHandlerForSpaces extends XyzFeatureEventHandler<Space> {
+public class IntHandlerForSpaces extends AdminFeatureEventHandler<Space> {
 
   // TODO:     addStorageIdToStreamInfo(PsqlStorage.ADMIN_STORAGE_ID, ctx);
 

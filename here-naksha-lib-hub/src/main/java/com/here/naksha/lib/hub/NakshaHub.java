@@ -271,8 +271,8 @@ public class NakshaHub implements INaksha {
         throw unchecked(new Exception(
             "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
       }
-      final Storage storage =
-          Objects.requireNonNull(readFeatureFromResult(result, Storage.class), "Storage not found in result");
+      final Storage storage = Objects.requireNonNull(
+          readFeatureFromResult(result, Storage.class), "No storage found with id: " + storageId);
       return storageInstance(storage);
     }
   }
