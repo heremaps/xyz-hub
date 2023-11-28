@@ -63,6 +63,7 @@ public class PsqlCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> ext
         final String r_ptype = rs.getString(5); // may be null
         final String r_feature = rs.getString(6); // may be null
         final byte[] r_geo = rs.getBytes(7); // may be null
+        final String r_err = rs.getString(8); // may be null
         // Note: Only r_ptype, r_feature and r_geo may be null!
         assert r_op != null && r_id != null && r_uuid != null && r_type != null;
 
@@ -73,6 +74,7 @@ public class PsqlCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> ext
         row.codec.setPropertiesType(r_ptype);
         row.codec.setJson(r_feature);
         row.codec.setWkb(r_geo);
+        row.codec.setRawError(r_err);
         row.valid = true;
         return true;
       }

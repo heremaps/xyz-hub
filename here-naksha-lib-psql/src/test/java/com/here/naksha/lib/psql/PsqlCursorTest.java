@@ -19,8 +19,10 @@
 package com.here.naksha.lib.psql;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.intThat;
+import static org.mockito.Mockito.when;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.storage.ForwardCursor;
@@ -45,13 +47,41 @@ public class PsqlCursorTest {
     PsqlCursor<XyzFeature, XyzFeatureCodec> cursor = new PsqlCursor<>(xyzFeatureCodecFactory, null, statement, rs);
 
     // when
-    Mockito.when(rs.next()).thenReturn(true);
-    Mockito.when(rs.getString(anyInt())).thenReturn("feature");
+    when(rs.next()).thenReturn(true);
+
+    when(rs.getString(intThat(i -> i < 6))).thenReturn("id");
+    when(rs.getString(6)).thenReturn("feature");
+    when(rs.getString(8)).thenReturn(null);
     ForwardCursor<String, StringCodec> forwardCursor = cursor.withCodecFactory(stringCodecFactory, true);
 
     // expect
     assertEquals(stringCodecFactory, cursor.getCodecFactory());
     assertTrue(forwardCursor.next());
     assertEquals("feature", forwardCursor.getFeature());
+  }
+
+  @Test
+  void testErrorRead() throws SQLException {
+    // given
+    Statement statement = Mockito.mock(Statement.class);
+    ResultSet rs = Mockito.mock(ResultSet.class);
+    XyzFeatureCodecFactory xyzFeatureCodecFactory = XyzFeatureCodecFactory.get();
+
+    PsqlCursor<XyzFeature, XyzFeatureCodec> cursor = new PsqlCursor<>(xyzFeatureCodecFactory, null, statement, rs);
+
+    // when
+    when(rs.next()).thenReturn(true);
+
+    when(rs.getString(intThat(i -> i < 6))).thenReturn("id");
+    when(rs.getString(6)).thenReturn("{}");
+    when(rs.getString(8)).thenReturn("{\"err\": \"23505\", \"msg\": \"Error Message\"}");
+
+    // then
+    assertTrue(cursor.next());
+    assertTrue(cursor.hasError());
+    assertNotNull(cursor.getError());
+    assertEquals("23505", cursor.getError().err.value());
+    assertEquals("Error Message", cursor.getError().msg);
+    assertEquals("{}", cursor.getJson());
   }
 }
