@@ -248,4 +248,14 @@ public class BBox extends ArrayList<Double> {
     // Must not be, but lets fix it anyway:
     return (min + 90d) - (max + 90d);
   }
+
+  public static BBox tile_shrink(BBox bbox)
+  { double delta = 0.000000001f;
+    return new BBox( bbox.getWest(), 
+                     bbox.getSouth(),
+                     bbox.getEast() < 180.0 ? bbox.getEast() - delta : bbox.getEast(),   
+                     bbox.getNorth() < 90.0 ? bbox.getNorth() - delta : bbox.getNorth()   
+                   );
+  }
+
 }

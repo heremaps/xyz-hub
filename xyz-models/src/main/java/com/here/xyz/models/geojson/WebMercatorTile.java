@@ -503,7 +503,7 @@ public class WebMercatorTile {
       double minLat = 90.0 - 360.0 * Math.atan(Math.exp(-y1 * 2.0 * Math.PI)) / Math.PI;
       double maxLon = 360.0 * x1;
 
-      bbox = new BBox(minLon, minLat, maxLon, maxLat);
+      bbox = BBox.tile_shrink( new BBox(minLon, minLat, maxLon, maxLat) );
     }
     if (clone) {
       return new BBox(bbox.minLon(), bbox.minLat(), bbox.maxLon(), bbox.maxLat());
@@ -551,7 +551,7 @@ public class WebMercatorTile {
     double maxLon = 360.0 * x1;
 
     eBuffer = buffer;
-    eBbox = new BBox(minLon, minLat, maxLon, maxLat);
+    eBbox = BBox.tile_shrink(new BBox(minLon, minLat, maxLon, maxLat) );
     return eBbox;
   }
 

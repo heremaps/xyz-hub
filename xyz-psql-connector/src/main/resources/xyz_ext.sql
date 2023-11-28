@@ -140,7 +140,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 183
+ select 184
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2783,12 +2783,29 @@ END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION xyz_qk_lrc2bbox(rowY integer, colX integer, level integer)
+CREATE OR REPLACE FUNCTION _xyz_qk_lrc2bbox(rowY integer, colX integer, level integer)
 	RETURNS geometry AS
 $$
  select st_transform(ST_TileEnvelope(level, colX, rowY), 4326)
 $$
 LANGUAGE sql IMMUTABLE;
+
+create or replace function htile_shrink( tile geometry ) returns geometry
+ language sql immutable strict
+as $$ 
+ select ST_MakeEnvelope( st_xmin( tile ), st_ymin( tile ), 
+		  case st_xmax(tile) < 180.0 when true then st_xmax(tile) - 0.000000001 else 180.0 end,
+		  case st_ymax(tile) < 90.0 when true then st_ymax(tile) - 0.000000001 else 90.0 end,
+		  4326) 
+$$;
+
+CREATE OR REPLACE FUNCTION xyz_qk_lrc2bbox(rowY integer, colX integer, level integer)
+	RETURNS geometry AS
+$$
+ select htile_shrink( _xyz_qk_lrc2bbox(rowY, colX, level) )
+$$
+LANGUAGE sql IMMUTABLE;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION xyz_qk_qk2bbox( qid text )
@@ -3181,7 +3198,7 @@ end
 $$;
 ------------------------------------------------
 ------------------------------------------------
-CREATE OR REPLACE FUNCTION htile_bbox(rowy integer, colx integer, lev integer) RETURNS public.geometry
+CREATE OR REPLACE FUNCTION _htile_bbox(rowy integer, colx integer, lev integer) RETURNS geometry
     LANGUAGE plpgsql IMMUTABLE STRICT
     AS $$
 declare
@@ -3208,6 +3225,13 @@ begin
     return st_setsrid(ST_MakeEnvelope( minX, minY, maxX, maxY ),4326);
 end
 $$;
+
+create or replace function htile_bbox(rowy integer, colx integer, lev integer) returns geometry
+ language sql immutable strict
+as $$
+ select htile_shrink( _htile_bbox( rowy, colx, lev ) )
+$$;
+
 ------------------------------------------------
 ------------------------------------------------
 CREATE OR REPLACE FUNCTION htile_number_to_base(num bigint, base integer) RETURNS text
