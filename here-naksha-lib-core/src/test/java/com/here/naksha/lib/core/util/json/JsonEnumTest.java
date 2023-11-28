@@ -33,6 +33,11 @@ import org.junit.jupiter.api.Test;
 class JsonEnumTest {
 
   @Test
+  void testWith() {
+    assertTrue(Truck.TRUCK.isTruck);
+  }
+
+  @Test
   void testDeserializing() throws JsonProcessingException {
     Vehicle vehicle;
     try (final Json json = Json.get()) {
