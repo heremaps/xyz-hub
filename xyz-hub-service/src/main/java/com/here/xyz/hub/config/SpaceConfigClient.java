@@ -176,7 +176,6 @@ public abstract class SpaceConfigClient implements Initializable {
   }
 
   public static class SpaceAuthorizationCondition {
-    public boolean anonymous;
     public Set<String> spaceIds;
     public Set<String> ownerIds;
     public Set<String> packages;

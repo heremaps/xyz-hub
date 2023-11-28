@@ -154,7 +154,6 @@ public class SpaceTaskHandler {
     task.authorizedCondition.spaceIds = new HashSet<>();
     task.authorizedCondition.ownerIds = new HashSet<>();
     task.authorizedCondition.packages = new HashSet<>();
-    task.authorizedCondition.anonymous = task.getJwt().aid.equals("ANONYMOUS");
 
     if (task.responseType == ApiResponseType.SPACE) {
       callback.call(task);

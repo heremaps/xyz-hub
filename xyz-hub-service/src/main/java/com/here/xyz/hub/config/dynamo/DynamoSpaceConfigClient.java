@@ -45,6 +45,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -342,7 +343,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery, Promise<List<Space>> p) {
 
     if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
-      get(marker, selectedCondition.spaceIds.iterator().next())
+      getSpace(marker, selectedCondition.spaceIds.iterator().next())
               .onSuccess(space -> {
                 if(space != null) {
                   p.complete(Collections.singletonList(space));
@@ -370,20 +371,19 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   private List<Space> getSpacesWithFullAccess(SpaceSelectionCondition selectedCondition, PropertiesQuery propsQuery) {
     var valueMap = new HashMap<String, Object>();
-    String operator;
-    var adminSpaces = new ArrayList<Space>();
+    var resultSpaces = new ArrayList<Space>();
     if (propsQuery != null) {
       var contentUpdatedAt = propsQuery.get(0).get(0).getValues().get(0);
       valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
-      operator = SQLQuery.getOperation(propsQuery.get(0).get(0).getOperation());
+      String operator = SQLQuery.getOperation(propsQuery.get(0).get(0).getOperation());
 
       spaces.getIndex("type-index").query(new QuerySpec()
               .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " + operator + " :contentUpdatedAtValue")
               .withNameMap(Map.of("#type", "type"))
               .withValueMap(valueMap)
       ).pages().forEach(page -> page.forEach(i -> {
-        adminSpaces.add(mapItemToSpace(i));
+        resultSpaces.add(mapItemToSpace(i));
       }));
     } else if (!CollectionUtils.isNullOrEmpty(selectedCondition.ownerIds) && !selectedCondition.negateOwnerIds) {
       selectedCondition.ownerIds.forEach(ownerId ->
@@ -391,14 +391,14 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
                       .query(new QuerySpec().withHashKey("owner", ownerId))
                       .pages()
                       .forEach(page -> page.forEach(i -> {
-                        adminSpaces.add(mapItemToSpace(i));
+                        resultSpaces.add(mapItemToSpace(i));
                       })));
     } else if (selectedCondition.region != null) {
       spaces.getIndex("region-index")
               .query(new QuerySpec().withHashKey("region", selectedCondition.region))
               .pages()
               .forEach(page -> page.forEach(i -> {
-                adminSpaces.add(mapItemToSpace(i));
+                resultSpaces.add(mapItemToSpace(i));
               }));
     } else {
       // if there are no filtering conditions we need to fetch all spaces, we can do that with type index + contentUpdated > 0
@@ -410,13 +410,13 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
               .withNameMap(Map.of("#type", "type"))
               .withValueMap(valueMap)
       ).pages().forEach(page -> page.forEach(i -> {
-        adminSpaces.add(mapItemToSpace(i));
+        resultSpaces.add(mapItemToSpace(i));
       }));
     }
 
     // Filter by region
     if(selectedCondition.region != null) {
-      adminSpaces.removeIf(space -> space.getRegion() == null || !space.getRegion().equals(selectedCondition.region));
+      resultSpaces.removeIf(space -> space.getRegion() == null || !space.getRegion().equals(selectedCondition.region));
     }
 
     // Filter by owner
@@ -424,19 +424,19 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       Predicate<Space> condition = selectedCondition.negateOwnerIds ?
               space -> selectedCondition.ownerIds.contains(space.getOwner()) :
               space -> !selectedCondition.ownerIds.contains(space.getOwner());
-      adminSpaces.removeIf(condition);
+      resultSpaces.removeIf(condition);
     }
 
     // Filter by prefix
     if (selectedCondition.prefix != null) {
-      adminSpaces.removeIf(space -> !space.getId().startsWith(selectedCondition.prefix));
+      resultSpaces.removeIf(space -> !space.getId().startsWith(selectedCondition.prefix));
     }
 
     // Filter by selected spaces
     if (!CollectionUtils.isNullOrEmpty(selectedCondition.spaceIds)) {
-      adminSpaces.removeIf(space -> !selectedCondition.spaceIds.contains(space.getId()));
+      resultSpaces.removeIf(space -> !selectedCondition.spaceIds.contains(space.getId()));
     }
-    return adminSpaces;
+    return resultSpaces;
   }
 
   private List<Space> getSpacesWithoutFullAccess(Marker marker, SpaceAuthorizationCondition authorizedCondition,
@@ -469,11 +469,15 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
 
   private Set<String> getAllSpaceIds(SpaceAuthorizationCondition authorizedCondition,
                                      SpaceSelectionCondition selectedCondition) {
-    var sharedSpaceIds = getSharedSpaceIds(selectedCondition);
-    var ownersSpaceIds = getOwnersSpaceIds(authorizedCondition);
-    var packageSpaceIds = getPackageSpaceIds(authorizedCondition);
+    var sharedSpaceIdsFuture = CompletableFuture.supplyAsync(() -> getSharedSpaceIds(selectedCondition));
+    var ownersSpaceIdsFuture = CompletableFuture.supplyAsync(() -> getOwnersSpaceIds(authorizedCondition));
+    var packageSpaceIdsFuture = CompletableFuture.supplyAsync(() -> getPackageSpaceIds(authorizedCondition));
 
-    return Stream.of(authorizedCondition.spaceIds, sharedSpaceIds, ownersSpaceIds, packageSpaceIds)
+    CompletableFuture<Void> allFutures = CompletableFuture.allOf(sharedSpaceIdsFuture, ownersSpaceIdsFuture, packageSpaceIdsFuture);
+    //wait until all the request are executed
+    allFutures.join();
+
+    return Stream.of(authorizedCondition.spaceIds, sharedSpaceIdsFuture.join(), ownersSpaceIdsFuture.join(), packageSpaceIdsFuture.join())
             .flatMap(Set::stream)
             .collect(Collectors.toSet());
   }
