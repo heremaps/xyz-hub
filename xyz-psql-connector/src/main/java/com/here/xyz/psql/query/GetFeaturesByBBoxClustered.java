@@ -282,7 +282,14 @@ public class GetFeaturesByBBoxClustered<E extends GetFeaturesByBBoxEvent, R exte
         boolean isTileRequest = (event instanceof GetFeaturesByTileEvent) && ((GetFeaturesByTileEvent) event).getMargin() == 0,
                 clippedOnBbox = (!isTileRequest && event.getClip());
 
-        final WebMercatorTile tile = getTileFromBbox(bbox);
+        final WebMercatorTile tile;
+
+        if( isTileRequest )
+        { GetFeaturesByTileEvent tevnt = (GetFeaturesByTileEvent) event;
+          tile = WebMercatorTile.forWeb(tevnt.getLevel(),tevnt.getX(),tevnt.getY());
+        }
+        else 
+         tile = getTileFromBbox(bbox);
 
         if( (absResolution - tile.level) >= 0 )  // case of valid absResolution convert it to a relative resolution and add both resolutions
          relResolution = Math.min( relResolution + (absResolution - tile.level), 5);
