@@ -348,7 +348,7 @@ final class PostgresStorage extends ClosableRootResource {
   }
 
   @SuppressWarnings("SqlSourceToSinkFlow")
-  synchronized void initStorage() {
+  synchronized void initStorage(@NotNull PsqlStorage.Params params) {
     assertNotClosed();
     String SQL;
     // Note: We need to open a "raw connection", so one, that is not initialized!
@@ -405,6 +405,12 @@ final class PostgresStorage extends ClosableRootResource {
             }
             if (logLevel.toLong() >= EPsqlLogLevel.VERBOSE.toLong()) {
               SQL = SQL.replaceAll("--VERBOSE ", " ");
+            }
+            if (params.pg_hint_plan()) {
+              SQL = SQL.replaceAll("--pg_hint_plan:", " ");
+            }
+            if (params.pg_stat_statements()) {
+              SQL = SQL.replaceAll("--pg_stat_statements:", " ");
             }
             SQL = SQL.replaceAll("\n--#", "\n");
             SQL = SQL.replaceAll("\nCREATE OR REPLACE FUNCTION nk__________.*;\n", "\n");

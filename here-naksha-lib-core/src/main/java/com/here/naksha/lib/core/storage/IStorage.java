@@ -26,6 +26,7 @@ import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -42,6 +43,16 @@ public interface IStorage extends AutoCloseable {
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   void initStorage();
+
+  /**
+   * Initializes the storage, create the transaction table, install needed scripts and extensions.
+   *
+   * @param params Special parameters that are storage dependent to influence how a storage is initialized.
+   */
+  @AvailableSince(NakshaVersion.v2_0_8)
+  default void initStorage(@Nullable Map<String, Object> params) {
+    initStorage();
+  }
 
   /**
    * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.

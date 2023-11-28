@@ -179,7 +179,8 @@ subprojects {
             removeUnusedImports()
             importOrder()
             formatAnnotations()
-            palantirJavaFormat()
+            // https://github.com/diffplug/spotless/issues/1774
+            palantirJavaFormat("2.35.0")
             indentWithTabs(4)
             indentWithSpaces(2)
         }

@@ -38,7 +38,9 @@ import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
@@ -145,6 +147,7 @@ public final class PsqlStorage implements IStorage, DataSource {
       return props;
     }
   }
+
   /**
    * A simple configuration object
    */
@@ -478,14 +481,94 @@ public final class PsqlStorage implements IStorage, DataSource {
   public void stopMaintainer() {}
 
   /**
+   * The Parameters map that is expected as parameter to {@link #initStorage(Map)}.
+   */
+  public static class Params extends HashMap<String, Object> {
+
+    /**
+     * Create empty default parameters.
+     */
+    public Params() {}
+
+    /**
+     * Create parameters from an arbitrary foreign map.
+     *
+     * @param otherMap The foreign map to import.
+     */
+    public Params(@Nullable Map<String, Object> otherMap) {
+      if (otherMap != null) {
+        this.putAll(otherMap);
+      }
+    }
+
+    /**
+     * Enable or disable {@code pg_hint_plan} extension installation.
+     *
+     * @param enable If {@code pg_hint_plan} should be enabled.
+     * @return this.
+     */
+    public @NotNull Params pg_hint_plan(boolean enable) {
+      put("pg_hint_plan", enable);
+      return this;
+    }
+
+    /**
+     * Tests whether the {@code pg_hint_plan} PostgresQL extension should be installed.
+     * @return {@code true} to install {@code pg_hint_plan}; {@code false} otherwise.
+     */
+    public boolean pg_hint_plan() {
+      Object raw = get("pg_hint_plan");
+      if (raw instanceof Boolean) {
+        return (Boolean) raw;
+      }
+      return true;
+    }
+
+    /**
+     * Enable or disable {@code pg_stat_statements} extension installation.
+     *
+     * @param enable If {@code pg_stat_statements} should be enabled.
+     * @return this.
+     */
+    public @NotNull Params pg_stat_statements(boolean enable) {
+      put("pg_stat_statements", enable);
+      return this;
+    }
+
+    /**
+     * Tests whether the {@code pg_stat_statements} PostgresQL extension should be installed.
+     * @return {@code true} to install {@code pg_stat_statements}; {@code false} otherwise.
+     */
+    public boolean pg_stat_statements() {
+      Object raw = get("pg_stat_statements");
+      if (raw instanceof Boolean) {
+        return (Boolean) raw;
+      }
+      return true;
+    }
+  }
+
+  @Override
+  public void initStorage() {
+    initStorage(null);
+  }
+
+  /**
    * Ensure that the administration tables exists, and the Naksha extension script installed in the latest version.
    *
+   * @param params Parameters special to PostgresQL.
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
   @Override
-  public void initStorage() {
-    storage().initStorage();
+  public void initStorage(@Nullable Map<String, Object> params) {
+    final Params p;
+    if (params instanceof Params) {
+      p = (Params) params;
+    } else {
+      p = new Params(params);
+    }
+    storage().initStorage(p);
   }
 
   /**
