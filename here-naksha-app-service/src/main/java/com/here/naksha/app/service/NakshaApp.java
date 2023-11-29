@@ -33,6 +33,7 @@ import com.here.naksha.lib.hub.NakshaHubFactory;
 import com.here.naksha.lib.hub.util.ConfigUtil;
 import com.here.naksha.lib.psql.PsqlInstanceConfig;
 import com.here.naksha.lib.psql.PsqlInstanceConfigBuilder;
+import com.here.naksha.lib.psql.PsqlStorage;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
@@ -132,8 +133,8 @@ public final class NakshaApp extends Thread {
         cfgId = args[0];
         url = args[1];
         if (!url.startsWith("jdbc:postgresql://")) {
-          throw new IllegalArgumentException(
-              "Missing or invalid argument <url>, must be a value like '" + DEFAULT_URL + "'");
+          throw new IllegalArgumentException("Missing or invalid argument <url>, must be a value like '"
+              + DEFAULT_URL + "', got '" + url + "' instead");
         }
         log.info("Starting with config `{}` and custom database URL...", cfgId);
       }
@@ -197,7 +198,12 @@ public final class NakshaApp extends Thread {
       log.warn("No external config available, will attempt using default. Error was [{}]", ex.getMessage());
     }
     // Instantiate NakshaHub instance
-    this.hub = NakshaHubFactory.getInstance(appName, adminDbConfig, config, configId);
+    this.hub = NakshaHubFactory.getInstance(
+        appName,
+        adminDbConfig,
+        config,
+        configId,
+        new PsqlStorage.Params().pg_hint_plan(false).pg_stat_statements(false));
     config = hub.getConfig(); // use the config finally set by NakshaHub instance
     log.info("Using server config : {}", config);
 

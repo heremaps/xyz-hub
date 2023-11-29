@@ -24,6 +24,7 @@ import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import java.util.Map;
 import java.util.concurrent.Future;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -31,7 +32,9 @@ import org.jetbrains.annotations.Nullable;
 
 public class NHAdminStorage implements IStorage {
 
-  /** Singleton instance of physical admin storage implementation */
+  /**
+   * Singleton instance of physical admin storage implementation
+   */
   protected final @NotNull IStorage psqlStorage;
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
@@ -70,6 +73,12 @@ public class NHAdminStorage implements IStorage {
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void initStorage() {
     this.psqlStorage.initStorage();
+  }
+
+  @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
+  public void initStorage(@Nullable Map<String, Object> params) {
+    this.psqlStorage.initStorage(params);
   }
 
   /**

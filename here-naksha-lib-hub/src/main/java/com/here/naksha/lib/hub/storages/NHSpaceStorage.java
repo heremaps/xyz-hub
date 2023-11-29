@@ -93,6 +93,12 @@ public class NHSpaceStorage implements IStorage {
     nakshaHub.getAdminStorage().initStorage();
   }
 
+  @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
+  public void initStorage(@Nullable Map<String, Object> params) {
+    nakshaHub.getAdminStorage().initStorage(params);
+  }
+
   /**
    * Starts the maintainer thread that will take about history garbage collection, sequencing and other background jobs.
    */

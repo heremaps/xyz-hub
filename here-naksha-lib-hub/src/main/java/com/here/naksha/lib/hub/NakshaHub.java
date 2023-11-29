@@ -85,13 +85,14 @@ public class NakshaHub implements INaksha {
       final @NotNull String appName,
       final @NotNull PsqlInstanceConfig config,
       final @Nullable NakshaHubConfig customCfg,
-      final @Nullable String configId) {
+      final @Nullable String configId,
+      final @Nullable PsqlStorage.Params storageParams) {
     // create storage instance upfront
     this.psqlStorage = new PsqlStorage("naksha-admin-db", appName, "TODO", config);
     this.adminStorageInstance = new NHAdminStorage(this.psqlStorage);
     this.spaceStorageInstance = new NHSpaceStorage(this, new NakshaEventPipelineFactory(this));
     // setup backend storage DB and Hub config
-    final NakshaHubConfig finalCfg = this.storageSetup(customCfg, configId);
+    final NakshaHubConfig finalCfg = this.storageSetup(customCfg, configId, storageParams);
     if (finalCfg == null) {
       throw new RuntimeException("Server configuration not found! Neither in Admin storage nor a default file.");
     }
@@ -99,7 +100,9 @@ public class NakshaHub implements INaksha {
   }
 
   private @Nullable NakshaHubConfig storageSetup(
-      final @Nullable NakshaHubConfig customCfg, final @Nullable String configId) {
+      final @Nullable NakshaHubConfig customCfg,
+      final @Nullable String configId,
+      final @Nullable PsqlStorage.Params storageParams) {
     /**
      * 1. Init Admin Storage
      * 2. Create all Admin collections
@@ -108,7 +111,11 @@ public class NakshaHub implements INaksha {
      */
 
     // 1. Init Admin Storage
-    getAdminStorage().initStorage();
+    if (storageParams == null) {
+      getAdminStorage().initStorage();
+    } else {
+      getAdminStorage().initStorage(storageParams);
+    }
 
     // 2. Create all Admin collections in Admin DB
     final NakshaContext nakshaContext = new NakshaContext().withAppId(NakshaHubConfig.defaultAppName());

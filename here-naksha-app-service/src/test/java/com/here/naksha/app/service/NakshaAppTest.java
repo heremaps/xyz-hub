@@ -18,8 +18,10 @@
  */
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.common.NakshaAppInitializer.mockedNakshaApp;
-import static com.here.naksha.app.common.TestUtil.*;
+import static com.here.naksha.app.common.NakshaAppInitializer.localPsqlBasedNakshaApp;
+import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
+import static com.here.naksha.app.common.TestUtil.getHeader;
+import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.naksha.app.common.NakshaTestWebClient;
@@ -28,7 +30,12 @@ import com.here.naksha.lib.psql.PsqlStorage;
 import java.net.URISyntaxException;
 import java.net.http.HttpResponse;
 import java.util.UUID;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 
@@ -46,7 +53,7 @@ class NakshaAppTest {
 
   @BeforeAll
   static void prepare() throws InterruptedException, URISyntaxException {
-    app = mockedNakshaApp(); // to test with local postgres use `NakshaAppInitializer::localPsqlBasedNakshaApp`
+    app = localPsqlBasedNakshaApp();
     config = app.getHub().getConfig();
     app.start();
     Thread.sleep(5000); // wait for server to come up

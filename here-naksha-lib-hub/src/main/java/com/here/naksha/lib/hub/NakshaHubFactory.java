@@ -22,6 +22,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.psql.PsqlInstanceConfig;
+import com.here.naksha.lib.psql.PsqlStorage;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import org.jetbrains.annotations.NotNull;
@@ -42,15 +43,20 @@ public class NakshaHubFactory {
       final @Nullable String appName,
       final @Nullable PsqlInstanceConfig instanceConfig,
       final @Nullable NakshaHubConfig config,
-      final @Nullable String configId) {
+      final @Nullable String configId,
+      final @Nullable PsqlStorage.Params storageParams) {
     final String hubClassName = (config != null) ? config.hubClassName : NakshaHubConfig.defaultHubClassName();
     INaksha hub = null;
     try {
       final Class<?> theClass = Class.forName(hubClassName);
       if (INaksha.class.isAssignableFrom(theClass)) {
         final Constructor<?> constructor = theClass.getConstructor(
-            String.class, PsqlInstanceConfig.class, NakshaHubConfig.class, String.class);
-        hub = (INaksha) constructor.newInstance(appName, instanceConfig, config, configId);
+            String.class,
+            PsqlInstanceConfig.class,
+            NakshaHubConfig.class,
+            String.class,
+            PsqlStorage.Params.class);
+        hub = (INaksha) constructor.newInstance(appName, instanceConfig, config, configId, storageParams);
       } else {
         throw unchecked(new Exception("Class '" + hubClassName + "' not INaksha compliant"));
       }
