@@ -84,6 +84,7 @@ public class XyzCodec<FEATURE extends XyzFeature, SELF extends XyzCodec<FEATURE,
       throw unchecked(e);
     } finally {
       feature.setGeometry(xyzGeometry);
+      isDecoded = true;
     }
     return self();
   }
@@ -103,6 +104,8 @@ public class XyzCodec<FEATURE extends XyzFeature, SELF extends XyzCodec<FEATURE,
       feature.setGeometry(JTSHelper.fromGeometry(getGeometry()));
     } catch (JsonProcessingException e) {
       throw unchecked(e);
+    } finally {
+      isEncoded = true;
     }
     return self();
   }
