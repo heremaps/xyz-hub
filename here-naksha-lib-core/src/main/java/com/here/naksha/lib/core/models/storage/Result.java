@@ -29,7 +29,7 @@ import org.jetbrains.annotations.Nullable;
 /**
  * All results must extend this abstract base class.
  */
-public abstract class Result implements Typed {
+public abstract class Result implements Typed, AutoCloseable {
 
   /**
    * Member variable that can be set to the cursor.
@@ -105,5 +105,20 @@ public abstract class Result implements Typed {
       return cursor.withCodecFactory(XyzCollectionCodecFactory.get(), false);
     }
     throw new NoCursor(this);
+  }
+
+  /**
+   * Closes the result, this includes closing the cursor. After having called this method, calling {@link #cursor(FeatureCodecFactory)}
+   * should always throw a {@link NoCursor} exception.
+   */
+  @Override
+  public void close() {
+    if (cursor != null) {
+      try {
+        cursor.close();
+      } finally {
+        cursor = null;
+      }
+    }
   }
 }

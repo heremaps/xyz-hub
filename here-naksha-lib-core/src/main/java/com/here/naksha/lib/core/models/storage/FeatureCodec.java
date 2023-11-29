@@ -155,7 +155,7 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    * @return this.
    */
   public @NotNull SELF clearFeature() {
-    isDecoded = false;
+    isEncoded = false;
     err = null;
     feature = null;
     return self();
