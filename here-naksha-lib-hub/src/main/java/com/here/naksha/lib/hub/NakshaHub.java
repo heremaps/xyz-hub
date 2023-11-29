@@ -55,6 +55,8 @@ import java.util.Objects;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class NakshaHub implements INaksha {
 
@@ -62,6 +64,9 @@ public class NakshaHub implements INaksha {
    * The id of default NakshaHub Config feature object
    */
   public static final @NotNull String DEF_CFG_ID = "default-config";
+
+  private static final @NotNull Logger logger = LoggerFactory.getLogger(NakshaHub.class);
+
   /**
    * The NakshaHub config.
    */
@@ -221,8 +226,8 @@ public class NakshaHub implements INaksha {
             return defDbCfg; // return default config from DB
           }
         } catch (NoCursor | NoSuchElementException er) {
-          throw unchecked(new Exception(
-              "Unable to read custom/default config from Admin DB - ResultCursor has no data"));
+          logger.info("Not found any db configuration in '" + NakshaAdminCollection.CONFIGS
+              + "' admin collection");
         }
       }
 
