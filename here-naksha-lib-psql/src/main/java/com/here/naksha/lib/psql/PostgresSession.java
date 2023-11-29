@@ -536,7 +536,7 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
           final String errNo = err_rs.getString(1);
           final String errMsg = err_rs.getString(2);
           if (errNo != null) {
-            return new PsqlError(XyzError.get(errNo), errMsg, cursor);
+            return new PsqlError(XyzErrorMapper.psqlCodeToXyzError(errNo), errMsg, cursor);
           }
         }
         return new PsqlSuccess(cursor);

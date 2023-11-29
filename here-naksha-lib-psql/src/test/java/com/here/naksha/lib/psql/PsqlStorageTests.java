@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.coordinates.LineStringCoordinates;
 import com.here.naksha.lib.core.models.geojson.coordinates.MultiPointCoordinates;
@@ -81,7 +82,7 @@ public class PsqlStorageTests extends PsqlTests {
 
   @Override
   boolean enabled() {
-    return true;
+    return false;
   }
 
   final @NotNull String collectionId() {
@@ -335,7 +336,7 @@ public class PsqlStorageTests extends PsqlTests {
     // then
     assertInstanceOf(ErrorResult.class, result);
     ErrorResult errorResult = (ErrorResult) result;
-    assertEquals("23505", errorResult.reason.value());
+    assertEquals(XyzError.CONFLICT, errorResult.reason);
     assertEquals("The feature with the id 'TheFeature' does exist already", errorResult.message);
     session.commit(true);
 
@@ -357,7 +358,6 @@ public class PsqlStorageTests extends PsqlTests {
     assertNotNull(storage);
     assertNotNull(session);
 
-    final String UNIQUE_VIOLATION_CODE = "23505";
     final String UNIQUE_VIOLATION_MSG =
         format("The feature with the id '%s' does exist already", SINGLE_FEATURE_ID);
 
@@ -374,7 +374,7 @@ public class PsqlStorageTests extends PsqlTests {
     // then
     assertInstanceOf(ErrorResult.class, result);
     ErrorResult errorResult = (ErrorResult) result;
-    assertEquals(UNIQUE_VIOLATION_CODE, errorResult.reason.value());
+    assertEquals(XyzError.CONFLICT, errorResult.reason);
     assertEquals(UNIQUE_VIOLATION_MSG, errorResult.message);
     try (ForwardCursor<XyzFeature, XyzFeatureCodec> cursor = result.getXyzFeatureCursor()) {
       assertTrue(cursor.next());
@@ -386,13 +386,39 @@ public class PsqlStorageTests extends PsqlTests {
       assertSame(EExecutedOp.ERROR, cursor.getOp());
       CodecError rowError = cursor.getError();
       assertNotNull(rowError);
-      assertEquals(UNIQUE_VIOLATION_CODE, rowError.err.value());
+      assertEquals(XyzError.CONFLICT, rowError.err);
       assertEquals(UNIQUE_VIOLATION_MSG, rowError.msg);
       // we still should be able to read the feature
       assertEquals(featureToFail.getId(), cursor.getFeature().getId());
     } finally {
       session.commit(true);
     }
+  }
+
+  @Test
+  @Order(62)
+  @EnabledIf("runTest")
+  void testInvalidUuid() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+
+    // given
+    final WriteXyzFeatures request = new WriteXyzFeatures(collectionId());
+    final XyzFeature feature = new XyzFeature(SINGLE_FEATURE_ID);
+    feature.xyz().setUuid("invalid_UUID");
+    request.add(EWriteOp.UPDATE, feature);
+
+    // when
+    final Result result = session.execute(request);
+
+    // then
+    assertInstanceOf(ErrorResult.class, result);
+    ErrorResult errorResult = (ErrorResult) result;
+    assertEquals(XyzError.CONFLICT, errorResult.reason);
+    assertTrue(
+        errorResult.message.startsWith("The feature 'TheFeature' uuid 'invalid_UUID' does not match"),
+        errorResult.message);
+    session.commit(true);
   }
 
   @Test

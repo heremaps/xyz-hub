@@ -245,3 +245,22 @@ The last step is a background job added into the `lib-naksha-psql` that will “
 The author and application identifier must be set by the client before starting any transaction via `SELECT naksha_tx_start('{app_id}', '{author}');`. Note that the **author** is optional and can be `null`, but the application identifier **must not** be `null` or an empty string. If the author is `null`, then the current author stays the author for all updates or deletes. New objects in this case, are set to the application identifier, so that the application gains authorship.
 
 In the context of [HERE](https://here.com), the **author** and **app_id** are set to the **UPM user-identifier** as received from the **Wikvaya** service, therefore coming from the **UPM** (*User Permission Management*). Technically the `lib-naksha-psql` will treats all these values just as strings and does not imply and meaning to them, so the service can be used for any other authentication system. However, in the context of [HERE](https://here.com) it is a requirement to use UPM-identifiers.
+
+## Psql Error Codes
+
+Operations executed on DB might fail with error. When multi-feature write operation was executed operation may fail partially, it means, that one or few features were not created/updated while rest of them succeeded. In such case response contains error details on two levels:
+- result level (single error details) - good to describe global errors like "session not initiated" or "collection/table not exists"
+- row/feature level (details of feature write error) - errors like "unique key violation" that don't affect other features processing
+
+Psql Error Codes are specific to `lib-naksha-psql` library and should be mapped to domain errors as follows: 
+
+| PSQL Code | XyzError             | Example                                             |
+|-----------|----------------------|-----------------------------------------------------|
+| N0000     | EXCEPTION            | Uninitialized session before write operation        |
+| N0001     | CONFLICT             | Requested collection (CREATE) already exists        |
+| N0002     | COLLECTION_NOT_FOUND | Requested collection doesn't exist                  |
+| 23514     | EXCEPTION            | Violation check, i.e. invalid schema                |
+| 22023     | ILLEGAL_ARGUMENT     | null `geometry_arr` provided                        |
+| 23505     | CONFLICT             | Requested feature CREATE but feature already exists |
+| 02000     | NOT_FOUND            | Requested feature UPDATE but feature doesn't exist  |
+| ?ANY?     | ?ANY?                | Any other code will map to XyzError with that code  |

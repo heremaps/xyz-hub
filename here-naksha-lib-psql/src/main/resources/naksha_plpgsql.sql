@@ -1425,7 +1425,7 @@ BEGIN
         IF e_uuid IS NULL THEN
           r_err = nk_err_no_data(format('Operation failed, no feature with the id %L exists', id));
         ELSE
-          r_err = nk_err_check_violation(format('Operation failed, feature %L in invalid state, expected %L, but found %L', id, uuid, e_uuid));
+          r_err = nk_err_unique_violation(format('The feature %L uuid %L does not match: %L', id, uuid, e_uuid));
         END IF;
       END IF;
     END IF;

@@ -24,7 +24,6 @@ import static com.here.naksha.lib.core.util.StringCache.string;
 import com.here.naksha.lib.core.util.json.Json;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.io.ParseException;
-import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -342,13 +341,6 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    */
   public void setRawError(@Nullable String json) {
     this.errorJson = json;
-    if (json != null) {
-      try (final Json jp = Json.get()) {
-        this.err = jp.reader().readValue(errorJson, CodecError.class);
-      } catch (IOException e) {
-        throw unchecked(e);
-      }
-    }
   }
 
   /**
@@ -497,5 +489,14 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
    */
   public @Nullable CodecError getError() {
     return err;
+  }
+
+  /**
+   * Sets decoded PSQL error to naksha friendly error.
+   *
+   * @param err
+   */
+  public void setErr(@Nullable CodecError err) {
+    this.err = err;
   }
 }
