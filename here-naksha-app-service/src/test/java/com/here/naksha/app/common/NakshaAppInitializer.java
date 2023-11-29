@@ -40,7 +40,7 @@ public class NakshaAppInitializer {
     if (password == null || password.isBlank()) {
       password = "password";
     }
-    if (dbUrl == null | dbUrl.isBlank()) {
+    if (dbUrl == null || dbUrl.isBlank()) {
       dbUrl = "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
           + "&schema=naksha_test_maint_app";
     }
