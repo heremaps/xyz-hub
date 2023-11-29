@@ -88,7 +88,8 @@ public class NakshaHub implements INaksha {
       final @Nullable String configId,
       final @Nullable PsqlStorage.Params storageParams) {
     // create storage instance upfront
-    this.psqlStorage = new PsqlStorage("naksha-admin-db", appName, "TODO", config);
+    this.psqlStorage =
+        new PsqlStorage("naksha-admin-db", appName, "local_test_" + System.currentTimeMillis(), config);
     this.adminStorageInstance = new NHAdminStorage(this.psqlStorage);
     this.spaceStorageInstance = new NHSpaceStorage(this, new NakshaEventPipelineFactory(this));
     // setup backend storage DB and Hub config
