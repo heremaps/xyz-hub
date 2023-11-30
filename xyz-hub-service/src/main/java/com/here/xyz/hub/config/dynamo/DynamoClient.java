@@ -61,6 +61,7 @@ public class DynamoClient {
   private static final Long READ_CAPACITY_UNITS = 5L;
   private static final Long WRITE_CAPACITY_UNITS = 5L;
   private static final String INDEX_SUFFIX = "-index";
+  private static final String HYPHEN = "-";
 
 
   public static final WorkerExecutor dynamoWorkers = Service.vertx.createSharedWorkerExecutor(DynamoClient.class.getName(), 8);
@@ -173,8 +174,12 @@ public class DynamoClient {
     if(indexDefinition.getRangeKey() != null) {
       keySchema.add(new KeySchemaElement(indexDefinition.getRangeKey(), KeyType.RANGE));
     }
+    String indexName = indexDefinition.getRangeKey() != null ?
+            indexDefinition.getHashKey().concat(HYPHEN).concat(indexDefinition.getRangeKey()).concat(INDEX_SUFFIX) :
+            indexDefinition.getHashKey().concat(INDEX_SUFFIX);
+
     return new GlobalSecondaryIndex()
-            .withIndexName(indexDefinition.getHashKey().concat(INDEX_SUFFIX))
+            .withIndexName(indexName)
             .withKeySchema(keySchema)
             .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
             .withProvisionedThroughput(new ProvisionedThroughput(READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS));
