@@ -104,6 +104,7 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
 
   @Override
   protected void destruct() {
+    log.info("Destruct called");
     try {
       pgConnection.rollback();
     } catch (SQLException e) {

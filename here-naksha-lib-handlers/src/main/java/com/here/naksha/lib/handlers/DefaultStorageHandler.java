@@ -83,19 +83,24 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       logger.error("No storageId configured");
       return new ErrorResult(XyzError.NOT_FOUND, "No storageId configured for handler.");
     }
+    logger.info("Adding storage id ('{}') to stream", storageId); // TODO: delete me
     addStorageIdToStreamInfo(storageId, ctx);
 
     // Obtain IStorage implementation using NakshaHub
+    logger.info("Fetching storage impl by id ('{}')", storageId); // TODO: delete me
     final IStorage storageImpl = nakshaHub().getStorageById(storageId);
 
     // Find collectionId from EventHandler, from Space, whichever is available first
+    logger.info("Fetched storage impl by id ('{}')", storageId); // TODO: delete me
     String customCollectionId = null;
     if (properties.getStorageCollection() != null) {
       customCollectionId = properties.getStorageCollection().getId();
       logger.info("Using collectionId {} associated with EventHandler", customCollectionId);
     }
     if (customCollectionId == null && eventTarget instanceof Space s) {
+      logger.info("Custom collection is null, getting space props"); // TODO: delete me
       final SpaceProperties spaceProperties = JsonSerializable.convert(s.getProperties(), SpaceProperties.class);
+      logger.info("Fetched space props"); // TODO: delete me
       if (spaceProperties.getStorageCollection() != null) {
         customCollectionId = spaceProperties.getStorageCollection().getId();
         logger.info("Using collectionId {} associated with Space", customCollectionId);

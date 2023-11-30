@@ -1,5 +1,5 @@
 {
   "type": "ErrorResponse",
   "error": "NotFound",
-  "errorMessage": "No feature found for id non-existent-space"
+  "errorMessage": "Operation failed, no feature with the id 'non-existent-space' exists"
 }

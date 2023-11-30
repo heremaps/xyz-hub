@@ -199,6 +199,7 @@ public class NHSpaceStorageReader implements IReadSession {
   }
 
   private @NotNull Result executeReadFeatures(final @NotNull ReadFeatures rf) {
+    logger.info("Executing read features from space {}", rf.getCollections().get(0));
     if (rf.getCollections().size() > 1) {
       throw new UnsupportedOperationException("Reading from multiple spaces not supported!");
     }
@@ -214,16 +215,21 @@ public class NHSpaceStorageReader implements IReadSession {
   }
 
   private @NotNull Result executeReadFeaturesFromAdminSpaces(final @NotNull ReadFeatures rf) {
+    logger.info("executing read features for admin space, getting event pipeline");
     // Run pipeline against virtual space
     final EventPipeline pipeline = pipelineFactory.eventPipeline();
     // add internal Admin resource specific event handlers
     for (final IEventHandler handler : virtualSpaces.get(rf.getCollections().get(0))) {
+      logger.info(
+          "adding handler {}, to event pipeline", handler.getClass().getSimpleName());
       pipeline.addEventHandler(handler);
     }
+    logger.info("sending event {} to pipeline", rf);
     return pipeline.sendEvent(rf);
   }
 
   private @NotNull Result executeReadFeaturesFromCustomSpaces(final @NotNull ReadFeatures rf) {
+    logger.info("Executing read from custom space {}", rf.getCollections().get(0));
     if (rf.getCollections().size() > 1) {
       return new ErrorResult(
           XyzError.NOT_IMPLEMENTED, "ReadFeatures from multiple collections not supported at present!");
@@ -241,9 +247,12 @@ public class NHSpaceStorageReader implements IReadSession {
     Space space = null;
     List<EventHandler> eventHandlers = null;
 
+    logger.info("setting up event pipeline for space: {}", spaceId);
     try (final IReadSession reader = nakshaHub.getAdminStorage().newReadSession(context, false)) {
+      logger.info("got read session for admin storage, fetching space: {}", spaceId);
       // Get Space details using Admin Storage
       Result result = reader.execute(readFeaturesByIdRequest(NakshaAdminCollection.SPACES, spaceId));
+      logger.info("got space {} from admin storage", spaceId);
       if (result instanceof ErrorResult er) {
         return er;
       } else {

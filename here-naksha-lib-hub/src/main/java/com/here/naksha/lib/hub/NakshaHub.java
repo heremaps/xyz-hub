@@ -278,14 +278,18 @@ public class NakshaHub implements INaksha {
   @Override
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public @NotNull IStorage getStorageById(final @NotNull String storageId) {
+    logger.info("getting storage by id: {}", storageId);
     try (final IReadSession reader = getAdminStorage().newReadSession(NakshaContext.currentContext(), false)) {
+      logger.info("got reader for admin storage");
       final Result result = reader.execute(readFeaturesByIdRequest(NakshaAdminCollection.STORAGES, storageId));
+      logger.info("got result from reader");
       if (result instanceof ErrorResult er) {
         throw unchecked(new Exception(
             "Exception fetching storage details for id " + storageId + ". " + er.message, er.exception));
       }
       final Storage storage = Objects.requireNonNull(
           readFeatureFromResult(result, Storage.class), "No storage found with id: " + storageId);
+      logger.info("got storage from result, about to instantiate");
       return storageInstance(storage);
     }
   }

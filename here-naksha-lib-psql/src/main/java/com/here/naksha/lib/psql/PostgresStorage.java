@@ -475,10 +475,12 @@ final class PostgresStorage extends ClosableRootResource {
 
   @NotNull
   PsqlReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {
+    log.info("new read session requested"); // TODO: delete me
     if (context == null) {
       context = NakshaContext.currentContext();
     }
     try {
+      log.info("returning new read session");
       return new PsqlReadSession(this, context, getConnection(useMaster, true, true, context));
     } catch (Exception e) {
       throw unchecked(e);
