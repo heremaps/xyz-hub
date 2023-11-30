@@ -378,7 +378,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
       String operator = SQLQuery.getOperation(propsQuery.get(0).get(0).getOperation());
 
-      spaces.getIndex("type-index").query(new QuerySpec()
+      spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
               .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " + operator + " :contentUpdatedAtValue")
               .withNameMap(Map.of("#type", "type"))
               .withValueMap(valueMap)
@@ -405,7 +405,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       valueMap.put(":typeValue", "SPACE");
       valueMap.put(":contentUpdatedAtValue", 0L);
 
-      spaces.getIndex("type-index").query(new QuerySpec()
+      spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
               .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt > :contentUpdatedAtValue")
               .withNameMap(Map.of("#type", "type"))
               .withValueMap(valueMap)
@@ -565,7 +565,7 @@ public class DynamoSpaceConfigClient extends SpaceConfigClient {
       valueMap.put(":contentUpdatedAtValue", contentUpdatedAt);
       String operator = SQLQuery.getOperation(propsQuery.get(0).get(0).getOperation());
       var contentUpdatedAtSpaceIds = new HashSet<String>();
-      spaces.getIndex("type-index").query(new QuerySpec()
+      spaces.getIndex("type-contentUpdatedAt-index").query(new QuerySpec()
                       .withKeyConditionExpression("#type = :typeValue and contentUpdatedAt " +  operator + " :contentUpdatedAtValue")
                       .withNameMap(Map.of("#type", "type"))
                       .withValueMap(valueMap)
