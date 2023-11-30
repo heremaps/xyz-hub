@@ -55,8 +55,11 @@ public class GetIndexList extends QueryRunner<String, List<String>> {
   @Override
   protected SQLQuery buildQuery(String tableName) throws SQLException, ErrorResponseException {
     return new SQLQuery("SELECT idx_available FROM " + ModifySpace.IDX_STATUS_TABLE_FQN
-        + " WHERE spaceid = #{table} AND count >= #{threshold}")
+        + " WHERE spaceid = #{table} "
+        + "  AND (select coalesce( (count->'value')::bigint, 0 ) from xyz_statistic_space(#{schema},#{table}, false)) >= #{threshold} "
+        )
         .withNamedParameter(TABLE, tableName)
+        .withNamedParameter(SCHEMA, getSchema())
         .withNamedParameter("threshold", BIG_SPACE_THRESHOLD);
   }
 
