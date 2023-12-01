@@ -342,9 +342,10 @@ public class PsqlStorageTests extends PsqlTests {
       // - Eventually we did an update (4), which again created a history entry (3)
       assertEquals("4", uuidFields[GUID_ID]);
       // Note: We know that if the schema was dropped, the transaction number is reset to 0.
-      // - We did only create a feature (0)
-      // - We updated it using upsert (1)
-      // - Eventually we updated it (3)
+      // - Create the collection in parent PsqlTest (0) <- commit
+      // - Create the single feature (1) <- commit
+      // - Upsert the single feature (2) <- commit
+      // - Update the single feature (3) <- commit
       if (dropInitially()) {
         final String txnFromUuid =
             uuidFields[GUID_YEAR] + uuidFields[GUID_MONTH] + uuidFields[GUID_DAY] + "00000000003";
