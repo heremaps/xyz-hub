@@ -39,7 +39,7 @@ public abstract class Op<SELF extends Op<SELF>> {
   @SuppressWarnings({"ManualArrayToCollectionCopy", "UseBulkOperation"})
   Op(@NotNull OpType op, @NotNull SELF... children) {
     this.op = op;
-    if (children != null && children.length > 0) {
+    if (children != null) {
       this.children = new ArrayList<>(children.length);
       for (final SELF child : children) {
         this.children.add(child);
