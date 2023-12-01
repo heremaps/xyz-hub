@@ -20,6 +20,7 @@ package com.here.naksha.lib.psql;
 
 import static com.spatial4j.core.io.GeohashUtils.encodeLatLon;
 import static java.lang.String.format;
+import static java.util.Arrays.asList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -82,7 +83,7 @@ public class PsqlStorageTests extends PsqlTests {
 
   @Override
   boolean enabled() {
-    return false;
+    return true;
   }
 
   final @NotNull String collectionId() {
@@ -95,6 +96,8 @@ public class PsqlStorageTests extends PsqlTests {
   }
 
   static final String SINGLE_FEATURE_ID = "TheFeature";
+  static final String SINGLE_FEATURE_INITIAL_TAG = "@:foo:world";
+  static final String SINGLE_FEATURE_REPLACEMENT_TAG = "@:foo:bar";
 
   @Test
   @Order(50)
@@ -105,6 +108,7 @@ public class PsqlStorageTests extends PsqlTests {
     final WriteXyzFeatures request = new WriteXyzFeatures(collectionId());
     final XyzFeature feature = new XyzFeature(SINGLE_FEATURE_ID);
     feature.setGeometry(new XyzPoint(5.0d, 6.0d, 2.0d));
+    feature.xyz().addTag(SINGLE_FEATURE_INITIAL_TAG, false);
     request.add(EWriteOp.CREATE, feature);
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
         session.execute(request).getXyzFeatureCursor()) {
@@ -126,6 +130,7 @@ public class PsqlStorageTests extends PsqlTests {
       assertEquals(SINGLE_FEATURE_ID, f.getId());
       assertEquals(uuid, f.xyz().getUuid());
       assertSame(EXyzAction.CREATE, f.xyz().getAction());
+      assertEquals(List.of(SINGLE_FEATURE_INITIAL_TAG), f.xyz().getTags());
       assertFalse(cursor.hasNext());
     } finally {
       session.commit(true);
@@ -179,6 +184,8 @@ public class PsqlStorageTests extends PsqlTests {
 
       assertEquals(encodeLatLon(coordinate.y, coordinate.x, 7), xyz.get("grid"));
 
+      assertEquals(List.of(SINGLE_FEATURE_INITIAL_TAG), xyz.getTags());
+
       assertFalse(cursor.hasNext());
     }
   }
@@ -205,6 +212,40 @@ public class PsqlStorageTests extends PsqlTests {
   }
 
   @Test
+  @Order(54)
+  @EnabledIf("runTest")
+  void singleFeatureUpsert() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    // given
+    final NakshaFeature featureToUpdate = new NakshaFeature(SINGLE_FEATURE_ID);
+    final XyzPoint xyzGeometry = new XyzPoint(5.0d, 6.0d, 2.0d);
+    featureToUpdate.setGeometry(xyzGeometry);
+    featureToUpdate.xyz().addTag(SINGLE_FEATURE_INITIAL_TAG, false);
+    featureToUpdate.xyz().addTag(SINGLE_FEATURE_REPLACEMENT_TAG, false);
+
+    final WriteXyzFeatures request = new WriteXyzFeatures(collectionId());
+    request.add(EWriteOp.PUT, featureToUpdate);
+    // when
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+        session.execute(request).getXyzFeatureCursor()) {
+      cursor.next();
+
+      // then
+      final XyzFeature feature = cursor.getFeature();
+      assertSame(EExecutedOp.UPDATED, cursor.getOp());
+      assertEquals(SINGLE_FEATURE_ID, cursor.getId());
+      final Geometry coordinate = cursor.getGeometry();
+      assertEquals(xyzGeometry.convertToJTSGeometry(), coordinate);
+      assertEquals(
+          asList(SINGLE_FEATURE_INITIAL_TAG, SINGLE_FEATURE_REPLACEMENT_TAG),
+          feature.xyz().getTags());
+    } finally {
+      session.commit(true);
+    }
+  }
+
+  @Test
   @Order(55)
   @EnabledIf("runTest")
   void singleFeatureUpdate() throws NoCursor {
@@ -225,6 +266,8 @@ public class PsqlStorageTests extends PsqlTests {
     multiPoint.withCoordinates(multiPointCoordinates);
 
     featureToUpdate.setGeometry(multiPoint);
+    // This tag should replace the previous one!
+    featureToUpdate.xyz().addTag(SINGLE_FEATURE_REPLACEMENT_TAG, false);
     // new property added
     featureToUpdate.setTitle("Bank");
     final WriteXyzFeatures request = new WriteXyzFeatures(collectionId());
@@ -241,11 +284,20 @@ public class PsqlStorageTests extends PsqlTests {
       //      assertNotNull(cursor.getPropertiesType());
       final Geometry coordinate = cursor.getGeometry();
       assertEquals(multiPoint.convertToJTSGeometry(), coordinate);
-      assertEquals("Bank", feature.get("title").toString());
+      final String title = assertInstanceOf(String.class, feature.get("title"));
+      assertEquals("Bank", title);
+      assertEquals(List.of(SINGLE_FEATURE_REPLACEMENT_TAG), feature.xyz().getTags());
     } finally {
       session.commit(true);
     }
   }
+
+  private static final int GUID_STORAGE_ID = 0;
+  private static final int GUID_COLLECTION_ID = 1;
+  private static final int GUID_YEAR = 2;
+  private static final int GUID_MONTH = 3;
+  private static final int GUID_DAY = 4;
+  private static final int GUID_ID = 5;
 
   @Test
   @Order(56)
@@ -268,7 +320,7 @@ public class PsqlStorageTests extends PsqlTests {
 
       // then
       assertEquals(SINGLE_FEATURE_ID, feature.getId());
-      assertEquals(2, xyz.getVersion());
+      assertEquals(3, xyz.getVersion());
       assertSame(EXyzAction.UPDATE, xyz.getAction());
       final XyzGeometry geometry = feature.getGeometry();
       assertNotNull(geometry);
@@ -279,15 +331,25 @@ public class PsqlStorageTests extends PsqlTests {
       assertEquals(cursor.getUuid(), xyz.uuid);
       final String[] uuidFields = uuid.split(":");
 
-      assertEquals(storage.getStorageId(), uuidFields[0]);
-      assertEquals(collectionId(), uuidFields[1]);
-      assertEquals(4, uuidFields[2].length()); // year (4- digits)
-      assertEquals(2, uuidFields[3].length()); // hour (2- digits)
-      assertEquals(2, uuidFields[4].length()); // minute (2- digits)
-      // should have next seq id, which is 2:
-      assertEquals("2", uuidFields[5]); // seq id
-      final String txnFromUuid = uuidFields[2] + uuidFields[3] + uuidFields[4] + "0000000000" + uuidFields[5];
-      assertEquals(txnFromUuid, xyz.getTxn().toString()); // seq id
+      assertEquals(storage.getStorageId(), uuidFields[GUID_STORAGE_ID]);
+      assertEquals(collectionId(), uuidFields[GUID_COLLECTION_ID]);
+      assertEquals(4, uuidFields[GUID_YEAR].length()); // year (4- digits)
+      assertEquals(2, uuidFields[GUID_MONTH].length()); // hour (2- digits)
+      assertEquals(2, uuidFields[GUID_DAY].length()); // minute (2- digits)
+      // Note: We know that the "id" is actually the sequence number of the storage (so "i").
+      // - We created a feature (0)
+      // - We updated via upsert (2), this created a history entry (1)
+      // - Eventually we did an update (4), which again created a history entry (3)
+      assertEquals("4", uuidFields[GUID_ID]);
+      // Note: We know that if the schema was dropped, the transaction number is reset to 0.
+      // - We did only create a feature (0)
+      // - We updated it using upsert (1)
+      // - Eventually we updated it (3)
+      if (dropInitially()) {
+        final String txnFromUuid =
+            uuidFields[GUID_YEAR] + uuidFields[GUID_MONTH] + uuidFields[GUID_DAY] + "00000000003";
+        assertEquals(txnFromUuid, xyz.getTxn()); // seq id
+      }
       assertEquals(TEST_APP_ID, xyz.getAppId());
       assertEquals(TEST_AUTHOR, xyz.getAuthor());
 
