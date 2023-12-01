@@ -88,6 +88,19 @@ public class XyzProperties extends JsonObject {
     this.xyzNamespace = xyzNamespace;
   }
 
+  /**
+   * Returns the XYZ namespace, guaranteed to be always present. If parsing a feature without such
+   * property, an empty one will be created.
+   *
+   * @return The namespace.
+   */
+  public @NotNull XyzNamespace useXyzNamespace() {
+    if (xyzNamespace == null) {
+      return xyzNamespace = new XyzNamespace();
+    }
+    return xyzNamespace;
+  }
+
   @JsonProperty(XYZ_ACTIVITY_LOG_NS)
   @JsonInclude(Include.NON_NULL)
   private @Nullable XyzActivityLog xyzActivityLog;
