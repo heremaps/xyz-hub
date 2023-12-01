@@ -41,6 +41,7 @@ import com.here.xyz.httpconnector.util.jobs.Import;
 import com.here.xyz.httpconnector.util.jobs.Job;
 import com.here.xyz.httpconnector.util.jobs.Job.Status;
 import com.here.xyz.hub.config.dynamo.DynamoClient;
+import com.here.xyz.hub.config.dynamo.IndexDefinition;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.json.DecodeException;
@@ -81,7 +82,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
             logger.info("DynamoDB running locally, initializing tables.");
 
             try {
-                dynamoClient.createTable(jobs.getTableName(), "id:S,type:S,status:S", "id", "type,status", "exp");
+                List<IndexDefinition> indexes = List.of(new IndexDefinition("type"), new IndexDefinition("status"));
+                dynamoClient.createTable(jobs.getTableName(), "id:S,type:S,status:S", "id", indexes, "exp");
             }
             catch (Exception e) {
                 logger.error("Failure during creating tables on DynamoSpaceConfigClient init", e);
