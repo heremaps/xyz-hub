@@ -58,8 +58,9 @@ import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.emr.EMRManager;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
 import com.here.xyz.httpconnector.util.jobs.datasets.Files;
+import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
+import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
@@ -198,7 +199,7 @@ public class Export extends JDBCBasedJob<Export> {
                 Map ext = readParamExtends();
 
                 if (readPersistExport())
-                    setExp(-1l);
+                    setKeepUntil(-1);
 
                 if (ext != null) {
                     boolean superIsReadOnly = ext.get("readOnly") != null ? (boolean) ext.get("readOnly") : false;
@@ -228,8 +229,9 @@ public class Export extends JDBCBasedJob<Export> {
                 if (readParamCompositeMode() == FULL_OPTIMIZED && exportTarget.type.equals(DOWNLOAD)) {
                     //Override Target-Format to PARTITIONED_JSON_WKB
                     csvFormat = PARTITIONED_JSON_WKB;
-                    if (getTarget() instanceof FileBasedTarget<?> fbt)
-                        fbt.getOutputSettings().setFormat(PARTITIONED_JSON_WKB);
+                    //if (getTarget() instanceof FileBasedTarget<?> fbt)
+                    //    fbt.getOutputSettings().setFormat(PARTITIONED_JSON_WKB);
+                    //TODO: Also set the new format & partitioning if type is Files
                     if (targetLevel == null)
                         targetLevel = 12;
                 }
@@ -513,7 +515,13 @@ public class Export extends JDBCBasedJob<Export> {
         //Keep BWC
         if (target instanceof Files files) {
             setExportTarget(new ExportTarget().withType(DOWNLOAD));
-            setCsvFormat(files.getOutputSettings().getFormat());
+            //setCsvFormat(files.getOutputSettings().getFormat());
+            if (getCsvFormat() == null) {
+                if (files.getOutputSettings().getFormat() instanceof GeoJson)
+                    setCsvFormat(GEOJSON);
+                else if (files.getOutputSettings().getFormat() instanceof Csv csv)
+                    setCsvFormat(csv.toBWCFormat());
+            }
             setTargetLevel(files.getOutputSettings().getTileLevel());
             setClipped(files.getOutputSettings().isClipped());
             setMaxTilesPerFile(files.getOutputSettings().getMaxTilesPerFile());
@@ -790,7 +798,7 @@ public class Export extends JDBCBasedJob<Export> {
         private int radius;
 
         @JsonView({Public.class})
-        private boolean clipped;
+        private boolean clip;
 
         public Geometry getGeometry() {
             return geometry;
@@ -818,15 +826,39 @@ public class Export extends JDBCBasedJob<Export> {
             return this;
         }
 
+        /**
+         * @deprecated Use {@link #isClip()} instead.
+         */
+        @Deprecated
         public boolean isClipped() {
-            return clipped;
+            return isClip();
         }
 
+        /**
+         * @deprecated Use {@link #setClip(boolean)} instead.
+         */
+        @Deprecated
         public void setClipped(boolean clipped) {
-            this.clipped = clipped;
+            setClip(clipped);
         }
 
+        /**
+         * @deprecated Use {@link #withClip(boolean)} instead.
+         */
+        @Deprecated
         public SpatialFilter withClipped(final boolean clipped) {
+            return withClip(clipped);
+        }
+
+        public boolean isClip() {
+            return clip;
+        }
+
+        public void setClip(boolean clipped) {
+            this.clip = clipped;
+        }
+
+        public SpatialFilter withClip(final boolean clipped) {
             setClipped(clipped);
             return this;
         }
@@ -838,6 +870,9 @@ public class Export extends JDBCBasedJob<Export> {
 
         @JsonView({Public.class})
         private SpatialFilter spatialFilter;
+
+        @JsonView({Public.class, Static.class})
+        private SpaceContext context = DEFAULT;
 
         public String getPropertyFilter() {
             return propertyFilter;
@@ -862,6 +897,19 @@ public class Export extends JDBCBasedJob<Export> {
 
         public Filters withSpatialFilter(SpatialFilter spatialFilter) {
             setSpatialFilter(spatialFilter);
+            return this;
+        }
+
+        public SpaceContext getContext() {
+            return context;
+        }
+
+        public void setContext(SpaceContext context) {
+            this.context = context;
+        }
+
+        public Filters withContext(SpaceContext context) {
+            setContext(context);
             return this;
         }
     }
@@ -906,7 +954,7 @@ public class Export extends JDBCBasedJob<Export> {
                         //exp=-1 => persistent
                         //hash must fit
                         logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                        if((jobCandidate.getExp() != null && jobCandidate.getExp() == -1) && ((Export)jobCandidate).getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))){
+                        if (jobCandidate.getKeepUntil() < 0 && ((Export) jobCandidate).getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))){
                             //try to find a finalized one - doesn't matter if its the origin export
                             if(jobCandidate.getStatus().equals(finalized) || jobCandidate.getStatus().equals(trigger_executed)) {
                                 logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());

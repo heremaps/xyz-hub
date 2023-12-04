@@ -18,20 +18,6 @@
  */
 package com.here.xyz.hub.rest.jobs;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.here.xyz.httpconnector.util.jobs.Export;
-import com.here.xyz.httpconnector.util.jobs.Job;
-import com.here.xyz.hub.rest.TestSpaceWithFeature;
-import com.here.xyz.hub.rest.TestWithSpaceCleanup;
-import io.restassured.response.Response;
-import io.vertx.core.json.jackson.DatabindCodec;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import java.net.URL;
-import java.util.List;
-
 import static com.here.xyz.httpconnector.util.jobs.Export.ExportTarget.Type.DOWNLOAD;
 import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
 import static com.here.xyz.httpconnector.util.jobs.Job.Status.failed;
@@ -40,6 +26,19 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.APPLICATION_JSON;
 import static io.restassured.RestAssured.given;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.httpconnector.util.jobs.Export;
+import com.here.xyz.httpconnector.util.jobs.Job;
+import com.here.xyz.hub.rest.TestSpaceWithFeature;
+import com.here.xyz.hub.rest.TestWithSpaceCleanup;
+import io.restassured.response.Response;
+import io.vertx.core.json.jackson.DatabindCodec;
+import java.net.URL;
+import java.util.List;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 public class ReadOnlyPersistExportIT extends JobApiIT {
     protected String testExportJobId = "x-test-persistent-export-job";
@@ -96,6 +95,6 @@ public class ReadOnlyPersistExportIT extends JobApiIT {
         Job export = DatabindCodec.mapper().readValue(resp.getBody().asString(), new TypeReference<Export>() {});
 
         /** set to -1 if export should get persisted (readOnly) */
-        assertEquals(Long.valueOf(-1) , export.getExp());
+        assertEquals(-1 , export.getKeepUntil());
     }
 }
