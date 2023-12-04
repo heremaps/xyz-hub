@@ -694,7 +694,6 @@ public class XyzNamespace extends JsonObject {
     return EXyzAction.DELETE.equals(getAction());
   }
 
-
   /**
    * Returns the change-version of this feature. The first (initial) state is always {@link EXyzAction#CREATE} and always has the version
    * {@code 1}.

@@ -137,13 +137,11 @@ public class FeatureModificationEntry<FEATURE extends XyzFeature> {
     {
       put(XyzNamespace.UUID, true);
       put(XyzNamespace.PUUID, true);
-      put(XyzNamespace.MUUID, true);
       put(XyzNamespace.CREATED_AT, true);
       put(XyzNamespace.UPDATED_AT, true);
       put(XyzNamespace.RT_UTS, true);
-      put(XyzNamespace.SPACE, true);
-      put(XyzNamespace.COLLECTION, true);
       put(XyzNamespace.TXN, true);
+      put(XyzNamespace.TXN_NEXT, true);
       put(XyzNamespace.ACTION, true);
       put(XyzNamespace.VERSION, true);
     }
