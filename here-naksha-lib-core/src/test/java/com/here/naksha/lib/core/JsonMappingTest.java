@@ -56,10 +56,11 @@ public class JsonMappingTest {
       assertNotNull(obj);
 
       obj.getProperties().put("y", 7);
+      //noinspection DataFlowIssue
+      obj.getProperties().setXyzNamespace(null);
       String result = obj.serialize();
 
-      final String expected =
-          "{\"type\":\"Feature\",\"id\":\"xyz123\",\"properties\":{\"@ns:com:here:xyz\":{},\"x\":5,\"y\":7}}";
+      final String expected = "{\"type\":\"Feature\",\"id\":\"xyz123\",\"properties\":{\"x\":5,\"y\":7}}";
       assertTrue(jsonCompare(expected, result));
     }
   }

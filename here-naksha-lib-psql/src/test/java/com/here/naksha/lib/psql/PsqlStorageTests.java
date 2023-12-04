@@ -167,7 +167,7 @@ public class PsqlStorageTests extends PsqlTests {
       assertEquals(2.0d, coordinate.getOrdinate(2));
 
       final String uuid = cursor.getUuid();
-      assertEquals(cursor.getUuid(), xyz.uuid);
+      assertEquals(cursor.getUuid(), xyz.getUuid());
       final String[] uuidFields = uuid.split(":");
       assertEquals(storage.getStorageId(), uuidFields[0]);
       assertEquals(collectionId(), uuidFields[1]);
@@ -176,10 +176,10 @@ public class PsqlStorageTests extends PsqlTests {
       assertEquals(2, uuidFields[4].length()); // minute (2- digits)
       assertEquals("1", uuidFields[5]); // seq id
       final String txnFromUuid = uuidFields[2] + uuidFields[3] + uuidFields[4] + "0000000000" + uuidFields[5];
-      assertEquals(txnFromUuid, xyz.getTxn().toString()); // seq id
+      assertEquals(txnFromUuid, xyz.getTxnUuid()); // seq id
       assertEquals(TEST_APP_ID, xyz.getAppId());
       assertEquals(TEST_AUTHOR, xyz.getAuthor());
-      assertNotEquals(xyz.getRealTimeCreateAt(), xyz.getCreatedAt());
+      assertNotEquals(xyz.getRealTimeUpdatedAt(), xyz.getUpdatedAt());
       assertEquals(xyz.getCreatedAt(), xyz.getUpdatedAt());
 
       assertEquals(encodeLatLon(coordinate.y, coordinate.x, 7), xyz.get("grid"));
@@ -328,7 +328,7 @@ public class PsqlStorageTests extends PsqlTests {
       assertEquals(expectedGeometry, geometry.getJTSGeometry().getCoordinate());
 
       final String uuid = cursor.getUuid();
-      assertEquals(cursor.getUuid(), xyz.uuid);
+      assertEquals(cursor.getUuid(), xyz.getUuid());
       final String[] uuidFields = uuid.split(":");
 
       assertEquals(storage.getStorageId(), uuidFields[GUID_STORAGE_ID]);

@@ -77,11 +77,13 @@ class PatcherTest {
 
   private static boolean ignoreXyzProps(@NotNull Object key, @Nullable Map source, @Nullable Map target) {
     if (source instanceof XyzNamespace || target instanceof XyzNamespace) {
-      return "puuid".equals(key)
-          || "txn".equals(key)
+      return "txn".equals(key)
+          || "txn_next".equals(key)
+          || "txn_uuid".equals(key)
           || "uuid".equals(key)
+          || "puuid".equals(key)
           || "version".equals(key)
-          || "rtuts".equals(key)
+          || "rt_ts".equals(key)
           || "createdAt".equals(key)
           || "updatedAt".equals(key);
     }

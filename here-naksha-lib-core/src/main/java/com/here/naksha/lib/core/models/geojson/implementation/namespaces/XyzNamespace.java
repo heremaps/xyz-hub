@@ -232,7 +232,7 @@ public class XyzNamespace extends JsonObject {
    * value is calculated from the centroid of the {@link XyzFeature#getGeometry() geometry}, if no geometry is available, then it is
    * calculated from the {@link XyzFeature#getId() id} of the feature.
    */
-  @JsonProperty(CRID)
+  @JsonProperty(GRID)
   @JsonInclude(Include.NON_EMPTY)
   private String grid;
 
@@ -500,6 +500,40 @@ public class XyzNamespace extends JsonObject {
   @AvailableSince(NakshaVersion.v2_0_8)
   public @NotNull XyzNamespace withTxn(long txn) {
     setTxn(txn);
+    return this;
+  }
+
+  @JsonIgnore
+  @AvailableSince(NakshaVersion.v2_0_8)
+  public long getTxnNext() {
+    return txn_next;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_8)
+  public void setTxnNext(long txn_next) {
+    this.txn_next = txn_next;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_8)
+  public @NotNull XyzNamespace withTxnNext(long txn_next) {
+    setTxnNext(txn_next);
+    return this;
+  }
+
+  @JsonIgnore
+  @AvailableSince(NakshaVersion.v2_0_8)
+  public @Nullable String getTxnUuid() {
+    return txn_uuid;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_8)
+  public void setTxnUuid(@Nullable String txn_uuid) {
+    this.txn_uuid = txn_uuid;
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_8)
+  public @NotNull XyzNamespace withTxnUuid(@Nullable String txn_uuid) {
+    setTxnUuid(txn_uuid);
     return this;
   }
 

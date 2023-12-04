@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.core.models.geojson.implementation;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -72,6 +73,7 @@ public class XyzProperties extends JsonObject {
    *
    * @return The namespace.
    */
+  @JsonIgnore
   public @NotNull XyzNamespace getXyzNamespace() {
     if (xyzNamespace == null) {
       return xyzNamespace = new XyzNamespace();
@@ -84,6 +86,7 @@ public class XyzProperties extends JsonObject {
    *
    * @param xyzNamespace The namespace, must not be {@code null}!
    */
+  @JsonIgnore
   public void setXyzNamespace(@NotNull XyzNamespace xyzNamespace) {
     this.xyzNamespace = xyzNamespace;
   }
@@ -94,6 +97,7 @@ public class XyzProperties extends JsonObject {
    *
    * @return The namespace.
    */
+  @JsonIgnore
   public @NotNull XyzNamespace useXyzNamespace() {
     if (xyzNamespace == null) {
       return xyzNamespace = new XyzNamespace();
@@ -110,6 +114,7 @@ public class XyzProperties extends JsonObject {
    *
    * @return The activity log namespace; if any.
    */
+  @JsonIgnore
   public @Nullable XyzActivityLog getXyzActivityLog() {
     return xyzActivityLog;
   }
@@ -119,6 +124,7 @@ public class XyzProperties extends JsonObject {
    *
    * @param ns The namespace.
    */
+  @JsonIgnore
   public void setXyzActivityLog(@Nullable XyzActivityLog ns) {
     this.xyzActivityLog = ns;
   }
@@ -129,6 +135,7 @@ public class XyzProperties extends JsonObject {
    * @return The activity log namespace; if there was any.
    * @deprecated Can be replaced with {@code setXyzActivityLog(null);}.
    */
+  @JsonIgnore
   @Deprecated
   public @Nullable XyzActivityLog removeActivityLog() {
     final XyzActivityLog xyzActivityLog = this.xyzActivityLog;
@@ -140,6 +147,7 @@ public class XyzProperties extends JsonObject {
   @JsonInclude(Include.NON_NULL)
   private @Nullable HereMetaNs __meta;
 
+  @JsonIgnore
   public @NotNull HereMetaNs useMetaNamespace() {
     HereMetaNs meta = __meta;
     if (meta == null) {
@@ -149,16 +157,19 @@ public class XyzProperties extends JsonObject {
     return meta;
   }
 
+  @JsonIgnore
   public @Nullable HereMetaNs getMetaNamespace() {
     return __meta;
   }
 
+  @JsonIgnore
   public @Nullable HereMetaNs setMetaNamespace(@Nullable HereMetaNs ns) {
     final HereMetaNs old = this.__meta;
     __meta = ns;
     return old;
   }
 
+  @JsonIgnore
   public @NotNull XyzProperties withMetaNamespace(@Nullable HereMetaNs ns) {
     setMetaNamespace(ns);
     return this;
@@ -168,6 +179,7 @@ public class XyzProperties extends JsonObject {
   @JsonInclude(Include.NON_NULL)
   private @Nullable HereDeltaNs __delta;
 
+  @JsonIgnore
   public @NotNull HereDeltaNs useDeltaNamespace() {
     HereDeltaNs delta = __delta;
     if (delta == null) {
@@ -176,16 +188,19 @@ public class XyzProperties extends JsonObject {
     return delta;
   }
 
+  @JsonIgnore
   public @Nullable HereDeltaNs getDeltaNamespace() {
     return __delta;
   }
 
+  @JsonIgnore
   public @Nullable HereDeltaNs setDeltaNamespace(@Nullable HereDeltaNs ns) {
     final HereDeltaNs old = this.__delta;
     __delta = ns;
     return old;
   }
 
+  @JsonIgnore
   public @NotNull XyzProperties withDeltaNamespace(@Nullable HereDeltaNs ns) {
     setDeltaNamespace(ns);
     return this;
