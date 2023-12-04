@@ -80,6 +80,13 @@ public class XyzFeature extends JsonObject implements Typed {
   public static final String PACKAGES = "packages";
 
   /**
+   * Create a new empty feature with a random identifier.
+   */
+  public XyzFeature() {
+    this(null);
+  }
+
+  /**
    * Create a new empty feature.
    *
    * @param id The ID; if {@code null}, then a random one is generated.
@@ -104,6 +111,12 @@ public class XyzFeature extends JsonObject implements Typed {
 
   @JsonProperty(GEOMETRY)
   private XyzGeometry geometry;
+
+  public static final String REFERENCE_POINT = "referencePoint";
+
+  @JsonProperty(REFERENCE_POINT)
+  @JsonInclude(Include.NON_NULL)
+  private XyzPoint referencePoint;
 
   public static final String PROPERTIES = "properties";
 
@@ -224,6 +237,21 @@ public class XyzFeature extends JsonObject implements Typed {
     final XyzGeometry geometry = this.geometry;
     this.geometry = null;
     return geometry;
+  }
+
+  @JsonIgnore
+  public @Nullable XyzPoint getReferencePoint() {
+    return referencePoint;
+  }
+
+  public @Nullable XyzPoint setReferencePoint(@Nullable XyzPoint referencePoint) {
+    final XyzPoint old = this.referencePoint;
+    this.referencePoint = referencePoint;
+    return old;
+  }
+
+  public @Nullable XyzPoint removeReferencePoint() {
+    return setReferencePoint(null);
   }
 
   @JsonGetter

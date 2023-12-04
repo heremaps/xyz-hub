@@ -324,15 +324,23 @@ DECLARE
   hash text;
   m text;
   i int;
-  index int8;
+  lo int8;
+  hi int8;
 BEGIN
   m = md5(_feature_id);
-  index = ('x'||substr(m,1,16))::bit(64)::int8;
+  lo = ('x'||substr(m,1,16))::bit(64)::int8;
+  hi = ('x'||substr(m,16,16))::bit(64)::int8;
   hash = '';
   i = 0;
   WHILE i < 7 loop
-    hash = hash || base32[((index & x'1f'::int8)::int)+1];
-    index = index >> 5;
+    hash = hash || base32[((lo & x'1f'::int8)::int)+1];
+    lo = lo >> 5;
+    i = i + 1;
+  END LOOP;
+  i = 0;
+  WHILE i < 7 loop
+    hash = hash || base32[((hi & x'1f'::int8)::int)+1];
+    hi = hi >> 5;
     i = i + 1;
   END LOOP;
   RETURN hash;
@@ -340,13 +348,57 @@ END $$;
 
 -- Create a GRID (Geo-Hash Reference ID) from the given geometry.
 -- The GRID is used for distributed processing of features.
--- We use GeoHash at level 7, which uses 17 bits for latitude and 18 bits for longitude (35-bit total).
--- The precision is therefore around 76 x 76 meter (5776m²).
+-- We use GeoHash at level 14, which uses 34 bits for latitude and 36 bits for longitude (70-bit total).
+-- The precision is therefore higher than 1mm.
 -- https://en.wikipedia.org/wiki/Geohash
 -- https://www.movable-type.co.uk/scripts/geohash.html
 CREATE OR REPLACE FUNCTION nk_grid_for_geometry(_geo geometry) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
   -- noinspection SqlResolve
   RETURN ST_GeoHash(ST_Centroid(_geo),7);
+END $$;
+
+-- Creates a GRID (Geo-Hash Reference ID) from the given feature and geometry.
+-- This method prefers the MOM reference point, then uses the centroid of the geometry.
+-- If neither is available, it uses the feature-id.
+CREATE OR REPLACE FUNCTION nk_grid_for_feature(_feature jsonb, _geo geometry) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+DECLARE
+  ref_point geometry;
+BEGIN
+  -- noinspection SqlResolve
+  IF jsonb_is(_feature->'referencePoint'->'type', 'string')
+     AND (_feature->'referencePoint'->>'type' = 'Point') THEN
+    ref_point = ST_Force3D(ST_GeomFromGeoJSON(_feature->'referencePoint'));
+  ELSIF _geo IS NOT NULL THEN
+    ref_point = ST_Centroid(_new_geo);
+  END IF;
+  IF ref_point IS NOT NULL THEN
+    RETURN nk_grid_for_geometry(ref_point);
+  END IF;
+  RETURN nk_grid_for_feature_id(_feature->>'id');
+END $$;
+
+-- Calculates the extension of the geometry in milliseconds.
+CREATE OR REPLACE FUNCTION nk_extend(_geo geometry) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+DECLARE
+  mul_x constant double precision = 360 * 60 * 60 * 1000;
+  mul_y constant double precision = 180 * 60 * 60 * 1000;
+  bbox geometry;
+  extend_x int8;
+  extend_y int8;
+BEGIN
+  IF _geo IS NULL THEN
+    RETURN 0;
+  END IF;
+  -- noinspection SqlResolve
+  bbox = Box2D(_geo);
+  -- noinspection SqlResolve
+  extend_x = (ceil(abs(ST_XMax(bbox) - ST_XMin(bbox)) * mul_x))::int8;
+  -- noinspection SqlResolve
+  extend_y = (ceil(abs(ST_YMax(bbox) - ST_YMin(bbox)) * mul_y))::int8;
+  IF extend_x >= extend_y THEN
+    RETURN extend_x;
+  END IF;
+  RETURN extend_y;
 END $$;
 
 CREATE OR REPLACE FUNCTION nk_partition_name_for_ts(_ts timestamptz) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
@@ -457,6 +509,10 @@ DECLARE
   rts_millis int8 = naksha_current_millis(clock_timestamp());
   new_xyz jsonb;
   new_tags jsonb;
+  bbox geometry;
+  extend int8;
+  extend_x int8;
+  extend_y int8;
   id text;
   grid text;
   crid jsonb;
@@ -483,11 +539,7 @@ BEGIN
   ELSE
     id = _new_feature->>'id';
   END IF;
-  IF _new_geo IS NULL THEN
-    grid = nk_grid_for_feature_id(id);
-  ELSE
-    grid = nk_grid_for_geometry(_new_geo);
-  END IF;
+  grid = nk_grid_for_feature(_new_feature, _new_geo);
   IF jsonb_is(new_xyz->'crid', 'string') THEN
     crid = new_xyz->'crid';
   ELSE
@@ -511,6 +563,7 @@ BEGIN
       'tags', new_tags,
       'crid', crid,
       'grid', grid,
+      'extend', nk_extend(_new_geo),
       'stream_id', naksha_stream_id()
   );
   _new_feature = jsonb_set(_new_feature, ARRAY['properties','@ns:com:here:xyz'], xyz, true);
@@ -599,11 +652,7 @@ BEGIN
   ELSE
     id = _new_feature->>'id';
   END IF;
-  IF _new_geo IS NULL THEN
-    grid = nk_grid_for_feature_id(id);
-  ELSE
-    grid = nk_grid_for_geometry(_new_geo);
-  END IF;
+  grid = nk_grid_for_feature(_new_feature, _new_geo);
   IF jsonb_is(new_xyz->'crid', 'string') THEN
     crid = new_xyz->'crid';
   ELSE
@@ -634,6 +683,7 @@ BEGIN
       'tags', tags,
       'crid', crid,
       'grid', grid,
+      'extend', nk_extend(_new_geo),
       'stream_id', naksha_stream_id()
   );
   _new_feature = jsonb_set(_new_feature, ARRAY['properties','@ns:com:here:xyz'], xyz, true);
@@ -655,6 +705,7 @@ DECLARE
   old_author text;
   old_author_ts int8;
   old_uuid jsonb;
+  old_extend int8;
   version int8;
   tags jsonb;
   id text;
@@ -720,6 +771,11 @@ BEGIN
   ELSE
     crid = null::jsonb;
   END IF;
+  IF jsonb_is(_old_feature->'properties'->'@ns:com:here:xyz'->'extend', 'number') THEN
+    old_extend = (_old_feature->'properties'->'@ns:com:here:xyz'->'extend')::int8;
+  ELSE
+    old_extend = 0;
+  END IF;
   new_author = naksha_author(NULL::text);
   IF new_author IS NULL THEN
     new_author = old_author;
@@ -745,6 +801,7 @@ BEGIN
       'tags', tags,
       'crid', crid,
       'grid', grid,
+      'extend', old_extend,
       'stream_id', naksha_stream_id()
   );
   _old_feature = jsonb_set(_old_feature, ARRAY['properties','@ns:com:here:xyz'], xyz, true);
@@ -950,6 +1007,7 @@ BEGIN
   sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING %s ('
             || ' geo '
             || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8)'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''extend'')::int8)'
             || ') WITH (buffering=ON,fillfactor=%s)',
                format('%s_geo_idx', _table), _table, geo_index_type, fill_factor);
   --RAISE NOTICE '%', sql;
@@ -960,6 +1018,7 @@ BEGIN
   sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING gin ('
             || ' (jsondata->''properties''->''@ns:com:here:xyz''->''tags'')'
             || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8)'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''extend'')::int8)'
             || ') WITH (fastupdate=ON,gin_pending_list_limit=32768)', --KiB, default is 4096
                format('%s_tags_idx', _table), _table);
   --RAISE NOTICE '%', sql;
@@ -969,6 +1028,7 @@ BEGIN
   sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
             || ' (jsondata->''properties''->''@ns:com:here:xyz''->>''grid'') COLLATE "C" DESC'
             || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8) DESC'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''extend'')::int8)'
             || ') WITH (fillfactor=%s)',
                format('%s_grid_idx', _table), _table, fill_factor);
   --RAISE NOTICE '%', sql;
@@ -978,6 +1038,7 @@ BEGIN
   sql = format('CREATE INDEX IF NOT EXISTS %I ON %I USING btree ('
             || ' (naksha_feature_mrid(jsondata)) COLLATE "C" DESC '
             || ',((jsondata->''properties''->''@ns:com:here:xyz''->''txn'')::int8) DESC'
+            || ',((jsondata->''properties''->''@ns:com:here:xyz''->''extend'')::int8)'
             || ') WITH (fillfactor=%s)',
                format('%s_mrid_idx', _table), _table, fill_factor);
   --RAISE NOTICE '%', sql;
