@@ -458,14 +458,20 @@ public class Export extends JDBCBasedJob<Export> {
     @JsonView({Public.class})
     public Map<String,ExportObject> getExportObjects() {
         if (CService.jobS3Client == null) //If being used as a model on the client side
-            return this.exportObjects == null ? Collections.emptyMap() : this.exportObjects;
+            return exportObjects == null ? Collections.emptyMap() : exportObjects;
+        if (exportObjects != null && !exportObjects.isEmpty())
+            return exportObjects;
 
         Map<String, ExportObject> exportObjects = null;
 
         if (getSuperId() != null && readPersistExport())
             return getSuperJob() != null ? getSuperJob().getExportObjects() : Collections.emptyMap();
-        else if (getS3Key() != null)
-            exportObjects = CService.jobS3Client.scanExportPath(getS3Key());
+        else if (getS3Key() != null) {
+            if (getStatus() == finalized)
+                exportObjects = CService.jobS3Client.scanExportPathCached(getS3Key());
+            else
+                exportObjects = CService.jobS3Client.scanExportPath(getS3Key());
+        }
 
         return exportObjects == null ? Collections.emptyMap() : exportObjects;
     }
@@ -1037,7 +1043,7 @@ public class Export extends JDBCBasedJob<Export> {
                     //Everything is processed
                     logger.info("job[{}] Export of '{}' completely succeeded!", getId(), getTargetSpaceId());
                     addStatistic(statistic);
-                    setS3Key(CService.jobS3Client.getS3Path(this, false));
+                    setS3Key(CService.jobS3Client.getS3Path(this));
                     updateJobStatus(this, executed);
                 }
             )
@@ -1099,7 +1105,7 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     public String getS3Key() {
-        return s3Key;
+        return s3Key == null || s3Key.endsWith("/") ? s3Key : (s3Key + "/");
     }
 
     public void setS3Key(String s3Key) {
@@ -1132,13 +1138,15 @@ public class Export extends JDBCBasedJob<Export> {
     @Override
     public void finalizeJob() {
         if (isEmrTransformation() && !getExportObjects().isEmpty() && (statistic == null || statistic.getRowsUploaded() > 0)) {
+            final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
+            String sourceS3Url = sourceS3UrlWithoutSlash + "/";
+            String targetS3Url = sourceS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
             updateJobStatus(this, finalizing)
                 .compose(job -> {
                     //Start EMR Job, return jobId
-                    String sourceS3Url = getS3UrlForPath(CService.jobS3Client.getS3Path(job));
                     List<String> scriptParams = new ArrayList<>();
                     scriptParams.add(sourceS3Url);
-                    scriptParams.add(sourceS3Url + EMRConfig.S3_PATH_SUFFIX);
+                    scriptParams.add(targetS3Url);
                     scriptParams.add("--type=" + getEmrType());
                     if (readParamCompositeMode() == FULL_OPTIMIZED)
                         scriptParams.add("--delta");
@@ -1178,7 +1186,7 @@ public class Export extends JDBCBasedJob<Export> {
                     switch (jobState) {
                         case SUCCESS:
                             logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
-                            setS3Key(CService.jobS3Client.getS3Path(this, false) + EMRConfig.S3_PATH_SUFFIX);
+                            setS3Key(CService.jobS3Client.getS3Path(this) + EMRConfig.S3_PATH_SUFFIX);
                             //Update this job's state finally to "finalized"
                             updateJobStatus(this, finalized);
                             //Stop this thread
