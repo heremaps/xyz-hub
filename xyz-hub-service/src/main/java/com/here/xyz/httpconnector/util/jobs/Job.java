@@ -623,9 +623,9 @@ public abstract class Job<T extends Job> extends Payload {
         return (T) this;
     }
 
-    public void finalizeJob() {
+    public Future<Void> finalizeJob() {
         logger.info("job[{}] is finalized!", id);
-        updateJobStatus(this, finalized);
+        return updateJobStatus(this, finalized).map(null);
     }
 
     public long getKeepUntil() {

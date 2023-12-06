@@ -223,8 +223,12 @@ public class CombinedJob extends Job<CombinedJob> {
               if (!getStatus().isFinal())
                 //Everything is processed
                 f = updateJobStatus(this, executed).mapEmpty();
-              logger.info("job[{}] CombinedJob execution completed with status {}!", getId(), getStatus());
               return f;
+            })
+            .onComplete(ar -> {
+              if (ar.failed())
+                logger.error("job[{}] Execution failed:", getId(), ar.cause());
+              logger.info("job[{}] CombinedJob execution completed with status {}!", getId(), getStatus());
             });
       }).start();
     }

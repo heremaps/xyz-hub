@@ -58,9 +58,10 @@ import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.emr.EMRManager;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
-import com.here.xyz.httpconnector.util.jobs.datasets.Files;
+import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
+import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
@@ -69,6 +70,7 @@ import com.here.xyz.models.geojson.implementation.Geometry;
 import com.here.xyz.responses.StatisticsResponse.PropertyStatistics;
 import com.here.xyz.util.Hasher;
 import io.vertx.core.Future;
+import io.vertx.core.Promise;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -76,6 +78,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -150,7 +153,7 @@ public class Export extends JDBCBasedJob<Export> {
     private String triggerId;
 
     @JsonIgnore
-    private AtomicBoolean emrJobExecuting = new AtomicBoolean();
+    private AtomicReference<Future<Void>> emrJobExecutionFuture = new AtomicReference<>();
     public String emrJobId;
     @JsonIgnore
     private EMRManager emrManager;
@@ -513,19 +516,23 @@ public class Export extends JDBCBasedJob<Export> {
     public void setTarget(DatasetDescription target) {
         super.setTarget(target);
         //Keep BWC
-        if (target instanceof Files files) {
+        if (target instanceof FileBasedTarget fbt) {
             setExportTarget(new ExportTarget().withType(DOWNLOAD));
-            //setCsvFormat(files.getOutputSettings().getFormat());
+            //setCsvFormat(fbt.getOutputSettings().getFormat());
             if (getCsvFormat() == null) {
-                if (files.getOutputSettings().getFormat() instanceof GeoJson)
+                if (fbt.getOutputSettings().getFormat() instanceof GeoJson)
                     setCsvFormat(GEOJSON);
-                else if (files.getOutputSettings().getFormat() instanceof Csv csv)
+                else if (fbt.getOutputSettings().getFormat() instanceof GeoParquet) {
+                    setCsvFormat(JSON_WKB);
+                    setEmrTransformation(true);
+                }
+                else if (fbt.getOutputSettings().getFormat() instanceof Csv csv)
                     setCsvFormat(csv.toBWCFormat());
             }
-            setTargetLevel(files.getOutputSettings().getTileLevel());
-            setClipped(files.getOutputSettings().isClipped());
-            setMaxTilesPerFile(files.getOutputSettings().getMaxTilesPerFile());
-            setPartitionKey(files.getOutputSettings().getPartitionKey());
+            setTargetLevel(fbt.getOutputSettings().getTileLevel());
+            setClipped(fbt.getOutputSettings().isClipped());
+            setMaxTilesPerFile(fbt.getOutputSettings().getMaxTilesPerFile());
+            setPartitionKey(fbt.getOutputSettings().getPartitionKey());
         }
     }
 
@@ -1184,12 +1191,12 @@ public class Export extends JDBCBasedJob<Export> {
     }
 
     @Override
-    public void finalizeJob() {
+    public Future<Void> finalizeJob() {
         if (isEmrTransformation() && !getExportObjects().isEmpty() && (statistic == null || statistic.getRowsUploaded() > 0)) {
             final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
             String sourceS3Url = sourceS3UrlWithoutSlash + "/";
             String targetS3Url = sourceS3UrlWithoutSlash + EMRConfig.S3_PATH_SUFFIX + "/";
-            updateJobStatus(this, finalizing)
+            return updateJobStatus(this, finalizing)
                 .compose(job -> {
                     //Start EMR Job, return jobId
                     List<String> scriptParams = new ArrayList<>();
@@ -1204,25 +1211,26 @@ public class Export extends JDBCBasedJob<Export> {
                     this.emrJobId = emrJobId;
                     return Future.succeededFuture(emrJobId);
                 })
-                .onSuccess(emrJobId -> startEmrJobStatePolling(EMRConfig.APPLICATION_ID, emrJobId))
                 .onFailure(err -> {
                     logger.warn(getMarker(), "Failure starting finalization. (EMR Transformation)", err);
                     setJobFailed(this, "Error trying to start finalization.", "START_EMR_JOB_FAILED");
-                });
+                })
+                .compose(emrJobId -> startEmrJobStatePolling(EMRConfig.APPLICATION_ID, emrJobId));
         }
         else
-            super.finalizeJob();
+            return super.finalizeJob();
     }
 
     private static String getS3UrlForPath(String path) {
         return "s3://" + CService.configuration.JOBS_S3_BUCKET + "/" + path;
     }
 
-    private void startEmrJobStatePolling(String applicationId, String emrJobId) {
-        if (emrJobExecuting.compareAndSet(false, true)) {
+    private Future<Void> startEmrJobStatePolling(String applicationId, String emrJobId) {
+        final Promise<Void> promise = Promise.promise();
+        if (emrJobExecutionFuture.compareAndSet(null, promise.future())) {
             new Thread(() -> {
                 setUpdatedAt(Core.currentTimeMillis() / 1000l);
-                while (emrJobExecuting.get()) {
+                while (emrJobExecutionFuture.get() != null) {
                     JobRunState jobState = null;
                     try {
                         jobState = getEmrManager().getExecutionSummary(applicationId, emrJobId);
@@ -1238,20 +1246,22 @@ public class Export extends JDBCBasedJob<Export> {
                             //Update this job's state finally to "finalized"
                             updateJobStatus(this, finalized);
                             //Stop this thread
-                            emrJobExecuting.set(false);
+                            completePollingThread(promise);
                             break;
                         case FAILED:
                         case CANCELLED:
                             logger.warn("job[{}] EMR transformation {} ended with state \"{}\"", getId(), emrJobId, jobState);
-                            setJobFailed(this, "EMR job " + emrJobId + " ended with state \"" + jobState + "\"", "EMR_JOB_FAILED");
+                            final String errorMessage = "EMR job " + emrJobId + " ended with state \"" + jobState + "\"";
+                            setJobFailed(this, errorMessage, "EMR_JOB_FAILED");
                             //Stop this thread
-                            emrJobExecuting.set(false);
+                            failPollingThread(promise, errorMessage);
                     }
                     //Check if last state update is too long (>60s) ago (timeout or other issue with EMR job)
                     if (getUpdatedAt() < Core.currentTimeMillis() / 1000l - 60) {
-                        setJobFailed(this, "No state update from EMR job " + emrJobId + " since more than 60 seconds", "EMR_JOB_TIMEOUT");
+                        final String errorMessage = "No state update from EMR job " + emrJobId + " since more than 60 seconds";
+                        setJobFailed(this, errorMessage, "EMR_JOB_TIMEOUT");
                         //Stop this thread
-                        emrJobExecuting.set(false);
+                        failPollingThread(promise, errorMessage);
                     }
 
                     try {
@@ -1260,7 +1270,22 @@ public class Export extends JDBCBasedJob<Export> {
                     catch (InterruptedException ignore) {}
                 }
             }).start();
+            return emrJobExecutionFuture.get();
         }
+        else
+            //Return the future of the other process which is actually performing the polling
+            //TODO: Throw some kind of ConcurrencyException instead?
+            return emrJobExecutionFuture.get();
+    }
+
+    private void completePollingThread(Promise<Void> promise) {
+        emrJobExecutionFuture.set(null);
+        promise.complete();
+    }
+
+    private void failPollingThread(Promise<Void> promise, String errorMessage) {
+        emrJobExecutionFuture.set(null);
+        promise.fail(errorMessage);
     }
 
     @JsonIgnore
