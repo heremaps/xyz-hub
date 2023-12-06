@@ -258,59 +258,53 @@ public class JobS3Client extends AwsS3Client{
 
     private static Cache<String, Map<String, ExportObject>> s3ScanningCache = CacheBuilder
         .newBuilder()
-        .maximumSize(0)
-        .expireAfterWrite(1, TimeUnit.MINUTES)
+        .maximumSize(100)
+        .expireAfterWrite(10, TimeUnit.MINUTES)
         .build();
 
-    public Map<String,ExportObject> scanExportPath(String prefix) {
+    public Map<String,ExportObject> scanExportPathCached(String prefix) {
         try {
-            return s3ScanningCache.get(prefix, () -> {
-                String bucketName = CService.configuration.JOBS_S3_BUCKET;
-                Map<String, ExportObject> exportObjectList = new HashMap<>();
-                ListObjectsRequest listObjects = new ListObjectsRequest()
-                    .withPrefix(prefix)
-                    .withBucketName(bucketName);
-
-                ObjectListing objectListing = client.listObjects(listObjects);
-
-                for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
-                    //Skip empty files
-                    if(objectSummary.getSize() == 0)
-                        continue;
-
-                    ExportObject eo = new ExportObject(objectSummary.getKey(), objectSummary.getSize());
-                    if (eo.getFilename().equalsIgnoreCase("manifest.json"))
-                        continue;;
-
-                    exportObjectList.put(eo.getFilename(prefix), eo);
-                }
-
-                return exportObjectList;
-            });
+            return s3ScanningCache.get(prefix, () -> scanExportPath(prefix));
         }
         catch (ExecutionException e) {
             throw new RuntimeException(e.getCause());
         }
     }
 
-    public String getPersistentS3ExportOfSuperLayer(String superLayer, Export sourceJob) {
-        return getS3Path(sourceJob, true);
+    public Map<String,ExportObject> scanExportPath(String prefix) {
+        String bucketName = CService.configuration.JOBS_S3_BUCKET;
+        Map<String, ExportObject> exportObjects = new HashMap<>();
+        ListObjectsRequest listObjects = new ListObjectsRequest()
+            .withPrefix(prefix)
+            .withBucketName(bucketName);
+
+        ObjectListing objectListing = client.listObjects(listObjects);
+
+        for (S3ObjectSummary objectSummary : objectListing.getObjectSummaries()) {
+            //Skip empty files
+            if(objectSummary.getSize() == 0)
+                continue;
+
+            ExportObject eo = new ExportObject(objectSummary.getKey(), objectSummary.getSize());
+            if (eo.getFilename().equalsIgnoreCase("manifest.json"))
+                continue;;
+
+            exportObjects.put(eo.getFilename(prefix), eo);
+        }
+
+        return exportObjects;
     }
 
     public String getS3Path(Job job) {
-        return getS3Path(job, false);
-    }
-
-    public String getS3Path(Job job, boolean readSuper) {
         if (job instanceof Import)
             return IMPORT_UPLOAD_FOLDER + "/" + job.getId();
 
         //Decide if persistent or not.
-        String subFolder = job instanceof Export export && export.readPersistExport() || readSuper
+        String subFolder = job instanceof Export export && export.readPersistExport()
             ? CService.jobS3Client.EXPORT_PERSIST_FOLDER
             : CService.jobS3Client.EXPORT_DOWNLOAD_FOLDER;
 
-        String jobId = readSuper ? ((Export)job).getSuperId() : job.getId();
+        String jobId = job.getId();
 
         return String.join("/", new String[]{
                 subFolder,
