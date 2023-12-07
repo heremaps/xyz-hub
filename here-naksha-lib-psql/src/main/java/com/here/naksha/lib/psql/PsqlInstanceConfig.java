@@ -18,6 +18,8 @@
  */
 package com.here.naksha.lib.psql;
 
+import static org.apache.commons.lang3.BooleanUtils.isTrue;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -131,8 +133,8 @@ public class PsqlInstanceConfig {
     this.user = user;
     this.password = password;
     this.readOnly = readOnly != null ? readOnly : false;
-    this.url = "jdbc:postgresql://" + host + (this.port != 5432 ? "" : ":" + this.port) + "/" + db
-        + (readOnly ? "?readOnly" : "");
+    this.url = "jdbc:postgresql://" + host + (this.port == 5432 ? "" : ":" + this.port) + "/" + db
+        + (isTrue(readOnly) ? "?readOnly" : "");
     this.hashCode = Objects.hash(url, this.user, this.password);
     this.hostSpec = new HostSpec(this.host, this.port);
   }
