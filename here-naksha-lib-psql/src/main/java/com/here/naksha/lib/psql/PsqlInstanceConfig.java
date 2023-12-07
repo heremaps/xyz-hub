@@ -134,7 +134,7 @@ public class PsqlInstanceConfig {
     this.password = password;
     this.readOnly = readOnly != null ? readOnly : false;
     this.url = "jdbc:postgresql://" + host + (this.port == 5432 ? "" : ":" + this.port) + "/" + db
-        + (isTrue(readOnly) ? "?readOnly" : "");
+        + (isTrue(readOnly) ? "?readOnly=true" : "");
     this.hashCode = Objects.hash(url, this.user, this.password);
     this.hostSpec = new HostSpec(this.host, this.port);
   }

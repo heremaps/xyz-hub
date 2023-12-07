@@ -36,13 +36,13 @@ public class PsqlInstanceConfigTests {
   }
 
   @Test
-  void testUrlCreationDefaultPort() {
+  void testUrlCreationDefaultPortAndReadonly() {
     // given
     Integer port = null;
-    PsqlInstanceConfig config = new PsqlInstanceConfig("localhost", port, "mydb", "user1", "pass1", null);
+    PsqlInstanceConfig config = new PsqlInstanceConfig("localhost", port, "mydb", "user1", "pass1", true);
 
     // expect
-    assertEquals("jdbc:postgresql://localhost/mydb", config.url);
+    assertEquals("jdbc:postgresql://localhost/mydb?readOnly=true", config.url);
   }
 
   @Test
