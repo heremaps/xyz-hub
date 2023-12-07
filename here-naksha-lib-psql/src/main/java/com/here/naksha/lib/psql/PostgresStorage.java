@@ -249,10 +249,18 @@ final class PostgresStorage extends ClosableRootResource {
   }
 
   private long sockedReadTimeout = TimeUnit.SECONDS.toMillis(15);
-  private long cancelSignalTimeout = TimeUnit.SECONDS.toMillis(15);
+
+  /**
+   * Cancel command is sent out of band over its own connection, so cancel message can itself get stuck. This property controls "connect
+   * timeout" and "socket timeout" used for cancel commands. The timeout is specified in seconds. Default value is 10 seconds.
+   *
+   * <p>We do not yet expose this, because it can't be modified for existing connections.
+   */
+  private final long cancelSignalTimeout = TimeUnit.SECONDS.toMillis(15);
 
   @Override
-  protected void destruct() {}
+  protected void destruct() {
+  }
 
   /**
    * The default initializer for connections.
@@ -337,12 +345,12 @@ final class PostgresStorage extends ClosableRootResource {
     }
     final PsqlConnection psqlConnection = psqlInstance.getConnection(
         appName, schema, fetchSize, connTimeout, sockedReadTimeout, cancelSignalTimeout);
-    if (!psqlConnection.connection.parent().config.readOnly) {
+    if (!psqlConnection.postgresConnection.parent().config.readOnly) {
       // If this is a master connection, ensure that the read-only mode is set correctly.
-      psqlConnection.connection.get().setReadOnly(readOnly);
+      psqlConnection.postgresConnection.get().setReadOnly(readOnly);
     }
     if (init) {
-      initConnection(psqlConnection.connection, context);
+      initConnection(psqlConnection.postgresConnection, context);
     }
     return psqlConnection;
   }
@@ -427,7 +435,7 @@ final class PostgresStorage extends ClosableRootResource {
 
             // Now, we can be sure that the code exists, and we can invoke it.
             // Note: We do not want to naksha_start_session to be invoked, therefore pass null!
-            initConnection(conn.connection, null);
+            initConnection(conn.postgresConnection, null);
             stmt.execute("SELECT naksha_init();");
             conn.commit();
           }

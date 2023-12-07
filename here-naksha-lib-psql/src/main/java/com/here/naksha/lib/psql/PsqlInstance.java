@@ -49,6 +49,9 @@ public final class PsqlInstance {
       instance = allInstances.get(config);
       if (instance != null) {
         psqlInstance = (PsqlInstance) instance.getProxy();
+        if (psqlInstance == null) {
+
+        }
       }
       if (psqlInstance == null) {
         psqlInstance = new PsqlInstance(config);

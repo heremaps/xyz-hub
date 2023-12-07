@@ -21,7 +21,10 @@ package com.here.naksha.lib.psql;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.here.naksha.lib.core.util.ClosableRootResource;
+import java.lang.ref.WeakReference;
 import java.sql.SQLException;
+import java.util.Enumeration;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
@@ -37,18 +40,32 @@ public class PostgresInstance extends ClosableRootResource {
   private static final Logger log = LoggerFactory.getLogger(PostgresInstance.class);
 
   /**
-   * A map with all current existing instances.
-   */
-  static final ConcurrentHashMap<PsqlInstanceConfig, PostgresInstance> allInstances = new ConcurrentHashMap<>();
-
-  /**
    * The lock at which we synchronize the destruction and creation of new instances.
    */
   static final ReentrantLock mutex = new ReentrantLock();
 
+  /**
+   * A map with all idle connections to this instance. After removing a connection from this pool, the
+   * {@link PostgresConnection#notIdle() notIdle()} method should be invoked.
+   */
+  final @NotNull ConcurrentHashMap<WeakReference<PostgresConnection>, Boolean> connectionPool;
+
+  /**
+   * The timeout when to close idle connections.
+   */
+  long idleTimeoutInMillis;
+
+  /**
+   * The maximum amount of connections to keep in the pool.
+   */
+  int maxPoolSize;
+
   PostgresInstance(@NotNull PsqlInstance proxy, @NotNull PsqlInstanceConfig config) {
     super(proxy, mutex);
     this.config = config;
+    this.connectionPool = new PostgresConnectionPool(config);
+    this.idleTimeoutInMillis = TimeUnit.MINUTES.toMillis(2);
+    this.maxPoolSize = 100;
   }
 
   @Override
@@ -63,12 +80,7 @@ public class PostgresInstance extends ClosableRootResource {
 
   @Override
   protected void destruct() {
-    if (!allInstances.remove(config, this)) {
-      log.atError()
-          .setMessage("Failed to remove PostgresInstance from cache: {}")
-          .addArgument(config)
-          .log();
-    }
+    connectionPool.clear();
   }
 
   /**
@@ -94,16 +106,9 @@ public class PostgresInstance extends ClosableRootResource {
     return Math.min(16384, Math.round(opt));
   }
 
-  // TODO: Add a pool for PgConnection's.
-  //       Ones done, fix PostgresConnection to release the underlying pgConnection into the pool, when it is
-  // destructed.
-
   /**
-   * Returns a new connection from the pool.
+   * Returns a connection from the connection pool or creates a new connection.
    *
-   * @param applicationName              The application name to be used for the connection.
-   * @param schema                       The schema to select.
-   * @param fetchSize                    The default fetch-size to use.
    * @param connTimeoutInMillis         The connection timeout, if a new connection need to be established.
    * @param sockedReadTimeoutInMillis   The socket read-timeout to be used with the connection.
    * @param cancelSignalTimeoutInMillis The signal timeout to be used with the connection.
@@ -112,13 +117,34 @@ public class PostgresInstance extends ClosableRootResource {
    */
   @NotNull
   PsqlConnection getConnection(
-      @NotNull String applicationName,
-      @NotNull String schema,
-      int fetchSize,
       long connTimeoutInMillis,
       long sockedReadTimeoutInMillis,
       long cancelSignalTimeoutInMillis)
       throws SQLException {
+    final ConcurrentHashMap<WeakReference<PostgresConnection>, Boolean> connectionPool = this.connectionPool;
+    final Enumeration<WeakReference<PostgresConnection>> keyEnum = connectionPool.keys();
+    PsqlConnection psqlConnection = null;
+    while (keyEnum.hasMoreElements()) {
+      try {
+        final WeakReference<PostgresConnection> weakRef = keyEnum.nextElement();
+        final PostgresConnection postgresConnection;
+        if (weakRef == null) {
+          continue;
+        }
+        postgresConnection = weakRef.get();
+        if (postgresConnection == null) {
+          connectionPool.remove(weakRef);
+          continue;
+        }
+        psqlConnection = postgresConnection.getPsqlConnection();
+        if (psqlConnection == null) {
+          connectionPool.remove(weakRef);
+          continue;
+        }
+
+      } catch (NoSuchElementException ignore) {
+      }
+    }
     final Object proxy = getProxy();
     if (proxy instanceof PsqlInstance) {
       PsqlInstance psqlInstance = (PsqlInstance) proxy;

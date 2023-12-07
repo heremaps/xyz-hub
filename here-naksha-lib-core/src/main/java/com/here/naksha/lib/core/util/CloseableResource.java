@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
  * <p>Another advantage of this implementation is, that the user can close the parent resource before the child-resources. This is for
  * example important for the PostgresQL implementation, where the session can be closed, before the results from all open cursors of this
  * connection are done (processed). Using this resource implementation allows exactly this, the user can use the results and close the
- * connection premature. The resources {@link #tryDestruct()} method will not be invoked, until the last child resource is closed. If a
+ * connection premature. The resources {@link #tryDestruct(long)} method will not be invoked, until the last child resource is closed. If a
  * resource is leaked, it is auto-closed by the leak detector and this then closes down all parent resources as well.
  *
  * @param <PARENT> The parent type.
@@ -71,13 +71,14 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
 
   private static void leakDetection() {
     while (true) {
+      final long now = System.currentTimeMillis();
       try {
         Enumeration<CloseableResource> keysEnum = rootResources.keys();
         while (keysEnum.hasMoreElements()) {
           CloseableResource resource = null;
           try {
             resource = keysEnum.nextElement();
-            resource.tryDestruct();
+            resource.tryDestruct(now);
           } catch (Throwable t) {
             if (resource != null) {
               log.atError()
@@ -210,11 +211,55 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
       if (!isClosed) {
         isClosed = true;
         isLeaked = false;
-        tryDestruct();
+        tryDestruct(System.currentTimeMillis());
       }
     } finally {
       mutex.unlock();
     }
+  }
+
+  /**
+   * This method is invoked regularly to try to auto-close a resource.
+   *
+   * @param now The unix epoch time when this garbage collection started.
+   * @return {@code true} if the resource is timed-out and was closed, destruction can be invoked; {@code false} otherwise.
+   */
+  private boolean autoClose(long now) {
+    if (!isClosed && mayAutoClose(now)) {
+      mutex.lock();
+      try {
+        if (!isClosed && tryAutoClose(now)) {
+          isClosed = true;
+          isLeaked = false;
+          return true;
+        }
+      } finally {
+        mutex.unlock();
+      }
+    }
+    return false;
+  }
+
+  /**
+   * This method is invoked regularly to detect if a resource can be auto-closed (has timed-out), even while there is still a proxy
+   * reference somewhere, for example in a cache or pool. Note, this method is invoked very often and should therefore be very fast.
+   *
+   * @param now The unix epoch time when this garbage collection started.
+   * @return {@code true} if the resource is timed-out and be {@link #tryAutoClose(long) auto-closed}; {@code false} otherwise.
+   */
+  protected boolean mayAutoClose(long now) {
+    return false;
+  }
+
+  /**
+   * This method is invoked when {@link #mayAutoClose(long)} returns {@code true} and should try to close the resource in a concurrency
+   * safe way.
+   *
+   * @param now The unix epoch time when this garbage collection started.
+   * @return {@code true} if the resource was closed successfully and can be destructed; {@code false} otherwise.
+   */
+  protected boolean tryAutoClose(long now) {
+    return false;
   }
 
   /**
@@ -247,11 +292,15 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
    * resource is still alive, returns {@code false}. If all child resources are closed, it invokes {@link #destruct()} and then returns
    * {@code true}.
    *
+   * @param now The unix epoch time when this garbage collection started.
    * @return {@code true} if the resource is destructed; {@code false} if there are still living children.
    */
-  private boolean tryDestruct() {
+  private boolean tryDestruct(long now) {
     if (!isClosed()) {
-      return false;
+      if (!autoClose(now)) {
+        return false;
+      }
+      // Resource was auto-closed, continue with destruction.
     }
     if (destructed) {
       return true;
@@ -259,7 +308,7 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
     final Enumeration<CloseableResource> keyEnum = children.keys();
     while (keyEnum.hasMoreElements()) {
       final CloseableResource child = keyEnum.nextElement();
-      if (!child.tryDestruct()) {
+      if (!child.tryDestruct(now)) {
         return false;
       }
     }
@@ -293,7 +342,7 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
           if (parent != null) {
             parent.children.remove(this, this);
             try {
-              parent.tryDestruct();
+              parent.tryDestruct(now);
             } catch (Throwable t) {
               log.warn("Unexpected exception caught when calling parent.tryDestruct", t);
             }

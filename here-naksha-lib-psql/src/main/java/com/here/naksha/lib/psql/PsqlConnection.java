@@ -48,61 +48,67 @@ import org.postgresql.jdbc.PgConnection;
  */
 public class PsqlConnection implements Connection {
 
-  // TODO: We need another constructor that can reused a pooled PgConnection!
-
+  /**
+   * Creates a new PSQL connection proxy and acquire a new PG connection.
+   *
+   * @param postgresInstance            The Postgres instance.
+   * @param connTimeoutInMillis         The connection timeout in milliseconds, will be set as well for socket read-timeout.
+   * @param cancelSignalTimeoutInMillis The
+   * @param receiveBufferSize           The receive-buffer size in byte.
+   * @param sendBufferSize              The send-buffer size in byte.
+   * @throws SQLException If establishing the connection failed.
+   */
   PsqlConnection(
-      @NotNull PsqlInstance psqlInstance,
-      @NotNull String applicationName,
-      @NotNull String schema,
-      int fetchSize,
+      @NotNull PostgresInstance postgresInstance,
       long connTimeoutInMillis,
-      long sockedReadTimeoutInMillis,
       long cancelSignalTimeoutInMillis,
       long receiveBufferSize,
       long sendBufferSize)
       throws SQLException {
-    this.psqlInstance = psqlInstance;
-    this.connection = new PostgresConnection(
+    this.postgresConnection = new PostgresConnection(
         this,
-        psqlInstance.postgresInstance,
-        applicationName,
-        schema,
-        fetchSize,
+        postgresInstance,
         connTimeoutInMillis,
-        sockedReadTimeoutInMillis,
+        connTimeoutInMillis,
         cancelSignalTimeoutInMillis,
         receiveBufferSize,
         sendBufferSize);
   }
 
   /**
-   * The PostgresQL instance by which this connection was created.
+   * Creates a new PSQL connection proxy for an existing PG connection.
+   *
+   * @param postgresInstance The Postgres instance.
+   * @param pgConnection     The PG connection.
+   * @throws SQLException If assigning the connection failed.
    */
-  private final @NotNull PsqlInstance psqlInstance;
+  PsqlConnection(@NotNull PostgresInstance postgresInstance, @NotNull PgConnection pgConnection) throws SQLException {
+    this.postgresConnection = new PostgresConnection(this, postgresInstance, pgConnection);
+  }
 
   /**
    * The closable resource that wraps the real {@link PgConnection}.
    */
-  final @NotNull PostgresConnection connection;
+  final @NotNull PostgresConnection postgresConnection;
 
   @Override
   public @NotNull Statement createStatement() throws SQLException {
-    return connection.get().createStatement();
+    return postgresConnection.get().createStatement();
   }
 
   @Override
   public @NotNull PreparedStatement prepareStatement(@NotNull String sql) throws SQLException {
-    return connection.get().prepareStatement(sql);
+    return postgresConnection.get().prepareStatement(sql);
   }
 
   @Override
   public @NotNull CallableStatement prepareCall(@NotNull String sql) throws SQLException {
-    return connection.get().prepareCall(sql);
+    return postgresConnection.get().prepareCall(sql);
   }
 
   @Override
   public @NotNull String nativeSQL(@NotNull String sql) throws SQLException {
-    return connection.get().nativeSQL(sql);
+    return postgresConnection.get().nativeSQL(sql);
   }
 
   @Override
@@ -119,40 +125,40 @@ public class PsqlConnection implements Connection {
 
   @Override
   public void commit() throws SQLException {
-    connection.get().commit();
+    postgresConnection.get().commit();
   }
 
   @Override
   public void rollback() throws SQLException {
-    connection.get().rollback();
+    postgresConnection.get().rollback();
   }
 
   @Override
   public void close() {
-    connection.close();
+    postgresConnection.close();
   }
 
   @Override
   public boolean isClosed() {
-    return connection.isClosed();
+    return postgresConnection.isClosed();
   }
 
   @Override
   public @NotNull DatabaseMetaData getMetaData() throws SQLException {
-    return connection.get().getMetaData();
+    return postgresConnection.get().getMetaData();
   }
 
   @Override
   public void setReadOnly(boolean readOnly) throws SQLException {
-    if (!readOnly && connection.parent().config.readOnly) {
+    if (!readOnly && postgresConnection.parent().config.readOnly) {
       throw new SQLException("The Postgres instance is a read-only instance, can't switch into write mode");
     }
-    connection.get().setReadOnly(readOnly);
+    postgresConnection.get().setReadOnly(readOnly);
   }
 
   @Override
   public boolean isReadOnly() throws SQLException {
-    return connection.get().isReadOnly();
+    return postgresConnection.get().isReadOnly();
   }
 
   @Override
@@ -164,152 +170,152 @@ public class PsqlConnection implements Connection {
   @Override
   public @NotNull String getCatalog() throws SQLException {
     // Should return the database name to which we're connected.
-    return connection.get().getCatalog();
+    return postgresConnection.get().getCatalog();
   }
 
   @Override
   public void setTransactionIsolation(int level) throws SQLException {
-    connection.get().setTransactionIsolation(level);
+    postgresConnection.get().setTransactionIsolation(level);
   }
 
   @Override
   public int getTransactionIsolation() throws SQLException {
-    return connection.get().getTransactionIsolation();
+    return postgresConnection.get().getTransactionIsolation();
   }
 
   @Override
   public @Nullable SQLWarning getWarnings() throws SQLException {
-    return connection.get().getWarnings();
+    return postgresConnection.get().getWarnings();
   }
 
   @Override
   public void clearWarnings() throws SQLException {
-    connection.get().clearWarnings();
+    postgresConnection.get().clearWarnings();
   }
 
   @Override
   public @NotNull Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-    return connection.get().createStatement(resultSetType, resultSetConcurrency);
+    return postgresConnection.get().createStatement(resultSetType, resultSetConcurrency);
   }
 
   @Override
   public @NotNull PreparedStatement prepareStatement(@NotNull String sql, int resultSetType, int resultSetConcurrency)
       throws SQLException {
-    return connection.get().prepareStatement(sql, resultSetType, resultSetConcurrency);
+    return postgresConnection.get().prepareStatement(sql, resultSetType, resultSetConcurrency);
   }
 
   @Override
   public @NotNull CallableStatement prepareCall(@NotNull String sql, int resultSetType, int resultSetConcurrency)
       throws SQLException {
-    return connection.get().prepareCall(sql, resultSetType, resultSetConcurrency);
+    return postgresConnection.get().prepareCall(sql, resultSetType, resultSetConcurrency);
   }
 
   @Override
   public @NotNull Map<String, Class<?>> getTypeMap() throws SQLException {
-    return connection.get().getTypeMap();
+    return postgresConnection.get().getTypeMap();
   }
 
   @Override
   public void setTypeMap(@NotNull Map<String, Class<?>> map) throws SQLException {
-    connection.get().setTypeMap(map);
+    postgresConnection.get().setTypeMap(map);
   }
 
   @Override
   public void setHoldability(int holdability) throws SQLException {
-    connection.get().setHoldability(holdability);
+    postgresConnection.get().setHoldability(holdability);
   }
 
   @Override
   public int getHoldability() throws SQLException {
-    return connection.get().getHoldability();
+    return postgresConnection.get().getHoldability();
   }
 
   @Override
   public @NotNull Savepoint setSavepoint() throws SQLException {
-    return connection.get().setSavepoint();
+    return postgresConnection.get().setSavepoint();
   }
 
   @Override
   public @NotNull Savepoint setSavepoint(@NotNull String name) throws SQLException {
-    return connection.get().setSavepoint(name);
+    return postgresConnection.get().setSavepoint(name);
   }
 
   @Override
   public void rollback(@NotNull Savepoint savepoint) throws SQLException {
-    connection.get().rollback(savepoint);
+    postgresConnection.get().rollback(savepoint);
   }
 
   @Override
   public void releaseSavepoint(@NotNull Savepoint savepoint) throws SQLException {
-    connection.get().releaseSavepoint(savepoint);
+    postgresConnection.get().releaseSavepoint(savepoint);
   }
 
   @Override
   public @NotNull Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability)
       throws SQLException {
-    return connection.get().createStatement(resultSetType, resultSetConcurrency, resultSetHoldability);
+    return postgresConnection.get().createStatement(resultSetType, resultSetConcurrency, resultSetHoldability);
   }
 
   @Override
   public @NotNull PreparedStatement prepareStatement(
       @NotNull String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
       throws SQLException {
-    return connection.get().prepareStatement(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
+    return postgresConnection.get().prepareStatement(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
   }
 
   @Override
   public @NotNull CallableStatement prepareCall(
       @NotNull String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
       throws SQLException {
-    return connection.get().prepareCall(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
+    return postgresConnection.get().prepareCall(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
   }
 
   @Override
   public @NotNull PreparedStatement prepareStatement(@NotNull String sql, int autoGeneratedKeys) throws SQLException {
-    return connection.get().prepareStatement(sql, autoGeneratedKeys);
+    return postgresConnection.get().prepareStatement(sql, autoGeneratedKeys);
   }
 
   @Override
   public @NotNull PreparedStatement prepareStatement(@NotNull String sql, int @NotNull [] columnIndexes)
       throws SQLException {
-    return connection.get().prepareStatement(sql, columnIndexes);
+    return postgresConnection.get().prepareStatement(sql, columnIndexes);
   }
 
   @Override
   public @NotNull PreparedStatement prepareStatement(@NotNull String sql, @NotNull String @NotNull [] columnNames)
       throws SQLException {
-    return connection.get().prepareStatement(sql, columnNames);
+    return postgresConnection.get().prepareStatement(sql, columnNames);
   }
 
   @Override
   public @NotNull Clob createClob() throws SQLException {
-    return connection.get().createClob();
+    return postgresConnection.get().createClob();
   }
 
   @Override
   public @NotNull Blob createBlob() throws SQLException {
-    return connection.get().createBlob();
+    return postgresConnection.get().createBlob();
   }
 
   @Override
   public @NotNull NClob createNClob() throws SQLException {
-    return connection.get().createNClob();
+    return postgresConnection.get().createNClob();
   }
 
   @Override
   public @NotNull SQLXML createSQLXML() throws SQLException {
-    return connection.get().createSQLXML();
+    return postgresConnection.get().createSQLXML();
   }
 
   @Override
   public boolean isValid(int timeout) throws SQLException {
-    return connection.get().isValid(timeout);
+    return postgresConnection.get().isValid(timeout);
   }
 
   @Override
   public void setClientInfo(@NotNull String name, @NotNull String value) throws SQLClientInfoException {
     try {
-      connection.get().setClientInfo(name, value);
+      postgresConnection.get().setClientInfo(name, value);
     } catch (SQLException e) {
       throw unchecked(e);
     }
@@ -318,7 +324,7 @@ public class PsqlConnection implements Connection {
   @Override
   public void setClientInfo(@NotNull Properties properties) throws SQLClientInfoException {
     try {
-      connection.get().setClientInfo(properties);
+      postgresConnection.get().setClientInfo(properties);
     } catch (SQLException e) {
       throw unchecked(e);
     }
@@ -326,49 +332,49 @@ public class PsqlConnection implements Connection {
 
   @Override
   public @Nullable String getClientInfo(@NotNull String name) throws SQLException {
-    return connection.get().getClientInfo(name);
+    return postgresConnection.get().getClientInfo(name);
   }
 
   @Override
   public @NotNull Properties getClientInfo() throws SQLException {
-    return connection.get().getClientInfo();
+    return postgresConnection.get().getClientInfo();
   }
 
   @Override
   public @NotNull Array createArrayOf(@NotNull String typeName, @Nullable Object @NotNull [] elements)
       throws SQLException {
-    return connection.get().createArrayOf(typeName, elements);
+    return postgresConnection.get().createArrayOf(typeName, elements);
   }
 
   @Override
   public @NotNull Struct createStruct(@NotNull String typeName, @Nullable Object @NotNull [] attributes)
       throws SQLException {
-    return connection.get().createStruct(typeName, attributes);
+    return postgresConnection.get().createStruct(typeName, attributes);
   }
 
   @Override
   public void setSchema(@NotNull String schema) throws SQLException {
-    connection.get().setSchema(schema);
+    postgresConnection.get().setSchema(schema);
   }
 
   @Override
   public String getSchema() throws SQLException {
-    return connection.get().getSchema();
+    return postgresConnection.get().getSchema();
   }
 
   @Override
   public void abort(@NotNull Executor executor) throws SQLException {
-    connection.get().abort(executor);
+    postgresConnection.get().abort(executor);
   }
 
   @Override
   public void setNetworkTimeout(@NotNull Executor executor, int milliseconds) throws SQLException {
-    connection.get().setNetworkTimeout(executor, milliseconds);
+    postgresConnection.get().setNetworkTimeout(executor, milliseconds);
   }
 
   @Override
   public int getNetworkTimeout() throws SQLException {
-    return connection.get().getNetworkTimeout();
+    return postgresConnection.get().getNetworkTimeout();
   }
 
   @Override
@@ -376,10 +382,10 @@ public class PsqlConnection implements Connection {
     if (iface.isInstance(this)) {
       return iface.cast(this);
     }
-    if (iface.isInstance(connection)) {
-      return iface.cast(connection);
+    if (iface.isInstance(postgresConnection)) {
+      return iface.cast(postgresConnection);
     }
-    final PgConnection conn = connection.get();
+    final PgConnection conn = postgresConnection.get();
     if (iface.isInstance(conn)) {
       return iface.cast(conn);
     }
