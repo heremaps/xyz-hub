@@ -18,15 +18,39 @@
  */
 package com.here.naksha.lib.core.exceptions;
 
+import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.XyzError;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 
-public class StorageLockNoSuchCollection extends Exception {
+/**
+ * An exception thrown if locking a specific feature in a not existing collection failed, basically, because the collection does not exist.
+ */
+@AvailableSince(NakshaVersion.v2_0_7)
+public class StorageLockNoSuchCollection extends StorageLockException {
 
+  /**
+   * Create a new exception that locking a feature failed, because the collection does not exist.
+   *
+   * @param collectionId The collection that was tried to lock.
+   * @param featureId    The feature that was tried to lock.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public StorageLockNoSuchCollection(@NotNull String collectionId, @NotNull String featureId) {
+    super(XyzError.COLLECTION_NOT_FOUND);
     this.collectionId = collectionId;
     this.featureId = featureId;
   }
 
+  /**
+   * The collection for which the lock failed.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public final @NotNull String collectionId;
+
+  /**
+   * The feature for which the lock failed.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public final @NotNull String featureId;
 }

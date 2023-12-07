@@ -22,6 +22,7 @@ import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.exceptions.StorageException;
 import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.lambdas.Pe1;
 import com.here.naksha.lib.core.models.TxSignalSet;
@@ -40,6 +41,8 @@ public interface IStorage extends AutoCloseable {
 
   /**
    * Initializes the storage, create the transaction table, install needed scripts and extensions.
+   *
+   * @throws StorageException If the initialization failed.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   void initStorage();
@@ -48,6 +51,7 @@ public interface IStorage extends AutoCloseable {
    * Initializes the storage, create the transaction table, install needed scripts and extensions.
    *
    * @param params Special parameters that are storage dependent to influence how a storage is initialized.
+   * @throws StorageException If the initialization failed.
    */
   @AvailableSince(NakshaVersion.v2_0_8)
   default void initStorage(@Nullable Map<String, Object> params) {
@@ -78,6 +82,7 @@ public interface IStorage extends AutoCloseable {
    * @param context   the {@link NakshaContext} to which to link the session.
    * @param useMaster {@code true} if the master-node should be connected to; false if any writer is okay.
    * @return the write-session.
+   * @throws StorageException If acquiring the session failed.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   default @NotNull IWriteSession newWriteSession(@Nullable NakshaContext context, boolean useMaster) {
@@ -93,6 +98,7 @@ public interface IStorage extends AutoCloseable {
    * @param context   the {@link NakshaContext} to which to link the session.
    * @param useMaster {@code true} if the master-node should be connected to, to avoid replication lag; false if any reader is okay.
    * @return the read-session.
+   * @throws StorageException If acquiring the session failed.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   default @NotNull IReadSession newReadSession(@Nullable NakshaContext context, boolean useMaster) {

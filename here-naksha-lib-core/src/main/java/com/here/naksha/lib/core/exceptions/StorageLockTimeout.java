@@ -18,15 +18,47 @@
  */
 package com.here.naksha.lib.core.exceptions;
 
+import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.XyzError;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+/**
+ * Exception throw when locking timed-out.
+ */
+@AvailableSince(NakshaVersion.v2_0_7)
 public class StorageLockTimeout extends StorageLockException {
 
+  /**
+   * Locking the storage timed-out.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public StorageLockTimeout() {
+    super(XyzError.TIMEOUT);
+    this.collectionId = null;
+    this.featureId = null;
+  }
+
+  /**
+   * Locking the a feature in a collection timed-out.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
   public StorageLockTimeout(@NotNull String collectionId, @NotNull String featureId) {
+    super(XyzError.TIMEOUT);
     this.collectionId = collectionId;
     this.featureId = featureId;
   }
 
-  public final @NotNull String collectionId;
-  public final @NotNull String featureId;
+  /**
+   * The collection for which the lock failed; if a collection and feature were to be locked.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public final @Nullable String collectionId;
+
+  /**
+   * The feature for which the lock failed; if a collection and feature were to be locked.
+   */
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public final @Nullable String featureId;
 }

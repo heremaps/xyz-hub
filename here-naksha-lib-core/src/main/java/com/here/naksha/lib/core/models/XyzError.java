@@ -41,6 +41,11 @@ public class XyzError extends JsonEnum {
   }
 
   /**
+   * The storage is not initialized.
+   */
+  public static final XyzError STORAGE_NOT_INITIALIZED = defIgnoreCase(XyzError.class, "StorageNotInitialized");
+
+  /**
    * The collection accessed does not exist.
    */
   public static final XyzError COLLECTION_NOT_FOUND = defIgnoreCase(XyzError.class, "CollectionNotFound");

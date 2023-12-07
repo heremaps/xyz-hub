@@ -18,15 +18,27 @@
  */
 package com.here.naksha.lib.core.exceptions;
 
-public class StorageLockException extends Exception {
+import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.XyzError;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-  protected StorageLockException() {}
+@AvailableSince(NakshaVersion.v2_0_7)
+public class StorageLockException extends StorageException {
 
-  public StorageLockException(String message) {
+  @AvailableSince(NakshaVersion.v2_0_8)
+  public StorageLockException(@NotNull XyzError reason) {
+    super(reason);
+  }
+
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public StorageLockException(@NotNull String message) {
     super(message);
   }
 
-  public StorageLockException(String message, Throwable cause) {
+  @AvailableSince(NakshaVersion.v2_0_7)
+  public StorageLockException(@NotNull String message, @Nullable Throwable cause) {
     super(message, cause);
   }
 }
