@@ -712,15 +712,22 @@ components:
             description: "UniMap Moderation storage for Dev environment, holding collections managed by Naksha service"
             className: "com.here.naksha.lib.psql.PsqlStorage"
             properties:
-              dbConfig:
+              master:
                 host: localhost
                 port: 5432
                 db: db_name
-                user: db_user
-                password: db_password
-                schema: naksha_moderation_dev
-                minPoolSize: 5
-                maxPoolSize: 50
+                user: db_writer
+                password: db_writer_pass
+                readOnly: false
+              reader:
+                - host: localhost
+                  port: 5432
+                  db: db_name
+                  user: db_reader
+                  password: db_reader_pass
+                  readOnly: true
+              appName: app_name
+              schema: schema_name
     HandlerRequest:
       required: true
       content:
@@ -753,9 +760,9 @@ components:
                 eventHandlerIds:
                   - "um-mod-dev-handler"
                 properties:
-                  storageCollection:
+                  collection:
                     id: "um-mod-dev:topology"
-                    type: "StorageCollection"
+                    type: "NakshaCollection"
   responses:
     EmptyResponse:
       description: >-
@@ -1041,9 +1048,9 @@ components:
                 eventHandlerIds:
                   - "um-mod-dev-handler"
                 properties:
-                  storageCollection:
+                  collection:
                     id: "um-mod-dev:topology"
-                    type: "StorageCollection"
+                    type: "NakshaCollection"
     SpacesResponse:
       description: The list of spaces.
       content:
@@ -1062,9 +1069,9 @@ components:
                   eventHandlerIds:
                     - "um-mod-dev-handler"
                   properties:
-                    storageCollection:
+                    collection:
                       id: "um-mod-dev:topology"
-                      type: "StorageCollection"
+                      type: "NakshaCollection"
   schemas:
     Error:
       type: object
@@ -1300,15 +1307,21 @@ components:
       type: object
       description: >-
         This object represents properties, as supported by default Naksha Storage implementation, but it can be customized as per custom storage implementation.
-        Either url or dbConfig parameter must exist.
       properties:
-        dbConfig:
-          $ref: '#/components/schemas/PsqlConfig'
-        url:
+        master:
           description: >-
-            The URL holding connectivity details about backend physical storage instance.
+            The configuration of the master database.
+          $ref: '#/components/schemas/PsqlInstanceConfig'
+        readers:
+          description: >-
+            The configuration of all read-replicas.
+          type: array
+          items:
+            $ref: '#/components/schemas/PsqlInstanceConfig'
+        appName:
+          description: >-
+            The application name to be used when connecting to the database.
           type: string
-          example: 'jdbc:postgresql://localhost:5432/db_name?user=db_user&password=db_passwd&schema=naksha_moderation_dev'
     EventHandler:
       type: object
       description: >-
@@ -1346,8 +1359,8 @@ components:
         storageId:
           description: The storage this handler is bound to.
           type: string
-        storageCollection:
-          $ref: '#/components/schemas/StorageCollection'
+        collection:
+          $ref: '#/components/schemas/NakshaCollection'
     Space:
       type: object
       description: >-
@@ -1377,9 +1390,9 @@ components:
       type: object
       description: Properties of Space
       properties:
-        storageCollection:
-          $ref: '#/components/schemas/StorageCollection'
-    PsqlConfig:
+        collection:
+          $ref: '#/components/schemas/NakshaCollection'
+    PsqlInstanceConfig:
       type: object
       description: >-
         Configuration object used to provide backend database server specific connection details.
@@ -1399,18 +1412,13 @@ components:
         password:
           description: Database user password
           type: string
+        readOnly:
+          description: If this is a read-replica or a master node used as read-only.
+          type: boolean
         schema:
           description: Database schema name
           type: string
-        minPoolSize:
-          description: The minimum (initial) amount of concurrent connections this connector should use for storage operations.
-          type: integer
-          default: 2
-        maxPoolSize:
-          description: The maximum amount of concurrent connections this connector can use for storage operations.
-          type: integer
-          default: 20
-    StorageCollection:
+    NakshaCollection:
       type: object
       description: A collection is a virtual container for features. All collections optionally have a history and transaction log.
       properties:
@@ -1418,7 +1426,7 @@ components:
           description: The unique storage ID.
           type: string
         type:
-          description: The data type fixed as "StorageCollection".
+          description: The data type fixed as "NakshaCollection".
           type: string
         maxAge:
           description: The maximum age of the history entries in days. Zero means no history.

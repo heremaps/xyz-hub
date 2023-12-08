@@ -1,0 +1,16 @@
+{
+  "id": "test-config",
+  "type": "Config",
+
+  "httpPort": 8080,
+  "env": "local",
+  "jwtName": "jwt",
+  "maintenanceInitialDelayInMins": 60,
+  "maintenanceIntervalInMins": 720,
+  "maintenancePoolCoreSize": 5,
+  "maintenancePoolMaxSize": 20,
+  "storageParams": {
+    "pg_hint_plan": false,
+    "pg_stat_statements": false
+  }
+}

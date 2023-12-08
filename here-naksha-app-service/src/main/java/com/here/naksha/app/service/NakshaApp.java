@@ -24,6 +24,7 @@ import static java.lang.System.err;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
 import com.here.naksha.app.service.http.auth.NakshaAuthProvider;
 import com.here.naksha.app.service.metrics.OTelMetrics;
+import com.here.naksha.app.service.util.UrlUtil;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.util.IoHelp;
@@ -31,8 +32,7 @@ import com.here.naksha.lib.core.util.IoHelp.LoadedBytes;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.hub.NakshaHubFactory;
 import com.here.naksha.lib.hub.util.ConfigUtil;
-import com.here.naksha.lib.psql.PsqlInstanceConfig;
-import com.here.naksha.lib.psql.PsqlInstanceConfigBuilder;
+import com.here.naksha.lib.psql.PsqlStorage;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
@@ -47,6 +47,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,8 +66,13 @@ public final class NakshaApp extends Thread {
 
   private static final Logger log = LoggerFactory.getLogger(NakshaApp.class);
   private static final String DEFAULT_CONFIG_ID = "default-config";
-  private static final String DEFAULT_URL =
-      "jdbc:postgresql://localhost:5432/postgres?user=postgres&password=pswd&schema=naksha";
+
+  private static final String DEFAULT_SCHEMA = "naksha";
+
+  private static final String DEFAULT_URL = "jdbc:postgresql://localhost:5432/postgres?user=postgres&password=pswd"
+      + "&schema=" + DEFAULT_SCHEMA
+      + "&app=" + NakshaHubConfig.defaultAppName()
+      + "&id=" + PsqlStorage.ADMIN_STORAGE_ID;
   private final AtomicReference<Boolean> stopInstance = new AtomicReference<>(false);
 
   /**
@@ -132,8 +138,8 @@ public final class NakshaApp extends Thread {
         cfgId = args[0];
         url = args[1];
         if (!url.startsWith("jdbc:postgresql://")) {
-          throw new IllegalArgumentException(
-              "Missing or invalid argument <url>, must be a value like '" + DEFAULT_URL + "'");
+          throw new IllegalArgumentException("Missing or invalid argument <url>, must be a value like '"
+              + DEFAULT_URL + "', got '" + url + "' instead");
         }
         log.info("Starting with config `{}` and custom database URL...", cfgId);
       }
@@ -144,9 +150,7 @@ public final class NakshaApp extends Thread {
 
     // Potentially we could override the app-name:
     // NakshaHubConfig.APP_NAME = ?
-    final PsqlInstanceConfig config =
-        new PsqlInstanceConfigBuilder().parseUrl(url).build();
-    return new NakshaApp(NakshaHubConfig.defaultAppName(), config, cfgId, null);
+    return new NakshaApp(NakshaHubConfig.defaultAppName(), url, cfgId, null);
   }
 
   /**
@@ -168,17 +172,17 @@ public final class NakshaApp extends Thread {
    * Create a new Naksha-Hub instance, connect to the supplied database, initialize it and read the configuration from it, then bootstrap
    * the service.
    *
-   * @param appName       The name of the app
-   * @param adminDbConfig The PostgresQL configuration of the admin-db to connect to.
-   * @param configId      The identifier of the configuration to read.
-   * @param instanceId    The (optional) instance identifier; if {@code null}, then a new unique random one created, or derived from the
-   *                      environment.
+   * @param appName    The name of the app
+   * @param storageUrl The PostgresQL storage url of the admin-db to connect to.
+   * @param configId   The identifier of the configuration to read.
+   * @param instanceId The (optional) instance identifier; if {@code null}, then a new unique random one created, or derived from the
+   *                   environment.
    * @throws SQLException If any error occurred while accessing the database.
    * @throws IOException  If reading the SQL extensions from the resources fail.
    */
   public NakshaApp(
       @NotNull String appName,
-      @NotNull PsqlInstanceConfig adminDbConfig,
+      @NotNull String storageUrl,
       @NotNull String configId,
       @Nullable String instanceId) {
     super(hubs, "NakshaApp");
@@ -197,7 +201,7 @@ public final class NakshaApp extends Thread {
       log.warn("No external config available, will attempt using default. Error was [{}]", ex.getMessage());
     }
     // Instantiate NakshaHub instance
-    this.hub = NakshaHubFactory.getInstance(appName, adminDbConfig, config, configId);
+    this.hub = NakshaHubFactory.getInstance(appName, storageUrl, config, configId);
     config = hub.getConfig(); // use the config finally set by NakshaHub instance
     log.info("Using server config : {}", config);
 
@@ -430,5 +434,17 @@ public final class NakshaApp extends Thread {
     vertx.close();
     stopInstance.set(true);
     this.interrupt();
+  }
+
+  /**
+   * Ensures that provided url contains schema - if it doesn't, default schema is applied
+   *
+   * @param url url for admin db
+   * @return url with ensured schema
+   */
+  private static String urlWithEnsuredSchema(String url) {
+    Map<String, List<String>> queryParams = UrlUtil.queryParams(url);
+    queryParams.putIfAbsent("schema", List.of(DEFAULT_SCHEMA));
+    return UrlUtil.urlWithOverriddenParams(url, queryParams);
   }
 }

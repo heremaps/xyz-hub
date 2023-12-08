@@ -22,7 +22,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
-import com.here.naksha.lib.core.models.storage.StorageCollection;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,7 +35,7 @@ public class EventHandlerProperties extends XyzProperties {
   public static final String STORAGE_ID = "storageId";
 
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static final String STORAGE_COLLECTION = "storageCollection";
+  public static final String COLLECTION = "collection";
 
   /**
    * To associate EventHandler with specific {@link Storage} that it should operate against.
@@ -46,34 +45,33 @@ public class EventHandlerProperties extends XyzProperties {
   private @Nullable String storageId;
 
   /**
-   * By default, the backend storage collection details specified at EventHandler level is used,
+   * By default, the backend xyz collection details specified at EventHandler level is used,
    * ONLY if it is not available at {@link SpaceProperties} level.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  @JsonProperty(STORAGE_COLLECTION)
-  private @Nullable StorageCollection storageCollection;
+  @JsonProperty(COLLECTION)
+  private @Nullable XyzCollection xyzCollection;
 
   /**
    * Create new EventHandler properties with storageId and collection details
    *
-   * @param storageCollection details of backend storage collection
+   * @param xyzCollection details of backend xyz collection
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   @JsonCreator
   public EventHandlerProperties(
       final @JsonProperty(STORAGE_ID) @Nullable String storageId,
-      final @JsonProperty(STORAGE_COLLECTION) @Nullable StorageCollection storageCollection) {
+      final @JsonProperty(COLLECTION) @Nullable XyzCollection xyzCollection) {
     this.storageId = storageId;
-    this.storageCollection = storageCollection;
+    this.xyzCollection = xyzCollection;
   }
 
-  public @Nullable StorageCollection getStorageCollection() {
-    return storageCollection;
+  public @Nullable XyzCollection getXyzCollection() {
+    return xyzCollection;
   }
 
-  public void setStorageCollection(
-      final @JsonProperty(STORAGE_COLLECTION) @Nullable StorageCollection storageCollection) {
-    this.storageCollection = storageCollection;
+  public void setXyzCollection(final @JsonProperty(COLLECTION) @Nullable XyzCollection xyzCollection) {
+    this.xyzCollection = xyzCollection;
   }
 
   public @Nullable String getStorageId() {

@@ -32,6 +32,7 @@ import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -81,7 +82,8 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       @JsonProperty("maintenanceIntervalInMins") @Nullable Integer maintenanceIntervalInMins,
       @JsonProperty("maintenanceInitialDelayInMins") @Nullable Integer maintenanceInitialDelayInMins,
       @JsonProperty("maintenancePoolCoreSize") @Nullable Integer maintenancePoolCoreSize,
-      @JsonProperty("maintenancePoolMaxSize") @Nullable Integer maintenancePoolMaxSize) {
+      @JsonProperty("maintenancePoolMaxSize") @Nullable Integer maintenancePoolMaxSize,
+      @JsonProperty("storageParams") @Nullable Map<String, Object> storageParams) {
     super(id);
     if (httpPort != null && (httpPort < 0 || httpPort > 65535)) {
       currentLogger()
@@ -157,6 +159,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
         maintenancePoolCoreSize != null ? maintenancePoolCoreSize : defaultMaintenancePoolCoreSize();
     this.maintenancePoolMaxSize =
         maintenancePoolMaxSize != null ? maintenancePoolMaxSize : defaultMaintenancePoolMaxSize();
+    this.storageParams = storageParams;
   }
 
   public static final String HTTP_PORT = "httpPort";
@@ -299,4 +302,9 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
   public static int defaultMaintenancePoolMaxSize() {
     return 5;
   }
+
+  /**
+   * Optional storage-specific parameters
+   */
+  public final Map<String, Object> storageParams;
 }

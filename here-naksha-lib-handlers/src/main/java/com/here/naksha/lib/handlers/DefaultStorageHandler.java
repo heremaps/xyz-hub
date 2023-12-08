@@ -90,14 +90,14 @@ public class DefaultStorageHandler extends AbstractEventHandler {
 
     // Find collectionId from EventHandler, from Space, whichever is available first
     String customCollectionId = null;
-    if (properties.getStorageCollection() != null) {
-      customCollectionId = properties.getStorageCollection().getId();
+    if (properties.getXyzCollection() != null) {
+      customCollectionId = properties.getXyzCollection().getId();
       logger.info("Using collectionId {} associated with EventHandler", customCollectionId);
     }
     if (customCollectionId == null && eventTarget instanceof Space s) {
       final SpaceProperties spaceProperties = JsonSerializable.convert(s.getProperties(), SpaceProperties.class);
-      if (spaceProperties.getStorageCollection() != null) {
-        customCollectionId = spaceProperties.getStorageCollection().getId();
+      if (spaceProperties.getXyzCollection() != null) {
+        customCollectionId = spaceProperties.getXyzCollection().getId();
         logger.info("Using collectionId {} associated with Space", customCollectionId);
       }
     }
@@ -141,7 +141,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
           logger.warn(
               "Collection not found for {}, so we will attempt collection creation and then reattempt read request.",
               rf.getCollections());
-          createStorageCollections(ctx, storageImpl, rf.getCollections());
+          createXyzCollections(ctx, storageImpl, rf.getCollections());
           return forwardReadFeaturesToStorage(ctx, storageImpl, customCollectionId, rf, true);
         } else {
           throw re;
@@ -163,6 +163,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       wf.setCollectionId(customCollectionId);
     }
     logger.info("Processing WriteFeatures against {}", wf.getCollectionId());
+    // 1 -> PsqlStorage:606 -> PostrgesStorage:470 -> PostgresStorage:330
     try (final IWriteSession writer = storageImpl.newWriteSession(ctx, true)) {
       final Result result = writer.execute(wf);
       if (result instanceof SuccessResult) {
@@ -172,11 +173,11 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     } catch (RuntimeException re) {
       if (!isReattempt && re.getCause() instanceof SQLException sqe) {
         // if it was "table not found" exception, then creation collection and reattempt the request
-        if (EPsqlState.UNDEFINED_TABLE.toString().equals(sqe.getSQLState())) {
+        if (EPsqlState.COLLECTION_DOES_NOT_EXIST.toString().equals(sqe.getSQLState())) { // N0002
           logger.warn(
               "Collection not found for {}, so we will attempt collection creation and then reattempt write request.",
               wf.getCollectionId());
-          createStorageCollections(ctx, storageImpl, List.of(wf.getCollectionId()));
+          createXyzCollections(ctx, storageImpl, List.of(wf.getCollectionId()));
           return forwardWriteFeaturesToStorage(ctx, storageImpl, customCollectionId, wf, true);
         } else {
           throw re;
@@ -187,7 +188,7 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     }
   }
 
-  private void createStorageCollections(
+  private void createXyzCollections(
       final @NotNull NakshaContext ctx,
       final @NotNull IStorage storageImpl,
       final @NotNull List<String> collectionIds) {

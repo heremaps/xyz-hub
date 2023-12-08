@@ -7,9 +7,9 @@
     "local-handler-4-feature-by-ids"
   ],
   "properties": {
-    "storageCollection": {
+    "collection": {
       "id": "um-mod-dev:topology",
-      "type": "StorageCollection"
+      "type": "NakshaCollection"
     }
   }
 }

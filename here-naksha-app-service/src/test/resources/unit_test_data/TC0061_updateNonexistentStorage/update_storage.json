@@ -8,9 +8,9 @@
     "dbConfig": {
       "host": "localhost",
       "port": 5432,
-      "db": "db_name",
-      "user": "db_user",
-      "password": "modified_db_password",
+      "db": "postgres",
+      "user": "postgres",
+      "password": "password",
       "schema": "naksha_moderation_dev",
       "minPoolSize": 5,
       "maxPoolSize": 50

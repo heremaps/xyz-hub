@@ -95,8 +95,9 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
   private @NotNull XyzResponse executeCreateSpace() throws JsonProcessingException {
     final Space newSpace = spaceFromRequestBody();
     final WriteXyzFeatures wrRequest = RequestHelper.createFeatureRequest(SPACES, newSpace, false);
-    final Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest);
-    return transformWriteResultToXyzFeatureResponse(wrResult, Space.class);
+    try (Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest)) {
+      return transformWriteResultToXyzFeatureResponse(wrResult, Space.class);
+    }
   }
 
   private @NotNull XyzResponse executeUpdateSpace() throws JsonProcessingException {
@@ -107,22 +108,25 @@ public class SpaceApiTask<T extends XyzResponse> extends AbstractApiTask<XyzResp
           routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(spaceIdFromPath, spaceFromBody));
     } else {
       final WriteXyzFeatures updateSpaceReq = RequestHelper.updateFeatureRequest(SPACES, spaceFromBody);
-      final Result updateSpaceResult = executeWriteRequestFromSpaceStorage(updateSpaceReq);
-      return transformWriteResultToXyzFeatureResponse(updateSpaceResult, Space.class);
+      try (Result updateSpaceResult = executeWriteRequestFromSpaceStorage(updateSpaceReq)) {
+        return transformWriteResultToXyzFeatureResponse(updateSpaceResult, Space.class);
+      }
     }
   }
 
   private @NotNull XyzResponse executeGetSpaces() {
     final ReadFeatures request = new ReadFeatures(SPACES);
-    final Result rdResult = executeReadRequestFromSpaceStorage(request);
-    return transformReadResultToXyzCollectionResponse(rdResult, Space.class);
+    try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
+      return transformReadResultToXyzCollectionResponse(rdResult, Space.class);
+    }
   }
 
   private @NotNull XyzResponse executeGetSpaceById() {
     final String spaceId = routingContext.pathParam(SPACE_ID_PATH_KEY);
     final ReadFeatures request = new ReadFeatures(SPACES).withPropertyOp(POp.eq(PRef.id(), spaceId));
-    final Result rdResult = executeReadRequestFromSpaceStorage(request);
-    return transformReadResultToXyzFeatureResponse(rdResult, Space.class);
+    try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
+      return transformReadResultToXyzFeatureResponse(rdResult, Space.class);
+    }
   }
 
   private Space spaceFromRequestBody() throws JsonProcessingException {

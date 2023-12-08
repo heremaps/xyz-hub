@@ -18,8 +18,13 @@
  */
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.common.TestUtil.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
+import static com.here.naksha.app.common.TestUtil.getHeader;
+import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
+import static com.here.naksha.app.common.TestUtil.parseJson;
+import static com.here.naksha.app.common.TestUtil.parseJsonFileOrFail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.here.naksha.app.common.NakshaTestWebClient;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
@@ -194,7 +199,7 @@ public class UpdateFeatureTestHelper {
     final Space space = parseJsonFileOrFail("TC0500_updateFeatures/create_space.json", Space.class);
 
     final HttpResponse<String> getResponse =
-        nakshaClient.get("hub/spaces/" + space.getId() + "/features/my-custom-id-301-2", streamId);
+        nakshaClient.get("hub/spaces/" + space.getId() + "/features/my-custom-feature-2", streamId);
     final XyzFeature feature = parseJson(getResponse.body(), XyzFeature.class);
     Assertions.assertNotNull(feature);
     final XyzProperties newPropsOldUuid = feature.getProperties();

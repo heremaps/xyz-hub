@@ -251,8 +251,30 @@ public final class PsqlStorage implements IStorage, DataSource {
     this(new ConfigByUrl(url));
   }
 
-  private PsqlStorage(@NotNull ConfigByUrl config) {
-    this(config.id, config.appName, config.schema, config.master, null, null, null, null, null);
+  public PsqlStorage(@NotNull ConfigByUrl config) {
+    this(config.id, config.appName, config);
+  }
+
+  /**
+   * The constructor to create a new PostgresQL storage from a specified storageId, appName and JDBC URL.
+   * Note that storageId and appName will take precedence so url's query entries 'id' and 'app' won't be considered.
+   * The URL should have the following format:
+   * <pre>{@code
+   * jdbc:postgresql://{HOST}[:{PORT}]/{DB}
+   *   ?user={USER}
+   *   &password={PASSWORD}
+   *   &schema={SCHEMA}
+   *   [&readOnly[=true|false]]
+   * }</pre>.
+   *
+   * @param url The JDBC URL that configures the storage.
+   */
+  public PsqlStorage(@NotNull String storageId, @NotNull String appName, @NotNull String url) {
+    this(storageId, appName, new ConfigByUrl(url));
+  }
+
+  public PsqlStorage(@NotNull String storageId, @NotNull String appName, @NotNull ConfigByUrl config) {
+    this(storageId, appName, config.schema, config.master, null, null, null, null, null);
   }
 
   /**

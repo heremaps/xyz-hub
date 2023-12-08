@@ -160,13 +160,13 @@ public class ReadFeaturesByIdsTestHelper {
 
     // Given: Features By Ids request (against configured space)
     final String spaceId = "local-space-4-feature-by-id";
-    final String idsQueryParam = "&id=missing-id-1" + "&id=missing-id-2";
+    final String idsQueryParam = "?id=missing-id-1" + "&id=missing-id-2";
     final String expectedBodyPart =
         loadFileOrFail("ReadFeatures/ByIds/TC0401_MissingIds/feature_response_part.json");
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
-    response = nakshaClient.get("hub/spaces/" + spaceId + "/features?" + idsQueryParam, streamId);
+    response = nakshaClient.get("hub/spaces/" + spaceId + "/features" + idsQueryParam, streamId);
 
     // Then: Perform assertions
     standardAssertions(response, 200, expectedBodyPart, streamId);

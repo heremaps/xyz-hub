@@ -89,7 +89,9 @@ public class PsqlCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> ext
   }
 
   @Override
-  public void close() {}
+  public void close() {
+    cursor.close();
+  }
 
   private CodecError mapToCodecError(String r_err) {
     CodecError codecError = null;

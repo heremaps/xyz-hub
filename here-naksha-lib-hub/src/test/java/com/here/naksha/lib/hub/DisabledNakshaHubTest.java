@@ -45,8 +45,6 @@ import com.here.naksha.lib.core.util.storage.ResultHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.core.view.ViewSerialize;
 import com.here.naksha.lib.hub.util.ConfigUtil;
-import com.here.naksha.lib.psql.PsqlInstanceConfig;
-import com.here.naksha.lib.psql.PsqlInstanceConfigBuilder;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -78,10 +76,8 @@ class DisabledNakshaHubTest {
           + "&schema=naksha_test_maint_hub";
     }
 
-    final PsqlInstanceConfig psqlInstanceCfg =
-        new PsqlInstanceConfigBuilder().parseUrl(dbUrl).build();
     final NakshaHubConfig customCfg = ConfigUtil.readConfigFile("mock-config");
-    hub = NakshaHubFactory.getInstance(NakshaHubConfig.defaultAppName(), psqlInstanceCfg, customCfg, null);
+    hub = NakshaHubFactory.getInstance(NakshaHubConfig.defaultAppName(), dbUrl, customCfg, null);
     config = hub.getConfig();
   }
 

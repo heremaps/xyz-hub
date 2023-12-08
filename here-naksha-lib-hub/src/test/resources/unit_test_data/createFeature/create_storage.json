@@ -1,7 +1,7 @@
 {
-  "id": "local-mock",
+  "id": "test-storage",
   "type": "Storage",
-  "title": "Local Mock Storage",
-  "description": "Local InMemory Storage implementation mocked for testing purpose",
+  "title": "Test mock storage",
+  "description": "Mock storage instance for testing purpose",
   "className": "com.here.naksha.lib.hub.mock.NHAdminMock"
 }

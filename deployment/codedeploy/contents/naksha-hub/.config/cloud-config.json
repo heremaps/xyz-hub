@@ -1,6 +1,5 @@
 {
     "id": "cloud-config",
     "type": "Config",
-    "httpPort": 7080,
-    "hubClassName": "com.here.naksha.lib.hub.mock.NakshaHubMock"
+    "httpPort": 7080
 }

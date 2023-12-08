@@ -1,7 +1,18 @@
 {
-  "id": "local-mock-4-feature-by-ids",
+  "id": "test-psql-storage-feature-by-ids",
   "type": "Storage",
-  "title": "Local Mock Storage",
-  "description": "Local InMemory Storage implementation mocked for testing purpose",
-  "className": "com.here.naksha.lib.hub.mock.NHAdminMock"
+  "title": "Test PSQL storage",
+  "description": "PSQL storage instance for testing purpose",
+  "className": "com.here.naksha.lib.psql.PsqlStorage",
+  "properties": {
+    "master": {
+      "host": "127.0.0.1",
+      "db": "postgres",
+      "user": "postgres",
+      "password": "password",
+      "readOnly": false
+    },
+    "appName": "test-app-name",
+    "schema": "naksha_test_schema"
+  }
 }

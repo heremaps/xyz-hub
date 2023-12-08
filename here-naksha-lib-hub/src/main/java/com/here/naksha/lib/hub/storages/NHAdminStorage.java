@@ -24,6 +24,8 @@ import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.psql.PsqlStorage;
+import java.util.Map;
 import java.util.concurrent.Future;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -31,7 +33,9 @@ import org.jetbrains.annotations.Nullable;
 
 public class NHAdminStorage implements IStorage {
 
-  /** Singleton instance of physical admin storage implementation */
+  /**
+   * Singleton instance of physical admin storage implementation
+   */
   protected final @NotNull IStorage psqlStorage;
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
@@ -60,7 +64,7 @@ public class NHAdminStorage implements IStorage {
    */
   @Override
   public @NotNull <T> Future<T> shutdown(@Nullable Fe1<T, IStorage> onShutdown) {
-    return null;
+    return psqlStorage.shutdown(onShutdown);
   }
 
   /**
@@ -70,6 +74,12 @@ public class NHAdminStorage implements IStorage {
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void initStorage() {
     this.psqlStorage.initStorage();
+  }
+
+  @Override
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
+  public void initStorage(@Nullable Map<String, Object> params) {
+    this.psqlStorage.initStorage(params);
   }
 
   /**
@@ -97,5 +107,13 @@ public class NHAdminStorage implements IStorage {
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_7)
   public void stopMaintainer() {
     this.psqlStorage.stopMaintainer();
+  }
+
+  public void dropSchema() {
+    if (psqlStorage instanceof PsqlStorage) {
+      ((PsqlStorage) psqlStorage).dropSchema();
+    } else {
+      throw new UnsupportedOperationException("Unable to drop schema");
+    }
   }
 }

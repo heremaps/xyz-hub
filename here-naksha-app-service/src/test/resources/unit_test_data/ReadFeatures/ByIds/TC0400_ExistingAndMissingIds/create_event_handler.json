@@ -7,6 +7,6 @@
   "active": true,
   "extensionId": null,
   "properties": {
-    "storageId": "local-mock-4-feature-by-ids"
+    "storageId": "test-psql-storage-feature-by-ids"
   }
 }

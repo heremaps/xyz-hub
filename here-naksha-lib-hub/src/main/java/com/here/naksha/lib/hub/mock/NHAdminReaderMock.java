@@ -36,6 +36,7 @@ import com.here.naksha.lib.core.models.storage.XyzCodecFactory;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import com.here.naksha.lib.core.storage.IReadSession;
+import com.here.naksha.lib.psql.EPsqlState;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +45,6 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.NotNull;
-import org.postgresql.util.PSQLState;
 
 public class NHAdminReaderMock implements IReadSession {
 
@@ -158,7 +158,8 @@ public class NHAdminReaderMock implements IReadSession {
       for (final String collectionName : rf.getCollections()) {
         if (mockCollection.get(collectionName) == null) {
           throw unchecked(new SQLException(
-              "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
+              "Collection " + collectionName + " not found!",
+              EPsqlState.COLLECTION_DOES_NOT_EXIST.toString()));
         }
         features.addAll(mockCollection.get(collectionName).values());
       }
@@ -167,7 +168,8 @@ public class NHAdminReaderMock implements IReadSession {
       for (final String collectionName : rf.getCollections()) {
         if (mockCollection.get(collectionName) == null) {
           throw unchecked(new SQLException(
-              "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
+              "Collection " + collectionName + " not found!",
+              EPsqlState.COLLECTION_DOES_NOT_EXIST.toString()));
         }
         // if feature not found, return empty list
         if (mockCollection.get(collectionName).get(pOp.getValue()) == null) {
@@ -189,7 +191,8 @@ public class NHAdminReaderMock implements IReadSession {
       for (final String collectionName : rf.getCollections()) {
         if (mockCollection.get(collectionName) == null) {
           throw unchecked(new SQLException(
-              "Collection " + collectionName + " not found!", PSQLState.UNDEFINED_TABLE.getState()));
+              "Collection " + collectionName + " not found!",
+              EPsqlState.COLLECTION_DOES_NOT_EXIST.toString()));
         }
         features.addAll(ids.stream()
             .map(id -> mockCollection.get(collectionName).get(id))

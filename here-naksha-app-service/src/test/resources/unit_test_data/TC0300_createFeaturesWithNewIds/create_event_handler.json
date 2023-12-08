@@ -7,6 +7,6 @@
   "active": true,
   "extensionId": null,
   "properties": {
-    "storageId": "local-mock"
+    "storageId": "test-psql-storage-tc300"
   }
 }

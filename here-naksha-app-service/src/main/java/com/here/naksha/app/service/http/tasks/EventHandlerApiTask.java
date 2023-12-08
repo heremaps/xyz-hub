@@ -91,17 +91,19 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     final EventHandler newHandler = handlerFromRequestBody();
     final WriteXyzFeatures writeRequest = RequestHelper.createFeatureRequest(EVENT_HANDLERS, newHandler, false);
     // persist new handler in Admin DB (if doesn't exist already)
-    final Result writeResult = executeWriteRequestFromSpaceStorage(writeRequest);
-    return transformWriteResultToXyzFeatureResponse(writeResult, EventHandler.class);
+    try (Result writeResult = executeWriteRequestFromSpaceStorage(writeRequest)) {
+      return transformWriteResultToXyzFeatureResponse(writeResult, EventHandler.class);
+    }
   }
 
   private @NotNull XyzResponse executeGetHandlers() {
     // Create ReadFeatures Request to read all handlers from Admin DB
     final ReadFeatures request = new ReadFeatures(EVENT_HANDLERS);
     // Submit request to NH Space Storage
-    final Result rdResult = executeReadRequestFromSpaceStorage(request);
-    // transform ReadResult to Http FeatureCollection response
-    return transformReadResultToXyzCollectionResponse(rdResult, EventHandler.class);
+    try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
+      // transform ReadResult to Http FeatureCollection response
+      return transformReadResultToXyzCollectionResponse(rdResult, EventHandler.class);
+    }
   }
 
   private @NotNull XyzResponse executeGetHandlerById() {
@@ -109,8 +111,9 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     final String handlerId = routingContext.pathParam(HANDLER_ID_PATH_KEY);
     final ReadFeatures request = new ReadFeatures(EVENT_HANDLERS).withPropertyOp(POp.eq(PRef.id(), handlerId));
     // Submit request to NH Space Storage
-    final Result rdResult = executeReadRequestFromSpaceStorage(request);
-    return transformReadResultToXyzFeatureResponse(rdResult, EventHandler.class);
+    try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
+      return transformReadResultToXyzFeatureResponse(rdResult, EventHandler.class);
+    }
   }
 
   private @NotNull XyzResponse executeUpdateHandler() throws JsonProcessingException {
@@ -122,8 +125,9 @@ public class EventHandlerApiTask<T extends XyzResponse> extends AbstractApiTask<
     } else {
       final WriteXyzFeatures updateHandlerReq =
           RequestHelper.updateFeatureRequest(EVENT_HANDLERS, handlerToUpdate);
-      final Result updateHandlerResult = executeWriteRequestFromSpaceStorage(updateHandlerReq);
-      return transformWriteResultToXyzFeatureResponse(updateHandlerResult, EventHandler.class);
+      try (Result updateHandlerResult = executeWriteRequestFromSpaceStorage(updateHandlerReq)) {
+        return transformWriteResultToXyzFeatureResponse(updateHandlerResult, EventHandler.class);
+      }
     }
   }
 

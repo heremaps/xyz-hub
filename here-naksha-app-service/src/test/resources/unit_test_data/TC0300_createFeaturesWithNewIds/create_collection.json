@@ -1,0 +1,6 @@
+{
+  "id": "collection-tc300",
+  "type": "Storage",
+  "title": "Test PSQL storage",
+  "description": "PSQL storage instance for testing purpose"
+}

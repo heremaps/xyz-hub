@@ -1,5 +1,5 @@
 {
   "type": "ErrorResponse",
   "error": "NotFound",
-  "errorMessage": "No feature found for id this-id-does-not-exist"
+  "errorMessage": "Operation failed, no feature with the id 'this-id-does-not-exist' exists"
 }

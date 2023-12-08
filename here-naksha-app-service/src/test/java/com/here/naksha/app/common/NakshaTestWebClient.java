@@ -43,7 +43,7 @@ public class NakshaTestWebClient {
   private static final Logger logger = LoggerFactory.getLogger(NakshaTestWebClient.class);
   private static final String NAKSHA_HTTP_URI = "http://localhost:8080/";
   private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
-  private static final Duration SOCKET_TIMEOUT = Duration.ofSeconds(2);
+  private static final Duration SOCKET_TIMEOUT = Duration.ofSeconds(5);
 
   private final HttpClient httpClient;
 
@@ -110,6 +110,7 @@ public class NakshaTestWebClient {
   }
 
   private HttpResponse<String> sendOnce(HttpRequest request) throws IOException, InterruptedException {
+    logger.info("Sending {} request to {}", request.method(), request.uri());
     return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
   }
 

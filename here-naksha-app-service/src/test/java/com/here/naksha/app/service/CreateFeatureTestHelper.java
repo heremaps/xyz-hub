@@ -123,7 +123,7 @@ public class CreateFeatureTestHelper {
     final Space space = parseJsonFileOrFail("TC0300_createFeaturesWithNewIds/create_space.json", Space.class);
     final String spaceJsonString = loadFileOrFail("TC0300_createFeaturesWithNewIds/create_space.json");
     response = nakshaClient.post("hub/spaces", spaceJsonString, streamId);
-    assertEquals(200, response.statusCode(), "ResCode mismatch. Failed creating Event Handler");
+    assertEquals(200, response.statusCode(), "ResCode mismatch. Failed creating Space");
 
     // Given: Create Features request (against above Space)
     final String bodyJson = loadFileOrFail("TC0300_createFeaturesWithNewIds/create_features.json");

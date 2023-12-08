@@ -94,22 +94,25 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
 
   private @NotNull XyzResponse executeGetStorages() {
     final ReadFeatures request = new ReadFeatures(STORAGES);
-    final Result rdResult = executeReadRequestFromSpaceStorage(request);
-    return transformReadResultToXyzCollectionResponse(rdResult, Storage.class);
+    try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
+      return transformReadResultToXyzCollectionResponse(rdResult, Storage.class);
+    }
   }
 
   private @NotNull XyzResponse executeGetStorageById() {
     final String storageId = routingContext.pathParam(STORAGE_ID_PATH_KEY);
     final ReadFeatures request = new ReadFeatures(STORAGES).withPropertyOp(POp.eq(PRef.id(), storageId));
-    final Result rdResult = executeReadRequestFromSpaceStorage(request);
-    return transformReadResultToXyzFeatureResponse(rdResult, Storage.class);
+    try (Result rdResult = executeReadRequestFromSpaceStorage(request)) {
+      return transformReadResultToXyzFeatureResponse(rdResult, Storage.class);
+    }
   }
 
   private @NotNull XyzResponse executeCreateStorage() throws JsonProcessingException {
     final Storage newStorage = storageFromRequestBody();
     final WriteXyzFeatures wrRequest = RequestHelper.createFeatureRequest(STORAGES, newStorage, false);
-    final Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest);
-    return transformWriteResultToXyzFeatureResponse(wrResult, Storage.class);
+    try (Result wrResult = executeWriteRequestFromSpaceStorage(wrRequest)) {
+      return transformWriteResultToXyzFeatureResponse(wrResult, Storage.class);
+    }
   }
 
   private @NotNull XyzResponse executeUpdateStorage() throws JsonProcessingException {
@@ -120,8 +123,9 @@ public class StorageApiTask<T extends XyzResponse> extends AbstractApiTask<XyzRe
           routingContext, XyzError.ILLEGAL_ARGUMENT, mismatchMsg(storageIdFromPath, storageFromBody));
     } else {
       final WriteXyzFeatures updateStorageReq = RequestHelper.updateFeatureRequest(STORAGES, storageFromBody);
-      final Result updateStorageResult = executeWriteRequestFromSpaceStorage(updateStorageReq);
-      return transformWriteResultToXyzFeatureResponse(updateStorageResult, Storage.class);
+      try (Result updateStorageResult = executeWriteRequestFromSpaceStorage(updateStorageReq)) {
+        return transformWriteResultToXyzFeatureResponse(updateStorageResult, Storage.class);
+      }
     }
   }
 

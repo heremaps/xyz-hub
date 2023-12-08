@@ -64,17 +64,18 @@ abstract class AdminFeatureEventHandler<FEATURE extends XyzFeature> extends Abst
       }
     } else if (request instanceof WriteXyzFeatures wr) {
       // validate the request before persisting
-      final Result valResult = validateWriteRequest(wr);
-      if (valResult instanceof ErrorResult er) {
-        return er;
-      }
-      // persist in storage
-      try (final IWriteSession writer = nakshaHub().getAdminStorage().newWriteSession(ctx, true)) {
-        final Result result = writer.execute(wr);
-        if (result instanceof SuccessResult) {
-          writer.commit(true);
+      try (Result valResult = validateWriteRequest(wr)) {
+        if (valResult instanceof ErrorResult er) {
+          return er;
         }
-        return result;
+        // persist in storage
+        try (final IWriteSession writer = nakshaHub().getAdminStorage().newWriteSession(ctx, true)) {
+          final Result result = writer.execute(wr);
+          if (result instanceof SuccessResult) {
+            writer.commit(true);
+          }
+          return result;
+        }
       }
     } else {
       return notImplemented(event);

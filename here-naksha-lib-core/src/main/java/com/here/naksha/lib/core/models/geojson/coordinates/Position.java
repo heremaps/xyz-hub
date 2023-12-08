@@ -40,8 +40,6 @@ public class Position extends ArrayList<Double> implements IBoundedCoordinates {
 
   public Position(double longitude, double latitude, double altitude) {
     this(longitude, latitude);
-    this.add(LONGITUDE, longitude);
-    this.add(LATITUDE, latitude);
     this.add(ALTITUDE, altitude);
   }
 

@@ -7,7 +7,7 @@
   "active": true,
   "properties": {
     "storageId": "um-mod-dev",
-    "storageCollection": {
+    "collection": {
       "maxAge": 3
     }
   }

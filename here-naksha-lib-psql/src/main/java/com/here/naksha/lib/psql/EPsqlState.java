@@ -119,6 +119,9 @@ public class EPsqlState extends JsonEnum {
   public static final EPsqlState DUPLICATE_TABLE = def(EPsqlState.class, "42P07");
   public static final EPsqlState DUPLICATE_OBJECT = def(EPsqlState.class, "42710");
 
+  public static final EPsqlState COLLECTION_EXISTS = def(EPsqlState.class, "N0001");
+  public static final EPsqlState COLLECTION_DOES_NOT_EXIST = def(EPsqlState.class, "N0002");
+
   public boolean isConnectionError() {
     return this == CONNECTION_UNABLE_TO_CONNECT
         || this == CONNECTION_DOES_NOT_EXIST

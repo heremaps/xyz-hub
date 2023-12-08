@@ -139,7 +139,7 @@ public final class PluginCache {
         if (parameterTypes[2].isAssignableFrom(targetClass)) { // target: Space, param[2]: EventTarget
           return ((naksha, config, target) -> constructor.newInstance(config, naksha, target));
         }
-        return null; // TODO() tutaj
+        return null;
       }
       if (targetClass.isAssignableFrom(parameterTypes[1])) {
         if (INaksha.class.isAssignableFrom(parameterTypes[2])) {
@@ -281,7 +281,7 @@ public final class PluginCache {
         }
         if (c == null) {
           throw new NoSuchMethodException(
-              "The class " + theClass.getName() + " does not valid a valid constructor");
+              "The class " + theClass.getName() + " does not have a valid constructor");
         }
         constructorByTarget.put(targetClass, c);
         return c;
@@ -321,28 +321,26 @@ public final class PluginCache {
           throw new ClassCastException(
               "The class " + theClass.getName() + " does not implement the IStorage interface");
         }
-        //noinspection unchecked
-        final Constructor<? extends IStorage>[] constructors =
-            (Constructor<IStorage>[]) theClass.getConstructors();
-        int cParameterCount = -1;
-        for (final Constructor<? extends IStorage> constructor : constructors) {
-          if (constructor.getParameterCount() < cParameterCount) {
-            continue;
-          }
-          if (constructor.getParameterCount() > 1) {
-            continue;
-          }
-          c = wrapStorageConstructor(constructor, configClass);
-          if (c != null) {
-            cParameterCount = constructor.getParameterCount();
+        Fe1<IStorage, CONFIG> noParamConstructorCall = null;
+        Fe1<IStorage, CONFIG> configParamConstructorCall = null;
+        for (final Constructor<? extends IStorage> constructor :
+            (Constructor<IStorage>[]) theClass.getConstructors()) {
+          if (constructor.getParameterCount() == 0) {
+            noParamConstructorCall = constructor::newInstance;
+          } else if (constructor.getParameterCount() == 1
+              && constructor.getParameterTypes()[0].isAssignableFrom(configClass)) {
+            configParamConstructorCall = constructor::newInstance;
           }
         }
-        if (c == null) {
+        if (configParamConstructorCall != null) {
+          map.put(configClass, configParamConstructorCall);
+          return configParamConstructorCall;
+        } else if (noParamConstructorCall != null) {
+          return noParamConstructorCall;
+        } else {
           throw new NoSuchMethodException(
               "The class " + theClass.getName() + " does not valid a valid constructor");
         }
-        map.put(configClass, c);
-        return c;
       } catch (Throwable t) {
         throw unchecked(t);
       }

@@ -105,9 +105,10 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdsRequest(spaceId, featureIds);
 
     // Forward request to NH Space Storage writer instance
-    final Result result = executeReadRequestFromSpaceStorage(rdRequest);
-    // transform Result to Http FeatureCollection response
-    return transformReadResultToXyzCollectionResponse(result, XyzFeature.class);
+    try (Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
+      // transform Result to Http FeatureCollection response
+      return transformReadResultToXyzCollectionResponse(result, XyzFeature.class);
+    }
   }
 
   private @NotNull XyzResponse executeFeatureById() {
@@ -125,8 +126,9 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final ReadFeatures rdRequest = RequestHelper.readFeaturesByIdRequest(spaceId, featureId);
 
     // Forward request to NH Space Storage writer instance
-    final Result result = executeReadRequestFromSpaceStorage(rdRequest);
-    // transform Result to Http XyzFeature response
-    return transformReadResultToXyzFeatureResponse(result, XyzFeature.class);
+    try (Result result = executeReadRequestFromSpaceStorage(rdRequest)) {
+      // transform Result to Http XyzFeature response
+      return transformReadResultToXyzFeatureResponse(result, XyzFeature.class);
+    }
   }
 }

@@ -42,6 +42,7 @@ import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.psql.EPsqlState;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -99,7 +100,8 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     // Raise exception if collection doesn't exist already
     if (mockCollection.get(wf.getCollectionId()) == null) {
       throw unchecked(new SQLException(
-          "Collection " + wf.getCollectionId() + " doesn't exist.", PSQLState.UNDEFINED_TABLE.getState()));
+          "Collection " + wf.getCollectionId() + " doesn't exist.",
+          EPsqlState.COLLECTION_DOES_NOT_EXIST.toString()));
     }
     // Perform write operation for each feature
     for (final XyzFeatureCodec featureCodec : wf.features) {
@@ -172,7 +174,8 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
       } else {
         // throw error if UUID mismatches
         exception.set(new SQLException(
-            "Uuid " + uuidOf(ef) + " mismatch for id " + fId, PSQLState.UNIQUE_VIOLATION.getState()));
+            "Uuid " + uuidOf(ef) + " mismatch for id " + fId,
+            EPsqlState.COLLECTION_DOES_NOT_EXIST.toString()));
         return oldF;
       }
     });

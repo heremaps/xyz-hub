@@ -7,9 +7,9 @@
     "test-handler"
   ],
   "properties": {
-    "storageCollection": {
+    "collection": {
       "id": "um-mod-dev:test",
-      "type": "StorageCollection"
+      "type": "NakshaCollection"
     }
   }
 }

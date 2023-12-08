@@ -22,7 +22,6 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
-import com.here.naksha.lib.core.models.storage.StorageCollection;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,32 +32,31 @@ import org.jetbrains.annotations.Nullable;
 public class SpaceProperties extends XyzProperties {
 
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static final String STORAGE_COLLECTION = "storageCollection";
+  public static final String XYZ_COLLECTION = "xyzCollection";
 
   /**
    * The backend storage collection details specified at space level
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  @JsonProperty(STORAGE_COLLECTION)
-  private @Nullable StorageCollection storageCollection;
+  @JsonProperty(XYZ_COLLECTION)
+  private @Nullable XyzCollection xyzCollection;
 
   /**
    * Create new Space properties with collection details
    *
-   * @param storageCollection details of backend storage collection
+   * @param xyzCollection details of backend xyz collection
    */
   @AvailableSince(NakshaVersion.v2_0_7)
   @JsonCreator
-  public SpaceProperties(final @JsonProperty(STORAGE_COLLECTION) @Nullable StorageCollection storageCollection) {
-    this.storageCollection = storageCollection;
+  public SpaceProperties(final @JsonProperty(XYZ_COLLECTION) @Nullable XyzCollection xyzCollection) {
+    this.xyzCollection = xyzCollection;
   }
 
-  public @Nullable StorageCollection getStorageCollection() {
-    return storageCollection;
+  public @Nullable XyzCollection getXyzCollection() {
+    return xyzCollection;
   }
 
-  public void setStorageCollection(
-      final @JsonProperty(STORAGE_COLLECTION) @Nullable StorageCollection storageCollection) {
-    this.storageCollection = storageCollection;
+  public void setXyzCollection(final @JsonProperty(XYZ_COLLECTION) @Nullable XyzCollection xyzCollection) {
+    this.xyzCollection = xyzCollection;
   }
 }
