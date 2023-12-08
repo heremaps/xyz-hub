@@ -874,7 +874,7 @@ public abstract class Job<T extends Job> extends Payload {
 
     public abstract void execute();
 
-    public static class Public {}
+    public static class Public extends XyzSerializable.Public {} //TODO: User XyzSerializable.Public everywhere directly
 
     public static class Static implements SerializationView {}
 
