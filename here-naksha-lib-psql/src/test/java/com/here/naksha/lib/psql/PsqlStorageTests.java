@@ -55,6 +55,7 @@ import com.here.naksha.lib.core.models.storage.PRef;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SOp;
+import com.here.naksha.lib.core.models.storage.SeekableCursor;
 import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
 import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.models.storage.XyzCollectionCodec;
@@ -83,7 +84,7 @@ public class PsqlStorageTests extends PsqlTests {
 
   @Override
   boolean enabled() {
-    return false;
+    return true;
   }
 
   final @NotNull String collectionId() {
@@ -720,6 +721,37 @@ public class PsqlStorageTests extends PsqlTests {
       }
     } finally {
       session.commit(true);
+    }
+  }
+
+  @Test
+  @Order(72)
+  @EnabledIf("runTest")
+  void seekableCursorRead() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    final ReadFeatures request = new ReadFeatures(collectionId());
+    request.limit = null;
+    try (final SeekableCursor<XyzFeature, XyzFeatureCodec> cursor =
+        session.execute(request).getXyzSeekableCursor()) {
+
+      // commit closes original cursor, but as we have all rows cached SeekableCursor should work as normal.
+      session.commit(true);
+
+      // We expect that at least one feature was found!
+      assertTrue(cursor.hasNext());
+      cursor.next();
+      XyzFeature firstFeature = cursor.getFeature();
+      while (cursor.hasNext()) {
+        assertTrue(cursor.next());
+        final XyzFeature f = cursor.getFeature();
+        assertNotNull(f);
+      }
+      assertFalse(cursor.hasNext());
+
+      cursor.beforeFirst();
+      assertTrue(cursor.next());
+      assertEquals(firstFeature, cursor.getFeature());
     }
   }
 

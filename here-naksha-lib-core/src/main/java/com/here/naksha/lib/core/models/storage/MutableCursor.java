@@ -19,6 +19,7 @@
 package com.here.naksha.lib.core.models.storage;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * A seekable cursor that allows the modification of the features.
@@ -39,17 +40,43 @@ public abstract class MutableCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
   }
 
   /**
+   * Adds feature at the end of the cursor.
+   * @param feature The new feature.
+   * @return the old feature.
+   */
+  public abstract @NotNull FEATURE addFeature(@NotNull FEATURE feature);
+
+  /**
+   * Replace the feature with the given one at given position.
+   * @param feature The new feature.
+   * @return the old feature.
+   */
+  public abstract @Nullable FEATURE setFeature(long position, @NotNull FEATURE feature);
+
+  /**
    * Replace the feature with the given one.
    * @param feature The new feature.
    * @return the old feature.
    */
-  public abstract @NotNull FEATURE setFeature(@NotNull FEATURE feature);
+  public abstract @Nullable FEATURE setFeature(@NotNull FEATURE feature);
 
   /**
    * Removes the feature at the current cursor position and returns it.
    * @return The removed feature.
    */
-  public abstract @NotNull FEATURE removeFeature();
+  public abstract @Nullable FEATURE removeFeature();
+
+  /**
+   * Removes the feature at the position and returns it.
+   * @return The removed feature.
+   */
+  public abstract @Nullable FEATURE removeFeature(long position);
+
+  /**
+   * Changes the order of cached elements to same as was in the request.
+   * It's bacause before save, elements have to be sorted by ID to avoid deadlocks.
+   */
+  public abstract void restoreInputOrder();
 
   // TODO: spliceFeatures, addFeature, insertFeature, pushFeature, popFeature, shiftFeature, ...?
 }

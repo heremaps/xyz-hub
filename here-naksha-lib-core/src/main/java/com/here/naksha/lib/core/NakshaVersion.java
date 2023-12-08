@@ -43,6 +43,7 @@ public class NakshaVersion implements Comparable<NakshaVersion> {
   public static final String v2_0_6 = "2.0.6";
   public static final String v2_0_7 = "2.0.7";
   public static final String v2_0_8 = "2.0.8";
+  public static final String v2_0_9 = "2.0.9";
 
   /**
    * The latest version of the naksha-extension stored in the resources.

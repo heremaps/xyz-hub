@@ -58,7 +58,97 @@ public abstract class Result implements Typed, AutoCloseable {
   public <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> @NotNull ForwardCursor<FEATURE, CODEC> cursor(
       @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) throws NoCursor {
     if (cursor != null) {
+      if (cursor instanceof HeapCacheCursor) {
+        cursor = ((HeapCacheCursor<?, ?>) cursor).getOriginalCursor();
+      }
       return cursor.withCodecFactory(codecFactory, true);
+    }
+    throw new NoCursor(this);
+  }
+
+  /**
+   * Converts current cursor to {@link MutableCursor} and loads next data from point where current cursor is.
+   * Calling it multiple times will return same cursor with same cached data.
+   *
+   * @param codecFactory
+   * @return
+   * @param <FEATURE>
+   * @param <CODEC>
+   * @throws NoCursor
+   */
+  @SuppressWarnings("unchecked")
+  @JsonIgnore
+  public <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> @NotNull MutableCursor<FEATURE, CODEC> mutableCursor(
+      @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) throws NoCursor {
+    if (cursor != null) {
+      if (!(cursor instanceof HeapCacheCursor)) {
+        cursor = new HeapCacheCursor<>(codecFactory, cursor);
+      }
+      return (MutableCursor<FEATURE, CODEC>) cursor;
+    }
+    throw new NoCursor(this);
+  }
+
+  /**
+   * {@link MutableCursor} with original cursor codec factory.
+   * You have to call {@link #cursor(FeatureCodecFactory)}, {@link #getXyzFeatureCursor()} or {@link #getXyzCollectionCursor()} first,
+   * other way basic cursor won't be initiated and exception will be thrown.
+   *
+   * @return
+   * @param <FEATURE>
+   * @param <CODEC>
+   * @throws NoCursor
+   */
+  @SuppressWarnings("unchecked")
+  @JsonIgnore
+  public <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> @NotNull MutableCursor<FEATURE, CODEC> mutableCursor()
+      throws NoCursor {
+    if (cursor != null) {
+      return (MutableCursor<FEATURE, CODEC>) mutableCursor(cursor.codecFactory);
+    }
+    throw new NoCursor(this);
+  }
+
+  /**
+   * Converts current cursor to {@link SeekableCursor} and loads next data from point where current cursor is.
+   * Calling it multiple times will return same cursor with same cached data.
+   *
+   * @param codecFactory
+   * @return
+   * @param <FEATURE>
+   * @param <CODEC>
+   * @throws NoCursor
+   */
+  @SuppressWarnings("unchecked")
+  @JsonIgnore
+  public <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> @NotNull SeekableCursor<FEATURE, CODEC> seekableCursor(
+      @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) throws NoCursor {
+    if (cursor != null) {
+      if (!(cursor instanceof HeapCacheCursor)) {
+        cursor = new HeapCacheCursor<>(codecFactory, cursor);
+      }
+      return (SeekableCursor<FEATURE, CODEC>) cursor;
+    }
+    throw new NoCursor(this);
+  }
+
+  /**
+   * Converts current cursor to {@link SeekableCursor} and loads next data from point where current cursor is.
+   * Calling it multiple times will return same cursor with same cached data.
+   * You have to call {@link #cursor(FeatureCodecFactory)}, {@link #getXyzFeatureCursor()} or {@link #getXyzCollectionCursor()} first,
+   * other way basic cursor won't be initiated and exception will be thrown.
+   *
+   * @return
+   * @param <FEATURE>
+   * @param <CODEC>
+   * @throws NoCursor
+   */
+  @SuppressWarnings("unchecked")
+  @JsonIgnore
+  public <FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> @NotNull
+      SeekableCursor<FEATURE, CODEC> seekableCursor() throws NoCursor {
+    if (cursor != null) {
+      return (SeekableCursor<FEATURE, CODEC>) seekableCursor(cursor.codecFactory);
     }
     throw new NoCursor(this);
   }
@@ -80,7 +170,43 @@ public abstract class Result implements Typed, AutoCloseable {
   @JsonIgnore
   public @NotNull ForwardCursor<XyzFeature, XyzFeatureCodec> getXyzFeatureCursor() throws NoCursor {
     if (cursor != null) {
+      if (cursor instanceof HeapCacheCursor) {
+        ForwardCursor<?, ?> originalForwardCursor = ((HeapCacheCursor<?, ?>) cursor).getOriginalCursor();
+        if (originalForwardCursor != null) {
+          cursor = originalForwardCursor;
+        }
+      }
       return cursor.withCodecFactory(XyzFeatureCodecFactory.get(), false);
+    }
+    throw new NoCursor(this);
+  }
+
+  /**
+   * Returns {@link MutableCursor} for {@link XyzFeature}.
+   * @see #mutableCursor(FeatureCodecFactory) for more information.
+   *
+   * @return
+   * @throws NoCursor
+   */
+  @JsonIgnore
+  public @NotNull MutableCursor<XyzFeature, XyzFeatureCodec> getXyzMutableCursor() throws NoCursor {
+    if (cursor != null) {
+      return mutableCursor(XyzFeatureCodecFactory.get());
+    }
+    throw new NoCursor(this);
+  }
+
+  /**
+   * Returns {@link SeekableCursor} for {@link XyzFeature}.
+   * @see #seekableCursor(FeatureCodecFactory)
+   *
+   * @return
+   * @throws NoCursor
+   */
+  @JsonIgnore
+  public @NotNull SeekableCursor<XyzFeature, XyzFeatureCodec> getXyzSeekableCursor() throws NoCursor {
+    if (cursor != null) {
+      return seekableCursor(XyzFeatureCodecFactory.get());
     }
     throw new NoCursor(this);
   }
@@ -102,6 +228,9 @@ public abstract class Result implements Typed, AutoCloseable {
   @JsonIgnore
   public @NotNull ForwardCursor<XyzCollection, XyzCollectionCodec> getXyzCollectionCursor() throws NoCursor {
     if (cursor != null) {
+      if (cursor instanceof HeapCacheCursor) {
+        cursor = ((HeapCacheCursor<?, ?>) cursor).getOriginalCursor();
+      }
       return cursor.withCodecFactory(XyzCollectionCodecFactory.get(), false);
     }
     throw new NoCursor(this);

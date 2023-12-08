@@ -94,10 +94,11 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
    * @param reEncode     If already encoded features should be re-encoded using the new factory.
    * @param <NF>         The new feature type to use.
    * @param <NC>         The new codec type to use.
+   * @param <N_CUR>      The new cursor type to use.
    * @return this with changed feature type.
    */
   @SuppressWarnings("unchecked")
-  public <NF, NC extends FeatureCodec<NF, NC>> @NotNull ForwardCursor<NF, NC> withCodecFactory(
+  public <NF, NC extends FeatureCodec<NF, NC>, N_CUR extends ForwardCursor<NF, NC>> @NotNull N_CUR withCodecFactory(
       @NotNull FeatureCodecFactory<NF, NC> codecFactory, boolean reEncode) {
     this.codecFactory = (FeatureCodecFactory<FEATURE, CODEC>) codecFactory;
     this.reEncode = reEncode;
@@ -105,7 +106,7 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
       this.currentRow.codec = ForwardCursor.this.codecFactory.newInstance();
       this.nextRow.codec = ForwardCursor.this.codecFactory.newInstance();
     }
-    return (ForwardCursor<NF, NC>) this;
+    return (N_CUR) this;
   }
 
   /**
@@ -411,13 +412,12 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
    * @return the full feature including the geometry as POJO.
    * @throws NoSuchElementException If the cursor currently is not at a valid result.
    */
-  public @NotNull FEATURE getFeature() throws NoSuchElementException {
+  public @Nullable FEATURE getFeature() throws NoSuchElementException {
     if (!currentRow.valid) {
       throw new NoSuchElementException();
     }
     final FeatureCodec<FEATURE, ?> codec = currentRow.codec;
     FEATURE feature = codec.encodeFeature(false).getFeature();
-    assert feature != null;
     return feature;
   }
 
@@ -435,14 +435,6 @@ public abstract class ForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
    */
   public @Nullable CodecError getError() {
     return currentRow.codec.getError();
-  }
-
-  public @NotNull MutableCursor<FEATURE, CODEC> toMutableCursor(long limit, boolean reOrder) {
-    throw new UnsupportedOperationException();
-  }
-
-  public @NotNull SeekableCursor<FEATURE, CODEC> asSeekableCursor(long limit, boolean reOrder) {
-    throw new UnsupportedOperationException();
   }
 
   /**

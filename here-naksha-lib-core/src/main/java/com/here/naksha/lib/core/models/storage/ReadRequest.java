@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.here.naksha.lib.core.LibraryConstants;
 import com.here.naksha.lib.core.NakshaVersion;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 
@@ -52,4 +53,16 @@ public class ReadRequest<SELF extends ReadRequest<SELF>> extends Request<SELF> {
   @JsonInclude(Include.NON_DEFAULT)
   @JsonProperty
   public int fetchSize = 1000;
+
+  /**
+   * The total amount of features to fetch from the storage. This value will be included in SELECT statement.
+   * Default value is {@link LibraryConstants#DEFAULT_READ_LIMIT}.
+   * Unlimited read - set limit to null to drop limitation, but be aware that only {@link ForwardCursor} will read rows one by another
+   * (actually it will fetch rows in packets of size defined by {@link #fetchSize}). Whenever you use {@link MutableCursor}
+   * you will instantly fetch all rows to memory.
+   */
+  @AvailableSince(NakshaVersion.v2_0_9)
+  @JsonInclude(Include.NON_DEFAULT)
+  @JsonProperty
+  public Long limit = LibraryConstants.DEFAULT_READ_LIMIT;
 }

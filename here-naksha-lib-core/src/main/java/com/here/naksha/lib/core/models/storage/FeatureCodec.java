@@ -499,4 +499,11 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
   public void setErr(@Nullable CodecError err) {
     this.err = err;
   }
+
+  @Override
+  public @Nullable Object setFeature(@Nullable FEATURE feature) {
+    clearFeature();
+    isEncoded = true;
+    return super.setFeature(feature);
+  }
 }

@@ -28,6 +28,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.util.json.Json;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The default codec for XYZ core library, this can simply be specialized.
@@ -89,14 +90,14 @@ public class XyzCodec<FEATURE extends XyzFeature, SELF extends XyzCodec<FEATURE,
     return self();
   }
 
-  @NotNull
+  @Nullable
   @Override
   public final SELF encodeFeature(boolean force) {
     if (!force && isEncoded) {
       return self();
     }
     if (json == null) {
-      throw new NullPointerException();
+      return self();
     }
     feature = null;
     try (final Json jp = Json.get()) {
