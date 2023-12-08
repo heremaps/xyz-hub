@@ -12,8 +12,11 @@ on:
         default: 'main'  # Change the default branch as needed
 
 jobs:
-  test:
+  push-to-artifactory:
     runs-on: ubuntu-latest
+    env:
+      ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+      ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
     steps:
       - uses: actions/checkout@v2
       - name: Cache local Maven repository
@@ -30,4 +33,4 @@ jobs:
       - name: Build XYZ hub jar
         run: mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
       - name: Deploy to Artifactory
-        run: mvn -gs $HOME/settings.xml --batch-mode deploy -Dmaven.test.skip=true -Partifactory
+        run: mvn -gs $GITHUB_WORKSPACE/settings.xml --batch-mode deploy -Dmaven.test.skip=true -Partifactory
