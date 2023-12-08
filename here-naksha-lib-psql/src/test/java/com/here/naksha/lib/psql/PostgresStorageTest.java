@@ -24,9 +24,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.sql.SQLException;
 import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.postgresql.jdbc.PgConnection;
 
+@SuppressWarnings("unused")
+@TestMethodOrder(OrderAnnotation.class)
 class PostgresStorageTest extends PsqlTests {
 
   @Override
@@ -46,35 +52,37 @@ class PostgresStorageTest extends PsqlTests {
   }
 
   @Test
+  @EnabledIf("runTest")
+  @Order(50)
   void ensureInstanceSingleton() throws SQLException {
-    assertNotNull(storage);
+    assertNotNull(storage, "storage must not be null");
     // Get a new connection from the storage.
     PsqlConnection connection = storage.getConnection();
-    assertNotNull(connection);
+    assertNotNull(connection, "connection must not be null");
     PostgresConnection postgresConnection = connection.postgresConnection;
-    assertNotNull(postgresConnection);
+    assertNotNull(postgresConnection, "postgresConnection must not be null");
     // Test that we can get the same storage instance again, providing the same config.
     PostgresInstance postgresInstance = postgresConnection.postgresInstance;
-    assertNotNull(postgresInstance);
+    assertNotNull(postgresInstance, "postgresInstance must not be null");
     PsqlInstanceConfig config = postgresInstance.config;
-    assertNotNull(config);
+    assertNotNull(config, "config must not be null");
     PsqlInstance psqlInstance = PsqlInstance.get(config);
-    assertNotNull(psqlInstance);
-    assertSame(psqlInstance.postgresInstance, postgresInstance);
+    assertNotNull(psqlInstance, "We must get back an instance from PsqlInstance.get(config)");
+    assertSame(psqlInstance.postgresInstance, postgresInstance, "We expect to get back the same postgres-instance");
 
     // Remember the underlying pgConnection and then close the connection.
     final PgConnection pgConnection = postgresConnection.get();
-    assertNotNull(pgConnection);
+    assertNotNull(pgConnection, "We must have a underlying pgConnection");
     connection.close();
-    assertTrue(connection.isClosed());
+    assertTrue(connection.isClosed(), "The connection should be closed");
 
     // We expect, that the connection was placed into the idle pool.
     connection = storage.getConnection();
-    assertNotNull(config);
+    assertNotNull(connection, "The connection must not be null");
 
     // Query a new connection, we should get the very same underlying pgConnection!
     final PgConnection pgConnection2 = connection.postgresConnection.get();
-    assertSame(pgConnection, pgConnection2);
+    assertSame(pgConnection, pgConnection2, "We expect that we get the same underlying pgConnection back again");
     connection.close();
   }
 }
