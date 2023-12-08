@@ -23,6 +23,8 @@ import static com.here.xyz.events.ContextAwareEvent.SpaceContext.DEFAULT;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.EXTENSION;
 import static com.here.xyz.events.ContextAwareEvent.SpaceContext.SUPER;
 import static com.here.xyz.httpconnector.util.Futures.futurify;
+import static com.here.xyz.httpconnector.util.emr.config.Step.ReadFeaturesCSV.CsvColumns.JSON_DATA;
+import static com.here.xyz.httpconnector.util.emr.config.Step.ReadFeaturesCSV.CsvColumns.WKB;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.CHANGES;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.DEACTIVATED;
 import static com.here.xyz.httpconnector.util.jobs.Export.CompositeMode.FULL_OPTIMIZED;
@@ -52,14 +54,22 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonView;
+import com.google.common.collect.ImmutableList;
 import com.here.xyz.events.ContextAwareEvent.SpaceContext;
 import com.here.xyz.httpconnector.CService;
 import com.here.xyz.httpconnector.config.JDBCExporter;
 import com.here.xyz.httpconnector.config.JDBCImporter;
 import com.here.xyz.httpconnector.util.emr.EMRManager;
+import com.here.xyz.httpconnector.util.emr.config.EmrConfig;
+import com.here.xyz.httpconnector.util.emr.config.Step.ConvertToGeoparquet;
+import com.here.xyz.httpconnector.util.emr.config.Step.ReadFeaturesCSV;
+import com.here.xyz.httpconnector.util.emr.config.Step.ReplaceWkbWithGeo;
+import com.here.xyz.httpconnector.util.emr.config.Step.WriteGeoparquet;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
+import com.here.xyz.httpconnector.util.jobs.datasets.FileOutputSettings;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
+import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoParquet;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
@@ -517,22 +527,23 @@ public class Export extends JDBCBasedJob<Export> {
         super.setTarget(target);
         //Keep BWC
         if (target instanceof FileBasedTarget fbt) {
+            final FileOutputSettings os = fbt.getOutputSettings();
             setExportTarget(new ExportTarget().withType(DOWNLOAD));
             //setCsvFormat(fbt.getOutputSettings().getFormat());
             if (getCsvFormat() == null) {
-                if (fbt.getOutputSettings().getFormat() instanceof GeoJson)
+                if (os.getFormat() instanceof GeoJson)
                     setCsvFormat(GEOJSON);
-                else if (fbt.getOutputSettings().getFormat() instanceof GeoParquet) {
+                else if (os.getFormat() instanceof GeoParquet) {
                     setCsvFormat(JSON_WKB);
                     setEmrTransformation(true);
                 }
-                else if (fbt.getOutputSettings().getFormat() instanceof Csv csv)
+                else if (os.getFormat() instanceof Csv csv)
                     setCsvFormat(csv.toBWCFormat());
             }
-            setTargetLevel(fbt.getOutputSettings().getTileLevel());
-            setClipped(fbt.getOutputSettings().isClipped());
-            setMaxTilesPerFile(fbt.getOutputSettings().getMaxTilesPerFile());
-            setPartitionKey(fbt.getOutputSettings().getPartitionKey());
+            setTargetLevel(os.getTileLevel());
+            setClipped(os.isClipped());
+            setMaxTilesPerFile(os.getMaxTilesPerFile());
+            setPartitionKey(os.getPartitionKey());
         }
     }
 
@@ -1192,6 +1203,10 @@ public class Export extends JDBCBasedJob<Export> {
 
     @Override
     public Future<Void> finalizeJob() {
+        return finalizeJob(true);
+    }
+
+    protected Future<Void> finalizeJob(boolean finalizeAfterCompletion) {
         if (isEmrTransformation() && !getExportObjects().isEmpty() && (statistic == null || statistic.getRowsUploaded() > 0)) {
             final String sourceS3UrlWithoutSlash = getS3UrlForPath(CService.jobS3Client.getS3Path(this));
             String sourceS3Url = sourceS3UrlWithoutSlash + "/";
@@ -1215,17 +1230,37 @@ public class Export extends JDBCBasedJob<Export> {
                     logger.warn(getMarker(), "Failure starting finalization. (EMR Transformation)", err);
                     setJobFailed(this, "Error trying to start finalization.", "START_EMR_JOB_FAILED");
                 })
-                .compose(emrJobId -> startEmrJobStatePolling(EMRConfig.APPLICATION_ID, emrJobId));
+                .compose(emrJobId -> startEmrJobStatePolling(EMRConfig.APPLICATION_ID, emrJobId, finalizeAfterCompletion));
         }
-        else
+        else if (finalizeAfterCompletion)
             return super.finalizeJob();
+        else
+            return Future.succeededFuture();
+    }
+
+    private String buildEmrJsonConfig(String inputDirectory, String outputDirectory) {
+        FileFormat targetFormat = ((FileBasedTarget) getTarget()).getOutputSettings().getFormat();
+        if (targetFormat instanceof GeoParquet) {
+            return new EmrConfig().withSteps(ImmutableList.of(
+                new ReadFeaturesCSV().withInputDirectory(inputDirectory).withColumns(ImmutableList.of(
+                    JSON_DATA, WKB
+                )),
+                new ReplaceWkbWithGeo(),
+                new ConvertToGeoparquet(),
+                new WriteGeoparquet().withOutputDirectory(outputDirectory)
+            )).serialize();
+        }
+        else if (targetFormat instanceof Csv) {
+
+        }
+        throw new IllegalArgumentException("Unsupported file format: " + targetFormat);
     }
 
     private static String getS3UrlForPath(String path) {
         return "s3://" + CService.configuration.JOBS_S3_BUCKET + "/" + path;
     }
 
-    private Future<Void> startEmrJobStatePolling(String applicationId, String emrJobId) {
+    private Future<Void> startEmrJobStatePolling(String applicationId, String emrJobId, boolean finalizeAfterCompletion) {
         final Promise<Void> promise = Promise.promise();
         if (emrJobExecutionFuture.compareAndSet(null, promise.future())) {
             new Thread(() -> {
@@ -1244,7 +1279,8 @@ public class Export extends JDBCBasedJob<Export> {
                             logger.info("job[{}] execution of EMR transformation {} succeeded ", getId(), emrJobId);
                             setS3Key(CService.jobS3Client.getS3Path(this) + EMRConfig.S3_PATH_SUFFIX);
                             //Update this job's state finally to "finalized"
-                            updateJobStatus(this, finalized);
+                            if (finalizeAfterCompletion)
+                                updateJobStatus(this, finalized);
                             //Stop this thread
                             completePollingThread(promise);
                             break;

@@ -11,6 +11,8 @@ import com.here.xyz.httpconnector.util.jobs.datasets.files.Partitioning.Tiles;
 })
 public abstract class Partitioning implements Typed {
 
+  public abstract String toBWCPartitionKey();
+
   public static class Tiles extends Partitioning {
     private int level = 12;
     private boolean clip;
@@ -40,6 +42,11 @@ public abstract class Partitioning implements Typed {
       setClip(clip);
       return this;
     }
+
+    @Override
+    public String toBWCPartitionKey() {
+      return "tileid";
+    }
   }
 
   public static class FeatureKey extends Partitioning {
@@ -56,6 +63,11 @@ public abstract class Partitioning implements Typed {
     public FeatureKey withKey(String key) {
       setKey(key);
       return this;
+    }
+
+    @Override
+    public String toBWCPartitionKey() {
+      return getKey();
     }
   }
 }
