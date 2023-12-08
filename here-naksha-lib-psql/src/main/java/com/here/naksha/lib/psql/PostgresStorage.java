@@ -259,8 +259,7 @@ final class PostgresStorage extends ClosableRootResource {
   private final long cancelSignalTimeout = TimeUnit.SECONDS.toMillis(15);
 
   @Override
-  protected void destruct() {
-  }
+  protected void destruct() {}
 
   /**
    * The default initializer for connections.
@@ -343,8 +342,8 @@ final class PostgresStorage extends ClosableRootResource {
     if (psqlInstance == null) {
       throw new SQLException("Unable to find a valid server");
     }
-    final PsqlConnection psqlConnection = psqlInstance.getConnection(
-        appName, schema, fetchSize, connTimeout, sockedReadTimeout, cancelSignalTimeout);
+    final PsqlConnection psqlConnection =
+        psqlInstance.getConnection(connTimeout, sockedReadTimeout, cancelSignalTimeout);
     if (!psqlConnection.postgresConnection.parent().config.readOnly) {
       // If this is a master connection, ensure that the read-only mode is set correctly.
       psqlConnection.postgresConnection.get().setReadOnly(readOnly);

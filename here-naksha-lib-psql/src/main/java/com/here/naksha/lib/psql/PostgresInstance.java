@@ -21,7 +21,6 @@ package com.here.naksha.lib.psql;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.here.naksha.lib.core.util.ClosableRootResource;
-import java.lang.ref.WeakReference;
 import java.sql.SQLException;
 import java.util.Enumeration;
 import java.util.NoSuchElementException;
@@ -29,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,16 +39,18 @@ public class PostgresInstance extends ClosableRootResource {
 
   private static final Logger log = LoggerFactory.getLogger(PostgresInstance.class);
 
+  static final ConcurrentHashMap<PsqlInstanceConfig, PostgresInstance> allInstances = new ConcurrentHashMap<>();
+
   /**
    * The lock at which we synchronize the destruction and creation of new instances.
    */
   static final ReentrantLock mutex = new ReentrantLock();
 
   /**
-   * A map with all idle connections to this instance. After removing a connection from this pool, the
-   * {@link PostgresConnection#notIdle() notIdle()} method should be invoked.
+   * A map with all connections to this instance that are currently idle. Connections add them-self into this pool when being destructed and
+   * the pool has space left.
    */
-  final @NotNull ConcurrentHashMap<WeakReference<PostgresConnection>, Boolean> connectionPool;
+  final @NotNull ConcurrentHashMap<PsqlConnection, PsqlConnection> connectionPool;
 
   /**
    * The timeout when to close idle connections.
@@ -63,9 +65,23 @@ public class PostgresInstance extends ClosableRootResource {
   PostgresInstance(@NotNull PsqlInstance proxy, @NotNull PsqlInstanceConfig config) {
     super(proxy, mutex);
     this.config = config;
-    this.connectionPool = new PostgresConnectionPool(config);
+    this.connectionPool = new ConcurrentHashMap<>();
     this.idleTimeoutInMillis = TimeUnit.MINUTES.toMillis(2);
     this.maxPoolSize = 100;
+    allInstances.put(config, this);
+  }
+
+  /**
+   * Returns the {@link PsqlInstance} proxy.
+   *
+   * @return the {@link PsqlInstance} proxy; {@code null}, if the proxy was already garbage collected.
+   */
+  public @Nullable PsqlInstance getPsqlInstance() {
+    final Object proxy = getProxy();
+    if (proxy instanceof PsqlInstance) {
+      return (PsqlInstance) proxy;
+    }
+    return null;
   }
 
   @Override
@@ -80,7 +96,7 @@ public class PostgresInstance extends ClosableRootResource {
 
   @Override
   protected void destruct() {
-    connectionPool.clear();
+    allInstances.remove(config, this);
   }
 
   /**
@@ -117,50 +133,34 @@ public class PostgresInstance extends ClosableRootResource {
    */
   @NotNull
   PsqlConnection getConnection(
-      long connTimeoutInMillis,
-      long sockedReadTimeoutInMillis,
-      long cancelSignalTimeoutInMillis)
+      long connTimeoutInMillis, long sockedReadTimeoutInMillis, long cancelSignalTimeoutInMillis)
       throws SQLException {
-    final ConcurrentHashMap<WeakReference<PostgresConnection>, Boolean> connectionPool = this.connectionPool;
-    final Enumeration<WeakReference<PostgresConnection>> keyEnum = connectionPool.keys();
-    PsqlConnection psqlConnection = null;
+    // Try to reuse an existing pooled idle connection.
+    final ConcurrentHashMap<PsqlConnection, PsqlConnection> connectionPool = this.connectionPool;
+    final Enumeration<PsqlConnection> keyEnum = connectionPool.keys();
     while (keyEnum.hasMoreElements()) {
       try {
-        final WeakReference<PostgresConnection> weakRef = keyEnum.nextElement();
-        final PostgresConnection postgresConnection;
-        if (weakRef == null) {
-          continue;
+        final PsqlConnection psqlConnection = keyEnum.nextElement();
+        if (connectionPool.remove(psqlConnection, psqlConnection)) {
+          final PostgresConnection postgresConnection = psqlConnection.postgresConnection;
+          postgresConnection.setAutoClosable(false);
+          postgresConnection.autoCloseAtEpoch = 0L;
+          if (!psqlConnection.isClosed()) {
+            log.atDebug()
+                .setMessage("Reuse idle connection {} of instance {}")
+                .addArgument(postgresConnection.id)
+                .addArgument(postgresConnection.instanceUrl)
+                .log();
+            postgresConnection.withSocketReadTimeout(sockedReadTimeoutInMillis, MILLISECONDS);
+            return psqlConnection;
+          }
         }
-        postgresConnection = weakRef.get();
-        if (postgresConnection == null) {
-          connectionPool.remove(weakRef);
-          continue;
-        }
-        psqlConnection = postgresConnection.getPsqlConnection();
-        if (psqlConnection == null) {
-          connectionPool.remove(weakRef);
-          continue;
-        }
-
       } catch (NoSuchElementException ignore) {
       }
     }
-    final Object proxy = getProxy();
-    if (proxy instanceof PsqlInstance) {
-      PsqlInstance psqlInstance = (PsqlInstance) proxy;
-      return new PsqlConnection(
-          psqlInstance,
-          applicationName,
-          schema,
-          fetchSize,
-          connTimeoutInMillis,
-          sockedReadTimeoutInMillis,
-          cancelSignalTimeoutInMillis,
-          getOptimalBufferSize(),
-          getOptimalBufferSize());
-    } else {
-      throw new IllegalStateException("Proxy unreachable");
-    }
+    // No idle connection found, create a new one.
+    return new PsqlConnection(
+        this, connTimeoutInMillis, cancelSignalTimeoutInMillis, getOptimalBufferSize(), getOptimalBufferSize());
   }
 
   /**

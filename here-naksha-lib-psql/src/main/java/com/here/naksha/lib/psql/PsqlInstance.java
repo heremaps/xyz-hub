@@ -43,21 +43,17 @@ public final class PsqlInstance {
    */
   public static @NotNull PsqlInstance get(@NotNull PsqlInstanceConfig config) {
     mutex.lock();
-    PsqlInstance psqlInstance = null;
+    PsqlInstance psqlInstance;
     PostgresInstance instance;
     try {
       instance = allInstances.get(config);
       if (instance != null) {
-        psqlInstance = (PsqlInstance) instance.getProxy();
-        if (psqlInstance == null) {
-
+        psqlInstance = instance.getPsqlInstance();
+        if (psqlInstance != null) {
+          return psqlInstance;
         }
       }
-      if (psqlInstance == null) {
-        psqlInstance = new PsqlInstance(config);
-        PostgresInstance existing = allInstances.putIfAbsent(config, psqlInstance.postgresInstance);
-        assert existing == null;
-      }
+      psqlInstance = new PsqlInstance(config);
     } finally {
       mutex.unlock();
     }
@@ -83,20 +79,10 @@ public final class PsqlInstance {
    * @throws SQLException If acquiring the connection failed.
    */
   public @NotNull PsqlConnection getConnection(
-      @NotNull String applicationName,
-      @NotNull String schema,
-      int fetchSize,
-      long connTimeoutInMillis,
-      long sockedReadTimeoutInMillis,
-      long cancelSignalTimeoutInMillis)
+      long connTimeoutInMillis, long sockedReadTimeoutInMillis, long cancelSignalTimeoutInMillis)
       throws SQLException {
     return postgresInstance.getConnection(
-        applicationName,
-        schema,
-        fetchSize,
-        connTimeoutInMillis,
-        sockedReadTimeoutInMillis,
-        cancelSignalTimeoutInMillis);
+        connTimeoutInMillis, sockedReadTimeoutInMillis, cancelSignalTimeoutInMillis);
   }
 
   /**

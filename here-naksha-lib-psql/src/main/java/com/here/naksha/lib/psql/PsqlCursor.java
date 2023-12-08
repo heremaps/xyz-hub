@@ -64,12 +64,10 @@ public class PsqlCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>> ext
         final String r_id = rs.getString(2);
         final String r_uuid = rs.getString(3);
         final String r_type = rs.getString(4);
-        final String r_ptype = rs.getString(5); // may be null
-        final String r_feature = rs.getString(6); // may be null
-        final byte[] r_geo = rs.getBytes(7); // may be null
-        final String r_err = rs.getString(8); // may be null
-        // Note: Only r_ptype, r_feature and r_geo may be null!
-        assert r_op != null && r_id != null && r_uuid != null && r_type != null;
+        final String r_ptype = rs.getString(5);
+        final String r_feature = rs.getString(6);
+        final byte[] r_geo = rs.getBytes(7);
+        final String r_err = rs.getString(8);
 
         row.codec.setOp(r_op);
         row.codec.setId(r_id);

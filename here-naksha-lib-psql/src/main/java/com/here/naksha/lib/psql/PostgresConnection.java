@@ -55,7 +55,8 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
   PostgresConnection(
       @NotNull PsqlConnection proxy,
       @NotNull PostgresInstance postgresInstance,
-      @NotNull PgConnection pg_connection) throws SQLException {
+      @NotNull PgConnection pg_connection)
+      throws SQLException {
     super(proxy, postgresInstance);
     this.postgresInstance = postgresInstance;
     this.instanceUrl = postgresInstance.config.toString();
@@ -66,7 +67,11 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
     pgConnection.setAutoCommit(false);
     pgConnection.setReadOnly(config.readOnly);
     pgConnection.setHoldability(CLOSE_CURSORS_AT_COMMIT);
-    log.atDebug().setMessage("Create connection {} to instance {}").addArgument(id).addArgument(instanceUrl).log();
+    log.atDebug()
+        .setMessage("Open connection {} to instance {}")
+        .addArgument(id)
+        .addArgument(instanceUrl)
+        .log();
   }
 
   /**
@@ -117,18 +122,26 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
     props.setProperty(PGProperty.SEND_BUFFER_SIZE.getName(), Long.toString(sendBufferSize));
     props.setProperty(PGProperty.REWRITE_BATCHED_INSERTS.getName(), "true");
 
-    pgConnection = new PgConnection(new HostSpec[]{config.hostSpec}, props, config.url);
+    pgConnection = new PgConnection(new HostSpec[] {config.hostSpec}, props, config.url);
     pgConnection.setAutoCommit(false);
     pgConnection.setReadOnly(config.readOnly);
     pgConnection.setHoldability(CLOSE_CURSORS_AT_COMMIT);
-    log.atDebug().setMessage("Create connection {} to instance {}").addArgument(id).addArgument(instanceUrl).log();
+    log.atDebug()
+        .setMessage("Open connection {} to instance {}")
+        .addArgument(id)
+        .addArgument(instanceUrl)
+        .log();
   }
 
-  private final @NotNull Long id;
+  final @NotNull Long id;
   private final WeakReference<PostgresConnection> weakRef = new WeakReference<>(this);
   private @Nullable PgConnection pgConnection;
-  private @Nullable PostgresInstance postgresInstance;
-  private long autoCloseAtEpoch;
+
+  @Nullable
+  PostgresInstance postgresInstance;
+
+  long autoCloseAtEpoch;
+  final @NotNull String instanceUrl;
 
   /**
    * Returns the {@link PsqlConnection} proxy.
@@ -144,42 +157,14 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
   }
 
   /**
-   * Returns the PSQL connection wrapper. If the wrapper was garbage collected, but the underlying pgConnection is still valid, creates a
-   * new PSQL connection wrapper. The method removes the connection from the pool and clears the timeout.
-   *
-   * @return the PSQL connection no longer idle.
-   * @throws SQLException          If creating a new connection wrapper failed.
-   * @throws IllegalStateException If the underlying connection is already closed.
-   */
-  final @NotNull PsqlConnection usePsqlConnection() throws SQLException {
-    final PostgresInstance postgresInstance = this.postgresInstance;
-    final PgConnection pgConnection = this.pgConnection;
-    if (postgresInstance == null || pgConnection == null) {
-      throw new IllegalStateException("The underlying pgConnection is already closed");
-    }
-    PsqlConnection psqlConnection = getPsqlConnection();
-    if (psqlConnection != null) {
-      final PostgresConnection postgresConnection = psqlConnection.postgresConnection;
-      if (postgresInstance.connectionPool.remove(postgresConnection.weakRef, Boolean.TRUE)) {
-        log.atDebug().setMessage("Remove connection {} from idle pool of instance {}").addArgument(id).addArgument(instanceUrl).log();
-      }
-      postgresConnection.autoCloseAtEpoch = 0L;
-    } else {
-      psqlConnection = new PsqlConnection(this.postgresInstance, this.pgConnection);
-      this.postgresInstance = null;
-      this.pgConnection = null;
-    }
-    return psqlConnection;
-  }
-
-  /**
    * Set the default fetch-size.
    *
    * @param fetchSize The new default-fetch size.
    * @return this.
    * @throws SQLException If setting the new size failed.
    */
-  @NotNull PostgresConnection withFetchSize(int fetchSize) throws SQLException {
+  @NotNull
+  PostgresConnection withFetchSize(int fetchSize) throws SQLException {
     final PgConnection pgConnection = get();
     pgConnection.setDefaultFetchSize(fetchSize);
     return this;
@@ -193,7 +178,8 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
    * @return this.
    * @throws SQLException If setting the timeout failed.
    */
-  @NotNull PostgresConnection withSocketReadTimeout(long timeout, TimeUnit timeUnit) throws SQLException {
+  @NotNull
+  PostgresConnection withSocketReadTimeout(long timeout, TimeUnit timeUnit) throws SQLException {
     final PgConnection pgConnection = get();
     long millis = TimeUnit.MILLISECONDS.convert(timeout, timeUnit);
     if (millis > Integer.MAX_VALUE) {
@@ -234,10 +220,7 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
     final PostgresInstance postgresInstance = this.postgresInstance;
     final PsqlConnection psqlConnection = getPsqlConnection();
     final long autoCloseAtEpoch = this.autoCloseAtEpoch;
-    return psqlConnection != null
-        && postgresInstance != null
-        && autoCloseAtEpoch > 0
-        && autoCloseAtEpoch < now;
+    return psqlConnection != null && postgresInstance != null && autoCloseAtEpoch > 0 && autoCloseAtEpoch < now;
   }
 
   @Override
@@ -245,15 +228,17 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
     final PostgresInstance postgresInstance = this.postgresInstance;
     final PsqlConnection psqlConnection = getPsqlConnection();
     final long autoCloseAtEpoch = this.autoCloseAtEpoch;
-    if (psqlConnection != null
-        && postgresInstance != null
-        && autoCloseAtEpoch > 0
-        && autoCloseAtEpoch < now) {
+    if (psqlConnection != null && postgresInstance != null && autoCloseAtEpoch > 0 && autoCloseAtEpoch < now) {
       // We are timed-out, remove our self from the connection pool.
-      // If we removed our self from the connection pool successfully, then we are closed and ready for destruction.
-      // The destructor will be called short after returning.
-      if (postgresInstance.connectionPool.remove(psqlConnection.postgresConnection.weakRef)) {
-        log.atDebug().setMessage("Remove connection {} from idle pool of instance {}").addArgument(id).addArgument(instanceUrl).log();
+      // If we removed our self from the connection pool successfully, then we are closed and ready for
+      // destruction.
+      // The destructor will be called after returning.
+      if (postgresInstance.connectionPool.remove(psqlConnection, psqlConnection)) {
+        log.atDebug()
+            .setMessage("Remove connection {} from idle pool of instance {}")
+            .addArgument(id)
+            .addArgument(instanceUrl)
+            .log();
         return true;
       }
     }
@@ -263,48 +248,60 @@ final class PostgresConnection extends CloseableResource<PostgresInstance> {
   @SuppressWarnings("resource")
   @Override
   protected void destruct() {
-    assert pgConnection != null;
-    assert postgresInstance != null;
+    // Note: We only enter this method ones in the live time.
+    assert this.pgConnection != null;
+    assert this.postgresInstance != null;
     try {
       try {
-        pgConnection.rollback();
+        // Rollback pending changes.
+        this.pgConnection.rollback();
 
-        // If the connection does not have yet and idle-timeout, create one.
-        if (autoCloseAtEpoch == 0) {
-          autoCloseAtEpoch = System.currentTimeMillis() + postgresInstance.idleTimeoutInMillis;
-        }
-        // If the connection is not beyond its idle timeout, put it back into the connection pool.
-        if (autoCloseAtEpoch < System.currentTimeMillis()
-            && postgresInstance.connectionPool.size() < postgresInstance.maxPoolSize) {
-          // Always create a new wrapper to avoid that there is still any pending reference to the connection.
-          // This could happen, if the user invokes "close()", but still keeps a reference to the connection.
-          final PsqlConnection psqlConnection = usePsqlConnection();
-          final PostgresConnection postgresConnection = psqlConnection.postgresConnection;
-          // Copy over the idle timeout to avoid prolongation.
-          postgresConnection.autoCloseAtEpoch = this.autoCloseAtEpoch;
-          postgresInstance.connectionPool.put(postgresConnection.weakRef, Boolean.TRUE);
+        // If this connection is not auto-closable, which means, it was not auto-closed and
+        // there is free space in the idle connections pool, then we add this connection into
+        // the idle pool.
+        // Note: We always create a new connection wrapper to avoid that there is any pending
+        // reference to the connection. This could happen, if the user invoked "close()", but
+        // still keeps a reference to the connection somewhere.
+        if (!this.isAutoClosable()
+            && this.postgresInstance.connectionPool.size() < this.postgresInstance.maxPoolSize) {
+          final PsqlConnection psqlConnection = new PsqlConnection(this.postgresInstance, this.pgConnection);
+          psqlConnection.postgresConnection.autoCloseAtEpoch =
+              System.currentTimeMillis() + this.postgresInstance.idleTimeoutInMillis;
+          psqlConnection.postgresConnection.setAutoClosable(true);
+          this.postgresInstance.connectionPool.put(psqlConnection, psqlConnection);
           return;
         }
-        // The connection is timed-out, close it.
-        // Note: We expect this to happen, when tryAutoClose returned true before!
       } catch (Exception e) {
-        log.info("Failed to rollback connection", e);
+        log.atInfo()
+            .setMessage("Failed to rollback connection {} to instance {}")
+            .addArgument(id)
+            .addArgument(instanceUrl)
+            .setCause(e)
+            .log();
       } finally {
-        postgresInstance = null;
+        this.postgresInstance = null;
       }
-      log.info("Close connection to {}", instanceUrl);
-      pgConnection.close();
+      // If we reach this point, the connection is not placed into the idle connections pool, but eventually
+      // closed.
+      log.atInfo()
+          .setMessage("Close connection {} to {}")
+          .addArgument(id)
+          .addArgument(instanceUrl)
+          .log();
+      this.pgConnection.close();
     } catch (Exception e) {
-      log.info("Failed to close connection", e);
+      log.atInfo()
+          .setMessage("Failed to close connection {} to instance {}")
+          .addArgument(id)
+          .addArgument(instanceUrl)
+          .setCause(e)
+          .log();
     } finally {
-      pgConnection = null;
+      // Should there be still a reference to this connection, at least it
+      // does not have any reference to the underlying pgConnection anymore!
+      this.pgConnection = null;
     }
   }
-
-  /**
-   * The URL of the instance.
-   */
-  private final @NotNull String instanceUrl;
 
   @Override
   public @NotNull String toString() {

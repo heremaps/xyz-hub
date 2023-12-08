@@ -50,6 +50,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Base class for all PostgresQL tests that require some test database.
  */
+@SuppressWarnings("unused")
 @TestMethodOrder(OrderAnnotation.class)
 abstract class PsqlTests {
 
@@ -83,6 +84,17 @@ abstract class PsqlTests {
   static final EPsqlLogLevel LOG_LEVEL = EPsqlLogLevel.VERBOSE;
 
   abstract boolean enabled();
+
+  /**
+   * Can be used to temporarily disable individual tests for debugging. Just do: <pre>{@code
+   * @DisabledIf("isTrue")
+   * }</pre>
+   *
+   * @return {@code true}.
+   */
+  final boolean isTrue() {
+    return true;
+  }
 
   final boolean runTest() {
     return TEST_DB != null && enabled();
@@ -159,6 +171,8 @@ abstract class PsqlTests {
     if (!schema.equals(schema())) {
       storage.setSchema(schema());
     }
+    // Enable this code line to get debug output from the database!
+    // storage.setLogLevel(EPsqlLogLevel.DEBUG);
   }
 
   @Test

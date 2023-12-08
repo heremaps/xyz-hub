@@ -260,7 +260,9 @@ public class PsqlConnection implements Connection {
   public @NotNull PreparedStatement prepareStatement(
       @NotNull String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
       throws SQLException {
-    return postgresConnection.get().prepareStatement(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
+    return postgresConnection
+        .get()
+        .prepareStatement(sql, resultSetType, resultSetConcurrency, resultSetHoldability);
   }
 
   @Override

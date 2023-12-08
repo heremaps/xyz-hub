@@ -316,7 +316,7 @@ END $$;
 
 -- Create a pseudo GRID (Geo-Hash Reference ID) from the feature-id.
 -- The GRID is used for distributed processing of features.
-CREATE OR REPLACE FUNCTION nk_grid_for_feature_id(_feature_id text) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_grid_for_feature_id(_feature_id text) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $$
 DECLARE
   -- https://en.wikipedia.org/wiki/Geohash#Textual_representation
   base32 constant text[] = ARRAY['0','1','2','3','4','5','6','7','8','9','b','c','d','e','f','g',
@@ -352,7 +352,7 @@ END $$;
 -- The precision is therefore higher than 1mm.
 -- https://en.wikipedia.org/wiki/Geohash
 -- https://www.movable-type.co.uk/scripts/geohash.html
-CREATE OR REPLACE FUNCTION nk_grid_for_geometry(_geo geometry) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$ BEGIN
+CREATE OR REPLACE FUNCTION nk_grid_for_geometry(_geo geometry) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $$ BEGIN
   -- noinspection SqlResolve
   RETURN ST_GeoHash(ST_Centroid(_geo),7);
 END $$;
@@ -360,7 +360,7 @@ END $$;
 -- Creates a GRID (Geo-Hash Reference ID) from the given feature and geometry.
 -- This method prefers the MOM reference point, then uses the centroid of the geometry.
 -- If neither is available, it uses the feature-id.
-CREATE OR REPLACE FUNCTION nk_grid_for_feature(_feature jsonb, _geo geometry) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_grid_for_feature(_feature jsonb, _geo geometry) RETURNS text LANGUAGE 'plpgsql' IMMUTABLE AS $$
 DECLARE
   ref_point geometry;
 BEGIN
@@ -369,7 +369,7 @@ BEGIN
      AND (_feature->'referencePoint'->>'type' = 'Point') THEN
     ref_point = ST_Force3D(ST_GeomFromGeoJSON(_feature->'referencePoint'));
   ELSIF _geo IS NOT NULL THEN
-    ref_point = ST_Centroid(_new_geo);
+    ref_point = ST_Centroid(_geo);
   END IF;
   IF ref_point IS NOT NULL THEN
     RETURN nk_grid_for_geometry(ref_point);
@@ -378,7 +378,7 @@ BEGIN
 END $$;
 
 -- Calculates the extension of the geometry in milliseconds.
-CREATE OR REPLACE FUNCTION nk_extend(_geo geometry) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE STRICT AS $$
+CREATE OR REPLACE FUNCTION nk_extend(_geo geometry) RETURNS int8 LANGUAGE 'plpgsql' IMMUTABLE AS $$
 DECLARE
   mul_x constant double precision = 360 * 60 * 60 * 1000;
   mul_y constant double precision = 180 * 60 * 60 * 1000;
@@ -387,7 +387,7 @@ DECLARE
   extend_y int8;
 BEGIN
   IF _geo IS NULL THEN
-    RETURN 0;
+    RETURN 0::int8;
   END IF;
   -- noinspection SqlResolve
   bbox = Box2D(_geo);
@@ -509,10 +509,6 @@ DECLARE
   rts_millis int8 = naksha_current_millis(clock_timestamp());
   new_xyz jsonb;
   new_tags jsonb;
-  bbox geometry;
-  extend int8;
-  extend_x int8;
-  extend_y int8;
   id text;
   grid text;
   crid jsonb;
@@ -567,6 +563,7 @@ BEGIN
       'stream_id', naksha_stream_id()
   );
   _new_feature = jsonb_set(_new_feature, ARRAY['properties','@ns:com:here:xyz'], xyz, true);
+  --RAISE NOTICE '_new_feature = %', _new_feature;
   RETURN _new_feature;
 END; $$;
 
@@ -817,11 +814,12 @@ DECLARE
   app_id text;
   collection_id text;
 BEGIN
+  --RAISE NOTICE 'before %', TG_OP;
   app_id = current_setting('naksha.app_id');
   IF app_id IS NULL OR app_id = '' THEN
     RAISE EXCEPTION 'Session not initialized, please invoke naksha_start_session first and set application_name' USING ERRCODE='N0000';
   END IF;
-  --collection_id = nk_get_collection_id_from_table_name(TG_TABLE_NAME);
+  -- If the table-name is a partition, turn it into the parent table name (of the collection).
   IF tg_table_name ~ '.*_p[0-9][0-9][0-9]$' THEN
     collection_id = substr(tg_table_name,1,length(tg_table_name)-5);
   ELSE
@@ -851,6 +849,7 @@ DECLARE
   collection_id text;
   disable_history bool;
 BEGIN
+  --RAISE NOTICE 'after %', TG_OP;
   --collection_id = nk_get_collection_id_from_table_name(TG_TABLE_NAME);
   IF tg_table_name ~ '.*_p[0-9][0-9][0-9]$' THEN
     collection_id = substr(tg_table_name,1,length(tg_table_name)-5);
@@ -873,14 +872,16 @@ BEGIN
       txn_struct = nk_txn_unpack(txn);
       PERFORM nk_create_hst_partition_by_ts(collection_id, txn_struct.ts);
       -- Try insert again
+      --RAISE NOTICE '%', sql;
       EXECUTE sql USING OLD.jsondata, OLD.geo, OLD.i;
     END;
   END IF;
   IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
     -- Feature inserted or updated, ensure that there is no pending version in the deletion table.
     sql = format('DELETE FROM %I WHERE jsondata->>''id'' = $1;', format('%s_del', collection_id));
-    --RAISE NOTICE '%', sql;
+    --RAISE NOTICE '% USING $1=%', sql, NEW.jsondata->>'id';
     EXECUTE sql USING NEW.jsondata->>'id';
+    --RAISE NOTICE 'INSERT %', NEW.jsondata;
     RETURN NEW;
   END IF;
   -- TG_OP = 'DELETE'
@@ -901,14 +902,15 @@ BEGIN
     -- Create a backup of the DELETE state into history.
     OLD.jsondata = jsonb_set(OLD.jsondata, array['properties','@ns:com:here:xyz','txn_next'], to_jsonb(txn), true);
     sql = format('INSERT INTO %I (jsondata,geo,i) VALUES($1,$2,$3);', format('%s_hst', collection_id));
-    --RAISE NOTICE '%', sql;
     BEGIN
+      --RAISE NOTICE '%', sql;
       EXECUTE sql USING OLD.jsondata, OLD.geo, OLD.i;
     EXCEPTION WHEN check_violation THEN
       -- Ensure the history partition exists
       txn_struct = nk_txn_unpack(txn);
       PERFORM nk_create_hst_partition_by_ts(collection_id, txn_struct.ts);
       -- Try insert again
+      --RAISE NOTICE '%', sql;
       EXECUTE sql USING OLD.jsondata, OLD.geo, OLD.i;
     END;
   END IF;
@@ -1202,7 +1204,7 @@ BEGIN
   full_name := format('%I', _collection_id);
   IF NOT EXISTS(SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgrelid = full_name::regclass and tgname = trigger_name) THEN
       sql := format('CREATE TRIGGER %I '
-                 || 'BEFORE INSERT OR UPDATE OR DELETE ON %I '
+                 || 'AFTER INSERT OR UPDATE OR DELETE ON %I '
                  || 'FOR EACH ROW EXECUTE FUNCTION nk_trigger_after();',
                     trigger_name, _collection_id);
       --RAISE NOTICE '%', sql;
@@ -1376,7 +1378,7 @@ BEGIN
     END IF;
 
     BEGIN
-      --RAISE NOTICE 'op=''%'', id=''%'', feature=''%'', uuid=''%''', op, id, feature, uuid;
+      --RAISE NOTICE 'op=%, id=%, feature=%, uuid=%', op, id, feature, uuid;
       IF op = 'PUT' THEN
         BEGIN
           EXECUTE insert_stmt USING feature, geo INTO r_feature;
@@ -1447,6 +1449,7 @@ BEGIN
         END IF;
       END IF;
     EXCEPTION WHEN OTHERS THEN
+      --RAISE NOTICE 'Caught error %: %', SQLSTATE, SQLERRM;
       -- Note: For errors we ignore min_results.
       r_op = 'ERROR';
       EXECUTE select_head_stmt USING id INTO r_feature, r_geometry;
@@ -1463,6 +1466,7 @@ BEGIN
       CONTINUE;
     END;
 
+    --RAISE NOTICE 'Operation % done, rows_affected=%', r_op, rows_affected;
     -- We won't reach this point for CREATE!
     IF rows_affected = 0 THEN
       IF uuid IS NULL AND op = 'DELETE' OR op = 'PURGE' THEN
@@ -2196,7 +2200,7 @@ CREATE OR REPLACE FUNCTION naksha_feature_id(t anyelement) RETURNS text LANGUAGE
 DECLARE
   j jsonb;
 BEGIN
-  j = t::json;
+  j = t::jsonb;
   IF jsonb_typeof(j->'id') = 'string' THEN
     RETURN j->>'id';
   END IF;
@@ -2217,7 +2221,7 @@ CREATE OR REPLACE FUNCTION naksha_feature_uuid(t anyelement, alternative text) R
 DECLARE
   j jsonb;
 BEGIN
-  j = t::json;
+  j = t::jsonb;
   IF jsonb_typeof(j->'properties'->'@ns:com:here:xyz'->'uuid') = 'string' THEN
     RETURN j->'properties'->'@ns:com:here:xyz'->>'uuid';
   END IF;

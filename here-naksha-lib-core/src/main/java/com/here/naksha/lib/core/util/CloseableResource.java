@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
  * <p>Another advantage of this implementation is, that the user can close the parent resource before the child-resources. This is for
  * example important for the PostgresQL implementation, where the session can be closed, before the results from all open cursors of this
  * connection are done (processed). Using this resource implementation allows exactly this, the user can use the results and close the
- * connection premature. The resources {@link #tryDestruct(long)} method will not be invoked, until the last child resource is closed. If a
+ * connection premature. The resources {@link #tryDestruct()} method will not be invoked, until the last child resource is closed. If a
  * resource is leaked, it is auto-closed by the leak detector and this then closes down all parent resources as well.
  *
  * @param <PARENT> The parent type.
@@ -69,16 +69,42 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
   private static final ConcurrentHashMap<CloseableResource, CloseableResource> rootResources =
       new ConcurrentHashMap<>();
 
-  private static void leakDetection() {
+  /**
+   * A cache of all resources that can be auto-closed. They need to add them self into it.
+   */
+  private static final ConcurrentHashMap<CloseableResource, CloseableResource> autoCloseResources =
+      new ConcurrentHashMap<>();
+
+  private static void leakDetectorAndAutoCloser() {
     while (true) {
       final long now = System.currentTimeMillis();
+      try {
+        Enumeration<CloseableResource> keysEnum = autoCloseResources.keys();
+        while (keysEnum.hasMoreElements()) {
+          CloseableResource resource = null;
+          try {
+            resource = keysEnum.nextElement();
+            resource.autoClose(now);
+          } catch (Throwable t) {
+            if (resource != null) {
+              log.atError()
+                  .setMessage("Fatal error while invoking autoClose of resource, stop observing")
+                  .setCause(t)
+                  .log();
+              autoCloseResources.remove(resource, resource);
+            }
+          }
+        }
+      } catch (Throwable t) {
+        log.error("Unexpected exception while detecting leaks", t);
+      }
       try {
         Enumeration<CloseableResource> keysEnum = rootResources.keys();
         while (keysEnum.hasMoreElements()) {
           CloseableResource resource = null;
           try {
             resource = keysEnum.nextElement();
-            resource.tryDestruct(now);
+            resource.tryDestruct();
           } catch (Throwable t) {
             if (resource != null) {
               log.atError()
@@ -101,9 +127,10 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
   }
 
   static {
-    final Thread leakDetector = new Thread(CloseableResource::leakDetection, "CloseableResourceLeakDetector");
-    leakDetector.setDaemon(true);
-    leakDetector.start();
+    final Thread autoCloserAndLeadDetector =
+        new Thread(CloseableResource::leakDetectorAndAutoCloser, "AutoCloserAndLeakDetectorThread");
+    autoCloserAndLeadDetector.setDaemon(true);
+    autoCloserAndLeadDetector.start();
   }
 
   /**
@@ -183,6 +210,47 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
   final @NotNull ConcurrentHashMap<CloseableResource, CloseableResource> children = new ConcurrentHashMap<>();
 
   /**
+   * If the resource is auto-closable.
+   */
+  private volatile boolean isAutoClosable;
+
+  /**
+   * Tests if this resource is auto-closeable, what means, it may be closed automatically after some time.
+   *
+   * @return {@code true} if the resource is automatically closed; {@code false} otherwise.
+   */
+  public boolean isAutoClosable() {
+    return isAutoClosable;
+  }
+
+  /**
+   * Changes the auto-closable state of the resource. If a resource is auto-closable the method {@link #mayAutoClose(long)} is called
+   * regularly and if it returns {@code true}, the method {@link #tryAutoClose(long)} is invoked, which should try to close the resource.
+   * If the closing was successful, it will be removed the auto-close list and will be destructed.
+   *
+   * @param autoClose {@code true} if the resource may automatically being closed; {@code false} otherwise.
+   */
+  public void setAutoClosable(boolean autoClose) {
+    if (this.isAutoClosable != autoClose) {
+      mutex.lock();
+      try {
+        if (this.isAutoClosable != autoClose) {
+          this.isAutoClosable = autoClose;
+          // Note: When the connection is already closed, we do add it again into the auto-close
+          //       observer, no matter what is requested.
+          if (autoClose && !isClosed) {
+            autoCloseResources.put(this, this);
+          } else {
+            autoCloseResources.remove(this);
+          }
+        }
+      } finally {
+        mutex.unlock();
+      }
+    }
+  }
+
+  /**
    * If the resource was intentionally clossed.
    */
   private volatile boolean isClosed;
@@ -211,7 +279,7 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
       if (!isClosed) {
         isClosed = true;
         isLeaked = false;
-        tryDestruct(System.currentTimeMillis());
+        tryDestruct();
       }
     } finally {
       mutex.unlock();
@@ -221,41 +289,40 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
   /**
    * This method is invoked regularly to try to auto-close a resource.
    *
-   * @param now The unix epoch time when this garbage collection started.
-   * @return {@code true} if the resource is timed-out and was closed, destruction can be invoked; {@code false} otherwise.
+   * @param now The current unix epoch time.
    */
-  private boolean autoClose(long now) {
+  private void autoClose(long now) {
     if (!isClosed && mayAutoClose(now)) {
       mutex.lock();
       try {
         if (!isClosed && tryAutoClose(now)) {
           isClosed = true;
           isLeaked = false;
-          return true;
+          autoCloseResources.remove(this);
+          tryDestruct();
         }
       } finally {
         mutex.unlock();
       }
     }
-    return false;
   }
 
   /**
    * This method is invoked regularly to detect if a resource can be auto-closed (has timed-out), even while there is still a proxy
    * reference somewhere, for example in a cache or pool. Note, this method is invoked very often and should therefore be very fast.
    *
-   * @param now The unix epoch time when this garbage collection started.
-   * @return {@code true} if the resource is timed-out and be {@link #tryAutoClose(long) auto-closed}; {@code false} otherwise.
+   * @param now The current unix epoch time.
+   * @return {@code true} if the resource is timed-out and may be {@link #tryAutoClose(long) auto-closed}; {@code false} otherwise.
    */
   protected boolean mayAutoClose(long now) {
     return false;
   }
 
   /**
-   * This method is invoked when {@link #mayAutoClose(long)} returns {@code true} and should try to close the resource in a concurrency
-   * safe way.
+   * This method is invoked when {@link #mayAutoClose(long)} returns {@code true} and should try to close the resource in a concurrency safe
+   * way. When this method returns {@code true}, the {@link #destruct() destructor} will be invoked next.
    *
-   * @param now The unix epoch time when this garbage collection started.
+   * @param now The current unix epoch time.
    * @return {@code true} if the resource was closed successfully and can be destructed; {@code false} otherwise.
    */
   protected boolean tryAutoClose(long now) {
@@ -289,18 +356,14 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
 
   /**
    * Tries to destruct this resource. If the resource is already destructed, just returns {@code true} without doing anything. If one child
-   * resource is still alive, returns {@code false}. If all child resources are closed, it invokes {@link #destruct()} and then returns
+   * resource is still alive, returns {@code false}. If all child resources are destructed, it invokes {@link #destruct()} and then returns
    * {@code true}.
    *
-   * @param now The unix epoch time when this garbage collection started.
    * @return {@code true} if the resource is destructed; {@code false} if there are still living children.
    */
-  private boolean tryDestruct(long now) {
+  private boolean tryDestruct() {
     if (!isClosed()) {
-      if (!autoClose(now)) {
-        return false;
-      }
-      // Resource was auto-closed, continue with destruction.
+      return false;
     }
     if (destructed) {
       return true;
@@ -308,53 +371,49 @@ public abstract class CloseableResource<PARENT extends CloseableResource<?>> {
     final Enumeration<CloseableResource> keyEnum = children.keys();
     while (keyEnum.hasMoreElements()) {
       final CloseableResource child = keyEnum.nextElement();
-      if (!child.tryDestruct(now)) {
+      if (!child.tryDestruct()) {
         return false;
       }
     }
     assert children.isEmpty();
-
-    // We should not wait forever to prevent deadlocks.
-    // It should be realistic that no thread should hold the lock for more than 5 seconds.
+    mutex.lock();
     try {
-      if (mutex.tryLock(5, TimeUnit.SECONDS)) {
-        try {
-          // Detect a leak and log warning.
-          if (isLeaked && logLeak() && logNextLeak.get() < System.currentTimeMillis()) {
-            logNextLeak.set(System.currentTimeMillis() + PRINT_LEAK_EVERY_X_MILLIS);
-            log.atWarn()
-                .setMessage("Resource leaked")
-                .setCause(allocation)
-                .log();
-          }
-          try {
-            destruct();
-          } catch (Throwable t) {
-            log.atError()
-                .setMessage("Unexpected exception in destructor of {}")
-                .addArgument(getClass().getName())
-                .setCause(t)
-                .log();
-          } finally {
-            this.destructed = true;
-          }
-          final CloseableResource<?> parent = this.parent;
-          if (parent != null) {
-            parent.children.remove(this, this);
-            try {
-              parent.tryDestruct(now);
-            } catch (Throwable t) {
-              log.warn("Unexpected exception caught when calling parent.tryDestruct", t);
-            }
-          } else { // Root resource
-            rootResources.remove(this, this);
-            // root resource is not destructed.
-          }
-        } finally {
-          mutex.unlock();
+      try {
+        // Detect a leak and log warning.
+        if (isLeaked && logLeak() && logNextLeak.get() < System.currentTimeMillis()) {
+          logNextLeak.set(System.currentTimeMillis() + PRINT_LEAK_EVERY_X_MILLIS);
+          log.atWarn()
+              .setMessage("Resource leaked")
+              .setCause(allocation)
+              .log();
         }
-        return true;
+        try {
+          destruct();
+        } catch (Throwable t) {
+          log.atError()
+              .setMessage("Unexpected exception in destructor of {}")
+              .addArgument(getClass().getName())
+              .setCause(t)
+              .log();
+        } finally {
+          this.destructed = true;
+        }
+        final CloseableResource<?> parent = this.parent;
+        if (parent != null) {
+          parent.children.remove(this, this);
+          try {
+            parent.tryDestruct();
+          } catch (Throwable t) {
+            log.warn("Unexpected exception caught when calling parent.tryDestruct", t);
+          }
+        } else { // Root resource
+          rootResources.remove(this, this);
+          // root resource is not destructed.
+        }
+      } finally {
+        mutex.unlock();
       }
+      return true;
     } catch (Exception e) {
       log.atDebug()
           .setMessage("Unexpected exception while trying to acquire mutex")
