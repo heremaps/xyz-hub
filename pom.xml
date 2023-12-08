@@ -60,15 +60,10 @@
   </scm>
 
   <distributionManagement>
-    <snapshotRepository>
-      <id>snapshot</id>
-      <!--suppress MavenModelInspection -->
-      <url>${distributionManagemment.snapshotRepository.url}</url>
-    </snapshotRepository>
     <repository>
-      <id>release</id>
-      <!--suppress MavenModelInspection -->
-      <url>${distributionManagemment.repository.url}</url>
+      <id>ds-maven</id>
+      <url>https://artifactory.in.here.com/artifactory/ds-maven/</url>
+      <layout>default</layout>
     </repository>
   </distributionManagement>
 

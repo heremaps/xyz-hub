@@ -1,0 +1,33 @@
+name: Manual Deploy to Artifactory
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Target branch'
+        required: true
+        default: 'main'  # Change the default branch as needed
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache local Maven repository
+        uses: actions/cache@v2
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Setup Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: '17'
+      - name: Build XYZ hub jar
+        run: mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
+      - name: Deploy to Artifactory
+        run: mvn -gs $HOME/settings.xml --batch-mode deploy -Dmaven.test.skip=true -Partifactory
