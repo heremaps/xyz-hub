@@ -577,7 +577,7 @@ public abstract class FeatureTask<T extends Event<?>, X extends FeatureTask<T, ?
     public TaskPipeline<ModifySpaceQuery> createPipeline() {
       return TaskPipeline.create(this)
           .then(FeatureTaskHandler::resolveSpace)
-          .then(FeatureTaskHandler::invoke);
+          .then(SpaceTaskHandler::invokeConditionally);
     }
   }
 

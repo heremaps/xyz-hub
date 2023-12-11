@@ -30,6 +30,8 @@ public class ModifySpaceEvent extends Event<ModifySpaceEvent> {
   private Operation operation;
   private Space spaceDefinition;
 
+  private boolean dryRun;
+
   @SuppressWarnings("unused")
   public Operation getOperation() {
     return this.operation;
@@ -58,6 +60,20 @@ public class ModifySpaceEvent extends Event<ModifySpaceEvent> {
   @SuppressWarnings("unused")
   public ModifySpaceEvent withSpaceDefinition(Space space) {
     setSpaceDefinition(space);
+    return this;
+  }
+
+  public boolean isDryRun() {
+    return this.dryRun;
+  }
+
+  public void setDryRun(boolean dryRun) {
+    this.dryRun = dryRun;
+  }
+
+  @SuppressWarnings("unused")
+  public ModifySpaceEvent withDryRun(boolean dryRun) {
+    setDryRun(dryRun);
     return this;
   }
 
