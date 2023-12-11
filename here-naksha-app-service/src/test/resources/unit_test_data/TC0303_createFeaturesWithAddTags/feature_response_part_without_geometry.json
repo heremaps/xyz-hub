@@ -8,6 +8,7 @@
       "properties": {
         "@ns:com:here:xyz": {
           "tags": [
+            "100",
             "existing_normalized_tag",
             "@Existing_Non_Normalized_Tag",
             "new_normalized_tag",
@@ -23,6 +24,7 @@
       "properties": {
         "@ns:com:here:xyz": {
           "tags": [
+            "100",
             "existing_normalized_tag",
             "@Existing_Non_Normalized_Tag",
             "new_normalized_tag",

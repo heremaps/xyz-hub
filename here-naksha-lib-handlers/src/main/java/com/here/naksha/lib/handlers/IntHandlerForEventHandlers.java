@@ -29,8 +29,6 @@ import org.jetbrains.annotations.NotNull;
 
 public class IntHandlerForEventHandlers extends AdminFeatureEventHandler<EventHandler> {
 
-  // TODO:  addStorageIdToStreamInfo(PsqlStorage.ADMIN_STORAGE_ID, ctx);
-
   public IntHandlerForEventHandlers(final @NotNull INaksha hub) {
     super(hub, EventHandler.class);
   }

@@ -1,0 +1,19 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "my-custom-id-800-7",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "70",
+        "@ns:com:here:xyz": {
+          "tags": [ "non-matching-tag", "@ThRee" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+      }
+    }
+  ]
+}

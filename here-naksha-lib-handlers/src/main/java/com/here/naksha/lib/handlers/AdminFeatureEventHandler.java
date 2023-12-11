@@ -31,6 +31,7 @@ import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
+import com.here.naksha.lib.psql.PsqlStorage;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -58,6 +59,7 @@ abstract class AdminFeatureEventHandler<FEATURE extends XyzFeature> extends Abst
     final NakshaContext ctx = NakshaContext.currentContext();
     final Request<?> request = event.getRequest();
     // process request using Naksha Admin Storage instance
+    addStorageIdToStreamInfo(PsqlStorage.ADMIN_STORAGE_ID, ctx);
     if (request instanceof ReadRequest<?> rr) {
       try (final IReadSession reader = nakshaHub().getAdminStorage().newReadSession(ctx, false)) {
         return reader.execute(rr);

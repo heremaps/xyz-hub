@@ -40,6 +40,7 @@ import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import org.jetbrains.annotations.NotNull;
@@ -47,7 +48,7 @@ import org.jetbrains.annotations.Nullable;
 
 public class NHAdminMock implements IStorage {
 
-  protected static @NotNull Map<String, Map<String, Object>> mockCollection;
+  protected static @NotNull Map<String, TreeMap<String, Object>> mockCollection;
   protected static @NotNull NakshaHubConfig nakshaHubConfig;
 
   public NHAdminMock(final @NotNull Storage storage) {
@@ -59,11 +60,14 @@ public class NHAdminMock implements IStorage {
   }
 
   public NHAdminMock(
-      final @NotNull Map<String, Map<String, Object>> mockCollection, final @NotNull NakshaHubConfig customCfg) {
-    this.mockCollection = mockCollection;
+      final @NotNull Map<String, TreeMap<String, Object>> mockCollection,
+      final @NotNull NakshaHubConfig customCfg) {
+    throw new UnsupportedOperationException(
+        "NHAdminMock storage should not be used"); // comment to use mock in local env
+    /*this.mockCollection = mockCollection;
     this.nakshaHubConfig = customCfg;
     this.initStorage();
-    this.setupConfig();
+    this.setupConfig();*/
   }
 
   @Override

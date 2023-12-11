@@ -23,6 +23,9 @@ import static com.here.naksha.lib.core.models.storage.POp.or;
 import static com.here.naksha.lib.core.models.storage.PRef.id;
 
 import com.here.naksha.lib.core.NakshaVersion;
+import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
+import com.here.naksha.lib.core.models.geojson.coordinates.MultiPointCoordinates;
+import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.EWriteOp;
@@ -32,6 +35,7 @@ import com.here.naksha.lib.core.models.storage.POp;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
 import com.here.naksha.lib.core.models.storage.WriteXyzCollections;
 import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
+import com.vividsolutions.jts.geom.Geometry;
 import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
@@ -221,5 +225,23 @@ public class RequestHelper {
       writeXyzCollections.add(EWriteOp.CREATE, new XyzCollection(collectionId));
     }
     return writeXyzCollections;
+  }
+
+  /**
+   * Helper function that returns Geometry representing BoundingBox for the co-ordinates
+   * supplied as arguments.
+   *
+   * @param west west co-ordinate
+   * @param south south co-ordinate
+   * @param east east co-ordinate
+   * @param north north co-ordinate
+   * @return Geometry representing BBox envelope
+   */
+  public static @NotNull Geometry createBBoxEnvelope(
+      final double west, final double south, final double east, final double north) {
+    MultiPointCoordinates multiPoint = new MultiPointCoordinates();
+    multiPoint.add(new PointCoordinates(west, south));
+    multiPoint.add(new PointCoordinates(east, north));
+    return JTSHelper.toMultiPoint(multiPoint).getEnvelope();
   }
 }

@@ -32,7 +32,7 @@ import org.jetbrains.annotations.Nullable;
 public class SpaceProperties extends XyzProperties {
 
   @AvailableSince(NakshaVersion.v2_0_7)
-  public static final String XYZ_COLLECTION = "xyzCollection";
+  public static final String XYZ_COLLECTION = "collection";
 
   /**
    * The backend storage collection details specified at space level

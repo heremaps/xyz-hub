@@ -1,0 +1,15 @@
+{
+  "id": "local-space-4-features-by-tile",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "local-handler-4-features-by-tile"
+  ],
+  "properties": {
+    "collection": {
+      "id": "local-collection-4-features-by-tile",
+      "type": "NakshaCollection"
+    }
+  }
+}

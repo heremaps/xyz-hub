@@ -23,9 +23,10 @@ import static com.here.naksha.lib.core.models.geojson.WebMercatorTile.forWeb;
 import static com.here.naksha.lib.core.models.geojson.WebMercatorTile.x;
 import static com.here.naksha.lib.core.models.geojson.WebMercatorTile.xy;
 import static com.here.naksha.lib.core.models.geojson.WebMercatorTile.y;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
 import org.junit.jupiter.api.Test;
 
 public class WebMercatorTileTest {
@@ -113,5 +114,36 @@ public class WebMercatorTileTest {
     String quadkey = "120203302133";
     WebMercatorTile qp = forQuadkey(quadkey);
     assertEquals(quadkey, qp.asQuadkey());
+  }
+
+  @Test
+  public void testGeometryFromTileId() {
+    final String tileId = "120203302030322200";
+    final double[][] expectedCoordinates = new double[][] {
+      {8.6572265625, 50.12321958080243, Double.NaN},
+      {8.6572265625, 50.124100042692376, Double.NaN},
+      {8.658599853515625, 50.124100042692376, Double.NaN},
+      {8.658599853515625, 50.12321958080243, Double.NaN},
+      {8.6572265625, 50.12321958080243, Double.NaN},
+    };
+    final Geometry geo = WebMercatorTile.forQuadkey(tileId).getAsPolygon().getGeometry();
+    final Coordinate[] coordinates = geo.getCoordinates();
+    assertNotNull(coordinates);
+    assertEquals(expectedCoordinates.length, coordinates.length, "Mismatch in number of coordinates.");
+    // match each XYZ co-ordinate
+    for (int i = 0; i < expectedCoordinates.length; i++) {
+      assertEquals(
+          expectedCoordinates[i][0],
+          coordinates[i].getOrdinate(Coordinate.X),
+          "Mismatch in X ordinate for co-ordinate at index position " + i);
+      assertEquals(
+          expectedCoordinates[i][1],
+          coordinates[i].getOrdinate(Coordinate.Y),
+          "Mismatch in Y ordinate for co-ordinate at index position " + i);
+      assertEquals(
+          expectedCoordinates[i][2],
+          coordinates[i].getOrdinate(Coordinate.Z),
+          "Mismatch in Z ordinate for co-ordinate at index position " + i);
+    }
   }
 }

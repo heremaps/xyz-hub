@@ -19,14 +19,8 @@
 package com.here.naksha.lib.core.models.payload.events;
 
 import com.here.naksha.lib.core.exceptions.ParameterError;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -149,27 +143,27 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   }
 
   /**
-   * Returns all values of all parameter with the given key.
+   * Wrapper function to retrieve value of given parameter key as String.
+   * Only first value is returned, even if multiple values exist for a key.
    *
    * @param key The key of the parameter to query.
-   * @return A list with all values of the parameter; {@code null} if no such parameter exists.
+   * @return parameter value as String
    */
-  public <T> @Nullable T getValueOf(@NotNull String key, @NotNull Class<T> type) {
-    List<T> list = collectAllOf(key, Integer.MAX_VALUE, type);
+  public @Nullable String getValueAsString(@NotNull String key) {
+    List<String> list = collectAllOfAsString(key);
     if (list.isEmpty()) return null;
     return list.get(0);
   }
 
   /**
-   * Returns all values of all parameter with the given key.
+   * Wrapper function to retrieve values of given parameter key as List of String.
+   * Each value will be converted to String, subject to toString implementation.
    *
    * @param key The key of the parameter to query.
-   * @param type type of the class the values should be cast to
    * @return A list with all values of the parameter; {@code null} if no such parameter exists.
-   * @param <T> the class type for which the list of values is to be returned back
    */
-  public <T> @NotNull List<@NotNull T> collectAllOf(@NotNull String key, @NotNull Class<T> type) {
-    return collectAllOf(key, Integer.MAX_VALUE, type);
+  public @NotNull List<@NotNull String> collectAllOfAsString(@NotNull String key) {
+    return collectAllOf(key, Integer.MAX_VALUE, String.class);
   }
 
   /**
@@ -189,7 +183,7 @@ public class QueryParameterList implements Iterable<QueryParameter> {
    * @param limit The maximal amount of parameters to collect from.
    * @param type type of the class the values should be cast to
    * @return A list with all values of the parameter; {@code null} if no such parameter exists.
-   * @param <T> the class type for which the list of values is to be returned back
+   * @param <T> the class type, to which the value to be cast to
    */
   public <T> @NotNull List<@NotNull T> collectAllOf(@NotNull String key, int limit, Class<T> type) {
     final List<@NotNull T> all = new ArrayList<>(DEFAULT_CAPACITY);
@@ -197,7 +191,13 @@ public class QueryParameterList implements Iterable<QueryParameter> {
     int i = 0;
     while (i++ < limit && param != null) {
       if (param.hasValues()) {
-        all.addAll((Collection<T>) param.values());
+        for (final Object obj : param.values()) {
+          if (type == String.class) {
+            all.add((T) String.valueOf(obj));
+          } else {
+            all.add((T) obj);
+          }
+        }
       }
       param = param.next;
     }

@@ -13,7 +13,7 @@ servers:
 info:
   title: "Naskha Hub-API"
   description: "Naksha Hub-API is a REST API to provide simple access to geo data."
-  version: "2.0.7"
+  version: "2.0.8"
 
 security:
   - AccessToken: [ ]
@@ -583,6 +583,78 @@ paths:
           $ref: '#/components/responses/ErrorResponse504'
         '513':
           $ref: '#/components/responses/ErrorResponse513'
+  '/hub/spaces/{spaceId}/bbox':
+    get:
+      tags:
+        - Read Features
+      summary: Get features by bounding box
+      description: Return the features which intersect a bounding box stipulated by west, north, east and south parameters.
+      operationId: getFeaturesByBBox
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/West'
+        - $ref: '#/components/parameters/North'
+        - $ref: '#/components/parameters/East'
+        - $ref: '#/components/parameters/South'
+        - $ref: '#/components/parameters/TagList'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureCollectionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+  '/hub/spaces/{spaceId}/tile/{type}/{tileId}':
+    get:
+      tags:
+        - Read Features
+      summary: Get features in tile
+      description: |
+        List the features selected by tile type and tile id.
+        Tile type of "quadkey" is supported.
+      operationId: getFeaturesByTile
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/TileType'
+        - $ref: '#/components/parameters/TileId'
+        - $ref: '#/components/parameters/TagList'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureCollectionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
 components:
   securitySchemes:
     AccessToken:
@@ -611,6 +683,18 @@ components:
         type: array
         items:
           type: string
+    East:
+      name: east
+      in: query
+      description: >-
+        The longitude in WGS'84 decimal degree (-180 to +180) of the east
+        (right) border of the bounding box.
+      required: true
+      schema:
+        type: number
+        format: double
+        minimum: -180
+        maximum: 180
     FeatureId:
       name: featureId
       in: path
@@ -618,6 +702,26 @@ components:
       required: true
       schema:
         type: string
+    Limit:
+      name: limit
+      in: query
+      description: >-
+        The maximum number of features in the response.
+        Default is _30000_. Hard limit is _100000_.
+      schema:
+        type: integer
+    North:
+      name: north
+      in: query
+      description: >-
+        The latitude in WGS'84 decimal degree (-90 to +90) of the north
+        (top) border of the bounding box.
+      required: true
+      schema:
+        type: number
+        format: double
+        minimum: -90
+        maximum: 90
     RemoveTags:
       name: removeTags
       in: query
@@ -648,6 +752,85 @@ components:
       required: false
       schema:
         type: string
+    South:
+      name: south
+      in: query
+      description: >-
+        The latitude in WGS'84 decimal degree (-90 to +90) of the south
+        (bottom) border of the bounding box.
+      required: true
+      schema:
+        type: number
+        format: double
+        minimum: -90
+        maximum: 90
+    TagList:
+      name: tags
+      in: query
+      description: >-
+        A comma separated list of tags or combination of tags concatenated with
+        a plus sign (+). A comma separated list of tags means any tag may be
+        found. A plus sign concatenated list means every tag is required.
+
+
+        #### For example:
+
+
+        - **tags**=first,two
+        
+            * will result into logical OR condition between the tags i.e. "first" OR "two"
+
+        - **tags**=first+two
+        
+            * will result into logical AND condition between the tags i.e. "first" AND "two"
+
+        - **tags**=first,two,three+four
+        
+            * will result into mixed logical conditions, with AND having higher preference i.e. "first" OR "two" OR ("three" AND "four")
+
+        - **tags**=first+two,three,four
+        
+            * i.e. ("first" AND "two") OR "three" OR "four"
+
+        - **tags**=first    **tags**=two+three
+        
+            * multiple tags parameters form OR conditions between them i.e. "first" OR ("two" AND "three")
+      allowEmptyValue: false
+      style: form
+      schema:
+        type: array
+        items:
+          type: string
+    TileId:
+      name: tileId
+      in: path
+      description: >-
+        The tile identifier can be provided as quadkey (e.g. 120203302030322200).
+      required: true
+      schema:
+        type: string
+    TileType:
+      name: type
+      in: path
+      description: >-
+        The type of tile identifier, e.g. "quadkey" - Virtual Earth.
+      required: true
+      schema:
+        type: string
+        enum:
+          - quadkey
+    West:
+      name: west
+      in: query
+      description: >-
+        The longitude in WGS'84 decimal degree (-180 to +180) of the west
+        (left) border of the bounding box.
+      required: true
+      schema:
+        type: number
+        format: double
+        minimum: -180
+        maximum: 180
   requestBodies:
     FeatureRequest:
       description: A request detailing one specific feature
@@ -1136,13 +1319,15 @@ components:
               description: The unique identifier of the feature.
               type: string
             geometry:
-              oneOf:
+              nullable: true
+              anyOf:
                 - $ref: '#/components/schemas/LineString'
                 - $ref: '#/components/schemas/MultiLineString'
                 - $ref: '#/components/schemas/MultiPoint'
                 - $ref: '#/components/schemas/MultiPolygon'
                 - $ref: '#/components/schemas/Point'
                 - $ref: '#/components/schemas/Polygon'
+                - $ref: '#/components/schemas/Nullable'
             properties:
               type: object
               description: The properties of the feature.
@@ -1252,6 +1437,9 @@ components:
                     maxItems: 3
                     minItems: 2
                   minItems: 4
+    Nullable:
+      type: object
+      nullable: true
     Point:
       allOf:
         - $ref: '#/components/schemas/Geometry'

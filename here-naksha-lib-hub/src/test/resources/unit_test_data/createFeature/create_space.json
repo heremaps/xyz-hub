@@ -6,7 +6,6 @@
   "eventHandlerIds": [
     "um-mod-dev-handler"
   ],
-  "collectionId": "um-mod-dev:topology",
   "properties": {
     "collection": {
       "id": "um-mod-dev:topology",

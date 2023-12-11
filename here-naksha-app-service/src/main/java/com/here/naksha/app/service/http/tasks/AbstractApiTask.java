@@ -18,6 +18,7 @@
  */
 package com.here.naksha.app.service.http.tasks;
 
+import static com.here.naksha.app.service.http.apis.ApiParams.DEF_ADMIN_FEATURE_LIMIT;
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeaturesFromResult;
 import static com.here.naksha.lib.core.util.storage.ResultHelper.readFeaturesGroupedByOp;
 import static java.util.Collections.emptyList;
@@ -129,6 +130,11 @@ public abstract class AbstractApiTask<T extends XyzResponse>
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
       final @Nullable Result rdResult, final @NotNull Class<R> type) {
+    return transformReadResultToXyzCollectionResponse(rdResult, type, DEF_ADMIN_FEATURE_LIMIT);
+  }
+
+  protected <R extends XyzFeature> @NotNull XyzResponse transformReadResultToXyzCollectionResponse(
+      final @Nullable Result rdResult, final @NotNull Class<R> type, final long maxLimit) {
     if (rdResult == null) {
       // return empty collection
       logger.warn("Unexpected null result, returning empty collection.");
@@ -140,7 +146,7 @@ public abstract class AbstractApiTask<T extends XyzResponse>
       return verticle.sendErrorResponse(routingContext, er.reason, er.message);
     } else {
       try {
-        List<R> features = readFeaturesFromResult(rdResult, type, 1000);
+        List<R> features = readFeaturesFromResult(rdResult, type, maxLimit);
         return verticle.sendXyzResponse(
             routingContext,
             HttpResponseType.FEATURE_COLLECTION,

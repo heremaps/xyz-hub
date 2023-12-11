@@ -21,6 +21,7 @@ package com.here.naksha.lib.hub;
 import static com.here.naksha.lib.common.TestFileLoader.parseJsonFileOrFail;
 import static com.here.naksha.lib.common.TestNakshaContext.newTestNakshaContext;
 import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
@@ -215,8 +216,7 @@ public class NakshaHubWiringTest {
 
     // And: Create Feature request
     final XyzFeature feature = parseJsonFileOrFail("createFeature/create_feature.json", XyzFeature.class);
-    final WriteXyzFeatures request =
-        createFeatureRequest(space.getCollectionId(), feature, IfExists.FAIL, IfConflict.FAIL);
+    final WriteXyzFeatures request = createFeatureRequest(space.getId(), feature, IfExists.FAIL, IfConflict.FAIL);
 
     // And: spies and captors in place to return
     final EventPipeline spyPipeline = spy(spyPipelineFactory.eventPipeline());
@@ -251,20 +251,29 @@ public class NakshaHubWiringTest {
         .get("id")
         .toString(); // TODO: this is ambiguous (see Space::getCollectionId), discuss
     // Verify: WriteFeature into collection got called
-    assertTrue(
-        requests.get(0) instanceof WriteXyzFeatures wr
-            && wr.getCollectionId().equals(collectionId),
-        "WriteFeature into collection request mismatch " + requests.get(0));
+    assertTrue(requests.get(0) instanceof WriteXyzFeatures, "Expected WriteXyzFeatures type of request.");
+    assertEquals(
+        collectionId,
+        ((WriteXyzFeatures) requests.get(0)).getCollectionId(),
+        "CollectionId mismatch for Write Feature request");
     // Verify: WriteCollection got called (to create missing table)
-    assertTrue(
-        requests.get(1) instanceof WriteXyzCollections wc
-            && wc.features.get(0).getFeature().getId().equals(collectionId),
-        "WriteCollection request mismatch " + requests.get(1));
+    assertTrue(requests.get(1) instanceof WriteXyzCollections, "Expected WriteXyzCollections type of request.");
+    assertEquals(
+        collectionId,
+        ((WriteXyzCollections) requests.get(1))
+            .features
+            .get(0)
+            .getFeature()
+            .getId(),
+        "CollectionId mismatch for Write Collection request");
     // Verify: WriteFeature into collectionId got called again
     assertTrue(
-        requests.get(2) instanceof WriteXyzFeatures wr
-            && wr.getCollectionId().equals(collectionId),
-        "WriteFeature into collection request mismatch " + requests.get(2));
+        requests.get(2) instanceof WriteXyzFeatures,
+        "Expected WriteXyzFeatures type of request during reattempt.");
+    assertEquals(
+        collectionId,
+        ((WriteXyzFeatures) requests.get(2)).getCollectionId(),
+        "CollectionId mismatch for reattempted Write Feature request");
   }
 
   private XyzFeatureCodec featureCodec(XyzFeature feature) {

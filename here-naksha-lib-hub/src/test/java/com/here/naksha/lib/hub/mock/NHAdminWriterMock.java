@@ -44,12 +44,7 @@ import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.psql.EPsqlState;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jetbrains.annotations.NotNull;
@@ -58,7 +53,7 @@ import org.postgresql.util.PSQLState;
 
 public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSession {
 
-  public NHAdminWriterMock(final @NotNull Map<String, Map<String, Object>> mockCollection) {
+  public NHAdminWriterMock(final @NotNull Map<String, TreeMap<String, Object>> mockCollection) {
     super(mockCollection);
   }
 
@@ -85,7 +80,7 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     for (final XyzCollectionCodec collectionCodec : wc.features) {
       // persist collection (if not already)
       EExecutedOp execOp = EExecutedOp.RETAINED;
-      if (mockCollection.putIfAbsent(collectionCodec.getFeature().getId(), new ConcurrentHashMap<>()) == null) {
+      if (mockCollection.putIfAbsent(collectionCodec.getFeature().getId(), new TreeMap<>()) == null) {
         execOp = EExecutedOp.CREATED;
       }
       collectionCodec.setOp(execOp);

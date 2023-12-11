@@ -41,7 +41,6 @@ import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
 import com.here.naksha.lib.core.storage.IWriteSession;
-import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.UUID;
@@ -89,7 +88,6 @@ public class ReadFeaturesByIdsTestHelper {
     // Test API : GET /hub/spaces/{spaceId}/features
     // Validate features getting returned for existing Ids and not failing due to missing ids
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // TODO : Need to replace setup steps when EventHandler and Space REST API tests are available
@@ -155,12 +153,11 @@ public class ReadFeaturesByIdsTestHelper {
     // Test API : GET /hub/spaces/{spaceId}/features
     // Validate empty collection getting returned for missing ids
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // Given: Features By Ids request (against configured space)
     final String spaceId = "local-space-4-feature-by-id";
-    final String idsQueryParam = "?id=missing-id-1" + "&id=missing-id-2";
+    final String idsQueryParam = "?id=1000" + "&id=missing-id-1" + "&id=missing-id-2";
     final String expectedBodyPart =
         loadFileOrFail("ReadFeatures/ByIds/TC0401_MissingIds/feature_response_part.json");
     streamId = UUID.randomUUID().toString();
@@ -178,7 +175,6 @@ public class ReadFeaturesByIdsTestHelper {
     // Test API : GET /hub/spaces/{spaceId}/features
     // Validate request gets failed due to missing Id parameter
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // Given: Features By Ids request (against configured space)
@@ -200,7 +196,6 @@ public class ReadFeaturesByIdsTestHelper {
     // Test API : GET /hub/spaces/{spaceId}/features
     // Validate request getting failed due to missing space
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // Given: Features By Ids request (against configured space)
@@ -223,7 +218,6 @@ public class ReadFeaturesByIdsTestHelper {
     // Test API : GET /hub/spaces/{spaceId}/features/{featureId}
     // Validate feature getting returned for given Id
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // Given: Feature By Id request (against already existing space)
@@ -253,7 +247,6 @@ public class ReadFeaturesByIdsTestHelper {
     // Test API : GET /hub/spaces/{spaceId}/features/{featureId}
     // Validate request gets failed when attempted to load feature for missing Id
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // Given: Feature By Id request, against existing space, for missing feature Id
@@ -276,7 +269,6 @@ public class ReadFeaturesByIdsTestHelper {
     // Test API : GET /hub/spaces/{spaceId}/features/{featureId}
     // Validate request gets failed when attempted to load feature from missing space
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // Given: Feature By Id request (against missing space)
@@ -299,7 +291,6 @@ public class ReadFeaturesByIdsTestHelper {
     // Test API : GET /hub/spaces/{spaceId}/features
     // Validate features getting returned for Ids provided as comma separated values
     String streamId;
-    HttpRequest request;
     HttpResponse<String> response;
 
     // Given: Features By Ids request (against existing space)

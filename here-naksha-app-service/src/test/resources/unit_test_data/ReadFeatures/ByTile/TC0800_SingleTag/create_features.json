@@ -1,0 +1,103 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "my-custom-id-800-1",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "10",
+        "@ns:com:here:xyz": {
+          "tags": [ "one" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-800-2",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "20",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-800-3",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "30",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two", "three" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-800-4",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "40",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two", "three", "four" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-800-5",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "50",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two", "three", "four", "five" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6123, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-800-6",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60",
+        "@ns:com:here:xyz": {
+          "tags": [ "one", "two", "three", "four", "five", "six" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+      }
+    },
+    {
+      "id": "my-custom-id-800-7",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "70",
+        "@ns:com:here:xyz": {
+          "tags": [ "non-matching-tag", "@ThRee" ]
+        }
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.6578, 50.1234, 0.0 ]
+      }
+    }
+  ]
+}

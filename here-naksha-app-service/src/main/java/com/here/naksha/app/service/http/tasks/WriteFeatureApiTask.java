@@ -23,13 +23,14 @@ import static com.here.naksha.app.service.http.apis.ApiParams.FEATURE_ID;
 import static com.here.naksha.app.service.http.apis.ApiParams.PREFIX_ID;
 import static com.here.naksha.app.service.http.apis.ApiParams.REMOVE_TAGS;
 import static com.here.naksha.app.service.http.apis.ApiParams.SPACE_ID;
-import static com.here.naksha.app.service.http.apis.ApiParams.pathParam;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.here.naksha.app.service.http.NakshaHttpVerticle;
+import com.here.naksha.app.service.http.apis.ApiParams;
 import com.here.naksha.app.service.models.FeatureCollectionRequest;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.exceptions.XyzErrorException;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
@@ -90,6 +91,8 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
         case UPDATE_BY_ID -> executeUpdateFeature();
         default -> executeUnsupported();
       };
+    } catch (XyzErrorException ex) {
+      return verticle.sendErrorResponse(routingContext, ex.xyzError, ex.getMessage());
     } catch (Exception ex) {
       // unexpected exception
       logger.error("Exception processing Http request. ", ex);
@@ -107,22 +110,15 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
     }
 
     // Parse API parameters
-    final String spaceId = pathParam(routingContext, SPACE_ID);
+    final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
     final QueryParameterList queryParams = (routingContext.request().query() != null)
         ? new QueryParameterList(routingContext.request().query())
         : null;
-    final String prefixId = (queryParams != null) ? queryParams.getValueOf(PREFIX_ID, String.class) : null;
-    final List<String> addTags = (queryParams != null) ? queryParams.collectAllOf(ADD_TAGS, String.class) : null;
-    final List<String> removeTags =
-        (queryParams != null) ? queryParams.collectAllOf(REMOVE_TAGS, String.class) : null;
-
-    // Validate parameters
-    if (spaceId == null || spaceId.isEmpty()) {
-      return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing spaceId parameter");
-    }
+    final String prefixId = (queryParams != null) ? queryParams.getValueAsString(PREFIX_ID) : null;
+    final List<String> addTags = (queryParams != null) ? queryParams.collectAllOfAsString(ADD_TAGS) : null;
+    final List<String> removeTags = (queryParams != null) ? queryParams.collectAllOfAsString(REMOVE_TAGS) : null;
 
     // as applicable, modify features based on parameters supplied
-
     for (final XyzFeature feature : features) {
       feature.setIdPrefix(prefixId);
       addTagsToFeature(feature, addTags);
@@ -147,18 +143,12 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
     }
 
     // Parse API parameters
-    final String spaceId = pathParam(routingContext, SPACE_ID);
+    final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
     final QueryParameterList queryParams = (routingContext.request().query() != null)
         ? new QueryParameterList(routingContext.request().query())
         : null;
-    final List<String> addTags = (queryParams != null) ? queryParams.collectAllOf(ADD_TAGS, String.class) : null;
-    final List<String> removeTags =
-        (queryParams != null) ? queryParams.collectAllOf(REMOVE_TAGS, String.class) : null;
-
-    // Validate parameters
-    if (spaceId == null || spaceId.isEmpty()) {
-      return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing spaceId parameter");
-    }
+    final List<String> addTags = (queryParams != null) ? queryParams.collectAllOfAsString(ADD_TAGS) : null;
+    final List<String> removeTags = (queryParams != null) ? queryParams.collectAllOfAsString(REMOVE_TAGS) : null;
 
     // as applicable, modify features based on parameters supplied
     for (final XyzFeature feature : features) {
@@ -183,24 +173,14 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
     }
 
     // Parse API parameters
-    final String spaceId = pathParam(routingContext, SPACE_ID);
-    final String featureId = pathParam(routingContext, FEATURE_ID);
+    final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
+    final String featureId = ApiParams.extractMandatoryPathParam(routingContext, FEATURE_ID);
 
     final QueryParameterList queryParams = (routingContext.request().query() != null)
         ? new QueryParameterList(routingContext.request().query())
         : null;
-    final List<String> addTags = (queryParams != null) ? queryParams.collectAllOf(ADD_TAGS, String.class) : null;
-    final List<String> removeTags =
-        (queryParams != null) ? queryParams.collectAllOf(REMOVE_TAGS, String.class) : null;
-
-    // Validate parameters
-    if (spaceId == null || spaceId.isEmpty()) {
-      return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing spaceId parameter");
-    }
-
-    if (featureId == null || featureId.isEmpty()) {
-      return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing featureId parameter");
-    }
+    final List<String> addTags = (queryParams != null) ? queryParams.collectAllOfAsString(ADD_TAGS) : null;
+    final List<String> removeTags = (queryParams != null) ? queryParams.collectAllOfAsString(REMOVE_TAGS) : null;
 
     if (!featureId.equals(feature.getId())) {
       return verticle.sendErrorResponse(

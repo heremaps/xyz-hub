@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.util.storage.RequestHelper.createBBoxEnvelope;
 import static com.spatial4j.core.io.GeohashUtils.encodeLatLon;
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
@@ -33,7 +34,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.XyzError;
-import com.here.naksha.lib.core.models.geojson.coordinates.JTSHelper;
 import com.here.naksha.lib.core.models.geojson.coordinates.LineStringCoordinates;
 import com.here.naksha.lib.core.models.geojson.coordinates.MultiPointCoordinates;
 import com.here.naksha.lib.core.models.geojson.coordinates.PointCoordinates;
@@ -65,7 +65,6 @@ import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.MultiPoint;
 import com.vividsolutions.jts.geom.Point;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -198,10 +197,10 @@ public class PsqlStorageTests extends PsqlTests {
     assertNotNull(storage);
     assertNotNull(session);
 
-    Geometry envelopeBbox = bbox(4.0d, 5.0, 5.5d, 6.5);
+    Geometry envelopeBbox = createBBoxEnvelope(4.0d, 5.0, 5.5d, 6.5);
 
     ReadFeatures readFeatures = new ReadFeatures(collectionId());
-    readFeatures.setPropertyOp(SOp.intersects(envelopeBbox));
+    readFeatures.setSpatialOp(SOp.intersects(envelopeBbox));
 
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
         session.execute(readFeatures).getXyzFeatureCursor()) {
@@ -843,9 +842,9 @@ public class PsqlStorageTests extends PsqlTests {
 
     // read by bbox that surrounds only first point
 
-    Geometry envelopeBbox = bbox(3.9d, 4.9, 4.1d, 5.1);
+    Geometry envelopeBbox = createBBoxEnvelope(3.9d, 4.9, 4.1d, 5.1);
     ReadFeatures readFeatures = new ReadFeatures(collectionId());
-    readFeatures.setPropertyOp(SOp.intersects(envelopeBbox));
+    readFeatures.setSpatialOp(SOp.intersects(envelopeBbox));
 
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
         session.execute(readFeatures).getXyzFeatureCursor()) {
@@ -901,13 +900,5 @@ public class PsqlStorageTests extends PsqlTests {
     final PreparedStatement stmt = pgSession.prepareStatement(sql);
     stmt.setString(1, featureId);
     return stmt.executeQuery();
-  }
-
-  private Geometry bbox(Double x1, Double y1, Double x2, Double y2) {
-    MultiPointCoordinates multiPoint = new MultiPointCoordinates();
-    multiPoint.add(new PointCoordinates(x1, y1));
-    multiPoint.add(new PointCoordinates(x2, y2));
-    MultiPoint jtsMultiPoint = JTSHelper.toMultiPoint(multiPoint);
-    return jtsMultiPoint.getEnvelope();
   }
 }

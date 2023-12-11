@@ -112,7 +112,7 @@ public class ReadFeatures extends ReadRequest<ReadFeatures> {
    * @param spatialOp The operation that should be applied to filter features by their geometry.
    * @return The previously assigned operation.
    */
-  public @Nullable SOp setPropertyOp(@Nullable SOp spatialOp) {
+  public @Nullable SOp setSpatialOp(@Nullable SOp spatialOp) {
     final SOp old = this.spatialOp;
     this.spatialOp = spatialOp;
     return old;
@@ -125,7 +125,7 @@ public class ReadFeatures extends ReadRequest<ReadFeatures> {
    * @return The previously assigned operation.
    */
   @AvailableSince(NakshaVersion.v2_0_7)
-  public @NotNull ReadFeatures withPropertyOp(@Nullable SOp spatialOp) {
+  public @NotNull ReadFeatures withSpatialOp(@Nullable SOp spatialOp) {
     this.spatialOp = spatialOp;
     return this;
   }

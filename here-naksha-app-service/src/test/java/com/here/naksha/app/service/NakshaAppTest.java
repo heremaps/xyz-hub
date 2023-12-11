@@ -51,6 +51,8 @@ class NakshaAppTest {
   static CreateFeatureTestHelper createFeatureTests;
   static ReadFeaturesByIdsTestHelper readFeaturesByIdsTests;
   static UpdateFeatureTestHelper updateFeatureTestHelper;
+  static ReadFeaturesByBBoxTestHelper readFeaturesByBBoxTestHelper;
+  static ReadFeaturesByTileTestHelper readFeaturesByTileTestHelper;
 
   @BeforeAll
   static void prepare() throws InterruptedException, ExecutionException {
@@ -67,6 +69,8 @@ class NakshaAppTest {
     createFeatureTests = new CreateFeatureTestHelper(app, nakshaClient);
     readFeaturesByIdsTests = new ReadFeaturesByIdsTestHelper(app, nakshaClient);
     updateFeatureTestHelper = new UpdateFeatureTestHelper(app, nakshaClient);
+    readFeaturesByBBoxTestHelper = new ReadFeaturesByBBoxTestHelper(app, nakshaClient);
+    readFeaturesByTileTestHelper = new ReadFeaturesByTileTestHelper(app, nakshaClient);
   }
 
   @Test
@@ -715,6 +719,204 @@ class NakshaAppTest {
   @Order(12)
   void tc0506_testUpdateFeatureWithUuid() throws Exception {
     updateFeatureTestHelper.tc0506_testUpdateFeatureWithUuid();
+  }
+
+  @Test
+  @Order(13)
+  void tc0700_testGetByBBoxWithSingleTag() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0700_testGetByBBoxWithSingleTag();
+  }
+
+  @Test
+  @Order(14)
+  void tc0701_testGetByBBoxWithTagOrCondition() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0701_testGetByBBoxWithTagOrCondition();
+  }
+
+  @Test
+  @Order(14)
+  void tc0702_testGetByBBoxWithTagAndCondition() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0702_testGetByBBoxWithTagAndCondition();
+  }
+
+  @Test
+  @Order(14)
+  void tc0703_testGetByBBoxWithTagOrOrConditions() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0703_testGetByBBoxWithTagOrOrConditions();
+  }
+
+  @Test
+  @Order(14)
+  void tc0704_testGetByBBoxWithTagOrAndConditions() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0704_testGetByBBoxWithTagOrAndConditions();
+  }
+
+  @Test
+  @Order(14)
+  void tc0705_testGetByBBoxWithTagAndOrAndConditions() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0705_testGetByBBoxWithTagAndOrAndConditions();
+  }
+
+  @Test
+  @Order(14)
+  void tc0706_testGetByBBoxWithLimit() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0706_testGetByBBoxWithLimit();
+  }
+
+  @Test
+  @Order(14)
+  void tc0707_testGetByBBox() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0707_testGetByBBox();
+  }
+
+  @Test
+  @Order(14)
+  void tc0708_testGetByBBox2AndTagAndCondition() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0708_testGetByBBox2AndTagAndCondition();
+  }
+
+  @Test
+  @Order(14)
+  void tc0709_testGetByBBoxWithoutBBox() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0709_testGetByBBoxWithoutBBox();
+  }
+
+  @Test
+  @Order(14)
+  void tc0710_testGetByBBoxWithInvalidCoordinate() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0710_testGetByBBoxWithInvalidCoordinate();
+  }
+
+  @Test
+  @Order(14)
+  void tc0711_testGetByBBoxWithInvalidTagDelimiter() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0711_testGetByBBoxWithInvalidTagDelimiter();
+  }
+
+  @Test
+  @Order(14)
+  void tc0712_testGetByBBoxWithNonNormalizedTag() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0712_testGetByBBoxWithNonNormalizedTag();
+  }
+
+  @Test
+  @Order(14)
+  void tc0713_testGetByBBoxWithMixedTagConditions() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0713_testGetByBBoxWithMixedTagConditions();
+  }
+
+  @Test
+  @Order(14)
+  void tc0714_testGetByBBoxWithTagMismatch() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0714_testGetByBBoxWithTagMismatch();
+  }
+
+  @Test
+  @Order(14)
+  void tc0715_testGetByBBoxWithBBoxMismatch() throws Exception {
+    readFeaturesByBBoxTestHelper.tc0715_testGetByBBoxWithBBoxMismatch();
+  }
+
+  @Test
+  @Order(15)
+  void tc0800_testGetByTileWithSingleTag() throws Exception {
+    readFeaturesByTileTestHelper.tc0800_testGetByTileWithSingleTag();
+  }
+
+  @Test
+  @Order(16)
+  void tc0801_testGetByTileWithTagOrCondition() throws Exception {
+    readFeaturesByTileTestHelper.tc0801_testGetByTileWithTagOrCondition();
+  }
+
+  @Test
+  @Order(16)
+  void tc0802_testGetByTileWithTagAndCondition() throws Exception {
+    readFeaturesByTileTestHelper.tc0802_testGetByTileWithTagAndCondition();
+  }
+
+  @Test
+  @Order(16)
+  void tc0803_testGetByTileWithTagOrOrConditions() throws Exception {
+    readFeaturesByTileTestHelper.tc0803_testGetByTileWithTagOrOrConditions();
+  }
+
+  @Test
+  @Order(16)
+  void tc0804_testGetByTileWithTagOrAndConditions() throws Exception {
+    readFeaturesByTileTestHelper.tc0804_testGetByTileWithTagOrAndConditions();
+  }
+
+  @Test
+  @Order(16)
+  void tc0805_testGetByTileWithTagAndOrAndConditions() throws Exception {
+    readFeaturesByTileTestHelper.tc0805_testGetByTileWithTagAndOrAndConditions();
+  }
+
+  @Test
+  @Order(16)
+  void tc0806_testGetByTileWithLimit() throws Exception {
+    readFeaturesByTileTestHelper.tc0806_testGetByTileWithLimit();
+  }
+
+  @Test
+  @Order(16)
+  void tc0807_testGetByTile() throws Exception {
+    readFeaturesByTileTestHelper.tc0807_testGetByTile();
+  }
+
+  @Test
+  @Order(16)
+  void tc0808_testGetByTile2AndTagAndCondition() throws Exception {
+    readFeaturesByTileTestHelper.tc0808_testGetByTile2AndTagAndCondition();
+  }
+
+  @Test
+  @Order(16)
+  void tc0809_testGetByTileWithoutBBox() throws Exception {
+    readFeaturesByTileTestHelper.tc0809_testGetByTileWithoutTile();
+  }
+
+  @Test
+  @Order(16)
+  void tc0810_testGetByTileWithInvalidTileId() throws Exception {
+    readFeaturesByTileTestHelper.tc0810_testGetByTileWithInvalidTileId();
+  }
+
+  @Test
+  @Order(16)
+  void tc0811_testGetByTileWithInvalidTagDelimiter() throws Exception {
+    readFeaturesByTileTestHelper.tc0811_testGetByTileWithInvalidTagDelimiter();
+  }
+
+  @Test
+  @Order(16)
+  void tc0812_testGetByTileWithNonNormalizedTag() throws Exception {
+    readFeaturesByTileTestHelper.tc0812_testGetByTileWithNonNormalizedTag();
+  }
+
+  @Test
+  @Order(16)
+  void tc0813_testGetByTileWithMixedTagConditions() throws Exception {
+    readFeaturesByTileTestHelper.tc0813_testGetByTileWithMixedTagConditions();
+  }
+
+  @Test
+  @Order(16)
+  void tc0814_testGetByTileWithTagMismatch() throws Exception {
+    readFeaturesByTileTestHelper.tc0814_testGetByTileWithTagMismatch();
+  }
+
+  @Test
+  @Order(16)
+  void tc0815_testGetByTileWithTileMismatch() throws Exception {
+    readFeaturesByTileTestHelper.tc0815_testGetByTileWithTileMismatch();
+  }
+
+  @Test
+  @Order(16)
+  void tc0816_testGetByTileWithUnsupportedTileType() throws Exception {
+    readFeaturesByTileTestHelper.tc0816_testGetByTileWithUnsupportedTileType();
   }
 
   @AfterAll

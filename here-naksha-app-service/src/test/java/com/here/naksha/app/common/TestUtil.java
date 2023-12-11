@@ -18,11 +18,14 @@
  */
 package com.here.naksha.app.common;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import java.io.IOException;
+import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -71,5 +74,9 @@ public class TestUtil {
     final List<String> values = response.headers().map().get(header);
     // if list has only one node, return just string element, otherwise toString() of entire list
     return (values == null) ? null : (values.size() > 1 ? values.toString() : values.get(0));
+  }
+
+  public static String urlEncoded(String text) {
+    return URLEncoder.encode(text, UTF_8);
   }
 }
