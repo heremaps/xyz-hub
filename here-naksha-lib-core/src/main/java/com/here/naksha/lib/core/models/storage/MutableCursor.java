@@ -75,8 +75,10 @@ public abstract class MutableCursor<FEATURE, CODEC extends FeatureCodec<FEATURE,
   /**
    * Changes the order of cached elements to same as was in the request.
    * It's bacause before save, elements have to be sorted by ID to avoid deadlocks.
+   *
+   * @return true if restore succeeded, otherwise false.
    */
-  public abstract void restoreInputOrder();
+  public abstract boolean restoreInputOrder();
 
   // TODO: spliceFeatures, addFeature, insertFeature, pushFeature, popFeature, shiftFeature, ...?
 }

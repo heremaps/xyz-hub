@@ -23,6 +23,7 @@ import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.Typed;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
+import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,6 +37,13 @@ public abstract class Result implements Typed, AutoCloseable {
    */
   @JsonIgnore
   protected @Nullable ForwardCursor<?, ?> cursor;
+
+  /**
+   * Original features order [ID, position], it might be used to restore original order when using {@link SeekableCursor}
+   * or {@link MutableCursor} cursors.
+   */
+  @JsonIgnore
+  protected @Nullable Map<String, Integer> originalFeaturesOrder;
 
   /**
    * Return the cursor using a custom codec. If no cursor is available, throws an exception to handle result. This is
@@ -82,7 +90,7 @@ public abstract class Result implements Typed, AutoCloseable {
       @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) throws NoCursor {
     if (cursor != null) {
       if (!(cursor instanceof HeapCacheCursor)) {
-        cursor = new HeapCacheCursor<>(codecFactory, cursor);
+        cursor = new HeapCacheCursor<>(codecFactory, cursor, originalFeaturesOrder);
       }
       return (MutableCursor<FEATURE, CODEC>) cursor;
     }
@@ -125,7 +133,7 @@ public abstract class Result implements Typed, AutoCloseable {
       @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) throws NoCursor {
     if (cursor != null) {
       if (!(cursor instanceof HeapCacheCursor)) {
-        cursor = new HeapCacheCursor<>(codecFactory, cursor);
+        cursor = new HeapCacheCursor<>(codecFactory, cursor, originalFeaturesOrder);
       }
       return (SeekableCursor<FEATURE, CODEC>) cursor;
     }

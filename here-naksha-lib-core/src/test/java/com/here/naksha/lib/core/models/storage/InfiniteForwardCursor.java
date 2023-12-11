@@ -25,6 +25,7 @@ public class InfiniteForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, 
     extends ForwardCursor<FEATURE, CODEC> {
 
   private String json = "{\"type\":\"Feature\"}";
+  private int lastId = 0;
 
   protected InfiniteForwardCursor(@NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory) {
     super(codecFactory);
@@ -38,7 +39,7 @@ public class InfiniteForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, 
   @Override
   protected boolean loadNextRow(ForwardCursor<FEATURE, CODEC>.@NotNull Row row) {
     row.codec.setOp("CREATED");
-    row.codec.setId(UUID.randomUUID().toString());
+    row.codec.setId("id:" + lastId);
     row.codec.setUuid(UUID.randomUUID().toString());
     row.codec.setFeatureType("Feature");
     row.codec.setPropertiesType(null);
@@ -47,6 +48,8 @@ public class InfiniteForwardCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, 
     row.codec.setRawError(null);
     row.codec.setErr(null);
     row.valid = true;
+
+    lastId++;
     return true;
   }
 

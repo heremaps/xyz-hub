@@ -16,23 +16,21 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.lib.core.models.storage;
+package com.here.naksha.lib.core.util;
 
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import java.util.function.Function;
 
-public class MockResult<T extends XyzFeature> extends SuccessResult {
+public final class IndexHelper {
 
-  MockResult(@NotNull ForwardCursor<XyzFeature, XyzFeatureCodec> forwardCursor) {
-    this.cursor = forwardCursor;
-  }
-
-  MockResult(
-      @Nullable ForwardCursor<XyzFeature, XyzFeatureCodec> forwardCursor,
-      @Nullable Map<String, Integer> originalFeaturesOrder) {
-    this.cursor = forwardCursor;
-    this.originalFeaturesOrder = originalFeaturesOrder;
+  public static <OBJECT> Map<String, Integer> createKeyIndexMap(
+      List<OBJECT> objects, Function<OBJECT, String> getKeyFunc) {
+    Map<String, Integer> resultMap = new HashMap<>(objects.size());
+    for (int i = 0; i < objects.size(); i++) {
+      resultMap.put(getKeyFunc.apply(objects.get(i)), i);
+    }
+    return resultMap;
   }
 }

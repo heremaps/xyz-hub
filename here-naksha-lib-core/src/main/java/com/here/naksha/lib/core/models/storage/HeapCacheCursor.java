@@ -22,9 +22,10 @@ import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
-import org.apache.commons.lang3.NotImplementedException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -45,11 +46,15 @@ public class HeapCacheCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>
   protected List<FeatureCodec<FEATURE, ?>> inMemoryData;
 
   protected ForwardCursor<?, ?> originalCursor;
+  protected Map<String, Integer> originalFeaturesOrder;
 
   public HeapCacheCursor(
-      @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory, @NotNull ForwardCursor<?, ?> originalCursor) {
+      @NotNull FeatureCodecFactory<FEATURE, CODEC> codecFactory,
+      @NotNull ForwardCursor<?, ?> originalCursor,
+      @Nullable Map<String, Integer> originalFeaturesOrder) {
     super(codecFactory);
     this.originalCursor = originalCursor;
+    this.originalFeaturesOrder = originalFeaturesOrder;
     this.position = BEFORE_FIRST_POSITION;
     this.inMemoryData = new ArrayList<>(INITIAL_ARRAY_SIZE_FOR_UNLIMITED_CURSOR);
 
@@ -61,9 +66,22 @@ public class HeapCacheCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>
   }
 
   @Override
-  public void restoreInputOrder() {
-    // TODO
-    throw new NotImplementedException("Restore input order not yet implemented");
+  public boolean restoreInputOrder() {
+    if (originalFeaturesOrder == null) {
+      return false;
+    }
+
+    FeatureCodec<FEATURE, ?>[] inMemoryDataWithRestoredOrder = new FeatureCodec[inMemoryData.size()];
+    for (FeatureCodec<FEATURE, ?> feature : inMemoryData) {
+      Integer previousPosition = originalFeaturesOrder.get(feature.getId());
+      if (previousPosition == null) {
+        return false;
+      }
+      inMemoryDataWithRestoredOrder[previousPosition] = feature;
+    }
+    this.inMemoryData = Arrays.asList(inMemoryDataWithRestoredOrder);
+    beforeFirst();
+    return true;
   }
 
   @Override
@@ -143,6 +161,7 @@ public class HeapCacheCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>
   @Override
   public @NotNull FEATURE addFeature(@NotNull FEATURE feature) {
     inMemoryData.add(createCodec(feature));
+    this.originalFeaturesOrder = null;
     return feature;
   }
 
@@ -154,6 +173,7 @@ public class HeapCacheCursor<FEATURE, CODEC extends FeatureCodec<FEATURE, CODEC>
     if (position == this.position) {
       loadPosition(currentRow, position);
     }
+    this.originalFeaturesOrder = null;
     return requireNonNull(currentPositionCodec.encodeFeature(false).getFeature());
   }
 

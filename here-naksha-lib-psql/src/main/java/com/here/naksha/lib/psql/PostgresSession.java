@@ -19,6 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
+import static java.util.Comparator.comparing;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -46,6 +47,7 @@ import com.here.naksha.lib.core.models.storage.XyzFeatureCodec;
 import com.here.naksha.lib.core.models.storage.XyzFeatureCodecFactory;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.util.ClosableChildResource;
+import com.here.naksha.lib.core.util.IndexHelper;
 import com.here.naksha.lib.core.util.json.Json;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
@@ -55,6 +57,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.jetbrains.annotations.NotNull;
 import org.postgresql.util.PGobject;
@@ -473,7 +476,7 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
         }
         stmt.setArray(1, psqlConnection.createArrayOf("jsonb", write_ops_json));
         final ResultSet rs = stmt.executeQuery();
-        return new PsqlSuccess(new PsqlCursor<>(XyzCollectionCodecFactory.get(), this, stmt, rs));
+        return new PsqlSuccess(new PsqlCursor<>(XyzCollectionCodecFactory.get(), this, stmt, rs), null);
       } catch (Throwable e) {
         try {
           stmt.close();
@@ -499,7 +502,14 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
               + "FROM nk_write_features(?,?,?,?,?,?,?,?,?);");
       // nk_write_features(col_id, part_id, ops, ids, uuids, features, geometries, min_result, errors_only
       try (final Json json = Json.get()) {
-        final List<@NotNull CODEC> features = writeRequest.features;
+        // new array list, so we don't modify original order
+        final List<@NotNull CODEC> features = new ArrayList<>(writeRequest.features);
+        features.forEach(codec -> codec.decodeParts(false));
+        final Map<String, Integer> originalFeaturesOrder =
+            IndexHelper.createKeyIndexMap(features, CODEC::getId);
+        // sort to avoid deadlock
+        features.sort(comparing(FeatureCodec::getId));
+
         final int SIZE = writeRequest.features.size();
         final String collection_id = writeFeatures.getCollectionId();
         // partition_id
@@ -514,7 +524,6 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
         final PostgresWriteOp out = new PostgresWriteOp();
         for (int i = 0; i < SIZE; i++) {
           final CODEC codec = features.get(i);
-          codec.decodeParts(false);
           op_arr[i] = codec.getOp();
           id_arr[i] = codec.getId();
           uuid_arr[i] = codec.getUuid();
@@ -542,7 +551,7 @@ final class PostgresSession extends ClosableChildResource<PostgresStorage> {
             return new PsqlError(XyzErrorMapper.psqlCodeToXyzError(errNo), errMsg, cursor);
           }
         }
-        return new PsqlSuccess(cursor);
+        return new PsqlSuccess(cursor, originalFeaturesOrder);
       } catch (Throwable e) {
         try {
           stmt.close();

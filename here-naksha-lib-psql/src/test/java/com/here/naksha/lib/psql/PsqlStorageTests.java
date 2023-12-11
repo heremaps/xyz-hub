@@ -51,6 +51,7 @@ import com.here.naksha.lib.core.models.storage.EExecutedOp;
 import com.here.naksha.lib.core.models.storage.EWriteOp;
 import com.here.naksha.lib.core.models.storage.ErrorResult;
 import com.here.naksha.lib.core.models.storage.ForwardCursor;
+import com.here.naksha.lib.core.models.storage.MutableCursor;
 import com.here.naksha.lib.core.models.storage.POp;
 import com.here.naksha.lib.core.models.storage.PRef;
 import com.here.naksha.lib.core.models.storage.ReadFeatures;
@@ -757,6 +758,42 @@ public class PsqlStorageTests extends PsqlTests {
       cursor.beforeFirst();
       assertTrue(cursor.next());
       assertEquals(firstFeature, cursor.getFeature());
+    }
+  }
+
+  @Test
+  @Order(73)
+  @EnabledIf("runTest")
+  void testRestoreOrder() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+
+    // given
+    final WriteXyzFeatures request = new WriteXyzFeatures(collectionId());
+    final XyzFeature featureToSucceed = new XyzFeature("121");
+    request.add(EWriteOp.CREATE, featureToSucceed);
+    final XyzFeature featureToFail = new XyzFeature("120");
+    request.add(EWriteOp.CREATE, featureToFail);
+
+    // when
+    final Result result = session.execute(request);
+
+    // then
+    try (MutableCursor<XyzFeature, XyzFeatureCodec> cursor = result.getXyzMutableCursor()) {
+      cursor.next();
+      assertEquals("120", cursor.getId());
+      cursor.next();
+      assertEquals("121", cursor.getId());
+
+      assertTrue(cursor.restoreInputOrder());
+      cursor.first();
+      assertEquals("121", cursor.getId());
+      assertEquals(request.features.get(0).getId(), cursor.getId());
+      cursor.next();
+      assertEquals("120", cursor.getId());
+      assertEquals(request.features.get(1).getId(), cursor.getId());
+    } finally {
+      session.commit(true);
     }
   }
 

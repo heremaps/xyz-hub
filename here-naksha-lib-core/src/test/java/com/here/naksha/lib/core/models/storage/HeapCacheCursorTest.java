@@ -29,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import org.junit.jupiter.api.Test;
 
@@ -449,6 +451,68 @@ public class HeapCacheCursorTest {
     cursor.beforeFirst();
 
     assertThrows(NoSuchElementException.class, cursor::getFeature);
+  }
+
+  @Test
+  void shouldRestoreOriginalOrder() throws NoCursor {
+    // given
+    // cursor with ids in growing order [id:0, id:1, ... id:5]
+    LimitedForwardCursor<XyzFeature, XyzFeatureCodec> forwardCursor =
+        new LimitedForwardCursor<>(XyzFeatureCodecFactory.get(), 5);
+
+    // order we want to give
+    Map<String, Integer> orderWeWant = new HashMap<>();
+    orderWeWant.put("id:2", 0);
+    orderWeWant.put("id:4", 1);
+    orderWeWant.put("id:0", 2);
+    orderWeWant.put("id:1", 3);
+    orderWeWant.put("id:3", 4);
+    MockResult<XyzFeature> result = new MockResult<>(forwardCursor, orderWeWant);
+
+    // when
+    MutableCursor<XyzFeature, XyzFeatureCodec> mutableCursor = result.mutableCursor();
+    mutableCursor.restoreInputOrder();
+
+    // then
+    mutableCursor.next();
+    assertEquals("id:2", mutableCursor.getId());
+    mutableCursor.next();
+    assertEquals("id:4", mutableCursor.getId());
+    mutableCursor.next();
+    assertEquals("id:0", mutableCursor.getId());
+    mutableCursor.next();
+    assertEquals("id:1", mutableCursor.getId());
+    mutableCursor.next();
+    assertEquals("id:3", mutableCursor.getId());
+  }
+
+  @Test
+  void shouldNotRestoreOriginalOrderWhenItWasNotProvided() throws NoCursor {
+    // given
+    // cursor with ids in growing order [id:0, id:1, ... id:5]
+    LimitedForwardCursor<XyzFeature, XyzFeatureCodec> forwardCursor =
+        new LimitedForwardCursor<>(XyzFeatureCodecFactory.get(), 5);
+
+    // order we want to give
+    Map<String, Integer> orderWeWant = null;
+    MockResult<XyzFeature> result = new MockResult<>(forwardCursor, orderWeWant);
+
+    // when
+    MutableCursor<XyzFeature, XyzFeatureCodec> mutableCursor = result.mutableCursor();
+    assertFalse(mutableCursor.restoreInputOrder());
+
+    // then
+    // unchanged order
+    mutableCursor.next();
+    assertEquals("id:0", mutableCursor.getId());
+    mutableCursor.next();
+    assertEquals("id:1", mutableCursor.getId());
+    mutableCursor.next();
+    assertEquals("id:2", mutableCursor.getId());
+    mutableCursor.next();
+    assertEquals("id:3", mutableCursor.getId());
+    mutableCursor.next();
+    assertEquals("id:4", mutableCursor.getId());
   }
 
   private SuccessResult limitedResult(long limit) {

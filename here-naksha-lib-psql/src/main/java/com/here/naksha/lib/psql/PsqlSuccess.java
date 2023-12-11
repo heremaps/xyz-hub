@@ -19,6 +19,7 @@
 package com.here.naksha.lib.psql;
 
 import com.here.naksha.lib.core.models.storage.SuccessResult;
+import java.util.Map;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -27,6 +28,11 @@ import org.jetbrains.annotations.Nullable;
 public class PsqlSuccess extends SuccessResult {
 
   PsqlSuccess(@Nullable PsqlCursor<?, ?> cursor) {
+    this(cursor, null);
+  }
+
+  PsqlSuccess(@Nullable PsqlCursor<?, ?> cursor, @Nullable Map<String, Integer> originalFeaturesOrder) {
     this.cursor = cursor;
+    this.originalFeaturesOrder = originalFeaturesOrder;
   }
 }
