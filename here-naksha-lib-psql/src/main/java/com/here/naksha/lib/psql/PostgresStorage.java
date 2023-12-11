@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.core.NakshaVersion.latest;
 import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
 import static com.here.naksha.lib.core.util.IoHelp.readResource;
 import static com.here.naksha.lib.psql.SQL.quote_ident;
@@ -159,12 +160,6 @@ final class PostgresStorage extends ClosableRootResource {
   public void setLogLevel(@Nullable EPsqlLogLevel logLevel) {
     this.logLevel = logLevel == null ? EPsqlLogLevel.OFF : logLevel;
   }
-
-  /**
-   * The latest pl/pgsql extension version.
-   */
-  final @NotNull NakshaVersion latest = new NakshaVersion(2, 0, 7);
-  // TODO: Increment me, when you change the pl/pgsql code and do not remove this TODO!!!
 
   /**
    * The storage identification.
