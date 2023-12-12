@@ -3,26 +3,23 @@
           xmlns="http://maven.apache.org/SETTINGS/1.2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <servers>
         <server>
-            <username>${ARTIFACTORY_USERNAME}</username>
-            <password>${ARTIFACTORY_PASSWORD}</password>
-            <id>ds-maven</id>
+            <id>com-here-ds</id>
+            <username>aws</username>
+            <password>${env.CODEARTIFACT_AUTH_TOKEN}</password>
         </server>
     </servers>
     <profiles>
         <profile>
-            <id>artifactory</id>
+            <id>com-here-ds</id>
             <repositories>
                 <repository>
-                    <snapshots>
-                        <enabled>false</enabled>
-                    </snapshots>
-                    <id>ds-maven</id>
-                    <url>https://artifactory.in.here.com/artifactory/ds-maven/</url>
+                    <id>com-here-ds</id>
+                    <url>https://com-here-609321179939.d.codeartifact.eu-west-1.amazonaws.com/maven/ds/</url>
                 </repository>
             </repositories>
         </profile>
     </profiles>
     <activeProfiles>
-        <activeProfile>artifactory</activeProfile>
+        <activeProfile>com-here-ds</activeProfile>
     </activeProfiles>
 </settings>

@@ -16,8 +16,7 @@ jobs:
   push-to-artifactory:
     runs-on: ubuntu-latest
     env:
-      ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
-      ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+      CODEARTIFACT_AUTH_TOKEN: ${{ secrets.CODEARTIFACT_AUTH_TOKEN }}
     steps:
       - uses: actions/checkout@v2
       - name: Cache local Maven repository
@@ -31,7 +30,5 @@ jobs:
         uses: actions/setup-java@v1
         with:
           java-version: '17'
-      - name: Build XYZ hub jar
-        run: mvn clean install -Pdocker -DskipTests=true -DdockerComposeFile=docker-compose-dynamodb.yml
-      - name: Deploy to Artifactory
-        run: mvn -gs $GITHUB_WORKSPACE/settings.xml --batch-mode deploy -Dmaven.test.skip=true -Partifactory
+      - name: Deploy to AWS CodeArtifact
+        run: mvn -gs $GITHUB_WORKSPACE/settings.xml --batch-mode deploy -Dmaven.test.skip=true -Pcom-here-ds
