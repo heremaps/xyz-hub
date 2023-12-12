@@ -64,6 +64,117 @@ import org.apache.logging.log4j.Logger;
 public class JDBCExporter extends JDBCClients {
     private static final Logger logger = LogManager.getLogger();
 
+/**** IML-Copy Begin */
+/**** IML-Copy Begin */
+    public static SQLQuery buildImlCopyQuery(Export job, String schema) throws SQLException {
+
+        String destinationSpaceId    = "cptarget",  // replace with correct value
+               destinationTablename  = "cptarget",  // replace with correct value
+               destinationSchema     = "public",
+               destinationInsertSql = String.format(
+                  "with ins_data as "
+                 +"( insert into \"%1$s\".\"%2$s\" ( jsondata, operation, author, geo, id, version ) "
+                 +"  select idata.*, ( select case when coalesce( max(version), 1 ) = 0 then 0 else nextval('\"%1$s\".\"%2$s_version_seq\"') end from \"%1$s\".\"%2$s\" ) as version "
+                 +"  from "
+                 +"  ( ${{contentQuery}} ) idata "
+                 +"  returning id, version "
+                 +"), "
+                 +"upd_data as "
+                 +"( update \"%1$s\".\"%2$s\" "
+                 +"   set next_version = ( select version from ins_data limit 1 ) "
+                 +"  where 1 = 1  "
+                 +"    and next_version = 9223372036854775807::bigint "
+                 +"    and id in ( select id from ins_data ) "
+                 +"    and version < ( select version from ins_data limit 1 ) "
+                 +"  returning 1  "
+                 +") "
+                 +"select count(1) as rows_uploaded, 0::bigint as bytes_uploaded, 0::bigint as files_uploaded, (select count(1) from upd_data) as version_updated from ins_data l ",
+                 destinationSchema, destinationTablename );
+               
+
+        GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent();
+        Map params = job.getParams();
+        event.setSpace(job.getTargetSpaceId()); // SpaceId of SourceLayer
+        event.setParams(params);
+        event.setContext( EXTENSION );
+
+        if (params != null && params.get("enableHashedSpaceId") != null)
+            event.setConnectorParams(new HashMap<>(){{put("enableHashedSpaceId", params.get("enableHashedSpaceId"));}});
+
+        PSQLXyzConnector dbHandler = new PSQLXyzConnector(false);
+        dbHandler.setConfig(new PSQLConfig(event, schema));
+
+        SQLQuery sqlQuery;
+        try
+        {
+         GetFeatures queryRunner;
+
+         queryRunner = new SearchForFeatures(event);
+         queryRunner.setDbHandler(dbHandler);
+
+         sqlQuery = queryRunner._buildQuery(event);
+         sqlQuery.setQueryFragment("limit", "");
+         sqlQuery.setQueryFragment("geo", "geo");
+         sqlQuery.setQueryFragment("selection", "jsondata, operation, author");
+
+        }
+        catch (Exception e) 
+        { throw new SQLException(e); }
+
+        SQLQuery insertReturnStatisticSql = new SQLQuery(destinationInsertSql);
+        
+        insertReturnStatisticSql.setQueryFragment("contentQuery", sqlQuery.substituteAndUseDollarSyntax(sqlQuery) );
+
+        return insertReturnStatisticSql.substitute();
+    }
+
+    private static Future<Export.ExportStatistic> executeCopyQuery(String clientId, SQLQuery q, Export j )
+    {
+        logger.info("job[{}] Execute Query IML-Copy {}->{} {}", j.getId(), j.getTargetSpaceId(), "IML-Destination", q.text());
+        return getClient(clientId, false)  // insert -> writer
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .map(rows -> {
+                    Export.ExportStatistic es = new Export.ExportStatistic();
+
+                    rows.forEach(
+                            row -> {
+                                es.addRows(row.getLong("rows_uploaded"));
+                                es.addBytes(row.getLong("bytes_uploaded"));
+                                es.addFiles(row.getLong("files_uploaded"));
+                            }
+                    );
+
+                    return es;
+                });
+
+    }
+
+    public static Future<ExportStatistic> executeCopy(Export job, String schema ) 
+    {
+     try
+     {
+      Promise<Export.ExportStatistic> promise = Promise.promise();
+      List<Future> exportFutures = new ArrayList<>();
+      String clientId = job.getTargetConnector();
+      SQLQuery q2 = buildImlCopyQuery(job, schema );
+
+      exportFutures.add(executeCopyQuery(clientId, q2, job));
+
+      return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+     }
+     catch (SQLException e) 
+     { logger.warn("job[{}] Execute IML-Copy", job.getId(), e);
+       return Future.failedFuture(e);
+     }
+    }
+/* test mockup using existing export call
+    public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region)
+    { return executeCopy(job,schema); }
+*/
+/**** IML-Copy  End */
+/**** IML-Copy  End */
+
     public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region) {
       return addClientsIfRequired(job.getTargetConnector())
           .compose(v -> {
