@@ -536,6 +536,7 @@ public class Export extends JDBCBasedJob<Export> {
                 else if (os.getFormat() instanceof GeoParquet) {
                     setCsvFormat(JSON_WKB);
                     setEmrTransformation(true);
+                    setEmrType("geoparquet");
                 }
                 else if (os.getFormat() instanceof Csv csv)
                     setCsvFormat(csv.toBWCFormat());
