@@ -18,10 +18,7 @@
  */
 package com.here.naksha.app.service.models;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.fasterxml.jackson.annotation.*;
 import com.here.naksha.lib.core.LazyParsableFeatureList;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import java.util.List;
@@ -30,7 +27,7 @@ import org.jetbrains.annotations.NotNull;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeName(value = "FeatureCollection")
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
-public class FeatureCollectionRequest {
+public class FeatureCollectionRequest extends XyzRequest {
 
   private final @NotNull LazyParsableFeatureList features;
 
@@ -55,6 +52,7 @@ public class FeatureCollectionRequest {
     return this;
   }
 
+  @JsonIgnore
   public @NotNull LazyParsableFeatureList getLazyParsableFeatureList() {
     return features;
   }

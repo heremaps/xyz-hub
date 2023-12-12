@@ -40,13 +40,17 @@ public class TestUtil {
 
   private TestUtil() {}
 
-  public static String loadFileOrFail(String fileName) {
+  public static String loadFileOrFail(final @NotNull String rootPath, final @NotNull String fileName) {
     try {
-      return new String(Files.readAllBytes(Paths.get(TEST_DATA_FOLDER + fileName)));
+      return new String(Files.readAllBytes(Paths.get(rootPath + fileName)));
     } catch (IOException e) {
       Assertions.fail("Unable tor read test file " + fileName, e);
       return null;
     }
+  }
+
+  public static String loadFileOrFail(final @NotNull String fileName) {
+    return loadFileOrFail(TEST_DATA_FOLDER, fileName);
   }
 
   public static <T> T parseJson(final @NotNull String jsonStr, final @NotNull Class<T> type) {
@@ -64,6 +68,11 @@ public class TestUtil {
     return parseJson(loadFileOrFail(fileName), type);
   }
 
+  public static <T> T parseJsonFileOrFail(
+      final @NotNull String rootPath, final @NotNull String fileName, final @NotNull Class<T> type) {
+    return parseJson(loadFileOrFail(rootPath, fileName), type);
+  }
+
   public static @NotNull NakshaContext newTestNakshaContext() {
     final NakshaContext nakshaContext = new NakshaContext().withAppId(NakshaHubConfig.defaultAppName());
     nakshaContext.attachToCurrentThread();
@@ -78,5 +87,10 @@ public class TestUtil {
 
   public static String urlEncoded(String text) {
     return URLEncoder.encode(text, UTF_8);
+  }
+
+  public static String getEnvOrDefault(final String envKey, final String defValue) {
+    final String envValue = System.getenv(envKey);
+    return (envValue == null || envValue.isEmpty()) ? defValue : envValue;
   }
 }

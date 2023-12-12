@@ -81,4 +81,26 @@ public class HQuadTest {
   public void testInvalidLRC() {
     assertThrows(IllegalArgumentException.class, () -> new HQuad(10, 10, 1));
   }
+
+  @Test
+  public void testGeometryFromHereTileIdBase10QK() {
+    final String tileId = "23618381";
+    HQuad hQuad = new HQuad(tileId, false);
+    BBox bbox = hQuad.getBoundingBox();
+    assertEquals(bbox.getWest(), 13.623046875, "West coordinate doesn't match");
+    assertEquals(bbox.getSouth(), 52.20703125, "South coordinate doesn't match");
+    assertEquals(bbox.getEast(), 13.7109375, "East coordinate doesn't match");
+    assertEquals(bbox.getNorth(), 52.294921875, "North coordinate doesn't match");
+  }
+
+  @Test
+  public void testGeometryFromHereTileIdBase4QK() {
+    final String tileId = "122012031031";
+    HQuad hQuad = new HQuad(tileId, true);
+    BBox bbox = hQuad.getBoundingBox();
+    assertEquals(bbox.getWest(), 13.623046875, "West coordinate doesn't match");
+    assertEquals(bbox.getSouth(), 52.20703125, "South coordinate doesn't match");
+    assertEquals(bbox.getEast(), 13.7109375, "East coordinate doesn't match");
+    assertEquals(bbox.getNorth(), 52.294921875, "North coordinate doesn't match");
+  }
 }
