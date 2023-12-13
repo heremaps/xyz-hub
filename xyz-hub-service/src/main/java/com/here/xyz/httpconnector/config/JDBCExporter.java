@@ -75,9 +75,10 @@ public class JDBCExporter extends JDBCClients {
                destinationInsertSql = String.format(
                   "with ins_data as /* iml_copy_hint m499#jobId(" + job.getId() + ") */ "
                  +"( insert into \"%1$s\".\"%2$s\" ( jsondata, operation, author, geo, id, version ) "
-                 +"  select idata.jsondata, case when idata.operation in ('I') then 'U' else idata.operation end as operation, idata.author, idata.geo, idata.id, ( select nextval('\"%1$s\".\"%2$s_version_seq\"' ) ) as version "
+                 +"  select idata.jsondata, case when idata.operation in ('I','U') then ( case when edata.id isnull then 'I' else 'U' end ) else idata.operation end as operation, idata.author, idata.geo, idata.id, ( select nextval('\"%1$s\".\"%2$s_version_seq\"' ) ) as version "
                  +"  from "
                  +"  ( ${{contentQuery}} ) idata "
+                 +"  left join \"%1$s\".\"%2$s\" edata on ( idata.id = edata.id and edata.next_version = 9223372036854775807::bigint ) "
                  +"  returning id, version "
                  +"), "
                  +"upd_data as "
