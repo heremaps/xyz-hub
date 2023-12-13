@@ -180,14 +180,14 @@ public class JDBCExporter extends JDBCClients {
        return Future.failedFuture(e);
      }
     }
-/* test mockup using existing export call */
+/* test mockup using existing export call 
     public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region)
     { return executeCopy(job,schema); }
-/**/
+*/
 /**** IML-Copy  End */
 /**** IML-Copy  End */
 
-    public static Future<ExportStatistic> _executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region) {
+    public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region) {
       return addClientsIfRequired(job.getTargetConnector())
           .compose(v -> {
             try {
