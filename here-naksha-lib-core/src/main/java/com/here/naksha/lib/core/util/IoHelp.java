@@ -18,8 +18,7 @@
  */
 package com.here.naksha.lib.core.util;
 
-import static com.here.naksha.lib.core.exceptions.UncheckedException.unchecked;
-
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.util.json.JsonSerializable;
 import java.io.BufferedReader;
 import java.io.File;
@@ -27,6 +26,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,27 +37,82 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Singleton with IO helpers.
+ * IO helper class.
  */
+@SuppressWarnings("unused")
 public final class IoHelp {
 
   /**
-   * Read a resource from the JAR.
+   * The default thread safe IO helper instance to be used by the static methods.
+   */
+  public static volatile @NotNull IoHelp defaultInstance = new IoHelp();
+
+  /**
+   * Find a resource from the class-path.
+   *
+   * @param resource The resource name, which should start with a slash.
+   * @return The URL of the resource.
+   * @throws UncheckedIOException If any error occurred.
+   */
+  @AvailableSince(NakshaVersion.v2_0_10)
+  public @NotNull URL findResource(@NotNull String resource) throws UncheckedIOException {
+    final URL url = ClassLoader.getSystemResource(resource);
+    if (url == null) {
+      throw new UncheckedIOException(new FileNotFoundException(resource));
+    }
+    return url;
+  }
+
+  /**
+   * Find a resource from the class-path.
+   *
+   * @param resource   The resource name.
+   * @param relativeTo The class relative to which to search for the resource.
+   * @return The URL of the resource.
+   * @throws UncheckedIOException If any error occurred.
+   */
+  @AvailableSince(NakshaVersion.v2_0_10)
+  public @NotNull URL findResource(@NotNull String resource, @NotNull Class<?> relativeTo)
+      throws UncheckedIOException {
+    final URL url = relativeTo.getResource(resource);
+    if (url == null) {
+      throw new UncheckedIOException(new FileNotFoundException(resource));
+    }
+    return url;
+  }
+
+  /**
+   * Read a resource from the class-path.
    *
    * @param resource The resource name, which should start with a slash.
    * @return The input stream to the resource.
-   * @throws IOException If any error occurred.
+   * @throws UncheckedIOException If any error occurred.
    */
-  public static @NotNull InputStream openResource(@NotNull String resource) throws IOException {
-    final InputStream is = ClassLoader.getSystemResourceAsStream(resource);
-    if (is == null) {
-      throw new IOException("Resource " + resource + " not found");
+  @AvailableSince(NakshaVersion.v2_0_5)
+  public static @NotNull InputStream openResource(@NotNull String resource) throws UncheckedIOException {
+    final IoHelp defaultInstance = IoHelp.defaultInstance;
+    return defaultInstance.openResource(defaultInstance.findResource(resource));
+  }
+
+  /**
+   * Read a resource from the class-path.
+   *
+   * @param resource The resource location.
+   * @return The input stream to the resource.
+   * @throws UncheckedIOException If any error occurred.
+   */
+  @AvailableSince(NakshaVersion.v2_0_10)
+  public @NotNull InputStream openResource(@NotNull URL resource) throws UncheckedIOException {
+    try {
+      return resource.openStream();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
-    return is;
   }
 
   /**
@@ -65,15 +120,28 @@ public final class IoHelp {
    *
    * @param resource The resource name, which should start with a slash.
    * @return The resource as string.
-   * @throws IOException If any error occurred.
+   * @throws UncheckedIOException If any error occurred.
    */
-  public static @NotNull String readResource(@NotNull String resource) {
-    final InputStream is = ClassLoader.getSystemResourceAsStream(resource);
-    assert is != null;
+  @AvailableSince(NakshaVersion.v2_0_5)
+  public static @NotNull String readResource(@NotNull String resource) throws UncheckedIOException {
+    final IoHelp defaultInstance = IoHelp.defaultInstance;
+    return defaultInstance.readResource(defaultInstance.findResource(resource));
+  }
+
+  /**
+   * Read a resource from the JAR.
+   *
+   * @param resource The resource URL.
+   * @return The resource as string.
+   * @throws UncheckedIOException If any error occurred.
+   */
+  @AvailableSince(NakshaVersion.v2_0_10)
+  public @NotNull String readResource(@NotNull URL resource) throws UncheckedIOException {
+    final InputStream is = openResource(resource);
     try (final BufferedReader buffer = new BufferedReader(new InputStreamReader(is))) {
       return buffer.lines().collect(Collectors.joining("\n"));
     } catch (IOException e) {
-      throw unchecked(e);
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -82,18 +150,27 @@ public final class IoHelp {
    *
    * @param filename The filename of the file to read, e.g. "foo.json".
    * @return The loaded file.
-   * @throws FileNotFoundException If the file was not found.
-   * @throws IOException           If any other error occurred.
+   * @throws UncheckedIOException If any error occurred.
    */
-  public static byte @NotNull [] readResourceBytes(@NotNull String filename) {
-    final URL url = ClassLoader.getSystemResource(filename);
-    if (url == null) {
-      throw unchecked(new FileNotFoundException(filename));
-    }
-    try (final InputStream is = url.openStream()) {
+  @AvailableSince(NakshaVersion.v2_0_5)
+  public static byte @NotNull [] readResourceBytes(@NotNull String filename) throws UncheckedIOException {
+    final IoHelp defaultInstance = IoHelp.defaultInstance;
+    return defaultInstance.readResourceBytes(defaultInstance.findResource(filename));
+  }
+
+  /**
+   * Read a file from the resources.
+   *
+   * @param location The location of the file to read, e.g. "foo.json".
+   * @return The loaded file.
+   * @throws UncheckedIOException If any error occurred.
+   */
+  @AvailableSince(NakshaVersion.v2_0_10)
+  public byte @NotNull [] readResourceBytes(@NotNull URL location) throws UncheckedIOException {
+    try (final InputStream is = openResource(location)) {
       return readNBytes(is, Integer.MAX_VALUE);
     } catch (IOException e) {
-      throw unchecked(e);
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -126,10 +203,11 @@ public final class IoHelp {
    * @param is  the input stream to read from.
    * @param len the maximum number of bytes to read
    * @return a byte array containing the bytes read from this input stream
-   * @throws IllegalArgumentException if {@code length} is negative
-   * @throws IOException              if an I/O error occurs
+   * @throws IllegalArgumentException if {@code length} is negative.
+   * @throws UncheckedIOException     if an I/O error occurs.
    * @throws OutOfMemoryError         if an array of the required size cannot be allocated.
    */
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static byte @NotNull [] readNBytes(final @NotNull InputStream is, int len) {
     if (len < 0) {
       throw new IllegalArgumentException("len < 0");
@@ -192,7 +270,7 @@ public final class IoHelp {
 
       return result;
     } catch (IOException e) {
-      throw unchecked(e);
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -200,29 +278,35 @@ public final class IoHelp {
    * The loaded bytes.
    */
   public static class LoadedBytes {
-    private final String path;
-    private final byte[] bytes;
+
+    private final @NotNull String path;
+    private final byte @NotNull [] bytes;
 
     /**
      * @param path  The path loaded.
-     * @param bytes The bytes loaded.     */
-    LoadedBytes(@NotNull String path, byte @NotNull [] bytes) {
+     * @param bytes The bytes loaded.
+     */
+    protected LoadedBytes(@NotNull String path, byte @NotNull [] bytes) {
       this.path = path;
       this.bytes = bytes;
     }
 
-    public String getPath() {
+    public @NotNull String getPath() {
       return path;
     }
 
-    public byte[] getBytes() {
+    public byte @NotNull [] getBytes() {
       return bytes;
     }
 
     @Override
     public boolean equals(Object o) {
-      if (this == o) return true;
-      if (o == null || getClass() != o.getClass()) return false;
+      if (this == o) {
+        return true;
+      }
+      if (o == null || getClass() != o.getClass()) {
+        return false;
+      }
       LoadedBytes that = (LoadedBytes) o;
       return Objects.equals(path, that.path) && Arrays.equals(bytes, that.bytes);
     }
@@ -242,23 +326,23 @@ public final class IoHelp {
    */
   public static class LoadedConfig<CONFIG> {
 
-    private final CONFIG config;
-    private final String path;
+    private final @NotNull CONFIG config;
+    private final @NotNull String path;
 
     /**
-     * @param path     The path loaded.
-     * @param config   The loaded config.
+     * @param path   The path loaded.
+     * @param config The loaded config.
      */
-    LoadedConfig(@NotNull String path, CONFIG config) {
+    protected LoadedConfig(@NotNull String path, @NotNull CONFIG config) {
       this.path = path;
       this.config = config;
     }
 
-    public CONFIG getConfig() {
+    public @NotNull CONFIG getConfig() {
       return config;
     }
 
-    public String getPath() {
+    public @NotNull String getPath() {
       return path;
     }
   }
@@ -271,18 +355,45 @@ public final class IoHelp {
    * @param appName             The name of the application, when searching the default location (~/.config/{appName}).
    * @param searchPaths         Optional paths to search along, before trying the default location.
    * @return The loaded configuration file.
-   * @throws IOException If the file does not exist or any other error occurred.
+   * @throws UncheckedIOException If any error occurred.
    */
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static <CONFIG> @NotNull LoadedConfig<CONFIG> readConfigFromHomeOrResource(
       @NotNull String filename,
       boolean tryWorkingDirectory,
       @NotNull String appName,
       @NotNull Class<CONFIG> configClass,
       @Nullable String... searchPaths)
-      throws IOException {
+      throws UncheckedIOException {
+    final IoHelp defaultInstance = IoHelp.defaultInstance;
+    return defaultInstance.readConfigFromHomeOrResource(
+        configClass, filename, appName, tryWorkingDirectory, searchPaths);
+  }
+
+  /**
+   * Read a file either from the given search paths or when not found there from "~/.config/{appName}", and eventually from the resources.
+   *
+   * @param filename            The filename of the file to read, e.g. "auth/jwt.key".
+   * @param tryWorkingDirectory If the filename should be used relative to the working directory (or as absolute file path).
+   * @param appName             The name of the application, when searching the default location (~/.config/{appName}).
+   * @param searchPaths         Optional paths to search along, before trying the default location.
+   * @return The loaded configuration file.
+   * @throws UncheckedIOException If any error occurred.
+   */
+  @AvailableSince(NakshaVersion.v2_0_10)
+  public <CONFIG> @NotNull LoadedConfig<CONFIG> readConfigFromHomeOrResource(
+      @NotNull Class<CONFIG> configClass,
+      @NotNull String filename,
+      @NotNull String appName,
+      boolean tryWorkingDirectory,
+      @Nullable String... searchPaths)
+      throws UncheckedIOException {
     final LoadedBytes loadedBytes =
         readBytesFromHomeOrResource(filename, tryWorkingDirectory, appName, searchPaths);
     final CONFIG config = JsonSerializable.deserialize(loadedBytes.bytes, configClass);
+    if (config == null) {
+      throw new UncheckedIOException(new FileNotFoundException(filename));
+    }
     return new LoadedConfig<>(loadedBytes.path, config);
   }
 
@@ -294,12 +405,33 @@ public final class IoHelp {
    * @param appName             The name of the application, when searching the default location (~/.config/{appName}).
    * @param searchPaths         Optional paths to search along, before trying the default location.
    * @return The loaded configuration file.
-   * @throws IOException If the file does not exist or any other error occurred.
+   * @throws UncheckedIOException If any error occurred.
    */
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static @NotNull LoadedBytes readBytesFromHomeOrResource(
       @NotNull String filename,
       boolean tryWorkingDirectory,
       @NotNull String appName,
+      @Nullable String... searchPaths) {
+    final IoHelp defaultInstance = IoHelp.defaultInstance;
+    return defaultInstance.readBytesFromHomeOrResource(filename, appName, tryWorkingDirectory, searchPaths);
+  }
+
+  /**
+   * Read a file either from the given search paths or when not found there from "~/.config/{appName}", and eventually from the resources.
+   *
+   * @param filename            The filename of the file to read, e.g. "auth/jwt.key".
+   * @param tryWorkingDirectory If the filename should be used relative to the working directory (or as absolute file path).
+   * @param appName             The name of the application, when searching the default location (~/.config/{appName}).
+   * @param searchPaths         Optional paths to search along, before trying the default location.
+   * @return The loaded configuration file.
+   * @throws UncheckedIOException If any error occurred.
+   */
+  @AvailableSince(NakshaVersion.v2_0_10)
+  public @NotNull LoadedBytes readBytesFromHomeOrResource(
+      @NotNull String filename,
+      @NotNull String appName,
+      boolean tryWorkingDirectory,
       @Nullable String... searchPaths) {
     try {
       //noinspection ConstantConditions
@@ -343,15 +475,12 @@ public final class IoHelp {
         }
       }
 
-      final URL url = ClassLoader.getSystemResource(filename);
-      if (url == null) {
-        throw new FileNotFoundException(filename);
-      }
+      final URL url = findResource(filename);
       try (final InputStream is = url.openStream()) {
         return new LoadedBytes(url.toString(), readNBytes(is, Integer.MAX_VALUE));
       }
     } catch (IOException e) {
-      throw unchecked(e);
+      throw new UncheckedIOException(e);
     }
   }
 
@@ -362,6 +491,7 @@ public final class IoHelp {
    * @param args   The arguments.
    * @return The formatted string.
    */
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static @NotNull String format(@NotNull String format, @Nullable Object... args) {
     return String.format(Locale.US, format, args);
   }
@@ -372,6 +502,7 @@ public final class IoHelp {
    * @param o The object to stringify.
    * @return The stringified version.
    */
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static @NotNull String asString(@Nullable Object o) {
     if (o == null) {
       return "null";
@@ -388,6 +519,7 @@ public final class IoHelp {
    * @return The parsed value, or the default value.
    * @throws IllegalArgumentException If the value does not match the expected type or is {@code null}.
    */
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static <T> @NotNull T parseValue(@Nullable Object value, @NotNull Class<T> type) {
     final T v = parseNullableValue(value, type, null, false);
     if (v == null) {
@@ -407,6 +539,7 @@ public final class IoHelp {
    * @return The parsed value, or the default value.
    * @throws IllegalArgumentException If {@code ignoreInvalid} if {@code false} and the value does not match the expected type.
    */
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static <T> @NotNull T parseValue(
       @Nullable Object value, @NotNull Class<T> type, @NotNull T defaultValue, boolean ignoreInvalid) {
     final T v = parseNullableValue(value, type, defaultValue, ignoreInvalid);
@@ -425,6 +558,7 @@ public final class IoHelp {
    * @return The parsed value, or the default value.
    * @throws IllegalArgumentException If {@code ignoreInvalid} if {@code false} and the value does not match the expected type.
    */
+  @AvailableSince(NakshaVersion.v2_0_5)
   public static <T> @Nullable T parseNullableValue(
       @Nullable Object value, @NotNull Class<T> type, @Nullable T defaultValue, boolean ignoreInvalid) {
     if (value == null) {

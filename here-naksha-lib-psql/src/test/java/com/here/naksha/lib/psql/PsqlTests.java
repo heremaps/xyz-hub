@@ -18,6 +18,7 @@
  */
 package com.here.naksha.lib.psql;
 
+import static com.here.naksha.lib.psql.PsqlStorageConfig.configFromFileOrEnv;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -57,16 +58,11 @@ abstract class PsqlTests {
   static final Logger log = LoggerFactory.getLogger(PsqlTests.class);
 
   /**
-   * The test admin database read from the environment variable with the same name. Value example:
-   * <pre>{@code
-   * jdbc:postgresql://localhost/postgres?user=postgres&password=password&schema=test&app=test&id=test
-   * }</pre>
+   * The test database, if any is available.
    */
   @SuppressWarnings("unused")
-  static final String TEST_DB =
-      (System.getenv("TEST_DB") != null && System.getenv("TEST_DB").length() > "jdbc:postgresql://".length())
-          ? System.getenv("TEST_DB")
-          : null;
+  static final @NotNull PsqlStorageConfig config =
+      configFromFileOrEnv("test_psql_db.url", "NAKSHA_TEST_PSQL_DB_URL", "naksha_psql_schema");
 
   /**
    * Prevents that the test drops the schema at the start.
@@ -97,7 +93,7 @@ abstract class PsqlTests {
   }
 
   final boolean runTest() {
-    return TEST_DB != null && enabled();
+    return enabled();
   }
 
   final boolean dropInitially() {
@@ -166,7 +162,7 @@ abstract class PsqlTests {
   @Order(10)
   @EnabledIf("runTest")
   void createStorage() {
-    storage = new PsqlStorage(TEST_DB);
+    storage = new PsqlStorage(config);
     schema = storage.getSchema();
     if (!schema.equals(schema())) {
       storage.setSchema(schema());

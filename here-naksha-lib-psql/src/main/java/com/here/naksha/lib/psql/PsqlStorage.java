@@ -30,8 +30,8 @@ import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.lambdas.Fe1;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.storage.IStorage;
+import com.here.naksha.lib.core.util.IoHelp;
 import com.here.naksha.lib.core.util.json.Json;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -60,6 +60,9 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings({"unused", "SqlResolve"})
 public final class PsqlStorage implements IStorage, DataSource {
 
+  /**
+   * The storage-id of the Naksha-Hub admin storage.
+   */
   public static final String ADMIN_STORAGE_ID = "naksha-admin";
 
   private static final Logger log = LoggerFactory.getLogger(PsqlStorage.class);
@@ -149,91 +152,6 @@ public final class PsqlStorage implements IStorage, DataSource {
   }
 
   /**
-   * A simple configuration object
-   */
-  private static class ConfigByUrl extends PsqlByUrlBuilder<ConfigByUrl> {
-
-    ConfigByUrl(@NotNull String url) {
-      parseUrl(url);
-    }
-
-    @Override
-    protected void setBasics(@NotNull String host, int port, @NotNull String db) {
-      this.host = host;
-      this.port = port;
-      this.db = db;
-    }
-
-    @Override
-    protected void setParams(@NotNull QueryParameterList params) {
-      if (params.getValue("user") instanceof String) {
-        user = (String) params.getValue("user");
-      } else {
-        throw new IllegalArgumentException("The URL must have a parameter '&user'");
-      }
-      if (params.getValue("password") instanceof String) {
-        password = (String) params.getValue("password");
-      } else {
-        throw new IllegalArgumentException("The URL must have a parameter '&password'");
-      }
-      if (params.getValue("appName") instanceof String) {
-        appName = (String) params.getValue("appName");
-      } else if (params.getValue("appname") instanceof String) {
-        appName = (String) params.getValue("appname");
-      } else if (params.getValue("app_name") instanceof String) {
-        appName = (String) params.getValue("app_name");
-      } else if (params.getValue("app") instanceof String) {
-        appName = (String) params.getValue("app");
-      } else {
-        throw new IllegalArgumentException("The URL must have a parameter '&app'");
-      }
-      if (params.getValue("schema") instanceof String) {
-        schema = (String) params.getValue("schema");
-      } else {
-        throw new IllegalArgumentException("The URL must have a parameter '&schema'");
-      }
-      if (params.getValue("id") instanceof String) {
-        id = (String) params.getValue("id");
-      } else {
-        throw new IllegalArgumentException("The URL must have a parameter '&id'");
-      }
-      if (params.getValue("readOnly") instanceof Boolean) {
-        readOnly = (Boolean) params.getValue("readOnly");
-      }
-      if (params.getValue("readOnly") instanceof String) {
-        String _ro = (String) params.getValue("readOnly");
-        readOnly = !"false".equalsIgnoreCase(_ro);
-      }
-      if (params.getValue("readonly") instanceof Boolean) {
-        readOnly = (Boolean) params.getValue("readonly");
-      }
-      if (params.getValue("readonly") instanceof String) {
-        String _ro = (String) params.getValue("readonly");
-        readOnly = !"false".equalsIgnoreCase(_ro);
-      }
-      master = new PsqlInstanceConfigBuilder()
-          .withDb(db)
-          .withHost(host)
-          .withPort(port)
-          .withUser(user)
-          .withPassword(password)
-          .withReadOnly(readOnly)
-          .build();
-    }
-
-    String host;
-    int port;
-    String db;
-    String user;
-    String password;
-    String id;
-    String appName;
-    String schema;
-    boolean readOnly;
-    PsqlInstanceConfig master;
-  }
-
-  /**
    * The constructor to create a new PostgresQL storage from a JDBC URL. The URL should have the following format:
    * <pre>{@code
    * jdbc:postgresql://{HOST}[:{PORT}]/{DB}
@@ -248,17 +166,30 @@ public final class PsqlStorage implements IStorage, DataSource {
    * @param url The JDBC URL that configures the storage.
    */
   public PsqlStorage(@NotNull String url) {
-    this(new ConfigByUrl(url));
-  }
-
-  public PsqlStorage(@NotNull ConfigByUrl config) {
-    this(config.id, config.appName, config);
+    this(new PsqlStorageConfig(url));
   }
 
   /**
-   * The constructor to create a new PostgresQL storage from a specified storageId, appName and JDBC URL.
-   * Note that storageId and appName will take precedence so url's query entries 'id' and 'app' won't be considered.
-   * The URL should have the following format:
+   * The constructor to create a new PostgresQL storage from a URL configuration. The URL should have the following format:
+   * <pre>{@code
+   * jdbc:postgresql://{HOST}[:{PORT}]/{DB}
+   *   ?user={USER}
+   *   &password={PASSWORD}
+   *   &id={STORAGE-ID}
+   *   &schema={SCHEMA}
+   *   &app={APPLICATION-NAME}
+   *   [&readOnly[=true|false]]
+   * }</pre>.
+   *
+   * @param config The URL configuration.
+   */
+  public PsqlStorage(@NotNull PsqlStorageConfig config) {
+    this(config.storageId(), config.appName(), config.schema(), config.master(), null, null, null, null, null);
+  }
+
+  /**
+   * The constructor to create a new PostgresQL storage from a specified storageId, appName and JDBC URL. Note that storageId and appName
+   * will take precedence so url's query entries 'id' and 'app' won't be considered. The URL should have the following format:
    * <pre>{@code
    * jdbc:postgresql://{HOST}[:{PORT}]/{DB}
    *   ?user={USER}
@@ -267,14 +198,33 @@ public final class PsqlStorage implements IStorage, DataSource {
    *   [&readOnly[=true|false]]
    * }</pre>.
    *
-   * @param url The JDBC URL that configures the storage.
+   * @param storageId The storage-id to use.
+   * @param appName   The application-name to use when connecting to the storage.
+   * @param url       The JDBC URL that configures the rest of the storage.
    */
   public PsqlStorage(@NotNull String storageId, @NotNull String appName, @NotNull String url) {
-    this(storageId, appName, new ConfigByUrl(url));
+    this(storageId, appName, new PsqlStorageConfig(url));
   }
 
-  public PsqlStorage(@NotNull String storageId, @NotNull String appName, @NotNull ConfigByUrl config) {
-    this(storageId, appName, config.schema, config.master, null, null, null, null, null);
+  /**
+   * The constructor to create a new PostgresQL storage from a specified storageId, appName and configuration object. Note that storageId
+   * and appName will take precedence so URLs query entries 'id' and 'app' won't be considered. The URL should have the following format:
+   * <pre>{@code
+   * jdbc:postgresql://{HOST}[:{PORT}]/{DB}
+   *   ?user={USER}
+   *   &password={PASSWORD}
+   *   &schema={SCHEMA}
+   *   [&readOnly[=true|false]]
+   * }</pre>.
+   *
+   * @param storageId The storage-id to use.
+   * @param appName   The application-name to use when connecting to the storage.
+   * @param config    The configuration of the storage.
+   * @deprecated This method does not make much sense, because the URL need to contain the <b>id</b> and <b>appName</b>.
+   */
+  @Deprecated
+  public PsqlStorage(@NotNull String storageId, @NotNull String appName, @NotNull PsqlStorageConfig config) {
+    this(storageId, appName, config.schema(), config.master(), null, null, null, null, null);
   }
 
   /**
@@ -536,6 +486,7 @@ public final class PsqlStorage implements IStorage, DataSource {
 
     /**
      * Tests whether the {@code pg_hint_plan} PostgresQL extension should be installed.
+     *
      * @return {@code true} to install {@code pg_hint_plan}; {@code false} otherwise.
      */
     public boolean pg_hint_plan() {
@@ -559,6 +510,7 @@ public final class PsqlStorage implements IStorage, DataSource {
 
     /**
      * Tests whether the {@code pg_stat_statements} PostgresQL extension should be installed.
+     *
      * @return {@code true} to install {@code pg_stat_statements}; {@code false} otherwise.
      */
     public boolean pg_stat_statements() {
@@ -590,7 +542,41 @@ public final class PsqlStorage implements IStorage, DataSource {
     } else {
       p = new Params(params);
     }
-    storage().initStorage(p);
+    storage().initStorage(p, getIoHelp());
+  }
+
+  private @Nullable IoHelp ioHelp;
+
+  /**
+   * Returns the IO helper class to be used to load the resources.
+   *
+   * @return the IO helper class to be used to load the resources.
+   */
+  public @NotNull IoHelp getIoHelp() {
+    return ioHelp != null ? ioHelp : IoHelp.defaultInstance;
+  }
+
+  /**
+   * Sets the IO helper class to be used to load the resources.
+   *
+   * @param ioHelp The IO helper class to be used to load the resources.
+   * @return the previously set IO helper.
+   */
+  public @Nullable IoHelp setIoHelp(@Nullable IoHelp ioHelp) {
+    final IoHelp old = this.ioHelp;
+    this.ioHelp = ioHelp;
+    return old;
+  }
+
+  /**
+   * Sets the IO helper class to be used to load the resources.
+   *
+   * @param ioHelp The IO helper class to be used to load the resources.
+   * @return this.
+   */
+  public @NotNull PsqlStorage withIoHelp(@Nullable IoHelp ioHelp) {
+    setIoHelp(ioHelp);
+    return this;
   }
 
   /**
