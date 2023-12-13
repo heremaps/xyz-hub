@@ -24,10 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.NoCursor;
+import com.here.naksha.lib.core.exceptions.StorageNotInitialized;
 import com.here.naksha.lib.core.models.geojson.implementation.EXyzAction;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.EExecutedOp;
@@ -181,6 +183,20 @@ abstract class PsqlTests {
 
   @Test
   @Order(12)
+  @EnabledIf("dropInitially")
+  void testStorageNotInitialized() {
+    assertNotNull(storage);
+    assertNotNull(nakshaContext);
+    assertThrows(StorageNotInitialized.class, () -> {
+      try (final PsqlWriteSession session = storage.newWriteSession(nakshaContext, true)) {}
+    });
+    assertThrows(StorageNotInitialized.class, () -> {
+      try (final PsqlReadSession session = storage.newReadSession(nakshaContext, true)) {}
+    });
+  }
+
+  @Test
+  @Order(13)
   @EnabledIf("runTest")
   void initStorage() {
     assertNotNull(storage);

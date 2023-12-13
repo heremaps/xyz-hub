@@ -38,6 +38,7 @@ public class EPsqlState extends JsonEnum {
   }
 
   public static final EPsqlState OK = def(EPsqlState.class, "00000");
+  public static final EPsqlState NAKSHA_STORAGE_NOT_INITIALIZED = def(EPsqlState.class, "N0000");
   public static final EPsqlState TOO_MANY_RESULTS = def(EPsqlState.class, "0100E");
   public static final EPsqlState NO_DATA = def(EPsqlState.class, "02000");
   public static final EPsqlState INVALID_PARAMETER_TYPE = def(EPsqlState.class, "07006");
