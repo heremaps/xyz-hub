@@ -10,7 +10,7 @@ name: Manual Deploy to Artifactory
 #        description: 'Target branch'
 #        required: true
 #        default: 'main'  # Change the default branch as needed
-on: [workflow_dispatch]
+on: [push, workflow_dispatch]
 
 jobs:
   push-to-artifactory:
