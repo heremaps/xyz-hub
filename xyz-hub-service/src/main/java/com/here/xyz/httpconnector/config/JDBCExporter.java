@@ -68,13 +68,14 @@ public class JDBCExporter extends JDBCClients {
 /**** IML-Copy Begin */
     public static SQLQuery buildImlCopyQuery(Export job, String schema) throws SQLException {
 
+        boolean destinationVersioningEnabled = true;
         String destinationSpaceId    = "cptarget",  // replace with correct value
                destinationTablename  = "cptarget",  // replace with correct value
                destinationSchema     = "public",
                destinationInsertSql = String.format(
                   "with ins_data as "
                  +"( insert into \"%1$s\".\"%2$s\" ( jsondata, operation, author, geo, id, version ) "
-                 +"  select idata.*, ( select case when coalesce( max(version), 1 ) = 0 then 0 else nextval('\"%1$s\".\"%2$s_version_seq\"') end from \"%1$s\".\"%2$s\" ) as version "
+                 +"  select idata.jsondata, case when idata.operation in ('I') then 'U' else idata.operation end as operation, idata.author, idata.geo, idata.id, ( select nextval('\"%1$s\".\"%2$s_version_seq\"' ) ) as version "
                  +"  from "
                  +"  ( ${{contentQuery}} ) idata "
                  +"  returning id, version "
@@ -82,13 +83,23 @@ public class JDBCExporter extends JDBCClients {
                  +"upd_data as "
                  +"( update \"%1$s\".\"%2$s\" "
                  +"   set next_version = ( select version from ins_data limit 1 ) "
-                 +"  where 1 = 1  "
+                 +"  where ${{destinationVersioningEnabled}} "
                  +"    and next_version = 9223372036854775807::bigint "
                  +"    and id in ( select id from ins_data ) "
                  +"    and version < ( select version from ins_data limit 1 ) "
-                 +"  returning 1  "
+                 +"  returning id, version "
+                 +"), "
+                 +"del_data as "
+                 +"( delete from \"%1$s\".\"%2$s\" "
+                 +"  where not ${{destinationVersioningEnabled}} "
+                 +"    and id in ( select id from ins_data ) "
+                 +"    and version < ( select version from ins_data limit 1 ) "
+                 +"  returning id, version "
                  +") "
-                 +"select count(1) as rows_uploaded, 0::bigint as bytes_uploaded, 0::bigint as files_uploaded, (select count(1) from upd_data) as version_updated from ins_data l ",
+                 +"select count(1) as rows_uploaded, 0::bigint as bytes_uploaded, 0::bigint as files_uploaded, "
+                 + "      (select count(1) from upd_data) as version_updated, " 
+                 + "      (select count(1) from del_data)  as version_deleted " 
+                 +"from ins_data l ",
                  destinationSchema, destinationTablename );
                
 
@@ -123,6 +134,7 @@ public class JDBCExporter extends JDBCClients {
 
         SQLQuery insertReturnStatisticSql = new SQLQuery(destinationInsertSql);
         
+        insertReturnStatisticSql.setQueryFragment("destinationVersioningEnabled", destinationVersioningEnabled ? "true" : "false");
         insertReturnStatisticSql.setQueryFragment("contentQuery", sqlQuery.substituteAndUseDollarSyntax(sqlQuery) );
 
         return insertReturnStatisticSql.substitute();
@@ -168,14 +180,14 @@ public class JDBCExporter extends JDBCClients {
        return Future.failedFuture(e);
      }
     }
-/* test mockup using existing export call
+/* test mockup using existing export call */
     public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region)
     { return executeCopy(job,schema); }
-*/
+/**/
 /**** IML-Copy  End */
 /**** IML-Copy  End */
 
-    public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region) {
+    public static Future<ExportStatistic> _executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region) {
       return addClientsIfRequired(job.getTargetConnector())
           .compose(v -> {
             try {
