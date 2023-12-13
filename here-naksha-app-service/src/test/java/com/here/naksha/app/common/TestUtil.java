@@ -24,6 +24,7 @@ import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.util.json.Json;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.hub.NakshaHubConfig;
+import com.here.naksha.lib.psql.PsqlStorageConfig;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
@@ -42,7 +43,24 @@ public class TestUtil {
 
   public static String loadFileOrFail(final @NotNull String rootPath, final @NotNull String fileName) {
     try {
-      return new String(Files.readAllBytes(Paths.get(rootPath + fileName)));
+      String json = new String(Files.readAllBytes(Paths.get(rootPath + fileName)));
+      final PsqlStorageConfig dataDbConfig = TestNakshaAppInitializer.dataDbConfig;
+      json = json.replace("${dataDb.host}", dataDbConfig.host());
+      json = json.replace("${dataDb.port}", Integer.toString(dataDbConfig.port()));
+      json = json.replace("${dataDb.db}", dataDbConfig.db());
+      json = json.replace("${dataDb.storageId}", dataDbConfig.storageId());
+      json = json.replace("${dataDb.schema}", dataDbConfig.schema());
+      json = json.replace("${dataDb.user}", dataDbConfig.user());
+      json = json.replace("${dataDb.password}", dataDbConfig.password());
+      final PsqlStorageConfig adminDbConfig = TestNakshaAppInitializer.adminDbConfig;
+      json = json.replace("${adminDb.host}", adminDbConfig.host());
+      json = json.replace("${adminDb.port}", Integer.toString(adminDbConfig.port()));
+      json = json.replace("${adminDb.db}", adminDbConfig.db());
+      json = json.replace("${adminDb.storageId}", adminDbConfig.storageId());
+      json = json.replace("${adminDb.schema}", adminDbConfig.schema());
+      json = json.replace("${adminDb.user}", adminDbConfig.user());
+      json = json.replace("${adminDb.password}", adminDbConfig.password());
+      return json;
     } catch (IOException e) {
       Assertions.fail("Unable tor read test file " + fileName, e);
       return null;

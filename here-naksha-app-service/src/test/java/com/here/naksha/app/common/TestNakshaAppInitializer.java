@@ -19,21 +19,25 @@
 package com.here.naksha.app.common;
 
 import static com.here.naksha.app.service.NakshaApp.newInstance;
+import static com.here.naksha.lib.psql.PsqlStorageConfig.configFromFileOrEnv;
 
 import com.here.naksha.app.service.NakshaApp;
-import com.here.naksha.lib.hub.NakshaHubConfig;
-import com.here.naksha.lib.psql.PsqlStorage;
+import com.here.naksha.lib.psql.PsqlStorageConfig;
 import java.util.concurrent.atomic.AtomicReference;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public class TestNakshaAppInitializer {
 
+  public static final @NotNull PsqlStorageConfig adminDbConfig =
+      configFromFileOrEnv("test_admin_db.url", "NAKSHA_TEST_ADMIN_DB_URL", "naksha_admin_schema");
+
+  public static final @NotNull PsqlStorageConfig dataDbConfig =
+      configFromFileOrEnv("test_data_db.url", "NAKSHA_TEST_ADMIN_DB_URL", "naksha_admin_schema");
+
   private static final String MOCK_CONFIG_ID = "mock-config";
 
   private static final String TEST_CONFIG_ID = "test-config";
-
-  private static final String TEST_SCHEMA = "naksha_test_schema";
 
   public final @Nullable String testDbUrl;
   public final @NotNull AtomicReference<NakshaApp> nakshaApp;
@@ -62,22 +66,6 @@ public class TestNakshaAppInitializer {
   }
 
   public static TestNakshaAppInitializer localPsqlBasedNakshaApp() {
-    String dbUrl = dbUrl();
-    return new TestNakshaAppInitializer(dbUrl);
-  }
-
-  private static String dbUrl() {
-    String dbUrl = System.getenv("TEST_NAKSHA_PSQL_URL");
-    if (dbUrl != null && !dbUrl.isBlank()) {
-      return dbUrl;
-    }
-    String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
-    if (password == null || password.isBlank()) {
-      password = "password";
-    }
-    return "jdbc:postgresql://localhost/postgres?user=postgres&password=" + password
-        + "&schema=" + TEST_SCHEMA
-        + "&app=" + NakshaHubConfig.defaultAppName()
-        + "&id=" + PsqlStorage.ADMIN_STORAGE_ID;
+    return new TestNakshaAppInitializer(dataDbConfig.url());
   }
 }
