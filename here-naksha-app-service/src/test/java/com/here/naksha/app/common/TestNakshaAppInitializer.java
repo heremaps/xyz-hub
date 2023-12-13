@@ -33,7 +33,7 @@ public class TestNakshaAppInitializer {
       configFromFileOrEnv("test_admin_db.url", "NAKSHA_TEST_ADMIN_DB_URL", "naksha_admin_schema");
 
   public static final @NotNull PsqlStorageConfig dataDbConfig =
-      configFromFileOrEnv("test_data_db.url", "NAKSHA_TEST_ADMIN_DB_URL", "naksha_admin_schema");
+      configFromFileOrEnv("test_data_db.url", "NAKSHA_TEST_DATA_DB_URL", "naksha_data_schema");
 
   private static final String MOCK_CONFIG_ID = "mock-config";
 
