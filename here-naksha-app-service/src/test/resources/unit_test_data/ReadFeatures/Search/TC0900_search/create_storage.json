@@ -6,13 +6,13 @@
   "className": "com.here.naksha.lib.psql.PsqlStorage",
   "properties": {
     "master": {
-      "host": "127.0.0.1",
-      "db": "postgres",
-      "user": "postgres",
-      "password": "password",
+      "host": "${dataDb.host}",
+      "db": "${dataDb.db}",
+      "user": "${dataDb.user}",
+      "password": "${dataDb.password}",
       "readOnly": false
     },
     "appName": "test-app-name",
-    "schema": "naksha_test_schema"
+    "schema": "${dataDb.schema}"
   }
 }
