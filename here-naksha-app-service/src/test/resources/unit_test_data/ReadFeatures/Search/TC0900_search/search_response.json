@@ -1,0 +1,53 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "tc_900_feature_2",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.6123,
+          50.1234,
+          0.0
+        ]
+      },
+      "properties": {
+        "@ns:com:here:xyz": {
+          "tags": [
+            "one",
+            "two",
+            "three",
+            "four"
+          ]
+        },
+        "speedLimit": "40"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "tc_900_feature_3",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.6578,
+          50.1234,
+          0.0
+        ]
+      },
+      "properties": {
+        "@ns:com:here:xyz": {
+          "tags": [
+            "one",
+            "two",
+            "three",
+            "four",
+            "five",
+            "six"
+          ]
+        },
+        "speedLimit": "60"
+      }
+    }
+  ]
+}

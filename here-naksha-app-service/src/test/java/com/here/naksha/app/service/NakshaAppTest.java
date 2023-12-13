@@ -28,9 +28,12 @@ import com.here.naksha.app.common.NakshaTestWebClient;
 import com.here.naksha.app.common.TestNakshaAppInitializer;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import com.here.naksha.lib.psql.PsqlStorage;
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.http.HttpResponse;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import org.json.JSONException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -53,6 +56,7 @@ class NakshaAppTest {
   static UpdateFeatureTestHelper updateFeatureTestHelper;
   static ReadFeaturesByBBoxTestHelper readFeaturesByBBoxTestHelper;
   static ReadFeaturesByTileTestHelper readFeaturesByTileTestHelper;
+  static SearchFeaturesTestHelper searchFeaturesTestHelper;
 
   @BeforeAll
   static void prepare() throws InterruptedException, ExecutionException {
@@ -71,6 +75,7 @@ class NakshaAppTest {
     updateFeatureTestHelper = new UpdateFeatureTestHelper(app, nakshaClient);
     readFeaturesByBBoxTestHelper = new ReadFeaturesByBBoxTestHelper(app, nakshaClient);
     readFeaturesByTileTestHelper = new ReadFeaturesByTileTestHelper(app, nakshaClient);
+    searchFeaturesTestHelper = new SearchFeaturesTestHelper(app, nakshaClient);
   }
 
   @Test
@@ -917,6 +922,24 @@ class NakshaAppTest {
   @Order(16)
   void tc0816_testGetByTileWithUnsupportedTileType() throws Exception {
     readFeaturesByTileTestHelper.tc0816_testGetByTileWithUnsupportedTileType();
+  }
+
+  @Test
+  @Order(16)
+  void tc0900_testSearchFeatures() throws URISyntaxException, InterruptedException, JSONException, IOException {
+    searchFeaturesTestHelper.tc0900_testSearchFeatures();
+  }
+
+  @Test
+  @Order(17)
+  void tc0901_testSearchNoResults() throws URISyntaxException, IOException, InterruptedException, JSONException {
+    searchFeaturesTestHelper.tc0901_testSearchNoResults();
+  }
+
+  @Test
+  @Order(17)
+  void tc0902_testSearchWrongSpace() throws URISyntaxException, IOException, InterruptedException, JSONException {
+    searchFeaturesTestHelper.tc0902_testSearchWrongSpace();
   }
 
   @AfterAll

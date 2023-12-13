@@ -1,0 +1,15 @@
+{
+  "id": "tc_900_space",
+  "type": "Space",
+  "title": "Topology Space for UniMap Moderation Dev Storage",
+  "description": "Space for managing Topology Feature collection in UniMap Moderation Dev Storage",
+  "eventHandlerIds": [
+    "tc_900_event_handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "tc_900_collection",
+      "type": "NakshaCollection"
+    }
+  }
+}

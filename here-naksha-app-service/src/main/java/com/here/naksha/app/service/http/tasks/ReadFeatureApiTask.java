@@ -50,7 +50,8 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     GET_BY_ID,
     GET_BY_IDS,
     GET_BY_BBOX,
-    GET_BY_TILE
+    GET_BY_TILE,
+    SEARCH
   }
 
   public ReadFeatureApiTask(
@@ -83,6 +84,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
         case GET_BY_IDS -> executeFeaturesById();
         case GET_BY_BBOX -> executeFeaturesByBBox();
         case GET_BY_TILE -> executeFeaturesByTile();
+        case SEARCH -> executeSearch();
         default -> executeUnsupported();
       };
     } catch (XyzErrorException ex) {
@@ -184,6 +186,33 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final SOp geoOp = ApiUtil.buildOperationForTile(tileType, tileId);
     final POp tagsOp = ApiUtil.buildOperationForTagsQueryParam(queryParams);
     final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId).withSpatialOp(geoOp);
+    if (tagsOp != null) rdRequest.setPropertyOp(tagsOp);
+
+    // Forward request to NH Space Storage reader instance
+    final Result result = executeReadRequestFromSpaceStorage(rdRequest);
+    // transform Result to Http FeatureCollection response, restricted by given feature limit
+    return transformReadResultToXyzCollectionResponse(result, XyzFeature.class, limit);
+  }
+
+  private @NotNull XyzResponse executeSearch() {
+    // Parse and validate Path parameters
+    final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
+
+    // Parse and validate Query parameters
+    final QueryParameterList queryParams = (routingContext.request().query() != null)
+        ? new QueryParameterList(routingContext.request().query())
+        : null;
+    if (queryParams == null || queryParams.size() <= 0) {
+      return verticle.sendErrorResponse(
+          routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing mandatory parameters");
+    }
+    long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
+    // validate values
+    limit = (limit < 0 || limit > DEF_FEATURE_LIMIT) ? DEF_FEATURE_LIMIT : limit;
+
+    // Prepare read request based on parameters supplied
+    final POp tagsOp = ApiUtil.buildOperationForTagsQueryParam(queryParams);
+    final ReadFeatures rdRequest = new ReadFeatures().addCollection(spaceId);
     if (tagsOp != null) rdRequest.setPropertyOp(tagsOp);
 
     // Forward request to NH Space Storage reader instance
