@@ -1,4 +1,28 @@
 {
-  "type": "ErrorResponse",
-  "error": "Conflict"
+  "type": "FeatureCollection",
+  "updated": ["my-custom-id-305-1", "my-custom-id-305-2"],
+  "features": [
+    {
+      "id": "my-custom-id-305-1",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.68872, 50.0561, 292.94377758]
+      }
+    },
+    {
+      "id": "my-custom-id-305-2",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "80"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 9.68872, 51.0561, 293.94377758]
+      }
+    }
+  ]
 }

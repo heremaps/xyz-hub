@@ -26,6 +26,7 @@ import com.here.naksha.app.common.NakshaTestWebClient;
 import com.here.naksha.app.service.models.FeatureCollectionRequest;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
+import com.here.naksha.lib.core.models.geojson.implementation.XyzProperties;
 import com.here.naksha.lib.core.models.naksha.Space;
 import java.net.URLEncoder;
 import java.net.http.HttpRequest;
@@ -35,6 +36,7 @@ import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.json.JSONException;
+import org.junit.jupiter.api.Assertions;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;
 import org.skyscreamer.jsonassert.comparator.ArraySizeComparator;
@@ -270,7 +272,7 @@ public class CreateFeatureTestHelper {
     // NOTE : This test depends on setup done as part of tc0300_testCreateFeaturesWithNewIds
 
     // Test API : POST /hub/spaces/{spaceId}/features
-    // Validate request gets failed if we attempt creating features with existing IDs
+    // Validate request is successful, when features with the same ID submitted again (replacing existing features)
     String streamId;
     HttpRequest request;
     HttpResponse<String> response;
@@ -288,7 +290,7 @@ public class CreateFeatureTestHelper {
     response = nakshaClient.post("hub/spaces/" + spaceId + "/features", bodyJson, streamId);
 
     // Then: Perform assertions
-    standardAssertions(response, 409, expectedBodyPart, streamId);
+    standardAssertions(response, 200, expectedBodyPart, streamId);
   }
 
   public void tc0307_testCreateFeaturesWithNoHandler() throws Exception {
@@ -334,5 +336,89 @@ public class CreateFeatureTestHelper {
 
     // Then: Perform assertions
     standardAssertions(response, 404, expectedBodyPart, streamId);
+  }
+
+  void tc0309_testCreateFeaturesWithUuid() throws Exception {
+    // Test API : POST /hub/spaces/{spaceId}/features
+    final String streamId = UUID.randomUUID().toString();
+
+    // Given: new Features in Space
+    final String spaceId = "um-mod-topology-dev";
+    final String bodyJson = loadFileOrFail("TC0309_createFeaturesWithUuid/create_features.json");
+    final HttpResponse<String> response =
+        nakshaClient.post("hub/spaces/" + spaceId + "/features", bodyJson, streamId);
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+
+    // Given: existing feature is fetched
+    final HttpResponse<String> getResponse =
+        nakshaClient.get("hub/spaces/" + spaceId + "/features/my-custom-id-309-1", streamId);
+    final XyzFeature feature = parseJson(getResponse.body(), XyzFeature.class);
+    Assertions.assertNotNull(feature);
+    final XyzProperties newPropsOldUuid = feature.getProperties();
+    final XyzProperties newPropsOutdatedUuid = newPropsOldUuid.deepClone();
+    final XyzProperties nullUuidProps = new XyzProperties();
+    // Old UUID
+    newPropsOldUuid.put("speedLimit", "30");
+    // New UUID
+    newPropsOutdatedUuid.put("speedLimit", "120");
+    // Null UUID
+    nullUuidProps.put("uuid", null);
+    nullUuidProps.put("overriden", "yesyesyes");
+
+    // Execute request, correct UUID, should success
+    feature.setProperties(newPropsOldUuid);
+    final HttpResponse<String> responseUpdateSuccess = nakshaClient.post(
+        "hub/spaces/" + spaceId + "/features",
+        """
+{
+"type": "FeatureCollection",
+"features": [
+""" + feature + "]}",
+        streamId);
+
+    // Perform first assertions
+    assertEquals(200, responseUpdateSuccess.statusCode(), "ResCode mismatch");
+    assertEquals(streamId, getHeader(responseUpdateSuccess, HDR_STREAM_ID), "StreamId mismatch");
+    final XyzFeatureCollection responseFeatureCollection =
+        parseJson(responseUpdateSuccess.body(), XyzFeatureCollection.class);
+    Assertions.assertNotNull(responseFeatureCollection);
+    final XyzFeature updatedFeature =
+        responseFeatureCollection.getFeatures().get(0);
+    Assertions.assertEquals("30", updatedFeature.getProperties().get("speedLimit"));
+
+    // Execute request, outdated UUID, should fail
+    feature.setProperties(newPropsOutdatedUuid);
+    final HttpResponse<String> responseUpdateFail = nakshaClient.post(
+        "hub/spaces/" + spaceId + "/features",
+        """
+{
+"type": "FeatureCollection",
+"features": [
+""" + feature + "]}",
+        streamId);
+
+    // Perform second assertions
+    assertEquals(409, responseUpdateFail.statusCode(), "ResCode mismatch");
+
+    // Execute request, null UUID, should success with overriding
+    feature.setProperties(nullUuidProps);
+    final HttpResponse<String> responseOverriding = nakshaClient.post(
+        "hub/spaces/" + spaceId + "/features",
+        """
+{
+"type": "FeatureCollection",
+"features": [
+""" + feature + "]}",
+        streamId);
+
+    // Perform third assertions
+    assertEquals(200, responseOverriding.statusCode(), "ResCode mismatch");
+    final XyzFeatureCollection featureCollection = parseJson(responseOverriding.body(), XyzFeatureCollection.class);
+    Assertions.assertNotNull(featureCollection);
+    final XyzFeature overridenFeature = featureCollection.getFeatures().get(0);
+    Assertions.assertEquals("yesyesyes", overridenFeature.getProperties().get("overriden"));
+    // Old properties like speedLimit should no longer be available
+    // The feature has been completely overwritten by the PUT request with null UUID
+    Assertions.assertFalse(overridenFeature.getProperties().containsKey("speedLimit"));
   }
 }

@@ -86,7 +86,10 @@ public class WriteFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<
     // Custom execute logic to process input API request based on reqType
     try {
       return switch (this.reqType) {
-        case CREATE_FEATURES -> executeCreateFeatures();
+          // TODO : POST API needs to act as UPSERT for UI wiring due to backward compatibility.
+          //  It may need to be readjusted, once we better understand difference
+          //  (if there is anything other than PATCH, which is already known)
+        case CREATE_FEATURES -> executeUpsertFeatures();
         case UPSERT_FEATURES -> executeUpsertFeatures();
         case UPDATE_BY_ID -> executeUpdateFeature();
         default -> executeUnsupported();

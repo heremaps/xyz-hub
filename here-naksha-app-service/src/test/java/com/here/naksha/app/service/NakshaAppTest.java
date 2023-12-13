@@ -600,8 +600,9 @@ class NakshaAppTest {
     createFeatureTests.tc0301_testCreateFeaturesWithGivenIds();
   }
 
-  @Test
-  @Order(7)
+  // TODO : This test is disabled, as we don't need to support prefixId for POST request
+  // @Test
+  // @Order(7)
   void tc0302_testCreateFeaturesWithPrefixId() throws Exception {
     createFeatureTests.tc0302_testCreateFeaturesWithPrefixId();
   }
@@ -634,6 +635,12 @@ class NakshaAppTest {
   @Order(7)
   void tc0308_testCreateFeaturesWithNoSpace() throws Exception {
     createFeatureTests.tc0308_testCreateFeaturesWithNoSpace();
+  }
+
+  @Test
+  @Order(7)
+  void tc0309_testCreateFeaturesWithUuid() throws Exception {
+    createFeatureTests.tc0309_testCreateFeaturesWithUuid();
   }
 
   @Test
