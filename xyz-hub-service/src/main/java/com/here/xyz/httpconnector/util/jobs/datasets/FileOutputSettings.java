@@ -1,10 +1,14 @@
 package com.here.xyz.httpconnector.util.jobs.datasets;
 
+import com.here.xyz.XyzSerializable;
+import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.FileChunking;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.Partitioning;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.Partitioning.FeatureKey;
+
+import java.util.Map;
 
 public class FileOutputSettings {
   private FileFormat format = new GeoJson();
@@ -21,8 +25,14 @@ public class FileOutputSettings {
     return format;
   }
 
-  public void setFormat(FileFormat format) {
-    this.format = format;
+  public void setFormat(Object format) {
+    //TODO: Remove BWC hack after refactoring
+    if(format instanceof  FileFormat fileFormat)
+      this.format = fileFormat;
+    else if(format instanceof Map map && map.containsKey("type"))
+      this.format = XyzSerializable.fromMap(map, FileFormat.class);
+    else
+      this.format = new Csv();
   }
 
   public FileOutputSettings withFormat(FileFormat format) {
