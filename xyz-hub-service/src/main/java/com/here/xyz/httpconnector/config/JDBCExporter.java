@@ -73,7 +73,7 @@ public class JDBCExporter extends JDBCClients {
                destinationTablename  = "cptarget",  // replace with correct value
                destinationSchema     = "public",
                destinationInsertSql = String.format(
-                  "with ins_data as "
+                  "with ins_data as /* iml_copy_hint m499#jobId(" + job.getId() + ") */ "
                  +"( insert into \"%1$s\".\"%2$s\" ( jsondata, operation, author, geo, id, version ) "
                  +"  select idata.jsondata, case when idata.operation in ('I') then 'U' else idata.operation end as operation, idata.author, idata.geo, idata.id, ( select nextval('\"%1$s\".\"%2$s_version_seq\"' ) ) as version "
                  +"  from "
@@ -180,7 +180,7 @@ public class JDBCExporter extends JDBCClients {
        return Future.failedFuture(e);
      }
     }
-/* test mockup using existing export call 
+/* test mockup using existing export call
     public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region)
     { return executeCopy(job,schema); }
 */
