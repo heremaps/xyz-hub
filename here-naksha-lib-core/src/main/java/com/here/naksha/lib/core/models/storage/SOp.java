@@ -25,6 +25,8 @@ import static com.here.naksha.lib.core.models.storage.SOpType.INTERSECTS;
 
 import com.here.naksha.lib.core.models.geojson.implementation.XyzGeometry;
 import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.operation.buffer.BufferOp;
+import com.vividsolutions.jts.operation.buffer.BufferParameters;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -79,5 +81,31 @@ public class SOp extends Op<SOp> {
    */
   public static @NotNull SOp intersects(@NotNull Geometry geometry) {
     return new SOp(INTERSECTS, geometry);
+  }
+
+  /**
+   * Transforms input geometry by adding buffer to it and creates operation that tests for an intersection of buffered_geometry and feature.geometry.
+   * If you need custom joinStyle or other buffer parameter {@link com.vividsolutions.jts.operation.buffer.BufferParameters}
+   * use {@link #intersects(Geometry)} and create your own buffer by using {@link BufferOp#bufferOp(Geometry, double, BufferParameters)}
+   *
+   * @param geometry
+   * @param buffer
+   * @return
+   */
+  public static @NotNull SOp intersectsWithBuffer(@NotNull Geometry geometry, double buffer) {
+    return intersects(BufferOp.bufferOp(geometry, buffer));
+  }
+
+  /**
+   * Transforms input geometry by adding buffer to it and creates operation that tests for an intersection of buffered_geometry and feature.geometry.
+   * If you need custom joinStyle or other buffer parameter {@link com.vividsolutions.jts.operation.buffer.BufferParameters}
+   * use {@link #intersects(Geometry)} and create your own buffer by using {@link BufferOp#bufferOp(Geometry, double, BufferParameters)}
+   *
+   * @param geometry
+   * @param buffer
+   * @return
+   */
+  public static @NotNull SOp intersectsWithBuffer(@NotNull XyzGeometry geometry, double buffer) {
+    return intersectsWithBuffer(geometry.getJTSGeometry(), buffer);
   }
 }

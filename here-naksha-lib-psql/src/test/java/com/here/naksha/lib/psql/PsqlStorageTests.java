@@ -66,6 +66,7 @@ import com.here.naksha.lib.core.util.storage.RequestHelper;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.Point;
+import com.vividsolutions.jts.operation.buffer.BufferOp;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -200,6 +201,7 @@ public class PsqlStorageTests extends PsqlTests {
     Geometry envelopeBbox = createBBoxEnvelope(4.0d, 5.0, 5.5d, 6.5);
 
     ReadFeatures readFeatures = new ReadFeatures(collectionId());
+    BufferOp.bufferOp(envelopeBbox, 1.0);
     readFeatures.setSpatialOp(SOp.intersects(envelopeBbox));
 
     try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
@@ -208,6 +210,30 @@ public class PsqlStorageTests extends PsqlTests {
       // then
       assertEquals(SINGLE_FEATURE_ID, cursor.getFeature().getId());
       assertFalse(cursor.hasNext());
+    }
+  }
+
+  @Test
+  @Order(52)
+  @EnabledIf("runTest")
+  void readyWithBuffer() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+
+    XyzPoint xyzPoint = new XyzPoint(4.0d, 5.0d);
+
+    ReadFeatures readFeatures = new ReadFeatures(collectionId());
+    readFeatures.setSpatialOp(SOp.intersectsWithBuffer(xyzPoint, 1.0));
+
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+        session.execute(readFeatures).getXyzFeatureCursor()) {
+      assertFalse(cursor.hasNext());
+    }
+
+    readFeatures.setSpatialOp(SOp.intersectsWithBuffer(xyzPoint, 2.0));
+    try (final ForwardCursor<XyzFeature, XyzFeatureCodec> cursor =
+        session.execute(readFeatures).getXyzFeatureCursor()) {
+      assertTrue(cursor.hasNext());
     }
   }
 
