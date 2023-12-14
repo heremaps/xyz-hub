@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.exceptions.StorageNotInitialized;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.EXyzAction;
 import com.here.naksha.lib.core.models.naksha.XyzCollection;
 import com.here.naksha.lib.core.models.storage.EExecutedOp;
@@ -246,6 +247,27 @@ abstract class PsqlTests {
           EXyzAction.CREATE,
           collection.getProperties().getXyzNamespace().getAction());
       assertFalse(cursor.hasNext());
+    } finally {
+      session.commit(true);
+    }
+  }
+
+  @Test
+  @Order(35)
+  @EnabledIf("runTest")
+  void createExistingCollection() throws NoCursor {
+    assertNotNull(storage);
+    assertNotNull(session);
+    final WriteXyzCollections request = new WriteXyzCollections();
+    request.add(EWriteOp.CREATE, new XyzCollection(collectionId(), partition(), false, true));
+    try (final ForwardCursor<XyzCollection, XyzCollectionCodec> cursor =
+        session.execute(request).getXyzCollectionCursor()) {
+      assertTrue(cursor.next());
+      assertEquals(collectionId(), cursor.getId());
+      assertNotNull(cursor.getUuid());
+      assertNull(cursor.getGeometry());
+      assertSame(EExecutedOp.ERROR, cursor.getOp());
+      assertEquals(XyzError.CONFLICT.value(), cursor.getError().err.value());
     } finally {
       session.commit(true);
     }

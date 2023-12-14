@@ -1980,11 +1980,26 @@ BEGIN
         CONTINUE;
       END IF;
       RAISE EXCEPTION 'Unknown write operation: %', w_op;
-    EXCEPTION WHEN OTHERS THEN
-      -- Release the lock of the collection, when any error happened.
-      PERFORM pg_advisory_unlock(lock_id);
-      -- Re-raise the exception.
-      RAISE;
+    EXCEPTION WHEN OTHERS then
+      BEGIN
+        r_id = w_id;
+        r_op = 'ERROR';
+        r_uuid = naksha_feature_uuid(e_feature);
+        r_type = nk_const_collection_type();
+        r_ptype = naksha_feature_ptype(e_feature);
+        r_feature = e_feature;
+        IF w_op = 'CREATE' AND SQLSTATE = '23505' THEN
+            r_err = nk_err_unique_violation(format('The collection with the name%L already exists', w_id));
+        ELSE
+            r_err = nk_set_error(SQLSTATE, SQLERRM);
+        END IF;
+        RETURN NEXT;
+        CONTINUE;
+
+      EXCEPTION WHEN OTHERS then
+        PERFORM pg_advisory_unlock(lock_id);
+        RAISE;
+      END;
     END;
   END LOOP;
 END $$;

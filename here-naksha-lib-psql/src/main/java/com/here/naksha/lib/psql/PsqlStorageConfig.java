@@ -44,8 +44,8 @@ public class PsqlStorageConfig extends PsqlByUrlBuilder<PsqlStorageConfig> {
    * Reads the configuration from a configuration file from user home directory ({@code ~/.config/naksha/filename}) or from the environment
    * variable, if none is possible, a default localhost configuration is used.
    *
-   * @param filename The filename to search for in {@code ~/.config/naksha/}.
-   * @param envName The environment variable to check.
+   * @param filename     The filename to search for in {@code ~/.config/naksha/}.
+   * @param envName      The environment variable to check.
    * @param sharedSchema The shared schema, when using the shared environment variable {@code TEST_NAKSHA_PSQL_URL}.
    * @return the PSQL storage configuration.
    */
@@ -59,18 +59,19 @@ public class PsqlStorageConfig extends PsqlByUrlBuilder<PsqlStorageConfig> {
       if (url.startsWith("jdbc:postgresql://")) {
         return new PsqlStorageConfig(url).withStorageId(PsqlStorage.ADMIN_STORAGE_ID);
       }
-      url = System.getenv(envName);
-      if (url != null && url.startsWith("jdbc:postgresql://")) {
-        return new PsqlStorageConfig(url).withStorageId(PsqlStorage.ADMIN_STORAGE_ID);
-      }
-      url = System.getenv("TEST_NAKSHA_PSQL_URL");
-      if (url != null && url.startsWith("jdbc:postgresql://")) {
-        return new PsqlStorageConfig(url)
-            .withStorageId(PsqlStorage.ADMIN_STORAGE_ID)
-            .withSchema(sharedSchema);
-      }
     } catch (Exception ignore) {
     }
+    String url = System.getenv(envName);
+    if (url != null && url.startsWith("jdbc:postgresql://")) {
+      return new PsqlStorageConfig(url).withStorageId(PsqlStorage.ADMIN_STORAGE_ID);
+    }
+    url = System.getenv("TEST_NAKSHA_PSQL_URL");
+    if (url != null && url.startsWith("jdbc:postgresql://")) {
+      return new PsqlStorageConfig(url)
+          .withStorageId(PsqlStorage.ADMIN_STORAGE_ID)
+          .withSchema(sharedSchema);
+    }
+
     String password = System.getenv("TEST_NAKSHA_PSQL_PASS");
     if (password == null || password.isBlank()) {
       password = "password";
