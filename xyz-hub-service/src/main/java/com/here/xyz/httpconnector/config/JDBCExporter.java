@@ -35,6 +35,8 @@ import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
+import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.psql.PSQLXyzConnector;
@@ -43,6 +45,7 @@ import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.query.GetFeatures;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.SearchForFeatures;
+import com.here.xyz.util.Hasher;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -63,6 +66,136 @@ import org.apache.logging.log4j.Logger;
  */
 public class JDBCExporter extends JDBCClients {
     private static final Logger logger = LogManager.getLogger();
+
+    /**** Space-Copy Begin */
+    /**** Space-Copy Begin */
+    public static SQLQuery buildCopySpaceQuery(Export job, String schema, Connector targetSpaceConnector, boolean targetVersioningEnabled) throws SQLException {
+
+        boolean enableHashedTargetSpaceId = targetSpaceConnector.params.containsKey("enableHashedSpaceId")
+                ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId") : false;
+        String targetSpaceId = job.getTarget().getKey();
+        String targetTableName = enableHashedTargetSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
+        String targetSchema = getDefaultSchema(targetSpaceConnector.id);
+        String destinationInsertSql = String.format(
+                        "with ins_data as /* space_copy_hint m499#jobId(" + job.getId() + ") */ "
+                                +"( insert into \"%1$s\".\"%2$s\" ( jsondata, operation, author, geo, id, version ) "
+                                +"  select idata.jsondata, case when idata.operation in ('I','U') then ( case when edata.id isnull then 'I' else 'U' end ) else idata.operation end as operation, idata.author, idata.geo, idata.id, ( select nextval('\"%1$s\".\"%2$s_version_seq\"' ) ) as version "
+                                +"  from "
+                                +"  ( ${{contentQuery}} ) idata "
+                                +"  left join \"%1$s\".\"%2$s\" edata on ( idata.id = edata.id and edata.next_version = 9223372036854775807::bigint ) "
+                                +"  returning id, version "
+                                +"), "
+                                +"upd_data as "
+                                +"( update \"%1$s\".\"%2$s\" "
+                                +"   set next_version = ( select version from ins_data limit 1 ) "
+                                +"  where ${{targetVersioningEnabled}} "
+                                +"    and next_version = 9223372036854775807::bigint "
+                                +"    and id in ( select id from ins_data ) "
+                                +"    and version < ( select version from ins_data limit 1 ) "
+                                +"  returning id, version "
+                                +"), "
+                                +"del_data as "
+                                +"( delete from \"%1$s\".\"%2$s\" "
+                                +"  where not ${{targetVersioningEnabled}} "
+                                +"    and id in ( select id from ins_data ) "
+                                +"    and version < ( select version from ins_data limit 1 ) "
+                                +"  returning id, version "
+                                +") "
+                                +"select count(1) as rows_uploaded, 0::bigint as bytes_uploaded, 0::bigint as files_uploaded, "
+                                + "      (select count(1) from upd_data) as version_updated, "
+                                + "      (select count(1) from del_data)  as version_deleted "
+                                +"from ins_data l ",
+                        targetSchema, targetTableName );
+
+
+        GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent();
+        Map params = job.getParams();
+        event.setSpace(job.getTargetSpaceId()); // SpaceId of SourceLayer
+        event.setParams(params);
+        event.setContext( EXTENSION );
+
+        if (params != null && params.get("enableHashedSpaceId") != null)
+            event.setConnectorParams(new HashMap<>(){{put("enableHashedSpaceId", params.get("enableHashedSpaceId"));}});
+
+        PSQLXyzConnector dbHandler = new PSQLXyzConnector(false);
+        dbHandler.setConfig(new PSQLConfig(event, schema));
+
+        SQLQuery sqlQuery;
+        try
+        {
+            GetFeatures queryRunner;
+
+            queryRunner = new SearchForFeatures(event);
+            queryRunner.setDbHandler(dbHandler);
+
+            sqlQuery = queryRunner._buildQuery(event);
+            sqlQuery.setQueryFragment("limit", "");
+            sqlQuery.setQueryFragment("geo", "geo");
+            sqlQuery.setQueryFragment("selection", "jsondata, operation, author");
+
+        }
+        catch (Exception e)
+        { throw new SQLException(e); }
+
+        SQLQuery insertReturnStatisticSql = new SQLQuery(destinationInsertSql);
+
+        insertReturnStatisticSql.setQueryFragment("targetVersioningEnabled", targetVersioningEnabled ? "true" : "false");
+        insertReturnStatisticSql.setQueryFragment("contentQuery", sqlQuery.substituteAndUseDollarSyntax(sqlQuery) );
+
+        return insertReturnStatisticSql.substitute();
+
+
+    }
+
+    private static Future<Export.ExportStatistic> executeCopyQuery(String clientId, SQLQuery q, Export j )
+    {
+        logger.info("job[{}] Execute Query Space-Copy {}->{} {}", j.getId(), j.getTargetSpaceId(), "Space-Destination", q.text());
+        return getClient(clientId, false)  // insert -> writer
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .map(rows -> {
+                    Export.ExportStatistic es = new Export.ExportStatistic();
+
+                    rows.forEach(
+                            row -> {
+                                es.addRows(row.getLong("rows_uploaded"));
+                                es.addBytes(row.getLong("bytes_uploaded"));
+                                es.addFiles(row.getLong("files_uploaded"));
+                            }
+                    );
+
+                    return es;
+                });
+
+    }
+
+    public static Future<ExportStatistic> executeCopy(Export job, String schema) {
+        Promise<Export.ExportStatistic> promise = Promise.promise();
+        List<Future> exportFutures = new ArrayList<>();
+
+        return HubWebClient.getSpace(job.getTarget().getKey())
+                .compose(space -> {
+                    return HubWebClient.getConnectorConfig(space.getStorage().getId())
+                            .compose(connector -> {
+                                boolean enabledVersioning = space.getVersionsToKeep() > 1;
+                                String clientId = job.getTargetConnector();
+                                SQLQuery q2 = null;
+                                try {
+                                    q2 = buildCopySpaceQuery(job, schema, connector, enabledVersioning);
+                                    exportFutures.add(executeCopyQuery(clientId, q2, job));
+                                    return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+                                } catch (SQLException e) {
+                                    return Future.failedFuture(e);
+                                }
+                            });
+                });
+    }
+    /* test mockup using existing export call
+        public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region)
+        { return executeCopy(job,schema); }
+    */
+    /**** Space-Copy  End */
+    /**** Space-Copy  End */
 
     public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region) {
       return addClientsIfRequired(job.getTargetConnector())
