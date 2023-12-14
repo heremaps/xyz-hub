@@ -82,7 +82,7 @@ public class ResultHelper {
   }
 
   /**
-   * Helper method to read single feature from ReadResult
+   * Helper method to read single feature from Result
    *
    * @param <T>    the type parameter
    * @param result the Result to read from

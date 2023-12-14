@@ -496,7 +496,7 @@ paths:
         Recommendation is to always provide correct UUID to avoid inconsistency due to concurrency.     
         In the JSON feature content, UUID is a string located at "properties -> @ns:com:here:xyz -> uuid".
         If the UUID does not match, HTTP code 409 will be returned.
-        It ensures an atomic operation, so either all features will be updated or none (in case of failure).
+        It ensures an atomic operation, so either all features will be upserted or none (in case of failure).
       operationId: putFeatures
       parameters:
         - $ref: '#/components/parameters/SpaceId'
@@ -504,6 +504,41 @@ paths:
         - $ref: '#/components/parameters/RemoveTags'
       requestBody:
         $ref: '#/components/requestBodies/FeatureCollectionRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureCollectionModificationResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+    delete:
+      tags:
+        - Write Features
+      summary: Delete features in the space
+      description: >
+        This method allows to delete features in the storage associated (directly or via event handler) with the space.
+        It ensures an atomic operation, so either all features will be deleted or none (in case of failure).
+        Attempting to delete a non-existing feature using this API will not be considered a failure.
+      operationId: deleteFeatures
+      parameters:
+        - $ref: '#/components/parameters/SpaceId'
+        - $ref: '#/components/parameters/RequiredIds'
       responses:
         '200':
           $ref: '#/components/responses/FeatureCollectionModificationResponse'
@@ -563,6 +598,36 @@ paths:
         - $ref: '#/components/parameters/RemoveTags'
       requestBody:
         $ref: '#/components/requestBodies/FeatureRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/FeatureResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse400'
+        '401':
+          $ref: '#/components/responses/ErrorResponse401'
+        '403':
+          $ref: '#/components/responses/ErrorResponse403'
+        '404':
+          $ref: '#/components/responses/ErrorResponse404'
+        '409':
+          $ref: '#/components/responses/ErrorResponse409'
+        '429':
+          $ref: '#/components/responses/ErrorResponse429'
+        '500':
+          $ref: '#/components/responses/ErrorResponse500'
+        '502':
+          $ref: '#/components/responses/ErrorResponse502'
+        '504':
+          $ref: '#/components/responses/ErrorResponse504'
+        '513':
+          $ref: '#/components/responses/ErrorResponse513'
+    delete:
+      tags:
+        - Write Features
+      summary: Delete feature with specified ID in the space
+      description: >
+        This method allows to delete one feature in the storage associated (directly or via event handler) with the space.
+      operationId: deleteFeature
       responses:
         '200':
           $ref: '#/components/responses/FeatureResponse'

@@ -1,0 +1,5 @@
+{
+  "type": "ErrorResponse",
+  "error": "NotFound",
+  "errorMessage": "The desired feature does not exist."
+}

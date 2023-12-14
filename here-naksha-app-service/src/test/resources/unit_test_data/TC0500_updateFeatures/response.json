@@ -13,6 +13,10 @@
       "type": "Feature",
       "properties": {
         "speedLimit": "70"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 3.0, 2.0, 1.0]
       }
     },
     {
@@ -20,6 +24,10 @@
       "type": "Feature",
       "properties": {
         "isImportant": "no"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 5.0, 10.0, 15.0]
       }
     }
   ],

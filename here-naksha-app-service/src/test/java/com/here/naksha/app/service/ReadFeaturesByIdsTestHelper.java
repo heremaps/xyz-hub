@@ -21,26 +21,15 @@ package com.here.naksha.app.service;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static com.here.naksha.app.common.TestUtil.getHeader;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
-import static com.here.naksha.app.common.TestUtil.newTestNakshaContext;
 import static com.here.naksha.app.common.TestUtil.parseJson;
 import static com.here.naksha.app.common.TestUtil.parseJsonFileOrFail;
-import static com.here.naksha.lib.core.util.storage.RequestHelper.createFeatureRequest;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.here.naksha.app.common.NakshaTestWebClient;
-import com.here.naksha.lib.core.NakshaAdminCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
-import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.Space;
-import com.here.naksha.lib.core.models.storage.IfConflict;
-import com.here.naksha.lib.core.models.storage.IfExists;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.SuccessResult;
-import com.here.naksha.lib.core.models.storage.WriteXyzFeatures;
-import com.here.naksha.lib.core.storage.IWriteSession;
 import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.UUID;
@@ -90,7 +79,6 @@ public class ReadFeaturesByIdsTestHelper {
     String streamId;
     HttpResponse<String> response;
 
-    // TODO : Need to replace setup steps when EventHandler and Space REST API tests are available
     // Given: Storage (mock implementation) configured in Admin storage
     final String storageJson =
         loadFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/create_storage.json");
@@ -99,30 +87,19 @@ public class ReadFeaturesByIdsTestHelper {
     assertEquals(200, response.statusCode(), "ResCode mismatch. Failed creating Storage");
 
     // Given: EventHandler (uses above Storage) configured in Admin storage
-    final EventHandler eventHandler = parseJsonFileOrFail(
-        "ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/create_event_handler.json", EventHandler.class);
-    final WriteXyzFeatures ehRequest = createFeatureRequest(
-        NakshaAdminCollection.EVENT_HANDLERS, eventHandler, IfExists.REPLACE, IfConflict.REPLACE);
-    try (final IWriteSession writer =
-        app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
-      final Result result = writer.execute(ehRequest);
-      assertTrue(result instanceof SuccessResult, "Failed creating EventHandler");
-      writer.commit(true);
-    }
+    final String eventHandlerJson =
+        loadFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/create_event_handler.json");
+    response = nakshaClient.post("hub/handlers", eventHandlerJson, streamId);
+    assertEquals(200, response.statusCode(), "ResCode mismatch. Failed creating Storage");
 
     // Given: Space (uses above EventHandler) configured in Admin storage
-    final Space space =
-        parseJsonFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/create_space.json", Space.class);
-    final WriteXyzFeatures spRequest =
-        createFeatureRequest(NakshaAdminCollection.SPACES, space, IfExists.REPLACE, IfConflict.REPLACE);
-    try (final IWriteSession writer =
-        app.getHub().getSpaceStorage().newWriteSession(newTestNakshaContext(), true)) {
-      final Result result = writer.execute(spRequest);
-      assertTrue(result instanceof SuccessResult, "Failed creating Space");
-      writer.commit(true);
-    }
+    final String spaceJson = loadFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/create_space.json");
+    response = nakshaClient.post("hub/spaces", spaceJson, streamId);
+    assertEquals(200, response.statusCode(), "ResCode mismatch. Failed creating Storage");
 
     // Given: New Features persisted in above Space
+    final Space space =
+        parseJsonFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/create_space.json", Space.class);
     String bodyJson = loadFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/create_features.json");
     streamId = UUID.randomUUID().toString();
     response = nakshaClient.post("hub/spaces/" + space.getId() + "/features", bodyJson, streamId);
@@ -131,10 +108,8 @@ public class ReadFeaturesByIdsTestHelper {
     // Given: Features By Ids request (against above space)
     final String idsQueryParam =
         "id=my-custom-id-400-1" + "&id=my-custom-id-400-2" + "&id=missing-id-1" + "&id=missing-id-2";
-    // TODO: include geometry after Cursor-related changes ->
-    // loadFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/feature_response_part.json");
-    final String expectedBodyPart = loadFileOrFail(
-        "ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/feature_response_part_without_geometry.json");
+    final String expectedBodyPart =
+        loadFileOrFail("ReadFeatures/ByIds/TC0400_ExistingAndMissingIds/feature_response_part.json");
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
@@ -223,10 +198,8 @@ public class ReadFeaturesByIdsTestHelper {
     // Given: Feature By Id request (against already existing space)
     final String spaceId = "local-space-4-feature-by-id";
     final String featureId = "my-custom-id-400-1";
-    // TODO: include geometry after Cursor-related changes ->
-    // loadFileOrFail("ReadFeatures/ByIds/TC0404_ExistingId/feature_response_part.json");
     final String expectedBodyPart =
-        loadFileOrFail("ReadFeatures/ByIds/TC0404_ExistingId/feature_response_part_without_geometry.json");
+        loadFileOrFail("ReadFeatures/ByIds/TC0404_ExistingId/feature_response_part.json");
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance
@@ -296,10 +269,8 @@ public class ReadFeaturesByIdsTestHelper {
     // Given: Features By Ids request (against existing space)
     final String spaceId = "local-space-4-feature-by-id";
     final String idsQueryParam = "id=my-custom-id-400-1,my-custom-id-400-2,missing-id-1,missing-id-2";
-    // TODO: include geometry after Cursor-related changes ->
-    // loadFileOrFail("ReadFeatures/ByIds/TC0407_CommaSeparatedIds/feature_response_part.json");
-    final String expectedBodyPart = loadFileOrFail(
-        "ReadFeatures/ByIds/TC0407_CommaSeparatedIds/feature_response_part_without_geometry.json");
+    final String expectedBodyPart =
+        loadFileOrFail("ReadFeatures/ByIds/TC0407_CommaSeparatedIds/feature_response_part.json");
     streamId = UUID.randomUUID().toString();
 
     // When: Create Features request is submitted to NakshaHub Space Storage instance

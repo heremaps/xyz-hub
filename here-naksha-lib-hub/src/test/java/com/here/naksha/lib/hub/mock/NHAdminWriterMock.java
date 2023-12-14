@@ -101,14 +101,22 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     // Perform write operation for each feature
     for (final XyzFeatureCodec featureCodec : wf.features) {
       // generate new feature Id, if not already provided
-      final XyzFeature feature = Objects.requireNonNull(featureCodec.getFeature(), "Codec's feature is null");
       final EWriteOp op = EWriteOp.get(featureCodec.getOp());
-      if (op == CREATE && (feature.getId() == null || feature.getId().isEmpty())) {
-        feature.setId(UUID.randomUUID().toString());
-      }
-      // persist feature in a space
       try {
-        XyzFeatureCodec result = null;
+        if ((op == DELETE) && (featureCodec.getFeature() == null)) {
+          if (featureCodec.getId() == null) {
+            throw new SQLException("Feature to delete has null id!");
+          }
+          results.add(deleteFeature(wf.getCollectionId(), featureCodec.getId(), featureCodec.getUuid()));
+          continue;
+        }
+        final XyzFeature feature = Objects.requireNonNull(featureCodec.getFeature(), "Codec's feature is null");
+        if (op == CREATE && (feature.getId() == null || feature.getId().isEmpty())) {
+          feature.setId(UUID.randomUUID().toString());
+        }
+        // persist feature in a space
+
+        XyzFeatureCodec result;
         if (op.equals(CREATE)) {
           result = insertFeature(wf.getCollectionId(), feature);
         } else if (op.equals(UPDATE)) {
@@ -214,28 +222,26 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
   }
 
   protected @NotNull XyzFeatureCodec deleteFeature(
-      final @NotNull String collectionId, final @NotNull XyzFeature feature) throws SQLException {
-    final String id = feature.getId();
-    final String uuid = uuidOf(feature);
+      final @NotNull String collectionId, final @NotNull String id, final @Nullable String uuid)
+      throws SQLException {
     final AtomicReference<XyzFeatureCodec> result = new AtomicReference<>();
     final AtomicReference<SQLException> exception = new AtomicReference<>();
 
     mockCollection.get(collectionId).compute(id, (fId, oldF) -> {
       // nothing to delete if it is already absent
       if (oldF == null) {
-        result.set(featureCodec(feature, EExecutedOp.DELETED));
+        result.set(featureCodec(id, EExecutedOp.RETAINED));
         return oldF;
       }
       // delete if UUID matches
       final XyzFeature ef = (XyzFeature) oldF;
-      if (Objects.equals(uuidOf(ef), uuid)) {
+      if ((Objects.equals(uuidOf(ef), uuid)) || (uuid == null)) {
         result.set(featureCodec(ef, EExecutedOp.DELETED));
         return null;
       } else {
         // throw error if UUID mismatches
         exception.set(new SQLException(
-            "Uuid " + uuidOf(ef) + " mismatch for id " + feature.getId(),
-            PSQLState.UNIQUE_VIOLATION.getState()));
+            "Uuid " + uuidOf(ef) + " mismatch for id " + id, PSQLState.UNIQUE_VIOLATION.getState()));
         return oldF;
       }
     });
@@ -243,6 +249,13 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
       throw exception.get();
     }
     return result.get();
+  }
+
+  protected @NotNull XyzFeatureCodec deleteFeature(
+      final @NotNull String collectionId, final @NotNull XyzFeature feature) throws SQLException {
+    final String id = feature.getId();
+    final String uuid = uuidOf(feature);
+    return deleteFeature(collectionId, id, uuid);
   }
 
   private @Nullable String uuidOf(final @NotNull XyzFeature feature) {
@@ -258,6 +271,13 @@ public class NHAdminWriterMock extends NHAdminReaderMock implements IWriteSessio
     return XyzCodecFactory.getFactory(XyzFeatureCodecFactory.class)
         .newInstance()
         .withFeature(feature)
+        .withOp(op);
+  }
+
+  private XyzFeatureCodec featureCodec(String id, EExecutedOp op) {
+    return XyzCodecFactory.getFactory(XyzFeatureCodecFactory.class)
+        .newInstance()
+        .withId(id)
         .withOp(op);
   }
 

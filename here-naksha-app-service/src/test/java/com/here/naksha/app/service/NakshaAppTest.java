@@ -56,6 +56,7 @@ class NakshaAppTest {
   static UpdateFeatureTestHelper updateFeatureTestHelper;
   static ReadFeaturesByBBoxTestHelper readFeaturesByBBoxTestHelper;
   static ReadFeaturesByTileTestHelper readFeaturesByTileTestHelper;
+  static DeleteFeatureTestHelper deleteFeatureTestHelper;
   static SearchFeaturesTestHelper searchFeaturesTestHelper;
 
   @BeforeAll
@@ -75,6 +76,7 @@ class NakshaAppTest {
     updateFeatureTestHelper = new UpdateFeatureTestHelper(app, nakshaClient);
     readFeaturesByBBoxTestHelper = new ReadFeaturesByBBoxTestHelper(app, nakshaClient);
     readFeaturesByTileTestHelper = new ReadFeaturesByTileTestHelper(app, nakshaClient);
+    deleteFeatureTestHelper = new DeleteFeatureTestHelper(app, nakshaClient);
     searchFeaturesTestHelper = new SearchFeaturesTestHelper(app, nakshaClient);
   }
 
@@ -932,21 +934,45 @@ class NakshaAppTest {
   }
 
   @Test
+  @Order(12)
+  void tc0900_testDeleteFeatures() throws Exception {
+    deleteFeatureTestHelper.tc0900_testDeleteFeatures();
+  }
+
+  @Test
+  @Order(13)
+  void tc0901_testDeleteNonExistingFeatures() throws Exception {
+    deleteFeatureTestHelper.tc0901_testDeleteNonExistingFeatures();
+  }
+
+  @Test
+  @Order(13)
+  void tc0902_testDeleteFeatureById() throws Exception {
+    deleteFeatureTestHelper.tc0902_testDeleteFeatureById();
+  }
+
+  @Test
+  @Order(13)
+  void tc0903_testDeleteFeatureByWrongId() throws Exception {
+    deleteFeatureTestHelper.tc0903_testDeleteFeatureByWrongId();
+  }
+
+  @Test
   @Order(16)
-  void tc0900_testSearchFeatures() throws URISyntaxException, InterruptedException, JSONException, IOException {
-    searchFeaturesTestHelper.tc0900_testSearchFeatures();
+  void tc1000_testSearchFeatures() throws URISyntaxException, InterruptedException, JSONException, IOException {
+    searchFeaturesTestHelper.tc1000_testSearchFeatures();
   }
 
   @Test
   @Order(17)
-  void tc0901_testSearchNoResults() throws URISyntaxException, IOException, InterruptedException, JSONException {
-    searchFeaturesTestHelper.tc0901_testSearchNoResults();
+  void tc1001_testSearchNoResults() throws URISyntaxException, IOException, InterruptedException, JSONException {
+    searchFeaturesTestHelper.tc1001_testSearchNoResults();
   }
 
   @Test
   @Order(17)
-  void tc0902_testSearchWrongSpace() throws URISyntaxException, IOException, InterruptedException, JSONException {
-    searchFeaturesTestHelper.tc0902_testSearchWrongSpace();
+  void tc1002_testSearchWrongSpace() throws URISyntaxException, IOException, InterruptedException, JSONException {
+    searchFeaturesTestHelper.tc1002_testSearchWrongSpace();
   }
 
   @AfterAll

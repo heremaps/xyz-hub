@@ -110,7 +110,10 @@ class MockResultCursor<T extends XyzFeature> extends ForwardCursor<XyzFeature, X
    */
   @Override
   public @NotNull String getId() throws NoSuchElementException {
-    return getFeature().getId();
+    if (!isPositionValid()) {
+      throw new NoSuchElementException();
+    }
+    return items.get(currentPos).getId();
   }
 
   /**

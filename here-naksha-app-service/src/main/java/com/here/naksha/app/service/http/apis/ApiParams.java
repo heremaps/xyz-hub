@@ -24,6 +24,7 @@ import com.here.naksha.lib.core.models.payload.events.QueryParameter;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;
 import com.here.naksha.lib.core.util.ValueList;
 import io.vertx.ext.web.RoutingContext;
+import java.util.List;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -69,7 +70,7 @@ public final class ApiParams {
       final boolean isMandatory,
       final double defVal) {
     final QueryParameter queryParam = queryParams.get(key);
-    if (queryParam == null || queryParam.values().size() < 1) {
+    if (queryParam == null || queryParam.values().isEmpty()) {
       if (isMandatory) throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Parameter " + key + " missing");
       else return defVal;
     }
@@ -99,7 +100,7 @@ public final class ApiParams {
       else return defVal;
     }
     final QueryParameter queryParam = queryParams.get(key);
-    if (queryParam == null || queryParam.values().size() < 1) {
+    if (queryParam == null || queryParam.values().isEmpty()) {
       if (isMandatory) throw new XyzErrorException(XyzError.ILLEGAL_ARGUMENT, "Parameter " + key + " missing");
       else return defVal;
     }
@@ -117,5 +118,21 @@ public final class ApiParams {
       throw new XyzErrorException(
           XyzError.ILLEGAL_ARGUMENT, "Invalid value " + value + " for parameter " + param);
     }
+  }
+
+  public static QueryParameterList queryParamsFromRequest(final @NotNull RoutingContext routingContext) {
+    return (routingContext.request().query() != null)
+        ? new QueryParameterList(routingContext.request().query())
+        : null;
+  }
+
+  public static @Nullable List<String> extractParamAsStringList(
+      final @Nullable QueryParameterList queryParams, final @NotNull String apiParamType) {
+    return (queryParams != null) ? queryParams.collectAllOfAsString(apiParamType) : null;
+  }
+
+  public static @Nullable String extractParamAsString(
+      final @Nullable QueryParameterList queryParams, final @NotNull String apiParamType) {
+    return (queryParams != null) ? queryParams.getValueAsString(apiParamType) : null;
   }
 }

@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "feature-3-to-delete",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "100"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          3,
+          2,
+          1
+        ]
+      }
+    }
+  ]
+}

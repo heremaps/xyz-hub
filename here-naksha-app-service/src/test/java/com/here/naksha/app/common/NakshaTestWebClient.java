@@ -86,6 +86,17 @@ public class NakshaTestWebClient {
     return sendOnce(putRequest);
   }
 
+  public HttpResponse<String> delete(String subPath, String streamId)
+      throws URISyntaxException, IOException, InterruptedException {
+    HttpRequest deleteRequest = requestBuilder()
+        .uri(nakshaPath(subPath))
+        .DELETE()
+        .header("Content-Type", "application/json")
+        .header(HDR_STREAM_ID, streamId)
+        .build();
+    return sendOnce(deleteRequest);
+  }
+
   private HttpResponse<String> sendOnce(HttpRequest request) throws IOException, InterruptedException {
     logger.info("Sending {} request to {}", request.method(), request.uri());
     return httpClient.send(request, HttpResponse.BodyHandlers.ofString());

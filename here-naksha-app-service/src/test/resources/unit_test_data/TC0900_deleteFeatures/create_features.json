@@ -2,24 +2,25 @@
   "type": "FeatureCollection",
   "features": [
     {
+      "id": "feature-1-to-delete",
       "type": "Feature",
       "properties": {
-        "speedLimit": "50"
+        "speedLimit": "60"
       },
       "geometry": {
         "type":"Point",
-        "coordinates":[ 1.0, 2.0, 3.0]
+        "coordinates":[ 8.68872, 50.0561, 292.94377758]
       }
     },
     {
+      "id": "feature-2-to-delete",
       "type": "Feature",
       "properties": {
-        "speedLimit": "100",
-        "uuid": "whachamacallit"
+        "speedLimit": "80"
       },
       "geometry": {
         "type":"Point",
-        "coordinates":[ 7.0, 8.0, 9.0]
+        "coordinates":[ 9.68872, 51.0561, 293.94377758]
       }
     }
   ]

@@ -163,7 +163,6 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       wf.setCollectionId(customCollectionId);
     }
     logger.info("Processing WriteFeatures against {}", wf.getCollectionId());
-    // 1 -> PsqlStorage:606 -> PostrgesStorage:470 -> PostgresStorage:330
     try (final IWriteSession writer = storageImpl.newWriteSession(ctx, true)) {
       final Result result = writer.execute(wf);
       if (result instanceof SuccessResult) {

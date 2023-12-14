@@ -97,14 +97,12 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
   }
 
   private @NotNull XyzResponse executeFeaturesById() {
-    // Parse and validate Path parameters
+    // Parse parameters
     final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
+    final QueryParameterList queryParameters = queryParamsFromRequest(routingContext);
+    final List<String> featureIds = extractParamAsStringList(queryParameters, FEATURE_IDS);
 
-    // Parse and Validate Query parameters
-    final QueryParameterList queryParams = (routingContext.request().query() != null)
-        ? new QueryParameterList(routingContext.request().query())
-        : null;
-    final List<String> featureIds = (queryParams != null) ? queryParams.collectAllOfAsString(FEATURE_IDS) : null;
+    // Validate parameters
     if (featureIds == null || featureIds.isEmpty()) {
       return verticle.sendErrorResponse(routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing id parameter");
     }
@@ -136,9 +134,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final String spaceId = ApiParams.extractMandatoryPathParam(routingContext, SPACE_ID);
 
     // Parse and validate Query parameters
-    final QueryParameterList queryParams = (routingContext.request().query() != null)
-        ? new QueryParameterList(routingContext.request().query())
-        : null;
+    final QueryParameterList queryParams = queryParamsFromRequest(routingContext);
     if (queryParams == null || queryParams.size() <= 0) {
       return verticle.sendErrorResponse(
           routingContext, XyzError.ILLEGAL_ARGUMENT, "Missing mandatory parameters");
@@ -174,9 +170,7 @@ public class ReadFeatureApiTask<T extends XyzResponse> extends AbstractApiTask<X
     final String tileId = ApiParams.extractMandatoryPathParam(routingContext, TILE_ID);
 
     // Parse and validate Query parameters
-    final QueryParameterList queryParams = (routingContext.request().query() != null)
-        ? new QueryParameterList(routingContext.request().query())
-        : null;
+    final QueryParameterList queryParams = queryParamsFromRequest(routingContext);
     // NOTE : queryParams can be null, but that is acceptable. We will move on with default values.
     long limit = ApiParams.extractQueryParamAsLong(queryParams, LIMIT, false, DEF_FEATURE_LIMIT);
     // validate values

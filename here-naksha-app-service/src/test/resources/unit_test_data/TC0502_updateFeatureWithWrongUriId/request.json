@@ -3,5 +3,9 @@
   "type": "Feature",
   "properties": {
     "speedLimit": "30"
+  },
+  "geometry": {
+    "type":"Point",
+    "coordinates":[ 7.0, 8.0, 9.0]
   }
 }
