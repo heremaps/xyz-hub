@@ -1604,7 +1604,7 @@ BEGIN
   END IF;
   -- See: https://www.postgresql.org/docs/current/runtime-config-query.html
   sql = format('SET SESSION application_name TO %L;'
-  || 'SET TIMEZONE to ''UTC'';'
+  || 'SET TIMEZONE TO ''UTC'';'
   || 'SELECT'
   || ' SET_CONFIG(''plan_cache_mode'', ''force_generic_plan'', false)'
   || ',SET_CONFIG(''cursor_tuple_fraction'', ''1.0'', false)'
