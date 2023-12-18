@@ -931,16 +931,6 @@ public abstract class Job<T extends Job> extends Payload {
         put(failed, FAILED);
     }};
 
-    public static class ValidationException extends Exception {
-        public ValidationException(String message) {
-            super(message);
-        }
-
-        public ValidationException(String message, Exception cause) {
-            super(message, cause);
-        }
-    }
-
     public static class ProcessingNotPossibleException extends Exception {
 
         private static final String PROCESSING_NOT_POSSIBLE = "waits on free resources";

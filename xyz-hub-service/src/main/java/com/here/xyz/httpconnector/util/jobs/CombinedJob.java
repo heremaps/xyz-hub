@@ -34,6 +34,7 @@ import com.here.xyz.httpconnector.util.jobs.datasets.Spaces;
 import com.here.xyz.httpconnector.util.web.HubWebClient;
 import com.here.xyz.hub.Core;
 import com.here.xyz.hub.connectors.models.Space;
+import com.here.xyz.hub.rest.Api.ValidationException;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.Future;
 import java.util.ArrayList;

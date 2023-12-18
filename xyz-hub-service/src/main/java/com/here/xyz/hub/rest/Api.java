@@ -25,6 +25,7 @@ import static com.here.xyz.hub.rest.Api.HeaderValues.STREAM_ID;
 import static com.here.xyz.hub.rest.Api.HeaderValues.TEXT_PLAIN;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_GATEWAY;
 import static io.netty.handler.codec.http.HttpResponseStatus.BAD_REQUEST;
+import static io.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
 import static io.netty.handler.codec.http.HttpResponseStatus.GATEWAY_TIMEOUT;
 import static io.netty.handler.codec.http.HttpResponseStatus.INTERNAL_SERVER_ERROR;
 import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
@@ -149,6 +150,7 @@ public abstract class Api {
         sendErrorResponse(context, e);
       }
       catch (Exception e) {
+        logger.error("Handling as internal server error:", e);
         sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Server error!", e));
       }
     };
@@ -367,9 +369,13 @@ public abstract class Api {
    * @param context the context for which to return an error response.
    * @param e the exception that should be used to generate an {@link ErrorResponse}, if null an internal server error is returned.
    */
-  protected void sendErrorResponse(final RoutingContext context, final Throwable e) {
+  protected void sendErrorResponse(final RoutingContext context, Throwable e) {
     if (e instanceof TaskPipeline.PipelineCancelledException)
       return;
+    if (e instanceof ValidationException)
+      e = new HttpException(BAD_REQUEST, e.getMessage(), e);
+    if (e instanceof AccessDeniedException)
+      e = new HttpException(FORBIDDEN, e.getMessage(), e);
     if (e instanceof HttpException) {
       final HttpException httpException = (HttpException) e;
 
@@ -388,14 +394,14 @@ public abstract class Api {
         }
 
         //This is an exception sent by intention and nothing special, no need for stacktrace logging.
-        logger.warn("Error was handled by Api and will be sent as response: {}", httpException.status.code());
+        logger.warn(Context.getMarker(context), "Error was handled by Api and will be sent as response: {}", httpException.status.code());
         sendErrorResponse(context, httpException, error);
         return;
       }
     }
 
     //This is an exception that is not done by intention.
-    logger.error("Unintentional Error:", e);
+    logger.error(Context.getMarker(context), "Unintentional Error:", e);
     XYZHubRESTVerticle.sendErrorResponse(context, e);
   }
 
@@ -679,6 +685,26 @@ public abstract class Api {
       if (Service.configuration.USE_AUTHOR_FROM_HEADER)
         return context.request().getHeader(AUTHOR_HEADER);
       return getJWT(context).aid;
+    }
+  }
+
+  public static class ValidationException extends Exception {
+      public ValidationException(String message) {
+          super(message);
+      }
+
+      public ValidationException(String message, Exception cause) {
+          super(message, cause);
+      }
+  }
+
+  public static class AccessDeniedException extends Exception {
+    public AccessDeniedException(String message) {
+      super(message);
+    }
+
+    public AccessDeniedException(String message, Exception cause) {
+      super(message, cause);
     }
   }
 }
