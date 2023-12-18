@@ -1,5 +1,8 @@
 package com.here.xyz.httpconnector.util.jobs.datasets;
 
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.GEOJSON;
+import static com.here.xyz.httpconnector.util.jobs.Job.CSVFormat.JSON_WKB;
+
 import com.here.xyz.XyzSerializable;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.FileChunking;
@@ -7,7 +10,6 @@ import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.Partitioning;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.Partitioning.FeatureKey;
-
 import java.util.Map;
 
 public class FileOutputSettings {
@@ -31,6 +33,14 @@ public class FileOutputSettings {
       this.format = fileFormat;
     else if(format instanceof Map map && map.containsKey("type"))
       this.format = XyzSerializable.fromMap(map, FileFormat.class);
+    else if (format instanceof String formatString) {
+      if (GEOJSON.toString().equals(formatString))
+        this.format = new GeoJson();
+      else if (JSON_WKB.toString().equals(formatString))
+        this.format = new Csv();
+      else
+        this.format = new Csv().withAddPartitionKey(true);
+    }
     else
       this.format = new Csv();
   }
