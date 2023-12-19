@@ -456,6 +456,6 @@ public class Import extends JDBCBasedJob<Import> {
 
                 return updateJobStatus(this, finalized);
             })
-            .map(null);
+            .mapEmpty();
     }
 }
