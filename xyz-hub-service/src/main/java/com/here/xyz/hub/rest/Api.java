@@ -36,6 +36,8 @@ import static io.vertx.core.http.HttpHeaders.ACCEPT_ENCODING;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.here.xyz.XyzSerializable;
 import com.here.xyz.XyzSerializable.Public;
 import com.here.xyz.hub.Service;
 import com.here.xyz.hub.XYZHubRESTVerticle;
@@ -530,6 +532,13 @@ public abstract class Api {
     }
   }
 
+  /**
+   * @deprecated Use {@link #sendResponseWithXyzSerialization(RoutingContext, HttpResponseStatus, Object)} instead!
+   * @param context
+   * @param status
+   * @param o
+   */
+  @Deprecated
   protected void sendResponse(RoutingContext context, HttpResponseStatus status, Object o) {
     HttpServerResponse httpResponse = context.response().setStatusCode(status.code());
 
@@ -544,11 +553,34 @@ public abstract class Api {
       return;
     }
 
-    if (response.length == 0) {
+    sendResponseBytes(context, httpResponse, response);
+  }
+
+  protected void sendResponseWithXyzSerialization(RoutingContext context, HttpResponseStatus status, Object o) {
+    sendResponseWithXyzSerialization(context, status, o, null);
+  }
+
+  protected void sendResponseWithXyzSerialization(RoutingContext context, HttpResponseStatus status, Object o, TypeReference type) {
+    HttpServerResponse httpResponse = context.response().setStatusCode(status.code());
+
+    byte[] response;
+    try {
+      response = o instanceof ByteArrayOutputStream bos ? bos.toByteArray() : (type == null ? XyzSerializable.serialize(o) : XyzSerializable.serialize(o, type)).getBytes();
+    }
+    catch (EncodeException e) {
+      sendErrorResponse(context, new HttpException(INTERNAL_SERVER_ERROR, "Could not serialize response.", e));
+      return;
+    }
+
+    sendResponseBytes(context, httpResponse, response);
+  }
+
+  private void sendResponseBytes(RoutingContext context, HttpServerResponse httpResponse, byte[] response) {
+    if (response.length == 0)
       httpResponse.setStatusCode(NO_CONTENT.code()).end();
-    } else if (response.length > getMaxResponseLength(context)) {
+    else if (response.length > getMaxResponseLength(context))
       sendErrorResponse(context, new HttpException(RESPONSE_PAYLOAD_TOO_LARGE, RESPONSE_PAYLOAD_TOO_LARGE_MESSAGE));
-    } else {
+    else {
       httpResponse.putHeader(CONTENT_TYPE, APPLICATION_JSON);
       httpResponse.end(Buffer.buffer(response));
     }
