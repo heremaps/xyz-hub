@@ -1,0 +1,15 @@
+{
+  "id": "tc_220_test_space",
+  "type": "Space",
+  "title": "Space used for testing",
+  "description": "Descripion of Space used for testing",
+  "eventHandlerIds": [
+    "test-handler"
+  ],
+  "properties": {
+    "collection": {
+      "id": "um-mod-dev:test",
+      "type": "NakshaCollection"
+    }
+  }
+}

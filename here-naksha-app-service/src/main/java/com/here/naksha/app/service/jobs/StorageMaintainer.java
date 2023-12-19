@@ -147,7 +147,7 @@ public class StorageMaintainer {
       /*
       final IResultSet<Space> rsp =
       tx.readFeatures(Space.class, NakshaAdminCollection.SPACES).getAll(0, Integer.MAX_VALUE);
-       */
+      */
       final IResultSet<Space> rsp = null;
       final List<@NotNull Space> spaces = rsp.toList(0, Integer.MAX_VALUE);
       rsp.close();
@@ -157,7 +157,7 @@ public class StorageMaintainer {
       /*
       final IResultSet<Connector> rc = tx.readFeatures(Connector.class, NakshaAdminCollection.CONNECTORS)
       .getAll(0, Integer.MAX_VALUE);
-       */
+      */
       final IResultSet<EventHandler> rc = null;
       final List<@NotNull EventHandler> eventHandlers = rc.toList(0, Integer.MAX_VALUE);
       final Map<String, EventHandler> connectorMap =
@@ -169,7 +169,7 @@ public class StorageMaintainer {
       /*
       final IResultSet<Storage> rst = tx.readFeatures(Storage.class, NakshaAdminCollection.STORAGES)
       .getAll(0, Integer.MAX_VALUE);
-       */
+      */
       final IResultSet<Storage> rst = null;
       final List<@NotNull Storage> storages = rst.toList(0, Integer.MAX_VALUE);
       final Map<String, Storage> storageMap =
@@ -221,7 +221,7 @@ public class StorageMaintainer {
       final MaintenanceTrigger trigger = new MaintenanceTrigger(
       "naksha-admin-db", null, defStorage, adminStorageImpl, NakshaAdminCollection.COLLECTION_INFO_LIST);
       triggerMap.put(trigger.key(), trigger);
-       */
+      */
 
       /*
        * distribute all Maintenance Trigger events to a thread pool for processing

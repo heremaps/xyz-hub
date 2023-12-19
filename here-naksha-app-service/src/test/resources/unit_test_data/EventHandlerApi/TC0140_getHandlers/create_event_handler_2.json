@@ -1,0 +1,15 @@
+{
+  "id": "tc_140_event_handler_2",
+  "type": "EventHandler",
+  "title": "Test Handler",
+  "description": "For unit testing",
+  "className": "com.here.naksha.lib.handlers.DefaultStorageHandler",
+  "active": true,
+  "extensionId": null,
+  "properties": {
+    "storageId": "um-mod-dev",
+    "collection": {
+      "maxAge": 2
+    }
+  }
+}

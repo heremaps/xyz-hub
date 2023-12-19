@@ -152,6 +152,8 @@ subprojects {
     // https://github.com/diffplug/spotless/tree/main/plugin-gradle
     spotless {
         java {
+            // excluding tests where Builder pattern gets broken by palantir
+            targetExclude("src/test/**")
             encoding("UTF-8")
             val YEAR = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy"))
             licenseHeader("""
@@ -180,7 +182,7 @@ subprojects {
             importOrder()
             formatAnnotations()
             // https://github.com/diffplug/spotless/issues/1774
-            palantirJavaFormat("2.35.0")
+            palantirJavaFormat("2.39.0")
             indentWithTabs(4)
             indentWithSpaces(2)
         }

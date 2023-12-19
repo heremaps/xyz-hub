@@ -1,0 +1,19 @@
+{
+  "id": "tc_0060_test_storage",
+  "type": "Storage",
+  "title": "Modified Title",
+  "description": "Modified Description (original values reside in TC0001_createStorage)",
+  "className": "com.here.naksha.lib.psql.PsqlStorage",
+  "properties": {
+    "dbConfig": {
+      "host": "localhost",
+      "port": 5432,
+      "db": "postgres",
+      "user": "postgres",
+      "password": "password",
+      "schema": "naksha_moderation_dev",
+      "minPoolSize": 5,
+      "maxPoolSize": 50
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "id": "tc_0001_test_storage",
+  "type": "Storage",
+  "title": "UniMap Moderation Dev Storage",
+  "description": "UniMap Moderation storage for Dev environment, holding collections managed by Naksha service",
+  "className": "com.here.naksha.lib.psql.PsqlStorage",
+  "properties": {
+    "dbConfig": {
+      "host": "${dataDb.host}",
+      "db": "${dataDb.db}",
+      "user": "${dataDb.user}",
+      "password": "${dataDb.password}",
+      "port": 5432,
+      "schema": "${dataDb.schema}",
+      "minPoolSize": 5,
+      "maxPoolSize": 50
+    }
+  }
+}

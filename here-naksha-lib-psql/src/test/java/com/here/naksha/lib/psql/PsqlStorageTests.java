@@ -620,7 +620,7 @@ public class PsqlStorageTests extends PsqlTests {
 
       /* FIXME uncomment this when read with deleted is ready.
       assertEquals(featureJsonBeforeDeletion, rs.getString(1));
-       */
+      */
     }
   }
 

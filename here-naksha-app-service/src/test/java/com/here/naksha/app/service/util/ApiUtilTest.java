@@ -18,7 +18,8 @@
  */
 package com.here.naksha.app.service.util;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.here.naksha.app.service.http.apis.ApiUtil;
 import com.here.naksha.lib.core.models.payload.events.QueryParameterList;

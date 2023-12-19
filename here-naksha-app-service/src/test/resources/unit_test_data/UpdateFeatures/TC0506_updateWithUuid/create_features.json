@@ -1,0 +1,20 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "tc_506_test_feature",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "60"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      }
+    }
+  ]
+}
