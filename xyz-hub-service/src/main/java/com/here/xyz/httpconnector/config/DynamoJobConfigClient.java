@@ -266,6 +266,8 @@ public class DynamoJobConfigClient extends JobConfigClient {
             json.put("_sourceKey", job.getSource().getKey());
         if(job.getTarget() != null)
             json.put("_targetKey", job.getTarget().getKey());
+        //Set the item's "exp" field on which the table's automated expiry is watching
+        json.put("exp", job.getKeepUntil() < 0 ? -1 : job.getKeepUntil() / 1000);
         //TODO: Remove the following hacks from the persistence layer!
         if (job instanceof Import)
             return convertImportJobToItem(json);
@@ -319,13 +321,15 @@ public class DynamoJobConfigClient extends JobConfigClient {
         }
 
         JsonObject json = new JsonObject(item.removeAttribute(attrName).toJSON())
-                .put(attrName, ioObjects);
+            .put(attrName, ioObjects);
 
         Future<Void> resolvedFuture = Future.succeededFuture();
         if (json.containsKey("children"))
             resolvedFuture = resolveChildren(json);
         try {
             final Job job = XyzSerializable.deserialize(json.toString(), Job.class);
+            Long exp = json.getLong("exp");
+            job.setKeepUntil(exp == null || exp < 0 ? -1 : exp * 1_000);
             return resolvedFuture.map(v -> job);
         }
         catch (JsonProcessingException e) {

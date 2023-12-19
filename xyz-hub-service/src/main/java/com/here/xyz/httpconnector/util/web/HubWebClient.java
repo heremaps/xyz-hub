@@ -127,7 +127,9 @@ public class HubWebClient {
                             //Job already present
                             return Future.succeededFuture(null);
                         }else if(res.statusCode() != HttpResponseStatus.CREATED.code()) {
-                            return Future.failedFuture("Can't create Job!");
+                          String errMsg = "job[{}] Can't create super Job! Stream-Id: " + res.getHeader("Stream-Id");
+                          logger.error(errMsg);
+                            return Future.failedFuture(errMsg);
                         }
 
                         JsonObject resp = res.bodyAsJsonObject();
@@ -240,8 +242,8 @@ public class HubWebClient {
                 });
     }
 
-    public static Future<StatisticsResponse> getSpaceStatistics(String spaceId) 
+    public static Future<StatisticsResponse> getSpaceStatistics(String spaceId)
     { return getSpaceStatistics(spaceId,null); }
-    
+
 
 }

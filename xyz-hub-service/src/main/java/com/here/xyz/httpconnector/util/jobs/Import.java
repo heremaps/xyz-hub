@@ -43,15 +43,14 @@ import com.here.xyz.hub.Core;
 import com.here.xyz.hub.rest.HttpException;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
+import io.vertx.pgclient.PgException;
+import io.vertx.sqlclient.ClosedConnectionException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import io.vertx.pgclient.PgException;
-import io.vertx.sqlclient.ClosedConnectionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -437,26 +436,26 @@ public class Import extends JDBCBasedJob<Import> {
     }
 
     @Override
-    public void finalizeJob() {
+    public Future<Void> finalizeJob() {
         String getDefaultSchema = JDBCImporter.getDefaultSchema(getTargetConnector());
 
         //@TODO: Limit parallel Creations
-        CService.jdbcImporter.finalizeImport(this, getDefaultSchema)
-            .onFailure(f -> {
-                logger.warn("job[{}] finalization failed!", getId(), f);
+        return CService.jdbcImporter.finalizeImport(this, getDefaultSchema)
+            .onFailure(t -> {
+                logger.warn("job[{}] finalization failed!", getId(), t);
 
-                if (f.getMessage().equalsIgnoreCase(Import.ERROR_TYPE_ABORTED))
+                if (t.getMessage().equalsIgnoreCase(Import.ERROR_TYPE_ABORTED))
                     setJobAborted(this);
                 else
                     setJobFailed(this, null, Job.ERROR_TYPE_EXECUTION_FAILED);
             })
-            .compose(
-                f -> {
-                    logger.info("job[{}] finalization finished!", getId());
-                    if (getErrorDescription() != null)
-                        return updateJobStatus(this, failed);
+            .compose(v -> {
+                logger.info("job[{}] finalization finished!", getId());
+                if (getErrorDescription() != null)
+                    return updateJobStatus(this, failed);
 
-                    return updateJobStatus(this, finalized);
-                });
+                return updateJobStatus(this, finalized);
+            })
+            .mapEmpty();
     }
 }

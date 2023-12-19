@@ -35,6 +35,8 @@ import com.here.xyz.httpconnector.rest.HApiParam;
 import com.here.xyz.httpconnector.util.jobs.Export;
 import com.here.xyz.httpconnector.util.jobs.Export.ExportStatistic;
 import com.here.xyz.httpconnector.util.jobs.Job.CSVFormat;
+import com.here.xyz.httpconnector.util.web.HubWebClient;
+import com.here.xyz.hub.connectors.models.Connector;
 import com.here.xyz.hub.rest.ApiParam;
 import com.here.xyz.models.geojson.coordinates.WKTHelper;
 import com.here.xyz.psql.PSQLXyzConnector;
@@ -43,6 +45,7 @@ import com.here.xyz.psql.config.PSQLConfig;
 import com.here.xyz.psql.query.GetFeatures;
 import com.here.xyz.psql.query.GetFeaturesByGeometry;
 import com.here.xyz.psql.query.SearchForFeatures;
+import com.here.xyz.util.Hasher;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -51,6 +54,7 @@ import io.vertx.sqlclient.impl.ArrayTuple;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +67,119 @@ import org.apache.logging.log4j.Logger;
  */
 public class JDBCExporter extends JDBCClients {
     private static final Logger logger = LogManager.getLogger();
+
+    //Space-Copy Begin
+    public static SQLQuery buildCopySpaceQuery(Export job, String schema,
+        Connector targetSpaceConnector, boolean targetVersioningEnabled) throws SQLException {
+      boolean enableHashedSpaceId = targetSpaceConnector.params.containsKey("enableHashedSpaceId")
+              ? (boolean) targetSpaceConnector.params.get("enableHashedSpaceId") : false;
+      String targetSpaceId = job.getTarget().getKey();
+      final String tableName = enableHashedSpaceId ? Hasher.getHash(targetSpaceId) : targetSpaceId;
+      return new SQLQuery(
+        "WITH ins_data as /* space_copy_hint m499#jobId(${{jobId}}) */ "
+            + "(INSERT INTO ${schema}.${table} (jsondata, operation, author, geo, id, version) "
+            + "SELECT idata.jsondata, CASE WHEN idata.operation in ('I', 'U') THEN (CASE WHEN edata.id isnull THEN 'I' ELSE 'U' END) ELSE idata.operation END AS operation, idata.author, idata.geo, idata.id, (SELECT nextval('${schema}.${versionSequenceName}')) AS version "
+            + "FROM "
+            + "  (${{contentQuery}}) idata "
+            + "  LEFT JOIN ${schema}.${table} edata ON (idata.id = edata.id AND edata.next_version = max_bigint()) "
+            + "  RETURNING id, version "
+            + "), "
+            + "upd_data as "
+            + "(UPDATE ${schema}.${table} "
+            + "   SET next_version = (SELECT version FROM ins_data LIMIT 1) "
+            + " WHERE ${{targetVersioningEnabled}}"
+            + "    AND next_version = max_bigint()"
+            + "    AND id IN (SELECT id FROM ins_data)"
+            + "    AND version < (SELECT version FROM ins_data LIMIT 1) "
+            + "  RETURNING id, version"
+            + "), "
+            + "del_data AS "
+            + "(DELETE FROM ${schema}.${table} "
+            + "  WHERE ${{targetVersioningEnabled}}"
+            + "    AND id IN (SELECT id FROM ins_data)"
+            + "    AND version < (SELECT version FROM ins_data LIMIT 1) "
+            + "  RETURNING id, version "
+            + ") "
+            + "SELECT count(1) AS rows_uploaded, 0::BIGINT AS bytes_uploaded, 0::BIGINT AS files_uploaded, "
+            +  "      (SELECT count(1) FROM upd_data) AS version_updated, "
+            +  "      (SELECT count(1) FROM del_data) AS version_deleted "
+            + "FROM ins_data l")
+          .withVariable("schema", getDefaultSchema(targetSpaceConnector.id))
+          .withVariable("table", tableName)
+          .withQueryFragment("jobId", job.getId())
+          .withQueryFragment("targetVersioningEnabled", "" + targetVersioningEnabled)
+          .withVariable("versionSequenceName", tableName + "_version_seq")
+          .withQueryFragment("contentQuery", buildCopyContentQuery(job, schema, enableHashedSpaceId))
+          .substitute();
+    }
+
+  private static SQLQuery buildCopyContentQuery(Export job, String schema, boolean enableHashedSpaceId) throws SQLException {
+    GetFeaturesByGeometryEvent event = new GetFeaturesByGeometryEvent()
+        .withSpace(job.getSource().getKey())
+        .withParams(job.getParams())
+        .withContext(EXTENSION)
+        .withConnectorParams(Collections.singletonMap("enableHashedSpaceId", enableHashedSpaceId));
+
+    PSQLXyzConnector dbHandler = new PSQLXyzConnector(false);
+    dbHandler.setConfig(new PSQLConfig(event, schema));
+
+    SQLQuery contentQuery;
+    try {
+      GetFeatures queryRunner = new SearchForFeatures(event);
+      queryRunner.setDbHandler(dbHandler);
+
+      contentQuery = queryRunner._buildQuery(event)
+          .withQueryFragment("limit", "")
+          .withQueryFragment("geo", "geo")
+          .withQueryFragment("selection", "jsondata, operation, author");
+    }
+    catch (Exception e) {
+      throw new SQLException(e);
+    }
+    contentQuery = contentQuery.substituteAndUseDollarSyntax(contentQuery);
+    return contentQuery;
+  }
+
+  private static Future<Export.ExportStatistic> executeCopyQuery(String clientId, SQLQuery q, Export j )
+    {
+        logger.info("job[{}] Execute Query Space-Copy {}->{} {}", j.getId(), j.getTargetSpaceId(), "Space-Destination", q.text());
+        return getClient(clientId, false)  // insert -> writer
+                .preparedQuery(q.text())
+                .execute(new ArrayTuple(q.parameters()))
+                .map(rows -> {
+                    Export.ExportStatistic es = new Export.ExportStatistic();
+
+                    rows.forEach(
+                            row -> {
+                                es.addRows(row.getLong("rows_uploaded"));
+                                es.addBytes(row.getLong("bytes_uploaded"));
+                                es.addFiles(row.getLong("files_uploaded"));
+                            }
+                    );
+
+                    return es;
+                });
+
+    }
+
+    public static Future<ExportStatistic> executeCopy(Export job, String schema) {
+      Promise<Export.ExportStatistic> promise = Promise.promise();
+      List<Future> exportFutures = new ArrayList<>();
+
+      return HubWebClient.getSpace(job.getTarget().getKey())
+          .compose(space -> HubWebClient.getConnectorConfig(space.getStorage().getId())
+              .compose(connector -> {
+                try {
+                  SQLQuery copyQuery = buildCopySpaceQuery(job, schema, connector, space.getVersionsToKeep() > 1);
+                  exportFutures.add(executeCopyQuery(connector.id, copyQuery, job));
+                  return executeParallelExportAndCollectStatistics(job, promise, exportFutures);
+                }
+                catch (SQLException e) {
+                  return Future.failedFuture(e);
+                }
+              }));
+    }
+    //Space-Copy End
 
     public static Future<ExportStatistic> executeExport(Export job, String schema, String s3Bucket, String s3Path, String s3Region) {
       return addClientsIfRequired(job.getTargetConnector())
