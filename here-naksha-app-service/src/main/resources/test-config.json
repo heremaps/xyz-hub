@@ -10,7 +10,7 @@
   "maintenancePoolCoreSize": 5,
   "maintenancePoolMaxSize": 20,
   "storageParams": {
-    "pg_hint_plan": false,
-    "pg_stat_statements": false
+    "pg_hint_plan": true,
+    "pg_stat_statements": true
   }
 }
