@@ -68,6 +68,7 @@ import com.here.xyz.httpconnector.util.emr.config.Step.WriteGeoparquet;
 import com.here.xyz.httpconnector.util.jobs.datasets.DatasetDescription;
 import com.here.xyz.httpconnector.util.jobs.datasets.FileBasedTarget;
 import com.here.xyz.httpconnector.util.jobs.datasets.FileOutputSettings;
+import com.here.xyz.httpconnector.util.jobs.datasets.Files;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.Csv;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.FileFormat;
 import com.here.xyz.httpconnector.util.jobs.datasets.files.GeoJson;
@@ -222,7 +223,8 @@ public class Export extends JDBCBasedJob<Export> {
                         //L2 Composite
                         superIsReadOnly = l2Ext.get("readOnly") != null ? (boolean) l2Ext.get("readOnly") : false;
 
-                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly) {
+                    if (compositeMode.equals(DEACTIVATED) && superIsReadOnly
+                        && !(getTarget() instanceof Files files && files.getOutputSettings().getFormat() instanceof GeoParquet)) {
                         //Enabled by default
                         params.put(PARAM_COMPOSITE_MODE, CompositeMode.FULL_OPTIMIZED);
                     }
