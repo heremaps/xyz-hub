@@ -36,11 +36,7 @@ import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
-import com.here.naksha.lib.core.models.storage.EExecutedOp;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
-import com.here.naksha.lib.core.models.storage.ReadFeatures;
-import com.here.naksha.lib.core.models.storage.Result;
-import com.here.naksha.lib.core.models.storage.WriteFeatures;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import io.vertx.ext.web.RoutingContext;
@@ -186,13 +182,19 @@ public abstract class AbstractApiTask<T extends XyzResponse>
         final List<R> insertedFeatures = featureMap.get(EExecutedOp.CREATED);
         final List<R> updatedFeatures = featureMap.get(EExecutedOp.UPDATED);
         final List<R> deletedFeatures = featureMap.get(EExecutedOp.DELETED);
+        // extract violations if available
+        List<XyzFeature> violations = null;
+        if (wrResult instanceof ContextXyzFeatureResult cr) {
+          violations = cr.getViolations();
+        }
         return verticle.sendXyzResponse(
             routingContext,
             HttpResponseType.FEATURE_COLLECTION,
             new XyzFeatureCollection()
                 .withInsertedFeatures(insertedFeatures)
                 .withUpdatedFeatures(updatedFeatures)
-                .withDeletedFeatures(deletedFeatures));
+                .withDeletedFeatures(deletedFeatures)
+                .withViolations(violations));
       } catch (NoCursor | NoSuchElementException emptyException) {
         if (isDeleteOperation) {
           logger.info("No data found in ResultCursor, returning empty collection");

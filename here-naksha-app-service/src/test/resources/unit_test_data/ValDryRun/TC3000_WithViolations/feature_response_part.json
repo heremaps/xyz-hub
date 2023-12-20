@@ -1,0 +1,232 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "my-custom-id-3000-1",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [8.68872, 50.0561, 292.94377758]
+      },
+      "properties": {
+        "@ns:com:here:delta": {
+          "changeState": "UPDATED",
+          "reviewState": "AUTO_REVIEW_DEFERRED",
+          "changeCounter": 0,
+          "dueTs": 0,
+          "potentialValue": 0,
+          "priorityCategory": 0
+        },
+        "@ns:com:here:xyz": {
+          "tags": [
+            "@:review-state:AUTO_REVIEW_DEFERRED"
+          ]
+        },
+        "speedLimit": "60"
+      },
+      "momType": "Topology"
+    },
+    {
+      "type": "Feature",
+      "id": "my-custom-id-3000-2",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [8.68872, 50.0561, 292.94377758]
+      },
+      "properties": {
+        "@ns:com:here:delta": {
+          "changeState": "UPDATED",
+          "reviewState": "AUTO_REVIEW_DEFERRED",
+          "changeCounter": 0,
+          "dueTs": 0,
+          "potentialValue": 0,
+          "priorityCategory": 0
+        },
+        "@ns:com:here:xyz": {
+          "tags": [
+            "@:review-state:AUTO_REVIEW_DEFERRED"
+          ]
+        },
+        "speedLimit": "70"
+      },
+      "momType": "Topology"
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.68872, 51.0561, 293.94377758]
+      },
+      "properties": {
+        "@ns:com:here:delta": {
+          "changeState": "UPDATED",
+          "reviewState": "AUTO_REVIEW_DEFERRED",
+          "changeCounter": 0,
+          "dueTs": 0,
+          "potentialValue": 0,
+          "priorityCategory": 0
+        },
+        "@ns:com:here:xyz": {
+          "tags": [
+            "@:review-state:AUTO_REVIEW_DEFERRED"
+          ]
+        },
+        "speedLimit": "80"
+      },
+      "momType": "Topology"
+    }
+  ],
+  "violations": [
+    {
+      "type": "Feature",
+      "properties": {
+        "isoCountryCode": "DEU",
+        "ruleDescription": "Speed limit on the road should match the speed limit sign",
+        "errorMessage": "Topology ID urn:here::here:Topology:106003684 has a Speed Limit 50 that does not match the speed sign",
+        "severity": 1,
+        "references": [
+          {
+            "featureType": "Topology",
+            "id": "my-custom-id-3000-1",
+            "spaceId": "local-space-4-val-dry-run"
+          }
+        ],
+        "longitude": 13.63291,
+        "latitude": 52.2943,
+        "deltaMode": false,
+        "ruleId": "WROAD159"
+      },
+      "violatedObject": {
+        "featureType": "Topology",
+        "id": "my-custom-id-3000-1",
+        "spaceId": "local-space-4-val-dry-run"
+      },
+      "momType": "supporting.Violation"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "isoCountryCode": "DEU",
+        "ruleDescription": "Speed limit on the road should match the speed limit sign",
+        "errorMessage": "Topology ID urn:here::here:Topology:106003684 has a Speed Limit 50 that does not match the speed sign",
+        "severity": 1,
+        "references": [
+          {
+            "featureType": "Topology",
+            "id": "my-custom-id-3000-2",
+            "spaceId": "local-space-4-val-dry-run"
+          }
+        ],
+        "longitude": 13.63291,
+        "latitude": 52.2943,
+        "deltaMode": false,
+        "ruleId": "WROAD159"
+      },
+      "violatedObject": {
+        "featureType": "Topology",
+        "id": "my-custom-id-3000-2",
+        "spaceId": "local-space-4-val-dry-run"
+      },
+      "momType": "supporting.Violation"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "isoCountryCode": "DEU",
+        "ruleDescription": "Speed Limit sign is not at the start of speed limit range",
+        "errorMessage": "The Topology Id urn:here::here:Topology:89669108 has a Speed Limit sign applied that is not at the start of the speed limit range. The Functional Class of the topology at the sign location is FC2.",
+        "severity": 1,
+        "references": [
+          {
+            "featureType": "Topology",
+            "id": "my-custom-id-3000-2",
+            "spaceId": "local-space-4-val-dry-run"
+          }
+        ],
+        "longitude": 13.7083,
+        "latitude": 52.24077,
+        "deltaMode": false,
+        "ruleId": "WROAD160"
+      },
+      "violatedObject": {
+        "featureType": "Topology",
+        "id": "my-custom-id-3000-2",
+        "spaceId": "local-space-4-val-dry-run"
+      },
+      "momType": "supporting.Violation"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "isoCountryCode": "DEU",
+        "ruleDescription": "Speed limit on the road should match the speed limit sign",
+        "errorMessage": "Topology ID urn:here::here:Topology:106003684 has a Speed Limit 50 that does not match the speed sign",
+        "severity": 1,
+        "references": [
+          {
+            "featureType": "Topology",
+            "spaceId": "local-space-4-val-dry-run"
+          }
+        ],
+        "longitude": 13.63291,
+        "latitude": 52.2943,
+        "deltaMode": false,
+        "ruleId": "WROAD159"
+      },
+      "violatedObject": {
+        "featureType": "Topology",
+        "spaceId": "local-space-4-val-dry-run"
+      },
+      "momType": "supporting.Violation"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "isoCountryCode": "DEU",
+        "ruleDescription": "Speed Limit sign is not at the start of speed limit range",
+        "errorMessage": "The Topology Id urn:here::here:Topology:89669108 has a Speed Limit sign applied that is not at the start of the speed limit range. The Functional Class of the topology at the sign location is FC2.",
+        "severity": 1,
+        "references": [
+          {
+            "featureType": "Topology",
+            "spaceId": "local-space-4-val-dry-run"
+          }
+        ],
+        "longitude": 13.7083,
+        "latitude": 52.24077,
+        "deltaMode": false,
+        "ruleId": "WROAD160"
+      },
+      "violatedObject": {
+        "featureType": "Topology",
+        "spaceId": "local-space-4-val-dry-run"
+      },
+      "momType": "supporting.Violation"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "isoCountryCode": "DEU",
+        "ruleDescription": "The combination of topology and access characteristics should be valid",
+        "errorMessage": "Topology ID urn:here::here:Topology:203972169 has invalid combination for DiminishedPriority and Auto",
+        "severity": 1,
+        "references": [
+          {
+            "featureType": "Topology",
+            "spaceId": "local-space-4-val-dry-run"
+          }
+        ],
+        "longitude": 13.63558,
+        "latitude": 52.28609,
+        "jobTime": 1699883237791,
+        "deltaMode": false,
+        "ruleId": "WROAD234"
+      },
+      "violatedObject": {
+        "featureType": "Topology",
+        "spaceId": "local-space-4-val-dry-run"
+      },
+      "momType": "supporting.Violation"
+    }
+  ]
+}

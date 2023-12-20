@@ -62,6 +62,24 @@ public abstract class FeatureCodec<FEATURE, SELF extends FeatureCodec<FEATURE, S
   public abstract @NotNull SELF encodeFeature(boolean force);
 
   /**
+   * Copy all the values from other codec supplied as an argument.
+   * This is useful while iterating through in-memory based codec list, without having to
+   * allocate memory with deep clone.
+   *
+   * @param otherCodec The other codec which is to be cloned
+   * @return this.
+   */
+  public @NotNull SELF copy(@NotNull FeatureCodec<FEATURE, ?> otherCodec) {
+    withParts(otherCodec);
+    this.isDecoded = otherCodec.isEncoded;
+    this.isEncoded = otherCodec.isEncoded;
+    this.feature = otherCodec.feature;
+    this.err = otherCodec.err;
+    this.errorJson = otherCodec.errorJson;
+    return self();
+  }
+
+  /**
    * Load the raw values (feature parts) for the given foreign codec into this code to re-encode.
    *
    * @param otherCodec The other codec from which to load the parts.

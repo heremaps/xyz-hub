@@ -1,0 +1,9 @@
+{
+    "id": "local-validation-handler-4-val-dry-run",
+    "type": "EventHandler",
+    "title": "Validation Handler for Validation pipeline",
+    "description": "Mock Validation Handler for Validation Dry Run pipeline",
+    "className": "com.here.naksha.lib.handlers.val.MockValidationHandler",
+    "active": true,
+    "extensionId": null
+}

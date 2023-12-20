@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.util.FibMap;
 import com.here.naksha.lib.core.util.StringHelper;
 import com.here.naksha.lib.core.util.diff.Patcher;
@@ -59,7 +60,7 @@ import org.jetbrains.annotations.Nullable;
  *
  * @since 2.0.0
  */
-@AvailableSince("2.0.0")
+@AvailableSince(NakshaVersion.v2_0_0)
 @JsonFormat(shape = JsonFormat.Shape.OBJECT)
 public class JsonObject
     implements Map<@NotNull String, @Nullable Object>,

@@ -13,7 +13,7 @@ servers:
 info:
   title: "Naskha Hub-API"
   description: "Naksha Hub-API is a REST API to provide simple access to geo data."
-  version: "2.0.9"
+  version: "2.0.11"
 
 security:
   - AccessToken: [ ]
@@ -1245,6 +1245,23 @@ components:
                   amenity: Football Stadium
                   capacity: 54074
                   description: Home of Liverpool Football Club
+            violations:
+              - type: Feature
+                id: urn:here::here:Topology:violation_id_1
+                momType: supporting.Violation
+                properties:
+                  ruleId: WROAD159
+                  references:
+                    - id: BfiimUxHjj
+                      spaceId: roadtopology
+                      featureType: Topology
+                  errorMessage: Topology ID BfiimUxHjj has a Speed Limit 50 that does not match the speed sign
+                  isoCountryCode: DEU
+                  ruleDescription: Speed limit on the road should match the speed limit sign
+                violatedObject:
+                  id: BfiimUxHjj
+                  spaceId: roadtopology
+                  featureType: Topology
     StorageResponse:
       description: The space.
       content:
@@ -1466,6 +1483,13 @@ components:
               description: List of deleted features IDs.
               items:
                 type: string
+            violations:
+              type: array
+              description: >-
+                List of violated features.
+                This part is applicable in response ONLY when violations are found on calling validation handler driven API endpoint.
+              items:
+                $ref: '#/components/schemas/Feature'
     LineString:
       allOf:
         - $ref: '#/components/schemas/Geometry'

@@ -1,0 +1,66 @@
+[
+    {
+        "id": "urn:here::here:Topology:violation_id-1",
+        "type": "Feature",
+        "momType": "supporting.Violation",
+        "properties": {
+            "ruleId": "WROAD159",
+            "latitude": 52.2943,
+            "severity": 1,
+            "deltaMode": false,
+            "longitude": 13.63291,
+            "references": null,
+            "errorMessage": "Topology ID urn:here::here:Topology:106003684 has a Speed Limit 50 that does not match the speed sign",
+            "isoCountryCode": "DEU",
+            "ruleDescription": "Speed limit on the road should match the speed limit sign"
+        },
+        "violatedObject": {
+            "id": "urn:here::here:Topology:106003684",
+            "spaceId": "roadtopology",
+            "featureType": "Topology"
+        }
+    },
+    {
+        "id": "urn:here::here:Topology:violation_id-2",
+        "type": "Feature",
+        "momType": "supporting.Violation",
+        "properties": {
+            "ruleId": "WROAD160",
+            "latitude": 52.24077,
+            "severity": 1,
+            "deltaMode": false,
+            "longitude": 13.7083,
+            "references": null,
+            "errorMessage": "The Topology Id urn:here::here:Topology:89669108 has a Speed Limit sign applied that is not at the start of the speed limit range. The Functional Class of the topology at the sign location is FC2.",
+            "isoCountryCode": "DEU",
+            "ruleDescription": "Speed Limit sign is not at the start of speed limit range"
+        },
+        "violatedObject": {
+            "id": "urn:here::here:Topology:89669108",
+            "spaceId": "roadtopology",
+            "featureType": "Topology"
+        }
+    },
+    {
+        "id": "urn:here::here:Topology:violation_id-3",
+        "type": "Feature",
+        "momType": "supporting.Violation",
+        "properties": {
+            "ruleId": "WROAD234",
+            "jobTime": 1699883237791,
+            "latitude": 52.28609,
+            "severity": 1,
+            "deltaMode": false,
+            "longitude": 13.63558,
+            "references": null,
+            "errorMessage": "Topology ID urn:here::here:Topology:203972169 has invalid combination for DiminishedPriority and Auto",
+            "isoCountryCode": "DEU",
+            "ruleDescription": "The combination of topology and access characteristics should be valid"
+        },
+        "violatedObject": {
+            "id": "urn:here::here:Topology:203972169",
+            "spaceId": "roadtopology",
+            "featureType": "Topology"
+        }
+    }
+]

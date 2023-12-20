@@ -1,0 +1,9 @@
+{
+    "id": "local-context-handler-4-val-dry-run",
+    "type": "EventHandler",
+    "title": "Feature Context Loader Handler for Validation pipeline",
+    "description": "Mock Context Loader Event Handler for Validation Dry Run pipeline",
+    "className": "com.here.naksha.lib.handlers.val.MockContextLoaderHandler",
+    "active": true,
+    "extensionId": null
+}

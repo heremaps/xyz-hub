@@ -87,6 +87,10 @@ public class XyzFeatureCollection extends XyzResponse {
 
   @JsonProperty
   @JsonInclude(Include.NON_EMPTY)
+  private List<XyzFeature> violations;
+
+  @JsonProperty
+  @JsonInclude(Include.NON_EMPTY)
   private List<ModificationFailure> failed;
 
   @JsonProperty
@@ -473,6 +477,19 @@ public class XyzFeatureCollection extends XyzResponse {
       final @NotNull List<? extends @NotNull XyzFeature> deletedFeatures) {
     ((List<XyzFeature>) this.features.get()).addAll(deletedFeatures); // append features
     withDeleted(deletedFeatures.stream().map(XyzFeature::getId).toList()); // overwrite deleted
+    return this;
+  }
+
+  public @Nullable List<XyzFeature> getViolations() {
+    return violations;
+  }
+
+  public void setViolations(final @Nullable List<XyzFeature> violations) {
+    this.violations = violations;
+  }
+
+  public @NotNull XyzFeatureCollection withViolations(final @Nullable List<XyzFeature> violations) {
+    setViolations(violations);
     return this;
   }
 

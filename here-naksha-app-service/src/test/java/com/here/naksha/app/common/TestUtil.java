@@ -62,7 +62,7 @@ public class TestUtil {
       json = json.replace("${adminDb.password}", adminDbConfig.password());
       return json;
     } catch (IOException e) {
-      Assertions.fail("Unable tor read test file " + fileName, e);
+      Assertions.fail("Unable to read test file " + fileName, e);
       return null;
     }
   }

@@ -27,16 +27,21 @@ import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Helper to simplify the usage of standard {@link XyzFeature}'s as provided by normal users.
+ * Helper to simplify creation of ContextWriteFeatures request, using standard {@link XyzFeature}
+ * type for features, context and violations.
  */
-public class WriteXyzFeatures extends WriteFeatures<XyzFeature, XyzFeatureCodec, WriteXyzFeatures> {
+@ApiStatus.AvailableSince(NakshaVersion.v2_0_11)
+public class ContextWriteXyzFeatures
+    extends ContextWriteFeatures<XyzFeature, XyzFeature, XyzFeature, XyzFeatureCodec, ContextWriteXyzFeatures> {
 
-  public WriteXyzFeatures(@NotNull String collectionId) {
+  @ApiStatus.AvailableSince(NakshaVersion.v2_0_11)
+  public ContextWriteXyzFeatures(@NotNull String collectionId) {
     super(getFactory(XyzFeatureCodecFactory.class), collectionId);
   }
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_11)
-  public WriteXyzFeatures(@NotNull String collectionId, final @NotNull List<@NotNull XyzFeatureCodec> features) {
+  public ContextWriteXyzFeatures(
+      @NotNull String collectionId, final @NotNull List<@NotNull XyzFeatureCodec> features) {
     super(getFactory(XyzFeatureCodecFactory.class), collectionId, features);
   }
 }

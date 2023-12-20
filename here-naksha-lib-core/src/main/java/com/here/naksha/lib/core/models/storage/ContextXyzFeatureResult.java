@@ -18,25 +18,15 @@
  */
 package com.here.naksha.lib.core.models.storage;
 
-import static com.here.naksha.lib.core.models.storage.XyzCodecFactory.getFactory;
-
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import java.util.List;
 import org.jetbrains.annotations.ApiStatus;
-import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-/**
- * Helper to simplify the usage of standard {@link XyzFeature}'s as provided by normal users.
- */
-public class WriteXyzFeatures extends WriteFeatures<XyzFeature, XyzFeatureCodec, WriteXyzFeatures> {
-
-  public WriteXyzFeatures(@NotNull String collectionId) {
-    super(getFactory(XyzFeatureCodecFactory.class), collectionId);
-  }
+public class ContextXyzFeatureResult extends ContextResult<XyzFeature, XyzFeature, XyzFeature, XyzFeatureCodec> {
 
   @ApiStatus.AvailableSince(NakshaVersion.v2_0_11)
-  public WriteXyzFeatures(@NotNull String collectionId, final @NotNull List<@NotNull XyzFeatureCodec> features) {
-    super(getFactory(XyzFeatureCodecFactory.class), collectionId, features);
+  public ContextXyzFeatureResult(final @Nullable ForwardCursor<XyzFeature, XyzFeatureCodec> cursor) {
+    super(cursor);
   }
 }

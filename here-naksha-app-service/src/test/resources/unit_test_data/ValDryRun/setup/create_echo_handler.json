@@ -1,0 +1,9 @@
+{
+    "id": "local-echo-handler-4-val-dry-run",
+    "type": "EventHandler",
+    "title": "Echo Handler for Validation pipeline",
+    "description": "Echo Handler for Validation Dry Run pipeline",
+    "className": "com.here.naksha.lib.handlers.val.EchoHandler",
+    "active": true,
+    "extensionId": null
+}

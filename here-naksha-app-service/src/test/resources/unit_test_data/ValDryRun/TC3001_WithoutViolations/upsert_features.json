@@ -1,0 +1,29 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "my-custom-id-3001-1",
+      "type": "Feature",
+      "momType": "Topology",
+      "properties": {
+        "speedLimit": "60"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.68872, 50.0561, 292.94377758]
+      }
+    },
+    {
+      "id": "my-custom-id-3001-2",
+      "type": "Feature",
+      "momType": "Topology",
+      "properties": {
+        "speedLimit": "70"
+      },
+      "geometry": {
+        "type":"Point",
+        "coordinates":[ 8.68872, 50.0561, 292.94377758]
+      }
+    }
+  ]
+}

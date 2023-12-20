@@ -1,0 +1,9 @@
+{
+    "id": "local-endorsement-handler-4-val-dry-run",
+    "type": "EventHandler",
+    "title": "Endorsement Handler for Validation pipeline",
+    "description": "Mock Endorsement Handler for Validation Dry Run pipeline",
+    "className": "com.here.naksha.lib.handlers.val.EndorsementHandler",
+    "active": true,
+    "extensionId": null
+}

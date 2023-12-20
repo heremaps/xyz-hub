@@ -27,19 +27,24 @@ public class CommonApiTestSetup {
     }
   }
 
-  private static void createSpace(NakshaTestWebClient nakshaClient, String setupDirPath)
+  public static void createSpace(NakshaTestWebClient nakshaClient, String setupDirPath)
       throws URISyntaxException, IOException, InterruptedException {
     createAdminEntity(nakshaClient, "hub/spaces", setupDirPath + "/" + CREATE_SPACE_JSON);
   }
 
-  private static void createStorage(NakshaTestWebClient nakshaClient, String setupDirPath)
+  public static void createStorage(NakshaTestWebClient nakshaClient, String setupDirPath)
       throws URISyntaxException, IOException, InterruptedException {
     createAdminEntity(nakshaClient, "hub/storages", setupDirPath + "/" + CREATE_STORAGE_JSON);
   }
 
-  private static void createHandler(NakshaTestWebClient nakshaClient, String setupDirPath)
+  public static void createHandler(NakshaTestWebClient nakshaClient, String setupDirPath)
       throws URISyntaxException, IOException, InterruptedException {
     createAdminEntity(nakshaClient, "hub/handlers", setupDirPath + "/" + CREATE_HANDLER_JSON);
+  }
+
+  public static void createHandler(NakshaTestWebClient nakshaClient, String setupDirPath, String fileName)
+          throws URISyntaxException, IOException, InterruptedException {
+    createAdminEntity(nakshaClient, "hub/handlers", setupDirPath + "/" + fileName);
   }
 
   private static void createAdminEntity(NakshaTestWebClient nakshaClient, String nakshaResourcePath, String jsonFilePath)

@@ -28,6 +28,7 @@ import com.here.naksha.lib.core.models.geojson.implementation.namespaces.HereMet
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzActivityLog;
 import com.here.naksha.lib.core.models.geojson.implementation.namespaces.XyzNamespace;
 import com.here.naksha.lib.core.util.json.JsonObject;
+import java.util.List;
 import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -66,6 +67,13 @@ public class XyzProperties extends JsonObject {
   @JsonProperty(XYZ_NAMESPACE)
   @JsonInclude(Include.NON_NULL)
   private XyzNamespace xyzNamespace;
+
+  @AvailableSince(NakshaVersion.v2_0_11)
+  public static final String XYZ_REFERENCES = "references";
+
+  @JsonProperty(XYZ_REFERENCES)
+  @JsonInclude(Include.NON_NULL)
+  private @Nullable List<XyzReference> references;
 
   /**
    * Returns the XYZ namespace, guaranteed to be always present. If parsing a feature without such
@@ -204,5 +212,13 @@ public class XyzProperties extends JsonObject {
   public @NotNull XyzProperties withDeltaNamespace(@Nullable HereDeltaNs ns) {
     setDeltaNamespace(ns);
     return this;
+  }
+
+  public @Nullable List<XyzReference> getReferences() {
+    return references;
+  }
+
+  public void setReferences(@Nullable List<XyzReference> references) {
+    this.references = references;
   }
 }
