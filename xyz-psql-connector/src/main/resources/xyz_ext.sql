@@ -140,7 +140,7 @@ DROP FUNCTION IF EXISTS qk_s_get_fc_of_tiles_txt_v4(
 CREATE OR REPLACE FUNCTION xyz_ext_version()
   RETURNS integer AS
 $BODY$
- select 183
+ select 184
 $BODY$
   LANGUAGE sql IMMUTABLE;
 ----------
@@ -2926,7 +2926,7 @@ $BODY$
 
         -- If the current history partition is nearly full, create the next one already
         IF version % partitionSize > partitionSize - 50 THEN
-            EXECUTE xyz_create_history_partition(schema, tableName, floor(version / partitionSize) + 1, partitionSize);
+            EXECUTE xyz_create_history_partition(schema, tableName, (floor(version / partitionSize) + 1)::BIGINT, partitionSize);
         END IF;
 
         -- Delete old changesets from the history to keep only as many versions as specified through "versionsToKeep" if necessary
