@@ -26,4 +26,18 @@ import com.here.xyz.Typed;
     @JsonSubTypes.Type(value = DownloadUrl.class, name = "DownloadUrl")
 })
 public class Output implements Typed {
+  private String childId;
+
+  public String getChildId() {
+    return childId;
+  }
+
+  public void setChildId(String childId) {
+    this.childId = childId;
+  }
+
+  public Output withChildId(String childId) {
+    setChildId(childId);
+    return this;
+  }
 }
