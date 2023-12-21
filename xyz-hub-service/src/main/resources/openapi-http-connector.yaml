@@ -8,7 +8,7 @@ info:
 servers:
   - url: /
 tags:
-  - name: HTTP-Conncector
+  - name: HTTP-Connector
     description: Endpoint for Events
   - name: Connector-Maintenance
     description: Initialize or maintain underlying databases
@@ -581,6 +581,7 @@ components:
       content:
         application/json:
           schema:
+            type: array
             items:
               $ref: '#/components/schemas/Job'
     HealthResponse:
@@ -681,28 +682,265 @@ components:
           example: This job imports some GeoJSON data to my space
           type: string
         source:
-          $ref: '#/components/schemas/DatasetDescription'
+          oneOf:
+            - $ref: '#/components/schemas/SourceSpaceDataset'
+            - $ref: '#/components/schemas/SourceFilesDataset'
         target:
-          $ref: '#/components/schemas/DatasetDescription'
+          oneOf:
+            - $ref: '#/components/schemas/TargetFilesDataset'
+            - $ref: '#/components/schemas/SpaceDataset'
       example:
-        type: Import
-        description: This job imports some GeoJSON data to my space
+        description: This job exports some data from my space into GeoJSON files
         source:
-          type: Files
-        target:
           type: Space
           id: sdkeuh7
+        target:
+          type: Files
     DatasetDescription:
       type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          Files: '#/components/schemas/FilesDataset'
+          Space: '#/components/schemas/SpaceDataset'
+      required:
+        - type
       properties:
         type:
           description: The type of the dataset
           example: Space
           type: string
-          enum:
-            - Space
-            - Spaces
-            - Files
+    FilesDataset:
+      allOf:
+        - $ref: '#/components/schemas/DatasetDescription'
+        - type: object
+          properties:
+            type:
+              description: The type is "Files"
+              example: Files
+              type: string
+              enum:
+                - Files
+    SourceFilesDataset:
+      allOf:
+        - $ref: '#/components/schemas/FilesDataset'
+        - type: object
+          properties:
+            inputSettings:
+              $ref: '#/components/schemas/FileInputSettings'
+    TargetFilesDataset:
+      allOf:
+        - $ref: '#/components/schemas/FilesDataset'
+        - type: object
+          properties:
+            outputSettings:
+              $ref: '#/components/schemas/FileOutputSettings'
+    FileInputSettings:
+      type: object
+      properties:
+        format:
+          oneOf:
+            - $ref: '#/components/schemas/GeoJsonFormat'
+            - $ref: '#/components/schemas/GeoParquetFormat'
+    FileOutputSettings:
+      type: object
+      properties:
+        format:
+          oneOf:
+            - $ref: '#/components/schemas/GeoJsonFormat'
+            - $ref: '#/components/schemas/GeoParquetFormat'
+        partitioning:
+          oneOf:
+            - $ref: '#/components/schemas/TilePartitioning'
+            - $ref: '#/components/schemas/FeatureKeyPartitioning'
+    OutputPartitioning:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          Tiles: '#/components/schemas/TilePartitioning'
+          FeatureKey: '#/components/schemas/FeatureKeyPartitioning'
+      required:
+        - type
+      properties:
+        type:
+          description: The type of the file format
+          example: GeoJson
+          type: string
+    TilePartitioning:
+      allOf:
+        - $ref: '#/components/schemas/OutputPartitioning'
+        - type: object
+          properties:
+            type:
+              description: The type is "Tiles"
+              example: Tiles
+              type: string
+              enum:
+                - Tiles
+            level:
+              type: integer
+              description: The tile level on which to apply the partitioning.
+              minimum: 10
+              maximum: 16
+              example: 12
+            clip:
+              type: boolean
+              description: Whether to clip the contained geometries to the boundaries of the tile
+              example: true
+    FeatureKeyPartitioning:
+      allOf:
+        - $ref: '#/components/schemas/OutputPartitioning'
+        - type: object
+          required:
+            - key
+          properties:
+            type:
+              description: The type is "FeatureKey"
+              example: FeatureKey
+              type: string
+              enum:
+                - FeatureKey
+            key:
+              type: string
+              description: >
+                A dot separated string to be used as JSON path
+              example: mySubObject.myValue
+    FileFormat:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          GeoJson: '#/components/schemas/GeoJsonFormat'
+          GeoParquet: '#/components/schemas/GeoParquetFormat'
+      required:
+        - type
+      properties:
+        type:
+          description: The type of the file format
+          example: GeoJson
+          type: string
+    GeoJsonFormat:
+      allOf:
+        - $ref: '#/components/schemas/FileFormat'
+        - type: object
+          properties:
+            type:
+              description: The type is "GeoJson"
+              example: GeoJson
+              type: string
+              enum:
+                - GeoJson
+            entityTypePerLine:
+              type: string
+              enum:
+                - Feature
+                - FeatureCollection
+              example: Feature
+            multiLineStandard:
+              type: string
+              enum:
+                - RFC7464
+                - NEW_LINE
+              example: NEW_LINE
+    GeoParquetFormat:
+      allOf:
+        - $ref: '#/components/schemas/FileFormat'
+        - type: object
+          properties:
+            type:
+              description: The type is "GeoParquet"
+              example: GeoParquet
+              type: string
+              enum:
+                - GeoParquet
+    SpaceDataset:
+      allOf:
+        - $ref: '#/components/schemas/DatasetDescription'
+        - type: object
+          properties:
+            type:
+              description: The type is "Space"
+              example: Space
+              type: string
+              enum:
+                - Space
+            id:
+              type: string
+    SourceSpaceDataset:
+      allOf:
+        - $ref: '#/components/schemas/SpaceDataset'
+        - type: object
+          properties:
+            filters:
+              $ref: '#/components/schemas/SpaceFilters'
+    SpaceFilters:
+      type: object
+      description: An object to describe filters to be applied when reading data from a space
+      properties:
+        propertyFilter:
+          type: string
+          description: >
+            The format should follow the specification below
+              * p.property_name_1=property_value_1&f.special_property_name_1=special_property_value_1
+  
+  
+            For example, the above query, the Features are filtered by
+            'property' AND 'special property' equals to their respective values.
+  
+  
+            While in the following example
+              * p.property_name_1=value_1,value_2
+  
+  
+            The resulting Features list contains all elements having value_1 OR value_2.
+  
+  
+            Additionally, to the operators used in the examples above, the query can be written,
+            with the same semantic, by using the long operators: "=gte=", "=lte=", "=gt=", "=lt=" and "=cs=".
+            The following queries yield the same result:
+              * p.property_name_1>=10
+              * p.property_name_1=gte=10
+  
+  
+            The available operators are:
+              - "=" - equals
+              - "!=" - not equals
+              - "=.null" - is null
+              - "!=.null" - is not null
+              - ">=" or "=gte=" - greater than or equals
+              - "<=" or "=lte=" - less than or equals
+              - ">" or "=gt=" - greater than
+              - "<" or "=lt=" - less than
+              - "@>" or "=cs=" - Array contains
+        spatialFilter:
+          $ref: '#/components/schemas/SpatialFilter'
+        context:
+          $ref: '#/components/schemas/SpaceContext'
+    SpaceContext:
+      type: string
+      enum:
+        - DEFAULT
+        - EXTENSION
+        - SUPER
+    SpatialFilter:
+      type: object
+      description: A geometrical object to be used as a filter when reading data from a space
+      properties:
+        radius:
+          type: integer
+          description: The radius around the filter-geometry in meters
+        clip:
+          type: boolean
+          description: Whether to clip the matching geometries to the boundaries of the filter-geometry
+        geometry:
+          oneOf:
+            - $ref: '#/components/schemas/Point'
+            - $ref: '#/components/schemas/Polygon'
+            - $ref: '#/components/schemas/LineString'
+            - $ref: '#/components/schemas/MultiLineString'
+            - $ref: '#/components/schemas/MultiPoint'
+            - $ref: '#/components/schemas/MultiPolygon'
     ConnectorStatus:
       type: object
       description: A data holder for the status of a Connector
@@ -762,3 +1000,165 @@ components:
         startedAt: 123456789,
         estimatedProgress: 0.5
         estimatedEndTime: 123456789
+    GeoJSON:
+      type: object
+      description: The base type for all possible GeoJSON objects.
+      required:
+        - type
+      properties:
+        type:
+          type: string
+        bbox:
+          type: array
+          description: Describes the coordinate range of the GeoJSON object.
+          items:
+            type: number
+      discriminator:
+        propertyName: type
+        mapping:
+          Geometry: '#/components/schemas/Geometry'
+      additionalProperties: true
+    Geometry:
+      allOf:
+        - $ref: '#/components/schemas/GeoJSON'
+        - type: object
+          description: A Geometry object represents points, curves, and surfaces in coordinate space.
+          discriminator:
+            propertyName: type
+            mapping:
+              MultiPoint: '#/components/schemas/MultiPoint'
+              MultiLineString: '#/components/schemas/MultiLineString'
+              LineString: '#/components/schemas/LineString'
+              MultiPolygon: '#/components/schemas/MultiPolygon'
+              Point: '#/components/schemas/Point'
+              Polygon: '#/components/schemas/Polygon'
+    LineString:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A LineString geometry.
+          properties:
+            type:
+              description: The type is "LineString"
+              example: LineString
+              type: string
+              enum:
+                - LineString
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: number
+                maxItems: 3
+                minItems: 2
+              minItems: 2
+    MultiLineString:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A MultiLineString geometry.
+          properties:
+            type:
+              description: The type is "MultiLineString"
+              example: MultiLineString
+              type: string
+              enum:
+                - MultiLineString
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: number
+                  maxItems: 3
+                  minItems: 2
+                minItems: 2
+    MultiPoint:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A MultiPoint geometry.
+          properties:
+            type:
+              description: The type is "MultiPoint"
+              example: MultiPoint
+              type: string
+              enum:
+                - MultiPoint
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: number
+                maxItems: 3
+                minItems: 2
+    MultiPolygon:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A MultiPolygon geometry.
+          properties:
+            type:
+              description: The type is "MultiPolygon"
+              example: MultiPolygon
+              type: string
+              enum:
+                - MultiPolygon
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      type: number
+                    maxItems: 3
+                    minItems: 2
+                  minItems: 4
+    Point:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A Point geometry.
+          properties:
+            type:
+              description: The type is "Point"
+              example: Point
+              type: string
+              enum:
+                - Point
+            coordinates:
+              type: array
+              items:
+                type: number
+              maxItems: 3
+              minItems: 2
+    Polygon:
+      allOf:
+        - $ref: '#/components/schemas/Geometry'
+        - type: object
+          description: A Polygon geometry.
+          properties:
+            type:
+              description: The type is "Polygon"
+              example: Polygon
+              type: string
+              enum:
+                - Polygon
+            coordinates:
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: number
+                  maxItems: 3
+                  minItems: 2
+                minItems: 4
