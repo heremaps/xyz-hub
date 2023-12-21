@@ -49,6 +49,7 @@ import com.here.xyz.util.Hasher;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
+import io.vertx.core.json.JsonObject;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.impl.ArrayTuple;
 import java.sql.SQLException;
@@ -177,7 +178,14 @@ public class JDBCExporter extends JDBCClients {
                 catch (SQLException e) {
                   return Future.failedFuture(e);
                 }
-              }));
+              }).compose(statistics -> {
+                  if(statistics.getRowsUploaded() > 0) {
+                      return HubWebClient.updateSpaceConfig(new JsonObject().put("contentUpdatedAt", System.currentTimeMillis()), space.getId())
+                              .map(statistics);
+                  }
+                  return Future.succeededFuture(statistics);
+              })
+          );
     }
     //Space-Copy End
 
