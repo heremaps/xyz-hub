@@ -1995,6 +1995,7 @@ BEGIN
             r_err = nk_set_error(SQLSTATE, SQLERRM);
         END IF;
         RETURN NEXT;
+        PERFORM pg_advisory_unlock(lock_id);
         CONTINUE;
 
       EXCEPTION WHEN OTHERS then

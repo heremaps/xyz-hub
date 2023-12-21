@@ -51,6 +51,10 @@ import org.junit.jupiter.api.condition.EnabledIf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+
 /**
  * Base class for all PostgresQL tests that require some test database.
  */
@@ -255,7 +259,7 @@ abstract class PsqlTests {
   @Test
   @Order(35)
   @EnabledIf("runTest")
-  void createExistingCollection() throws NoCursor {
+  void createExistingCollection() throws NoCursor, SQLException {
     assertNotNull(storage);
     assertNotNull(session);
     final WriteXyzCollections request = new WriteXyzCollections();
@@ -271,6 +275,8 @@ abstract class PsqlTests {
     } finally {
       session.commit(true);
     }
+
+    assertTrue(isLockReleased(session, collectionId()));
   }
 
   // Custom stuff between 50 and 9000
@@ -306,6 +312,17 @@ abstract class PsqlTests {
       } finally {
         storage = null;
       }
+    }
+  }
+
+  private boolean isLockReleased(PsqlWriteSession session, String collectionId) throws SQLException {
+    final PostgresSession pgSession = session.session();
+    final SQL sql = pgSession.sql().add("select count(*) from pg_locks where locktype = 'advisory' and ((classid::bigint << 32) | objid::bigint) = nk_lock_id(?)  ;");
+    try (PreparedStatement stmt = pgSession.prepareStatement(sql)) {
+      stmt.setString(1, collectionId);
+      ResultSet resultSet = stmt.executeQuery();
+      resultSet.next();
+      return resultSet.getInt(1) == 0;
     }
   }
 }
