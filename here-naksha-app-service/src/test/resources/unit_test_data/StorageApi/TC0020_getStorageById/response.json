@@ -9,7 +9,6 @@
       "host": "${dataDb.host}",
       "db": "${dataDb.db}",
       "user": "${dataDb.user}",
-      "password": "${dataDb.password}",
       "port": 5432,
       "schema": "${dataDb.schema}",
       "minPoolSize": 5,

@@ -35,15 +35,13 @@ import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
+import com.here.naksha.lib.core.models.naksha.Storage;
 import com.here.naksha.lib.core.models.payload.XyzResponse;
 import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import io.vertx.ext.web.RoutingContext;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -58,6 +56,8 @@ public abstract class AbstractApiTask<T extends XyzResponse>
   private static final Logger logger = LoggerFactory.getLogger(AbstractApiTask.class);
   protected final @NotNull RoutingContext routingContext;
   protected final @NotNull NakshaHttpVerticle verticle;
+
+  private static final String JSON_KEY_PASSWORD = "password";
 
   /**
    * Creates a new task.
@@ -125,6 +125,9 @@ public abstract class AbstractApiTask<T extends XyzResponse>
               "No feature found for id "
                   + result.getXyzFeatureCursor().getId());
         }
+        if (Objects.equals(type, Storage.class)) {
+          removePasswordFromProps(feature.getProperties());
+        }
         final List<R> featureList = new ArrayList<>();
         featureList.add(feature);
         final XyzFeatureCollection featureResponse = new XyzFeatureCollection().withFeatures(featureList);
@@ -154,6 +157,11 @@ public abstract class AbstractApiTask<T extends XyzResponse>
     } else {
       try {
         List<R> features = readFeaturesFromResult(rdResult, type, maxLimit);
+        if (Objects.equals(type, Storage.class)) {
+          for (R feature : features) {
+            removePasswordFromProps(feature.getProperties());
+          }
+        }
         return verticle.sendXyzResponse(
             routingContext,
             HttpResponseType.FEATURE_COLLECTION,
@@ -167,7 +175,7 @@ public abstract class AbstractApiTask<T extends XyzResponse>
   }
 
   protected <R extends XyzFeature> @NotNull XyzResponse transformWriteResultToXyzCollectionResponse(
-      final @Nullable Result wrResult, final @NotNull Class<R> type, final @NotNull boolean isDeleteOperation) {
+      final @Nullable Result wrResult, final @NotNull Class<R> type, final boolean isDeleteOperation) {
     if (wrResult == null) {
       // unexpected null response
       logger.error("Received null result!");
@@ -186,6 +194,17 @@ public abstract class AbstractApiTask<T extends XyzResponse>
         List<XyzFeature> violations = null;
         if (wrResult instanceof ContextXyzFeatureResult cr) {
           violations = cr.getViolations();
+        }
+        if (Objects.equals(type, Storage.class)) {
+          for (R feature : insertedFeatures) {
+            removePasswordFromProps(feature.getProperties());
+          }
+          for (R feature : updatedFeatures) {
+            removePasswordFromProps(feature.getProperties());
+          }
+          for (R feature : deletedFeatures) {
+            removePasswordFromProps(feature.getProperties());
+          }
         }
         return verticle.sendXyzResponse(
             routingContext,
@@ -221,5 +240,22 @@ public abstract class AbstractApiTask<T extends XyzResponse>
 
   private XyzFeatureCollection emptyFeatureCollection() {
     return new XyzFeatureCollection().withFeatures(emptyList());
+  }
+
+  private void removePasswordFromProps(Map<String, Object> propertiesAsMap) {
+    for (Iterator<Map.Entry<String, Object>> it = propertiesAsMap.entrySet().iterator(); it.hasNext(); ) {
+      Map.Entry<String, Object> entry = it.next();
+      if (Objects.equals(entry.getKey(), JSON_KEY_PASSWORD)) {
+        it.remove();
+      } else if (entry.getValue() instanceof Map) {
+        // recursive call to the nested json property
+        removePasswordFromProps((Map<String, Object>) entry.getValue());
+      } else if (entry.getValue() instanceof ArrayList array) {
+        // recursive call to the nested array json
+        for (Object arrayEntry : array) {
+          removePasswordFromProps((Map<String, Object>) arrayEntry);
+        }
+      }
+    }
   }
 }

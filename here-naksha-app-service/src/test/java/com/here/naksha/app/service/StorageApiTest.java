@@ -24,14 +24,17 @@ import static com.here.naksha.app.common.TestUtil.getHeader;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 import static com.here.naksha.app.common.TestUtil.parseJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.here.naksha.app.common.ApiTest;
-import com.here.naksha.app.common.ResponseAssertions;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.naksha.Storage;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -139,6 +142,26 @@ class StorageApiTest extends ApiTest {
   }
 
   @Test
+  void tc0022_testGetStorageNoPasswords() throws Exception {
+    // Test API : GET /hub/storages/{storageId}
+    // 1. Load test data, create storage
+    final String bodyJson = loadFileOrFail("StorageApi/TC0022_getStorageNoPasswords/create_storage.json");
+    final String streamId = UUID.randomUUID().toString();
+    HttpResponse<String> response = getNakshaClient().post("hub/storages", bodyJson, streamId);
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+    final JsonNode postResponse = new ObjectMapper().readTree(response.body());
+    assertNoPasswords(postResponse);
+
+    // 2. Perform REST API call
+    response = getNakshaClient().get("hub/storages/storage-for-hiding-password-test-0022", streamId);
+
+    // 3. Perform assertions
+    assertThat(response).hasStatus(200).hasStreamIdHeader(streamId);
+    final JsonNode jsonNode = new ObjectMapper().readTree(response.body());
+    assertNoPasswords(jsonNode);
+  }
+
+  @Test
   void tc0040_testGetStorages() throws Exception {
     // Given: created storages
     List<String> expectedStorageIds = List.of("tc_040_storage_1", "tc_040_storage_2");
@@ -160,6 +183,28 @@ class StorageApiTest extends ApiTest {
     List<String> storageIds =
         returnedXyzFeatures.stream().map(XyzFeature::getId).toList();
     Assertions.assertTrue(storageIds.containsAll(expectedStorageIds));
+  }
+
+  @Test
+  void tc0041_testGetStoragesNoPasswords() throws Exception {
+    // Test API : GET /hub/storages
+    // 1. Load test data, create storage
+    final String bodyJson = loadFileOrFail("StorageApi/TC0041_getStoragesNoPasswords/create_storage.json");
+    final String streamId = UUID.randomUUID().toString();
+    HttpResponse<String> response = getNakshaClient().post("hub/storages", bodyJson, streamId);
+    assertEquals(200, response.statusCode(), "ResCode mismatch");
+
+    // 2. Perform REST API call
+    response = getNakshaClient().get("hub/storages", streamId);
+
+    // 3. Perform assertions
+    assertThat(response).hasStatus(200).hasStreamIdHeader(streamId);
+    final JsonNode jsonNode = new ObjectMapper().readTree(response.body());
+    for (JsonNode storage : jsonNode.get("features")) {
+      if (Objects.equals(storage.get("id").toString(),"storage-for-hiding-password-test")) {
+        assertNoPasswords(storage);
+      }
+    }
   }
 
   @Test
@@ -235,5 +280,12 @@ class StorageApiTest extends ApiTest {
     assertEquals(400, response.statusCode());
     JSONAssert.assertEquals(expectedErrorResponse, response.body(), JSONCompareMode.LENIENT);
     assertEquals(streamId, getHeader(response, HDR_STREAM_ID));
+  }
+
+  private void assertNoPasswords(JsonNode response) {
+    assertFalse(response.get("properties").get("master").has("password"));
+    for (JsonNode node : response.get("properties").get("reader")) {
+      assertFalse(node.has("password"));
+    }
   }
 }

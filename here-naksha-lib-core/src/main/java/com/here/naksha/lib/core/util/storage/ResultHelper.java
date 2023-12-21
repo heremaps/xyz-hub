@@ -73,7 +73,7 @@ public class ResultHelper {
         }
         try {
           features.add(featureType.cast(resultCursor.getFeature()));
-        } catch (ClassCastException e) {
+        } catch (ClassCastException | NullPointerException e) {
           throw new RuntimeException(e);
         }
       }
