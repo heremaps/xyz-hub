@@ -31,7 +31,7 @@
       "id": "my-custom-id-3000-2",
       "geometry": {
         "type": "Point",
-        "coordinates": [8.68872, 50.0561, 292.94377758]
+        "coordinates": [9.68872, 51.0561, 293.94377758]
       },
       "properties": {
         "@ns:com:here:delta": {
@@ -55,7 +55,7 @@
       "type": "Feature",
       "geometry": {
         "type": "Point",
-        "coordinates": [9.68872, 51.0561, 293.94377758]
+        "coordinates": [10.68872, 52.0561, 294.94377758]
       },
       "properties": {
         "@ns:com:here:delta": {
@@ -101,7 +101,11 @@
         "id": "my-custom-id-3000-1",
         "spaceId": "local-space-4-val-dry-run"
       },
-      "momType": "supporting.Violation"
+      "momType": "supporting.Violation",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [8.68872, 50.0561, 292.94377758]
+      }
     },
     {
       "type": "Feature",
@@ -127,7 +131,11 @@
         "id": "my-custom-id-3000-2",
         "spaceId": "local-space-4-val-dry-run"
       },
-      "momType": "supporting.Violation"
+      "momType": "supporting.Violation",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.68872, 51.0561, 293.94377758]
+      }
     },
     {
       "type": "Feature",
@@ -153,7 +161,11 @@
         "id": "my-custom-id-3000-2",
         "spaceId": "local-space-4-val-dry-run"
       },
-      "momType": "supporting.Violation"
+      "momType": "supporting.Violation",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.68872, 51.0561, 293.94377758]
+      }
     },
     {
       "type": "Feature",
@@ -177,7 +189,11 @@
         "featureType": "Topology",
         "spaceId": "local-space-4-val-dry-run"
       },
-      "momType": "supporting.Violation"
+      "momType": "supporting.Violation",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.68872, 52.0561, 294.94377758]
+      }
     },
     {
       "type": "Feature",
@@ -201,7 +217,11 @@
         "featureType": "Topology",
         "spaceId": "local-space-4-val-dry-run"
       },
-      "momType": "supporting.Violation"
+      "momType": "supporting.Violation",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.68872, 52.0561, 294.94377758]
+      }
     },
     {
       "type": "Feature",
@@ -226,7 +246,11 @@
         "featureType": "Topology",
         "spaceId": "local-space-4-val-dry-run"
       },
-      "momType": "supporting.Violation"
+      "momType": "supporting.Violation",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.68872, 52.0561, 294.94377758]
+      }
     }
   ]
 }
