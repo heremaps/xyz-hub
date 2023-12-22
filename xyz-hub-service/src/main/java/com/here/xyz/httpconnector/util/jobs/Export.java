@@ -173,6 +173,9 @@ public class Export extends JDBCBasedJob<Export> {
 
     @JsonView({Static.class})
     private String s3Key;
+    private static final long UNKNOWN_MAX_SPACE_VERSION = -42;
+    @JsonView(Internal.class)
+    private long maxSpaceVersion = UNKNOWN_MAX_SPACE_VERSION;
 
     private static String PARAM_COMPOSITE_MODE = "compositeMode";
     private static String PARAM_PERSIST_EXPORT = "persistExport";
@@ -260,7 +263,14 @@ public class Export extends JDBCBasedJob<Export> {
                                     ? EXTENSION : null
                                    );
 
-                return HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx );
+                String superSpaceId = extractSuperSpaceId();
+                return HubWebClient.getSpaceStatistics(superSpaceId != null ? superSpaceId : job.getTargetSpaceId(), ctx)
+                    .compose(statistics -> {
+                        setMaxSpaceVersion(statistics.getMaxVersion().getValue());
+                        return superSpaceId == null
+                            ? Future.succeededFuture(statistics)
+                            : HubWebClient.getSpaceStatistics(job.getTargetSpaceId(), ctx);
+                    });
             })
             .compose(statistics -> {
                 //Store count of features which are in source layer
@@ -958,7 +968,7 @@ public class Export extends JDBCBasedJob<Export> {
         return updateJobStatus(this, prepared);
     }
 
-    public Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat format){
+    private Future<Export> searchPersistentJobOnTarget(String targetId, CSVFormat format){
         return CService.jobConfigClient.getList(getMarker(), null , null, targetId)
                 .compose(jobs -> {
                     Export existingJob = null;
@@ -969,14 +979,16 @@ public class Export extends JDBCBasedJob<Export> {
                         .sorted(Comparator.comparingLong(job -> job.getUpdatedAt()))
                         .collect(Collectors.toList());
                     for (Job jobCandidate : sortedJobs) {
-                        if(jobCandidate instanceof Import)
+                        if (!(jobCandidate instanceof Export exportCandidate))
                             continue;
 
                         //exp=-1 => persistent
                         //hash must fit
                         logger.info(getMarker(), "job[{}] Check existing job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
-                        if (jobCandidate.getKeepUntil() < 0 && ((Export) jobCandidate).getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))){
-                            //try to find a finalized one - doesn't matter if its the origin export
+                        if (jobCandidate.getKeepUntil() < 0
+                            && exportCandidate.getHashForPersistentStorage(null).equals(getHashForPersistentStorage(format))
+                            && exportCandidate.getMaxSpaceVersion() == getMaxSpaceVersion()) {
+                            //try to find a finalized one - doesn't matter if it's the original export
                             if(jobCandidate.getStatus().equals(finalized) || jobCandidate.getStatus().equals(trigger_executed)) {
                                 logger.info(getMarker(), "job[{}] Found existing persistent job {}:{} ", getId(), jobCandidate.getId(), jobCandidate.getStatus());
                                 existingJob = (Export) jobCandidate;
@@ -1183,6 +1195,19 @@ public class Export extends JDBCBasedJob<Export> {
 
     public Export withS3Key(String s3Key) {
         setS3Key(s3Key);
+        return this;
+    }
+
+    public long getMaxSpaceVersion() {
+        return maxSpaceVersion;
+    }
+
+    public void setMaxSpaceVersion(long maxSpaceVersion) {
+        this.maxSpaceVersion = maxSpaceVersion;
+    }
+
+    public Export withMaxSpaceVersion(long maxSpaceVersion) {
+        setMaxSpaceVersion(maxSpaceVersion);
         return this;
     }
 
