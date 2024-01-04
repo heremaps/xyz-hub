@@ -1,0 +1,12 @@
+{
+  "array": [
+    "retainedElement",
+    "notYetUpdatedElement",
+    "willBeDeletedElement",
+    {
+      "id": "element1",
+      "nestedShouldBeUpdated": "not yet",
+      "willBeDeletedProperty": "not yet"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "foo": "bar",
+  "willBeUpdated": "updated",
+  "firstToBeDeleted": "not yet",
+  "isAdded": true,
+  "map": {
+    "mapID": "retained",
+    "willBeUpdated": "updated",
+    "willBeDeleted": "not yet",
+    "isAdded": true
+  },
+  "array": [
+    "retainedElement",
+    "wasUpdatedElement",
+    {
+      "id": "element1",
+      "nestedShouldBeUpdated": "updated",
+      "willBeDeletedProperty": "not yet",
+      "isAddedProperty": "yes"
+    },
+    "willBeDeletedElement"
+  ]
+}
