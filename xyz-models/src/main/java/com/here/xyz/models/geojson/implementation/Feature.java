@@ -20,6 +20,8 @@
 package com.here.xyz.models.geojson.implementation;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.here.xyz.Extensible;
 import com.here.xyz.Typed;
@@ -36,6 +38,7 @@ public class Feature extends Extensible<Feature> implements Typed {
 
   private String id;
   private BBox bbox;
+  @JsonInclude(Include.ALWAYS)
   private Geometry geometry;
   private Properties properties;
 

@@ -19,6 +19,9 @@
 
 package com.here.xyz.hub.rest;
 
+import static com.here.xyz.events.PropertyQuery.QueryOperation.LESS_THAN;
+import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
+
 import com.here.xyz.events.DeleteChangesetsEvent;
 import com.here.xyz.events.GetChangesetStatisticsEvent;
 import com.here.xyz.events.IterateChangesetsEvent;
@@ -38,9 +41,6 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.openapi.router.RouterBuilder;
 import java.util.function.Function;
 import org.apache.logging.log4j.Marker;
-
-import static com.here.xyz.events.PropertyQuery.QueryOperation.LESS_THAN;
-import static io.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
 
 public class ChangesetApi extends SpaceBasedApi {
 
@@ -79,7 +79,7 @@ public class ChangesetApi extends SpaceBasedApi {
       SpaceConnectorBasedHandler.execute(Api.Context.getMarker(context),
                       space -> ChangesetAuthorization.authorize(context, space).map(space),
                       event)
-              .onSuccess(result -> sendResponse(context,result))
+              .onSuccess(result -> sendResponse(context, result))
               .onFailure(t -> this.sendErrorResponse(context, t));
 
     } catch(HttpException e) {
@@ -94,7 +94,7 @@ public class ChangesetApi extends SpaceBasedApi {
           ((ChangesetCollection) result).getEndVersion() == -1){
       this.sendErrorResponse(context, new HttpException(NOT_FOUND, "The requested resource does not exist."));
     }else
-      this.sendResponse(context, HttpResponseStatus.OK, result);
+      this.sendResponseWithXyzSerialization(context, HttpResponseStatus.OK, result);
   }
 
   private IterateChangesetsEvent buildIterateChangesetsEvent(final RoutingContext context, final boolean useChangesetCollection) throws HttpException {
