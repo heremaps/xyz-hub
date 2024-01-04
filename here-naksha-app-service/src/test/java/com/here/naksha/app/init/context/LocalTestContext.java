@@ -1,8 +1,8 @@
-package com.here.naksha.app.init;
+package com.here.naksha.app.init.context;
 
 import static com.here.naksha.app.service.NakshaApp.newInstance;
 
-import com.here.naksha.app.service.NakshaApp;
+import com.here.naksha.app.init.TestPsqlStorageConfigs;
 import com.here.naksha.lib.psql.PsqlStorage;
 import com.here.naksha.lib.psql.PsqlStorageConfig;
 import org.slf4j.Logger;
@@ -21,6 +21,7 @@ public class LocalTestContext extends TestContext {
 
   @Override
   void setupStorage() {
+    super.setupStorage();
     log.info("Cleaning up schema for url: {}", STORAGE_CONFIG.url());
     if (!STORAGE_CONFIG.url().isBlank()) {
       try (PsqlStorage psqlStorage = new PsqlStorage(STORAGE_CONFIG.url())) {

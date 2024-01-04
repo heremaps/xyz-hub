@@ -1,9 +1,9 @@
-package com.here.naksha.app.init;
+package com.here.naksha.app.init.context;
 
-import static com.here.naksha.app.init.TestContext.State.NOT_STARTED;
-import static com.here.naksha.app.init.TestContext.State.STARTED;
-import static com.here.naksha.app.init.TestContext.State.STOPPED;
-import static com.here.naksha.app.init.TestContext.State.STOPPING;
+import static com.here.naksha.app.init.context.TestContext.State.NOT_STARTED;
+import static com.here.naksha.app.init.context.TestContext.State.STARTED;
+import static com.here.naksha.app.init.context.TestContext.State.STOPPED;
+import static com.here.naksha.app.init.context.TestContext.State.STOPPING;
 
 import com.here.naksha.app.service.NakshaApp;
 import java.util.concurrent.atomic.AtomicReference;

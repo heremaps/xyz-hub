@@ -18,10 +18,11 @@
  */
 package com.here.naksha.app.common;
 
+import static com.here.naksha.app.init.context.TestContextEntrypoint.TEST_CONTEXT;
 import static org.junit.jupiter.api.extension.ExtensionContext.Namespace.GLOBAL;
 
-import com.here.naksha.app.init.LocalTestContext;
-import com.here.naksha.app.init.TestContext;
+import com.here.naksha.app.init.context.LocalTestContext;
+import com.here.naksha.app.init.context.TestContext;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.slf4j.Logger;
@@ -37,8 +38,6 @@ public class ApiTestMaintainer implements BeforeAllCallback, ExtensionContext.St
   private static final Logger log = LoggerFactory.getLogger(ApiTestMaintainer.class);
 
   private static final String API_TEST_MAINTAINER_CONTEXT = "api_test_maintainer";
-
-  private static final TestContext TEST_CONTEXT = new LocalTestContext();
 
   @Override
   public void beforeAll(ExtensionContext context) {

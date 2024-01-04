@@ -1,14 +1,12 @@
-package com.here.naksha.app.init;
+package com.here.naksha.app.init.context;
 
 import static com.here.naksha.app.service.NakshaApp.newInstance;
 
-import com.here.naksha.app.service.NakshaApp;
-
-public class MockTestContext extends TestContext {
+class MockTestContext extends TestContext {
 
   private static final String CONFIG_ID = "mock-config";
 
-  public MockTestContext() {
+  MockTestContext() {
     super(() -> newInstance(CONFIG_ID));
   }
 }
