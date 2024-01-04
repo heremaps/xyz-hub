@@ -61,13 +61,11 @@
 
   <distributionManagement>
     <snapshotRepository>
-      <uniqueVersion>false</uniqueVersion>
       <id>snapshot</id>
       <!--suppress MavenModelInspection -->
       <url>${distributionManagemment.snapshotRepository.url}</url>
     </snapshotRepository>
     <repository>
-      <uniqueVersion>false</uniqueVersion>
       <id>release</id>
       <!--suppress MavenModelInspection -->
       <url>${distributionManagemment.repository.url}</url>
