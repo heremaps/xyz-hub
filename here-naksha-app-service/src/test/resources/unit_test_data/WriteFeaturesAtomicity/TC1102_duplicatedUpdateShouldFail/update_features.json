@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "id": "tc_1102_feature_1",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "160",
+        "@ns:com:here:xyz": {
+          "uuid": "00000003-B191-4B2A-863D-23ED782504B2"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          8.68872,
+          50.0561,
+          292.94377758
+        ]
+      }
+    },
+    {
+      "id": "tc_1102_feature_2",
+      "type": "Feature",
+      "properties": {
+        "speedLimit": "280",
+        "@ns:com:here:xyz": {
+          "uuid": "00000002-B191-4B2A-863D-23ED782504B2"
+        }
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          9.68872,
+          51.0561,
+          293.94377758
+        ]
+      }
+    }
+  ]
+}

@@ -16,10 +16,11 @@
  * SPDX-License-Identifier: Apache-2.0
  * License-Filename: LICENSE
  */
-package com.here.naksha.app.common;
+package com.here.naksha.app.common.assertions;
 
 import static com.here.naksha.app.service.http.NakshaHttpHeaders.STREAM_ID;
 
+import com.here.naksha.app.common.TestUtil;
 import java.net.http.HttpResponse;
 import java.util.Optional;
 import org.json.JSONException;
@@ -59,6 +60,10 @@ public class ResponseAssertions {
 
   public ResponseAssertions hasJsonBody(String expectedJsonBody) {
     return hasJsonBody(expectedJsonBody, "Actual and expected json body don't match");
+  }
+
+  public ResponseAssertions hasJsonBodyFromFile(String testFilePath){
+    return hasJsonBody(TestUtil.loadFileOrFail(testFilePath));
   }
 
   public ResponseAssertions hasJsonBody(String expectedJsonBody, String failureMessage) {

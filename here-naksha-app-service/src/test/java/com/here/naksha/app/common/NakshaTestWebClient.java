@@ -50,8 +50,12 @@ public class NakshaTestWebClient {
         .build();
   }
 
+  public NakshaTestWebClient(long socketTimeoutSec) {
+    this("http://localhost:8080/", 10, socketTimeoutSec);
+  }
+
   public NakshaTestWebClient() {
-    this("http://localhost:8080/", 10, 5);
+    this(5);
   }
 
   public HttpResponse<String> get(String subPath, String streamId)

@@ -19,8 +19,13 @@
 package com.here.naksha.lib.core.models.payload.events;
 
 import com.here.naksha.lib.core.exceptions.ParameterError;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map.Entry;
+import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -33,7 +38,9 @@ public class QueryParameterList implements Iterable<QueryParameter> {
 
   static final int DEFAULT_CAPACITY = 4;
 
-  /** Creates a new empty query parameter list. */
+  /**
+   * Creates a new empty query parameter list.
+   */
   public QueryParameterList() {
     map = new LinkedHashMap<>(16);
     list = new ArrayList<>(16);
@@ -43,8 +50,7 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   /**
    * Creates a new query parameter list from the given input string.
    *
-   * @param query_string the query string without the question mark, for example {@code
-   *     "foo=x&bar=y"}.
+   * @param query_string the query string without the question mark, for example {@code "foo=x&bar=y"}.
    * @throws ParameterError If parsing the query string failed.
    */
   public QueryParameterList(@Nullable CharSequence query_string) throws ParameterError {
@@ -54,9 +60,8 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   /**
    * Creates a new query parameter list from the given input string.
    *
-   * @param query_string the query string without the question mark, for example {@code
-   *     "foo=x&bar=y"}.
-   * @param decoder the decoder to use.
+   * @param query_string the query string without the question mark, for example {@code "foo=x&bar=y"}.
+   * @param decoder      the decoder to use.
    * @throws ParameterError If parsing the query string failed.
    */
   public QueryParameterList(@Nullable CharSequence query_string, @Nullable QueryParameterDecoder decoder)
@@ -67,10 +72,9 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   /**
    * Creates a new query parameter list from the given input string.
    *
-   * @param query_string the query string without the question mark, for example {@code
-   *     "foo=x&bar=y"}.
-   * @param start the index of the first character to parse.
-   * @param end the index of the last character to parse.
+   * @param query_string the query string without the question mark, for example {@code "foo=x&bar=y"}.
+   * @param start        the index of the first character to parse.
+   * @param end          the index of the last character to parse.
    * @throws ParameterError If parsing the query string failed.
    */
   public QueryParameterList(@Nullable CharSequence query_string, int start, int end) throws ParameterError {
@@ -80,11 +84,10 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   /**
    * Creates a new query parameter list from the given input string.
    *
-   * @param query_string the query string without the question mark, for example {@code
-   *     "foo=x&bar=y"}.
-   * @param start the index of the first character to parse.
-   * @param end the index of the last character to parse.
-   * @param decoder the decoder to use.
+   * @param query_string the query string without the question mark, for example {@code "foo=x&bar=y"}.
+   * @param start        the index of the first character to parse.
+   * @param end          the index of the last character to parse.
+   * @param decoder      the decoder to use.
    * @throws ParameterError If parsing the query string failed.
    */
   public QueryParameterList(
@@ -104,27 +107,32 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   /**
    * Invoked for every value that should be added to the parameter.
    *
-   * @param param The parameter.
-   * @param value The value to be added.
-   * @param delimiter The delimiter that caused the creation of the value or {@code null}, if the
-   *     end of the values reached (last value to be added).
+   * @param param     The parameter.
+   * @param value     The value to be added.
+   * @param delimiter The delimiter that caused the creation of the value or {@code null}, if the end of the values reached (last value to
+   *                  be added).
    */
   protected void addValue(@NotNull QueryParameter param, @Nullable Object value, @Nullable QueryDelimiter delimiter) {
     param.values().add(value);
   }
 
-  /** All query parameters as map. */
+  /**
+   * All query parameters as map.
+   */
   public final @NotNull LinkedHashMap<@NotNull String, @NotNull QueryParameter> map;
 
-  /** All query parameters as list. */
+  /**
+   * All query parameters as list.
+   */
   public final @NotNull List<@NotNull QueryParameter> list;
 
-  /** A cache for all joined query parameter. */
+  /**
+   * A cache for all joined query parameter.
+   */
   private @Nullable HashMap<@NotNull String, @NotNull QueryParameter> joinedByKey;
 
   /**
-   * The undefined query parameter as a helper, it has an empty key (""), is not part of the
-   * parameter list and has the index minus 1.
+   * The undefined query parameter as a helper, it has an empty key (""), is not part of the parameter list and has the index minus 1.
    */
   public final @NotNull QueryParameter UNDEFINED;
 
@@ -143,21 +151,23 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   }
 
   /**
-   * Wrapper function to retrieve value of given parameter key as String.
-   * Only first value is returned, even if multiple values exist for a key.
+   * Wrapper function to retrieve value of given parameter key as String. Only first value is returned, even if multiple values exist for a
+   * key.
    *
    * @param key The key of the parameter to query.
    * @return parameter value as String
    */
   public @Nullable String getValueAsString(@NotNull String key) {
     List<String> list = collectAllOfAsString(key);
-    if (list.isEmpty()) return null;
+    if (list.isEmpty()) {
+      return null;
+    }
     return list.get(0);
   }
 
   /**
-   * Wrapper function to retrieve values of given parameter key as List of String.
-   * Each value will be converted to String, subject to toString implementation.
+   * Wrapper function to retrieve values of given parameter key as List of String. Each value will be converted to String, subject to
+   * toString implementation.
    *
    * @param key The key of the parameter to query.
    * @return A list with all values of the parameter; {@code null} if no such parameter exists.
@@ -179,11 +189,11 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   /**
    * Returns all values of all parameter with the given key.
    *
-   * @param key The key of the parameter to query.
+   * @param key   The key of the parameter to query.
    * @param limit The maximal amount of parameters to collect from.
-   * @param type type of the class the values should be cast to
+   * @param type  type of the class the values should be cast to
+   * @param <T>   the class type, to which the value to be cast to
    * @return A list with all values of the parameter; {@code null} if no such parameter exists.
-   * @param <T> the class type, to which the value to be cast to
    */
   public <T> @NotNull List<@NotNull T> collectAllOf(@NotNull String key, int limit, Class<T> type) {
     final List<@NotNull T> all = new ArrayList<>(DEFAULT_CAPACITY);
@@ -205,11 +215,11 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   }
 
   /**
-   * Convert the given name into a key. The default implementation is case-sensitive, but you could
-   * for example make it case-insensitive by doing
+   * Convert the given name into a key. The default implementation is case-sensitive, but you could for example make it case-insensitive by
+   * doing
    *
    * <pre>{@code return name.toLowerCase()}</pre>
-   *
+   * <p>
    * .
    *
    * @param name the name to convert.
@@ -243,9 +253,8 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   }
 
   /**
-   * Returns a joined query parameter representation. This joins the arguments, and the values of
-   * all parameters with the same key. The returned value maybe a new copy, except there is only one
-   * parameter with this key, then the parameter is returned.
+   * Returns a joined query parameter representation. This joins the arguments, and the values of all parameters with the same key. The
+   * returned value maybe a new copy, except there is only one parameter with this key, then the parameter is returned.
    *
    * @param key The key of the query parameter to join.
    * @return the joined representation; if any.
@@ -289,8 +298,8 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   }
 
   /**
-   * Returns the first parameter with the given name. This methods returns {@link #UNDEFINED} if no
-   * such parameter exists, which allows a more simplified usage:
+   * Returns the first parameter with the given name. This methods returns {@link #UNDEFINED} if no such parameter exists, which allows a
+   * more simplified usage:
    *
    * <pre>{@code
    * final int value = params.getOrUndefined("foo").getInteger(0, -1);
@@ -308,8 +317,7 @@ public class QueryParameterList implements Iterable<QueryParameter> {
    * Returns the first value of the parameter with the given name.
    *
    * @param name The name of the parameter.
-   * @return The first value of the parameter with the given name; {@code null} if no such parameter
-   *     exists.
+   * @return The first value of the parameter with the given name; {@code null} if no such parameter exists.
    */
   public @Nullable Object getValue(@NotNull String name) {
     final QueryParameter param = map.get(name);
@@ -379,8 +387,7 @@ public class QueryParameterList implements Iterable<QueryParameter> {
   }
 
   /**
-   * Returns an entry-set above all parameters. The returned set contains the key, and the first
-   * parameter for that key.
+   * Returns an entry-set above all parameters. The returned set contains the key, and the first parameter for that key.
    *
    * @return The entry set.
    */

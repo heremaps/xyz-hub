@@ -19,7 +19,7 @@
 package com.here.naksha.app.service;
 
 import static com.here.naksha.app.common.CommonApiTestSetup.*;
-import static com.here.naksha.app.common.ResponseAssertions.assertThat;
+import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 import static com.here.naksha.app.common.TestUtil.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -29,7 +29,6 @@ import com.here.naksha.app.service.models.FeatureCollectionRequest;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzReference;
-import com.here.naksha.lib.core.models.naksha.Space;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -40,9 +39,6 @@ import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.skyscreamer.jsonassert.JSONAssert;
-import org.skyscreamer.jsonassert.JSONCompareMode;
-import org.skyscreamer.jsonassert.comparator.ArraySizeComparator;
 
 public class ValDryRunTest extends ApiTest {
 
@@ -52,11 +48,11 @@ public class ValDryRunTest extends ApiTest {
 
   @BeforeAll
   static void setup() throws URISyntaxException, IOException, InterruptedException {
-    createHandler(nakshaClient, "ValDryRun/setup", "create_context_loader_handler.json");
-    createHandler(nakshaClient, "ValDryRun/setup", "create_validation_handler.json");
-    createHandler(nakshaClient, "ValDryRun/setup", "create_endorsement_handler.json");
-    createHandler(nakshaClient, "ValDryRun/setup", "create_echo_handler.json");
-    createSpace(nakshaClient, "ValDryRun/setup");
+    createHandler(nakshaClient, "ValDryRun/setup/create_context_loader_handler.json");
+    createHandler(nakshaClient, "ValDryRun/setup/create_validation_handler.json");
+    createHandler(nakshaClient, "ValDryRun/setup/create_endorsement_handler.json");
+    createHandler(nakshaClient, "ValDryRun/setup/create_echo_handler.json");
+    createSpace(nakshaClient, "ValDryRun/setup/create_space.json");
   }
 
   private void additionalCustomAssertions_tc3000(final @NotNull String reqBody, final @NotNull String resBody)

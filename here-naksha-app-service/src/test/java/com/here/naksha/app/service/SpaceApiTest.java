@@ -18,7 +18,7 @@
  */
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.common.ResponseAssertions.assertThat;
+import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static com.here.naksha.app.common.TestUtil.getHeader;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
@@ -26,7 +26,6 @@ import static com.here.naksha.app.common.TestUtil.parseJson;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.here.naksha.app.common.ApiTest;
-import com.here.naksha.app.common.ResponseAssertions;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import com.here.naksha.lib.core.models.naksha.Space;

@@ -33,6 +33,8 @@ import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.psql.PsqlStorage;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Abstract event handler responsible for processing admin resources (like Storage or EventHandler)
@@ -40,6 +42,8 @@ import org.jetbrains.annotations.NotNull;
  * @param <FEATURE> type of admin resource handled by this handler
  */
 abstract class AdminFeatureEventHandler<FEATURE extends XyzFeature> extends AbstractEventHandler {
+
+  private static final Logger logger = LoggerFactory.getLogger(AdminFeatureEventHandler.class);
 
   private final Class<FEATURE> featureClass;
 
@@ -75,6 +79,11 @@ abstract class AdminFeatureEventHandler<FEATURE extends XyzFeature> extends Abst
           final Result result = writer.execute(wr);
           if (result instanceof SuccessResult) {
             writer.commit(true);
+          } else {
+            logger.warn(
+                "Failed writing feature request to admin storage, expected success but got: {}",
+                result);
+            writer.rollback(true);
           }
           return result;
         }

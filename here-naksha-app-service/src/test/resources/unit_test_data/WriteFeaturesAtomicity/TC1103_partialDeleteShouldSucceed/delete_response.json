@@ -1,0 +1,17 @@
+{
+  "type": "FeatureCollection",
+  "deleted": [
+    "tc_1103_feature_1",
+    "tc_1103_feature_2"
+  ],
+  "features": [
+    {
+      "type": "Feature",
+      "id": "tc_1103_feature_1"
+    },
+    {
+      "type": "Feature",
+      "id": "tc_1103_feature_2"
+    }
+  ]
+}

@@ -23,14 +23,13 @@ import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
 
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
-import com.here.naksha.app.common.ResponseAssertions;
+import com.here.naksha.app.common.assertions.ResponseAssertions;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.http.HttpResponse;
 import java.util.UUID;
 import org.json.JSONException;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 
 class SearchFeaturesTest extends ApiTest {

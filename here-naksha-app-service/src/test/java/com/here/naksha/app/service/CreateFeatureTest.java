@@ -19,7 +19,7 @@
 package com.here.naksha.app.service;
 
 import static com.here.naksha.app.common.CommonApiTestSetup.setupSpaceAndRelatedResources;
-import static com.here.naksha.app.common.ResponseAssertions.assertThat;
+import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static com.here.naksha.app.common.TestUtil.getHeader;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;
@@ -48,7 +48,6 @@ import org.jetbrains.annotations.Nullable;
 import org.json.JSONException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.skyscreamer.jsonassert.JSONCompareMode;

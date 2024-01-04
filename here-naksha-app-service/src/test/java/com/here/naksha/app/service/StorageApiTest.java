@@ -18,7 +18,7 @@
  */
 package com.here.naksha.app.service;
 
-import static com.here.naksha.app.common.ResponseAssertions.assertThat;
+import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 import static com.here.naksha.app.common.TestUtil.HDR_STREAM_ID;
 import static com.here.naksha.app.common.TestUtil.getHeader;
 import static com.here.naksha.app.common.TestUtil.loadFileOrFail;

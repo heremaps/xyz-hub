@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
-import com.here.naksha.app.common.ResponseAssertions;
+import com.here.naksha.app.common.assertions.ResponseAssertions;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
 import java.io.IOException;
@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.UUID;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 
 class ReadFeaturesByIdsTest extends ApiTest {

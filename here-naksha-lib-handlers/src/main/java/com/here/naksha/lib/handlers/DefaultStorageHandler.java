@@ -167,6 +167,12 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final Result result = writer.execute(wf);
       if (result instanceof SuccessResult) {
         writer.commit(true);
+      } else {
+        logger.warn(
+            "Failed writing features to collection {}, expected success but got: {}",
+            wf.getCollectionId(),
+            result);
+        writer.rollback(true);
       }
       return result;
     } catch (RuntimeException re) {
@@ -196,7 +202,11 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       if (result instanceof SuccessResult) {
         writer.commit(true);
       } else {
-        logger.error("Unexpected result while creating collection {}. Result - {}", collectionIds, result);
+        logger.error(
+            "Unexpected result while creating collection {}. Result - {}. Executing rollback",
+            collectionIds,
+            result);
+        writer.rollback(true);
         throw unchecked(new Exception("Failed creating collection " + collectionIds));
       }
     }

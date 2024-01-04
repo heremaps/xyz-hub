@@ -102,6 +102,7 @@ val jayway_restassured = "com.jayway.restassured:rest-assured:2.9.0"
 val assertj_core = "org.assertj:assertj-core:3.24.2"
 val awaitility = "org.awaitility:awaitility:4.2.0"
 val junit_jupiter = "org.junit.jupiter:junit-jupiter:5.9.2"
+val junit_params = "org.junit.jupiter:junit-jupiter-params:5.9.2"
 val mockito = "org.mockito:mockito-core:5.8.0"
 
 val flipkart_zjsonpatch = "com.flipkart.zjsonpatch:zjsonpatch:0.4.13"
@@ -279,6 +280,7 @@ subprojects {
     }
     dependencies {
         testImplementation(junit_jupiter)
+        testImplementation(junit_params)
     }
 }
 

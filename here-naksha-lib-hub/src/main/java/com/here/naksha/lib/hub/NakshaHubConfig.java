@@ -18,8 +18,6 @@
  */
 package com.here.naksha.lib.hub;
 
-import static com.here.naksha.lib.core.NakshaLogger.currentLogger;
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -35,12 +33,16 @@ import java.net.UnknownHostException;
 import java.util.Map;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The Naksha-Hub service configuration.
  */
 @JsonTypeName(value = "Config")
 public final class NakshaHubConfig extends XyzFeature implements JsonSerializable {
+
+  private static final Logger logger = LoggerFactory.getLogger(NakshaHubConfig.class);
 
   /**
    * The default application name, used for example as identifier when accessing the PostgresQL database and to read the configuration file
@@ -51,6 +53,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
 
   /**
    * Returns a default application name used at many placed.
+   *
    * @return The default application name.
    */
   public static @NotNull String defaultAppName() {
@@ -59,6 +62,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
 
   /**
    * Returns a className of default NakshaHub instance
+   *
    * @return The default NakshaHub className
    */
   public static @NotNull String defaultHubClassName() {
@@ -86,9 +90,9 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       @JsonProperty("storageParams") @Nullable Map<String, Object> storageParams) {
     super(id);
     if (httpPort != null && (httpPort < 0 || httpPort > 65535)) {
-      currentLogger()
-          .atError("Invalid port in Naksha configuration: {}")
-          .add(httpPort)
+      logger.atError()
+          .setMessage("Invalid port in Naksha configuration: {}")
+          .addArgument(httpPort)
           .log();
       httpPort = 8080;
     } else if (httpPort == null || httpPort == 0) {
@@ -98,8 +102,8 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       try {
         hostname = InetAddress.getLocalHost().getHostAddress();
       } catch (UnknownHostException e) {
-        currentLogger()
-            .atError("Unable to resolve the hostname using Java's API.")
+        logger.atError()
+            .setMessage("Unable to resolve the hostname using Java's API.")
             .setCause(e)
             .log();
         hostname = "localhost";
@@ -110,9 +114,9 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
       try {
         __endpoint = new URL(endpoint);
       } catch (MalformedURLException e) {
-        currentLogger()
-            .atError("Invalid configuration of endpoint: {}")
-            .add(endpoint)
+        logger.atError()
+            .setMessage("Invalid configuration of endpoint: {}")
+            .addArgument(endpoint)
             .setCause(e)
             .log();
       }
@@ -122,9 +126,9 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
         //noinspection HttpUrlsUsage
         __endpoint = new URL("http://" + hostname + ":" + httpPort);
       } catch (MalformedURLException e) {
-        currentLogger()
-            .atError("Invalid hostname: {}")
-            .add(hostname)
+        logger.atError()
+            .setMessage("Invalid hostname: {}")
+            .addArgument(hostname)
             .setCause(e)
             .log();
         hostname = "localhost";
@@ -258,6 +262,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
 
   /**
    * Returns a default initial delay in mins, for starting Storage Maintenance job.
+   *
    * @return The default interval
    */
   public static int defaultMaintenanceInitialDelayInMins() {
@@ -271,6 +276,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
 
   /**
    * Returns a default interval in mins, for scheduling Storage Maintenance job.
+   *
    * @return The default interval
    */
   public static int defaultMaintenanceIntervalInMins() {
@@ -284,6 +290,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
 
   /**
    * Returns a default initial size of thread pool for running Storage Maintenance jobs in parallel
+   *
    * @return the default core size of maintenance thread pool
    */
   public static int defaultMaintenancePoolCoreSize() {
@@ -297,6 +304,7 @@ public final class NakshaHubConfig extends XyzFeature implements JsonSerializabl
 
   /**
    * Returns a default maximum size of thread pool for running Storage Maintenance jobs in parallel
+   *
    * @return the default max size of maintenance thread pool
    */
   public static int defaultMaintenancePoolMaxSize() {
