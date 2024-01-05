@@ -193,6 +193,7 @@ public class NHSpaceStorageReader implements IReadSession {
   }
 
   private @NotNull Result executeReadCollections(final @NotNull ReadCollections rc) {
+    logger.info("ReadCollections Request for {}, against Admin storage.", rc.getIds());
     try (final IReadSession admin = nakshaHub.getAdminStorage().newReadSession(context, useMaster)) {
       return admin.execute(rc);
     }
@@ -203,6 +204,7 @@ public class NHSpaceStorageReader implements IReadSession {
       throw new UnsupportedOperationException("Reading from multiple spaces not supported!");
     }
     final String spaceId = rf.getCollections().get(0);
+    logger.info("ReadFeatures Request against spaceId={}", spaceId);
     addSpaceIdToStreamInfo(spaceId);
     if (virtualSpaces.containsKey(spaceId)) {
       // Request is to read from Naksha Admin space
@@ -215,12 +217,27 @@ public class NHSpaceStorageReader implements IReadSession {
 
   private @NotNull Result executeReadFeaturesFromAdminSpaces(final @NotNull ReadFeatures rf) {
     // Run pipeline against virtual space
+    final String spaceId = rf.getCollections().get(0);
     final EventPipeline pipeline = pipelineFactory.eventPipeline();
-    // add internal Admin resource specific event handlers
-    for (final IEventHandler handler : virtualSpaces.get(rf.getCollections().get(0))) {
-      pipeline.addEventHandler(handler);
-    }
+    final Result result = setupEventPipelineForAdminVirtualSpace(spaceId, pipeline);
+    if (!(result instanceof SuccessResult)) return result;
     return pipeline.sendEvent(rf);
+  }
+
+  protected @NotNull Result setupEventPipelineForAdminVirtualSpace(
+      final @NotNull String spaceId, final @NotNull EventPipeline pipeline) {
+    // add internal Admin resource specific event handlers
+    final StringBuilder handlerTypes = new StringBuilder();
+    for (final IEventHandler handler : virtualSpaces.get(spaceId)) {
+      pipeline.addEventHandler(handler);
+      if (handlerTypes.length() == 0) {
+        handlerTypes.append(handler.getClass().getSimpleName());
+      } else {
+        handlerTypes.append(",").append(handler.getClass().getSimpleName());
+      }
+    }
+    logger.info("Handler types identified [{}]", handlerTypes);
+    return new SuccessResult();
   }
 
   private @NotNull Result executeReadFeaturesFromCustomSpaces(final @NotNull ReadFeatures rf) {
@@ -256,6 +273,7 @@ public class NHSpaceStorageReader implements IReadSession {
         return new ErrorResult(XyzError.NOT_FOUND, "No associated handler");
       }
 
+      logger.info("Handler IDs identified {}", space.getEventHandlerIds());
       // Get EventHandler Details using Admin Storage
       result = reader.execute(
           readFeaturesByIdsRequest(NakshaAdminCollection.EVENT_HANDLERS, space.getEventHandlerIds()));
@@ -290,9 +308,16 @@ public class NHSpaceStorageReader implements IReadSession {
     // Create pipeline and add all applicable event handlers
     // TODO : AuthorizationHandler will need information about Space storageId as well
     pipeline.addEventHandler(new AuthorizationEventHandler(nakshaHub, space, eventHandlers));
+    final StringBuilder handlerTypes = new StringBuilder();
     for (final IEventHandler handler : handlerImpls) {
       pipeline.addEventHandler(handler);
+      if (handlerTypes.length() == 0) {
+        handlerTypes.append(handler.getClass().getSimpleName());
+      } else {
+        handlerTypes.append(",").append(handler.getClass().getSimpleName());
+      }
     }
+    logger.info("Handler types identified [{}]", handlerTypes);
     return new SuccessResult();
   }
 

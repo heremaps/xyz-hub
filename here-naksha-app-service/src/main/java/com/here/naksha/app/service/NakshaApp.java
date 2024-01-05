@@ -57,6 +57,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 /**
  * The main service instance.
@@ -86,6 +87,7 @@ public final class NakshaApp extends Thread {
       System.exit(1);
     }
     try {
+      MDC.put("streamId", "naksha-app");
       NakshaApp.newInstance(args).start();
     } catch (IllegalArgumentException e) {
       printUsage();

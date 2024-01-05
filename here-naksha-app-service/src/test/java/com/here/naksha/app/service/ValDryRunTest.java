@@ -21,22 +21,15 @@ package com.here.naksha.app.service;
 import static com.here.naksha.app.common.CommonApiTestSetup.*;
 import static com.here.naksha.app.common.assertions.ResponseAssertions.assertThat;
 import static com.here.naksha.app.common.TestUtil.*;
-import static org.junit.jupiter.api.Assertions.*;
 
 import com.here.naksha.app.common.ApiTest;
 import com.here.naksha.app.common.NakshaTestWebClient;
-import com.here.naksha.app.service.models.FeatureCollectionRequest;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzFeatureCollection;
-import com.here.naksha.lib.core.models.geojson.implementation.XyzReference;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.http.HttpResponse;
-import java.util.List;
 import java.util.UUID;
-import org.jetbrains.annotations.NotNull;
-import org.json.JSONException;
+
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -53,28 +46,6 @@ public class ValDryRunTest extends ApiTest {
     createHandler(nakshaClient, "ValDryRun/setup/create_endorsement_handler.json");
     createHandler(nakshaClient, "ValDryRun/setup/create_echo_handler.json");
     createSpace(nakshaClient, "ValDryRun/setup/create_space.json");
-  }
-
-  private void additionalCustomAssertions_tc3000(final @NotNull String reqBody, final @NotNull String resBody)
-      throws JSONException {
-    final FeatureCollectionRequest collectionRequest = parseJson(reqBody, FeatureCollectionRequest.class);
-    final XyzFeatureCollection collectionResponse = parseJson(resBody, XyzFeatureCollection.class);
-    final List<String> updatedIds = collectionResponse.getUpdated();
-    final List<XyzFeature> features = collectionResponse.getFeatures();
-    final List<XyzFeature> violations = collectionResponse.getViolations();
-    assertEquals(
-        updatedIds.size(), features.size(), "Mismatch between updated and features list size in the response");
-    final String newFeatureId = features.get(2).getId();
-    assertNotNull(newFeatureId, "Feature Id must not be null");
-    for (int i = 3; i <= 5; i++) {
-      final XyzFeature violation = violations.get(i);
-      final List<XyzReference> references = violation.getProperties().getReferences();
-      assertNotNull(references, "References missing for violation at idx " + i);
-      for (final XyzReference reference : references) {
-        assertNotNull(reference.getId(), "Id missing in references for violation at idx " + i);
-        assertEquals(newFeatureId, reference.getId(), "Violation referenced featured id doesn't match");
-      }
-    }
   }
 
   @Test
@@ -95,9 +66,13 @@ public class ValDryRunTest extends ApiTest {
     assertThat(response)
             .hasStatus(200)
             .hasStreamIdHeader(streamId)
-            .hasJsonBody(expectedBodyPart, "Validation dry-run response body doesn't match");
-    // Then: Perform additional custom assertions for matching violation references
-    additionalCustomAssertions_tc3000(bodyJson, response.body());
+            .hasJsonBody(expectedBodyPart, "Validation dry-run response body doesn't match")
+            .hasMatchingUpdatedCount(3)
+            .hasUpdatedIdsMatchingFeatureIds(null)
+            .hasFeatureReferencedByViolations(0, new int []{0})
+            .hasFeatureReferencedByViolations(1, new int []{1,2})
+            .hasFeatureReferencedByViolations(2, new int []{3,4,5})
+    ;
   }
 
   @Test
@@ -118,10 +93,9 @@ public class ValDryRunTest extends ApiTest {
     assertThat(response)
             .hasStatus(200)
             .hasStreamIdHeader(streamId)
-            .hasJsonBody(expectedBodyPart, "Validation dry-run response body doesn't match");
-    // Then: Perform additional custom assertions to ensure no violations returned
-    final XyzFeatureCollection collectionResponse = parseJson(response.body(), XyzFeatureCollection.class);
-    assertNull(collectionResponse.getViolations(), "No violations were expected");
+            .hasJsonBody(expectedBodyPart, "Validation dry-run response body doesn't match")
+            .hasNoViolations()
+    ;
   }
 
   @Test

@@ -29,10 +29,11 @@ import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.NoCursor;
 import com.here.naksha.lib.core.lambdas.Fe1;
+import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.geojson.implementation.XyzFeature;
 import com.here.naksha.lib.core.models.naksha.Storage;
-import com.here.naksha.lib.core.models.storage.ErrorResult;
-import com.here.naksha.lib.core.models.storage.Result;
+import com.here.naksha.lib.core.models.naksha.XyzCollection;
+import com.here.naksha.lib.core.models.storage.*;
 import com.here.naksha.lib.core.storage.IReadSession;
 import com.here.naksha.lib.core.storage.IStorage;
 import com.here.naksha.lib.core.storage.IWriteSession;
@@ -42,7 +43,6 @@ import com.here.naksha.lib.core.util.storage.ResultHelper;
 import com.here.naksha.lib.core.view.ViewDeserialize;
 import com.here.naksha.lib.hub.storages.NHAdminStorage;
 import com.here.naksha.lib.hub.storages.NHSpaceStorage;
-import com.here.naksha.lib.psql.EPsqlState;
 import com.here.naksha.lib.psql.PsqlStorage;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -50,7 +50,6 @@ import java.util.Objects;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,6 +87,7 @@ public class NakshaHub implements INaksha {
       final @Nullable NakshaHubConfig customCfg,
       final @Nullable String configId) {
     // create storage instance upfront
+    logger.info("NakshaHub initialization started.");
     this.psqlStorage = new PsqlStorage(PsqlStorage.ADMIN_STORAGE_ID, appName, storageUrl);
     this.adminStorageInstance = new NHAdminStorage(this.psqlStorage);
     this.spaceStorageInstance = new NHSpaceStorage(this, new NakshaEventPipelineFactory(this));
@@ -97,6 +97,7 @@ public class NakshaHub implements INaksha {
       throw new RuntimeException("Server configuration not found! Neither in Admin storage nor a default file.");
     }
     this.nakshaHubConfig = finalCfg;
+    logger.info("NakshaHub initialization done!");
   }
 
   private @Nullable NakshaHubConfig storageSetup(
@@ -109,39 +110,53 @@ public class NakshaHub implements INaksha {
      */
 
     // 1. Init Admin Storage
+    logger.info("Initializing Admin storage (if not already).");
     if (customCfg != null && customCfg.storageParams != null) {
       getAdminStorage().initStorage(customCfg.storageParams);
     } else {
       getAdminStorage().initStorage();
     }
+    logger.info("Admin storage ready.");
 
     // 2. Create all Admin collections in Admin DB
     final NakshaContext nakshaContext = new NakshaContext().withAppId(NakshaHubConfig.defaultAppName());
     nakshaContext.attachToCurrentThread();
     try (final IWriteSession admin = getAdminStorage().newWriteSession(nakshaContext, true)) {
-      try {
-        final Result wrResult = admin.execute(createWriteCollectionsRequest(NakshaAdminCollection.ALL));
-        if (wrResult == null) {
+      logger.info("WriteCollections Request for {}, against Admin storage.", NakshaAdminCollection.ALL);
+      try (final Result wrResult = admin.execute(createWriteCollectionsRequest(NakshaAdminCollection.ALL));
+          final ForwardCursor<XyzCollection, XyzCollectionCodec> cursor =
+              wrResult.getXyzCollectionCursor(); ) {
+        while (cursor.hasNext() && cursor.next()) {
+          if (EExecutedOp.CREATED == cursor.getOp()) {
+            logger.info(
+                "Collection {} successfully created.",
+                cursor.getFeature().getId());
+            continue;
+          } else if (EExecutedOp.ERROR == cursor.getOp()) {
+            if (cursor.getError() != null && cursor.getError().err == XyzError.CONFLICT) {
+              logger.info(
+                  "Collection {} already exists.",
+                  cursor.getFeature().getId());
+              continue;
+            }
+          }
+          logger.error(
+              "Unexpected result while creating Admin collections. Op={}, Error={} ",
+              cursor.getOp(),
+              cursor.getError());
           admin.rollback(true);
-          throw unchecked(new Exception("Unable to create Admin collections in Admin DB. Null result!"));
-        } else if (wrResult instanceof ErrorResult er) {
-          admin.rollback(true);
-          throw unchecked(new Exception(
-              "Unable to create Admin collections in Admin DB. " + er.toString(), er.exception));
+          throw unchecked(new Exception("Unable to create Admin collections in Admin DB."));
         }
-        admin.commit(true);
-      } catch (Exception ex) {
-        if (ex.getCause() instanceof PSQLException pex
-            && pex.getSQLState().equals(EPsqlState.COLLECTION_EXISTS.toString())) {
-          logger.info("Admin collections already exists. {}. So moving to next step.", pex.getMessage());
-        } else {
-          throw ex;
-        }
+      } catch (NoCursor e) {
+        logger.error("Unexpected NoCursor exception while creating Admin collections.", e);
         admin.rollback(true);
+        throw unchecked(new Exception("Unable to create Admin collections in Admin DB."));
       }
+      admin.commit(true);
     } // close Admin DB connection
 
     // 3. run one-time maintenance on Admin DB to ensure history partitions are available
+    logger.info("Running one-time maintenance on Admin storage.");
     getAdminStorage().maintainNow();
 
     // 4. fetch / add latest config
@@ -159,7 +174,7 @@ public class NakshaHub implements INaksha {
      * 3. DB default config - If Database has default config - "default-config", use the same
      * 3. Default config - Fallback to default config from file - "default-config"
      */
-
+    logger.info("Running config setup for Nakshs Hub against Admin storage.");
     try (final IWriteSession admin = getAdminStorage().newWriteSession(nakshaContext, true)) {
       if (customCfg != null) {
         // Custom config provided. Persist in AdminDB.

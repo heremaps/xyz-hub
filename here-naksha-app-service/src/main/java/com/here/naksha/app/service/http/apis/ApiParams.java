@@ -29,6 +29,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 public final class ApiParams {
+  public static String ACCESS_TOKEN = "access_token";
   public static String STORAGE_ID = "storageId";
   public static String SPACE_ID = "spaceId";
   public static String PREFIX_ID = "prefixId";

@@ -18,6 +18,8 @@
  */
 package com.here.naksha.app.service.util.logging;
 
+import static com.here.naksha.app.service.http.NakshaHttpHeaders.STREAM_ID;
+import static com.here.naksha.app.service.http.apis.ApiParams.ACCESS_TOKEN;
 import static io.vertx.core.http.HttpHeaders.ACCEPT;
 import static io.vertx.core.http.HttpHeaders.CONTENT_TYPE;
 import static io.vertx.core.http.HttpHeaders.ORIGIN;
@@ -37,10 +39,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 public class AccessLogUtil {
 
@@ -61,6 +65,39 @@ public class AccessLogUtil {
   private static final Pattern IPV4_PATTERN = Pattern.compile(IPV4_REGEX);
   private static final Pattern IPV6_STD_PATTERN = Pattern.compile(IPV6_STD_REGEX);
   private static final Pattern IPV6_HEX_COMPRESSED_PATTERN = Pattern.compile(IPV6_HEX_COMPRESSED_REGEX);
+
+  private static final String OBSCURE_URI_REGEX = ACCESS_TOKEN + "=.*?(&)|" + ACCESS_TOKEN + "=.*?$";
+  private static final String OBSCURE_URI_REPLACEMENT = ACCESS_TOKEN + "=xxxx$1";
+  private static final Pattern OBSCURE_URI_PATTERN = Pattern.compile(OBSCURE_URI_REGEX);
+
+  private static final Pattern VALID_STREAM_ID_PATTERN = Pattern.compile("^[0-9a-zA-Z.-_\\-]+$");
+
+  public static @Nullable String getObscuredURI(final @NotNull String uri) {
+    return OBSCURE_URI_PATTERN.matcher(uri).replaceAll(OBSCURE_URI_REPLACEMENT);
+  }
+
+  /**
+   * Returns the stream-identifier for this routing context.
+   *
+   * @param routingContext The routing context.
+   * @return The stream-identifier for this routing context.
+   */
+  public static @NotNull String getStreamId(@NotNull RoutingContext routingContext) {
+    if (routingContext.get(STREAM_ID) instanceof String streamId) {
+      return streamId;
+    }
+    final MultiMap headers = routingContext.request().headers();
+    String streamId = headers.get(STREAM_ID);
+    if (streamId != null && !VALID_STREAM_ID_PATTERN.matcher(streamId).matches()) {
+      logger.info("Received invalid HTTP header 'Stream-Id', the provided value '{}' will be replaced", streamId);
+      streamId = null;
+    }
+    if (streamId == null) {
+      streamId = RandomStringUtils.randomAlphanumeric(12);
+    }
+    routingContext.put(STREAM_ID, streamId);
+    return streamId;
+  }
 
   private static String getIp(RoutingContext context) {
     String ips = context.request().getHeader(X_FORWARDED_FOR);
@@ -125,12 +162,16 @@ public class AccessLogUtil {
    */
   public static void addRequestInfo(final @Nullable RoutingContext context) {
     if (context == null) return;
+    final String streamId = getStreamId(context);
     final AccessLog accessLog = getOrCreateAccessLog(context);
     final HttpMethod method = context.request().method();
-    accessLog.reqInfo.method = context.request().method().name();
-    // Remove access_token part from uri for security concerns
     final String uri = context.request().uri();
-    final int endPos = uri.indexOf("?");
+    // Remove access_token part from uri for security concerns
+    MDC.put("streamId", streamId);
+    logger.info("Request {} - {}", method.name(), getObscuredURI(uri));
+
+    accessLog.reqInfo.method = method.name();
+    final int endPos = uri.indexOf("?"); // query parameters not required for now
     accessLog.reqInfo.uri = (endPos > 0) ? uri.substring(0, endPos) : uri;
     accessLog.reqInfo.referer = context.request().getHeader(REFERER);
     accessLog.reqInfo.origin = context.request().getHeader(ORIGIN);

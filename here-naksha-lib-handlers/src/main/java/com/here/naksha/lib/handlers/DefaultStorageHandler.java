@@ -24,6 +24,7 @@ import static com.here.naksha.lib.core.util.storage.RequestHelper.createWriteCol
 import com.here.naksha.lib.core.IEvent;
 import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
+import com.here.naksha.lib.core.exceptions.StorageNotInitialized;
 import com.here.naksha.lib.core.models.XyzError;
 import com.here.naksha.lib.core.models.naksha.EventHandler;
 import com.here.naksha.lib.core.models.naksha.EventHandlerProperties;
@@ -83,10 +84,12 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       logger.error("No storageId configured");
       return new ErrorResult(XyzError.NOT_FOUND, "No storageId configured for handler.");
     }
+    logger.info("Against Storage id={}", storageId);
     addStorageIdToStreamInfo(storageId, ctx);
 
     // Obtain IStorage implementation using NakshaHub
     final IStorage storageImpl = nakshaHub().getStorageById(storageId);
+    logger.info("Using storage implementation [{}]", storageImpl.getClass().getName());
 
     // Find collectionId from EventHandler, from Space, whichever is available first
     String customCollectionId = null;
@@ -113,9 +116,9 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final @NotNull IStorage storageImpl,
       final @Nullable String customCollectionId) {
     if (request instanceof ReadFeatures rf) {
-      return forwardReadFeaturesToStorage(ctx, storageImpl, customCollectionId, rf, false);
+      return forwardReadFeaturesToStorage(ctx, storageImpl, customCollectionId, rf, false, false);
     } else if (request instanceof WriteFeatures<?, ?, ?> wf) {
-      return forwardWriteFeaturesToStorage(ctx, storageImpl, customCollectionId, wf, false);
+      return forwardWriteFeaturesToStorage(ctx, storageImpl, customCollectionId, wf, false, false);
     } else {
       return notImplemented(event);
     }
@@ -126,7 +129,8 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final @NotNull IStorage storageImpl,
       final @Nullable String customCollectionId,
       final @NotNull ReadFeatures rf,
-      final boolean isReattempt) {
+      final boolean isReattemptOnStorage,
+      final boolean isReattemptOnCollection) {
     // overwrite collectionId with custom one if available
     if (customCollectionId != null) {
       rf.setCollections(List.of(customCollectionId));
@@ -135,20 +139,41 @@ public class DefaultStorageHandler extends AbstractEventHandler {
     try (final IReadSession reader = storageImpl.newReadSession(ctx, false)) {
       return reader.execute(rf);
     } catch (RuntimeException re) {
-      if (!isReattempt && re.getCause() instanceof SQLException sqe) {
-        // if it was "table not found" exception, then creation collection and reattempt the request
-        if (EPsqlState.UNDEFINED_TABLE.toString().equals(sqe.getSQLState())) {
-          logger.warn(
-              "Collection not found for {}, so we will attempt collection creation and then reattempt read request.",
-              rf.getCollections());
-          createXyzCollections(ctx, storageImpl, rf.getCollections());
-          return forwardReadFeaturesToStorage(ctx, storageImpl, customCollectionId, rf, true);
-        } else {
-          throw re;
-        }
+      return reattemptReadFeaturesBasedOnException(
+          ctx, storageImpl, customCollectionId, rf, isReattemptOnStorage, isReattemptOnCollection, re);
+    }
+  }
+
+  @NotNull
+  private Result reattemptReadFeaturesBasedOnException(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @Nullable String customCollectionId,
+      final @NotNull ReadFeatures rf,
+      final boolean isReattemptOnStorage,
+      final boolean isReattemptOnCollection,
+      final @NotNull RuntimeException re) {
+    if (!isReattemptOnStorage && re instanceof StorageNotInitialized) {
+      // Storage is not initialized yet
+      logger.info("Initializing Storage before reattempting read request.");
+      storageImpl.initStorage();
+      logger.info("Storage initialized");
+      return forwardReadFeaturesToStorage(
+          ctx, storageImpl, customCollectionId, rf, true, isReattemptOnCollection);
+    } else if (!isReattemptOnCollection && re.getCause() instanceof SQLException sqe) {
+      // if it was "table not found" exception, then creation collection and reattempt the request
+      if (EPsqlState.UNDEFINED_TABLE.toString().equals(sqe.getSQLState())) {
+        logger.warn(
+            "Collection not found for {}, so we will attempt collection creation and then reattempt read request.",
+            rf.getCollections());
+        createXyzCollections(ctx, storageImpl, rf.getCollections());
+        return forwardReadFeaturesToStorage(
+            ctx, storageImpl, customCollectionId, rf, isReattemptOnStorage, true);
       } else {
         throw re;
       }
+    } else {
+      throw re;
     }
   }
 
@@ -157,7 +182,8 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       final @NotNull IStorage storageImpl,
       final @Nullable String customCollectionId,
       final @NotNull WriteFeatures<?, ?, ?> wf,
-      final boolean isReattempt) {
+      final boolean isReattemptOnStorage,
+      final boolean isReattemptOnCollection) {
     // overwrite collectionId with custom one if available
     if (customCollectionId != null) {
       wf.setCollectionId(customCollectionId);
@@ -176,20 +202,41 @@ public class DefaultStorageHandler extends AbstractEventHandler {
       }
       return result;
     } catch (RuntimeException re) {
-      if (!isReattempt && re.getCause() instanceof SQLException sqe) {
-        // if it was "table not found" exception, then creation collection and reattempt the request
-        if (EPsqlState.COLLECTION_DOES_NOT_EXIST.toString().equals(sqe.getSQLState())) { // N0002
-          logger.warn(
-              "Collection not found for {}, so we will attempt collection creation and then reattempt write request.",
-              wf.getCollectionId());
-          createXyzCollections(ctx, storageImpl, List.of(wf.getCollectionId()));
-          return forwardWriteFeaturesToStorage(ctx, storageImpl, customCollectionId, wf, true);
-        } else {
-          throw re;
-        }
+      return reattemptWriteFeaturesBasedOnException(
+          ctx, storageImpl, customCollectionId, wf, isReattemptOnStorage, isReattemptOnCollection, re);
+    }
+  }
+
+  @NotNull
+  private Result reattemptWriteFeaturesBasedOnException(
+      final @NotNull NakshaContext ctx,
+      final @NotNull IStorage storageImpl,
+      final @Nullable String customCollectionId,
+      final @NotNull WriteFeatures<?, ?, ?> wf,
+      final boolean isReattemptOnStorage,
+      final boolean isReattemptOnCollection,
+      final @NotNull RuntimeException re) {
+    if (!isReattemptOnStorage && re instanceof StorageNotInitialized) {
+      // Storage is not initialized yet
+      logger.info("Initializing Storage before reattempting write request.");
+      storageImpl.initStorage();
+      logger.info("Storage initialized");
+      return forwardWriteFeaturesToStorage(
+          ctx, storageImpl, customCollectionId, wf, true, isReattemptOnCollection);
+    } else if (!isReattemptOnCollection && re.getCause() instanceof SQLException sqe) {
+      // if it was "table not found" exception, then creation collection and reattempt the request
+      if (EPsqlState.COLLECTION_DOES_NOT_EXIST.toString().equals(sqe.getSQLState())) { // N0002
+        logger.warn(
+            "Collection not found for {}, so we will attempt collection creation and then reattempt write request.",
+            wf.getCollectionId());
+        createXyzCollections(ctx, storageImpl, List.of(wf.getCollectionId()));
+        return forwardWriteFeaturesToStorage(
+            ctx, storageImpl, customCollectionId, wf, isReattemptOnStorage, true);
       } else {
         throw re;
       }
+    } else {
+      throw re;
     }
   }
 

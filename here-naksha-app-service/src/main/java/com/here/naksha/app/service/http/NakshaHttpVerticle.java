@@ -70,7 +70,6 @@ import com.here.naksha.lib.core.util.StreamInfo;
 import com.here.naksha.lib.hub.NakshaHubConfig;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.vertx.core.Handler;
-import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpConnection;
@@ -97,7 +96,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.regex.Pattern;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -429,32 +427,6 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   private static final Pattern FATAL_ERROR_MSG_PATTERN = Pattern.compile("^[0-9a-zA-Z.-_\\-]+$");
 
   /**
-   * Returns the stream-identifier for this routing context.
-   *
-   * @param routingContext The routing context.
-   * @return The stream-identifier for this routing context.
-   */
-  public @NotNull String streamId(@NotNull RoutingContext routingContext) {
-    if (routingContext.get(STREAM_ID) instanceof String streamId) {
-      return streamId;
-    }
-    final MultiMap headers = routingContext.request().headers();
-    String streamId = headers.get(STREAM_ID);
-    if (streamId != null && !FATAL_ERROR_MSG_PATTERN.matcher(streamId).matches()) {
-      log.atInfo()
-          .setMessage("Received invalid HTTP header 'Stream-Id', the provided value '{}' is not allowed")
-          .addArgument(streamId)
-          .log();
-      streamId = null;
-    }
-    if (streamId == null) {
-      streamId = RandomStringUtils.randomAlphanumeric(12);
-    }
-    routingContext.put(STREAM_ID, streamId);
-    return streamId;
-  }
-
-  /**
    * Send an error response for the given XyzError.
    *
    * @param routingContext The routing context for which to send the response.
@@ -466,7 +438,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       final @NotNull RoutingContext routingContext,
       final @NotNull XyzError xyzError,
       final @NotNull String message) {
-    final ErrorResponse response = new ErrorResponse(xyzError, message, streamId(routingContext));
+    final ErrorResponse response = new ErrorResponse(xyzError, message, AccessLogUtil.getStreamId(routingContext));
     sendRawResponse(
         routingContext,
         mapErrorToHttpStatus(response.getError()),
@@ -482,7 +454,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
    * @param throwable      The exception for which to send an error response.
    */
   public void sendErrorResponse(@NotNull RoutingContext routingContext, @NotNull Throwable throwable) {
-    final String streamId = streamId(routingContext);
+    final String streamId = AccessLogUtil.getStreamId(routingContext);
     try {
       final ErrorResponse response;
       final HttpResponseStatus httpStatus;
@@ -688,7 +660,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
         + "\"type\": \"ErrorResponse\",\n"
         + "\"error\": \"Exception\",\n"
         + "\"errorMessage\": \"" + errorMessage + "\",\n"
-        + "\"streamId\": \"" + streamId(routingContext) + "\"\n"
+        + "\"streamId\": \"" + AccessLogUtil.getStreamId(routingContext) + "\"\n"
         + "}";
     sendRawResponse(
         routingContext, HttpResponseStatus.INTERNAL_SERVER_ERROR, APPLICATION_JSON, Buffer.buffer(content));
@@ -709,7 +681,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
       @Nullable Buffer content) {
     final HttpServerResponse httpResponse = routingContext.response();
     httpResponse.setStatusCode(status.code()).setStatusMessage(status.reasonPhrase());
-    httpResponse.putHeader(STREAM_ID, streamId(routingContext));
+    httpResponse.putHeader(STREAM_ID, AccessLogUtil.getStreamId(routingContext));
     if (content == null || content.length() == 0) {
       httpResponse.end();
     } else {
@@ -724,7 +696,7 @@ public final class NakshaHttpVerticle extends AbstractNakshaHubVerticle {
   }
 
   public @NotNull NakshaContext createNakshaContext(final @NotNull RoutingContext routingContext) {
-    final NakshaContext ctx = new NakshaContext(streamId(routingContext));
+    final NakshaContext ctx = new NakshaContext(AccessLogUtil.getStreamId(routingContext));
     ctx.setAppId(hubConfig.appId);
     // add streamInfo object to NakshaContext, which will be populated later during pipeline execution
     ctx.attachStreamInfo(AccessLogUtil.getStreamInfo(routingContext));

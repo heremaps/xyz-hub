@@ -68,10 +68,9 @@ class ReadFeaturesByIdsTest extends ApiTest {
     ResponseAssertions.assertThat(response)
         .hasStatus(200)
         .hasStreamIdHeader(streamId)
-        .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
-
-    // Then: also match individual JSON attributes (in addition to whole object comparison above)
-    additionalCustomAssertions(response.body());
+        .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match")
+        .hasUuids()
+    ;
   }
 
   @Test
@@ -217,19 +216,9 @@ class ReadFeaturesByIdsTest extends ApiTest {
     ResponseAssertions.assertThat(response)
         .hasStatus(200)
         .hasStreamIdHeader(streamId)
-        .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match");
-
-    // Then: also match individual JSON attributes (in addition to whole object comparison above)
-    additionalCustomAssertions(response.body());
+        .hasJsonBody(expectedBodyPart, "Get Feature response body doesn't match")
+        .hasUuids()
+    ;
   }
 
-  private void additionalCustomAssertions(final @NotNull String resBody) {
-    final XyzFeatureCollection collectionResponse = parseJson(resBody, XyzFeatureCollection.class);
-    final List<XyzFeature> features = collectionResponse.getFeatures();
-    for (int i = 0; i < features.size(); i++) {
-      assertNotNull(
-          features.get(i).getProperties().getXyzNamespace().getUuid(),
-          "UUID found missing in response for feature at idx : " + i);
-    }
-  }
 }

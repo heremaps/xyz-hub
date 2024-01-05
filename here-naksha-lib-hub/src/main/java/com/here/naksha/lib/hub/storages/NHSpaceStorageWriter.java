@@ -24,6 +24,7 @@ import com.here.naksha.lib.core.INaksha;
 import com.here.naksha.lib.core.NakshaContext;
 import com.here.naksha.lib.core.NakshaVersion;
 import com.here.naksha.lib.core.exceptions.StorageLockException;
+import com.here.naksha.lib.core.models.naksha.NakshaFeature;
 import com.here.naksha.lib.core.models.storage.Result;
 import com.here.naksha.lib.core.models.storage.SuccessResult;
 import com.here.naksha.lib.core.models.storage.WriteCollections;
@@ -32,6 +33,7 @@ import com.here.naksha.lib.core.models.storage.WriteRequest;
 import com.here.naksha.lib.core.storage.IStorageLock;
 import com.here.naksha.lib.core.storage.IWriteSession;
 import com.here.naksha.lib.hub.EventPipelineFactory;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -74,6 +76,13 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
   }
 
   private @NotNull Result executeWriteCollections(final @NotNull WriteCollections wc) {
+    final List<String> collectionIds = new ArrayList<>();
+    for (final Object obj : wc.features) {
+      if (obj instanceof NakshaFeature feature) {
+        collectionIds.add(feature.getId());
+      }
+    }
+    logger.info("WriteCollections Request for {}, against Admin storage.", collectionIds);
     try (final IWriteSession admin = nakshaHub.getAdminStorage().newWriteSession(context, useMaster)) {
       return admin.execute(wc);
     }
@@ -81,6 +90,7 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
 
   private @NotNull Result executeWriteFeatures(final @NotNull WriteFeatures wf) {
     final String spaceId = wf.getCollectionId();
+    logger.info("WriteFeatures Request against spaceId={}", spaceId);
     addSpaceIdToStreamInfo(spaceId);
     if (virtualSpaces.containsKey(spaceId)) {
       // Request is to write to Naksha Admin space
@@ -93,11 +103,10 @@ public class NHSpaceStorageWriter extends NHSpaceStorageReader implements IWrite
 
   private @NotNull Result executeWriteFeaturesToAdminSpaces(final @NotNull WriteFeatures<?, ?, ?> wf) {
     // Run pipeline against virtual space
+    final String spaceId = wf.getCollectionId();
     final EventPipeline pipeline = pipelineFactory.eventPipeline();
-    // add internal Admin resource specific event handlers
-    for (final IEventHandler handler : virtualSpaces.get(wf.getCollectionId())) {
-      pipeline.addEventHandler(handler);
-    }
+    final Result result = setupEventPipelineForAdminVirtualSpace(spaceId, pipeline);
+    if (!(result instanceof SuccessResult)) return result;
     return pipeline.sendEvent(wf);
   }
 

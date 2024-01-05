@@ -95,7 +95,8 @@ public class EventPipeline extends NakshaBound {
       try {
         return handler.processEvent(this);
       } catch (Throwable t) {
-        final String msg = "Event processing failed at handler #" + (next - 1);
+        final String msg = "Event processing failed at handler #" + (next - 1) + " ["
+            + handler.getClass().getSimpleName() + "]. " + t.getMessage();
         log.atWarn().setMessage(msg).setCause(t).log();
         return new ErrorResult(XyzError.EXCEPTION, msg, t);
       }
