@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ public class JTSConverterTest {
     Feature feature = new ObjectMapper().readValue(featureText, Feature.class);
 
     Geometry sourceGeometry = feature.getGeometry();
-    com.vividsolutions.jts.geom.Geometry jtsGeometry = JTSHelper.toGeometry(sourceGeometry);
+    org.locationtech.jts.geom.Geometry jtsGeometry = JTSHelper.toGeometry(sourceGeometry);
     Geometry targetGeometry = JTSHelper.fromGeometry(jtsGeometry);
 
     assertNotNull(targetGeometry);

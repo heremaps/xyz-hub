@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2019 HERE Europe B.V.
+ * Copyright (C) 2017-2024 HERE Europe B.V.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ public class Polygon extends GeometryItem {
   }
 
   @Override
-  protected com.vividsolutions.jts.geom.Geometry convertToJTSGeometry() {
+  protected org.locationtech.jts.geom.Geometry convertToJTSGeometry() {
     return JTSHelper.toPolygon(this.coordinates);
   }
 
