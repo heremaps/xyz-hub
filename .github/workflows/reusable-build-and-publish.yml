@@ -18,6 +18,7 @@ env:
   SERVICE_JAR_DIR: ${{ github.workspace }}/build/libs
   CODEDEPLOY_DIR: ${{ github.workspace }}/deployment/codedeploy
   GITHUB_CODEDEPLOY_ARTIFACT_NAME: codedeploy-artifact
+  NAKSHA_LOCAL_TEST_CONTEXT: TEST_CONTAINERS
 
 jobs:
   main:
@@ -26,20 +27,20 @@ jobs:
       pipeline-artifact-name: ${{ steps.save-artifact-name.outputs.name }}
       app-version: ${{ steps.save-app-version.outputs.version }}
       codedeploy-artifact-version: ${{ steps.save-artifact-version.outputs.version }}
-    services:
-      postgres:
-        image: postgis/postgis # Postgres with PostGIS extension
-        env:
-          POSTGRES_PASSWORD: password
-          POSTGRES_USER: postgres
-          POSTGRES_DB: postgres
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+#    services:
+#      postgres:
+#        image: postgis/postgis # Postgres with PostGIS extension
+#        env:
+#          POSTGRES_PASSWORD: password
+#          POSTGRES_USER: postgres
+#          POSTGRES_DB: postgres
+#        options: >-
+#          --health-cmd pg_isready
+#          --health-interval 10s
+#          --health-timeout 5s
+#          --health-retries 5
+#        ports:
+#          - 5432:5432
     steps:
       - run: echo "[${{ github.triggering_actor }}] triggered [${{ github.event_name }}] event on ${{ github.ref_type }}/PR# [${{ github.ref_name }}]"
       - run: echo "🎉 This job is running on a ${{ runner.os }} server hosted by GitHub!"
